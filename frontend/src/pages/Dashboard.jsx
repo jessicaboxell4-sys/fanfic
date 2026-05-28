@@ -5,7 +5,7 @@ import Navbar from "../components/Navbar";
 import BookCard from "../components/BookCard";
 import UploadZone from "../components/UploadZone";
 import SelectionBar from "../components/SelectionBar";
-import { Search, X, Plus, ArrowRight, CheckSquare } from "lucide-react";
+import { Search, X, Plus, ArrowRight, CheckSquare, Sparkles, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 const DEFAULT_CATEGORIES = ["All", "Fanfiction", "Original Fiction", "Non-fiction", "Unclassified"];
@@ -23,6 +23,26 @@ export default function Dashboard() {
   const [addingCat, setAddingCat] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
+  const [reclassifyingAll, setReclassifyingAll] = useState(false);
+
+  const unclassifiedCount = useMemo(() => {
+    const row = (stats.categories || []).find((c) => c.name === "Unclassified");
+    return row ? row.count : 0;
+  }, [stats]);
+
+  const reclassifyAll = async () => {
+    if (!window.confirm(`Send ${unclassifiedCount} Unclassified book${unclassifiedCount === 1 ? "" : "s"} to the AI for sorting? This may take a moment.`)) return;
+    setReclassifyingAll(true);
+    try {
+      const { data } = await api.post("/books/reclassify-all", { only_unclassified: true });
+      toast.success(`AI sorted ${data.changed} of ${data.processed} book${data.processed === 1 ? "" : "s"}`);
+      await load();
+    } catch (e) {
+      toast.error("Couldn't reclassify with AI");
+    } finally {
+      setReclassifyingAll(false);
+    }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -72,6 +92,45 @@ export default function Dashboard() {
         <div className="mb-10">
           <UploadZone onUploaded={load} />
         </div>
+
+        {unclassifiedCount > 0 && (
+          <div
+            data-testid="reclassify-all-banner"
+            className="mb-8 shelf-card p-5 flex flex-wrap items-center justify-between gap-4 bg-gradient-to-r from-[#FDF3E1] to-white border-[#E07A5F]/30"
+          >
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-lg bg-[#E07A5F]/10 text-[#E07A5F] flex items-center justify-center flex-shrink-0">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="font-serif text-xl text-[#2C2C2C] leading-tight">
+                  {unclassifiedCount} book{unclassifiedCount === 1 ? "" : "s"} still need{unclassifiedCount === 1 ? "s" : ""} a shelf
+                </p>
+                <p className="text-sm text-[#6B705C] mt-1">
+                  Let Claude read the metadata and file each one for you.
+                </p>
+              </div>
+            </div>
+            <button
+              data-testid="reclassify-all-btn"
+              onClick={reclassifyAll}
+              disabled={reclassifyingAll}
+              className="btn-primary text-sm flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {reclassifyingAll ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Sorting…
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4" />
+                  Sort with AI
+                </>
+              )}
+            </button>
+          </div>
+        )}
 
         {showEmpty ? (
           <div className="text-center py-16">

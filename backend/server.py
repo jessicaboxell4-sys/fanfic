@@ -723,6 +723,65 @@ class ReclassifyBody(BaseModel):
     use_ai: bool = True
 
 
+class ReclassifyAllBody(BaseModel):
+    only_unclassified: bool = True
+    category: Optional[str] = None
+    fandom: Optional[str] = None
+
+
+@api_router.post("/books/reclassify-all")
+async def reclassify_all(body: ReclassifyAllBody, user: User = Depends(get_current_user)):
+    """Run the AI classifier on every matching book, then persist the new labels."""
+    query: Dict[str, Any] = {"user_id": user.user_id}
+    if body.only_unclassified:
+        query["category"] = "Unclassified"
+    else:
+        if body.category:
+            query["category"] = body.category
+        if body.fandom:
+            query["fandom"] = body.fandom
+
+    books = await db.books.find(query, {"_id": 0}).to_list(5000)
+    if not books:
+        return {"processed": 0, "changed": 0}
+
+    user_dir = STORAGE_DIR / user.user_id
+    sem = asyncio.Semaphore(3)  # cap concurrent AI calls
+
+    async def process(b):
+        async with sem:
+            fp = user_dir / f"{b['book_id']}.epub"
+            if not fp.exists():
+                return None
+            try:
+                meta = extract_epub_metadata(fp)
+                cls = await classify_with_ai(meta)
+            except Exception as e:
+                logger.error(f"AI reclass error for {b['book_id']}: {e}")
+                return None
+            if cls['confidence'] <= 0:
+                return None
+            return (b['book_id'], cls)
+
+    results = await asyncio.gather(*[process(b) for b in books])
+    changed = 0
+    for r in results:
+        if not r:
+            continue
+        bid, cls = r
+        await db.books.update_one(
+            {"book_id": bid, "user_id": user.user_id},
+            {"$set": {
+                "category": cls['category'],
+                "fandom": cls.get('fandom'),
+                "confidence": cls['confidence'],
+                "classifier": cls['classifier'],
+            }},
+        )
+        changed += 1
+    return {"processed": len(books), "changed": changed}
+
+
 @api_router.post("/books/{book_id}/reclassify")
 async def reclassify_book(book_id: str, body: ReclassifyBody, user: User = Depends(get_current_user)):
     book = await db.books.find_one({"book_id": book_id, "user_id": user.user_id}, {"_id": 0})
