@@ -1078,6 +1078,42 @@ async def book_stats(user: User = Depends(get_current_user)):
     }
 
 
+@api_router.get("/books/export/unavailable")
+async def export_unavailable_list(user: User = Depends(get_current_user)):
+    """A plain .txt list of every book FicHub couldn't find — for manual lookup."""
+    books = await db.books.find(
+        {"user_id": user.user_id, "fichub_unavailable": True},
+        {"_id": 0},
+    ).sort("title", 1).to_list(5000)
+
+    lines: List[str] = []
+    lines.append("Shelfsort — books FicHub couldn't find online")
+    lines.append(f"Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
+    lines.append(f"Count: {len(books)}")
+    lines.append("=" * 70)
+    lines.append("")
+    if not books:
+        lines.append("(none — every refreshable book updated successfully)")
+    else:
+        for i, b in enumerate(books, 1):
+            shelf = b.get("category") or "Uncategorized"
+            if shelf == "Fanfiction" and b.get("fandom"):
+                shelf = f"Fanfiction / {b['fandom']}"
+            lines.append(f"{i}. {b.get('title') or '(untitled)'}")
+            lines.append(f"   Author:      {b.get('author') or 'Unknown'}")
+            lines.append(f"   Shelf:       {shelf}")
+            if b.get("source_url"):
+                lines.append(f"   Source URL:  {b['source_url']}")
+            if b.get("fichub_last_error"):
+                lines.append(f"   FicHub said: {b['fichub_last_error']}")
+            if b.get("fichub_last_attempt_at"):
+                lines.append(f"   Last tried:  {b['fichub_last_attempt_at']}")
+            lines.append("")
+    body = "\n".join(lines) + "\n"
+    headers = {"Content-Disposition": "attachment; filename=shelfsort_cant_find_online.txt"}
+    return Response(content=body, media_type="text/plain; charset=utf-8", headers=headers)
+
+
 @api_router.get("/books/refresh-status")
 async def refresh_status(user: User = Depends(get_current_user)):
     """How many books in the library can be refreshed from a known fanfic source?"""

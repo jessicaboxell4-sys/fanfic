@@ -330,6 +330,16 @@ export default function Dashboard() {
                   🚫 Can't find online · {refreshStatus.unavailable}
                 </button>
               )}
+              {smart === "unavailable" && refreshStatus.unavailable > 0 && (
+                <button
+                  data-testid="export-unavailable-btn"
+                  onClick={() => window.open(`${process.env.REACT_APP_BACKEND_URL}/api/books/export/unavailable`, "_blank")}
+                  className="px-4 py-1.5 rounded-full text-sm font-medium border bg-white border-[#E8E6E1] text-[#2C2C2C] hover:bg-[#F5F3EC] transition-colors flex items-center gap-1.5"
+                  title="Download a .txt list with titles, authors, and source URLs"
+                >
+                  ⤓ Download list (.txt)
+                </button>
+              )}
               {customCats.map(c => (
                 <span
                   key={c}
