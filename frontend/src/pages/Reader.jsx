@@ -21,6 +21,24 @@ export default function Reader() {
   const [error, setError] = useState(null);
   const renditionRef = useRef(null);
   const savedLocationRef = useRef(null);
+  const progressTimerRef = useRef(null);
+  const lastProgressRef = useRef(null);
+
+  const sendProgress = useCallback((cfi) => {
+    try {
+      const book = renditionRef.current?.book;
+      if (!book?.locations?.length || book.locations.length() === 0) return;
+      const pct = book.locations.percentageFromCfi(cfi);
+      if (pct == null || Number.isNaN(pct)) return;
+      // Debounce — only POST after 1.2s of no further movement, and only on change
+      if (Math.abs((lastProgressRef.current ?? -1) - pct) < 0.005) return;
+      lastProgressRef.current = pct;
+      if (progressTimerRef.current) clearTimeout(progressTimerRef.current);
+      progressTimerRef.current = setTimeout(() => {
+        api.post(`/books/${id}/progress`, { percent: pct, cfi }).catch(() => {});
+      }, 1200);
+    } catch (e) {}
+  }, [id]);
 
   useEffect(() => {
     try {
@@ -56,7 +74,8 @@ export default function Reader() {
   const onLocationChanged = useCallback((loc) => {
     setLocation(loc);
     try { window.localStorage.setItem(`shelfsort-loc-${id}`, String(loc)); } catch (e) {}
-  }, [id]);
+    if (loc) sendProgress(loc);
+  }, [id, sendProgress]);
 
   const applyFont = useCallback((size) => {
     try {
@@ -79,6 +98,23 @@ export default function Reader() {
 
   const getRendition = (rendition) => {
     renditionRef.current = rendition;
+
+    // Generate (or load cached) CFI locations so we can compute reading %
+    const book = rendition.book;
+    if (book) {
+      const cacheKey = `shelfsort-locs-${id}`;
+      const cached = (() => { try { return window.localStorage.getItem(cacheKey); } catch (e) { return null; } })();
+      if (cached) {
+        try { book.locations.load(cached); } catch (e) {}
+      } else {
+        book.ready.then(() => book.locations.generate(1600)).then(() => {
+          try { window.localStorage.setItem(cacheKey, book.locations.save()); } catch (e) {}
+          // After locations are generated, push current progress once.
+          if (location) sendProgress(location);
+        }).catch(() => {});
+      }
+    }
+
     rendition.themes.register("paper", {
       "body": {
         "color": "#2C2C2C",

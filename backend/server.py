@@ -1003,6 +1003,30 @@ async def refresh_all(user: User = Depends(get_current_user)):
     return {"eligible": len(eligible), "refreshed": refreshed, "failures": failures}
 
 
+class ProgressBody(BaseModel):
+    percent: float
+    cfi: Optional[str] = None
+
+
+@api_router.post("/books/{book_id}/progress")
+async def update_progress(book_id: str, body: ProgressBody, user: User = Depends(get_current_user)):
+    """Persist reading progress (0.0-1.0) and last CFI for this book."""
+    pct = max(0.0, min(1.0, float(body.percent)))
+    update: Dict[str, Any] = {
+        "progress_percent": pct,
+        "last_opened_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if body.cfi:
+        update["progress_cfi"] = body.cfi
+    result = await db.books.update_one(
+        {"book_id": book_id, "user_id": user.user_id},
+        {"$set": update},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    return {"ok": True, "percent": pct}
+
+
 @api_router.post("/books/{book_id}/touch")
 async def touch_book(book_id: str, user: User = Depends(get_current_user)):
     """Mark the book as opened just now (used for the Continue Reading rail)."""

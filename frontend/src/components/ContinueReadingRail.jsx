@@ -60,10 +60,23 @@ export default function ContinueReadingRail({ books }) {
                     </div>
                   </div>
                 )}
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-3 py-2">
-                  <p className="text-[10px] uppercase tracking-wider text-white/85 font-semibold">
-                    {relTime(b.last_opened_at)}
-                  </p>
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/65 to-transparent px-3 pt-6 pb-2">
+                  <div className="flex items-baseline justify-between gap-2 mb-1.5">
+                    <span className="text-[10px] uppercase tracking-wider text-white/85 font-semibold">
+                      {relTime(b.last_opened_at)}
+                    </span>
+                    {typeof b.progress_percent === "number" && b.progress_percent > 0 && (
+                      <span className="text-[11px] font-semibold text-white tabular-nums">
+                        {Math.round(b.progress_percent * 100)}%
+                      </span>
+                    )}
+                  </div>
+                  <div className="h-1 rounded-full bg-white/20 overflow-hidden">
+                    <div
+                      className="h-full bg-[#E07A5F] rounded-full transition-all"
+                      style={{ width: `${Math.max(2, Math.round((b.progress_percent || 0) * 100))}%` }}
+                    />
+                  </div>
                 </div>
               </div>
               <div className="p-3">

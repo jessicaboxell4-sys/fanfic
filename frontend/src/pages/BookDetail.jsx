@@ -293,6 +293,9 @@ export default function BookDetail() {
                   value={new Date(book.last_refreshed_at).toLocaleString()}
                 />
               )}
+              {typeof book.progress_percent === "number" && book.progress_percent > 0 && (
+                <Meta label="Progress" value={`${Math.round(book.progress_percent * 100)}%`} />
+              )}
               {book.fichub_meta?.chapters && (
                 <Meta label="Chapters" value={book.fichub_meta.chapters} />
               )}
