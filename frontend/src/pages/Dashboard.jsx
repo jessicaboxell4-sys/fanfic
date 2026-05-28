@@ -7,7 +7,7 @@ import UploadZone from "../components/UploadZone";
 import SelectionBar from "../components/SelectionBar";
 import ContinueReadingRail from "../components/ContinueReadingRail";
 import StatsCard from "../components/StatsCard";
-import { Search, X, Plus, ArrowRight, CheckSquare, Sparkles, Loader2, RefreshCw } from "lucide-react";
+import { Search, X, Plus, ArrowRight, CheckSquare, Sparkles, Loader2, RefreshCw, Library } from "lucide-react";
 import { toast } from "sonner";
 
 const DEFAULT_CATEGORIES = ["All", "Fanfiction", "Original Fiction", "Non-fiction", "Unclassified"];
@@ -31,6 +31,7 @@ export default function Dashboard() {
   const [recentBooks, setRecentBooks] = useState([]);
   const [smart, setSmart] = useState(null); // null | "reading" | "finished"
   const [overview, setOverview] = useState(null);
+  const [seriesList, setSeriesList] = useState([]);
 
   const unclassifiedCount = useMemo(() => {
     const row = (stats.categories || []).find((c) => c.name === "Unclassified");
@@ -98,6 +99,10 @@ export default function Dashboard() {
       try {
         const ov = await api.get("/stats/overview");
         setOverview(ov.data);
+      } catch (e) {}
+      try {
+        const sr = await api.get("/series");
+        setSeriesList(sr.data.series || []);
       } catch (e) {}
     } catch (e) {
       console.error(e);
@@ -403,6 +408,33 @@ export default function Dashboard() {
                 </button>
               )}
             </div>
+
+            {seriesList.length > 0 && (
+              <div className="mb-8">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] flex items-center gap-2">
+                    <Library className="w-3 h-3" /> Series detected
+                  </p>
+                  <p className="text-xs text-[#6B705C] hidden sm:block">
+                    Click to open a series shelf in reading order
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {seriesList.map(s => (
+                    <button
+                      key={s.name}
+                      data-testid={`open-series-${s.name.replace(/\s+/g, '-').toLowerCase()}`}
+                      onClick={() => navigate(`/library/series/${encodeURIComponent(s.name)}`)}
+                      className="px-3 py-1.5 rounded-full text-xs font-semibold border bg-white text-[#2C2C2C] border-[#E8E6E1] hover:bg-[#2C2C2C] hover:text-white hover:border-[#2C2C2C] transition-colors flex items-center gap-1.5"
+                    >
+                      <Library className="w-3 h-3" />
+                      {s.name} · {s.count}
+                      <ArrowRight className="w-3 h-3" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {stats.fandoms.length > 0 && (
               <div className="mb-8">

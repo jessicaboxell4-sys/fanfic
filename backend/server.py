@@ -514,7 +514,7 @@ def extract_epub_metadata(filepath: Path) -> Dict[str, Any]:
         book = epub.read_epub(str(filepath), options={"ignore_ncx": True})
     except Exception as e:
         logger.warning(f"EPUB parse failed for {filepath}: {e}")
-        return {"title": filepath.stem, "author": "Unknown", "description": "", "language": "", "publisher": "", "cover_bytes": None}
+        return {"title": filepath.stem, "author": "Unknown", "description": "", "language": "", "publisher": "", "cover_bytes": None, "series_name": None, "series_index": None}
 
     def m(field):
         items = book.get_metadata('DC', field)
@@ -531,6 +531,24 @@ def extract_epub_metadata(filepath: Path) -> Dict[str, Any]:
     # Strip HTML from description
     if description:
         description = BeautifulSoup(description, 'html.parser').get_text(separator=' ').strip()
+
+    # --- Series metadata (Calibre custom meta) ----
+    series_name: Optional[str] = None
+    series_index: Optional[float] = None
+    try:
+        meta_items = book.get_metadata('OPF', 'meta')
+        for value, attrs in meta_items or []:
+            name = (attrs or {}).get('name', '').lower()
+            content = (attrs or {}).get('content', '')
+            if name == 'calibre:series' and content:
+                series_name = content.strip()
+            elif name == 'calibre:series_index' and content:
+                try:
+                    series_index = float(content)
+                except ValueError:
+                    pass
+    except Exception:
+        pass
 
     # Get cover
     cover_bytes = None
@@ -578,7 +596,36 @@ def extract_epub_metadata(filepath: Path) -> Dict[str, Any]:
         "publisher": publisher,
         "cover_bytes": cover_bytes,
         "sample_text": sample_text[:5000],
+        "series_name": series_name,
+        "series_index": series_index,
     }
+
+
+# Series patterns (used when EPUB has no calibre:series meta)
+SERIES_TITLE_PATTERNS = [
+    # "Title (Series Name #3)" or "Title (Series Name, #3)" or "Title (Series Name 3)"
+    re.compile(r'^(?P<title>.+?)\s*\((?P<series>[^()]+?),?\s*#?\s*(?P<idx>\d+(?:\.\d+)?)\)\s*$', re.IGNORECASE),
+    # "Series Name 03 - Title" or "Series Name #3 - Title"
+    re.compile(r'^(?P<series>[A-Za-z][\w\s\'\-]+?)\s+#?(?P<idx>\d+(?:\.\d+)?)\s*[-–—:]\s*(?P<title>.+)$'),
+    # "Title - Book 3 of Series Name"
+    re.compile(r'^(?P<title>.+?)\s*[-–—,]\s*Book\s+(?P<idx>\d+(?:\.\d+)?)\s+of\s+(?P<series>.+)$', re.IGNORECASE),
+    # "Series Name, Book 3: Title"
+    re.compile(r'^(?P<series>.+?),?\s+Book\s+(?P<idx>\d+(?:\.\d+)?)\s*[:\-–—]\s*(?P<title>.+)$', re.IGNORECASE),
+]
+
+
+def detect_series_from_title(title: str) -> tuple:
+    """Returns (series_name, series_index) or (None, None)."""
+    if not title:
+        return None, None
+    for pat in SERIES_TITLE_PATTERNS:
+        m = pat.match(title.strip())
+        if m:
+            try:
+                return m.group('series').strip(), float(m.group('idx'))
+            except (ValueError, IndexError):
+                continue
+    return None, None
 
 
 URL_REGEX = re.compile(
@@ -916,6 +963,15 @@ async def upload_books(
         )
         source_url = find_source_url(links)
 
+        # Series detection: prefer EPUB Calibre meta, fall back to title regex
+        series_name = meta.get('series_name')
+        series_index = meta.get('series_index')
+        if not series_name:
+            sn, si = detect_series_from_title(meta['title'])
+            if sn:
+                series_name = sn
+                series_index = si if si is not None else series_index
+
         doc = {
             "book_id": book_id,
             "user_id": user.user_id,
@@ -934,6 +990,8 @@ async def upload_books(
             "links_count": len(links),
             "source_url": source_url,
             "last_refreshed_at": None,
+            "series_name": series_name,
+            "series_index": series_index,
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         await db.books.insert_one(doc)
@@ -1596,6 +1654,93 @@ async def stats_overview(user: User = Depends(get_current_user)):
         "reading_streak_days": streak,
         "active_days_count": len(active_dates),
     }
+
+
+@api_router.get("/series")
+async def list_series(user: User = Depends(get_current_user)):
+    """Return distinct series for the current user with book counts."""
+    pipeline = [
+        {"$match": {"user_id": user.user_id, "series_name": {"$ne": None, "$exists": True}}},
+        {"$group": {
+            "_id": "$series_name",
+            "count": {"$sum": 1},
+            "max_index": {"$max": "$series_index"},
+        }},
+        {"$sort": {"_id": 1}},
+    ]
+    rows = await db.books.aggregate(pipeline).to_list(500)
+    return {
+        "series": [
+            {"name": r["_id"], "count": r["count"], "max_index": r.get("max_index")}
+            for r in rows
+        ]
+    }
+
+
+@api_router.get("/series/{name}")
+async def get_series(name: str, user: User = Depends(get_current_user)):
+    """All books in a series, ordered by series_index (nulls last)."""
+    books = await db.books.find(
+        {"user_id": user.user_id, "series_name": name},
+        {"_id": 0},
+    ).to_list(500)
+    # Sort by series_index ascending, with None placed at the end
+    books.sort(key=lambda b: (b.get("series_index") is None, b.get("series_index") or 0))
+    return {"name": name, "books": books}
+
+
+@api_router.post("/books/detect-series-all")
+async def detect_series_all(user: User = Depends(get_current_user)):
+    """Re-scan every book without a series_name and try to detect one from the title."""
+    books = await db.books.find(
+        {"user_id": user.user_id},
+        {"_id": 0, "book_id": 1, "title": 1, "series_name": 1},
+    ).to_list(5000)
+    user_dir = STORAGE_DIR / user.user_id
+    found = 0
+    for b in books:
+        if b.get("series_name"):
+            continue
+        # Try filesystem EPUB metadata first
+        sn = None
+        si = None
+        fp = user_dir / f"{b['book_id']}.epub"
+        if fp.exists():
+            try:
+                m = extract_epub_metadata(fp)
+                sn = m.get("series_name")
+                si = m.get("series_index")
+            except Exception:
+                pass
+        if not sn:
+            sn, si = detect_series_from_title(b.get("title") or "")
+        if sn:
+            await db.books.update_one(
+                {"book_id": b["book_id"], "user_id": user.user_id},
+                {"$set": {"series_name": sn, "series_index": si}},
+            )
+            found += 1
+    return {"scanned": len(books), "found": found}
+
+
+class SetSeriesBody(BaseModel):
+    series_name: Optional[str] = None
+    series_index: Optional[float] = None
+
+
+@api_router.patch("/books/{book_id}/series")
+async def set_series(book_id: str, body: SetSeriesBody, user: User = Depends(get_current_user)):
+    update: Dict[str, Any] = {
+        "series_name": (body.series_name.strip() if body.series_name else None),
+        "series_index": body.series_index,
+    }
+    result = await db.books.update_one(
+        {"book_id": book_id, "user_id": user.user_id},
+        {"$set": update},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    return {"ok": True}
 
 
 @api_router.get("/categories")

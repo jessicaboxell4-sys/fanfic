@@ -293,6 +293,21 @@ export default function BookDetail() {
                   value={new Date(book.last_refreshed_at).toLocaleString()}
                 />
               )}
+              {book.series_name && (
+                <Meta
+                  label="Series"
+                  value={
+                    <Link
+                      to={`/library/series/${encodeURIComponent(book.series_name)}`}
+                      className="text-[#E07A5F] hover:underline"
+                      data-testid="series-link"
+                    >
+                      {book.series_name}
+                      {typeof book.series_index === "number" && ` #${Number.isInteger(book.series_index) ? book.series_index : book.series_index.toFixed(1)}`}
+                    </Link>
+                  }
+                />
+              )}
               {typeof book.progress_percent === "number" && book.progress_percent > 0 && (
                 <Meta label="Progress" value={`${Math.round(book.progress_percent * 100)}%`} />
               )}
