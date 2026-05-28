@@ -712,6 +712,17 @@ async def refresh_status(user: User = Depends(get_current_user)):
     return {"refreshable": count, "total": len(books), "last_refreshed_at": last}
 
 
+@api_router.get("/books/recent")
+async def list_recent(limit: int = 8, user: User = Depends(get_current_user)):
+    """Recently-opened books for the dashboard's Continue Reading rail."""
+    cursor = db.books.find(
+        {"user_id": user.user_id, "last_opened_at": {"$ne": None, "$exists": True}},
+        {"_id": 0},
+    ).sort("last_opened_at", -1).limit(max(1, min(int(limit), 24)))
+    books = await cursor.to_list(24)
+    return {"books": books}
+
+
 @api_router.get("/books/{book_id}")
 async def get_book(book_id: str, user: User = Depends(get_current_user)):
     book = await db.books.find_one({"book_id": book_id, "user_id": user.user_id}, {"_id": 0})
@@ -990,6 +1001,18 @@ async def refresh_all(user: User = Depends(get_current_user)):
         await asyncio.sleep(1.5)
 
     return {"eligible": len(eligible), "refreshed": refreshed, "failures": failures}
+
+
+@api_router.post("/books/{book_id}/touch")
+async def touch_book(book_id: str, user: User = Depends(get_current_user)):
+    """Mark the book as opened just now (used for the Continue Reading rail)."""
+    result = await db.books.update_one(
+        {"book_id": book_id, "user_id": user.user_id},
+        {"$set": {"last_opened_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    return {"ok": True}
 
 
 @api_router.post("/books/{book_id}/refresh")

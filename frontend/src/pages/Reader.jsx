@@ -41,6 +41,8 @@ export default function Reader() {
         if (cancelled) return;
         setBook(meta.data);
         setBookData(blob.data);
+        // Mark as recently opened (fire-and-forget)
+        api.post(`/books/${id}/touch`).catch(() => {});
       } catch (e) {
         if (!cancelled) {
           setError("Couldn't open this book");

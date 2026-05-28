@@ -5,6 +5,7 @@ import Navbar from "../components/Navbar";
 import BookCard from "../components/BookCard";
 import UploadZone from "../components/UploadZone";
 import SelectionBar from "../components/SelectionBar";
+import ContinueReadingRail from "../components/ContinueReadingRail";
 import { Search, X, Plus, ArrowRight, CheckSquare, Sparkles, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
@@ -26,6 +27,7 @@ export default function Dashboard() {
   const [reclassifyingAll, setReclassifyingAll] = useState(false);
   const [refreshStatus, setRefreshStatus] = useState({ refreshable: 0, last_refreshed_at: null });
   const [refreshingAll, setRefreshingAll] = useState(false);
+  const [recentBooks, setRecentBooks] = useState([]);
 
   const unclassifiedCount = useMemo(() => {
     const row = (stats.categories || []).find((c) => c.name === "Unclassified");
@@ -85,6 +87,10 @@ export default function Dashboard() {
         const rs = await api.get("/books/refresh-status");
         setRefreshStatus(rs.data);
       } catch (e) {}
+      try {
+        const rc = await api.get("/books/recent", { params: { limit: 8 } });
+        setRecentBooks(rc.data.books || []);
+      } catch (e) {}
     } catch (e) {
       console.error(e);
     } finally {
@@ -116,6 +122,7 @@ export default function Dashboard() {
         </div>
 
         <div className="mb-10">
+          {recentBooks.length > 0 && <ContinueReadingRail books={recentBooks} />}
           <UploadZone onUploaded={load} />
         </div>
 
