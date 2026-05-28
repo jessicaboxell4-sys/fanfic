@@ -31,10 +31,10 @@ export default function Navbar() {
             data-testid="navbar-download-links"
             onClick={handleDownloadLinks}
             className="btn-secondary text-sm flex items-center gap-2"
-            title="Download a notepad file of every URL from your EPUBs"
+            title="Download a single .txt file with every URL from your EPUBs"
           >
             <LinkIcon className="w-4 h-4" />
-            <span className="hidden md:inline">Export links</span>
+            <span className="hidden md:inline">All links (.txt)</span>
           </button>
           <button
             data-testid="navbar-download-zip"

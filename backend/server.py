@@ -627,51 +627,46 @@ def _safe_filename(name: str, ext: str) -> str:
 
 @api_router.get("/books/export/links")
 async def export_all_links(user: User = Depends(get_current_user)):
-    """Download a ZIP with one .txt per book containing extracted URLs, organized by shelf."""
-    books = await db.books.find({"user_id": user.user_id}, {"_id": 0}).to_list(5000)
+    """Download a single .txt file with every URL across the user's library."""
+    books = await db.books.find({"user_id": user.user_id}, {"_id": 0}).sort("created_at", -1).to_list(5000)
     if not books:
         raise HTTPException(status_code=404, detail="No books")
 
     user_dir = STORAGE_DIR / user.user_id
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
-        all_lines = ["# Shelfsort — extracted URLs across your library", ""]
-        for b in books:
-            links_path = user_dir / f"{b['book_id']}.links.txt"
-            # Regenerate if missing
-            if not links_path.exists():
-                epub_path = user_dir / f"{b['book_id']}.epub"
-                if not epub_path.exists():
-                    continue
-                links = extract_urls_from_epub(epub_path)
-                links_path.write_text(
-                    format_links_txt(b['title'], b['author'], links),
-                    encoding='utf-8',
-                )
+    lines: List[str] = []
+    lines.append("Shelfsort — all links extracted from your library")
+    lines.append(f"Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
+    lines.append(f"Books scanned: {len(books)}")
+    lines.append("=" * 70)
+    lines.append("")
 
-            category = _safe_folder(b.get('category') or 'Uncategorized')
-            fandom = b.get('fandom')
-            if category == 'Fanfiction' and fandom:
-                folder = f"Fanfiction/{_safe_folder(fandom)}"
-            else:
-                folder = category
-            arcname = f"{folder}/{_safe_filename(b.get('title') or b['book_id'], '.links.txt')}"
-            zf.write(str(links_path), arcname=arcname)
+    total_links = 0
+    for b in books:
+        epub_path = user_dir / f"{b['book_id']}.epub"
+        if not epub_path.exists():
+            continue
+        links = extract_urls_from_epub(epub_path)
+        total_links += len(links)
 
-            # Append to combined "all_links.txt"
-            try:
-                content = links_path.read_text(encoding='utf-8')
-                all_lines.append(content)
-                all_lines.append("\n" + "-" * 60 + "\n")
-            except Exception:
-                pass
+        shelf = b.get('category') or 'Uncategorized'
+        if shelf == 'Fanfiction' and b.get('fandom'):
+            shelf = f"Fanfiction / {b['fandom']}"
 
-        # Add a single combined notepad file at the root of the ZIP
-        zf.writestr("all_links.txt", "\n".join(all_lines))
+        lines.append(f"[{shelf}] {b.get('title','')} — {b.get('author','')}")
+        if not links:
+            lines.append("  (no URLs)")
+        else:
+            for item in links:
+                if item.get('anchor'):
+                    lines.append(f"  {item['url']}  —  {item['anchor']}")
+                else:
+                    lines.append(f"  {item['url']}")
+        lines.append("")
 
-    buf.seek(0)
-    headers = {"Content-Disposition": "attachment; filename=shelfsort_links.zip"}
-    return StreamingResponse(buf, media_type="application/zip", headers=headers)
+    lines.insert(3, f"Total URLs:    {total_links}")
+    body = "\n".join(lines) + "\n"
+    headers = {"Content-Disposition": "attachment; filename=shelfsort_all_links.txt"}
+    return Response(content=body, media_type="text/plain; charset=utf-8", headers=headers)
 
 
 @api_router.get("/books/{book_id}/links")
