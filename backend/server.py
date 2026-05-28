@@ -292,6 +292,79 @@ def extract_epub_metadata(filepath: Path) -> Dict[str, Any]:
     }
 
 
+URL_REGEX = re.compile(
+    r'(?i)\b((?:https?://|www\.)[^\s<>"\')\]]+)'
+)
+
+
+def _clean_url(u: str) -> str:
+    # Strip trailing punctuation common in prose
+    return u.rstrip('.,;:)>]"\'')
+
+
+def extract_urls_from_epub(filepath: Path) -> List[Dict[str, str]]:
+    """Return a deduped list of {url, anchor} dicts extracted from EPUB content."""
+    seen = set()
+    results: List[Dict[str, str]] = []
+    try:
+        book = epub.read_epub(str(filepath), options={"ignore_ncx": True})
+    except Exception as e:
+        logger.warning(f"EPUB read failed for link extraction: {e}")
+        return results
+
+    for item in book.get_items_of_type(ebooklib.ITEM_DOCUMENT):
+        try:
+            raw = item.get_content().decode('utf-8', errors='ignore')
+        except Exception:
+            continue
+        soup = BeautifulSoup(raw, 'html.parser')
+
+        # <a href="..."> links
+        for a in soup.find_all('a', href=True):
+            href = (a.get('href') or '').strip()
+            if not href:
+                continue
+            if href.startswith('#') or href.startswith('mailto:') or href.startswith('javascript:'):
+                continue
+            if not href.lower().startswith(('http://', 'https://', 'www.')):
+                continue
+            href = _clean_url(href)
+            anchor = a.get_text(separator=' ', strip=True)[:200]
+            key = href.lower()
+            if key not in seen:
+                seen.add(key)
+                results.append({"url": href, "anchor": anchor})
+
+        # Plain text URLs (e.g., "Visit https://example.com")
+        plain = soup.get_text(separator=' ')
+        for m in URL_REGEX.finditer(plain):
+            href = _clean_url(m.group(1))
+            key = href.lower()
+            if key not in seen:
+                seen.add(key)
+                results.append({"url": href, "anchor": ""})
+
+    return results
+
+
+def format_links_txt(book_title: str, book_author: str, links: List[Dict[str, str]]) -> str:
+    lines = []
+    lines.append(f"Title:  {book_title}")
+    lines.append(f"Author: {book_author}")
+    lines.append(f"Links:  {len(links)}")
+    lines.append("=" * 60)
+    lines.append("")
+    if not links:
+        lines.append("(No URLs found in this EPUB.)")
+    else:
+        for i, item in enumerate(links, 1):
+            lines.append(f"{i}. {item['url']}")
+            if item.get('anchor'):
+                lines.append(f"   ↳ {item['anchor']}")
+        lines.append("")
+    return "\n".join(lines) + "\n"
+
+
 def classify_by_metadata(meta: Dict[str, Any]) -> Dict[str, Any]:
     """Heuristic keyword classification. Returns dict with category, fandom, confidence."""
     blob = " ".join([
@@ -414,6 +487,14 @@ async def upload_books(
         if meta.get('cover_bytes'):
             cover_path.write_bytes(meta['cover_bytes'])
 
+        # Extract URLs and save to a notepad-friendly .txt file
+        links = extract_urls_from_epub(target)
+        links_path = user_dir / f"{book_id}.links.txt"
+        links_path.write_text(
+            format_links_txt(meta['title'], meta['author'], links),
+            encoding='utf-8',
+        )
+
         doc = {
             "book_id": book_id,
             "user_id": user.user_id,
@@ -429,6 +510,7 @@ async def upload_books(
             "confidence": classification['confidence'],
             "classifier": classification['classifier'],
             "size_bytes": len(content),
+            "links_count": len(links),
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         await db.books.insert_one(doc)
@@ -529,11 +611,96 @@ async def delete_book(book_id: str, user: User = Depends(get_current_user)):
     if not book:
         raise HTTPException(status_code=404, detail="Not found")
     await db.books.delete_one({"book_id": book_id, "user_id": user.user_id})
-    for ext in ['.epub', '.cover']:
+    for ext in ['.epub', '.cover', '.links.txt']:
         p = STORAGE_DIR / user.user_id / f"{book_id}{ext}"
         if p.exists():
             p.unlink()
     return {"ok": True}
+
+
+def _safe_filename(name: str, ext: str) -> str:
+    # Strip path separators / control chars
+    base = re.sub(r'[\\/:*?"<>|\x00-\x1f]', '_', name or 'book').strip().rstrip('.')
+    base = base[:120] or 'book'
+    return f"{base}{ext}"
+
+
+@api_router.get("/books/export/links")
+async def export_all_links(user: User = Depends(get_current_user)):
+    """Download a ZIP with one .txt per book containing extracted URLs, organized by shelf."""
+    books = await db.books.find({"user_id": user.user_id}, {"_id": 0}).to_list(5000)
+    if not books:
+        raise HTTPException(status_code=404, detail="No books")
+
+    user_dir = STORAGE_DIR / user.user_id
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+        all_lines = ["# Shelfsort — extracted URLs across your library", ""]
+        for b in books:
+            links_path = user_dir / f"{b['book_id']}.links.txt"
+            # Regenerate if missing
+            if not links_path.exists():
+                epub_path = user_dir / f"{b['book_id']}.epub"
+                if not epub_path.exists():
+                    continue
+                links = extract_urls_from_epub(epub_path)
+                links_path.write_text(
+                    format_links_txt(b['title'], b['author'], links),
+                    encoding='utf-8',
+                )
+
+            category = _safe_folder(b.get('category') or 'Uncategorized')
+            fandom = b.get('fandom')
+            if category == 'Fanfiction' and fandom:
+                folder = f"Fanfiction/{_safe_folder(fandom)}"
+            else:
+                folder = category
+            arcname = f"{folder}/{_safe_filename(b.get('title') or b['book_id'], '.links.txt')}"
+            zf.write(str(links_path), arcname=arcname)
+
+            # Append to combined "all_links.txt"
+            try:
+                content = links_path.read_text(encoding='utf-8')
+                all_lines.append(content)
+                all_lines.append("\n" + "-" * 60 + "\n")
+            except Exception:
+                pass
+
+        # Add a single combined notepad file at the root of the ZIP
+        zf.writestr("all_links.txt", "\n".join(all_lines))
+
+    buf.seek(0)
+    headers = {"Content-Disposition": "attachment; filename=shelfsort_links.zip"}
+    return StreamingResponse(buf, media_type="application/zip", headers=headers)
+
+
+@api_router.get("/books/{book_id}/links")
+async def get_book_links(book_id: str, user: User = Depends(get_current_user)):
+    """Download the extracted URLs for a single book as a .txt file."""
+    book = await db.books.find_one({"book_id": book_id, "user_id": user.user_id}, {"_id": 0})
+    if not book:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    user_dir = STORAGE_DIR / user.user_id
+    links_path = user_dir / f"{book_id}.links.txt"
+
+    # Regenerate if missing (e.g., older book uploaded before this feature)
+    if not links_path.exists():
+        epub_path = user_dir / f"{book_id}.epub"
+        if not epub_path.exists():
+            raise HTTPException(status_code=404, detail="File missing")
+        links = extract_urls_from_epub(epub_path)
+        links_path.write_text(
+            format_links_txt(book['title'], book['author'], links),
+            encoding='utf-8',
+        )
+        await db.books.update_one(
+            {"book_id": book_id, "user_id": user.user_id},
+            {"$set": {"links_count": len(links)}},
+        )
+
+    filename = _safe_filename(book.get('title') or book_id, '.links.txt')
+    return FileResponse(str(links_path), media_type="text/plain; charset=utf-8", filename=filename)
 
 
 class ReclassifyBody(BaseModel):

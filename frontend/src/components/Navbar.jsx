@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { BookOpen, LogOut, Download } from "lucide-react";
+import { BookOpen, LogOut, Download, Link as LinkIcon } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { api, API } from "../lib/api";
 
@@ -10,7 +10,11 @@ export default function Navbar() {
 
   const handleDownloadAll = async () => {
     const url = `${API}/books/export/zip`;
-    // Use anchor with credentials via cookie
+    window.open(url, "_blank");
+  };
+
+  const handleDownloadLinks = async () => {
+    const url = `${API}/books/export/links`;
     window.open(url, "_blank");
   };
 
@@ -23,6 +27,15 @@ export default function Navbar() {
         </Link>
 
         <div className="flex items-center gap-2 md:gap-3">
+          <button
+            data-testid="navbar-download-links"
+            onClick={handleDownloadLinks}
+            className="btn-secondary text-sm flex items-center gap-2"
+            title="Download a notepad file of every URL from your EPUBs"
+          >
+            <LinkIcon className="w-4 h-4" />
+            <span className="hidden md:inline">Export links</span>
+          </button>
           <button
             data-testid="navbar-download-zip"
             onClick={handleDownloadAll}

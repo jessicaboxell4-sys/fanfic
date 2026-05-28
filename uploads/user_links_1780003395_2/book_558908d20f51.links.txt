@@ -1,0 +1,12 @@
+Title:  Mixed Book
+Author: aon
+Links:  4
+============================================================
+
+1. https://archiveofourown.org/works/123
+   ↳ AO3
+2. http://hpfandom.net/story/99
+   ↳ HPF
+3. https://example.com/foo
+4. www.fanfiction.net/s/456
+

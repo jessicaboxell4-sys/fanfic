@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { api, API } from "../lib/api";
 import Navbar from "../components/Navbar";
-import { ArrowLeft, Download, Trash2, Sparkles, Book, Edit3 } from "lucide-react";
+import { ArrowLeft, Download, Trash2, Sparkles, Book, Edit3, Link as LinkIcon } from "lucide-react";
 import { toast } from "sonner";
 
 const CATEGORIES = ["Fanfiction", "Original Fiction", "Non-fiction", "Unclassified"];
@@ -70,6 +70,10 @@ export default function BookDetail() {
 
   const download = () => {
     window.open(`${API}/books/${id}/download`, "_blank");
+  };
+
+  const downloadLinks = () => {
+    window.open(`${API}/books/${id}/links`, "_blank");
   };
 
   if (loading || !book) {
@@ -181,6 +185,15 @@ export default function BookDetail() {
                   className="btn-secondary flex items-center gap-2 text-sm"
                 >
                   <Download className="w-4 h-4" /> Download EPUB
+                </button>
+                <button
+                  data-testid="download-links-btn"
+                  onClick={downloadLinks}
+                  className="btn-secondary flex items-center gap-2 text-sm"
+                  title="Save every URL from this EPUB to a .txt file"
+                >
+                  <LinkIcon className="w-4 h-4" />
+                  Save links (.txt){typeof book.links_count === "number" ? ` · ${book.links_count}` : ""}
                 </button>
                 <button
                   data-testid="reclassify-btn"
