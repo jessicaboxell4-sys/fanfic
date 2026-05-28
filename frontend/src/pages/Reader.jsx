@@ -10,13 +10,15 @@ export default function Reader() {
   const navigate = useNavigate();
   const [book, setBook] = useState(null);
   const [bookData, setBookData] = useState(null); // ArrayBuffer of the EPUB
-  const [location, setLocation] = useState(() => {
+  const [location, setLocation] = useState(null);
+  // Restore last reading position once we have the rendition
+  const savedLocationRef = useRef(null);
+  useEffect(() => {
     try {
-      return window.localStorage.getItem(`shelfsort-loc-${id}`) || null;
-    } catch (e) {
-      return null;
-    }
-  });
+      const saved = window.localStorage.getItem(`shelfsort-loc-${id}`);
+      if (saved) savedLocationRef.current = saved;
+    } catch (e) {}
+  }, [id]);
   const [fontSize, setFontSize] = useState(() => {
     const v = parseInt(window.localStorage.getItem("shelfsort-fontsize") || "100", 10);
     return Number.isFinite(v) ? v : 100;
@@ -82,7 +84,31 @@ export default function Reader() {
     });
     rendition.themes.select("paper");
     applyFont(fontSize);
+
+    // Restore last reading location, once
+    const saved = savedLocationRef.current;
+    if (saved) {
+      try { rendition.display(saved); } catch (e) {}
+      savedLocationRef.current = null;
+    }
+
+    // Keep epubjs in sync with viewport changes
+    const forceResize = () => {
+      try { rendition.resize(); } catch (e) {}
+    };
+    window.addEventListener("resize", forceResize);
+    renditionRef.current._cleanup = () => window.removeEventListener("resize", forceResize);
   };
+
+  // Cleanup observer on unmount
+  useEffect(() => {
+    return () => {
+      try {
+        const r = renditionRef.current;
+        if (r?._cleanup) r._cleanup();
+      } catch (e) {}
+    };
+  }, []);
 
   if (error) {
     return (
@@ -99,8 +125,8 @@ export default function Reader() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-paper">
-      <header className="backdrop-blur-xl bg-[#FDFBF7]/85 border-b border-[#E8E6E1] z-30">
+    <div className="h-screen overflow-hidden flex flex-col bg-paper">
+      <header className="flex-shrink-0 backdrop-blur-xl bg-[#FDFBF7]/85 border-b border-[#E8E6E1] z-30">
         <div className="max-w-6xl mx-auto px-4 md:px-6 py-3 flex items-center justify-between gap-3">
           <button
             data-testid="reader-back"
@@ -143,17 +169,19 @@ export default function Reader() {
         </div>
       </header>
 
-      <div className="flex-1 relative" data-testid="reader-area" style={{ minHeight: 0, height: "calc(100vh - 64px)" }}>
+      <div className="flex-1 relative" data-testid="reader-area" style={{ minHeight: 0 }}>
         {bookData ? (
-          <ReactReader
-            url={bookData}
-            location={location}
-            locationChanged={onLocationChanged}
-            getRendition={getRendition}
-            epubOptions={{ flow: "paginated" }}
-            showToc={true}
-            swipeable={true}
-          />
+          <div style={{ position: "absolute", inset: 0 }}>
+            <ReactReader
+              url={bookData}
+              location={location}
+              locationChanged={onLocationChanged}
+              getRendition={getRendition}
+              epubOptions={{ flow: "scrolled" }}
+              showToc={true}
+              swipeable={true}
+            />
+          </div>
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="text-center">
