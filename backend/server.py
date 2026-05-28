@@ -659,6 +659,7 @@ async def list_books(
     category: Optional[str] = None,
     fandom: Optional[str] = None,
     q: Optional[str] = None,
+    smart: Optional[str] = None,
     user: User = Depends(get_current_user),
 ):
     query: Dict[str, Any] = {"user_id": user.user_id}
@@ -666,11 +667,30 @@ async def list_books(
         query['category'] = category
     if fandom:
         query['fandom'] = fandom
+
+    or_clauses: List[List[Dict[str, Any]]] = []
     if q:
-        query['$or'] = [
+        or_clauses.append([
             {"title": {"$regex": q, "$options": "i"}},
             {"author": {"$regex": q, "$options": "i"}},
-        ]
+        ])
+
+    if smart == "reading":
+        query['progress_percent'] = {"$gte": 0.05, "$lt": 0.95}
+    elif smart == "finished":
+        query['progress_percent'] = {"$gte": 0.99}
+    elif smart == "unread":
+        or_clauses.append([
+            {"progress_percent": {"$exists": False}},
+            {"progress_percent": None},
+            {"progress_percent": {"$lt": 0.05}},
+        ])
+
+    if len(or_clauses) == 1:
+        query["$or"] = or_clauses[0]
+    elif len(or_clauses) > 1:
+        query["$and"] = [{"$or": clauses} for clauses in or_clauses]
+
     books = await db.books.find(query, {"_id": 0}).sort("created_at", -1).to_list(2000)
     return {"books": books}
 
@@ -689,8 +709,18 @@ async def book_stats(user: User = Depends(get_current_user)):
     cats = await db.books.aggregate(pipeline_cat).to_list(100)
     fandoms = await db.books.aggregate(pipeline_fandom).to_list(100)
     total = await db.books.count_documents({"user_id": user.user_id})
+    reading = await db.books.count_documents({
+        "user_id": user.user_id,
+        "progress_percent": {"$gte": 0.05, "$lt": 0.95},
+    })
+    finished = await db.books.count_documents({
+        "user_id": user.user_id,
+        "progress_percent": {"$gte": 0.99},
+    })
     return {
         "total": total,
+        "reading": reading,
+        "finished": finished,
         "categories": [{"name": c['_id'], "count": c['count']} for c in cats],
         "fandoms": [{"name": f['_id'], "count": f['count']} for f in fandoms],
     }

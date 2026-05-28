@@ -28,6 +28,7 @@ export default function Dashboard() {
   const [refreshStatus, setRefreshStatus] = useState({ refreshable: 0, last_refreshed_at: null });
   const [refreshingAll, setRefreshingAll] = useState(false);
   const [recentBooks, setRecentBooks] = useState([]);
+  const [smart, setSmart] = useState(null); // null | "reading" | "finished"
 
   const unclassifiedCount = useMemo(() => {
     const row = (stats.categories || []).find((c) => c.name === "Unclassified");
@@ -75,6 +76,7 @@ export default function Dashboard() {
       if (category && category !== "All") params.category = category;
       if (fandom) params.fandom = fandom;
       if (search) params.q = search;
+      if (smart) params.smart = smart;
       const [b, s, c] = await Promise.all([
         api.get("/books", { params }),
         api.get("/books/stats"),
@@ -96,10 +98,9 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [category, fandom, search]);
+  }, [category, fandom, search, smart]);
 
   useEffect(() => { load(); }, [load]);
-
   const showEmpty = !loading && stats.total === 0;
 
   return (
@@ -255,9 +256,9 @@ export default function Dashboard() {
                 <button
                   key={c}
                   data-testid={`filter-cat-${c.replace(/\s+/g, '-').toLowerCase()}`}
-                  onClick={() => { setCategory(c); setFandom(null); }}
+                  onClick={() => { setCategory(c); setFandom(null); setSmart(null); }}
                   className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
-                    category === c
+                    category === c && !smart
                       ? "bg-[#E07A5F] text-white border-[#E07A5F]"
                       : "bg-white border-[#E8E6E1] text-[#2C2C2C] hover:bg-[#F5F3EC]"
                   }`}
@@ -265,6 +266,39 @@ export default function Dashboard() {
                   {c}
                 </button>
               ))}
+              {stats.reading > 0 && (
+                <button
+                  data-testid="filter-smart-reading"
+                  onClick={() => {
+                    if (smart === "reading") setSmart(null);
+                    else { setSmart("reading"); setCategory("All"); setFandom(null); }
+                  }}
+                  className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-colors flex items-center gap-1.5 ${
+                    smart === "reading"
+                      ? "bg-[#E07A5F] text-white border-[#E07A5F]"
+                      : "bg-white border-[#E07A5F]/40 text-[#E07A5F] hover:bg-[#E07A5F]/10"
+                  }`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${smart === "reading" ? "bg-white" : "bg-[#E07A5F]"} animate-pulse`} />
+                  Currently reading · {stats.reading}
+                </button>
+              )}
+              {stats.finished > 0 && (
+                <button
+                  data-testid="filter-smart-finished"
+                  onClick={() => {
+                    if (smart === "finished") setSmart(null);
+                    else { setSmart("finished"); setCategory("All"); setFandom(null); }
+                  }}
+                  className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                    smart === "finished"
+                      ? "bg-[#3A5A40] text-white border-[#3A5A40]"
+                      : "bg-white border-[#3A5A40]/30 text-[#3A5A40] hover:bg-[#3A5A40]/10"
+                  }`}
+                >
+                  ✓ Finished · {stats.finished}
+                </button>
+              )}
               {customCats.map(c => (
                 <span
                   key={c}
@@ -276,7 +310,7 @@ export default function Dashboard() {
                 >
                   <button
                     data-testid={`filter-custom-${c.replace(/\s+/g, '-').toLowerCase()}`}
-                    onClick={() => { setCategory(c); setFandom(null); }}
+                    onClick={() => { setCategory(c); setFandom(null); setSmart(null); }}
                     className="focus:outline-none"
                   >
                     {c}
