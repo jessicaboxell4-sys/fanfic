@@ -43,12 +43,18 @@
 - `GET /api/books/export/links` → ZIP of every book's `.txt`, organized by Category / Fanfiction-<Fandom>, plus a single combined `all_links.txt`.
 - New UI: "Save links (.txt)" button on book detail; "Export links" button in the navbar.
 
+### Added 2026-02-28 (Custom Shelves UI)
+- Dashboard now shows custom shelves as removable green chips alongside default filters
+- "New shelf" inline form to add custom categories
+- Book Detail edit dropdown lists all custom shelves so books can be assigned
+
+### Deferred / Declined
+- Google Drive import — declined by user (2026-02-28). Local upload remains the only ingest path.
+
 ## Prioritized Backlog
 ### P1 — high value, deferred
-- Google Drive import (user requested but skipped in MVP for speed)
-- Email/password JWT auth as alternative to Google (user requested)
-- UI for managing custom categories
-- Bulk actions on the grid (multi-select → reclassify/delete)
+- Email/password JWT auth as alternative to Google (user requested in initial choices)
+- Bulk actions on the grid (multi-select → reclassify / move-to-shelf / delete)
 - Per-fandom shelf pages (deep-link `/library/fanfiction/harry-potter`)
 
 ### P2 — polish
