@@ -406,6 +406,7 @@ export default function Dashboard() {
                         return next;
                       });
                     }}
+                    onChanged={load}
                   />
                 ))}
               </div>

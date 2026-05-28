@@ -1003,6 +1003,27 @@ async def refresh_all(user: User = Depends(get_current_user)):
     return {"eligible": len(eligible), "refreshed": refreshed, "failures": failures}
 
 
+class MarkBody(BaseModel):
+    read: bool
+
+
+@api_router.post("/books/{book_id}/mark")
+async def mark_book(book_id: str, body: MarkBody, user: User = Depends(get_current_user)):
+    """Mark a book as fully read or unread (sets progress to 100% / 0%)."""
+    update: Dict[str, Any] = {
+        "progress_percent": 1.0 if body.read else 0.0,
+    }
+    if body.read:
+        update["last_opened_at"] = datetime.now(timezone.utc).isoformat()
+    result = await db.books.update_one(
+        {"book_id": book_id, "user_id": user.user_id},
+        {"$set": update},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    return {"ok": True, "read": body.read}
+
+
 class ProgressBody(BaseModel):
     percent: float
     cfi: Optional[str] = None
