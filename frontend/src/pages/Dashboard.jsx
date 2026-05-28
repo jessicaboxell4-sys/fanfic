@@ -1,14 +1,16 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import Navbar from "../components/Navbar";
 import BookCard from "../components/BookCard";
 import UploadZone from "../components/UploadZone";
-import { Search, X, Plus, Tag } from "lucide-react";
+import { Search, X, Plus, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 
 const DEFAULT_CATEGORIES = ["All", "Fanfiction", "Original Fiction", "Non-fiction", "Unclassified"];
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ total: 0, categories: [], fandoms: [] });
@@ -208,36 +210,26 @@ export default function Dashboard() {
 
             {stats.fandoms.length > 0 && (
               <div className="mb-8">
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] mb-3">
-                  Fandoms
-                </p>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40]">
+                    Fandom shelves
+                  </p>
+                  <p className="text-xs text-[#6B705C] hidden sm:block">
+                    Click any fandom to open its dedicated shelf
+                  </p>
+                </div>
                 <div className="flex flex-wrap gap-2">
                   {stats.fandoms.map(f => (
                     <button
                       key={f.name}
-                      data-testid={`filter-fandom-${f.name.replace(/\s+/g, '-').toLowerCase()}`}
-                      onClick={() => {
-                        if (fandom === f.name) setFandom(null);
-                        else { setFandom(f.name); setCategory("Fanfiction"); }
-                      }}
-                      className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
-                        fandom === f.name
-                          ? "bg-[#3A5A40] text-white border-[#3A5A40]"
-                          : "bg-[#E5EBE6] text-[#3A5A40] border-[#3A5A40]/20 hover:bg-[#3A5A40] hover:text-white"
-                      }`}
+                      data-testid={`open-fandom-${f.name.replace(/\s+/g, '-').toLowerCase()}`}
+                      onClick={() => navigate(`/library/fandom/${encodeURIComponent(f.name)}`)}
+                      className="px-3 py-1 rounded-full text-xs font-semibold border bg-[#E5EBE6] text-[#3A5A40] border-[#3A5A40]/20 hover:bg-[#3A5A40] hover:text-white transition-colors flex items-center gap-1.5"
                     >
                       {f.name} · {f.count}
+                      <ArrowRight className="w-3 h-3" />
                     </button>
                   ))}
-                  {fandom && (
-                    <button
-                      onClick={() => setFandom(null)}
-                      className="px-3 py-1 rounded-full text-xs font-semibold border border-[#E8E6E1] text-[#6B705C] flex items-center gap-1"
-                      data-testid="clear-fandom"
-                    >
-                      Clear <X className="w-3 h-3" />
-                    </button>
-                  )}
                 </div>
               </div>
             )}

@@ -626,15 +626,30 @@ def _safe_filename(name: str, ext: str) -> str:
 
 
 @api_router.get("/books/export/links")
-async def export_all_links(user: User = Depends(get_current_user)):
-    """Download a single .txt file with every URL across the user's library."""
-    books = await db.books.find({"user_id": user.user_id}, {"_id": 0}).sort("created_at", -1).to_list(5000)
+async def export_all_links(
+    category: Optional[str] = None,
+    fandom: Optional[str] = None,
+    user: User = Depends(get_current_user),
+):
+    """Download a single .txt file with every URL across the user's library (or a filter)."""
+    query: Dict[str, Any] = {"user_id": user.user_id}
+    if category:
+        query["category"] = category
+    if fandom:
+        query["fandom"] = fandom
+    books = await db.books.find(query, {"_id": 0}).sort("created_at", -1).to_list(5000)
     if not books:
         raise HTTPException(status_code=404, detail="No books")
 
     user_dir = STORAGE_DIR / user.user_id
+    scope = "your library"
+    if fandom:
+        scope = f"the {fandom} shelf"
+    elif category:
+        scope = f"the {category} shelf"
+
     lines: List[str] = []
-    lines.append("Shelfsort — all links extracted from your library")
+    lines.append(f"Shelfsort — links extracted from {scope}")
     lines.append(f"Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
     lines.append(f"Books scanned: {len(books)}")
     lines.append("=" * 70)
@@ -665,7 +680,13 @@ async def export_all_links(user: User = Depends(get_current_user)):
 
     lines.insert(3, f"Total URLs:    {total_links}")
     body = "\n".join(lines) + "\n"
-    headers = {"Content-Disposition": "attachment; filename=shelfsort_all_links.txt"}
+
+    fname = "shelfsort_all_links.txt"
+    if fandom:
+        fname = f"shelfsort_{_safe_folder(fandom)}_links.txt"
+    elif category:
+        fname = f"shelfsort_{_safe_folder(category)}_links.txt"
+    headers = {"Content-Disposition": f"attachment; filename={fname}"}
     return Response(content=body, media_type="text/plain; charset=utf-8", headers=headers)
 
 
@@ -750,8 +771,18 @@ def _safe_folder(name: str) -> str:
 
 
 @api_router.get("/books/export/zip")
-async def export_zip(request: Request, user: User = Depends(get_current_user)):
-    books = await db.books.find({"user_id": user.user_id}, {"_id": 0}).to_list(5000)
+async def export_zip(
+    request: Request,
+    category: Optional[str] = None,
+    fandom: Optional[str] = None,
+    user: User = Depends(get_current_user),
+):
+    query: Dict[str, Any] = {"user_id": user.user_id}
+    if category:
+        query["category"] = category
+    if fandom:
+        query["fandom"] = fandom
+    books = await db.books.find(query, {"_id": 0}).to_list(5000)
     if not books:
         raise HTTPException(status_code=404, detail="No books")
 
@@ -762,19 +793,24 @@ async def export_zip(request: Request, user: User = Depends(get_current_user)):
                 fp = STORAGE_DIR / user.user_id / f"{b['book_id']}.epub"
                 if not fp.exists():
                     continue
-                category = _safe_folder(b.get('category') or 'Uncategorized')
-                fandom = b.get('fandom')
-                if category == 'Fanfiction' and fandom:
-                    folder = f"Fanfiction/{_safe_folder(fandom)}"
+                cat = _safe_folder(b.get('category') or 'Uncategorized')
+                fnd = b.get('fandom')
+                if cat == 'Fanfiction' and fnd:
+                    folder = f"Fanfiction/{_safe_folder(fnd)}"
                 else:
-                    folder = category
+                    folder = cat
                 arcname = f"{folder}/{b['filename']}"
                 zf.write(str(fp), arcname=arcname)
         buf.seek(0)
         return buf
 
     buf = iter_zip()
-    headers = {"Content-Disposition": "attachment; filename=shelfsort_library.zip"}
+    zip_name = "shelfsort_library.zip"
+    if fandom:
+        zip_name = f"shelfsort_{_safe_folder(fandom)}.zip"
+    elif category:
+        zip_name = f"shelfsort_{_safe_folder(category)}.zip"
+    headers = {"Content-Disposition": f"attachment; filename={zip_name}"}
     return StreamingResponse(buf, media_type="application/zip", headers=headers)
 
 
