@@ -1,31 +1,35 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ReactReader } from "react-reader";
-import { ArrowLeft, BookOpen, AlignLeft, AlignCenter, Minus, Plus } from "lucide-react";
-import { api, API } from "../lib/api";
+import { ArrowLeft, BookOpen, Minus, Plus, BookText, AlignLeft } from "lucide-react";
+import { api } from "../lib/api";
 import { toast } from "sonner";
+
+const FLOW_KEY = "shelfsort-flow"; // "paginated" | "scrolled"
 
 export default function Reader() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [book, setBook] = useState(null);
-  const [bookData, setBookData] = useState(null); // ArrayBuffer of the EPUB
+  const [bookData, setBookData] = useState(null);
   const [location, setLocation] = useState(null);
-  // Restore last reading position once we have the rendition
-  const savedLocationRef = useRef(null);
-  useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(`shelfsort-loc-${id}`);
-      if (saved) savedLocationRef.current = saved;
-    } catch (e) {}
-  }, [id]);
+  const [flow, setFlow] = useState(() => window.localStorage.getItem(FLOW_KEY) || "paginated");
   const [fontSize, setFontSize] = useState(() => {
     const v = parseInt(window.localStorage.getItem("shelfsort-fontsize") || "100", 10);
     return Number.isFinite(v) ? v : 100;
   });
   const [error, setError] = useState(null);
   const renditionRef = useRef(null);
+  const savedLocationRef = useRef(null);
 
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(`shelfsort-loc-${id}`);
+      if (saved) savedLocationRef.current = saved;
+    } catch (e) {}
+  }, [id]);
+
+  // Load book metadata + EPUB bytes
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -52,12 +56,9 @@ export default function Reader() {
     try { window.localStorage.setItem(`shelfsort-loc-${id}`, String(loc)); } catch (e) {}
   }, [id]);
 
-  // Apply font size whenever rendition is ready or size changes
   const applyFont = useCallback((size) => {
     try {
-      if (renditionRef.current) {
-        renditionRef.current.themes.fontSize(`${size}%`);
-      }
+      renditionRef.current?.themes.fontSize(`${size}%`);
     } catch (e) {}
   }, []);
 
@@ -65,6 +66,14 @@ export default function Reader() {
     applyFont(fontSize);
     try { window.localStorage.setItem("shelfsort-fontsize", String(fontSize)); } catch (e) {}
   }, [fontSize, applyFont]);
+
+  // Auto-fallback: paginated layouts can fail on EPUBs whose stylesheets
+  // collide with epubjs. If the iframe stays at 0 height for >1.2s in
+  // paginated mode, switch to scrolled silently.
+  const fallbackTriedRef = useRef(false);
+  useEffect(() => {
+    fallbackTriedRef.current = false;
+  }, [flow, id]);
 
   const getRendition = (rendition) => {
     renditionRef.current = rendition;
@@ -74,6 +83,7 @@ export default function Reader() {
         "background": "#FDFBF7",
         "font-family": "'Manrope', sans-serif",
         "line-height": "1.7",
+        "padding": "0 8px",
       },
       "p": { "font-family": "'Manrope', sans-serif" },
       "h1, h2, h3, h4": {
@@ -85,30 +95,76 @@ export default function Reader() {
     rendition.themes.select("paper");
     applyFont(fontSize);
 
-    // Restore last reading location, once
     const saved = savedLocationRef.current;
     if (saved) {
       try { rendition.display(saved); } catch (e) {}
       savedLocationRef.current = null;
     }
 
-    // Keep epubjs in sync with viewport changes
     const forceResize = () => {
       try { rendition.resize(); } catch (e) {}
     };
     window.addEventListener("resize", forceResize);
-    renditionRef.current._cleanup = () => window.removeEventListener("resize", forceResize);
+
+    // Keyboard navigation
+    const onKey = (e) => {
+      if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")) return;
+      if (e.key === "ArrowRight" || e.key === "PageDown" || e.key === " ") {
+        try { rendition.next(); } catch (err) {}
+        e.preventDefault();
+      } else if (e.key === "ArrowLeft" || e.key === "PageUp") {
+        try { rendition.prev(); } catch (err) {}
+        e.preventDefault();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+
+    // Forward arrow keys pressed inside the iframe too
+    let fallbackChecked = false;
+    rendition.on("rendered", (_section, view) => {
+      try {
+        const doc = view?.document || view?.iframe?.contentDocument;
+        if (doc) {
+          doc.addEventListener("keydown", onKey);
+        }
+      } catch (e) {}
+
+      // One-shot auto-fallback: check iframe height ONLY on the very first
+      // render. Page transitions also fire "rendered" but mid-transition
+      // dimensions are unreliable.
+      if (flow === "paginated" && !fallbackChecked && !fallbackTriedRef.current) {
+        fallbackChecked = true;
+        setTimeout(() => {
+          try {
+            const iframe = document.querySelector('[data-testid="reader-area"] iframe');
+            if (iframe && iframe.getBoundingClientRect().height === 0) {
+              fallbackTriedRef.current = true;
+              toast.message("This EPUB doesn't paginate well — switching to scroll mode");
+              setFlow("scrolled");
+              window.localStorage.setItem(FLOW_KEY, "scrolled");
+            }
+          } catch (e) {}
+        }, 1500);
+      }
+    });
+
+    renditionRef.current._cleanup = () => {
+      window.removeEventListener("resize", forceResize);
+      window.removeEventListener("keydown", onKey);
+    };
   };
 
-  // Cleanup observer on unmount
   useEffect(() => {
     return () => {
-      try {
-        const r = renditionRef.current;
-        if (r?._cleanup) r._cleanup();
-      } catch (e) {}
+      try { renditionRef.current?._cleanup?.(); } catch (e) {}
     };
   }, []);
+
+  const toggleFlow = () => {
+    const next = flow === "paginated" ? "scrolled" : "paginated";
+    setFlow(next);
+    try { window.localStorage.setItem(FLOW_KEY, next); } catch (e) {}
+  };
 
   if (error) {
     return (
@@ -116,9 +172,7 @@ export default function Reader() {
         <div>
           <BookOpen className="w-12 h-12 text-[#E07A5F] mx-auto mb-4 opacity-70" />
           <h2 className="font-serif text-2xl text-[#2C2C2C] mb-2">{error}</h2>
-          <button onClick={() => navigate(-1)} className="btn-primary text-sm mt-4">
-            Go back
-          </button>
+          <button onClick={() => navigate(-1)} className="btn-primary text-sm mt-4">Go back</button>
         </div>
       </div>
     );
@@ -147,24 +201,37 @@ export default function Reader() {
               <p className="text-sm text-[#6B705C]">Opening book…</p>
             )}
           </div>
-          <div className="flex items-center gap-1 bg-white border border-[#E8E6E1] rounded-full px-1.5 py-1">
+          <div className="flex items-center gap-2">
+            {/* Flow toggle */}
             <button
-              data-testid="font-decrease"
-              onClick={() => setFontSize((s) => Math.max(70, s - 10))}
-              className="w-7 h-7 rounded-full hover:bg-[#F5F3EC] flex items-center justify-center"
-              title="Smaller text"
+              data-testid="flow-toggle"
+              onClick={toggleFlow}
+              className="hidden sm:flex items-center gap-1.5 text-xs font-medium bg-white border border-[#E8E6E1] rounded-full px-3 py-1.5 hover:bg-[#F5F3EC]"
+              title={flow === "paginated" ? "Switch to scroll mode" : "Switch to page mode"}
             >
-              <Minus className="w-3.5 h-3.5" />
+              {flow === "paginated" ? <BookText className="w-3.5 h-3.5" /> : <AlignLeft className="w-3.5 h-3.5" />}
+              <span>{flow === "paginated" ? "Pages" : "Scroll"}</span>
             </button>
-            <span className="text-xs text-[#6B705C] tabular-nums w-9 text-center">{fontSize}%</span>
-            <button
-              data-testid="font-increase"
-              onClick={() => setFontSize((s) => Math.min(160, s + 10))}
-              className="w-7 h-7 rounded-full hover:bg-[#F5F3EC] flex items-center justify-center"
-              title="Larger text"
-            >
-              <Plus className="w-3.5 h-3.5" />
-            </button>
+
+            <div className="flex items-center gap-1 bg-white border border-[#E8E6E1] rounded-full px-1.5 py-1">
+              <button
+                data-testid="font-decrease"
+                onClick={() => setFontSize((s) => Math.max(70, s - 10))}
+                className="w-7 h-7 rounded-full hover:bg-[#F5F3EC] flex items-center justify-center"
+                title="Smaller text"
+              >
+                <Minus className="w-3.5 h-3.5" />
+              </button>
+              <span className="text-xs text-[#6B705C] tabular-nums w-9 text-center">{fontSize}%</span>
+              <button
+                data-testid="font-increase"
+                onClick={() => setFontSize((s) => Math.min(160, s + 10))}
+                className="w-7 h-7 rounded-full hover:bg-[#F5F3EC] flex items-center justify-center"
+                title="Larger text"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -173,13 +240,14 @@ export default function Reader() {
         {bookData ? (
           <div style={{ position: "absolute", inset: 0 }}>
             <ReactReader
+              key={flow /* remount on flow change so epubOptions re-applies */}
               url={bookData}
               location={location}
               locationChanged={onLocationChanged}
               getRendition={getRendition}
-              epubOptions={{ flow: "scrolled" }}
+              epubOptions={{ flow }}
               showToc={true}
-              swipeable={true}
+              swipeable={flow === "paginated"}
             />
           </div>
         ) : (
