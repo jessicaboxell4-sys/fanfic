@@ -15,7 +15,7 @@ function errMsg(detail) {
 export default function Login() {
   const navigate = useNavigate();
   const { setUser } = useAuth();
-  const [mode, setMode] = useState("login"); // "login" | "register"
+  const [mode, setMode] = useState("login"); // "login" | "register" | "forgot"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -32,6 +32,12 @@ export default function Login() {
     if (busy) return;
     setBusy(true);
     try {
+      if (mode === "forgot") {
+        await api.post("/auth/forgot-password", { email });
+        toast.success("If that email is registered, a reset link is on its way.");
+        setMode("login");
+        return;
+      }
       const url = mode === "login" ? "/auth/login" : "/auth/register";
       const body = mode === "login"
         ? { email, password }
@@ -71,15 +77,17 @@ export default function Login() {
             <span className="font-serif text-2xl">Shelfsort</span>
           </div>
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] mb-3">
-            {mode === "login" ? "Welcome back" : "Make a shelf"}
+            {mode === "login" ? "Welcome back" : mode === "register" ? "Make a shelf" : "Forgot your password?"}
           </p>
           <h1 className="font-serif text-4xl text-[#2C2C2C] mb-3">
-            {mode === "login" ? "Open your library." : "Start your library."}
+            {mode === "login" ? "Open your library." : mode === "register" ? "Start your library." : "We'll send a link."}
           </h1>
           <p className="text-[#6B705C] mb-8">
             {mode === "login"
               ? "Sign in to save your sorted shelves across devices."
-              : "Create an account or sign in with Google."}
+              : mode === "register"
+              ? "Create an account or sign in with Google."
+              : "Enter the email on your account and we'll send a one-hour reset link."}
           </p>
 
           <button
@@ -134,15 +142,27 @@ export default function Login() {
               <input
                 data-testid="auth-password-input"
                 type="password"
-                required
+                required={mode !== "forgot"}
                 minLength={8}
                 placeholder={mode === "register" ? "At least 8 characters" : "Your password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete={mode === "login" ? "current-password" : "new-password"}
-                className="w-full bg-white border border-[#E8E6E1] rounded-xl pl-10 pr-3 py-2.5 text-sm focus:outline-none focus:border-[#E07A5F] focus:ring-2 focus:ring-[#E07A5F]/20"
+                className={`w-full bg-white border border-[#E8E6E1] rounded-xl pl-10 pr-3 py-2.5 text-sm focus:outline-none focus:border-[#E07A5F] focus:ring-2 focus:ring-[#E07A5F]/20 ${mode === "forgot" ? "hidden" : ""}`}
               />
             </div>
+            {mode === "login" && (
+              <div className="flex justify-end -mt-1">
+                <button
+                  type="button"
+                  data-testid="forgot-password-btn"
+                  onClick={() => setMode("forgot")}
+                  className="text-xs text-[#6B705C] hover:text-[#E07A5F]"
+                >
+                  Forgot password?
+                </button>
+              </div>
+            )}
             <button
               type="submit"
               data-testid="auth-submit-btn"
@@ -150,7 +170,7 @@ export default function Login() {
               className="w-full btn-primary py-3 flex items-center justify-center gap-2 disabled:opacity-60"
             >
               {busy && <Loader2 className="w-4 h-4 animate-spin" />}
-              {mode === "login" ? "Sign in" : "Create account"}
+              {mode === "login" ? "Sign in" : mode === "register" ? "Create account" : "Send reset link"}
             </button>
           </form>
 
@@ -167,7 +187,7 @@ export default function Login() {
                   Create one
                 </button>
               </>
-            ) : (
+            ) : mode === "register" ? (
               <>
                 Already have an account?{" "}
                 <button
@@ -177,6 +197,18 @@ export default function Login() {
                   className="text-[#E07A5F] font-medium hover:underline"
                 >
                   Sign in
+                </button>
+              </>
+            ) : (
+              <>
+                Remembered it?{" "}
+                <button
+                  data-testid="back-to-login"
+                  type="button"
+                  onClick={() => setMode("login")}
+                  className="text-[#E07A5F] font-medium hover:underline"
+                >
+                  Back to sign-in
                 </button>
               </>
             )}

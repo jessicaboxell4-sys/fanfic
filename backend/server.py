@@ -22,6 +22,8 @@ import ebooklib
 from ebooklib import epub
 from bs4 import BeautifulSoup
 import bcrypt
+import secrets
+import resend
 
 from emergentintegrations.llm.chat import LlmChat, UserMessage
 
@@ -311,6 +313,158 @@ async def auth_login(body: LoginBody, request: Request, response: Response):
     await _clear_failed_attempts(identifier)
     await _issue_session(user["user_id"], response)
     return {
+        "user_id": user["user_id"],
+        "email": user["email"],
+        "name": user.get("name", ""),
+        "picture": user.get("picture", ""),
+    }
+
+
+# ---- Password reset ------------------------------------------------------
+RESET_TOKEN_TTL_HOURS = 1
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
+SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "")
+
+
+async def _send_password_reset_email(to_email: str, reset_link: str):
+    """Send the reset link via Resend, or fall back to console-log if no key configured."""
+    subject = "Reset your Shelfsort password"
+    text = (
+        f"Hi,\n\n"
+        f"Someone (hopefully you) asked to reset the password for your Shelfsort account.\n"
+        f"Open this link within {RESET_TOKEN_TTL_HOURS} hour to choose a new password:\n\n"
+        f"{reset_link}\n\n"
+        f"If you didn't request this, you can safely ignore this email.\n"
+        f"— Shelfsort"
+    )
+    html = f"""
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#FDFBF7;padding:32px 0;font-family:Helvetica,Arial,sans-serif;">
+      <tr><td align="center">
+        <table width="520" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #E8E6E1;border-radius:16px;padding:32px;">
+          <tr><td>
+            <p style="margin:0 0 8px 0;font-size:11px;letter-spacing:3px;color:#3A5A40;font-weight:bold;text-transform:uppercase;">Shelfsort</p>
+            <h1 style="margin:0 0 16px 0;font-family:Georgia,serif;color:#2C2C2C;font-size:28px;">Reset your password</h1>
+            <p style="margin:0 0 24px 0;color:#6B705C;line-height:1.6;font-size:15px;">
+              Someone (hopefully you) asked to reset the password on your Shelfsort account.
+              Click the button below within {RESET_TOKEN_TTL_HOURS} hour to choose a new one.
+            </p>
+            <p style="margin:0 0 24px 0;">
+              <a href="{reset_link}" style="display:inline-block;background:#E07A5F;color:#ffffff;text-decoration:none;padding:14px 24px;border-radius:10px;font-weight:600;font-size:15px;">Choose a new password</a>
+            </p>
+            <p style="margin:0 0 8px 0;color:#6B705C;font-size:13px;">Or paste this link into your browser:</p>
+            <p style="margin:0 0 24px 0;word-break:break-all;font-size:12px;color:#E07A5F;">{reset_link}</p>
+            <p style="margin:0;color:#6B705C;font-size:12px;line-height:1.5;">
+              If you didn't request this, you can safely ignore this email — your password won't change.
+            </p>
+          </td></tr>
+        </table>
+      </td></tr>
+    </table>
+    """
+    if not RESEND_API_KEY:
+        logger.warning(
+            "RESEND_API_KEY not set — password reset link for %s: %s",
+            to_email, reset_link,
+        )
+        return {"delivered": False, "logged": True}
+    try:
+        resend.api_key = RESEND_API_KEY
+        params = {
+            "from": SENDER_EMAIL,
+            "to": [to_email],
+            "subject": subject,
+            "html": html,
+            "text": text,
+        }
+        result = await asyncio.to_thread(resend.Emails.send, params)
+        return {"delivered": True, "id": result.get("id")}
+    except Exception as e:
+        logger.error("Resend send failed: %s", e)
+        # Still log the link so the user can recover via support
+        logger.warning("Reset link for %s (Resend failed): %s", to_email, reset_link)
+        return {"delivered": False, "error": str(e)}
+
+
+class ForgotPasswordBody(BaseModel):
+    email: str
+
+
+class ResetPasswordBody(BaseModel):
+    token: str
+    password: str
+
+
+@api_router.post("/auth/forgot-password")
+async def auth_forgot_password(body: ForgotPasswordBody):
+    """Always returns 200 so attackers can't probe which emails are registered."""
+    email = (body.email or "").strip().lower()
+    if not EMAIL_REGEX.match(email):
+        # Still 200 to avoid enumeration; just no email gets sent
+        return {"ok": True}
+
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    if user and user.get("password_hash"):
+        token = secrets.token_urlsafe(32)
+        expires_at = datetime.now(timezone.utc) + timedelta(hours=RESET_TOKEN_TTL_HOURS)
+        # Invalidate any prior outstanding tokens for this user
+        await db.password_reset_tokens.delete_many({"user_id": user["user_id"]})
+        await db.password_reset_tokens.insert_one({
+            "token": token,
+            "user_id": user["user_id"],
+            "email": email,
+            "expires_at": expires_at,
+            "used": False,
+            "created_at": datetime.now(timezone.utc),
+        })
+        base = FRONTEND_URL.rstrip("/") if FRONTEND_URL else ""
+        reset_link = f"{base}/reset-password?token={token}"
+        await _send_password_reset_email(email, reset_link)
+    return {"ok": True}
+
+
+@api_router.post("/auth/reset-password")
+async def auth_reset_password(body: ResetPasswordBody, response: Response):
+    token = (body.token or "").strip()
+    password = body.password or ""
+
+    if len(password) < MIN_PASSWORD_LEN:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Password must be at least {MIN_PASSWORD_LEN} characters",
+        )
+    if not token:
+        raise HTTPException(status_code=400, detail="Missing reset token")
+
+    rec = await db.password_reset_tokens.find_one({"token": token}, {"_id": 0})
+    if not rec or rec.get("used"):
+        raise HTTPException(status_code=400, detail="This reset link is invalid or already used")
+
+    exp = rec.get("expires_at")
+    if isinstance(exp, str):
+        exp = datetime.fromisoformat(exp)
+    if exp and exp.tzinfo is None:
+        exp = exp.replace(tzinfo=timezone.utc)
+    if exp and exp < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="This reset link has expired")
+
+    # Update password + invalidate token + clear lockouts
+    new_hash = _hash_password(password)
+    await db.users.update_one(
+        {"user_id": rec["user_id"]},
+        {"$set": {"password_hash": new_hash}},
+    )
+    await db.password_reset_tokens.update_one(
+        {"token": token},
+        {"$set": {"used": True, "used_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    await _clear_failed_attempts(f"email:{rec['email']}")
+
+    # Issue a fresh session so the user is signed in immediately
+    await _issue_session(rec["user_id"], response)
+    user = await db.users.find_one({"user_id": rec["user_id"]}, {"_id": 0})
+    return {
+        "ok": True,
         "user_id": user["user_id"],
         "email": user["email"],
         "name": user.get("name", ""),
@@ -1496,6 +1650,8 @@ async def on_startup():
         await db.user_sessions.create_index("session_token", unique=True)
         await db.login_attempts.create_index("identifier")
         await db.login_attempts.create_index("ts")
+        await db.password_reset_tokens.create_index("token", unique=True)
+        await db.password_reset_tokens.create_index("user_id")
     except Exception as e:
         logger.warning(f"Index setup: {e}")
 
