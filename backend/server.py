@@ -1078,6 +1078,28 @@ async def book_stats(user: User = Depends(get_current_user)):
     }
 
 
+def _suggest_search_url(source_url: Optional[str], title: str, author: str) -> Optional[str]:
+    """Build a 'find it again' search URL on the same site as the dead source."""
+    from urllib.parse import quote_plus
+    q = quote_plus(f"{title or ''} {author or ''}".strip())
+    if not q:
+        return None
+    host = (source_url or "").lower()
+    if "archiveofourown.org" in host:
+        return f"https://archiveofourown.org/works/search?work_search%5Bquery%5D={q}"
+    if "fanfiction.net" in host:
+        return f"https://www.fanfiction.net/search/?keywords={q}&type=story"
+    if "fictionpress.com" in host:
+        return f"https://www.fictionpress.com/search/?keywords={q}&type=story"
+    if "royalroad.com" in host:
+        return f"https://www.royalroad.com/fictions/search?title={q}"
+    if "spacebattles.com" in host or "sufficientvelocity.com" in host or "questionablequesting.com" in host:
+        base = host.split("/")[2] if "://" in host else host
+        return f"https://www.google.com/search?q=site%3A{base}+{q}"
+    # Generic fallback: Google
+    return f"https://www.google.com/search?q={q}"
+
+
 @api_router.get("/books/export/unavailable")
 async def export_unavailable_list(user: User = Depends(get_current_user)):
     """A plain .txt list of every book FicHub couldn't find — for manual lookup."""
@@ -1108,6 +1130,11 @@ async def export_unavailable_list(user: User = Depends(get_current_user)):
                 lines.append(f"   FicHub said: {b['fichub_last_error']}")
             if b.get("fichub_last_attempt_at"):
                 lines.append(f"   Last tried:  {b['fichub_last_attempt_at']}")
+            search = _suggest_search_url(
+                b.get("source_url"), b.get("title", ""), b.get("author", "")
+            )
+            if search:
+                lines.append(f"   How to fix:  {search}")
             lines.append("")
     body = "\n".join(lines) + "\n"
     headers = {"Content-Disposition": "attachment; filename=shelfsort_cant_find_online.txt"}
