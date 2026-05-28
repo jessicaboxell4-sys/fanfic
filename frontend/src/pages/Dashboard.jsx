@@ -331,14 +331,24 @@ export default function Dashboard() {
                 </button>
               )}
               {smart === "unavailable" && refreshStatus.unavailable > 0 && (
-                <button
-                  data-testid="export-unavailable-btn"
-                  onClick={() => window.open(`${process.env.REACT_APP_BACKEND_URL}/api/books/export/unavailable`, "_blank")}
-                  className="px-4 py-1.5 rounded-full text-sm font-medium border bg-white border-[#E8E6E1] text-[#2C2C2C] hover:bg-[#F5F3EC] transition-colors flex items-center gap-1.5"
-                  title="Download a .txt list with titles, authors, and source URLs"
-                >
-                  ⤓ Download list (.txt)
-                </button>
+                <>
+                  <button
+                    data-testid="export-unavailable-btn"
+                    onClick={() => window.open(`${process.env.REACT_APP_BACKEND_URL}/api/books/export/unavailable`, "_blank")}
+                    className="px-4 py-1.5 rounded-full text-sm font-medium border bg-white border-[#E8E6E1] text-[#2C2C2C] hover:bg-[#F5F3EC] transition-colors flex items-center gap-1.5"
+                    title="Download a .txt list with titles, authors, and source URLs"
+                  >
+                    ⤓ Download list (.txt)
+                  </button>
+                  <button
+                    data-testid="open-cant-find-page"
+                    onClick={() => navigate("/library/cant-find-online")}
+                    className="px-4 py-1.5 rounded-full text-sm font-medium border bg-white border-[#E8E6E1] text-[#2C2C2C] hover:bg-[#F5F3EC] transition-colors flex items-center gap-1.5"
+                    title="Open the Lost & Found page to recover URLs"
+                  >
+                    🔎 Recover URLs
+                  </button>
+                </>
               )}
               {customCats.map(c => (
                 <span
