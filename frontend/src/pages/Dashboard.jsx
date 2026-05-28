@@ -3,7 +3,7 @@ import { api } from "../lib/api";
 import Navbar from "../components/Navbar";
 import BookCard from "../components/BookCard";
 import UploadZone from "../components/UploadZone";
-import { Search, Library as LibIcon, Filter, X } from "lucide-react";
+import { Search, X, Plus, Tag } from "lucide-react";
 import { toast } from "sonner";
 
 const DEFAULT_CATEGORIES = ["All", "Fanfiction", "Original Fiction", "Non-fiction", "Unclassified"];
@@ -15,6 +15,9 @@ export default function Dashboard() {
   const [category, setCategory] = useState("All");
   const [fandom, setFandom] = useState(null);
   const [search, setSearch] = useState("");
+  const [customCats, setCustomCats] = useState([]);
+  const [newCat, setNewCat] = useState("");
+  const [addingCat, setAddingCat] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -23,12 +26,14 @@ export default function Dashboard() {
       if (category && category !== "All") params.category = category;
       if (fandom) params.fandom = fandom;
       if (search) params.q = search;
-      const [b, s] = await Promise.all([
+      const [b, s, c] = await Promise.all([
         api.get("/books", { params }),
         api.get("/books/stats"),
+        api.get("/categories"),
       ]);
       setBooks(b.data.books || []);
       setStats(s.data);
+      setCustomCats(c.data.custom || []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -90,7 +95,7 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2 mb-8">
+            <div className="flex flex-wrap gap-2 mb-3">
               {DEFAULT_CATEGORIES.map(c => (
                 <button
                   key={c}
@@ -105,6 +110,100 @@ export default function Dashboard() {
                   {c}
                 </button>
               ))}
+              {customCats.map(c => (
+                <span
+                  key={c}
+                  className={`group flex items-center gap-1 pl-4 pr-1.5 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                    category === c
+                      ? "bg-[#3A5A40] text-white border-[#3A5A40]"
+                      : "bg-[#E5EBE6] border-[#3A5A40]/20 text-[#3A5A40] hover:bg-[#3A5A40] hover:text-white"
+                  }`}
+                >
+                  <button
+                    data-testid={`filter-custom-${c.replace(/\s+/g, '-').toLowerCase()}`}
+                    onClick={() => { setCategory(c); setFandom(null); }}
+                    className="focus:outline-none"
+                  >
+                    {c}
+                  </button>
+                  <button
+                    data-testid={`delete-custom-${c.replace(/\s+/g, '-').toLowerCase()}`}
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      if (!window.confirm(`Delete category "${c}"? Books in it will keep the label until you change them.`)) return;
+                      try {
+                        await api.delete(`/categories/${encodeURIComponent(c)}`);
+                        toast.success(`Removed "${c}"`);
+                        if (category === c) setCategory("All");
+                        load();
+                      } catch (err) {
+                        toast.error("Couldn't remove category");
+                      }
+                    }}
+                    className="w-5 h-5 rounded-full hover:bg-black/15 flex items-center justify-center"
+                    title={`Remove ${c}`}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+
+            {/* Add custom category */}
+            <div className="flex flex-wrap items-center gap-2 mb-8">
+              {addingCat ? (
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    const name = newCat.trim();
+                    if (!name) return;
+                    try {
+                      await api.post("/categories", { name });
+                      toast.success(`Added shelf "${name}"`);
+                      setNewCat("");
+                      setAddingCat(false);
+                      load();
+                    } catch (err) {
+                      toast.error("Couldn't add category");
+                    }
+                  }}
+                  className="flex items-center gap-2"
+                >
+                  <input
+                    autoFocus
+                    data-testid="new-category-input"
+                    type="text"
+                    placeholder="Shelf name (e.g., To Read)"
+                    value={newCat}
+                    onChange={(e) => setNewCat(e.target.value)}
+                    maxLength={40}
+                    className="bg-white border border-[#E8E6E1] rounded-full px-4 py-1.5 text-sm focus:outline-none focus:border-[#E07A5F] focus:ring-2 focus:ring-[#E07A5F]/20"
+                  />
+                  <button
+                    type="submit"
+                    data-testid="confirm-add-category"
+                    className="btn-primary text-sm py-1.5"
+                  >
+                    Add
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setAddingCat(false); setNewCat(""); }}
+                    className="text-[#6B705C] hover:text-[#2C2C2C] text-sm"
+                  >
+                    Cancel
+                  </button>
+                </form>
+              ) : (
+                <button
+                  data-testid="add-category-btn"
+                  onClick={() => setAddingCat(true)}
+                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium border border-dashed border-[#3A5A40]/40 text-[#3A5A40] hover:bg-[#E5EBE6] transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  New shelf
+                </button>
+              )}
             </div>
 
             {stats.fandoms.length > 0 && (

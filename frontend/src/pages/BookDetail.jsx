@@ -5,7 +5,7 @@ import Navbar from "../components/Navbar";
 import { ArrowLeft, Download, Trash2, Sparkles, Book, Edit3, Link as LinkIcon } from "lucide-react";
 import { toast } from "sonner";
 
-const CATEGORIES = ["Fanfiction", "Original Fiction", "Non-fiction", "Unclassified"];
+const DEFAULT_CATEGORIES = ["Fanfiction", "Original Fiction", "Non-fiction", "Unclassified"];
 
 export default function BookDetail() {
   const { id } = useParams();
@@ -16,13 +16,23 @@ export default function BookDetail() {
   const [editing, setEditing] = useState(false);
   const [editCategory, setEditCategory] = useState("");
   const [editFandom, setEditFandom] = useState("");
+  const [allCategories, setAllCategories] = useState(DEFAULT_CATEGORIES);
 
   const load = async () => {
     try {
-      const { data } = await api.get(`/books/${id}`);
-      setBook(data);
-      setEditCategory(data.category);
-      setEditFandom(data.fandom || "");
+      const [bookRes, catRes] = await Promise.all([
+        api.get(`/books/${id}`),
+        api.get(`/categories`),
+      ]);
+      setBook(bookRes.data);
+      setEditCategory(bookRes.data.category);
+      setEditFandom(bookRes.data.fandom || "");
+      const merged = [...DEFAULT_CATEGORIES, ...(catRes.data.custom || [])];
+      // Make sure the current category is in the list even if unknown
+      if (bookRes.data.category && !merged.includes(bookRes.data.category)) {
+        merged.push(bookRes.data.category);
+      }
+      setAllCategories(merged);
     } catch (e) {
       toast.error("Couldn't load book");
       navigate("/library");
@@ -157,7 +167,7 @@ export default function BookDetail() {
                       onChange={(e) => setEditCategory(e.target.value)}
                       className="w-full bg-white border border-[#E8E6E1] rounded-lg px-3 py-2 text-sm"
                     >
-                      {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                      {allCategories.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
                   <div>
