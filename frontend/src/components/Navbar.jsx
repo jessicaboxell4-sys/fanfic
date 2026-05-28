@@ -1,0 +1,61 @@
+import React from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { BookOpen, LogOut, Download } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
+import { api, API } from "../lib/api";
+
+export default function Navbar() {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleDownloadAll = async () => {
+    const url = `${API}/books/export/zip`;
+    // Use anchor with credentials via cookie
+    window.open(url, "_blank");
+  };
+
+  return (
+    <header className="sticky top-0 z-40 backdrop-blur-xl bg-[#FDFBF7]/80 border-b border-[#E8E6E1]">
+      <div className="max-w-7xl mx-auto px-6 md:px-8 py-3 flex items-center justify-between gap-4">
+        <Link to="/library" className="flex items-center gap-2" data-testid="navbar-brand">
+          <BookOpen className="w-6 h-6 text-[#E07A5F]" />
+          <span className="font-serif text-2xl font-medium">Shelfsort</span>
+        </Link>
+
+        <div className="flex items-center gap-2 md:gap-3">
+          <button
+            data-testid="navbar-download-zip"
+            onClick={handleDownloadAll}
+            className="btn-secondary text-sm flex items-center gap-2"
+            title="Download organized ZIP"
+          >
+            <Download className="w-4 h-4" />
+            <span className="hidden md:inline">Download ZIP</span>
+          </button>
+          {user && (
+            <>
+              <div className="flex items-center gap-2 px-2">
+                {user.picture && (
+                  <img
+                    src={user.picture}
+                    alt={user.name}
+                    className="w-8 h-8 rounded-full border border-[#E8E6E1]"
+                  />
+                )}
+                <span className="text-sm text-[#2C2C2C] hidden md:inline" data-testid="navbar-user-name">{user.name}</span>
+              </div>
+              <button
+                data-testid="navbar-logout"
+                onClick={logout}
+                className="p-2 hover:bg-[#F5F3EC] rounded-lg"
+                title="Sign out"
+              >
+                <LogOut className="w-4 h-4 text-[#6B705C]" />
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </header>
+  );
+}

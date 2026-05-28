@@ -1,72 +1,662 @@
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, UploadFile, File, HTTPException, Request, Response, Depends, Form
+from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
-import logging
-from pathlib import Path
-from pydantic import BaseModel, Field, ConfigDict
-from typing import List
+import io
+import re
+import json
 import uuid
-from datetime import datetime, timezone
+import zipfile
+import logging
+import asyncio
+import tempfile
+import requests as http_requests
+from pathlib import Path
+from pydantic import BaseModel, Field
+from typing import List, Optional, Dict, Any
+from datetime import datetime, timezone, timedelta
 
+import ebooklib
+from ebooklib import epub
+from bs4 import BeautifulSoup
+
+from emergentintegrations.llm.chat import LlmChat, UserMessage
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB connection
+# MongoDB
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-# Create the main app without a prefix
-app = FastAPI()
+EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
 
-# Create a router with the /api prefix
+# Storage dir
+STORAGE_DIR = Path('/app/uploads')
+STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+
+app = FastAPI()
 api_router = APIRouter(prefix="/api")
 
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
-# Define Models
-class StatusCheck(BaseModel):
-    model_config = ConfigDict(extra="ignore")  # Ignore MongoDB's _id field
-    
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-class StatusCheckCreate(BaseModel):
-    client_name: str
+# ============================================================
+# MODELS
+# ============================================================
+class User(BaseModel):
+    user_id: str
+    email: str
+    name: str
+    picture: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-# Add your routes to the router instead of directly to app
+
+class BookOut(BaseModel):
+    book_id: str
+    user_id: str
+    filename: str
+    title: str
+    author: str
+    description: Optional[str] = ""
+    language: Optional[str] = ""
+    publisher: Optional[str] = ""
+    has_cover: bool = False
+    category: str  # e.g., "Fanfiction", "Original Fiction", "Non-fiction"
+    fandom: Optional[str] = None  # e.g., "Harry Potter", "Twilight"
+    confidence: float = 0.0
+    classifier: str = "metadata"  # "metadata" | "ai" | "manual"
+    size_bytes: int = 0
+    created_at: datetime
+
+
+# ============================================================
+# AUTH HELPERS
+# ============================================================
+async def get_current_user(request: Request) -> User:
+    # Try cookie first, then Authorization header
+    session_token = request.cookies.get('session_token')
+    if not session_token:
+        auth = request.headers.get('Authorization', '')
+        if auth.startswith('Bearer '):
+            session_token = auth[7:]
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    session = await db.user_sessions.find_one({"session_token": session_token}, {"_id": 0})
+    if not session:
+        raise HTTPException(status_code=401, detail="Invalid session")
+
+    expires_at = session.get('expires_at')
+    if isinstance(expires_at, str):
+        expires_at = datetime.fromisoformat(expires_at)
+    if expires_at and expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at and expires_at < datetime.now(timezone.utc):
+        raise HTTPException(status_code=401, detail="Session expired")
+
+    user_doc = await db.users.find_one({"user_id": session['user_id']}, {"_id": 0})
+    if not user_doc:
+        raise HTTPException(status_code=401, detail="User not found")
+    return User(**user_doc)
+
+
+# ============================================================
+# AUTH ROUTES
+# ============================================================
+@api_router.post("/auth/google")
+async def auth_google(request: Request, response: Response):
+    body = await request.json()
+    session_id = body.get('session_id')
+    if not session_id:
+        raise HTTPException(status_code=400, detail="session_id required")
+
+    try:
+        r = http_requests.get(
+            "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
+            headers={"X-Session-ID": session_id},
+            timeout=15,
+        )
+        r.raise_for_status()
+        data = r.json()
+    except Exception as e:
+        logger.error(f"Emergent auth failed: {e}")
+        raise HTTPException(status_code=401, detail="OAuth verification failed")
+
+    email = data['email']
+    name = data['name']
+    picture = data.get('picture', '')
+    session_token = data['session_token']
+
+    existing = await db.users.find_one({"email": email}, {"_id": 0})
+    if existing:
+        user_id = existing['user_id']
+        await db.users.update_one(
+            {"email": email},
+            {"$set": {"name": name, "picture": picture}}
+        )
+    else:
+        user_id = f"user_{uuid.uuid4().hex[:12]}"
+        await db.users.insert_one({
+            "user_id": user_id,
+            "email": email,
+            "name": name,
+            "picture": picture,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+
+    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+    await db.user_sessions.insert_one({
+        "user_id": user_id,
+        "session_token": session_token,
+        "expires_at": expires_at,
+        "created_at": datetime.now(timezone.utc),
+    })
+
+    response.set_cookie(
+        key="session_token",
+        value=session_token,
+        max_age=7 * 24 * 60 * 60,
+        httponly=True,
+        secure=True,
+        samesite="none",
+        path="/",
+    )
+    return {"user_id": user_id, "email": email, "name": name, "picture": picture}
+
+
+@api_router.get("/auth/me")
+async def auth_me(user: User = Depends(get_current_user)):
+    return {"user_id": user.user_id, "email": user.email, "name": user.name, "picture": user.picture}
+
+
+@api_router.post("/auth/logout")
+async def auth_logout(request: Request, response: Response):
+    session_token = request.cookies.get('session_token')
+    if session_token:
+        await db.user_sessions.delete_one({"session_token": session_token})
+    response.delete_cookie("session_token", path="/")
+    return {"ok": True}
+
+
+# ============================================================
+# EPUB PARSING & CLASSIFICATION
+# ============================================================
+FANDOM_KEYWORDS = {
+    "Harry Potter": ["harry potter", "hogwarts", "hermione", "voldemort", "dumbledore", "weasley", "snape", "draco malfoy", "ron weasley"],
+    "Twilight": ["twilight saga", "bella swan", "edward cullen", "stephenie meyer", "forks washington", "jacob black", "cullen family"],
+    "Marvel": ["avengers", "iron man", "tony stark", "spider-man", "spider man", "captain america", "marvel comics", "x-men", "wolverine"],
+    "DC Comics": ["batman", "superman", "wonder woman", "gotham", "bruce wayne", "clark kent", "dc comics"],
+    "Star Wars": ["star wars", "jedi", "sith", "skywalker", "darth vader", "obi-wan", "the force"],
+    "Lord of the Rings": ["lord of the rings", "frodo", "gandalf", "middle-earth", "middle earth", "hobbit", "tolkien"],
+    "Sherlock Holmes": ["sherlock holmes", "221b baker", "john watson", "moriarty"],
+    "Percy Jackson": ["percy jackson", "camp half-blood", "rick riordan"],
+    "Doctor Who": ["doctor who", "tardis", "the doctor", "gallifrey"],
+    "Supernatural": ["supernatural fic", "dean winchester", "sam winchester", "castiel"],
+    "Game of Thrones": ["game of thrones", "westeros", "jon snow", "daenerys", "targaryen", "stark family"],
+    "Hunger Games": ["hunger games", "katniss everdeen", "panem", "district 12"],
+    "Naruto": ["naruto uzumaki", "konoha", "sasuke uchiha", "hokage", "akatsuki"],
+    "My Hero Academia": ["my hero academia", "izuku midoriya", "u.a. high", "all might", "bakugou"],
+    "BTS": ["bts fanfic", "jeon jungkook", "kim taehyung", "park jimin", "min yoongi"],
+    "One Direction": ["one direction", "harry styles", "louis tomlinson", "larry stylinson"],
+}
+
+FANFIC_SIGNALS = [
+    "fanfiction", "fan fiction", "fanfic", "ao3", "archive of our own",
+    "fanfiction.net", "wattpad", "x reader", "x-reader", "reader insert",
+    "y/n", "self-insert", "slash fic", "shipping", "alternate universe",
+    "canon divergence", "what if", "one-shot", "drabble"
+]
+
+NONFICTION_SIGNALS = [
+    "memoir", "biography", "autobiography", "history of", "essay", "essays",
+    "guide to", "how to", "handbook", "textbook", "self-help", "nonfiction",
+    "non-fiction", "cookbook", "manual", "reference"
+]
+
+
+def extract_epub_metadata(filepath: Path) -> Dict[str, Any]:
+    """Extract title, author, description, cover from an EPUB file."""
+    try:
+        book = epub.read_epub(str(filepath), options={"ignore_ncx": True})
+    except Exception as e:
+        logger.warning(f"EPUB parse failed for {filepath}: {e}")
+        return {"title": filepath.stem, "author": "Unknown", "description": "", "language": "", "publisher": "", "cover_bytes": None}
+
+    def m(field):
+        items = book.get_metadata('DC', field)
+        if items and len(items) > 0:
+            return items[0][0] or ""
+        return ""
+
+    title = m('title') or filepath.stem
+    creator = m('creator') or "Unknown"
+    description = m('description') or ""
+    language = m('language') or ""
+    publisher = m('publisher') or ""
+
+    # Strip HTML from description
+    if description:
+        description = BeautifulSoup(description, 'html.parser').get_text(separator=' ').strip()
+
+    # Get cover
+    cover_bytes = None
+    try:
+        for item in book.get_items_of_type(ebooklib.ITEM_COVER):
+            cover_bytes = item.get_content()
+            break
+        if not cover_bytes:
+            # Try cover id from metadata
+            cover_meta = book.get_metadata('OPF', 'cover')
+            if cover_meta:
+                cover_id = cover_meta[0][1].get('content')
+                if cover_id:
+                    cover_item = book.get_item_with_id(cover_id)
+                    if cover_item:
+                        cover_bytes = cover_item.get_content()
+        if not cover_bytes:
+            # Look for an image item with 'cover' in name
+            for item in book.get_items_of_type(ebooklib.ITEM_IMAGE):
+                if 'cover' in item.get_name().lower():
+                    cover_bytes = item.get_content()
+                    break
+    except Exception as e:
+        logger.debug(f"Cover extraction failed: {e}")
+
+    # Sample text from first chapters for classification
+    sample_text = ""
+    try:
+        count = 0
+        for item in book.get_items_of_type(ebooklib.ITEM_DOCUMENT):
+            if count >= 3:
+                break
+            content = item.get_content().decode('utf-8', errors='ignore')
+            text = BeautifulSoup(content, 'html.parser').get_text(separator=' ')
+            sample_text += " " + text[:2000]
+            count += 1
+    except Exception:
+        pass
+
+    return {
+        "title": title.strip(),
+        "author": creator.strip(),
+        "description": description[:2000],
+        "language": language,
+        "publisher": publisher,
+        "cover_bytes": cover_bytes,
+        "sample_text": sample_text[:5000],
+    }
+
+
+def classify_by_metadata(meta: Dict[str, Any]) -> Dict[str, Any]:
+    """Heuristic keyword classification. Returns dict with category, fandom, confidence."""
+    blob = " ".join([
+        meta.get("title", ""),
+        meta.get("author", ""),
+        meta.get("description", ""),
+        meta.get("publisher", ""),
+        meta.get("sample_text", "")[:2000],
+    ]).lower()
+
+    matched_fandom = None
+    best_count = 0
+    for fandom, keywords in FANDOM_KEYWORDS.items():
+        count = sum(1 for kw in keywords if kw in blob)
+        if count > best_count:
+            best_count = count
+            matched_fandom = fandom
+
+    is_fanfic = any(s in blob for s in FANFIC_SIGNALS)
+    is_nonfic = any(s in blob for s in NONFICTION_SIGNALS)
+
+    if matched_fandom and best_count >= 1:
+        return {
+            "category": "Fanfiction",
+            "fandom": matched_fandom,
+            "confidence": min(0.6 + 0.1 * best_count, 0.95),
+            "classifier": "metadata",
+        }
+    if is_fanfic:
+        return {"category": "Fanfiction", "fandom": "Other", "confidence": 0.7, "classifier": "metadata"}
+    if is_nonfic:
+        return {"category": "Non-fiction", "fandom": None, "confidence": 0.7, "classifier": "metadata"}
+
+    return {"category": "Unclassified", "fandom": None, "confidence": 0.2, "classifier": "metadata"}
+
+
+async def classify_with_ai(meta: Dict[str, Any]) -> Dict[str, Any]:
+    """Use Claude to classify when metadata heuristics are uncertain."""
+    if not EMERGENT_LLM_KEY:
+        return {"category": "Unclassified", "fandom": None, "confidence": 0.0, "classifier": "ai"}
+
+    system_msg = (
+        "You are a librarian classifying ebooks. Given book metadata, respond with strict JSON only: "
+        '{"category": "Fanfiction|Original Fiction|Non-fiction", "fandom": "<specific fandom name like Harry Potter, Twilight, Marvel, or null if not fanfiction>", "confidence": 0.0-1.0}. '
+        "Use Fanfiction only when it is clearly fan-derived from another work. "
+        "For original fiction novels (even popular ones like the actual Harry Potter series by Rowling), use Original Fiction, not Fanfiction. "
+        "Common fandoms: Harry Potter, Twilight, Marvel, DC Comics, Star Wars, Lord of the Rings, Sherlock Holmes, Percy Jackson, Doctor Who, Supernatural, Game of Thrones, Hunger Games, Naruto, My Hero Academia, BTS, One Direction. "
+        "Return ONLY the JSON object, no markdown."
+    )
+    user_text = (
+        f"Title: {meta.get('title','')}\n"
+        f"Author: {meta.get('author','')}\n"
+        f"Publisher: {meta.get('publisher','')}\n"
+        f"Description: {meta.get('description','')[:600]}\n"
+        f"Sample text: {meta.get('sample_text','')[:800]}"
+    )
+
+    try:
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"classify-{uuid.uuid4().hex[:8]}",
+            system_message=system_msg,
+        ).with_model("anthropic", "claude-sonnet-4-6")
+        resp = await chat.send_message(UserMessage(text=user_text))
+        # Extract JSON
+        text = resp.strip()
+        m = re.search(r'\{.*\}', text, re.DOTALL)
+        if m:
+            obj = json.loads(m.group(0))
+            cat = obj.get('category', 'Unclassified')
+            fandom = obj.get('fandom')
+            if fandom in (None, "null", "None", ""):
+                fandom = None
+            conf = float(obj.get('confidence', 0.5))
+            return {"category": cat, "fandom": fandom, "confidence": conf, "classifier": "ai"}
+    except Exception as e:
+        logger.error(f"AI classify failed: {e}")
+    return {"category": "Unclassified", "fandom": None, "confidence": 0.0, "classifier": "ai"}
+
+
+async def classify_book(meta: Dict[str, Any], force_ai: bool = False) -> Dict[str, Any]:
+    if not force_ai:
+        meta_result = classify_by_metadata(meta)
+        if meta_result['confidence'] >= 0.6:
+            return meta_result
+    ai_result = await classify_with_ai(meta)
+    if ai_result['confidence'] > 0:
+        return ai_result
+    return classify_by_metadata(meta)
+
+
+# ============================================================
+# BOOK ROUTES
+# ============================================================
+@api_router.post("/books/upload")
+async def upload_books(
+    request: Request,
+    files: List[UploadFile] = File(...),
+    user: User = Depends(get_current_user),
+):
+    user_dir = STORAGE_DIR / user.user_id
+    user_dir.mkdir(parents=True, exist_ok=True)
+    results = []
+
+    for f in files:
+        if not f.filename.lower().endswith('.epub'):
+            results.append({"filename": f.filename, "error": "Not an EPUB"})
+            continue
+
+        book_id = f"book_{uuid.uuid4().hex[:12]}"
+        target = user_dir / f"{book_id}.epub"
+        content = await f.read()
+        target.write_bytes(content)
+
+        meta = extract_epub_metadata(target)
+        classification = await classify_book(meta)
+
+        # Save cover separately if exists
+        cover_path = user_dir / f"{book_id}.cover"
+        if meta.get('cover_bytes'):
+            cover_path.write_bytes(meta['cover_bytes'])
+
+        doc = {
+            "book_id": book_id,
+            "user_id": user.user_id,
+            "filename": f.filename,
+            "title": meta['title'],
+            "author": meta['author'],
+            "description": meta['description'],
+            "language": meta['language'],
+            "publisher": meta['publisher'],
+            "has_cover": bool(meta.get('cover_bytes')),
+            "category": classification['category'],
+            "fandom": classification.get('fandom'),
+            "confidence": classification['confidence'],
+            "classifier": classification['classifier'],
+            "size_bytes": len(content),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await db.books.insert_one(doc)
+        results.append({k: v for k, v in doc.items() if k != '_id'})
+
+    return {"uploaded": len(results), "books": results}
+
+
+@api_router.get("/books")
+async def list_books(
+    request: Request,
+    category: Optional[str] = None,
+    fandom: Optional[str] = None,
+    q: Optional[str] = None,
+    user: User = Depends(get_current_user),
+):
+    query: Dict[str, Any] = {"user_id": user.user_id}
+    if category:
+        query['category'] = category
+    if fandom:
+        query['fandom'] = fandom
+    if q:
+        query['$or'] = [
+            {"title": {"$regex": q, "$options": "i"}},
+            {"author": {"$regex": q, "$options": "i"}},
+        ]
+    books = await db.books.find(query, {"_id": 0}).sort("created_at", -1).to_list(2000)
+    return {"books": books}
+
+
+@api_router.get("/books/stats")
+async def book_stats(user: User = Depends(get_current_user)):
+    pipeline_cat = [
+        {"$match": {"user_id": user.user_id}},
+        {"$group": {"_id": "$category", "count": {"$sum": 1}}},
+    ]
+    pipeline_fandom = [
+        {"$match": {"user_id": user.user_id, "fandom": {"$ne": None}}},
+        {"$group": {"_id": "$fandom", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+    ]
+    cats = await db.books.aggregate(pipeline_cat).to_list(100)
+    fandoms = await db.books.aggregate(pipeline_fandom).to_list(100)
+    total = await db.books.count_documents({"user_id": user.user_id})
+    return {
+        "total": total,
+        "categories": [{"name": c['_id'], "count": c['count']} for c in cats],
+        "fandoms": [{"name": f['_id'], "count": f['count']} for f in fandoms],
+    }
+
+
+@api_router.get("/books/{book_id}")
+async def get_book(book_id: str, user: User = Depends(get_current_user)):
+    book = await db.books.find_one({"book_id": book_id, "user_id": user.user_id}, {"_id": 0})
+    if not book:
+        raise HTTPException(status_code=404, detail="Not found")
+    return book
+
+
+@api_router.get("/books/{book_id}/cover")
+async def get_cover(book_id: str, request: Request):
+    # Allow token in query for img src
+    token = request.query_params.get('t')
+    user_id = None
+    if token:
+        sess = await db.user_sessions.find_one({"session_token": token}, {"_id": 0})
+        if sess:
+            user_id = sess['user_id']
+    if not user_id:
+        try:
+            user = await get_current_user(request)
+            user_id = user.user_id
+        except HTTPException:
+            raise HTTPException(status_code=401, detail="Not authenticated")
+    book = await db.books.find_one({"book_id": book_id, "user_id": user_id}, {"_id": 0})
+    if not book:
+        raise HTTPException(status_code=404, detail="Not found")
+    cover = STORAGE_DIR / user_id / f"{book_id}.cover"
+    if not cover.exists():
+        raise HTTPException(status_code=404, detail="No cover")
+    return FileResponse(str(cover), media_type="image/jpeg")
+
+
+@api_router.get("/books/{book_id}/download")
+async def download_book(book_id: str, user: User = Depends(get_current_user)):
+    book = await db.books.find_one({"book_id": book_id, "user_id": user.user_id}, {"_id": 0})
+    if not book:
+        raise HTTPException(status_code=404, detail="Not found")
+    fp = STORAGE_DIR / user.user_id / f"{book_id}.epub"
+    if not fp.exists():
+        raise HTTPException(status_code=404, detail="File missing")
+    return FileResponse(str(fp), media_type="application/epub+zip", filename=book['filename'])
+
+
+@api_router.delete("/books/{book_id}")
+async def delete_book(book_id: str, user: User = Depends(get_current_user)):
+    book = await db.books.find_one({"book_id": book_id, "user_id": user.user_id}, {"_id": 0})
+    if not book:
+        raise HTTPException(status_code=404, detail="Not found")
+    await db.books.delete_one({"book_id": book_id, "user_id": user.user_id})
+    for ext in ['.epub', '.cover']:
+        p = STORAGE_DIR / user.user_id / f"{book_id}{ext}"
+        if p.exists():
+            p.unlink()
+    return {"ok": True}
+
+
+class ReclassifyBody(BaseModel):
+    use_ai: bool = True
+
+
+@api_router.post("/books/{book_id}/reclassify")
+async def reclassify_book(book_id: str, body: ReclassifyBody, user: User = Depends(get_current_user)):
+    book = await db.books.find_one({"book_id": book_id, "user_id": user.user_id}, {"_id": 0})
+    if not book:
+        raise HTTPException(status_code=404, detail="Not found")
+    fp = STORAGE_DIR / user.user_id / f"{book_id}.epub"
+    if not fp.exists():
+        raise HTTPException(status_code=404, detail="File missing")
+    meta = extract_epub_metadata(fp)
+    classification = await classify_book(meta, force_ai=body.use_ai)
+    await db.books.update_one(
+        {"book_id": book_id},
+        {"$set": {
+            "category": classification['category'],
+            "fandom": classification.get('fandom'),
+            "confidence": classification['confidence'],
+            "classifier": classification['classifier'],
+        }},
+    )
+    return classification
+
+
+class UpdateBookBody(BaseModel):
+    category: Optional[str] = None
+    fandom: Optional[str] = None
+
+
+@api_router.patch("/books/{book_id}")
+async def update_book(book_id: str, body: UpdateBookBody, user: User = Depends(get_current_user)):
+    book = await db.books.find_one({"book_id": book_id, "user_id": user.user_id}, {"_id": 0})
+    if not book:
+        raise HTTPException(status_code=404, detail="Not found")
+    update: Dict[str, Any] = {"classifier": "manual", "confidence": 1.0}
+    if body.category is not None:
+        update['category'] = body.category
+    if body.fandom is not None:
+        update['fandom'] = body.fandom if body.fandom else None
+    await db.books.update_one({"book_id": book_id, "user_id": user.user_id}, {"$set": update})
+    return {"ok": True}
+
+
+def _safe_folder(name: str) -> str:
+    name = re.sub(r'[^\w\s-]', '', name or 'Uncategorized').strip()
+    name = re.sub(r'\s+', '_', name)
+    return name or 'Uncategorized'
+
+
+@api_router.get("/books/export/zip")
+async def export_zip(request: Request, user: User = Depends(get_current_user)):
+    books = await db.books.find({"user_id": user.user_id}, {"_id": 0}).to_list(5000)
+    if not books:
+        raise HTTPException(status_code=404, detail="No books")
+
+    def iter_zip():
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for b in books:
+                fp = STORAGE_DIR / user.user_id / f"{b['book_id']}.epub"
+                if not fp.exists():
+                    continue
+                category = _safe_folder(b.get('category') or 'Uncategorized')
+                fandom = b.get('fandom')
+                if category == 'Fanfiction' and fandom:
+                    folder = f"Fanfiction/{_safe_folder(fandom)}"
+                else:
+                    folder = category
+                arcname = f"{folder}/{b['filename']}"
+                zf.write(str(fp), arcname=arcname)
+        buf.seek(0)
+        return buf
+
+    buf = iter_zip()
+    headers = {"Content-Disposition": "attachment; filename=shelfsort_library.zip"}
+    return StreamingResponse(buf, media_type="application/zip", headers=headers)
+
+
+# ============================================================
+# CATEGORIES (custom)
+# ============================================================
+class CategoryBody(BaseModel):
+    name: str
+
+
+@api_router.get("/categories")
+async def list_categories(user: User = Depends(get_current_user)):
+    docs = await db.categories.find({"user_id": user.user_id}, {"_id": 0}).to_list(200)
+    base = ["Fanfiction", "Original Fiction", "Non-fiction", "Unclassified"]
+    customs = [d['name'] for d in docs]
+    return {"defaults": base, "custom": customs}
+
+
+@api_router.post("/categories")
+async def add_category(body: CategoryBody, user: User = Depends(get_current_user)):
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Empty name")
+    existing = await db.categories.find_one({"user_id": user.user_id, "name": name}, {"_id": 0})
+    if existing:
+        return {"ok": True}
+    await db.categories.insert_one({
+        "user_id": user.user_id, "name": name,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return {"ok": True}
+
+
+@api_router.delete("/categories/{name}")
+async def remove_category(name: str, user: User = Depends(get_current_user)):
+    await db.categories.delete_one({"user_id": user.user_id, "name": name})
+    return {"ok": True}
+
+
 @api_router.get("/")
 async def root():
-    return {"message": "Hello World"}
+    return {"app": "Shelfsort", "ok": True}
 
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.model_dump()
-    status_obj = StatusCheck(**status_dict)
-    
-    # Convert to dict and serialize datetime to ISO string for MongoDB
-    doc = status_obj.model_dump()
-    doc['timestamp'] = doc['timestamp'].isoformat()
-    
-    _ = await db.status_checks.insert_one(doc)
-    return status_obj
 
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    # Exclude MongoDB's _id field from the query results
-    status_checks = await db.status_checks.find({}, {"_id": 0}).to_list(1000)
-    
-    # Convert ISO string timestamps back to datetime objects
-    for check in status_checks:
-        if isinstance(check['timestamp'], str):
-            check['timestamp'] = datetime.fromisoformat(check['timestamp'])
-    
-    return status_checks
-
-# Include the router in the main app
 app.include_router(api_router)
 
 app.add_middleware(
@@ -77,12 +667,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
