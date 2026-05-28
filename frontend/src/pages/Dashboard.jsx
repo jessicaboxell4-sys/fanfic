@@ -4,7 +4,8 @@ import { api } from "../lib/api";
 import Navbar from "../components/Navbar";
 import BookCard from "../components/BookCard";
 import UploadZone from "../components/UploadZone";
-import { Search, X, Plus, ArrowRight } from "lucide-react";
+import SelectionBar from "../components/SelectionBar";
+import { Search, X, Plus, ArrowRight, CheckSquare } from "lucide-react";
 import { toast } from "sonner";
 
 const DEFAULT_CATEGORIES = ["All", "Fanfiction", "Original Fiction", "Non-fiction", "Unclassified"];
@@ -20,6 +21,8 @@ export default function Dashboard() {
   const [customCats, setCustomCats] = useState([]);
   const [newCat, setNewCat] = useState("");
   const [addingCat, setAddingCat] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(new Set());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -95,6 +98,23 @@ export default function Dashboard() {
                   className="w-full bg-white border border-[#E8E6E1] rounded-lg pl-10 pr-3 py-2.5 text-sm focus:outline-none focus:border-[#E07A5F] focus:ring-2 focus:ring-[#E07A5F]/20"
                 />
               </div>
+              <button
+                data-testid="toggle-select-mode"
+                onClick={() => {
+                  setSelectMode((m) => {
+                    if (m) setSelectedIds(new Set());
+                    return !m;
+                  });
+                }}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium border transition-colors ${
+                  selectMode
+                    ? "bg-[#2C2C2C] text-white border-[#2C2C2C]"
+                    : "bg-white border-[#E8E6E1] text-[#2C2C2C] hover:bg-[#F5F3EC]"
+                }`}
+              >
+                <CheckSquare className="w-4 h-4" />
+                {selectMode ? "Done" : "Select"}
+              </button>
             </div>
 
             <div className="flex flex-wrap gap-2 mb-3">
@@ -241,13 +261,41 @@ export default function Dashboard() {
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6" data-testid="books-grid">
                 {books.map(b => (
-                  <BookCard key={b.book_id} book={b} />
+                  <BookCard
+                    key={b.book_id}
+                    book={b}
+                    selectMode={selectMode}
+                    selected={selectedIds.has(b.book_id)}
+                    onToggleSelect={(id) => {
+                      setSelectedIds((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(id)) next.delete(id); else next.add(id);
+                        return next;
+                      });
+                    }}
+                  />
                 ))}
               </div>
             )}
           </>
         )}
       </main>
+
+      {selectMode && (
+        <SelectionBar
+          selectedIds={selectedIds}
+          customCats={customCats}
+          onDone={() => {
+            setSelectedIds(new Set());
+            setSelectMode(false);
+            load();
+          }}
+          onCancel={() => {
+            setSelectedIds(new Set());
+            setSelectMode(false);
+          }}
+        />
+      )}
     </div>
   );
 }

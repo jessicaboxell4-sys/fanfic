@@ -750,6 +750,50 @@ class UpdateBookBody(BaseModel):
     fandom: Optional[str] = None
 
 
+class BulkIdsBody(BaseModel):
+    book_ids: List[str]
+
+
+class BulkMoveBody(BaseModel):
+    book_ids: List[str]
+    category: Optional[str] = None
+    fandom: Optional[str] = None
+
+
+@api_router.post("/books/bulk/delete")
+async def bulk_delete(body: BulkIdsBody, user: User = Depends(get_current_user)):
+    if not body.book_ids:
+        return {"deleted": 0}
+    user_dir = STORAGE_DIR / user.user_id
+    for bid in body.book_ids:
+        for ext in ['.epub', '.cover', '.links.txt']:
+            p = user_dir / f"{bid}{ext}"
+            if p.exists():
+                p.unlink()
+    result = await db.books.delete_many(
+        {"book_id": {"$in": body.book_ids}, "user_id": user.user_id}
+    )
+    return {"deleted": result.deleted_count}
+
+
+@api_router.post("/books/bulk/move")
+async def bulk_move(body: BulkMoveBody, user: User = Depends(get_current_user)):
+    if not body.book_ids:
+        return {"updated": 0}
+    update: Dict[str, Any] = {"classifier": "manual", "confidence": 1.0}
+    if body.category is not None:
+        update["category"] = body.category
+    if body.fandom is not None:
+        update["fandom"] = body.fandom if body.fandom else None
+    if len(update) == 2:  # only classifier+confidence — nothing to move to
+        raise HTTPException(status_code=400, detail="No category or fandom provided")
+    result = await db.books.update_many(
+        {"book_id": {"$in": body.book_ids}, "user_id": user.user_id},
+        {"$set": update},
+    )
+    return {"updated": result.modified_count}
+
+
 @api_router.patch("/books/{book_id}")
 async def update_book(book_id: str, body: UpdateBookBody, user: User = Depends(get_current_user)):
     book = await db.books.find_one({"book_id": book_id, "user_id": user.user_id}, {"_id": 0})

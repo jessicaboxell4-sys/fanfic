@@ -1,5 +1,5 @@
 import React from "react";
-import { BookOpen, Book } from "lucide-react";
+import { Book, Check } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const categoryBadgeClass = (category) => {
@@ -9,7 +9,7 @@ const categoryBadgeClass = (category) => {
   return "badge-unclassified";
 };
 
-export default function BookCard({ book, sessionToken }) {
+export default function BookCard({ book, selectMode, selected, onToggleSelect }) {
   const coverUrl = book.has_cover
     ? `${process.env.REACT_APP_BACKEND_URL}/api/books/${book.book_id}/cover`
     : null;
@@ -18,12 +18,8 @@ export default function BookCard({ book, sessionToken }) {
     ? book.fandom
     : book.category;
 
-  return (
-    <Link
-      to={`/book/${book.book_id}`}
-      data-testid={`book-card-${book.book_id}`}
-      className="shelf-card overflow-hidden block group"
-    >
+  const cardInner = (
+    <>
       <div className="aspect-[2/3] bg-[#F5F3EC] relative overflow-hidden">
         {coverUrl ? (
           <img
@@ -40,6 +36,21 @@ export default function BookCard({ book, sessionToken }) {
             </div>
           </div>
         )}
+        {selectMode && (
+          <div
+            className={`absolute top-2 left-2 w-7 h-7 rounded-full flex items-center justify-center transition-all ${
+              selected
+                ? "bg-[#E07A5F] text-white shadow-lg"
+                : "bg-white/90 border border-[#E8E6E1] text-transparent"
+            }`}
+            aria-hidden
+          >
+            <Check className="w-4 h-4" />
+          </div>
+        )}
+        {selectMode && selected && (
+          <div className="absolute inset-0 ring-4 ring-[#E07A5F] rounded-t-xl pointer-events-none" />
+        )}
       </div>
       <div className="p-3">
         <span className={categoryBadgeClass(book.category)} data-testid={`book-badge-${book.book_id}`}>
@@ -50,6 +61,31 @@ export default function BookCard({ book, sessionToken }) {
         </h3>
         <p className="text-xs text-[#6B705C] mt-1 line-clamp-1">{book.author}</p>
       </div>
+    </>
+  );
+
+  if (selectMode) {
+    return (
+      <button
+        type="button"
+        data-testid={`book-card-${book.book_id}`}
+        onClick={() => onToggleSelect && onToggleSelect(book.book_id)}
+        className={`shelf-card overflow-hidden block text-left w-full ${
+          selected ? "border-[#E07A5F]" : ""
+        }`}
+      >
+        {cardInner}
+      </button>
+    );
+  }
+
+  return (
+    <Link
+      to={`/book/${book.book_id}`}
+      data-testid={`book-card-${book.book_id}`}
+      className="shelf-card overflow-hidden block group"
+    >
+      {cardInner}
     </Link>
   );
 }
