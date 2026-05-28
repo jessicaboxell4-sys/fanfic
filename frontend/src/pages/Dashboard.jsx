@@ -313,6 +313,23 @@ export default function Dashboard() {
                   ✓ Finished · {stats.finished}
                 </button>
               )}
+              {refreshStatus.unavailable > 0 && (
+                <button
+                  data-testid="filter-smart-unavailable"
+                  onClick={() => {
+                    if (smart === "unavailable") setSmart(null);
+                    else { setSmart("unavailable"); setCategory("All"); setFandom(null); }
+                  }}
+                  className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-colors flex items-center gap-1.5 ${
+                    smart === "unavailable"
+                      ? "bg-[#6B705C] text-white border-[#6B705C]"
+                      : "bg-white border-[#6B705C]/30 text-[#6B705C] hover:bg-[#6B705C]/10"
+                  }`}
+                  title="FicHub couldn't find these — skipped on bulk update"
+                >
+                  🚫 Can't find online · {refreshStatus.unavailable}
+                </button>
+              )}
               {customCats.map(c => (
                 <span
                   key={c}

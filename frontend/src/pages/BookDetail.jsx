@@ -242,11 +242,19 @@ export default function BookDetail() {
                     data-testid="refresh-btn"
                     onClick={refreshFromFichub}
                     disabled={refreshing}
-                    className="btn-secondary flex items-center gap-2 text-sm disabled:opacity-50"
-                    title={`Source: ${book.source_url}`}
+                    className={`flex items-center gap-2 text-sm px-4 py-2 rounded-lg disabled:opacity-50 transition-colors ${
+                      book.fichub_unavailable
+                        ? "bg-[#6B705C]/10 text-[#6B705C] hover:bg-[#6B705C]/20 border border-[#6B705C]/30"
+                        : "btn-secondary"
+                    }`}
+                    title={book.fichub_unavailable ? ("Last error: " + (book.fichub_last_error || "FicHub couldn't find this")) : ("Source: " + book.source_url)}
                   >
                     <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
-                    {refreshing ? "Updating…" : "Update from FicHub"}
+                    {refreshing
+                      ? "Updating…"
+                      : book.fichub_unavailable
+                      ? "Try FicHub again"
+                      : "Update from FicHub"}
                   </button>
                 )}
                 <button
@@ -291,6 +299,16 @@ export default function BookDetail() {
                 <Meta
                   label="Last updated from FicHub"
                   value={new Date(book.last_refreshed_at).toLocaleString()}
+                />
+              )}
+              {book.fichub_unavailable && (
+                <Meta
+                  label="FicHub status"
+                  value={
+                    <span className="text-[#D9534F]" data-testid="fichub-unavailable-tag">
+                      🚫 Can't find online
+                    </span>
+                  }
                 />
               )}
               {book.series_name && (

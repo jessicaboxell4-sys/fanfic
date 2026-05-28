@@ -717,6 +717,11 @@ FICHUB_SOURCE_PATTERNS = [
 FICHUB_USER_AGENT = "Shelfsort/0.1 (+https://github.com/shelfsort)"
 
 
+class FicHubNotFoundError(Exception):
+    """FicHub couldn't generate an EPUB for this URL — mark the book as unavailable."""
+    pass
+
+
 def find_source_url(links: List[Dict[str, str]]) -> Optional[str]:
     """Return the first URL in the list that points to a supported fanfic source."""
     for item in links:
@@ -754,12 +759,10 @@ async def fichub_fetch_epub(source_url: str) -> tuple:
     if data.get("err", 0) != 0:
         err_code = data.get("err")
         msg = data.get("info") or data.get("msg") or "couldn't generate EPUB"
-        if err_code == -9:
-            raise HTTPException(
-                status_code=503,
-                detail="FicHub is having trouble fetching this story right now (server-side error). Try again in a few minutes.",
-            )
-        raise HTTPException(status_code=502, detail=f"FicHub: {msg}")
+        # err -9 is FicHub's generic "couldn't fetch this story" code — treat as not-found.
+        # Any non-zero err is also treated as unavailable so we stop hammering FicHub.
+        detail = f"FicHub couldn't find this story" if err_code in (-9, -1) else f"FicHub: {msg}"
+        raise FicHubNotFoundError(detail)
 
     urls = data.get("urls") or {}
     epub_href = urls.get("epub") or data.get("epub_url")
@@ -1026,6 +1029,8 @@ async def list_books(
         query['progress_percent'] = {"$gte": 0.05, "$lt": 0.95}
     elif smart == "finished":
         query['progress_percent'] = {"$gte": 0.99}
+    elif smart == "unavailable":
+        query['fichub_unavailable'] = True
     elif smart == "unread":
         or_clauses.append([
             {"progress_percent": {"$exists": False}},
@@ -1078,15 +1083,21 @@ async def refresh_status(user: User = Depends(get_current_user)):
     """How many books in the library can be refreshed from a known fanfic source?"""
     books = await db.books.find(
         {"user_id": user.user_id},
-        {"_id": 0, "book_id": 1, "source_url": 1, "title": 1, "last_refreshed_at": 1},
+        {"_id": 0, "book_id": 1, "source_url": 1, "title": 1, "last_refreshed_at": 1, "fichub_unavailable": 1},
     ).to_list(5000)
-    count = sum(1 for b in books if b.get("source_url"))
+    refreshable = sum(1 for b in books if b.get("source_url") and not b.get("fichub_unavailable"))
+    unavailable = sum(1 for b in books if b.get("fichub_unavailable"))
     last = None
     for b in books:
         if b.get("last_refreshed_at"):
             if last is None or b["last_refreshed_at"] > last:
                 last = b["last_refreshed_at"]
-    return {"refreshable": count, "total": len(books), "last_refreshed_at": last}
+    return {
+        "refreshable": refreshable,
+        "unavailable": unavailable,
+        "total": len(books),
+        "last_refreshed_at": last,
+    }
 
 
 @api_router.get("/books/recent")
@@ -1353,9 +1364,11 @@ async def refresh_all(user: User = Depends(get_current_user)):
     books = await db.books.find({"user_id": user.user_id}, {"_id": 0}).to_list(5000)
     user_dir = STORAGE_DIR / user.user_id
 
-    # Determine eligible books (have a known fanfic source URL)
+    # Determine eligible books (have a known fanfic source URL AND not already marked unavailable)
     eligible: List[tuple] = []
     for b in books:
+        if b.get("fichub_unavailable"):
+            continue
         src = b.get("source_url")
         if not src:
             epub_path = user_dir / f"{b['book_id']}.epub"
@@ -1366,18 +1379,38 @@ async def refresh_all(user: User = Depends(get_current_user)):
 
     refreshed = 0
     failures: List[Dict[str, str]] = []
+    marked_unavailable = 0
     for b, src in eligible:
         try:
             await apply_refresh(b, user.user_id, src)
             refreshed += 1
+            await db.books.update_one(
+                {"book_id": b["book_id"], "user_id": user.user_id},
+                {"$set": {"fichub_unavailable": False, "fichub_last_error": None}},
+            )
+        except FicHubNotFoundError as e:
+            await db.books.update_one(
+                {"book_id": b["book_id"], "user_id": user.user_id},
+                {"$set": {
+                    "fichub_unavailable": True,
+                    "fichub_last_error": str(e),
+                    "fichub_last_attempt_at": datetime.now(timezone.utc).isoformat(),
+                }},
+            )
+            marked_unavailable += 1
+            failures.append({"book_id": b["book_id"], "title": b.get("title", ""), "error": str(e)})
         except HTTPException as he:
             failures.append({"book_id": b["book_id"], "title": b.get("title", ""), "error": he.detail})
         except Exception as e:
             failures.append({"book_id": b["book_id"], "title": b.get("title", ""), "error": str(e)})
-        # FicHub asks for serial requests; small breather between
         await asyncio.sleep(1.5)
 
-    return {"eligible": len(eligible), "refreshed": refreshed, "failures": failures}
+    return {
+        "eligible": len(eligible),
+        "refreshed": refreshed,
+        "marked_unavailable": marked_unavailable,
+        "failures": failures,
+    }
 
 
 class MarkBody(BaseModel):
@@ -1473,7 +1506,23 @@ async def refresh_book(book_id: str, user: User = Depends(get_current_user)):
             detail="No supported fanfic URL found inside this EPUB (need AO3, FFnet, Royal Road, etc.)",
         )
 
-    updated = await apply_refresh(book, user.user_id, source_url)
+    try:
+        updated = await apply_refresh(book, user.user_id, source_url)
+    except FicHubNotFoundError as e:
+        await db.books.update_one(
+            {"book_id": book_id, "user_id": user.user_id},
+            {"$set": {
+                "fichub_unavailable": True,
+                "fichub_last_error": str(e),
+                "fichub_last_attempt_at": datetime.now(timezone.utc).isoformat(),
+            }},
+        )
+        raise HTTPException(status_code=404, detail=str(e))
+    # Clear unavailable flag on success
+    await db.books.update_one(
+        {"book_id": book_id, "user_id": user.user_id},
+        {"$set": {"fichub_unavailable": False, "fichub_last_error": None}},
+    )
     return {
         "ok": True,
         "source_url": source_url,
