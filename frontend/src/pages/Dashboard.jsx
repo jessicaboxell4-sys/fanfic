@@ -5,7 +5,7 @@ import Navbar from "../components/Navbar";
 import BookCard from "../components/BookCard";
 import UploadZone from "../components/UploadZone";
 import SelectionBar from "../components/SelectionBar";
-import { Search, X, Plus, ArrowRight, CheckSquare, Sparkles, Loader2 } from "lucide-react";
+import { Search, X, Plus, ArrowRight, CheckSquare, Sparkles, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 const DEFAULT_CATEGORIES = ["All", "Fanfiction", "Original Fiction", "Non-fiction", "Unclassified"];
@@ -24,6 +24,8 @@ export default function Dashboard() {
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [reclassifyingAll, setReclassifyingAll] = useState(false);
+  const [refreshStatus, setRefreshStatus] = useState({ refreshable: 0, last_refreshed_at: null });
+  const [refreshingAll, setRefreshingAll] = useState(false);
 
   const unclassifiedCount = useMemo(() => {
     const row = (stats.categories || []).find((c) => c.name === "Unclassified");
@@ -44,6 +46,26 @@ export default function Dashboard() {
     }
   };
 
+  const refreshAll = async () => {
+    const n = refreshStatus.refreshable;
+    if (!n) return;
+    if (!window.confirm(`Pull the latest version of ${n} book${n === 1 ? "" : "s"} from FicHub? Long fics can take a minute each.`)) return;
+    setRefreshingAll(true);
+    const t = toast.loading(`Updating ${n} book${n === 1 ? "" : "s"} from FicHub…`);
+    try {
+      const { data } = await api.post("/books/refresh-all", {}, { timeout: 600000 });
+      toast.success(`Updated ${data.refreshed} of ${data.eligible} from FicHub`, { id: t });
+      if (data.failures && data.failures.length) {
+        console.warn("FicHub failures:", data.failures);
+      }
+      await load();
+    } catch (e) {
+      toast.error("Couldn't update from FicHub", { id: t });
+    } finally {
+      setRefreshingAll(false);
+    }
+  };
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -59,6 +81,10 @@ export default function Dashboard() {
       setBooks(b.data.books || []);
       setStats(s.data);
       setCustomCats(c.data.custom || []);
+      try {
+        const rs = await api.get("/books/refresh-status");
+        setRefreshStatus(rs.data);
+      } catch (e) {}
     } catch (e) {
       console.error(e);
     } finally {
@@ -126,6 +152,47 @@ export default function Dashboard() {
                 <>
                   <Sparkles className="w-4 h-4" />
                   Sort with AI
+                </>
+              )}
+            </button>
+          </div>
+        )}
+
+        {refreshStatus.refreshable > 0 && (
+          <div
+            data-testid="refresh-all-banner"
+            className="mb-8 shelf-card p-5 flex flex-wrap items-center justify-between gap-4 bg-gradient-to-r from-[#E5EBE6] to-white border-[#3A5A40]/30"
+          >
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-lg bg-[#3A5A40]/10 text-[#3A5A40] flex items-center justify-center flex-shrink-0">
+                <RefreshCw className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="font-serif text-xl text-[#2C2C2C] leading-tight">
+                  {refreshStatus.refreshable} book{refreshStatus.refreshable === 1 ? "" : "s"} can be updated from FicHub
+                </p>
+                <p className="text-sm text-[#6B705C] mt-1">
+                  Pull the newest chapters straight from AO3, FFnet, Royal Road and friends —
+                  we'll replace each EPUB with the latest version.
+                </p>
+              </div>
+            </div>
+            <button
+              data-testid="refresh-all-btn"
+              onClick={refreshAll}
+              disabled={refreshingAll}
+              className="btn-primary text-sm flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+              style={{ background: "#3A5A40" }}
+            >
+              {refreshingAll ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Updating…
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-4 h-4" />
+                  Update all from FicHub
                 </>
               )}
             </button>

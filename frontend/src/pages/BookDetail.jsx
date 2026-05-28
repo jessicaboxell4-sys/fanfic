@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { api, API } from "../lib/api";
 import Navbar from "../components/Navbar";
-import { ArrowLeft, Download, Trash2, Sparkles, Book, Edit3, Link as LinkIcon } from "lucide-react";
+import { ArrowLeft, Download, Trash2, Sparkles, Book, Edit3, Link as LinkIcon, BookOpen, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 const DEFAULT_CATEGORIES = ["Fanfiction", "Original Fiction", "Non-fiction", "Unclassified"];
@@ -13,6 +13,7 @@ export default function BookDetail() {
   const [book, setBook] = useState(null);
   const [loading, setLoading] = useState(true);
   const [reclassifying, setReclassifying] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editCategory, setEditCategory] = useState("");
   const [editFandom, setEditFandom] = useState("");
@@ -53,6 +54,21 @@ export default function BookDetail() {
       toast.error("Reclassification failed");
     } finally {
       setReclassifying(false);
+    }
+  };
+
+  const refreshFromFichub = async () => {
+    setRefreshing(true);
+    const t = toast.loading("Pulling latest from FicHub…");
+    try {
+      const { data } = await api.post(`/books/${id}/refresh`, {}, { timeout: 300000 });
+      toast.success(`Updated to "${data.title}"`, { id: t });
+      await load();
+    } catch (e) {
+      const msg = e?.response?.data?.detail || "FicHub update failed";
+      toast.error(msg, { id: t });
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -190,6 +206,13 @@ export default function BookDetail() {
             ) : (
               <div className="flex flex-wrap gap-3">
                 <button
+                  data-testid="read-book-btn"
+                  onClick={() => navigate(`/read/${id}`)}
+                  className="btn-primary flex items-center gap-2 text-sm"
+                >
+                  <BookOpen className="w-4 h-4" /> Read now
+                </button>
+                <button
                   data-testid="download-book-btn"
                   onClick={download}
                   className="btn-secondary flex items-center gap-2 text-sm"
@@ -214,6 +237,18 @@ export default function BookDetail() {
                   <Sparkles className="w-4 h-4" />
                   {reclassifying ? "Asking AI…" : "Reclassify with AI"}
                 </button>
+                {book.source_url && (
+                  <button
+                    data-testid="refresh-btn"
+                    onClick={refreshFromFichub}
+                    disabled={refreshing}
+                    className="btn-secondary flex items-center gap-2 text-sm disabled:opacity-50"
+                    title={`Source: ${book.source_url}`}
+                  >
+                    <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
+                    {refreshing ? "Updating…" : "Update from FicHub"}
+                  </button>
+                )}
                 <button
                   data-testid="edit-btn"
                   onClick={() => setEditing(true)}
@@ -236,6 +271,37 @@ export default function BookDetail() {
               <Meta label="Size" value={`${(book.size_bytes / 1024).toFixed(0)} KB`} />
               <Meta label="Language" value={book.language || "—"} />
               {book.publisher && <Meta label="Publisher" value={book.publisher} />}
+              {book.source_url && (
+                <Meta
+                  label="Source"
+                  value={
+                    <a
+                      href={book.source_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[#E07A5F] hover:underline break-all"
+                      data-testid="source-url-link"
+                    >
+                      {book.source_url.replace(/^https?:\/\//, "").slice(0, 60)}
+                    </a>
+                  }
+                />
+              )}
+              {book.last_refreshed_at && (
+                <Meta
+                  label="Last updated from FicHub"
+                  value={new Date(book.last_refreshed_at).toLocaleString()}
+                />
+              )}
+              {book.fichub_meta?.chapters && (
+                <Meta label="Chapters" value={book.fichub_meta.chapters} />
+              )}
+              {book.fichub_meta?.words && (
+                <Meta label="Words" value={Number(book.fichub_meta.words).toLocaleString()} />
+              )}
+              {book.fichub_meta?.status && (
+                <Meta label="Status" value={book.fichub_meta.status} />
+              )}
             </div>
           </div>
         </div>

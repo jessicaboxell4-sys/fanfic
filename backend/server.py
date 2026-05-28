@@ -365,6 +365,137 @@ def format_links_txt(book_title: str, book_author: str, links: List[Dict[str, st
     return "\n".join(lines) + "\n"
 
 
+# ============================================================
+# FICHUB REFRESH — pull latest version of a fanfic from its source URL
+# ============================================================
+FICHUB_SOURCE_PATTERNS = [
+    r'https?://(?:www\.)?archiveofourown\.org/works/\d+',
+    r'https?://(?:www\.)?fanfiction\.net/s/\d+',
+    r'https?://(?:www\.)?fictionpress\.com/s/\d+',
+    r'https?://(?:www\.)?royalroad\.com/fiction/\d+',
+    r'https?://(?:www\.)?spacebattles\.com/threads/[\w-]+\.\d+',
+    r'https?://(?:www\.)?sufficientvelocity\.com/threads/[\w-]+\.\d+',
+    r'https?://(?:www\.)?questionablequesting\.com/threads/[\w-]+\.\d+',
+]
+
+FICHUB_USER_AGENT = "Shelfsort/0.1 (+https://github.com/shelfsort)"
+
+
+def find_source_url(links: List[Dict[str, str]]) -> Optional[str]:
+    """Return the first URL in the list that points to a supported fanfic source."""
+    for item in links:
+        url = (item.get('url') or '').strip()
+        for pat in FICHUB_SOURCE_PATTERNS:
+            m = re.search(pat, url, re.IGNORECASE)
+            if m:
+                return m.group(0)
+    return None
+
+
+async def fichub_fetch_epub(source_url: str) -> tuple:
+    """Call FicHub and download the resulting EPUB.
+
+    Returns (epub_bytes, fichub_meta_dict). Raises HTTPException on failure.
+    """
+    loop = asyncio.get_event_loop()
+
+    def _meta_call():
+        r = http_requests.get(
+            "https://fichub.net/api/v0/epub",
+            params={"q": source_url},
+            headers={"User-Agent": FICHUB_USER_AGENT, "Accept": "application/json"},
+            timeout=90,
+        )
+        r.raise_for_status()
+        return r.json()
+
+    try:
+        data = await loop.run_in_executor(None, _meta_call)
+    except Exception as e:
+        logger.error(f"FicHub meta failed: {e}")
+        raise HTTPException(status_code=502, detail=f"FicHub error: {e}")
+
+    if data.get("err", 0) != 0:
+        err_code = data.get("err")
+        msg = data.get("info") or data.get("msg") or "couldn't generate EPUB"
+        if err_code == -9:
+            raise HTTPException(
+                status_code=503,
+                detail="FicHub is having trouble fetching this story right now (server-side error). Try again in a few minutes.",
+            )
+        raise HTTPException(status_code=502, detail=f"FicHub: {msg}")
+
+    urls = data.get("urls") or {}
+    epub_href = urls.get("epub") or data.get("epub_url")
+    if not epub_href:
+        raise HTTPException(status_code=502, detail="FicHub returned no EPUB URL")
+    if epub_href.startswith("/"):
+        epub_href = f"https://fichub.net{epub_href}"
+
+    def _epub_call():
+        r = http_requests.get(
+            epub_href,
+            headers={"User-Agent": FICHUB_USER_AGENT},
+            timeout=180,
+        )
+        r.raise_for_status()
+        return r.content
+
+    try:
+        epub_bytes = await loop.run_in_executor(None, _epub_call)
+    except Exception as e:
+        logger.error(f"FicHub download failed: {e}")
+        raise HTTPException(status_code=502, detail=f"FicHub download failed: {e}")
+
+    fichub_meta = {
+        "chapters": data.get("meta", {}).get("chapters"),
+        "updated": data.get("meta", {}).get("rawExtendedMeta", {}).get("dateUpdated")
+                   or data.get("meta", {}).get("updated"),
+        "words": data.get("meta", {}).get("rawExtendedMeta", {}).get("words"),
+        "status": data.get("meta", {}).get("rawExtendedMeta", {}).get("status"),
+    }
+    return epub_bytes, fichub_meta
+
+
+async def apply_refresh(book: Dict[str, Any], user_id: str, source_url: str) -> Dict[str, Any]:
+    """Download from FicHub, replace local EPUB + cover + links, update DB. Returns updated fields."""
+    epub_bytes, fichub_meta = await fichub_fetch_epub(source_url)
+
+    user_dir = STORAGE_DIR / user_id
+    epub_path = user_dir / f"{book['book_id']}.epub"
+    epub_path.write_bytes(epub_bytes)
+
+    new_meta = extract_epub_metadata(epub_path)
+    cover_path = user_dir / f"{book['book_id']}.cover"
+    if new_meta.get('cover_bytes'):
+        cover_path.write_bytes(new_meta['cover_bytes'])
+
+    links = extract_urls_from_epub(epub_path)
+    (user_dir / f"{book['book_id']}.links.txt").write_text(
+        format_links_txt(new_meta['title'], new_meta['author'], links),
+        encoding='utf-8',
+    )
+
+    update = {
+        "title": new_meta['title'],
+        "author": new_meta['author'],
+        "description": new_meta['description'],
+        "language": new_meta['language'],
+        "publisher": new_meta['publisher'],
+        "has_cover": bool(new_meta.get('cover_bytes')),
+        "size_bytes": len(epub_bytes),
+        "links_count": len(links),
+        "source_url": source_url,
+        "last_refreshed_at": datetime.now(timezone.utc).isoformat(),
+        "fichub_meta": fichub_meta,
+    }
+    await db.books.update_one(
+        {"book_id": book['book_id'], "user_id": user_id},
+        {"$set": update},
+    )
+    return update
+
+
 def classify_by_metadata(meta: Dict[str, Any]) -> Dict[str, Any]:
     """Heuristic keyword classification. Returns dict with category, fandom, confidence."""
     blob = " ".join([
@@ -494,6 +625,7 @@ async def upload_books(
             format_links_txt(meta['title'], meta['author'], links),
             encoding='utf-8',
         )
+        source_url = find_source_url(links)
 
         doc = {
             "book_id": book_id,
@@ -511,6 +643,8 @@ async def upload_books(
             "classifier": classification['classifier'],
             "size_bytes": len(content),
             "links_count": len(links),
+            "source_url": source_url,
+            "last_refreshed_at": None,
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         await db.books.insert_one(doc)
@@ -560,6 +694,22 @@ async def book_stats(user: User = Depends(get_current_user)):
         "categories": [{"name": c['_id'], "count": c['count']} for c in cats],
         "fandoms": [{"name": f['_id'], "count": f['count']} for f in fandoms],
     }
+
+
+@api_router.get("/books/refresh-status")
+async def refresh_status(user: User = Depends(get_current_user)):
+    """How many books in the library can be refreshed from a known fanfic source?"""
+    books = await db.books.find(
+        {"user_id": user.user_id},
+        {"_id": 0, "book_id": 1, "source_url": 1, "title": 1, "last_refreshed_at": 1},
+    ).to_list(5000)
+    count = sum(1 for b in books if b.get("source_url"))
+    last = None
+    for b in books:
+        if b.get("last_refreshed_at"):
+            if last is None or b["last_refreshed_at"] > last:
+                last = b["last_refreshed_at"]
+    return {"refreshable": count, "total": len(books), "last_refreshed_at": last}
 
 
 @api_router.get("/books/{book_id}")
@@ -807,6 +957,70 @@ async def reclassify_book(book_id: str, body: ReclassifyBody, user: User = Depen
 class UpdateBookBody(BaseModel):
     category: Optional[str] = None
     fandom: Optional[str] = None
+
+
+@api_router.post("/books/refresh-all")
+async def refresh_all(user: User = Depends(get_current_user)):
+    """Re-pull every refreshable book from FicHub. Runs serially per FicHub guidance."""
+    books = await db.books.find({"user_id": user.user_id}, {"_id": 0}).to_list(5000)
+    user_dir = STORAGE_DIR / user.user_id
+
+    # Determine eligible books (have a known fanfic source URL)
+    eligible: List[tuple] = []
+    for b in books:
+        src = b.get("source_url")
+        if not src:
+            epub_path = user_dir / f"{b['book_id']}.epub"
+            if epub_path.exists():
+                src = find_source_url(extract_urls_from_epub(epub_path))
+        if src:
+            eligible.append((b, src))
+
+    refreshed = 0
+    failures: List[Dict[str, str]] = []
+    for b, src in eligible:
+        try:
+            await apply_refresh(b, user.user_id, src)
+            refreshed += 1
+        except HTTPException as he:
+            failures.append({"book_id": b["book_id"], "title": b.get("title", ""), "error": he.detail})
+        except Exception as e:
+            failures.append({"book_id": b["book_id"], "title": b.get("title", ""), "error": str(e)})
+        # FicHub asks for serial requests; small breather between
+        await asyncio.sleep(1.5)
+
+    return {"eligible": len(eligible), "refreshed": refreshed, "failures": failures}
+
+
+@api_router.post("/books/{book_id}/refresh")
+async def refresh_book(book_id: str, user: User = Depends(get_current_user)):
+    """Re-download the latest version of this book from its FicHub-supported source."""
+    book = await db.books.find_one({"book_id": book_id, "user_id": user.user_id}, {"_id": 0})
+    if not book:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    user_dir = STORAGE_DIR / user.user_id
+    epub_path = user_dir / f"{book_id}.epub"
+    if not epub_path.exists():
+        raise HTTPException(status_code=404, detail="File missing")
+
+    source_url = book.get("source_url")
+    if not source_url:
+        source_url = find_source_url(extract_urls_from_epub(epub_path))
+    if not source_url:
+        raise HTTPException(
+            status_code=400,
+            detail="No supported fanfic URL found inside this EPUB (need AO3, FFnet, Royal Road, etc.)",
+        )
+
+    updated = await apply_refresh(book, user.user_id, source_url)
+    return {
+        "ok": True,
+        "source_url": source_url,
+        "title": updated["title"],
+        "last_refreshed_at": updated["last_refreshed_at"],
+        "fichub_meta": updated.get("fichub_meta"),
+    }
 
 
 class BulkIdsBody(BaseModel):
