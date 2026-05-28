@@ -36,6 +36,7 @@ export default function CantFindOnline() {
   const [editingId, setEditingId] = useState(null);
   const [editUrl, setEditUrl] = useState("");
   const [busyId, setBusyId] = useState(null);
+  const [autoTriedIds, setAutoTriedIds] = useState(new Set());
 
   const load = async () => {
     setLoading(true);
@@ -48,7 +49,12 @@ export default function CantFindOnline() {
   };
   useEffect(() => { load(); }, []);
 
-  const retry = async (bid) => {
+  const retry = async (bid, opts = {}) => {
+    const { silent = false } = opts;
+    // If we've already auto-tried once for this book, ask for confirmation
+    if (!silent && autoTriedIds.has(bid)) {
+      if (!window.confirm("FicHub already tried this once. Try again?")) return;
+    }
     setBusyId(bid);
     const t = toast.loading("Pulling latest from FicHub…");
     try {
@@ -59,16 +65,23 @@ export default function CantFindOnline() {
       toast.error(e?.response?.data?.detail || "Still can't find it", { id: t });
     } finally {
       setBusyId(null);
+      // Mark that this book has had at least one retry this session
+      setAutoTriedIds((prev) => {
+        const next = new Set(prev);
+        next.add(bid);
+        return next;
+      });
     }
   };
 
   const saveUrl = async (bid) => {
     try {
       await api.patch(`/books/${bid}/source-url`, { source_url: editUrl.trim() });
-      toast.success("Source URL updated");
+      toast.success("Source URL updated — trying FicHub…");
       setEditingId(null);
       setEditUrl("");
-      await load();
+      // Auto-fire one retry attempt. Subsequent manual retries will ask first.
+      await retry(bid, { silent: true });
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Couldn't save");
     }
