@@ -15,6 +15,8 @@ export default function BookDetail() {
   const [reclassifying, setReclassifying] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [editingSource, setEditingSource] = useState(false);
+  const [newSourceUrl, setNewSourceUrl] = useState("");
   const [editCategory, setEditCategory] = useState("");
   const [editFandom, setEditFandom] = useState("");
   const [allCategories, setAllCategories] = useState(DEFAULT_CATEGORIES);
@@ -69,6 +71,19 @@ export default function BookDetail() {
       toast.error(msg, { id: t });
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  const saveSourceUrl = async (e) => {
+    e.preventDefault();
+    try {
+      await api.patch(`/books/${id}/source-url`, { source_url: newSourceUrl.trim() });
+      toast.success("Source URL updated — try the refresh now");
+      setEditingSource(false);
+      setNewSourceUrl("");
+      await load();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Couldn't save URL");
     }
   };
 
@@ -171,10 +186,50 @@ export default function BookDetail() {
               </p>
             )}
 
+            {book.fichub_unavailable && !editing && (
+              <div className="shelf-card p-5 mb-6 bg-[#FDF3E1]/40 border-[#E07A5F]/20" data-testid="recover-source-panel">
+                <p className="text-sm font-semibold text-[#2C2C2C] mb-1">
+                  🚫 FicHub couldn't find this story
+                </p>
+                <p className="text-xs text-[#6B705C] mb-3">
+                  We tried <code className="bg-white/60 px-1.5 py-0.5 rounded text-[#E07A5F]">{book.source_url}</code>. If the work moved
+                  (e.g., reposted under a new AO3 ID), paste the new URL and we'll try again.
+                </p>
+                {editingSource ? (
+                  <form onSubmit={saveSourceUrl} className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      autoFocus
+                      data-testid="new-source-url-input"
+                      type="url"
+                      placeholder="https://archiveofourown.org/works/12345678"
+                      value={newSourceUrl}
+                      onChange={(e) => setNewSourceUrl(e.target.value)}
+                      className="flex-1 bg-white border border-[#E8E6E1] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#E07A5F] focus:ring-2 focus:ring-[#E07A5F]/20"
+                    />
+                    <button type="submit" data-testid="save-source-url" className="btn-primary text-sm">Save & retry</button>
+                    <button
+                      type="button"
+                      onClick={() => { setEditingSource(false); setNewSourceUrl(""); }}
+                      className="text-[#6B705C] hover:text-[#2C2C2C] text-sm px-3"
+                    >
+                      Cancel
+                    </button>
+                  </form>
+                ) : (
+                  <button
+                    data-testid="fix-source-url-btn"
+                    onClick={() => { setEditingSource(true); setNewSourceUrl(book.source_url || ""); }}
+                    className="btn-secondary text-sm"
+                  >
+                    Fix the source URL
+                  </button>
+                )}
+              </div>
+            )}
+
             {editing ? (
               <div className="shelf-card p-5 mb-6">
-                <p className="text-sm font-semibold text-[#2C2C2C] mb-3">Edit classification</p>
-                <div className="grid sm:grid-cols-2 gap-3 mb-3">
+                <p className="text-sm font-semibold text-[#2C2C2C] mb-3">Edit classification</p>                <div className="grid sm:grid-cols-2 gap-3 mb-3">
                   <div>
                     <label className="text-xs text-[#6B705C] mb-1 block">Category</label>
                     <select

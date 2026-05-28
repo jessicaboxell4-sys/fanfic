@@ -1772,6 +1772,44 @@ async def detect_series_all(user: User = Depends(get_current_user)):
     return {"scanned": len(books), "found": found}
 
 
+class SetSourceBody(BaseModel):
+    source_url: str
+
+
+@api_router.patch("/books/{book_id}/source-url")
+async def set_source_url(book_id: str, body: SetSourceBody, user: User = Depends(get_current_user)):
+    """Manually correct the fanfic source URL (e.g., when FicHub couldn't find it).
+    Clears the unavailable flag so the next refresh will try the new URL."""
+    new_url = (body.source_url or "").strip()
+    if not new_url:
+        raise HTTPException(status_code=400, detail="Source URL is empty")
+    if not re.match(r"^https?://", new_url, re.IGNORECASE):
+        raise HTTPException(status_code=400, detail="Please paste a full http(s):// URL")
+    # Validate it's a supported fanfic source
+    matched = None
+    for pat in FICHUB_SOURCE_PATTERNS:
+        m = re.search(pat, new_url, re.IGNORECASE)
+        if m:
+            matched = m.group(0)
+            break
+    if not matched:
+        raise HTTPException(
+            status_code=400,
+            detail="That URL isn't a supported fanfic source (AO3, FFnet, Royal Road, SpaceBattles, SufficientVelocity, FictionPress).",
+        )
+    result = await db.books.update_one(
+        {"book_id": book_id, "user_id": user.user_id},
+        {"$set": {
+            "source_url": matched,
+            "fichub_unavailable": False,
+            "fichub_last_error": None,
+        }},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    return {"ok": True, "source_url": matched}
+
+
 class SetSeriesBody(BaseModel):
     series_name: Optional[str] = None
     series_index: Optional[float] = None
