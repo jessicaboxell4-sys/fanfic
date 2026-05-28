@@ -1054,6 +1054,19 @@ async def mark_book(book_id: str, body: MarkBody, user: User = Depends(get_curre
     return {"ok": True, "read": body.read}
 
 
+async def _log_activity(user_id: str, book_id: str):
+    """Append today's reading activity for streak calculations."""
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    await db.reading_activity.update_one(
+        {"user_id": user_id, "date": today},
+        {
+            "$addToSet": {"book_ids": book_id},
+            "$set": {"last_ts": datetime.now(timezone.utc).isoformat()},
+        },
+        upsert=True,
+    )
+
+
 class ProgressBody(BaseModel):
     percent: float
     cfi: Optional[str] = None
@@ -1075,6 +1088,7 @@ async def update_progress(book_id: str, body: ProgressBody, user: User = Depends
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Not found")
+    await _log_activity(user.user_id, book_id)
     return {"ok": True, "percent": pct}
 
 
@@ -1087,6 +1101,7 @@ async def touch_book(book_id: str, user: User = Depends(get_current_user)):
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Not found")
+    await _log_activity(user.user_id, book_id)
     return {"ok": True}
 
 
@@ -1234,6 +1249,64 @@ async def export_zip(
 # ============================================================
 class CategoryBody(BaseModel):
     name: str
+
+
+@api_router.get("/stats/overview")
+async def stats_overview(user: User = Depends(get_current_user)):
+    """Aggregate reading stats for the dashboard / stats card."""
+    books = await db.books.find({"user_id": user.user_id}, {"_id": 0}).to_list(5000)
+    finished = sum(1 for b in books if (b.get("progress_percent") or 0) >= 0.99)
+    reading = sum(1 for b in books if 0.05 <= (b.get("progress_percent") or 0) < 0.95)
+
+    # Estimate pages: word counts when known, else size_bytes / 2500
+    WORDS_PER_PAGE = 250
+    BYTES_PER_PAGE = 2500
+    pages_read = 0.0
+    pages_total = 0.0
+    for b in books:
+        words = None
+        if isinstance(b.get("fichub_meta"), dict):
+            words = b["fichub_meta"].get("words")
+        if isinstance(words, (int, float)) and words > 0:
+            pages = float(words) / WORDS_PER_PAGE
+        else:
+            pages = max(1.0, float(b.get("size_bytes") or 0) / BYTES_PER_PAGE)
+        pages_total += pages
+        pages_read += pages * float(b.get("progress_percent") or 0)
+
+    # Streak from reading_activity collection (one doc per active day)
+    activity = await db.reading_activity.find(
+        {"user_id": user.user_id}, {"_id": 0, "date": 1}
+    ).to_list(2000)
+    from datetime import date as _date, timedelta as _td
+    active_dates = set()
+    for a in activity:
+        try:
+            y, m, d = a["date"].split("-")
+            active_dates.add(_date(int(y), int(m), int(d)))
+        except Exception:
+            continue
+    today = datetime.now(timezone.utc).date()
+    streak = 0
+    if today in active_dates:
+        cur = today
+    elif (today - _td(days=1)) in active_dates:
+        cur = today - _td(days=1)
+    else:
+        cur = None
+    while cur and cur in active_dates:
+        streak += 1
+        cur = cur - _td(days=1)
+
+    return {
+        "books_total": len(books),
+        "books_finished": finished,
+        "books_reading": reading,
+        "pages_read": int(pages_read),
+        "pages_total": int(pages_total),
+        "reading_streak_days": streak,
+        "active_days_count": len(active_dates),
+    }
 
 
 @api_router.get("/categories")

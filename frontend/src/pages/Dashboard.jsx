@@ -6,6 +6,7 @@ import BookCard from "../components/BookCard";
 import UploadZone from "../components/UploadZone";
 import SelectionBar from "../components/SelectionBar";
 import ContinueReadingRail from "../components/ContinueReadingRail";
+import StatsCard from "../components/StatsCard";
 import { Search, X, Plus, ArrowRight, CheckSquare, Sparkles, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
@@ -29,6 +30,7 @@ export default function Dashboard() {
   const [refreshingAll, setRefreshingAll] = useState(false);
   const [recentBooks, setRecentBooks] = useState([]);
   const [smart, setSmart] = useState(null); // null | "reading" | "finished"
+  const [overview, setOverview] = useState(null);
 
   const unclassifiedCount = useMemo(() => {
     const row = (stats.categories || []).find((c) => c.name === "Unclassified");
@@ -93,6 +95,10 @@ export default function Dashboard() {
         const rc = await api.get("/books/recent", { params: { limit: 8 } });
         setRecentBooks(rc.data.books || []);
       } catch (e) {}
+      try {
+        const ov = await api.get("/stats/overview");
+        setOverview(ov.data);
+      } catch (e) {}
     } catch (e) {
       console.error(e);
     } finally {
@@ -123,6 +129,9 @@ export default function Dashboard() {
         </div>
 
         <div className="mb-10">
+          {overview && (overview.books_finished > 0 || overview.pages_read > 0 || overview.reading_streak_days > 0) && (
+            <StatsCard stats={overview} />
+          )}
           {recentBooks.length > 0 && <ContinueReadingRail books={recentBooks} />}
           <UploadZone onUploaded={load} />
         </div>
