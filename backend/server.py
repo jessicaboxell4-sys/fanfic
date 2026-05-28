@@ -21,6 +21,7 @@ from datetime import datetime, timezone, timedelta
 import ebooklib
 from ebooklib import epub
 from bs4 import BeautifulSoup
+import bcrypt
 
 from emergentintegrations.llm.chat import LlmChat, UserMessage
 
@@ -181,6 +182,140 @@ async def auth_logout(request: Request, response: Response):
         await db.user_sessions.delete_one({"session_token": session_token})
     response.delete_cookie("session_token", path="/")
     return {"ok": True}
+
+
+# ============================================================
+# EMAIL / PASSWORD AUTH (second sign-in option)
+# ============================================================
+EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+MIN_PASSWORD_LEN = 8
+
+
+def _hash_password(pw: str) -> str:
+    return bcrypt.hashpw(pw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+def _verify_password(pw: str, pw_hash: str) -> bool:
+    try:
+        return bcrypt.checkpw(pw.encode("utf-8"), pw_hash.encode("utf-8"))
+    except Exception:
+        return False
+
+
+async def _issue_session(user_id: str, response: Response) -> str:
+    """Create a fresh session_token row + set the cookie. Mirrors the Google flow."""
+    token = f"st_{uuid.uuid4().hex}{uuid.uuid4().hex[:16]}"
+    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+    await db.user_sessions.insert_one({
+        "user_id": user_id,
+        "session_token": token,
+        "expires_at": expires_at,
+        "created_at": datetime.now(timezone.utc),
+    })
+    response.set_cookie(
+        key="session_token",
+        value=token,
+        max_age=7 * 24 * 60 * 60,
+        httponly=True,
+        secure=True,
+        samesite="none",
+        path="/",
+    )
+    return token
+
+
+async def _is_locked_out(identifier: str) -> bool:
+    """5 failed attempts in 15min triggers a lockout."""
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=15)
+    fails = await db.login_attempts.count_documents(
+        {"identifier": identifier, "ts": {"$gte": cutoff}}
+    )
+    return fails >= 5
+
+
+async def _record_failed_attempt(identifier: str):
+    await db.login_attempts.insert_one({
+        "identifier": identifier,
+        "ts": datetime.now(timezone.utc),
+    })
+
+
+async def _clear_failed_attempts(identifier: str):
+    await db.login_attempts.delete_many({"identifier": identifier})
+
+
+class RegisterBody(BaseModel):
+    email: str
+    password: str
+    name: Optional[str] = None
+
+
+class LoginBody(BaseModel):
+    email: str
+    password: str
+
+
+@api_router.post("/auth/register")
+async def auth_register(body: RegisterBody, response: Response):
+    email = (body.email or "").strip().lower()
+    password = body.password or ""
+    name = (body.name or "").strip() or email.split("@")[0]
+
+    if not EMAIL_REGEX.match(email):
+        raise HTTPException(status_code=400, detail="Please enter a valid email address")
+    if len(password) < MIN_PASSWORD_LEN:
+        raise HTTPException(status_code=400, detail=f"Password must be at least {MIN_PASSWORD_LEN} characters")
+
+    existing = await db.users.find_one({"email": email}, {"_id": 0})
+    if existing:
+        raise HTTPException(status_code=409, detail="An account with that email already exists")
+
+    user_id = f"user_{uuid.uuid4().hex[:12]}"
+    await db.users.insert_one({
+        "user_id": user_id,
+        "email": email,
+        "name": name,
+        "picture": "",
+        "password_hash": _hash_password(password),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    await _issue_session(user_id, response)
+    return {"user_id": user_id, "email": email, "name": name, "picture": ""}
+
+
+@api_router.post("/auth/login")
+async def auth_login(body: LoginBody, request: Request, response: Response):
+    email = (body.email or "").strip().lower()
+    password = body.password or ""
+
+    ip = (request.client.host if request.client else "?") or "?"
+    # Throttle by email only — behind ingress/NAT we can't trust client IP.
+    identifier = f"email:{email}"
+
+    if await _is_locked_out(identifier):
+        raise HTTPException(
+            status_code=429,
+            detail="Too many failed attempts. Please try again in 15 minutes.",
+        )
+
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    if not user or not user.get("password_hash"):
+        await _record_failed_attempt(identifier)
+        # Same generic error whether email exists or not — don't leak
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    if not _verify_password(password, user["password_hash"]):
+        await _record_failed_attempt(identifier)
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    await _clear_failed_attempts(identifier)
+    await _issue_session(user["user_id"], response)
+    return {
+        "user_id": user["user_id"],
+        "email": user["email"],
+        "name": user.get("name", ""),
+        "picture": user.get("picture", ""),
+    }
 
 
 # ============================================================
@@ -1352,6 +1487,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+async def on_startup():
+    try:
+        await db.users.create_index("email", unique=True)
+        await db.user_sessions.create_index("session_token", unique=True)
+        await db.login_attempts.create_index("identifier")
+        await db.login_attempts.create_index("ts")
+    except Exception as e:
+        logger.warning(f"Index setup: {e}")
 
 
 @app.on_event("shutdown")

@@ -1,11 +1,50 @@
-import React from "react";
-import { BookOpen } from "lucide-react";
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { BookOpen, Mail, Lock, User as UserIcon, Loader2 } from "lucide-react";
+import { api } from "../lib/api";
+import { useAuth } from "../context/AuthContext";
+import { toast } from "sonner";
+
+function errMsg(detail) {
+  if (!detail) return "Something went wrong";
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) return detail.map((e) => e?.msg || JSON.stringify(e)).join(" ");
+  return String(detail);
+}
 
 export default function Login() {
+  const navigate = useNavigate();
+  const { setUser } = useAuth();
+  const [mode, setMode] = useState("login"); // "login" | "register"
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+
   const handleGoogle = () => {
     // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
     const redirectUrl = window.location.origin + "/library";
     window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
+  };
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    try {
+      const url = mode === "login" ? "/auth/login" : "/auth/register";
+      const body = mode === "login"
+        ? { email, password }
+        : { email, password, name: name || undefined };
+      const { data } = await api.post(url, body);
+      setUser(data);
+      toast.success(mode === "login" ? "Welcome back" : "Account created");
+      navigate("/library");
+    } catch (e) {
+      toast.error(errMsg(e?.response?.data?.detail) || e.message);
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -32,17 +71,21 @@ export default function Login() {
             <span className="font-serif text-2xl">Shelfsort</span>
           </div>
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] mb-3">
-            Welcome back
+            {mode === "login" ? "Welcome back" : "Make a shelf"}
           </p>
-          <h1 className="font-serif text-4xl text-[#2C2C2C] mb-3">Open your library.</h1>
-          <p className="text-[#6B705C] mb-10">
-            Sign in with Google to save your sorted shelves across devices.
+          <h1 className="font-serif text-4xl text-[#2C2C2C] mb-3">
+            {mode === "login" ? "Open your library." : "Start your library."}
+          </h1>
+          <p className="text-[#6B705C] mb-8">
+            {mode === "login"
+              ? "Sign in to save your sorted shelves across devices."
+              : "Create an account or sign in with Google."}
           </p>
 
           <button
             data-testid="google-signin-btn"
             onClick={handleGoogle}
-            className="w-full flex items-center justify-center gap-3 bg-white border border-[#E8E6E1] hover:bg-[#F5F3EC] text-[#2C2C2C] font-medium px-5 py-3 rounded-xl transition-colors"
+            className="w-full flex items-center justify-center gap-3 bg-white border border-[#E8E6E1] hover:bg-[#F5F3EC] text-[#2C2C2C] font-medium px-5 py-3 rounded-xl transition-colors mb-5"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -53,8 +96,90 @@ export default function Login() {
             Continue with Google
           </button>
 
-          <p className="text-xs text-[#6B705C] mt-8 leading-relaxed">
-            By signing in, you agree to keep your EPUB library on Shelfsort. We never share your books.
+          <div className="flex items-center gap-3 text-xs text-[#6B705C] mb-5">
+            <span className="flex-1 h-px bg-[#E8E6E1]" />
+            <span>or with email</span>
+            <span className="flex-1 h-px bg-[#E8E6E1]" />
+          </div>
+
+          <form onSubmit={submit} className="space-y-3">
+            {mode === "register" && (
+              <div className="relative">
+                <UserIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#6B705C]" />
+                <input
+                  data-testid="auth-name-input"
+                  type="text"
+                  placeholder="Display name (optional)"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full bg-white border border-[#E8E6E1] rounded-xl pl-10 pr-3 py-2.5 text-sm focus:outline-none focus:border-[#E07A5F] focus:ring-2 focus:ring-[#E07A5F]/20"
+                />
+              </div>
+            )}
+            <div className="relative">
+              <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#6B705C]" />
+              <input
+                data-testid="auth-email-input"
+                type="email"
+                required
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                autoComplete="email"
+                className="w-full bg-white border border-[#E8E6E1] rounded-xl pl-10 pr-3 py-2.5 text-sm focus:outline-none focus:border-[#E07A5F] focus:ring-2 focus:ring-[#E07A5F]/20"
+              />
+            </div>
+            <div className="relative">
+              <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#6B705C]" />
+              <input
+                data-testid="auth-password-input"
+                type="password"
+                required
+                minLength={8}
+                placeholder={mode === "register" ? "At least 8 characters" : "Your password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete={mode === "login" ? "current-password" : "new-password"}
+                className="w-full bg-white border border-[#E8E6E1] rounded-xl pl-10 pr-3 py-2.5 text-sm focus:outline-none focus:border-[#E07A5F] focus:ring-2 focus:ring-[#E07A5F]/20"
+              />
+            </div>
+            <button
+              type="submit"
+              data-testid="auth-submit-btn"
+              disabled={busy}
+              className="w-full btn-primary py-3 flex items-center justify-center gap-2 disabled:opacity-60"
+            >
+              {busy && <Loader2 className="w-4 h-4 animate-spin" />}
+              {mode === "login" ? "Sign in" : "Create account"}
+            </button>
+          </form>
+
+          <p className="text-xs text-[#6B705C] mt-6 text-center">
+            {mode === "login" ? (
+              <>
+                Don't have an account?{" "}
+                <button
+                  data-testid="switch-to-register"
+                  type="button"
+                  onClick={() => setMode("register")}
+                  className="text-[#E07A5F] font-medium hover:underline"
+                >
+                  Create one
+                </button>
+              </>
+            ) : (
+              <>
+                Already have an account?{" "}
+                <button
+                  data-testid="switch-to-login"
+                  type="button"
+                  onClick={() => setMode("login")}
+                  className="text-[#E07A5F] font-medium hover:underline"
+                >
+                  Sign in
+                </button>
+              </>
+            )}
           </p>
         </div>
       </div>
