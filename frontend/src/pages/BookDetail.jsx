@@ -71,7 +71,8 @@ export default function BookDetail() {
     const t = toast.loading("Generating a fresh copy…");
     try {
       const { data } = await api.post(`/books/${id}/refresh`, {}, { timeout: 300000 });
-      toast.success(`Created "${data.title}" in Updated stories`, { id: t });
+      const shelf = data.updated_shelf || "Updated stories";
+      toast.success(`Created "${data.title}" in ${shelf}`, { id: t });
       if (data.new_book_id) {
         navigate(`/books/${data.new_book_id}`);
       } else {

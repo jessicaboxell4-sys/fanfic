@@ -440,13 +440,26 @@ async def fichub_fetch_epub(source_url: str) -> tuple:
         raise HTTPException(status_code=502, detail=f"Download error: {e}")
 
 
+def _updated_shelf_name(now: Optional[datetime] = None) -> str:
+    """Return the date-stamped 'Updated stories' shelf name for refreshes today.
+
+    Each refresh batch gets its own dated bucket, so every run of updates is
+    clearly separated. Example: "Updated stories 2026-03-01"."""
+    now = now or datetime.now(timezone.utc)
+    return f"Updated stories {now.strftime('%Y-%m-%d')}"
+
+
+OLD_STORIES_SHELF = "Old stories"
+
+
 async def apply_refresh(book: Dict[str, Any], user_id: str, source_url: str) -> Dict[str, Any]:
     """Refresh a fanfic by generating a new EPUB via FanFicFare.
 
-    Behavior change (2026-02): instead of overwriting the existing EPUB and
-    book record, we create a NEW book in the "Updated stories" shelf and move
-    the original to the "Old stories" shelf. This preserves your reading
-    history on the old copy and gives you a clean slate on the new one.
+    Behavior (2026-02, updated per user request): instead of overwriting the
+    existing EPUB and book record, we create a NEW book in a date-stamped
+    "Updated stories YYYY-MM-DD" shelf and move the original to the single
+    "Old stories" shelf. Every refresh batch gets its own dated bucket so the
+    history of updates stays clearly separated.
 
     Cross-links:
       - new book .replaces -> old book_id
@@ -474,9 +487,11 @@ async def apply_refresh(book: Dict[str, Any], user_id: str, source_url: str) -> 
     )
 
     now_iso = datetime.now(timezone.utc).isoformat()
+    now_dt = datetime.now(timezone.utc)
+    updated_shelf = _updated_shelf_name(now_dt)
     old_book_id = book["book_id"]
 
-    # 1) Insert the new book in the "Updated stories" shelf
+    # 1) Insert the new book in the date-stamped "Updated stories" shelf
     new_doc = {
         "book_id": new_book_id,
         "user_id": user_id,
@@ -487,8 +502,8 @@ async def apply_refresh(book: Dict[str, Any], user_id: str, source_url: str) -> 
         "language": new_meta["language"],
         "publisher": new_meta["publisher"],
         "has_cover": bool(new_meta.get("cover_bytes")),
-        # Same category/fandom/series so it stays grouped correctly
-        "category": "Updated stories",
+        # Each refresh batch lives in its own dated bucket
+        "category": updated_shelf,
         "fandom": book.get("fandom"),
         "series_name": book.get("series_name"),
         "series_index": book.get("series_index"),
@@ -505,11 +520,24 @@ async def apply_refresh(book: Dict[str, Any], user_id: str, source_url: str) -> 
     }
     await db.books.insert_one(new_doc)
 
+    # Register the dated shelf as a custom category so it surfaces in the UI
+    # chip list. Idempotent — same date is reused across a day's refreshes.
+    await db.categories.update_one(
+        {"user_id": user_id, "name": updated_shelf},
+        {"$setOnInsert": {
+            "user_id": user_id,
+            "name": updated_shelf,
+            "created_at": now_iso,
+            "auto_created": True,
+        }},
+        upsert=True,
+    )
+
     # 2) Move the old book to the "Old stories" shelf with a back-pointer
     await db.books.update_one(
         {"book_id": old_book_id, "user_id": user_id},
         {"$set": {
-            "category": "Old stories",
+            "category": OLD_STORIES_SHELF,
             "replaced_by": new_book_id,
             "replaced_at": now_iso,
         }},
@@ -521,6 +549,7 @@ async def apply_refresh(book: Dict[str, Any], user_id: str, source_url: str) -> 
         "title": new_meta["title"],
         "author": new_meta["author"],
         "last_refreshed_at": now_iso,
+        "updated_shelf": updated_shelf,
     }
 
 
@@ -893,9 +922,15 @@ async def refresh_status(user: User = Depends(get_current_user)):
     """How many books in the library can be refreshed from a known fanfic source?"""
     books = await db.books.find(
         {"user_id": user.user_id},
-        {"_id": 0, "book_id": 1, "source_url": 1, "title": 1, "last_refreshed_at": 1, "fichub_unavailable": 1},
+        {"_id": 0, "book_id": 1, "source_url": 1, "title": 1, "last_refreshed_at": 1, "fichub_unavailable": 1, "category": 1, "replaced_by": 1},
     ).to_list(5000)
-    refreshable = sum(1 for b in books if b.get("source_url") and not b.get("fichub_unavailable"))
+    refreshable = sum(
+        1 for b in books
+        if b.get("source_url")
+        and not b.get("fichub_unavailable")
+        and not b.get("replaced_by")
+        and b.get("category") != OLD_STORIES_SHELF
+    )
     unavailable = sum(1 for b in books if b.get("fichub_unavailable"))
     last = None
     for b in books:
@@ -1178,6 +1213,9 @@ async def refresh_all(user: User = Depends(get_current_user)):
     eligible: List[tuple] = []
     for b in books:
         if b.get("fichub_unavailable"):
+            continue
+        # Skip books that have already been superseded by a newer refresh
+        if b.get("replaced_by") or b.get("category") == OLD_STORIES_SHELF:
             continue
         src = b.get("source_url")
         if not src:
@@ -1526,7 +1564,8 @@ async def refresh_book(book_id: str, user: User = Depends(get_current_user)):
         "last_refreshed_at": updated["last_refreshed_at"],
         "new_book_id": updated.get("new_book_id"),
         "old_book_id": updated.get("old_book_id"),
-        "message": "Created a refreshed copy in Updated stories; the original moved to Old stories.",
+        "updated_shelf": updated.get("updated_shelf"),
+        "message": f"Created a refreshed copy in '{updated.get('updated_shelf')}'; the original moved to Old stories.",
     }
 
 

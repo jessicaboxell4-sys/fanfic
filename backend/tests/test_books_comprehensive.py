@@ -298,14 +298,99 @@ class TestFicHubRefresh:
         # fichub_fetch_epub return a canned EPUB with title "Refreshed Title"
         # and author "Updated Author".
         bid = self._seed_book_via_upload("https://archiveofourown.org/works/77777")
+        # Tag the old book so we can assert tags carry over to the refreshed copy
+        db.books.update_one(
+            {"book_id": bid},
+            {"$set": {"tags": ["needs-update-test", "carry-over"]}},
+        )
         r = requests.post(f"{BASE}/api/books/{bid}/refresh", headers=H())
         assert r.status_code == 200, r.text
+        body = r.json()
+        # New behavior: response carries new_book_id, old_book_id, dated shelf
+        assert body.get("new_book_id") and body["new_book_id"] != bid
+        assert body.get("old_book_id") == bid
+        assert body.get("updated_shelf", "").startswith("Updated stories ")
         time.sleep(0.3)
-        b = db.books.find_one({"book_id": bid})
-        # Title may be the canned "Refreshed Title" (if hook is active) OR the
-        # original "Old Title" (if not). Just verify the refresh call succeeded
-        # and the book record was updated.
-        assert b.get("last_refreshed_at") is not None
+        # Old record archived
+        old = db.books.find_one({"book_id": bid})
+        assert old["category"] == "Old stories"
+        assert old["replaced_by"] == body["new_book_id"]
+        assert old.get("replaced_at")
+        # New record in dated shelf with tags carried over
+        new = db.books.find_one({"book_id": body["new_book_id"]})
+        assert new is not None
+        assert new["category"].startswith("Updated stories ")
+        assert new["replaces"] == bid
+        assert set(new.get("tags", [])) >= {"needs-update-test", "carry-over"}
+        assert new.get("last_refreshed_at") is not None
+        assert new.get("source_url") == "https://archiveofourown.org/works/77777"
+
+    def test_refresh_skips_already_archived_books(self, fichub_mock_server):
+        """refresh-all should not re-refresh books already on the Old stories shelf."""
+        bid = self._seed_book_via_upload("https://archiveofourown.org/works/archived-already")
+        db.books.update_one(
+            {"book_id": bid},
+            {"$set": {"category": "Old stories", "replaced_by": "book_someother"}},
+        )
+        r = requests.post(f"{BASE}/api/books/refresh-all", headers=H())
+        assert r.status_code == 200
+        # The archived book should not appear in failures (it was skipped entirely)
+        failures_ids = {f.get("book_id") for f in r.json().get("failures", [])}
+        assert bid not in failures_ids
+        # And it should still be on Old stories (not re-touched)
+        still = db.books.find_one({"book_id": bid})
+        assert still["category"] == "Old stories"
+
+    def test_refresh_registers_dated_shelf_and_filters(self, fichub_mock_server):
+        """After a successful refresh:
+        - Response includes a `message` mentioning the dated shelf
+        - GET /api/categories includes the dated shelf in `custom`
+        - GET /api/books?category=<dated> returns ONLY the new copy
+        - GET /api/books?category='Old stories' includes the archived copy
+        - GET /api/books/refresh-status excludes the archived book from `refreshable`
+        """
+        bid = self._seed_book_via_upload("https://archiveofourown.org/works/dated-check")
+        # Baseline refresh-status
+        pre_status = requests.get(f"{BASE}/api/books/refresh-status", headers=H()).json()
+        pre_refreshable = pre_status.get("refreshable", 0)
+
+        r = requests.post(f"{BASE}/api/books/{bid}/refresh", headers=H())
+        assert r.status_code == 200, r.text
+        body = r.json()
+        new_id = body["new_book_id"]
+        dated_shelf = body["updated_shelf"]
+        # `message` field present and mentions the dated shelf name
+        assert "message" in body and isinstance(body["message"], str)
+        assert dated_shelf in body["message"]
+        assert body.get("last_refreshed_at")
+
+        # Dated shelf auto-registered as a custom category chip
+        cats = requests.get(f"{BASE}/api/categories", headers=H()).json()
+        assert dated_shelf in cats.get("custom", []), f"{dated_shelf} not in {cats.get('custom')}"
+
+        # Filter by dated shelf returns ONLY the new copy
+        dated_books = requests.get(f"{BASE}/api/books", headers=H(), params={"category": dated_shelf}).json()["books"]
+        ids_dated = {b["book_id"] for b in dated_books}
+        assert new_id in ids_dated
+        assert bid not in ids_dated
+
+        # Filter by Old stories includes the archived copy
+        old_books = requests.get(f"{BASE}/api/books", headers=H(), params={"category": "Old stories"}).json()["books"]
+        ids_old = {b["book_id"] for b in old_books}
+        assert bid in ids_old
+        assert new_id not in ids_old
+
+        # Both copies still browseable via the un-filtered list
+        all_books = requests.get(f"{BASE}/api/books", headers=H()).json()["books"]
+        all_ids = {b["book_id"] for b in all_books}
+        assert bid in all_ids and new_id in all_ids
+
+        # refresh-status excludes the archived book from `refreshable`.
+        # The new book inherits source_url so it stays refreshable -> net change 0.
+        post_status = requests.get(f"{BASE}/api/books/refresh-status", headers=H()).json()
+        assert post_status["refreshable"] == pre_refreshable, (
+            f"refresh-status changed unexpectedly: pre={pre_refreshable}, post={post_status['refreshable']}"
+        )
 
     def test_refresh_all_runs(self, fichub_mock_server):
         """Bulk refresh executes the loop and returns aggregate counts."""

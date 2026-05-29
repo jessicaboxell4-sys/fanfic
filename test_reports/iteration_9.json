@@ -1,0 +1,38 @@
+{
+  "summary": "Backend-only regression for the new 'create-a-new-EPUB-per-refresh' behavior. Ran the canonical `cd /app/backend && bash scripts/run_coverage.sh --fail-under=75` harness which boots a coverage-instrumented uvicorn with the SHELFSORT_TEST_FFF_RESPONSE mock + Claude mock and executes the full pytest suite. Result: 145 passed, 1 skipped (per-test FFF hook variation — by design), 0 failed. Coverage 75.4% (>=75% gate). All 10 review-request behaviors verified — refresh creates a NEW book with a date-stamped 'Updated stories YYYY-MM-DD' category, `replaces` links new->old, the old book is moved to 'Old stories' with `replaced_by` + `replaced_at` ISO timestamps, tags carry over, response payload contains new_book_id/old_book_id/updated_shelf/message/last_refreshed_at (message references the dated shelf), the dated shelf is auto-upserted into the categories collection and appears in GET /api/categories `custom`, GET /api/books?category=<dated> returns only the new copy while GET /api/books?category='Old stories' returns only the archived one, both copies remain browseable via the un-filtered list, refresh-all skips books whose category is 'Old stories' or whose `replaced_by` is set, and refresh-status excludes already-archived books from `refreshable`.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_books_comprehensive.py",
+    "/app/test_reports/pytest/coverage_iter9.xml",
+    "/app/test_reports/pytest/server_iter9.log",
+    "/app/backend/scripts/run_coverage.sh"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routes/books.py::apply_refresh (L455-553) correctly: (1) generates a fresh book_id + writes a brand-new EPUB/cover/links file, (2) inserts a new book doc with category=_updated_shelf_name(now) (UTC-day bucket), `replaces`=old_book_id, tags inherited, source_url preserved, last_refreshed_at ISO; (3) upserts the dated shelf into db.categories with auto_created=True so it surfaces in the chip list; (4) updates the old book in-place to category='Old stories' + replaced_by + replaced_at. Cross-links are sound.",
+    "routes/books.py::refresh_book (L1523) returns ok/source_url/title/last_refreshed_at/new_book_id/old_book_id/updated_shelf/message — message string interpolates the dated shelf name as required ('Created a refreshed copy in 'Updated stories YYYY-MM-DD'; the original moved to Old stories.').",
+    "routes/books.py::refresh_all (L1207-1261) loop correctly skips books with b.get('replaced_by') OR b.get('category')=='Old stories' BEFORE adding to eligible — prevents infinite chain refreshes and keeps already-archived books out of the failures list.",
+    "routes/books.py::refresh_status (L920-945) refreshable counter excludes b.get('replaced_by') AND b.get('category')=='Old stories' — matches the requested behavior. Verified empirically: pre/post refresh count is unchanged because the new copy inherits source_url (so it stays refreshable) and the old copy is archived (drops out).",
+    "routes/series_categories.py::list_categories (L76-81) hard-codes 'Updated stories' and 'Old stories' in the `defaults` array AND surfaces the user-specific dated shelves through `custom` — both naming layers are wired up.",
+    "routes/books.py::list_books (L777-818) uses an exact equality match on the `category` query param so 'Updated stories 2026-01-XX' and 'Old stories' filters return disjoint sets as designed.",
+    "File length watch: routes/books.py is 2072 lines and continues to grow — recommend splitting into smaller modules (refresh, upload, classification, bulk-ops) in a future cleanup pass. Not a blocker."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_books_comprehensive.py (added test_refresh_registers_dated_shelf_and_filters covering categories registration + dated-shelf filter + Old stories filter + message field + refresh-status delta)"
+  ],
+  "success_rate": {"backend": "100% (145/145 passed, 1 by-design skip; coverage 75.4% — gate >=75% met)", "frontend": "N/A (skipped per request)"},
+  "test_credentials": "Per-test ephemeral users seeded directly into db.users + db.user_sessions inside each test module (TEST_/shelftest_* prefix). No production credentials touched.",
+  "seed_data_creation": "All seed data is ephemeral and scoped to the run_coverage.sh DB_NAME=shelfsort_cov database. Module fixtures clean up users/sessions/books/reading_activity on teardown. No persistent fixtures introduced.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Canonical command: `cd /app/backend && bash scripts/run_coverage.sh --fail-under=75` (~18-20s, boots its own uvicorn on 127.0.0.1:8765 with SHELFSORT_TEST_FFF_RESPONSE + SHELFSORT_TEST_AI_RESPONSE injected). Refresh-flow tests live in tests/test_books_comprehensive.py::TestFicHubRefresh — happy-path (test_refresh_book_succeeds_with_fresh_epub), categories+filter coverage (test_refresh_registers_dated_shelf_and_filters), refresh-all skip-logic (test_refresh_skips_already_archived_books). Note the canned FanFicFare EPUB has title 'Canned Refreshed' / author 'FFF Hook'. test_refresh_book_fichub_not_found is intentionally skipped because the FFF hook is globally success-mode across the HTTP boundary. Coverage gate is 75% and currently sits at 75.4% — adding non-test code without new tests will push it under.",
+  "rca of the issue": "N/A — all features verified working as specified in the review request."
+}
