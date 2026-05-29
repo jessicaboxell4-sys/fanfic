@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
-import { User as UserIcon, Mail, Lock, Loader2 } from "lucide-react";
+import { User as UserIcon, Mail, Lock, Loader2, Mail as MailIcon, Send, Calendar } from "lucide-react";
 import { toast } from "sonner";
 
 function errMsg(d) {
@@ -25,6 +25,11 @@ export default function Account() {
   const [confirmPw, setConfirmPw] = useState("");
   const [savingPw, setSavingPw] = useState(false);
 
+  // Weekly digest settings
+  const [digest, setDigest] = useState(null);
+  const [savingDigest, setSavingDigest] = useState(false);
+  const [sendingPreview, setSendingPreview] = useState(false);
+
   useEffect(() => {
     (async () => {
       try {
@@ -35,8 +40,44 @@ export default function Account() {
         toast.error("Couldn't load your profile");
         navigate("/login");
       }
+      try {
+        const { data: d } = await api.get("/user/digest-settings");
+        setDigest(d);
+      } catch (e) { /* ignore */ }
     })();
   }, [navigate]);
+
+  const saveDigest = async (next) => {
+    setSavingDigest(true);
+    try {
+      const { data } = await api.put("/user/digest-settings", next);
+      setDigest((d) => ({ ...(d || {}), ...data }));
+      toast.success(next.enabled === false ? "Weekly digest paused" : "Settings saved");
+    } catch (e) {
+      toast.error(errMsg(e?.response?.data?.detail));
+    } finally {
+      setSavingDigest(false);
+    }
+  };
+
+  const sendPreview = async () => {
+    setSendingPreview(true);
+    try {
+      const { data } = await api.post("/user/digest-preview");
+      if (data.delivered) {
+        toast.success(`Preview sent to ${profile.email}`);
+      } else if (data.logged) {
+        toast.warning("Email sending isn't configured on this server — but here's your digest summary in the console.");
+        console.log("Digest summary:", data.summary);
+      } else {
+        toast.error("Couldn't send preview");
+      }
+    } catch (e) {
+      toast.error(errMsg(e?.response?.data?.detail));
+    } finally {
+      setSendingPreview(false);
+    }
+  };
 
   const saveName = async (e) => {
     e.preventDefault();
@@ -127,6 +168,118 @@ export default function Account() {
               Save name
             </button>
           </form>
+        </section>
+
+        {/* Weekly digest */}
+        <section className="shelf-card p-6 mb-6" data-testid="digest-settings-card">
+          <div className="flex items-start justify-between gap-3 mb-1">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#FDF3E1] text-[#B87A00] flex items-center justify-center flex-shrink-0">
+                <MailIcon className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="font-serif text-2xl text-[#2C2C2C]">Weekly reading digest</h2>
+                <p className="text-sm text-[#6B705C] mt-0.5">
+                  A friendly recap emailed straight to <strong className="text-[#2C2C2C]">{profile.email}</strong>: what you opened, your top fandom, and the books still waiting at the bookmark.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {digest === null ? (
+            <p className="text-sm text-[#6B705C] mt-4">Loading…</p>
+          ) : (
+            <>
+              {!digest.email_configured && (
+                <p className="text-xs text-[#B87A00] bg-[#FDF3E1] rounded-lg p-3 mt-4" data-testid="digest-email-warning">
+                  Email delivery isn't fully configured on this server yet. The schedule will save normally; once Resend is set up, your digests will start arriving.
+                </p>
+              )}
+
+              <div className="mt-5 flex items-center justify-between gap-3 p-3 rounded-xl border border-[#E8E6E1] bg-white">
+                <div>
+                  <p className="text-sm font-semibold text-[#2C2C2C]">Send me a weekly digest</p>
+                  <p className="text-xs text-[#6B705C]">You can stop these any time.</p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={digest.enabled}
+                  data-testid="digest-toggle"
+                  disabled={savingDigest}
+                  onClick={() => saveDigest({ enabled: !digest.enabled })}
+                  className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors flex-shrink-0 ${
+                    digest.enabled ? "bg-[#3A5A40]" : "bg-[#E8E6E1]"
+                  } ${savingDigest ? "opacity-60" : ""}`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                      digest.enabled ? "translate-x-6" : "translate-x-1"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div className={`mt-4 grid sm:grid-cols-2 gap-3 transition-opacity ${digest.enabled ? "opacity-100" : "opacity-50 pointer-events-none"}`}>
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wider text-[#6B705C] mb-1 block flex items-center gap-1.5">
+                    <Calendar className="w-3 h-3" /> Day of week
+                  </label>
+                  <select
+                    data-testid="digest-day"
+                    value={digest.day_of_week}
+                    onChange={(e) => saveDigest({ day_of_week: Number(e.target.value) })}
+                    disabled={!digest.enabled || savingDigest}
+                    className="w-full bg-white border border-[#E8E6E1] rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#E07A5F] focus:ring-2 focus:ring-[#E07A5F]/20"
+                  >
+                    {["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].map((d, i) => (
+                      <option key={d} value={i}>{d}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wider text-[#6B705C] mb-1 block">
+                    Time (UTC)
+                  </label>
+                  <select
+                    data-testid="digest-hour"
+                    value={digest.hour}
+                    onChange={(e) => saveDigest({ hour: Number(e.target.value) })}
+                    disabled={!digest.enabled || savingDigest}
+                    className="w-full bg-white border border-[#E8E6E1] rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#E07A5F] focus:ring-2 focus:ring-[#E07A5F]/20"
+                  >
+                    {Array.from({ length: 24 }, (_, h) => h).map((h) => (
+                      <option key={h} value={h}>
+                        {String(h).padStart(2, "0")}:00 UTC
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {digest.last_sent_at && (
+                <p className="text-xs text-[#6B705C] mt-3">
+                  Last digest sent {new Date(digest.last_sent_at).toLocaleString()}
+                </p>
+              )}
+
+              <div className="mt-5 flex flex-wrap gap-2 items-center border-t border-[#E8E6E1] pt-4">
+                <button
+                  type="button"
+                  onClick={sendPreview}
+                  disabled={sendingPreview}
+                  data-testid="digest-send-preview"
+                  className="btn-secondary text-sm flex items-center gap-2 disabled:opacity-60"
+                >
+                  {sendingPreview ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  Send me a preview now
+                </button>
+                <p className="text-xs text-[#6B705C]">
+                  Useful for previewing the layout without waiting for the schedule.
+                </p>
+              </div>
+            </>
+          )}
         </section>
 
         {/* Password */}

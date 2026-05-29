@@ -1,0 +1,42 @@
+{
+  "summary": "Tested Weekly Reading Digest feature end-to-end (backend + frontend) plus full regression of pre-existing /api/* endpoints to verify the include_router move didn't break anything. 23/23 backend pytest cases pass. All 9 frontend digest UI checks pass (card placement, toggle default OFF, opacity-50/pointer-events-none when off, day/hour PUTs on change, preview POST, email warning when RESEND_API_KEY empty, persistence on reload).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/account Weekly digest card",
+       "issues": ["React hydration warning: '<span> cannot be a child of <option>'. The visual-editor instrumentation wraps option text in a <span>, which is invalid HTML inside <option>. Not user-visible (selects function correctly) and the wrapping comes from x-source-type=computed instrumentation, but worth knowing if the warning ever blocks SSR/static export."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_digest.py",
+    "/app/test_reports/pytest/pytest_digest.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py line 2618 — app.include_router(api_router) was moved after the digest module. Verified by regression tests: /api/auth/me, /api/auth/register, /api/auth/login, /api/auth/logout, /api/auth/profile (PATCH), /api/books, /api/stats/overview, /api/stats/detailed, /api/authors, /api/series, /api/books/bulk/{metadata,move,delete} all return expected statuses.",
+    "Scheduler log line 'Weekly digest scheduler started (UTC, every hour at :00).' is present in /var/log/supervisor/backend.err.log on startup, confirming APScheduler boot is wired into the on_startup event.",
+    "POST /api/user/digest-preview correctly returns delivered=false + logged=true + full summary keys (books_opened, active_days, finished_this_week, pages_this_week, top_fandom, nudges, library_total, week_start, week_end) when RESEND_API_KEY is empty (preview env, as configured in /app/backend/.env).",
+    "Partial PUT updates work — sending only {hour:9} preserves day_of_week and enabled in the stored doc. Validation rejects day_of_week=7, day_of_week=-1, hour=24 with HTTP 400.",
+    "Server.py is 2,642 lines — exceeds the 700-line guideline. The digest module (lines 2,269–2,615) is a natural split candidate (move to backend/routers/digest.py + backend/services/digest.py). Not blocking, but worth a future refactor.",
+    "Pre-existing lint warnings F841 (line 293) and F541 (line 838) noted by main agent — not introduced by this iteration, still present, low priority."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_digest.py (new)",
+    "/app/test_reports/pytest/pytest_digest.xml (new)"
+  ],
+  "success_rate": {
+    "backend": "100% (23/23)",
+    "frontend": "100% (9/9 digest UI checks)"
+  },
+  "test_credentials": "Created two fresh users on the fly: (1) seeded Mongo user user_dig_<rand>@example.com with Bearer token for pytest, cleaned up in fixture teardown; (2) registered test_dig_<rand>@example.com / hunter2pw via POST /api/auth/register for Playwright (cookie-based). No special creds needed.",
+  "seed_data_creation": "Mongo: 1 user + 1 user_session inserted per pytest module run, deleted in teardown. Frontend test: 1 user registered via API (not cleaned up — register-only test users; cleanup happens via session expiry).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Weekly Reading Digest is fully working. To re-test: (1) run `REACT_APP_BACKEND_URL=https://genre-sort.preview.emergentagent.com pytest /app/backend/tests/test_digest.py -v` for backend (23 cases); (2) for UI, register a fresh user via /api/auth/register, navigate to /account, locate [data-testid=digest-settings-card], verify [data-testid=digest-toggle] starts aria-checked=false, then click to ON and assert PUT /api/user/digest-settings fires, then change [data-testid=digest-day] and [data-testid=digest-hour] and assert each fires a PUT, then click [data-testid=digest-send-preview] and assert POST /api/user/digest-preview is fired. RESEND_API_KEY is intentionally empty in /app/backend/.env in preview, so digest-preview returns delivered=false logged=true and [data-testid=digest-email-warning] is visible.",
+  "rca_of_the_issue": "N/A — feature works as specified."
+}
