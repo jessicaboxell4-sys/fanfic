@@ -69,6 +69,21 @@
 - **Account.jsx**: new "Weekly reading digest" card with toggle (default OFF — opt-in), day-of-week select, UTC hour select, "Send me a preview now" button, and a warning banner when `RESEND_API_KEY` is unset
 - Added dep: `APScheduler==3.11.2`
 
+### Added 2026-02-29 (Year in Books)
+- **Annual recap** that's both an in-app page and an emailable keepsake:
+  - `GET /api/year-in-books/{year}` returns summary (books_opened, books_finished, active_days, longest_streak, pages_read, top_fandoms[5], top_authors[5], categories, monthly 12-bucket chart, best_month, first_book, last_book) + `has_data` flag (1900–2200 range)
+  - `POST /api/year-in-books/{year}/email` sends a beautifully-formatted Resend email
+  - `_digest_tick` extended — on Jan 1 at the user's chosen hour, sends previous-year recap (idempotent via `digest.last_year_sent`)
+- **`/library/year/:year`** page (`YearInBooksPage.jsx`):
+  - Giant year-as-headline + 3 big stat numbers (opens / finished / longest streak)
+  - Month-by-month bar chart
+  - Top fandoms + top authors (linked to their shelves)
+  - Bookends card (first book of the year, last book of the year)
+  - Achievement chips (On fire, Finisher, Eclectic)
+  - "Email this recap to myself" button
+  - Prev/next year navigation (next hidden when ≥ current year)
+- **Stats page**: gradient CTA card to open the current Year-in-Books
+
 ### Deferred / Declined
 - Google Drive import — declined by user (2026-02-28). Local upload remains the only ingest path.
 
