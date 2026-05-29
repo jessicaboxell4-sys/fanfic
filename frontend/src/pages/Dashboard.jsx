@@ -313,6 +313,24 @@ export default function Dashboard() {
                   ✓ Finished · {stats.finished}
                 </button>
               )}
+              {stats.unreadable > 0 && (
+                <button
+                  data-testid="filter-cant-open"
+                  onClick={() => {
+                    setCategory("Can't Open");
+                    setFandom(null);
+                    setSmart(null);
+                  }}
+                  className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-colors flex items-center gap-1.5 ${
+                    category === "Can't Open"
+                      ? "bg-[#D9534F] text-white border-[#D9534F]"
+                      : "bg-white border-[#D9534F]/30 text-[#D9534F] hover:bg-[#D9534F]/10"
+                  }`}
+                  title="EPUBs that couldn't be parsed — file is corrupted or not a real EPUB"
+                >
+                  ⚠ Can't open · {stats.unreadable}
+                </button>
+              )}
               {refreshStatus.unavailable > 0 && (
                 <button
                   data-testid="filter-smart-unavailable"

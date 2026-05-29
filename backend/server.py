@@ -514,7 +514,18 @@ def extract_epub_metadata(filepath: Path) -> Dict[str, Any]:
         book = epub.read_epub(str(filepath), options={"ignore_ncx": True})
     except Exception as e:
         logger.warning(f"EPUB parse failed for {filepath}: {e}")
-        return {"title": filepath.stem, "author": "Unknown", "description": "", "language": "", "publisher": "", "cover_bytes": None, "series_name": None, "series_index": None}
+        return {
+            "title": filepath.stem,
+            "author": "Unknown",
+            "description": "",
+            "language": "",
+            "publisher": "",
+            "cover_bytes": None,
+            "series_name": None,
+            "series_index": None,
+            "parse_failed": True,
+            "parse_error": str(e)[:200],
+        }
 
     def m(field):
         items = book.get_metadata('DC', field)
@@ -598,6 +609,7 @@ def extract_epub_metadata(filepath: Path) -> Dict[str, Any]:
         "sample_text": sample_text[:5000],
         "series_name": series_name,
         "series_index": series_index,
+        "parse_failed": False,
     }
 
 
@@ -950,6 +962,38 @@ async def upload_books(
         target.write_bytes(content)
 
         meta = extract_epub_metadata(target)
+
+        # Short-circuit: if the EPUB can't be opened at all, file it under
+        # "Can't Open" and skip classification / AI / links / series detection.
+        if meta.get("parse_failed"):
+            doc = {
+                "book_id": book_id,
+                "user_id": user.user_id,
+                "filename": f.filename,
+                "title": meta.get("title") or f.filename,
+                "author": "Unknown",
+                "description": "",
+                "language": "",
+                "publisher": "",
+                "has_cover": False,
+                "category": "Can't Open",
+                "fandom": None,
+                "confidence": 1.0,
+                "classifier": "broken-epub",
+                "size_bytes": len(content),
+                "links_count": 0,
+                "source_url": None,
+                "last_refreshed_at": None,
+                "series_name": None,
+                "series_index": None,
+                "epub_unreadable": True,
+                "epub_parse_error": meta.get("parse_error"),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+            await db.books.insert_one(doc)
+            results.append({k: v for k, v in doc.items() if k != "_id"})
+            continue
+
         classification = await classify_book(meta)
 
         # Save cover separately if exists
@@ -1069,10 +1113,15 @@ async def book_stats(user: User = Depends(get_current_user)):
         "user_id": user.user_id,
         "progress_percent": {"$gte": 0.99},
     })
+    unreadable = await db.books.count_documents({
+        "user_id": user.user_id,
+        "epub_unreadable": True,
+    })
     return {
         "total": total,
         "reading": reading,
         "finished": finished,
+        "unreadable": unreadable,
         "categories": [{"name": c['_id'], "count": c['count']} for c in cats],
         "fandoms": [{"name": f['_id'], "count": f['count']} for f in fandoms],
     }
