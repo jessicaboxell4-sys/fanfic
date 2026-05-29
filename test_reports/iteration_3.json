@@ -1,0 +1,28 @@
+{
+  "summary": "Re-tested the CantFindOnline.saveUrl fix from iteration 2. All three review-request criteria pass: (1) network traffic after Save shows ONLY a single PATCH /api/books/{id}/source-url with NO subsequent POST to /api/books/{id}/refresh; (2) Retry FicHub button (data-testid retry-<book_id>) remains visible and clickable on the row; (3) success toast reads exactly 'Source URL updated. Click Retry FicHub to try again.' — the old 'trying FicHub…' wording is gone. Bug from iteration 2 is fully resolved.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "saveUrl() in /app/frontend/src/pages/CantFindOnline.jsx (lines 77-86) is now clean: PATCH + toast + close editor. No silent auto-retry. Matches the reviewer's intent."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "n/a (frontend-only re-test)",
+    "frontend": "100% (3/3 criteria pass)"
+  },
+  "test_credentials": "Seeded fresh user via POST /api/auth/register (test_cfo_<rand>@example.com / hunter2pw) and one MongoDB book document with fichub_unavailable=true. Both deleted after test.",
+  "seed_data_creation": "Inserted one book {book_id: book_test_b8fd82cf, user_id: user_5d0c8e880a10, fichub_unavailable: true, source_url: https://example.invalid/story/1} for the test user. Cleaned up (book + session + user removed from Mongo).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "CantFindOnline saveUrl fix verified end-to-end via Playwright with network interception and session-cookie injection. To re-test: register a user, insert a books document with fichub_unavailable=true via Mongo, set session_token cookie in the browser, visit /library/cant-find-online, click 'Fix URL' on the row, type a new URL, click 'Save', and assert (a) only one PATCH /api/books/{id}/source-url request is fired, (b) retry-<book_id> button is still visible, (c) toast text is exactly 'Source URL updated. Click Retry FicHub to try again.'",
+  "rca_of_the_issue": "Iteration 2 had `await retry(bid, { silent: true });` inside saveUrl() which auto-fired the FicHub refresh after URL correction. Main agent removed that line and updated the toast copy from 'Source URL updated — trying FicHub…' to 'Source URL updated. Click Retry FicHub to try again.' Verified the current saveUrl() at lines 77-86 only calls api.patch + toast.success + clears editing state — no retry invocation. Network capture during the Save click confirmed zero /refresh requests."
+}
