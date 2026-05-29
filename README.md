@@ -61,6 +61,10 @@ Dependabot opens grouped weekly PRs (Monday 07:00 UTC) for `backend/`, `frontend
 
 Tweak `.github/dependabot.yml` for limits/grouping and `.github/workflows/dependabot-auto-merge.yml` for the merge policy.
 
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) — a one-minute orientation: the two commands you need, where to add an endpoint, and conventions (data-testid, env-toggled integrations, etc.).
+
 ## Environment
 
 Required (`backend/.env`):
