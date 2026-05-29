@@ -1148,6 +1148,134 @@ async def refresh_all(user: User = Depends(get_current_user)):
     }
 
 
+# ============================================================
+# FICHUB STATUS PROBE (cached) + RETRY-UNAVAILABLE
+# ============================================================
+_fichub_status_cache: Dict[str, Any] = {"checked_at": None, "ok": None, "detail": ""}
+_FICHUB_PROBE_URL = "https://archiveofourown.org/works/30043233"  # a known-good AO3 work
+
+
+@api_router.get("/fichub/status")
+async def fichub_status(force: bool = False, user: User = Depends(get_current_user)):
+    """Probe FicHub with a known-good AO3 URL. Cached for 5 minutes.
+
+    Returns {ok: bool, detail: str, checked_at: iso, cached: bool}.
+    """
+    now = datetime.now(timezone.utc)
+    cached_at = _fichub_status_cache.get("checked_at")
+    if (
+        not force
+        and cached_at
+        and (now - cached_at) < timedelta(minutes=5)
+        and _fichub_status_cache.get("ok") is not None
+    ):
+        return {
+            "ok": _fichub_status_cache["ok"],
+            "detail": _fichub_status_cache["detail"],
+            "checked_at": cached_at.isoformat(),
+            "cached": True,
+        }
+
+    base = os.environ.get("FICHUB_BASE_URL", "https://fichub.net").rstrip("/")
+    loop = asyncio.get_event_loop()
+
+    def _probe():
+        try:
+            r = http_requests.get(
+                f"{base}/api/v0/epub",
+                params={"q": _FICHUB_PROBE_URL},
+                headers={"User-Agent": FICHUB_USER_AGENT, "Accept": "application/json"},
+                timeout=15,
+            )
+            r.raise_for_status()
+            data = r.json()
+            err = data.get("err", 0)
+            if err in (-9, -1):
+                return False, f"FicHub returned err={err} ({data.get('msg') or data.get('info') or 'no detail'})"
+            if err != 0:
+                return False, f"FicHub returned err={err}"
+            if not (data.get("urls") or {}).get("epub"):
+                return False, "FicHub response missing EPUB URL"
+            return True, "FicHub API is responding normally."
+        except Exception as e:
+            return False, f"Couldn't reach FicHub: {e}"
+
+    try:
+        ok, detail = await loop.run_in_executor(None, _probe)
+    except Exception as e:
+        ok, detail = False, str(e)
+
+    _fichub_status_cache["checked_at"] = now
+    _fichub_status_cache["ok"] = ok
+    _fichub_status_cache["detail"] = detail
+    return {
+        "ok": ok,
+        "detail": detail,
+        "checked_at": now.isoformat(),
+        "cached": False,
+    }
+
+
+@api_router.post("/books/retry-unavailable")
+async def retry_unavailable(user: User = Depends(get_current_user)):
+    """Clear the fichub_unavailable flag on every previously-failed book and
+    re-attempt FicHub for each. Sequential; respects FicHub's rate guidance.
+    """
+    books = await db.books.find(
+        {"user_id": user.user_id, "fichub_unavailable": True},
+        {"_id": 0},
+    ).to_list(5000)
+
+    if not books:
+        return {"attempted": 0, "refreshed": 0, "still_unavailable": 0, "failures": []}
+
+    # Clear flags up front so a partial failure doesn't strand books in a half-state.
+    await db.books.update_many(
+        {"user_id": user.user_id, "fichub_unavailable": True},
+        {"$unset": {"fichub_unavailable": "", "fichub_last_error": ""}},
+    )
+
+    refreshed = 0
+    still_unavailable = 0
+    failures: List[Dict[str, str]] = []
+    for b in books:
+        src = b.get("source_url")
+        if not src:
+            # No URL → can't retry.
+            failures.append({
+                "book_id": b["book_id"],
+                "title": b.get("title", ""),
+                "error": "No source URL — set one on the book detail page first.",
+            })
+            continue
+        try:
+            await apply_refresh(b, user.user_id, src)
+            refreshed += 1
+        except FicHubNotFoundError as e:
+            await db.books.update_one(
+                {"book_id": b["book_id"], "user_id": user.user_id},
+                {"$set": {
+                    "fichub_unavailable": True,
+                    "fichub_last_error": str(e),
+                    "fichub_last_attempt_at": datetime.now(timezone.utc).isoformat(),
+                }},
+            )
+            still_unavailable += 1
+            failures.append({"book_id": b["book_id"], "title": b.get("title", ""), "error": str(e)})
+        except HTTPException as he:
+            failures.append({"book_id": b["book_id"], "title": b.get("title", ""), "error": he.detail})
+        except Exception as e:
+            failures.append({"book_id": b["book_id"], "title": b.get("title", ""), "error": str(e)})
+        await asyncio.sleep(1.5)
+
+    return {
+        "attempted": len(books),
+        "refreshed": refreshed,
+        "still_unavailable": still_unavailable,
+        "failures": failures,
+    }
+
+
 class MarkBody(BaseModel):
     read: bool
 

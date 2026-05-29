@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { api, API } from "../lib/api";
-import { ArrowLeft, ExternalLink, RefreshCw, Edit3, Download, Loader2, Book } from "lucide-react";
+import { ArrowLeft, ExternalLink, RefreshCw, Edit3, Download, Loader2, Book, AlertTriangle, CheckCircle2, RotateCw } from "lucide-react";
 import { toast } from "sonner";
 
 function suggestSearchUrl(sourceUrl, title, author) {
@@ -37,6 +37,21 @@ export default function CantFindOnline() {
   const [editUrl, setEditUrl] = useState("");
   const [busyId, setBusyId] = useState(null);
   const [autoTriedIds, setAutoTriedIds] = useState(new Set());
+  const [status, setStatus] = useState(null); // {ok, detail, checked_at, cached}
+  const [statusLoading, setStatusLoading] = useState(false);
+  const [retryAllBusy, setRetryAllBusy] = useState(false);
+
+  const probeStatus = async (force = false) => {
+    setStatusLoading(true);
+    try {
+      const { data } = await api.get("/fichub/status", { params: force ? { force: true } : {} });
+      setStatus(data);
+    } catch (e) {
+      setStatus({ ok: false, detail: "Couldn't reach the status check", checked_at: null });
+    } finally {
+      setStatusLoading(false);
+    }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -48,6 +63,30 @@ export default function CantFindOnline() {
     }
   };
   useEffect(() => { load(); }, []);
+  useEffect(() => { probeStatus(false); }, []);
+
+  const retryAll = async () => {
+    if (!window.confirm(`Retry FicHub for all ${books.length} unavailable book(s)? This may take a minute or two.`)) return;
+    setRetryAllBusy(true);
+    try {
+      const { data } = await api.post("/books/retry-unavailable");
+      if (data.refreshed > 0) {
+        toast.success(`${data.refreshed} book${data.refreshed === 1 ? "" : "s"} refreshed!`);
+      }
+      if (data.still_unavailable > 0) {
+        toast.warning(`${data.still_unavailable} book${data.still_unavailable === 1 ? "" : "s"} still unavailable — FicHub may still be down.`);
+      }
+      if (data.refreshed === 0 && data.still_unavailable === 0 && data.attempted === 0) {
+        toast.info("Nothing to retry.");
+      }
+      probeStatus(true);
+      await load();
+    } catch (e) {
+      toast.error("Couldn't retry");
+    } finally {
+      setRetryAllBusy(false);
+    }
+  };
 
   const retry = async (bid, opts = {}) => {
     const { silent = false } = opts;
@@ -111,16 +150,75 @@ export default function CantFindOnline() {
             </p>
           </div>
           {books.length > 0 && (
-            <button
-              data-testid="download-list-btn"
-              onClick={() => window.open(`${API}/books/export/unavailable`, "_blank")}
-              className="btn-secondary text-sm flex items-center gap-2"
-            >
-              <Download className="w-4 h-4" />
-              Download list (.txt)
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                data-testid="retry-all-btn"
+                onClick={retryAll}
+                disabled={retryAllBusy}
+                className="btn-primary text-sm flex items-center gap-2 disabled:opacity-60"
+                title="Clear the unavailable flag on every book and re-attempt FicHub"
+              >
+                {retryAllBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCw className="w-4 h-4" />}
+                Retry all ({books.length})
+              </button>
+              <button
+                data-testid="download-list-btn"
+                onClick={() => window.open(`${API}/books/export/unavailable`, "_blank")}
+                className="btn-secondary text-sm flex items-center gap-2"
+              >
+                <Download className="w-4 h-4" />
+                Download list (.txt)
+              </button>
+            </div>
           )}
         </div>
+
+        {/* FicHub status banner */}
+        {status && (
+          <div
+            data-testid="fichub-status-banner"
+            className={`mb-6 rounded-2xl border p-4 flex items-start gap-3 ${
+              status.ok
+                ? "bg-[#E5EBE6] border-[#3A5A40]/30 text-[#2C2C2C]"
+                : "bg-[#FFF1ED] border-[#E07A5F]/40 text-[#2C2C2C]"
+            }`}
+          >
+            {status.ok ? (
+              <CheckCircle2 className="w-5 h-5 text-[#3A5A40] flex-shrink-0 mt-0.5" />
+            ) : (
+              <AlertTriangle className="w-5 h-5 text-[#E07A5F] flex-shrink-0 mt-0.5" />
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold">
+                {status.ok ? "FicHub is responding normally" : "FicHub is having trouble right now"}
+              </p>
+              <p className="text-xs text-[#6B705C] mt-0.5" data-testid="fichub-status-detail">
+                {status.detail}
+                {status.checked_at && (
+                  <span className="ml-1">
+                    · checked {new Date(status.checked_at).toLocaleTimeString()}
+                    {status.cached && " (cached)"}
+                  </span>
+                )}
+              </p>
+              {!status.ok && (
+                <p className="text-xs text-[#6B705C] mt-1.5">
+                  Your library is safe — books are flagged so we don't keep retrying. Once FicHub is back, "Retry all" will sweep them back into sync.
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => probeStatus(true)}
+              disabled={statusLoading}
+              data-testid="recheck-status-btn"
+              className="text-xs text-[#6B705C] hover:text-[#2C2C2C] inline-flex items-center gap-1 font-semibold disabled:opacity-60"
+            >
+              {statusLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+              Re-check
+            </button>
+          </div>
+        )}
 
         {loading ? (
           <p className="text-[#6B705C] py-12 text-center">Loading…</p>

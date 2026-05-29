@@ -333,6 +333,78 @@ class TestFicHubRefresh:
         assert "unavailable" in body
         assert "total" in body
 
+    def test_fichub_status_probe(self, fichub_mock_server):
+        """GET /api/fichub/status probes FicHub and caches the result."""
+        fichub_mock_server.clear()
+        # First probe: simulate healthy FicHub
+        fichub_mock_server.expect_oneshot_request("/api/v0/epub").respond_with_json({
+            "err": 0,
+            "urls": {"epub": "/download/probe.epub"},
+            "meta": {"chapters": 1, "rawExtendedMeta": {}}
+        })
+        r = requests.get(f"{BASE}/api/fichub/status", headers=H())
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["ok"] is True
+        assert body["cached"] is False
+
+        # Second call should be cached (no new fichub_mock request needed)
+        r = requests.get(f"{BASE}/api/fichub/status", headers=H())
+        assert r.json()["cached"] is True
+
+        # Force probe again: now simulate broken FicHub
+        fichub_mock_server.expect_oneshot_request("/api/v0/epub").respond_with_json({
+            "err": -9, "msg": "internal error"
+        })
+        r = requests.get(f"{BASE}/api/fichub/status?force=true", headers=H())
+        body = r.json()
+        assert body["ok"] is False
+        assert "err=-9" in body["detail"] or "internal error" in body["detail"].lower()
+
+    def test_retry_unavailable_clears_and_retries(self, fichub_mock_server):
+        """POST /api/books/retry-unavailable clears the flag on every
+        previously-failed book and re-attempts FicHub."""
+        # Seed: upload a book and mark it unavailable
+        bid = self._seed_book_via_upload("https://archiveofourown.org/works/retry-me")
+        db.books.update_one(
+            {"book_id": bid},
+            {"$set": {"fichub_unavailable": True, "fichub_last_error": "old failure"}},
+        )
+
+        # Mock FicHub now succeeds
+        fichub_mock_server.clear()
+        fichub_mock_server.expect_request("/api/v0/epub").respond_with_json({
+            "err": 0,
+            "urls": {"epub": "/download/refreshed.epub"},
+            "meta": {"chapters": 5, "rawExtendedMeta": {}}
+        })
+        fichub_mock_server.expect_request("/download/refreshed.epub").respond_with_data(
+            _build_minimal_epub("Retried Title", "Retried Author"),
+            content_type="application/epub+zip",
+        )
+
+        r = requests.post(f"{BASE}/api/books/retry-unavailable", headers=H())
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["attempted"] >= 1
+        assert body["refreshed"] >= 1
+
+        # Verify the flag is cleared and book updated
+        b = db.books.find_one({"book_id": bid})
+        assert not b.get("fichub_unavailable")
+        assert b["title"] == "Retried Title"
+
+    def test_retry_unavailable_with_nothing_to_do(self):
+        """Empty result when no books are flagged."""
+        # Make sure no unavailable books for this user
+        db.books.update_many(
+            {"user_id": USER_ID, "fichub_unavailable": True},
+            {"$unset": {"fichub_unavailable": ""}},
+        )
+        r = requests.post(f"{BASE}/api/books/retry-unavailable", headers=H())
+        assert r.status_code == 200
+        assert r.json()["attempted"] == 0
+
 
 # --------------------------------------------------------------------------
 # AI classification — exercises the SHELFSORT_TEST_AI_RESPONSE hook in

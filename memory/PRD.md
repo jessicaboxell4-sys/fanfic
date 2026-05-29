@@ -159,6 +159,13 @@
 - **`BookDetail.jsx`**: new "Suggest tags" button beside the Tags heading. On click, fires the endpoint; suggestions render as orange "+ tag" chips in an AI panel below the TagInput. Click any chip to add (optimistic UI). Dismiss button clears the panel.
 - **Tests**: +2 (suggest returns shape, 404 on unknown book). Total **141/141 passing, coverage 80.2%**.
 
+### Added 2026-02-29 (FicHub status banner + retry-all)
+- **Diagnostic**: FicHub's public `/api/v0/epub` endpoint was returning `err=-9 "internal error"` for every URL (verified live). Shelfsort's handling was already correct (flag-and-stop). Added two UX improvements so users can tell what's happening and recover fast.
+- **`GET /api/fichub/status`**: probes FicHub with a known-good AO3 URL; caches the result for 5 minutes (force=true bypasses cache). Returns `{ok, detail, checked_at, cached}`.
+- **`POST /api/books/retry-unavailable`**: clears the `fichub_unavailable` flag on every previously-failed book, runs `apply_refresh` on each, and re-flags any that fail again. Returns `{attempted, refreshed, still_unavailable, failures}`.
+- **`CantFindOnline.jsx`**: status banner at the top of the page (green when healthy, orange when down) with a "Re-check" button + auto-probe on mount; "Retry all (N)" button next to the download list. Calls toast for the result.
+- **Tests**: +3 (status probe healthy/cached/forced, retry-unavailable success, empty result). **144/144 passing, coverage 79.2%**.
+
 ### Added 2026-02-29 (Codecov publishing + README)
 - `.github/workflows/backend-tests.yml`: added `codecov/codecov-action@v4` step — publishes `coverage.xml` on every push/PR with the `backend` flag.
 - `codecov.yml`: project target 60% (current baseline) with 1% threshold; patch target 70% with 5% threshold; sticky PR comment with diff + flags + files.
