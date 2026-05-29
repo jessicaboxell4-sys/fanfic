@@ -32,6 +32,7 @@ from deps import (
 from models import User, BookOut
 from auth_dep import get_current_user
 from routes.year import _send_year_email
+from routes.books import _probe_fichub_now, _sweep_user_unavailable, _fichub_status_cache
 
 
 # ============================================================
@@ -399,6 +400,33 @@ async def _digest_tick():
                 logger.error("Year-in-books send failed for %s: %s", user_doc.get("email"), e)
         if year_sent:
             logger.info("Year-in-books tick: sent %d emails for %d (hour=%d)", year_sent, prev_year, hour)
+
+    # FicHub auto-sweep: if status flips down->up, retry every user's flagged books.
+    try:
+        previous_ok = _fichub_status_cache.get("ok")
+        ok, detail = await _probe_fichub_now()
+        _fichub_status_cache["previous_ok"] = previous_ok
+        _fichub_status_cache["checked_at"] = now
+        _fichub_status_cache["ok"] = ok
+        _fichub_status_cache["detail"] = detail
+        if ok and previous_ok is False:
+            logger.info("FicHub recovered (was down, now up). Auto-sweeping unavailable books...")
+            # Find every user with at least one flagged book
+            user_ids = await db.books.distinct(
+                "user_id", {"fichub_unavailable": True}
+            )
+            for uid in user_ids:
+                try:
+                    result = await _sweep_user_unavailable(uid)
+                    if result["refreshed"]:
+                        logger.info(
+                            "Auto-sweep: user=%s refreshed=%d still_unavailable=%d",
+                            uid, result["refreshed"], result["still_unavailable"],
+                        )
+                except Exception as e:
+                    logger.warning("Auto-sweep failed for user %s: %s", uid, e)
+    except Exception as e:
+        logger.warning("FicHub recovery probe failed: %s", e)
 
 
 def start_digest_scheduler():

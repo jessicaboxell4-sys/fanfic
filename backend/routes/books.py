@@ -1151,31 +1151,12 @@ async def refresh_all(user: User = Depends(get_current_user)):
 # ============================================================
 # FICHUB STATUS PROBE (cached) + RETRY-UNAVAILABLE
 # ============================================================
-_fichub_status_cache: Dict[str, Any] = {"checked_at": None, "ok": None, "detail": ""}
+_fichub_status_cache: Dict[str, Any] = {"checked_at": None, "ok": None, "detail": "", "previous_ok": None}
 _FICHUB_PROBE_URL = "https://archiveofourown.org/works/30043233"  # a known-good AO3 work
 
 
-@api_router.get("/fichub/status")
-async def fichub_status(force: bool = False, user: User = Depends(get_current_user)):
-    """Probe FicHub with a known-good AO3 URL. Cached for 5 minutes.
-
-    Returns {ok: bool, detail: str, checked_at: iso, cached: bool}.
-    """
-    now = datetime.now(timezone.utc)
-    cached_at = _fichub_status_cache.get("checked_at")
-    if (
-        not force
-        and cached_at
-        and (now - cached_at) < timedelta(minutes=5)
-        and _fichub_status_cache.get("ok") is not None
-    ):
-        return {
-            "ok": _fichub_status_cache["ok"],
-            "detail": _fichub_status_cache["detail"],
-            "checked_at": cached_at.isoformat(),
-            "cached": True,
-        }
-
+async def _probe_fichub_now() -> tuple:
+    """Synchronous-style FicHub health probe. Returns (ok, detail)."""
     base = os.environ.get("FICHUB_BASE_URL", "https://fichub.net").rstrip("/")
     loop = asyncio.get_event_loop()
 
@@ -1201,10 +1182,74 @@ async def fichub_status(force: bool = False, user: User = Depends(get_current_us
             return False, f"Couldn't reach FicHub: {e}"
 
     try:
-        ok, detail = await loop.run_in_executor(None, _probe)
+        return await loop.run_in_executor(None, _probe)
     except Exception as e:
-        ok, detail = False, str(e)
+        return False, str(e)
 
+
+async def _sweep_user_unavailable(user_id: str) -> Dict[str, int]:
+    """Retry every unavailable book for one user. Called by the scheduler when
+    FicHub flips from down→up. Returns counts."""
+    books = await db.books.find(
+        {"user_id": user_id, "fichub_unavailable": True},
+        {"_id": 0},
+    ).to_list(5000)
+    if not books:
+        return {"attempted": 0, "refreshed": 0, "still_unavailable": 0}
+
+    await db.books.update_many(
+        {"user_id": user_id, "fichub_unavailable": True},
+        {"$unset": {"fichub_unavailable": "", "fichub_last_error": ""}},
+    )
+
+    refreshed = 0
+    still_unavailable = 0
+    for b in books:
+        src = b.get("source_url")
+        if not src:
+            continue
+        try:
+            await apply_refresh(b, user_id, src)
+            refreshed += 1
+        except FicHubNotFoundError as e:
+            await db.books.update_one(
+                {"book_id": b["book_id"], "user_id": user_id},
+                {"$set": {
+                    "fichub_unavailable": True,
+                    "fichub_last_error": str(e),
+                    "fichub_last_attempt_at": datetime.now(timezone.utc).isoformat(),
+                }},
+            )
+            still_unavailable += 1
+        except Exception:
+            pass
+        await asyncio.sleep(1.5)
+    return {"attempted": len(books), "refreshed": refreshed, "still_unavailable": still_unavailable}
+
+
+@api_router.get("/fichub/status")
+async def fichub_status(force: bool = False, user: User = Depends(get_current_user)):
+    """Probe FicHub with a known-good AO3 URL. Cached for 5 minutes.
+
+    Returns {ok: bool, detail: str, checked_at: iso, cached: bool}.
+    """
+    now = datetime.now(timezone.utc)
+    cached_at = _fichub_status_cache.get("checked_at")
+    if (
+        not force
+        and cached_at
+        and (now - cached_at) < timedelta(minutes=5)
+        and _fichub_status_cache.get("ok") is not None
+    ):
+        return {
+            "ok": _fichub_status_cache["ok"],
+            "detail": _fichub_status_cache["detail"],
+            "checked_at": cached_at.isoformat(),
+            "cached": True,
+        }
+
+    ok, detail = await _probe_fichub_now()
+    _fichub_status_cache["previous_ok"] = _fichub_status_cache.get("ok")
     _fichub_status_cache["checked_at"] = now
     _fichub_status_cache["ok"] = ok
     _fichub_status_cache["detail"] = detail

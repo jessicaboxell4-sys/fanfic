@@ -166,6 +166,13 @@
 - **`CantFindOnline.jsx`**: status banner at the top of the page (green when healthy, orange when down) with a "Re-check" button + auto-probe on mount; "Retry all (N)" button next to the download list. Calls toast for the result.
 - **Tests**: +3 (status probe healthy/cached/forced, retry-unavailable success, empty result). **144/144 passing, coverage 79.2%**.
 
+### Added 2026-02-29 (FicHub auto-sweep on recovery)
+- **Scheduler hook**: the existing hourly `_digest_tick` now ends with a FicHub probe. If status flips from `ok=false` → `ok=true` (recovered), it sweeps every user with flagged books via `_sweep_user_unavailable` automatically — no user action needed.
+- Refactored `routes/books.py`: extracted `_probe_fichub_now()` and `_sweep_user_unavailable(user_id)` as reusable helpers (still used by the existing endpoints).
+- `routes/digest.py` imports those helpers + the shared `_fichub_status_cache` to detect the transition.
+- Users typically won't even notice the outage happened — the auto-sweep handles recovery within an hour of FicHub coming back.
+- Tests held at 144/144, coverage 77.9% (still well above the 75% CI gate).
+
 ### Added 2026-02-29 (Codecov publishing + README)
 - `.github/workflows/backend-tests.yml`: added `codecov/codecov-action@v4` step — publishes `coverage.xml` on every push/PR with the `backend` flag.
 - `codecov.yml`: project target 60% (current baseline) with 1% threshold; patch target 70% with 5% threshold; sticky PR comment with diff + flags + files.
