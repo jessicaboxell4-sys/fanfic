@@ -48,27 +48,37 @@
 - "New shelf" inline form to add custom categories
 - Book Detail edit dropdown lists all custom shelves so books can be assigned
 
+### Added 2026-02-29 (Authors, Stats Page, Bulk Metadata)
+- **Author shelves**: `GET /api/authors` (counts, excludes "Unknown") + `GET /api/authors/{name}` → new `/library/author/:name` page (`AuthorShelf.jsx`). Author chips row on Dashboard. BookDetail author header is a clickable link.
+- **Detailed stats dashboard** at `/library/stats` (`StatsPage.jsx`) backed by `GET /api/stats/detailed`:
+  - 30-day activity heatmap + sparkline
+  - Top fandoms + top authors with bar rows (linked to their shelves)
+  - Books finished per month (last 12) bar chart
+  - Library by category breakdown
+  - "Stats" link added to Navbar; "View detailed stats" CTA on Dashboard StatsCard
+- **Bulk metadata edit**: `POST /api/books/bulk/metadata` supports author / category / fandom / series_name (+ optional sequential `series_start_index`) / title prefix strip + clear-fandom / clear-series operations. New `BulkMetadataDialog` reachable from SelectionBar's "Edit metadata" button.
+- **CantFindOnline fix**: saving a corrected source URL no longer auto-fires FicHub retry — user clicks "Retry FicHub" manually (per user request).
+
 ### Deferred / Declined
 - Google Drive import — declined by user (2026-02-28). Local upload remains the only ingest path.
 
 ## Prioritized Backlog
 ### P1 — high value, deferred
-- Email/password JWT auth as alternative to Google (user requested in initial choices)
-- Bulk actions on the grid (multi-select → reclassify / move-to-shelf / delete)
-- Per-fandom shelf pages (deep-link `/library/fanfiction/harry-potter`)
+- Refactor `server.py` (~2280 lines) into modular routers (`routers/auth.py`, `routers/books.py`, `routers/stats.py`, etc.)
+- Per-fandom shelf pages (already done) — extend with sorting / filtering
 
 ### P2 — polish
-- Reading-progress tracking / shelf views ("Want to read", "Reading")
 - Tag system (extra to fandom) + smart shelves (saved filters)
 - Cover regeneration via AI when EPUB has no cover image
 - Move from local FS to object storage when scaling
+- Reading time tracking (minutes spent in Reader, not just opens)
 
 ### P3 — nice-to-have
-- In-browser EPUB reader
 - Sharing a public shelf URL
-- Series detection (group books by series order)
+- Recommendations based on top fandoms/authors
+- EPUB metadata in-place editing (not just bulk)
 
 ## Next Tasks
-- Add Google Drive import (integration_playbook_expert_v2 → Drive)
-- Add JWT email/password auth as second login option
-- Build custom category UI on the dashboard
+- Refactor `server.py` into routers if backend keeps growing
+- Add reading-time tracking on Reader.jsx (currently only tracks opens)
+- Consider exporting Author/Fandom analytics as downloadable CSV

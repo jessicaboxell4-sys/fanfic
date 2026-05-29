@@ -77,11 +77,9 @@ export default function CantFindOnline() {
   const saveUrl = async (bid) => {
     try {
       await api.patch(`/books/${bid}/source-url`, { source_url: editUrl.trim() });
-      toast.success("Source URL updated — trying FicHub…");
+      toast.success("Source URL updated. Click Retry FicHub to try again.");
       setEditingId(null);
       setEditUrl("");
-      // Auto-fire one retry attempt. Subsequent manual retries will ask first.
-      await retry(bid, { silent: true });
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Couldn't save");
     }
