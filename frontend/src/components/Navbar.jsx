@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { BookOpen, LogOut, Download, Link as LinkIcon } from "lucide-react";
+import { BookOpen, LogOut, Download, Link as LinkIcon, BarChart3 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { api, API } from "../lib/api";
 
@@ -27,6 +27,17 @@ export default function Navbar() {
         </Link>
 
         <div className="flex items-center gap-2 md:gap-3">
+          {user && (
+            <Link
+              to="/library/stats"
+              data-testid="navbar-stats"
+              className="btn-secondary text-sm flex items-center gap-2"
+              title="Reading statistics"
+            >
+              <BarChart3 className="w-4 h-4" />
+              <span className="hidden md:inline">Stats</span>
+            </Link>
+          )}
           <button
             data-testid="navbar-download-links"
             onClick={handleDownloadLinks}
@@ -47,7 +58,12 @@ export default function Navbar() {
           </button>
           {user && (
             <>
-              <div className="flex items-center gap-2 px-2">
+              <Link
+                to="/account"
+                data-testid="navbar-account"
+                className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-[#F5F3EC]"
+                title="Account settings"
+              >
                 {user.picture && (
                   <img
                     src={user.picture}
@@ -56,7 +72,7 @@ export default function Navbar() {
                   />
                 )}
                 <span className="text-sm text-[#2C2C2C] hidden md:inline" data-testid="navbar-user-name">{user.name}</span>
-              </div>
+              </Link>
               <button
                 data-testid="navbar-logout"
                 onClick={logout}

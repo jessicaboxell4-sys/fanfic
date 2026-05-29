@@ -1,7 +1,8 @@
 import React from "react";
-import { BookCheck, Layers, Flame } from "lucide-react";
+import { Link } from "react-router-dom";
+import { BookCheck, Layers, Flame, BarChart3 } from "lucide-react";
 
-export default function StatsCard({ stats }) {
+export default function StatsCard({ stats, viewMoreTo }) {
   if (!stats) return null;
   const tiles = [
     {
@@ -29,31 +30,42 @@ export default function StatsCard({ stats }) {
   ];
 
   return (
-    <div
-      className="grid grid-cols-3 gap-3 sm:gap-4 mb-8"
-      data-testid="stats-card"
-    >
-      {tiles.map((t, i) => (
-        <div
-          key={i}
-          className="shelf-card p-4 sm:p-5 flex items-center gap-3 sm:gap-4"
-        >
-          <div className={`w-11 h-11 rounded-xl ${t.bg} ${t.tint} flex items-center justify-center flex-shrink-0`}>
-            {t.icon}
+    <div className="mb-8" data-testid="stats-card-wrap">
+      <div className="grid grid-cols-3 gap-3 sm:gap-4" data-testid="stats-card">
+        {tiles.map((t, i) => (
+          <div
+            key={i}
+            className="shelf-card p-4 sm:p-5 flex items-center gap-3 sm:gap-4"
+          >
+            <div className={`w-11 h-11 rounded-xl ${t.bg} ${t.tint} flex items-center justify-center flex-shrink-0`}>
+              {t.icon}
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs uppercase tracking-wider text-[#6B705C] font-semibold truncate">
+                {t.label}
+              </p>
+              <p className="font-serif text-2xl sm:text-3xl text-[#2C2C2C] tabular-nums leading-none mt-1">
+                {t.value}
+              </p>
+              {t.hint && (
+                <p className="text-[10px] text-[#6B705C] mt-0.5">{t.hint}</p>
+              )}
+            </div>
           </div>
-          <div className="min-w-0">
-            <p className="text-xs uppercase tracking-wider text-[#6B705C] font-semibold truncate">
-              {t.label}
-            </p>
-            <p className="font-serif text-2xl sm:text-3xl text-[#2C2C2C] tabular-nums leading-none mt-1">
-              {t.value}
-            </p>
-            {t.hint && (
-              <p className="text-[10px] text-[#6B705C] mt-0.5">{t.hint}</p>
-            )}
-          </div>
+        ))}
+      </div>
+      {viewMoreTo && (
+        <div className="flex justify-end mt-2">
+          <Link
+            to={viewMoreTo}
+            data-testid="view-detailed-stats"
+            className="text-xs text-[#3A5A40] hover:text-[#2C2C2C] inline-flex items-center gap-1 font-semibold tracking-wide uppercase"
+          >
+            <BarChart3 className="w-3 h-3" />
+            View detailed stats
+          </Link>
         </div>
-      ))}
+      )}
     </div>
   );
 }

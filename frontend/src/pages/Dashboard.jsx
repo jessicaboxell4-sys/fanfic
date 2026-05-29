@@ -7,7 +7,7 @@ import UploadZone from "../components/UploadZone";
 import SelectionBar from "../components/SelectionBar";
 import ContinueReadingRail from "../components/ContinueReadingRail";
 import StatsCard from "../components/StatsCard";
-import { Search, X, Plus, ArrowRight, CheckSquare, Sparkles, Loader2, RefreshCw, Library } from "lucide-react";
+import { Search, X, Plus, ArrowRight, CheckSquare, Sparkles, Loader2, RefreshCw, Library, UserCircle2 } from "lucide-react";
 import { toast } from "sonner";
 
 const DEFAULT_CATEGORIES = ["All", "Fanfiction", "Original Fiction", "Non-fiction", "Unclassified"];
@@ -32,6 +32,7 @@ export default function Dashboard() {
   const [smart, setSmart] = useState(null); // null | "reading" | "finished"
   const [overview, setOverview] = useState(null);
   const [seriesList, setSeriesList] = useState([]);
+  const [authorsList, setAuthorsList] = useState([]);
 
   const unclassifiedCount = useMemo(() => {
     const row = (stats.categories || []).find((c) => c.name === "Unclassified");
@@ -104,6 +105,10 @@ export default function Dashboard() {
         const sr = await api.get("/series");
         setSeriesList(sr.data.series || []);
       } catch (e) {}
+      try {
+        const au = await api.get("/authors");
+        setAuthorsList(au.data.authors || []);
+      } catch (e) {}
     } catch (e) {
       console.error(e);
     } finally {
@@ -135,7 +140,7 @@ export default function Dashboard() {
 
         <div className="mb-10">
           {overview && (overview.books_finished > 0 || overview.pages_read > 0 || overview.reading_streak_days > 0) && (
-            <StatsCard stats={overview} />
+            <StatsCard stats={overview} viewMoreTo="/library/stats" />
           )}
           {recentBooks.length > 0 && <ContinueReadingRail books={recentBooks} />}
           <UploadZone onUploaded={load} />
@@ -511,6 +516,32 @@ export default function Dashboard() {
                     >
                       {f.name} · {f.count}
                       <ArrowRight className="w-3 h-3" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {authorsList.length > 0 && (
+              <div className="mb-8">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] flex items-center gap-2">
+                    <UserCircle2 className="w-3 h-3" /> Authors
+                  </p>
+                  <p className="text-xs text-[#6B705C] hidden sm:block">
+                    Showing top {Math.min(authorsList.length, 12)} · click for a dedicated shelf
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {authorsList.slice(0, 12).map(a => (
+                    <button
+                      key={a.name}
+                      data-testid={`open-author-${a.name.replace(/\s+/g, '-').toLowerCase()}`}
+                      onClick={() => navigate(`/library/author/${encodeURIComponent(a.name)}`)}
+                      className="px-3 py-1 rounded-full text-xs font-semibold border bg-white text-[#2C2C2C] border-[#E8E6E1] hover:bg-[#2C2C2C] hover:text-white hover:border-[#2C2C2C] transition-colors flex items-center gap-1.5"
+                    >
+                      <UserCircle2 className="w-3 h-3" />
+                      {a.name} · {a.count}
                     </button>
                   ))}
                 </div>

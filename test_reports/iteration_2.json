@@ -1,0 +1,46 @@
+{
+  "summary": "Tested iteration 2 features: bulk metadata editing, author pages, expanded stats. All 37 backend tests pass (17 regression in backend_test.py + 20 new in test_new_features.py). UI flows for Stats page, Author shelf, BookDetail author-link, Authors row on Dashboard, and BulkMetadataDialog work end-to-end. One bug found: CantFindOnline.saveUrl still auto-fires FicHub retry despite review request stating it should NOT.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "CantFindOnline",
+        "issue": "After saving a corrected source URL, the page still auto-fires a FicHub retry (line 84: `await retry(bid, { silent: true });`). Per the review request, saving should NOT auto-fire retry — user should manually click the 'Retry FicHub' button.",
+        "selector": "/app/frontend/src/pages/CantFindOnline.jsx:saveUrl",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_new_features.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_new_features.xml",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Fix /app/frontend/src/pages/CantFindOnline.jsx saveUrl(): remove the `await retry(bid, { silent: true });` line. After saving the corrected URL the UI should just keep the 'Retry FicHub' button visible — let the user click it. Update the toast from 'Source URL updated — trying FicHub…' to something like 'Source URL updated. Click Retry FicHub to try again.'"
+  ],
+  "critical_code_review_comments": [
+    "server.py is ~2286 lines — consider splitting into routers per feature (auth, books, stats, authors) for maintainability (>700 line guideline).",
+    "Pre-existing F841/F541 lint warnings in server.py — not introduced this iteration, can be ignored as noted by main agent.",
+    "Bulk metadata endpoint correctly enforces auth (401 without token), validates body, and supports all documented operations (set author/category/fandom/series, clear fandom/series via empty string, sequential series_index with custom start, title prefix strip)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_new_features.py (new)"
+  ],
+  "success_rate": {
+    "backend": "100% (37/37 tests pass)",
+    "frontend": "95% (all new features work; CantFindOnline still auto-retries against requirement)"
+  },
+  "test_credentials": "Seeded MongoDB user user_ui_20f82e65 (cleaned up post-test). For backend tests, the test_new_features.py creates its own seeded user with bearer-token session via direct MongoDB insertion (no UI registration needed).",
+  "seed_data_creation": "Backend tests upload 3 generated EPUBs per session (cleaned up via module teardown). UI tests seeded 2 EPUBs (Hogwarts Tales by 'J.K. UI Tester' and Forks Diaries by 'S. UITester') for a temporary user (cleaned up).",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All new feature endpoints verified: GET /api/authors (with counts, excludes empty/Unknown), GET /api/authors/{name}, GET /api/stats/detailed (30 daily, 12 monthly, top_fandoms/authors/categories, books_total), POST /api/books/bulk/metadata (author/category/fandom/series/prefix operations all work including clearing via empty string and sequential series_index). UI: navbar-stats link, /library/stats with all 5 cards (daily-activity, top-fandoms, top-authors, monthly-finished, category-breakdown), /library/author/{name} with author-title/author-books-grid/author-search/back-to-library, BookDetail author-link, Dashboard open-author-<name> chips, SelectionBar bulk-edit-metadata-btn opens BulkMetadataDialog with all documented fields. The StatsCard view-detailed-stats link correctly only appears when overview has data (books_finished>0 or pages_read>0 or reading_streak_days>0) — not a bug. One remaining bug: CantFindOnline.saveUrl auto-fires retry against requirement.",
+  "rca_of_the_issue": "CantFindOnline auto-retry: In /app/frontend/src/pages/CantFindOnline.jsx saveUrl() function (lines 77-88), after PATCH /api/books/{id}/source-url succeeds, the code calls `await retry(bid, { silent: true })` which immediately triggers a FicHub refresh. The review request explicitly states this should NOT happen — user should manually click the 'Retry FicHub' button (data-testid retry-<book_id>) which is already rendered. Mitigation: delete line 84 and update the success toast accordingly."
+}

@@ -160,7 +160,17 @@ export default function BookDetail() {
 
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] mb-2">
-              {book.author}
+              {book.author && book.author.toLowerCase() !== "unknown" ? (
+                <Link
+                  to={`/library/author/${encodeURIComponent(book.author)}`}
+                  className="hover:text-[#E07A5F] hover:underline"
+                  data-testid="author-link"
+                >
+                  {book.author}
+                </Link>
+              ) : (
+                book.author
+              )}
             </p>
             <h1 className="font-serif text-4xl sm:text-5xl text-[#2C2C2C] leading-tight mb-4" data-testid="book-detail-title">
               {book.title}

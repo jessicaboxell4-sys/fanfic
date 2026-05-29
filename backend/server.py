@@ -320,6 +320,68 @@ async def auth_login(body: LoginBody, request: Request, response: Response):
     }
 
 
+class UpdateProfileBody(BaseModel):
+    name: str
+
+
+class ChangePasswordBody(BaseModel):
+    current_password: str
+    new_password: str
+
+
+@api_router.patch("/auth/profile")
+async def update_profile(body: UpdateProfileBody, user: User = Depends(get_current_user)):
+    name = (body.name or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Name can't be empty")
+    if len(name) > 80:
+        raise HTTPException(status_code=400, detail="Name is too long")
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": {"name": name}},
+    )
+    return {"ok": True, "name": name}
+
+
+@api_router.post("/auth/change-password")
+async def change_password(body: ChangePasswordBody, user: User = Depends(get_current_user)):
+    if len(body.new_password) < MIN_PASSWORD_LEN:
+        raise HTTPException(
+            status_code=400,
+            detail=f"New password must be at least {MIN_PASSWORD_LEN} characters",
+        )
+    record = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
+    if not record or not record.get("password_hash"):
+        raise HTTPException(
+            status_code=400,
+            detail="This account doesn't have a password (Google sign-in only). Use 'Forgot password' to set one.",
+        )
+    if not _verify_password(body.current_password, record["password_hash"]):
+        raise HTTPException(status_code=401, detail="Current password is incorrect")
+    new_hash = _hash_password(body.new_password)
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": {"password_hash": new_hash}},
+    )
+    return {"ok": True}
+
+
+@api_router.get("/auth/profile")
+async def get_profile(user: User = Depends(get_current_user)):
+    """Profile + whether the account has a password set (controls UI for password change)."""
+    record = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
+    if not record:
+        raise HTTPException(status_code=404, detail="Not found")
+    return {
+        "user_id": record["user_id"],
+        "email": record["email"],
+        "name": record.get("name", ""),
+        "picture": record.get("picture", ""),
+        "has_password": bool(record.get("password_hash")),
+        "created_at": record.get("created_at"),
+    }
+
+
 # ---- Password reset ------------------------------------------------------
 RESET_TOKEN_TTL_HOURS = 1
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
@@ -1688,6 +1750,124 @@ async def bulk_move(body: BulkMoveBody, user: User = Depends(get_current_user)):
     return {"updated": result.modified_count}
 
 
+class BulkMetadataBody(BaseModel):
+    book_ids: List[str]
+    author: Optional[str] = None      # if provided & non-empty, sets author on all
+    fandom: Optional[str] = None      # "" => clear fandom (None); None => leave as-is
+    category: Optional[str] = None    # category to set on all
+    series_name: Optional[str] = None # "" => clear series; None => leave as-is
+    series_start_index: Optional[float] = None  # if set, assigns series_index sequentially starting at this value
+    title_prefix_strip: Optional[str] = None    # if provided & non-empty, strips this prefix from each book's title
+
+
+@api_router.post("/books/bulk/metadata")
+async def bulk_metadata(body: BulkMetadataBody, user: User = Depends(get_current_user)):
+    """Edit metadata across many books at once.
+
+    Use cases: fix a misspelled author across a series, drop everything into a
+    new fandom shelf, group books into a series and number them in upload order,
+    or strip a common prefix from titles (e.g. "[OLD] ").
+    """
+    if not body.book_ids:
+        return {"updated": 0}
+
+    # Fields that apply identically to every selected book
+    set_common: Dict[str, Any] = {}
+    unset_common: Dict[str, Any] = {}
+    if body.author and body.author.strip():
+        set_common["author"] = body.author.strip()
+    if body.category is not None:
+        set_common["category"] = body.category
+        set_common["classifier"] = "manual"
+        set_common["confidence"] = 1.0
+    if body.fandom is not None:
+        if body.fandom.strip():
+            set_common["fandom"] = body.fandom.strip()
+        else:
+            unset_common["fandom"] = ""
+    if body.series_name is not None and body.series_start_index is None:
+        if body.series_name.strip():
+            set_common["series_name"] = body.series_name.strip()
+        else:
+            unset_common["series_name"] = ""
+            unset_common["series_index"] = ""
+
+    updated = 0
+
+    if set_common or unset_common:
+        ops: Dict[str, Any] = {}
+        if set_common:
+            ops["$set"] = set_common
+        if unset_common:
+            ops["$unset"] = unset_common
+        result = await db.books.update_many(
+            {"book_id": {"$in": body.book_ids}, "user_id": user.user_id},
+            ops,
+        )
+        updated = max(updated, result.modified_count)
+
+    # Series numbering: assign sequentially in the order book_ids was provided
+    if body.series_name is not None and body.series_start_index is not None and body.series_name.strip():
+        idx = float(body.series_start_index)
+        for bid in body.book_ids:
+            await db.books.update_one(
+                {"book_id": bid, "user_id": user.user_id},
+                {"$set": {"series_name": body.series_name.strip(), "series_index": idx}},
+            )
+            idx += 1
+        updated = max(updated, len(body.book_ids))
+
+    # Title prefix strip (per-book, since each title is different)
+    if body.title_prefix_strip and body.title_prefix_strip.strip():
+        prefix = body.title_prefix_strip
+        books = await db.books.find(
+            {"book_id": {"$in": body.book_ids}, "user_id": user.user_id},
+            {"_id": 0, "book_id": 1, "title": 1},
+        ).to_list(5000)
+        for b in books:
+            t = b.get("title") or ""
+            if t.startswith(prefix):
+                new_t = t[len(prefix):].lstrip()
+                if new_t and new_t != t:
+                    await db.books.update_one(
+                        {"book_id": b["book_id"], "user_id": user.user_id},
+                        {"$set": {"title": new_t}},
+                    )
+                    updated += 1
+
+    return {"updated": updated}
+
+
+# ============================================================
+# AUTHOR ROUTES
+# ============================================================
+@api_router.get("/authors")
+async def list_authors(user: User = Depends(get_current_user)):
+    """Distinct authors in the user's library with book counts."""
+    pipeline = [
+        {"$match": {"user_id": user.user_id, "author": {"$ne": None, "$exists": True}}},
+        {"$group": {"_id": "$author", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1, "_id": 1}},
+    ]
+    rows = await db.books.aggregate(pipeline).to_list(2000)
+    authors = [
+        {"name": r["_id"], "count": r["count"]}
+        for r in rows
+        if r.get("_id") and r["_id"].strip() and r["_id"].strip().lower() != "unknown"
+    ]
+    return {"authors": authors}
+
+
+@api_router.get("/authors/{name}")
+async def get_author(name: str, user: User = Depends(get_current_user)):
+    """All books by this author, newest first."""
+    books = await db.books.find(
+        {"user_id": user.user_id, "author": name},
+        {"_id": 0},
+    ).sort("created_at", -1).to_list(2000)
+    return {"name": name, "books": books}
+
+
 @api_router.patch("/books/{book_id}")
 async def update_book(book_id: str, body: UpdateBookBody, user: User = Depends(get_current_user)):
     book = await db.books.find_one({"book_id": book_id, "user_id": user.user_id}, {"_id": 0})
@@ -1814,6 +1994,106 @@ async def stats_overview(user: User = Depends(get_current_user)):
         "pages_total": int(pages_total),
         "reading_streak_days": streak,
         "active_days_count": len(active_dates),
+    }
+
+
+@api_router.get("/stats/detailed")
+async def stats_detailed(user: User = Depends(get_current_user)):
+    """Deeper breakdown for the dedicated stats page:
+       - daily activity (last 30 days), book count per day
+       - top fandoms, top authors
+       - books finished per month (last 12)
+       - category breakdown
+    """
+    from datetime import date as _date, timedelta as _td
+
+    books = await db.books.find({"user_id": user.user_id}, {"_id": 0}).to_list(5000)
+    today = datetime.now(timezone.utc).date()
+
+    # ---- Daily activity: last 30 days ----
+    cutoff = today - _td(days=29)
+    activity = await db.reading_activity.find(
+        {"user_id": user.user_id, "date": {"$gte": cutoff.isoformat()}},
+        {"_id": 0, "date": 1, "book_ids": 1},
+    ).to_list(2000)
+    by_date: Dict[str, int] = {}
+    for a in activity:
+        # number of distinct book_ids opened that day
+        by_date[a["date"]] = len(set(a.get("book_ids") or []))
+    daily: List[Dict[str, Any]] = []
+    for i in range(30):
+        d = cutoff + _td(days=i)
+        key = d.isoformat()
+        daily.append({"date": key, "label": d.strftime("%b %d"), "books_opened": by_date.get(key, 0)})
+
+    # ---- Top fandoms ----
+    fandom_counts: Dict[str, int] = {}
+    for b in books:
+        f = b.get("fandom")
+        if f:
+            fandom_counts[f] = fandom_counts.get(f, 0) + 1
+    top_fandoms = sorted(
+        [{"name": k, "count": v} for k, v in fandom_counts.items()],
+        key=lambda x: (-x["count"], x["name"]),
+    )[:8]
+
+    # ---- Top authors (exclude "Unknown") ----
+    author_counts: Dict[str, int] = {}
+    for b in books:
+        a = (b.get("author") or "").strip()
+        if a and a.lower() != "unknown":
+            author_counts[a] = author_counts.get(a, 0) + 1
+    top_authors = sorted(
+        [{"name": k, "count": v} for k, v in author_counts.items()],
+        key=lambda x: (-x["count"], x["name"]),
+    )[:8]
+
+    # ---- Books finished per month (last 12 months) ----
+    finished_by_month: Dict[str, int] = {}
+    for b in books:
+        if (b.get("progress_percent") or 0) < 0.99:
+            continue
+        ts = b.get("last_opened_at") or b.get("created_at")
+        if not ts:
+            continue
+        try:
+            dt = datetime.fromisoformat(ts.replace("Z", "+00:00")) if isinstance(ts, str) else ts
+        except ValueError:
+            continue
+        key = dt.strftime("%Y-%m")
+        finished_by_month[key] = finished_by_month.get(key, 0) + 1
+    # Walk back 12 months
+    monthly: List[Dict[str, Any]] = []
+    yy, mm = today.year, today.month
+    backlog: List[tuple] = []
+    for _ in range(12):
+        backlog.append((yy, mm))
+        mm -= 1
+        if mm == 0:
+            mm = 12
+            yy -= 1
+    for (yy_, mm_) in reversed(backlog):
+        key = f"{yy_:04d}-{mm_:02d}"
+        label = _date(yy_, mm_, 1).strftime("%b %Y")
+        monthly.append({"month": key, "label": label, "finished": finished_by_month.get(key, 0)})
+
+    # ---- Category breakdown ----
+    cat_counts: Dict[str, int] = {}
+    for b in books:
+        c = b.get("category") or "Unclassified"
+        cat_counts[c] = cat_counts.get(c, 0) + 1
+    categories = sorted(
+        [{"name": k, "count": v} for k, v in cat_counts.items()],
+        key=lambda x: -x["count"],
+    )
+
+    return {
+        "daily": daily,
+        "top_fandoms": top_fandoms,
+        "top_authors": top_authors,
+        "monthly_finished": monthly,
+        "categories": categories,
+        "books_total": len(books),
     }
 
 
