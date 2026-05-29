@@ -569,6 +569,107 @@ class TestVersionDiff:
 
 
 # --------------------------------------------------------------------------
+# Recent-updates bell badge — drives the "fics updated" navbar notification
+# --------------------------------------------------------------------------
+class TestRecentUpdates:
+    def _seed_refreshed_book(self, title: str = "Refreshed Book") -> tuple[str, str]:
+        """Insert an old + new book pair as if a refresh happened. Returns (old, new)."""
+        old_id = f"book_old_{uuid.uuid4().hex[:8]}"
+        new_id = f"book_new_{uuid.uuid4().hex[:8]}"
+        now = datetime.now(timezone.utc).isoformat()
+        db.books.insert_one({
+            "user_id": USER_ID,
+            "book_id": old_id,
+            "title": f"{title} (v1)",
+            "author": "Test Author",
+            "category": "Old stories",
+            "replaced_by": new_id,
+        })
+        db.books.insert_one({
+            "user_id": USER_ID,
+            "book_id": new_id,
+            "title": f"{title} (v2)",
+            "author": "Test Author",
+            "fandom": "Harry Potter",
+            "category": f"Updated stories 2026-05-29",
+            "replaces": old_id,
+            "last_refreshed_at": now,
+            "update_seen": False,
+            "refresh_summary": {
+                "chapters_added": 2,
+                "chapters_changed": 1,
+                "chapters_removed": 0,
+                "words_delta": 1500,
+                "first_changed_href": "chapter5.xhtml",
+                "first_changed_title": "Chapter 5",
+                "first_changed_kind": "added",
+            },
+        })
+        return old_id, new_id
+
+    def test_recent_updates_returns_unseen(self):
+        _, new_id = self._seed_refreshed_book("Bell Test One")
+        r = requests.get(f"{BASE}/api/books/recent-updates", headers=H())
+        assert r.status_code == 200, r.text
+        body = r.json()
+        ids = [u["book_id"] for u in body["updates"]]
+        assert new_id in ids
+        assert body["total_unseen"] >= 1
+        # Sanity: payload shape
+        u = next(u for u in body["updates"] if u["book_id"] == new_id)
+        assert u["title"].endswith("(v2)")
+        assert u["refresh_summary"]["chapters_added"] == 2
+        assert u["last_refreshed_at"]
+
+    def test_mark_single_update_seen(self):
+        _, new_id = self._seed_refreshed_book("Bell Test Two")
+        r = requests.post(f"{BASE}/api/books/{new_id}/mark-update-seen", headers=H())
+        assert r.status_code == 200
+        # Now it should NOT appear in recent-updates
+        r2 = requests.get(f"{BASE}/api/books/recent-updates", headers=H())
+        ids = [u["book_id"] for u in r2.json()["updates"]]
+        assert new_id not in ids
+        # And the doc has update_seen=True
+        doc = db.books.find_one({"book_id": new_id})
+        assert doc["update_seen"] is True
+        assert doc.get("update_seen_at")
+
+    def test_mark_single_update_seen_404(self):
+        r = requests.post(
+            f"{BASE}/api/books/book_does_not_exist_xx/mark-update-seen", headers=H()
+        )
+        assert r.status_code == 404
+
+    def test_mark_all_updates_seen(self):
+        self._seed_refreshed_book("Bell Bulk A")
+        self._seed_refreshed_book("Bell Bulk B")
+        before = requests.get(f"{BASE}/api/books/recent-updates", headers=H()).json()
+        assert before["total_unseen"] >= 2
+        r = requests.post(f"{BASE}/api/books/mark-updates-seen", headers=H())
+        assert r.status_code == 200
+        body = r.json()
+        assert body["marked"] >= 2
+        after = requests.get(f"{BASE}/api/books/recent-updates", headers=H()).json()
+        assert after["total_unseen"] == 0
+        assert after["updates"] == []
+
+    def test_recent_updates_excludes_non_refreshed(self):
+        """A regular (non-refreshed) upload must not appear in the bell."""
+        bid = f"book_regular_{uuid.uuid4().hex[:8]}"
+        db.books.insert_one({
+            "user_id": USER_ID,
+            "book_id": bid,
+            "title": "Just a normal book",
+            "author": "Solo",
+            "category": "Fanfiction",
+            # No `replaces` field — not a refreshed copy
+        })
+        r = requests.get(f"{BASE}/api/books/recent-updates", headers=H())
+        ids = [u["book_id"] for u in r.json()["updates"]]
+        assert bid not in ids
+
+
+# --------------------------------------------------------------------------
 # AI classification — exercises the SHELFSORT_TEST_AI_RESPONSE hook in
 # classify_with_ai. The hook is read at request-time from the server's
 # environment, so this works inside the run_coverage.sh server only.

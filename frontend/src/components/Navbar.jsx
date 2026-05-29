@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { BookOpen, LogOut, Download, Link as LinkIcon, BarChart3, Filter } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { api, API } from "../lib/api";
+import UpdatesBell from "./UpdatesBell";
 
 export default function Navbar() {
   const { user, logout } = useAuth();
@@ -27,6 +28,7 @@ export default function Navbar() {
         </Link>
 
         <div className="flex items-center gap-2 md:gap-3">
+          {user && <UpdatesBell />}
           {user && (
             <Link
               to="/library/smart-shelves"

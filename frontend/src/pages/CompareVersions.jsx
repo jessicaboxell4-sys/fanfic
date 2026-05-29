@@ -111,6 +111,8 @@ export default function CompareVersions() {
     try {
       const { data } = await api.get(`/books/${id}/diff`);
       setData(data);
+      // Mark this update as seen (clears the navbar badge entry)
+      api.post(`/books/${id}/mark-update-seen`).catch(() => {});
     } catch (e) {
       const msg = e?.response?.data?.detail || "Couldn't load version diff";
       toast.error(msg);

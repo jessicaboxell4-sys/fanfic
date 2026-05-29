@@ -214,6 +214,16 @@
 - **Compare page** gains a prominent amber CTA card — "Jump straight to what changed" with a "Re-read changes" button that links to `/read/{new_book_id}?at=<first_changed_href>`. Individual chapter rows in the Added / Changed / Unchanged sections are also clickable (with role=button + keyboard support) to jump straight to that chapter. Removed-chapter rows stay non-clickable (no destination).
 - Test extended to assert `chapters` carry `href`, `first_changed_chapter` is populated with `kind`/`new_href`/`new_index`/`title`. **151 passing, coverage 75.9%**.
 
+### Added 2026-05-29 (Navbar bell — "fics updated" notifications)
+- **`apply_refresh`** now also stashes a per-book `refresh_summary` ({chapters_added, chapters_changed, chapters_removed, words_delta, first_changed_href, first_changed_title, first_changed_kind}) and `update_seen=False` on every freshly-created book so the navbar can query cheaply (no per-poll EPUB parsing).
+- **`GET /api/books/recent-updates`** — returns up to N (default 8) refreshed books where `update_seen != true`, sorted by `last_refreshed_at` desc; plus a `total_unseen` count.
+- **`POST /api/books/{id}/mark-update-seen`** — clear one. 404 when missing.
+- **`POST /api/books/mark-updates-seen`** — clear all. Returns count marked.
+- **`UpdatesBell.jsx`** — new navbar component (only renders when `total_unseen > 0`): bell icon + numeric badge ("N updated" + tiny red dot showing the count or "9+"). Click opens a 360px popover with a scrollable list of up to 8 recent refreshes, each card showing title/author/fandom, the green "+N new chapter(s)" / amber "N edited" pills, relative timestamp, and a "See what changed" CTA linking to `/book/{id}/compare`. A "Mark all seen" header action clears everything.
+- **Auto-mark-seen**: when the user opens a Compare page, the book is automatically marked seen (fire-and-forget POST). The bell entry disappears on next poll.
+- Polling: 60-second interval (lightweight, MongoDB query is indexed on user_id).
+- Tests: **`TestRecentUpdates`** — 5 tests covering unseen listing, single mark-seen, bulk mark-seen, 404 on bad id, regular-uploads-excluded. **156 passing, 1 by-design skip, coverage 76.4%**.
+
 ### Deferred / Declined
 - Google Drive import — declined by user (2026-02-28). Local upload remains the only ingest path.
 

@@ -708,6 +708,38 @@ async def apply_refresh(book: Dict[str, Any], user_id: str, source_url: str) -> 
         }},
     )
 
+    # 3) Compute a quick diff summary and stash it on the new book so the
+    # "fics updated" navbar badge can query it cheaply (no per-poll EPUB
+    # parsing). Failures here are non-fatal — the badge will just skip this
+    # book. Always sets `update_seen=False` so the badge picks it up.
+    refresh_summary: Optional[Dict[str, Any]] = None
+    try:
+        old_epub_path = user_dir / f"{old_book_id}.epub"
+        if old_epub_path.exists():
+            loop = asyncio.get_event_loop()
+            old_chapters = await loop.run_in_executor(None, extract_chapters, old_epub_path)
+            new_chapters = await loop.run_in_executor(None, extract_chapters, new_epub_path)
+            d = diff_chapters(old_chapters, new_chapters)
+            refresh_summary = {
+                "chapters_added": d["summary"]["chapters_added"],
+                "chapters_changed": d["summary"]["chapters_changed"],
+                "chapters_removed": d["summary"]["chapters_removed"],
+                "words_delta": d["summary"]["words_delta"],
+                "first_changed_href": (d.get("first_changed_chapter") or {}).get("new_href", ""),
+                "first_changed_title": (d.get("first_changed_chapter") or {}).get("title", ""),
+                "first_changed_kind": (d.get("first_changed_chapter") or {}).get("kind", ""),
+            }
+    except Exception as e:
+        logger.warning("refresh_summary diff failed for %s -> %s: %s", old_book_id, new_book_id, e)
+
+    await db.books.update_one(
+        {"book_id": new_book_id, "user_id": user_id},
+        {"$set": {
+            "refresh_summary": refresh_summary,
+            "update_seen": False,
+        }},
+    )
+
     return {
         "new_book_id": new_book_id,
         "old_book_id": old_book_id,
@@ -1119,6 +1151,69 @@ async def list_recent(limit: int = 8, user: User = Depends(get_current_user)):
     ).sort("last_opened_at", -1).limit(max(1, min(int(limit), 24)))
     books = await cursor.to_list(24)
     return {"books": books}
+
+
+@api_router.get("/books/recent-updates")
+async def recent_updates(limit: int = 8, user: User = Depends(get_current_user)):
+    """Fanfics that have been refreshed and haven't been marked as seen.
+    Powers the "fics updated" navbar bell badge."""
+    limit = max(1, min(int(limit), 24))
+    cursor = db.books.find(
+        {
+            "user_id": user.user_id,
+            "replaces": {"$ne": None, "$exists": True},
+            "update_seen": {"$ne": True},
+        },
+        {
+            "_id": 0,
+            "book_id": 1,
+            "title": 1,
+            "author": 1,
+            "fandom": 1,
+            "category": 1,
+            "last_refreshed_at": 1,
+            "replaces": 1,
+            "refresh_summary": 1,
+            "has_cover": 1,
+        },
+    ).sort("last_refreshed_at", -1).limit(limit)
+    items = await cursor.to_list(limit)
+    # Total unseen (so the badge can say "8+" if there are more)
+    total_unseen = await db.books.count_documents({
+        "user_id": user.user_id,
+        "replaces": {"$ne": None, "$exists": True},
+        "update_seen": {"$ne": True},
+    })
+    return {"updates": items, "total_unseen": total_unseen}
+
+
+@api_router.post("/books/{book_id}/mark-update-seen")
+async def mark_update_seen(book_id: str, user: User = Depends(get_current_user)):
+    """Mark a single refreshed book as seen — removes it from the bell badge."""
+    result = await db.books.update_one(
+        {"book_id": book_id, "user_id": user.user_id},
+        {"$set": {"update_seen": True, "update_seen_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    return {"ok": True}
+
+
+@api_router.post("/books/mark-updates-seen")
+async def mark_all_updates_seen(user: User = Depends(get_current_user)):
+    """Mark every pending refreshed book as seen — clears the bell badge."""
+    now_iso = datetime.now(timezone.utc).isoformat()
+    result = await db.books.update_many(
+        {
+            "user_id": user.user_id,
+            "replaces": {"$ne": None, "$exists": True},
+            "update_seen": {"$ne": True},
+        },
+        {"$set": {"update_seen": True, "update_seen_at": now_iso}},
+    )
+    return {"ok": True, "marked": result.modified_count}
+
+
 
 
 @api_router.get("/books/{book_id}")
