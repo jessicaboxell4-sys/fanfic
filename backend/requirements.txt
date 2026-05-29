@@ -12,10 +12,13 @@ beautifulsoup4==4.14.3
 black==26.5.1
 boto3==1.43.14
 botocore==1.43.14
+brotli==1.2.0
 certifi==2026.5.20
 cffi==2.0.0
+chardet==7.4.3
 charset-normalizer==3.4.7
 click==8.4.1
+cloudscraper==1.2.71
 coverage==7.14.1
 cryptography==48.0.0
 distro==1.9.0
@@ -24,6 +27,7 @@ EbookLib==0.20
 ecdsa==0.19.2
 email-validator==2.3.0
 emergentintegrations==0.1.2
+FanFicFare==4.57.0
 fastapi==0.110.1
 fastuuid==0.14.0
 filelock==3.29.0
@@ -42,6 +46,8 @@ grpcio==1.80.0
 grpcio-status==1.71.2
 h11==0.16.0
 hf-xet==1.5.0
+html2text==2025.4.15
+html5lib==1.1
 httpcore==1.0.9
 httplib2==0.31.2
 httpx==0.28.1
@@ -103,7 +109,9 @@ PyYAML==6.0.3
 referencing==0.37.0
 regex==2026.5.9
 requests==2.32.5
+requests-file==3.0.1
 requests-oauthlib==2.0.0
+requests-toolbelt==1.0.0
 resend==2.30.1
 rich==15.0.0
 rpds-py==0.30.0
@@ -129,6 +137,7 @@ uritemplate==4.2.0
 urllib3==2.7.0
 uvicorn==0.25.0
 watchfiles==1.2.0
+webencodings==0.5.1
 websockets==16.0
 Werkzeug==3.1.8
 yarl==1.24.2

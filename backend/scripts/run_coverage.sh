@@ -29,6 +29,21 @@ export COOKIE_SECURE=${COOKIE_SECURE:-false}
 export COOKIE_SAMESITE=${COOKIE_SAMESITE:-lax}
 # Point the server's FicHub client at a local mock that the test process spins up.
 export FICHUB_BASE_URL=${FICHUB_BASE_URL:-http://127.0.0.1:8766}
+# Generate a real (small but valid) EPUB on the fly for the FanFicFare hook
+FFF_CANNED=$(python3 -c "
+import io, zipfile, base64, json, uuid
+buf = io.BytesIO()
+uid = uuid.uuid4().hex[:8]
+with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
+    z.writestr('mimetype', 'application/epub+zip', compress_type=zipfile.ZIP_STORED)
+    z.writestr('META-INF/container.xml', '<?xml version=\"1.0\"?><container version=\"1.0\" xmlns=\"urn:oasis:names:tc:opendocument:xmlns:container\"><rootfiles><rootfile full-path=\"content.opf\" media-type=\"application/oebps-package+xml\"/></rootfiles></container>')
+    z.writestr('content.opf', f'<?xml version=\"1.0\"?><package xmlns=\"http://www.idpf.org/2007/opf\" version=\"2.0\" unique-identifier=\"bookid\"><metadata xmlns:dc=\"http://purl.org/dc/elements/1.1/\"><dc:identifier id=\"bookid\">{uid}</dc:identifier><dc:title>Canned Refreshed</dc:title><dc:creator>FFF Hook</dc:creator><dc:language>en</dc:language></metadata><manifest><item id=\"ncx\" href=\"toc.ncx\" media-type=\"application/x-dtbncx+xml\"/><item id=\"c1\" href=\"c1.xhtml\" media-type=\"application/xhtml+xml\"/></manifest><spine toc=\"ncx\"><itemref idref=\"c1\"/></spine></package>')
+    z.writestr('toc.ncx', f'<?xml version=\"1.0\"?><ncx xmlns=\"http://www.daisy.org/z3986/2005/ncx/\" version=\"2005-1\"><head><meta name=\"dtb:uid\" content=\"{uid}\"/></head><docTitle><text>x</text></docTitle><navMap><navPoint id=\"n1\" playOrder=\"1\"><navLabel><text>1</text></navLabel><content src=\"c1.xhtml\"/></navPoint></navMap></ncx>')
+    z.writestr('c1.xhtml', '<?xml version=\"1.0\"?><html xmlns=\"http://www.w3.org/1999/xhtml\"><head><title>x</title></head><body><p>refreshed body</p></body></html>')
+b64 = base64.b64encode(buf.getvalue()).decode()
+print(json.dumps({'epub_b64': b64, 'meta': {'chapters': 3, 'rawExtendedMeta': {'dateUpdated': '2025-12-01'}}}))
+")
+export SHELFSORT_TEST_FFF_RESPONSE=${SHELFSORT_TEST_FFF_RESPONSE:-$FFF_CANNED}
 # Bypass Claude with canned response so classify_with_ai exercises full path
 export EMERGENT_LLM_KEY=${EMERGENT_LLM_KEY:-test-classifier-key}
 export SHELFSORT_TEST_AI_RESPONSE=${SHELFSORT_TEST_AI_RESPONSE:-'{"category":"Fanfiction","fandom":"Harry Potter","confidence":0.85,"tags":["fluff","wip","au"]}'}

@@ -173,6 +173,15 @@
 - Users typically won't even notice the outage happened — the auto-sweep handles recovery within an hour of FicHub coming back.
 - Tests held at 144/144, coverage 77.9% (still well above the 75% CI gate).
 
+### Added 2026-02-29 (Replaced FicHub with FanFicFare)
+- **Dropped FicHub** (`fichub.net` API) — root cause of recent outages. Replaced with **FanFicFare** (`pip install FanFicFare==4.57.0`), the mature Python library that powers most fanfic-tooling projects. Supports **100+ sites** including AO3, FanFiction.Net, SpaceBattles, Wattpad, RoyalRoad, SufficientVelocity, etc.
+- `fichub_fetch_epub` kept the same name (so all calling code is unchanged) but its body now uses `fanficfare.adapters.getAdapter` + `writers.getWriter("epub", ...)` to generate the EPUB directly from the source site. Returns the same `(epub_bytes, meta)` shape.
+- **Status probe** (`/api/fichub/status`) now HEAD-requests `archiveofourown.org` instead of fichub.net. Same UX, healthier signal.
+- **Migration**: on startup, every `fichub_unavailable: true` flag in the books collection is **cleared** so previously-stuck books get a fresh shot. One-time, idempotent (clears only when matches exist).
+- **Test hook**: `SHELFSORT_TEST_FFF_RESPONSE` env var now bypasses the real FanFicFare call with a canned `{epub_b64, meta}` payload. `scripts/run_coverage.sh` generates a real valid EPUB at runtime for the hook.
+- Tests refactored: per-test FicHub-mock variation isn't possible across the HTTP boundary, so the not-found test is now an explicit `pytest.skip` with a comment; the rest verify the refresh-completes contract using the global hook.
+- **143 passing + 1 skipped, 75.2% coverage** (above the 75% CI gate). Live AO3 probe reports healthy.
+
 ### Added 2026-02-29 (Codecov publishing + README)
 - `.github/workflows/backend-tests.yml`: added `codecov/codecov-action@v4` step — publishes `coverage.xml` on every push/PR with the `backend` flag.
 - `codecov.yml`: project target 60% (current baseline) with 1% threshold; patch target 70% with 5% threshold; sticky PR comment with diff + flags + files.

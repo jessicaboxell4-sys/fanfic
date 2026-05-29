@@ -42,6 +42,17 @@ async def on_startup():
         await db.books.create_index([("user_id", 1), ("tags", 1)])
     except Exception as e:
         logger.warning(f"Index setup: {e}")
+    # One-time migration: clear fichub_unavailable flags since we've moved off
+    # FicHub onto FanFicFare. Existing flagged books deserve a fresh shot.
+    try:
+        result = await db.books.update_many(
+            {"fichub_unavailable": True},
+            {"$unset": {"fichub_unavailable": "", "fichub_last_error": ""}},
+        )
+        if result.modified_count:
+            logger.info("Cleared fichub_unavailable flag on %d books (FanFicFare migration).", result.modified_count)
+    except Exception as e:
+        logger.warning("FanFicFare migration: %s", e)
     try:
         digest.start_digest_scheduler()
     except Exception as e:
