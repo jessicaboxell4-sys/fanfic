@@ -133,6 +133,20 @@
 - `.github/dependabot.yml`: weekly grouped PRs (Monday 07:00 UTC) for backend pip, frontend npm, and GitHub Actions. Patch/minor bundled per ecosystem to reduce PR noise. Pins documented (e.g. `requests<2.34`, React 19 major-update ignore).
 - `.github/workflows/dependabot-auto-merge.yml`: waits for `pytest` check, then auto-approves + auto-squash-merges patch/minor bumps; comments and parks major bumps for human review.
 
+### Added 2026-02-29 (Tags + Smart Shelves)
+- **Tag system** (lowercase-hyphen-slug, max 20 tags/book, 32 chars/tag):
+  - Backend: `GET /api/tags`, `POST/DELETE /api/books/{id}/tags`, `PUT /api/tags/{old}` (rename across library), `POST /api/tags/merge`, `DELETE /api/tags/{name}` (purge everywhere)
+  - Bulk: `POST /api/books/bulk/metadata` now accepts `add_tags` / `remove_tags`
+  - **AI auto-tags**: Claude classifier prompt + `SHELFSORT_TEST_AI_RESPONSE` hook now return 2-4 lowercase tags alongside category/fandom; saved on upload when AI is invoked
+  - Frontend: new **`TagInput`** component (chips + autocomplete + normalization + arrow-key navigation), wired into BookDetail and SelectionBar's BulkMetadataDialog
+- **Smart Shelves** (saved queries → living shelves):
+  - Backend: new `routes/smart_shelves.py` with `_query_to_mongo` compiler. Endpoints: `GET/POST /api/smart-shelves`, `PATCH/DELETE /api/smart-shelves/{id}`, `GET /api/smart-shelves/{id}/books`, `POST /api/smart-shelves/preview`
+  - Supported rules: `tags_all`, `tags_any`, `tags_none`, `category`, `fandom`, `author`, `status` (reading/finished/unread), `words` (min/max). Combinator: AND / OR
+  - Frontend: `/library/smart-shelves` (list page + builder dialog with live debounced preview), `/library/smart/:id` (detail page running the query). Pinned shelves surface as chips on the Dashboard. Navbar gets a "Shelves" link.
+- **Mongo indexes**: `smart_shelves.shelf_id` (unique), `(user_id, created_at)`, plus `books.(user_id, tags)` for fast tag queries.
+- **Tests**: +22 new tests covering tag CRUD, normalization, bulk add/remove, rename, merge, delete-everywhere, smart-shelf CRUD, OR/AND combinators, status filter, preview-without-saving, 404s. Coverage held at **80.1%** with **139 passing**.
+- **UX polish**: pinned smart shelves now show even when the library is empty (lifted above the empty-state gate per testing-agent feedback).
+
 ### Added 2026-02-29 (Codecov publishing + README)
 - `.github/workflows/backend-tests.yml`: added `codecov/codecov-action@v4` step — publishes `coverage.xml` on every push/PR with the `backend` flag.
 - `codecov.yml`: project target 60% (current baseline) with 1% threshold; patch target 70% with 5% threshold; sticky PR comment with diff + flags + files.
