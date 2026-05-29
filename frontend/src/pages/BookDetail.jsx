@@ -2,7 +2,8 @@ import React, { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { api, API } from "../lib/api";
 import Navbar from "../components/Navbar";
-import { ArrowLeft, Download, Trash2, Sparkles, Book, Edit3, Link as LinkIcon, BookOpen, RefreshCw } from "lucide-react";
+import TagInput from "../components/TagInput";
+import { ArrowLeft, Download, Trash2, Sparkles, Book, Edit3, Link as LinkIcon, BookOpen, RefreshCw, Tag as TagIcon } from "lucide-react";
 import { toast } from "sonner";
 
 const DEFAULT_CATEGORIES = ["Fanfiction", "Original Fiction", "Non-fiction", "Unclassified"];
@@ -20,14 +21,18 @@ export default function BookDetail() {
   const [editCategory, setEditCategory] = useState("");
   const [editFandom, setEditFandom] = useState("");
   const [allCategories, setAllCategories] = useState(DEFAULT_CATEGORIES);
+  const [allTags, setAllTags] = useState([]);
+  const [savingTags, setSavingTags] = useState(false);
 
   const load = async () => {
     try {
-      const [bookRes, catRes] = await Promise.all([
+      const [bookRes, catRes, tagRes] = await Promise.all([
         api.get(`/books/${id}`),
         api.get(`/categories`),
+        api.get(`/tags`),
       ]);
       setBook(bookRes.data);
+      setAllTags((tagRes.data.tags || []).map((t) => t.name));
       setEditCategory(bookRes.data.category);
       setEditFandom(bookRes.data.fandom || "");
       const merged = [...DEFAULT_CATEGORIES, ...(catRes.data.custom || [])];
@@ -195,6 +200,45 @@ export default function BookDetail() {
                 {book.description}
               </p>
             )}
+
+            {/* Tags */}
+            <div className="mb-8" data-testid="book-tags-section">
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] mb-2 flex items-center gap-1.5">
+                <TagIcon className="w-3 h-3" /> Tags
+              </p>
+              <TagInput
+                value={book.tags || []}
+                onChange={async (next) => {
+                  if (savingTags) return;
+                  setSavingTags(true);
+                  const prev = book.tags || [];
+                  // Optimistic update
+                  setBook((b) => ({ ...b, tags: next }));
+                  try {
+                    const added = next.filter((t) => !prev.includes(t));
+                    const removed = prev.filter((t) => !next.includes(t));
+                    if (added.length) {
+                      await api.post(`/books/${book.book_id}/tags`, { tags: added });
+                    }
+                    for (const t of removed) {
+                      await api.delete(`/books/${book.book_id}/tags/${encodeURIComponent(t)}`);
+                    }
+                    // Refresh tag suggestions
+                    const tagRes = await api.get(`/tags`);
+                    setAllTags((tagRes.data.tags || []).map((tt) => tt.name));
+                  } catch (e) {
+                    toast.error(e?.response?.data?.detail || "Couldn't update tags");
+                    setBook((b) => ({ ...b, tags: prev })); // revert
+                  } finally {
+                    setSavingTags(false);
+                  }
+                }}
+                suggestions={allTags}
+                busy={savingTags}
+                placeholder="Add tag (e.g. fluff, wip)…"
+                testIdPrefix="book-tags"
+              />
+            </div>
 
             {book.fichub_unavailable && !editing && (
               <div className="shelf-card p-5 mb-6 bg-[#FDF3E1]/40 border-[#E07A5F]/20" data-testid="recover-source-panel">

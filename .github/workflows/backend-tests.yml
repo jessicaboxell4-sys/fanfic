@@ -41,7 +41,7 @@ jobs:
       COOKIE_SAMESITE: "lax"
       FICHUB_BASE_URL: "http://127.0.0.1:8766"
       EMERGENT_LLM_KEY: "test-classifier-key"
-      SHELFSORT_TEST_AI_RESPONSE: '{"category":"Fanfiction","fandom":"Harry Potter","confidence":0.85}'
+      SHELFSORT_TEST_AI_RESPONSE: '{"category":"Fanfiction","fandom":"Harry Potter","confidence":0.85,"tags":["fluff","wip","au"]}'
 
     steps:
       - uses: actions/checkout@v4

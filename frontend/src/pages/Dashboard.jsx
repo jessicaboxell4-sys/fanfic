@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { api } from "../lib/api";
 import Navbar from "../components/Navbar";
 import BookCard from "../components/BookCard";
@@ -7,7 +7,7 @@ import UploadZone from "../components/UploadZone";
 import SelectionBar from "../components/SelectionBar";
 import ContinueReadingRail from "../components/ContinueReadingRail";
 import StatsCard from "../components/StatsCard";
-import { Search, X, Plus, ArrowRight, CheckSquare, Sparkles, Loader2, RefreshCw, Library, UserCircle2 } from "lucide-react";
+import { Search, X, Plus, ArrowRight, CheckSquare, Sparkles, Loader2, RefreshCw, Library, UserCircle2, Filter, Pin } from "lucide-react";
 import { toast } from "sonner";
 
 const DEFAULT_CATEGORIES = ["All", "Fanfiction", "Original Fiction", "Non-fiction", "Unclassified"];
@@ -33,6 +33,7 @@ export default function Dashboard() {
   const [overview, setOverview] = useState(null);
   const [seriesList, setSeriesList] = useState([]);
   const [authorsList, setAuthorsList] = useState([]);
+  const [pinnedShelves, setPinnedShelves] = useState([]);
 
   const unclassifiedCount = useMemo(() => {
     const row = (stats.categories || []).find((c) => c.name === "Unclassified");
@@ -108,6 +109,10 @@ export default function Dashboard() {
       try {
         const au = await api.get("/authors");
         setAuthorsList(au.data.authors || []);
+      } catch (e) {}
+      try {
+        const sh = await api.get("/smart-shelves");
+        setPinnedShelves((sh.data.shelves || []).filter((s) => s.pinned));
       } catch (e) {}
     } catch (e) {
       console.error(e);
@@ -490,6 +495,36 @@ export default function Dashboard() {
                       <Library className="w-3 h-3" />
                       {s.name} · {s.count}
                       <ArrowRight className="w-3 h-3" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {pinnedShelves.length > 0 && (
+              <div className="mb-8">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] flex items-center gap-2">
+                    <Pin className="w-3 h-3" /> Pinned smart shelves
+                  </p>
+                  <Link
+                    to="/library/smart-shelves"
+                    data-testid="manage-smart-shelves"
+                    className="text-xs text-[#3A5A40] hover:text-[#2C2C2C] font-semibold uppercase tracking-wider inline-flex items-center gap-1"
+                  >
+                    <Filter className="w-3 h-3" /> Manage
+                  </Link>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {pinnedShelves.map((s) => (
+                    <button
+                      key={s.shelf_id}
+                      data-testid={`open-smart-shelf-${s.shelf_id}`}
+                      onClick={() => navigate(`/library/smart/${s.shelf_id}`)}
+                      className="px-3 py-1 rounded-full text-xs font-semibold border bg-[#FDF3E1] text-[#B87A00] border-[#B87A00]/30 hover:bg-[#B87A00] hover:text-white transition-colors flex items-center gap-1.5"
+                    >
+                      <Filter className="w-3 h-3" />
+                      {s.name} · {s.count}
                     </button>
                   ))}
                 </div>

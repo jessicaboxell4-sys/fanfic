@@ -1,0 +1,43 @@
+{
+  "summary": "Full regression + new-feature test for Tags + Smart Shelves. Ran the entire backend pytest suite (7 test files, 139 tests collected -> 135 passed, 4 skipped) under /app/backend/tests/ with SHELFSORT_TEST_AI_RESPONSE set; ALL prior endpoints (auth/books/stats/year-in-books/share/digest/refresh/FicHub-mocked) still respond identically and the 22 new tag/smart-shelf tests in test_tags_and_smart_shelves.py all pass. Frontend smoke covered navbar 'Shelves' link, /library/smart-shelves empty state + builder dialog (all 7 testids present), shelf creation with pinned=true, /library/smart/<id> detail page (title/edit-btn/books grid populated correctly), Dashboard pinned chips + manage link (after at least one book exists), BookDetail TagInput add+normalize ('Slow Burn' -> 'slow-burn'), and SelectionBar BulkMetadataDialog new add/remove TagInputs. Zero regressions, zero new bugs.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Dashboard (empty-library state)", "issues": ["Pinned-smart-shelves row + 'Manage' link are gated behind stats.total > 0 (rendered only in the non-empty branch at Dashboard.jsx L504). A user who creates a pinned shelf BEFORE uploading any book won't see the chips on /library until they upload. Low priority — arguably correct UX since the shelf row sits above the fandom/authors rows which also need books — but consider moving the pinned-shelves row above the showEmpty gate so it's discoverable from day-zero."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_books_comprehensive.py",
+    "/app/backend/tests/test_digest.py",
+    "/app/backend/tests/test_new_features.py",
+    "/app/backend/tests/test_tags_and_smart_shelves.py",
+    "/app/backend/tests/test_year_in_books.py",
+    "/app/backend/tests/test_year_share.py",
+    "/app/test_reports/pytest/pytest_iter8.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Backend tag normalization (_normalize_tag) correctly lowercases, hyphenates, strips disallowed chars and rejects empty/all-special-char input with 400. The 20-tag-per-book cap is enforced via $addToSet + length check. Confirmed by test_invalid_tag_rejected + test_bulk_metadata_add_remove_tags.",
+    "Smart-shelf query compiler (_query_to_mongo in routes/smart_shelves.py) cleanly handles tags_all (via $all), tags_any (via $in), tags_none (via $nin), category/fandom/author (eq), status (reading/finished/unread via reading_percent thresholds), words (min/max range), and AND/OR combinator. Unknown fields silently ignored as specified.",
+    "include_router relocation across routes/* modules (smart_shelves added) introduces no regressions — verified by 135 passing tests including the 60+ regression cases sprinkled in test_digest.py / test_new_features.py / test_year_in_books.py / test_year_share.py.",
+    "/api/smart-shelves correctly returns live counts on list (not stored) by running each shelf's compiled query at GET time. 404s correctly returned on unknown shelf_id for GET/PATCH/DELETE/{id}/books.",
+    "Frontend TagInput properly debounces autocomplete suggestions and normalizes on Enter/comma; chip removal is optimistic with API call. data-testids are consistent (rule-tags-<id>-input + -suggestions). All 7 builder testids present (builder-name/combinator/add-rule/preview/pinned/save/close).",
+    "Minor: Dashboard.jsx renders pinned smart shelves only inside the stats.total>0 branch (L504 inside the else of showEmpty at L234). Consider lifting the pinned-shelves block above the empty-state gate so users who pin a shelf before uploading still see it. Not blocking.",
+    "Minor: SHELFSORT_TEST_AI_RESPONSE was set in the test environment but the uploaded test book received tags ['reference','technical'] (presumably from the metadata classifier path since confidence>=0.6), not the canned ['fluff','wip','au']. That matches the spec — canned AI tags only attach when metadata classifier confidence < 0.6. No bug. Pytest TestAIAutoTags::test_upload_attaches_ai_tags passed under this exact condition.",
+    "Minor: backend log shows two transient lint-level warnings carried from prior iteration (auth.py F841 unused 'ip', books.py F541 empty f-string) — non-blocking. No new issues introduced by the tag/smart-shelf code."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (135/135 passed, 4 environmentally-skipped)", "frontend": "100% (all 17 navigated testids found + working integrations: nav link -> empty state -> builder open -> create with pinned -> shelf card -> detail page -> books listed -> dashboard pinned chip -> manage link -> book detail tag add+normalize -> bulk dialog add/remove tag inputs)"},
+  "test_credentials": "Each test registers an ephemeral TEST_/shelftest_* user; backend tests seed user_sessions directly via Mongo for Bearer-token auth (per /app/memory/test_credentials.md).",
+  "seed_data_creation": "All seed data is per-test ephemeral and cleaned up in module teardown (users, user_sessions, books, smart_shelves prefixed by random UUID per run).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Canonical regression command (~140s, covers all 139 tests including the 22 new tag/smart-shelf tests): `cd /app/backend && MONGO_URL=mongodb://localhost:27017 DB_NAME=test_database REACT_APP_BACKEND_URL=https://genre-sort.preview.emergentagent.com SHELFSORT_TEST_AI_RESPONSE='{\"category\":\"Fanfiction\",\"fandom\":\"Harry Potter\",\"confidence\":0.85,\"tags\":[\"fluff\",\"wip\",\"au\"]}' python -m pytest tests/ -v --junitxml=/app/test_reports/pytest/pytest_iterN.xml`. Note: BookDetail route is /book/:id (NOT /library/book/:id). Selection bar bulk-edit button testid is bulk-edit-metadata-btn (with the -btn suffix). Dashboard pinned-shelves row only renders when stats.total > 0 — uploading at least one book is required before chips will display.",
+  "rca of the issue": "N/A — all features pass."
+}

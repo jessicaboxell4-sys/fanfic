@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Trash2, Move, X, ChevronDown, Edit3 } from "lucide-react";
 import { api } from "../lib/api";
 import { toast } from "sonner";
+import TagInput from "./TagInput";
 
 const DEFAULT_SHELVES = ["Fanfiction", "Original Fiction", "Non-fiction", "Unclassified"];
 
@@ -15,6 +16,15 @@ function BulkMetadataDialog({ ids, customCats, onClose, onDone }) {
   const [prefix, setPrefix] = useState("");
   const [clearFandom, setClearFandom] = useState(false);
   const [clearSeries, setClearSeries] = useState(false);
+  const [addTags, setAddTags] = useState([]);
+  const [removeTags, setRemoveTags] = useState([]);
+  const [tagSuggestions, setTagSuggestions] = useState([]);
+
+  useEffect(() => {
+    api.get("/tags").then(({ data }) => {
+      setTagSuggestions((data.tags || []).map((t) => t.name));
+    }).catch(() => {});
+  }, []);
 
   const allShelves = [...DEFAULT_SHELVES, ...customCats];
 
@@ -33,6 +43,8 @@ function BulkMetadataDialog({ ids, customCats, onClose, onDone }) {
       if (seriesStart !== "") body.series_start_index = Number(seriesStart);
     }
     if (prefix.trim()) body.title_prefix_strip = prefix;
+    if (addTags.length) body.add_tags = addTags;
+    if (removeTags.length) body.remove_tags = removeTags;
 
     // Need at least one meaningful change
     const keys = Object.keys(body).filter((k) => k !== "book_ids");
@@ -184,6 +196,26 @@ function BulkMetadataDialog({ ids, customCats, onClose, onDone }) {
               onChange={(e) => setPrefix(e.target.value)}
               placeholder='e.g. "[OLD] " — removed from every title that starts with it'
               className="w-full bg-white border border-[#E8E6E1] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#E07A5F] focus:ring-2 focus:ring-[#E07A5F]/20"
+            />
+          </div>
+
+          <div className="border-t border-[#E8E6E1] pt-5">
+            <p className="text-xs font-semibold uppercase tracking-wider text-[#6B705C] mb-2">Tags</p>
+            <label className="text-xs text-[#6B705C] mb-1 block">Add tags to all</label>
+            <TagInput
+              value={addTags}
+              onChange={setAddTags}
+              suggestions={tagSuggestions}
+              placeholder="add tags…"
+              testIdPrefix="bulk-add-tags"
+            />
+            <label className="text-xs text-[#6B705C] mt-3 mb-1 block">Remove tags from all</label>
+            <TagInput
+              value={removeTags}
+              onChange={setRemoveTags}
+              suggestions={tagSuggestions}
+              placeholder="remove tags…"
+              testIdPrefix="bulk-remove-tags"
             />
           </div>
 

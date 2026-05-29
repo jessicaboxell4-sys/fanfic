@@ -12,7 +12,7 @@ import os
 from deps import app, api_router, db, logger, client
 
 # Import each routes module so its @api_router decorators register.
-from routes import root, auth, books, stats, series_categories, digest, year  # noqa: F401
+from routes import root, auth, books, stats, series_categories, digest, year, smart_shelves  # noqa: F401
 
 # Mount the router and middleware.
 app.include_router(api_router)
@@ -37,6 +37,9 @@ async def on_startup():
         await db.password_reset_tokens.create_index("user_id")
         await db.year_in_books_shares.create_index("share_token", unique=True)
         await db.year_in_books_shares.create_index([("user_id", 1), ("year", 1)])
+        await db.smart_shelves.create_index("shelf_id", unique=True)
+        await db.smart_shelves.create_index([("user_id", 1), ("created_at", -1)])
+        await db.books.create_index([("user_id", 1), ("tags", 1)])
     except Exception as e:
         logger.warning(f"Index setup: {e}")
     try:

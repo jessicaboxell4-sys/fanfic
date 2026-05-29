@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { BookOpen, LogOut, Download, Link as LinkIcon, BarChart3 } from "lucide-react";
+import { BookOpen, LogOut, Download, Link as LinkIcon, BarChart3, Filter } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { api, API } from "../lib/api";
 
@@ -27,6 +27,17 @@ export default function Navbar() {
         </Link>
 
         <div className="flex items-center gap-2 md:gap-3">
+          {user && (
+            <Link
+              to="/library/smart-shelves"
+              data-testid="navbar-smart-shelves"
+              className="btn-secondary text-sm flex items-center gap-2"
+              title="Smart shelves"
+            >
+              <Filter className="w-4 h-4" />
+              <span className="hidden md:inline">Shelves</span>
+            </Link>
+          )}
           {user && (
             <Link
               to="/library/stats"

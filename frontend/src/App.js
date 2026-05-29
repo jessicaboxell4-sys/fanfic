@@ -14,6 +14,8 @@ import AuthorShelf from "@/pages/AuthorShelf";
 import StatsPage from "@/pages/StatsPage";
 import YearInBooksPage from "@/pages/YearInBooksPage";
 import PublicYearInBooks from "@/pages/PublicYearInBooks";
+import SmartShelves from "@/pages/SmartShelves";
+import SmartShelfPage from "@/pages/SmartShelfPage";
 import CantFindOnline from "@/pages/CantFindOnline";
 import Account from "@/pages/Account";
 import Reader from "@/pages/Reader";
@@ -51,6 +53,8 @@ function AppRouter() {
       <Route path="/library/author/:name" element={<ProtectedRoute><AuthorShelf /></ProtectedRoute>} />
       <Route path="/library/stats" element={<ProtectedRoute><StatsPage /></ProtectedRoute>} />
       <Route path="/library/year/:year" element={<ProtectedRoute><YearInBooksPage /></ProtectedRoute>} />
+      <Route path="/library/smart-shelves" element={<ProtectedRoute><SmartShelves /></ProtectedRoute>} />
+      <Route path="/library/smart/:id" element={<ProtectedRoute><SmartShelfPage /></ProtectedRoute>} />
       <Route path="/library/cant-find-online" element={<ProtectedRoute><CantFindOnline /></ProtectedRoute>} />
       <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
       <Route path="/book/:id" element={<ProtectedRoute><BookDetail /></ProtectedRoute>} />
