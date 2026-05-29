@@ -1,0 +1,38 @@
+# Codecov configuration — controls the PR comment + status checks.
+# Docs: https://docs.codecov.com/docs/codecovyml-reference
+
+coverage:
+  precision: 1
+  round: down
+  range: "60...90"
+
+  status:
+    project:
+      default:
+        target: 60%        # current baseline; raise as coverage grows
+        threshold: 1%      # allow tiny dips without failing
+        if_ci_failed: error
+    patch:
+      default:
+        target: 70%        # new code should be better tested than the baseline
+        threshold: 5%
+        if_ci_failed: error
+
+comment:
+  layout: "header, diff, flags, components, files"
+  behavior: default
+  require_changes: false   # always comment, even if coverage didn't change
+
+ignore:
+  - "backend/tests/**"
+  - "backend/scripts/**"
+  - "backend/uploads/**"
+  - "**/__init__.py"
+
+flag_management:
+  default_rules:
+    carryforward: true
+  individual_flags:
+    - name: backend
+      paths:
+        - backend/

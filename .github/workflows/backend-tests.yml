@@ -78,6 +78,15 @@ jobs:
           path: backend/test_reports/pytest/coverage.xml
           if-no-files-found: ignore
 
+      - name: Publish to Codecov
+        if: always()
+        uses: codecov/codecov-action@v4
+        with:
+          files: backend/test_reports/pytest/coverage.xml
+          flags: backend
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
       - name: Comment coverage summary on PR
         if: github.event_name == 'pull_request' && always()
         uses: orgoro/coverage@v3.2

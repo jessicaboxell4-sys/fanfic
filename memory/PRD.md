@@ -115,6 +115,12 @@
 - Tweak: added `COOKIE_SECURE`/`COOKIE_SAMESITE` env vars so integration tests can run over plain HTTP without dropping session cookies. Production still uses `secure=true; samesite=none`.
 - Per-module coverage today: stats 90% · year 92% · series_categories 91% · digest 63% · auth 56% · books 53%. The next wins are in `books.py` (EPUB upload, FicHub refresh, AI classification — all need external-service mocks).
 
+### Added 2026-02-29 (Codecov publishing + README)
+- `.github/workflows/backend-tests.yml`: added `codecov/codecov-action@v4` step — publishes `coverage.xml` on every push/PR with the `backend` flag.
+- `codecov.yml`: project target 60% (current baseline) with 1% threshold; patch target 70% with 5% threshold; sticky PR comment with diff + flags + files.
+- `README.md`: real project README with build + codecov badges, feature list, tech stack, env vars, codebase layout, and the test-running incantation. Replace `OWNER/REPO` in the badges after pushing to GitHub.
+- Codecov token (`CODECOV_TOKEN`) only needed for private repos; public repos auto-publish.
+
 ### Deferred / Declined
 - Google Drive import — declined by user (2026-02-28). Local upload remains the only ingest path.
 
