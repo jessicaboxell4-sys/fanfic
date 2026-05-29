@@ -12,6 +12,7 @@ import FandomShelf from "@/pages/FandomShelf";
 import SeriesShelf from "@/pages/SeriesShelf";
 import AuthorShelf from "@/pages/AuthorShelf";
 import StatsPage from "@/pages/StatsPage";
+import YearInBooksPage from "@/pages/YearInBooksPage";
 import CantFindOnline from "@/pages/CantFindOnline";
 import Account from "@/pages/Account";
 import Reader from "@/pages/Reader";
@@ -47,6 +48,7 @@ function AppRouter() {
       <Route path="/library/series/:name" element={<ProtectedRoute><SeriesShelf /></ProtectedRoute>} />
       <Route path="/library/author/:name" element={<ProtectedRoute><AuthorShelf /></ProtectedRoute>} />
       <Route path="/library/stats" element={<ProtectedRoute><StatsPage /></ProtectedRoute>} />
+      <Route path="/library/year/:year" element={<ProtectedRoute><YearInBooksPage /></ProtectedRoute>} />
       <Route path="/library/cant-find-online" element={<ProtectedRoute><CantFindOnline /></ProtectedRoute>} />
       <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
       <Route path="/book/:id" element={<ProtectedRoute><BookDetail /></ProtectedRoute>} />

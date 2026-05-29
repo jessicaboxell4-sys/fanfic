@@ -3,7 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { api } from "../lib/api";
 import Navbar from "../components/Navbar";
 import StatsCard from "../components/StatsCard";
-import { ArrowLeft, TrendingUp, Calendar, UserCircle2, Sparkles, BookCheck } from "lucide-react";
+import { ArrowLeft, ArrowRight, TrendingUp, Calendar, UserCircle2, Sparkles, BookCheck } from "lucide-react";
 
 function BarRow({ label, value, max, to, accent }) {
   const pct = max > 0 ? Math.max(4, (value / max) * 100) : 0;
@@ -118,6 +118,32 @@ export default function StatsPage() {
         </div>
 
         {overview && <StatsCard stats={overview} />}
+
+        {/* Year in books CTA */}
+        {!isEmpty && (
+          <Link
+            to={`/library/year/${new Date().getFullYear()}`}
+            data-testid="open-year-in-books"
+            className="block shelf-card p-6 mb-6 bg-gradient-to-br from-[#FDF3E1] to-[#FDFBF7] border-[#B87A00]/20 hover:shadow-lg transition-shadow group"
+          >
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.25em] text-[#E07A5F] mb-1">
+                  Year in books
+                </p>
+                <h2 className="font-serif text-2xl sm:text-3xl text-[#2C2C2C]">
+                  Your {new Date().getFullYear()}, told in books.
+                </h2>
+                <p className="text-sm text-[#6B705C] mt-1">
+                  A keepsake recap of the year so far — top fandoms, bookends, achievements.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 text-[#E07A5F] font-semibold text-sm group-hover:gap-3 transition-all">
+                Open recap <ArrowRight className="w-4 h-4" />
+              </div>
+            </div>
+          </Link>
+        )}
 
         {isEmpty ? (
           <div className="shelf-card p-12 text-center">
