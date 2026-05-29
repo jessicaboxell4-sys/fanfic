@@ -57,18 +57,18 @@ export default function Dashboard() {
   const refreshAll = async () => {
     const n = refreshStatus.refreshable;
     if (!n) return;
-    if (!window.confirm(`Pull the latest version of ${n} book${n === 1 ? "" : "s"} from FicHub? Long fics can take a minute each.`)) return;
+    if (!window.confirm(`Pull the latest version of ${n} book${n === 1 ? "" : "s"} from FanFicFare? Long fics can take a minute each.`)) return;
     setRefreshingAll(true);
-    const t = toast.loading(`Updating ${n} book${n === 1 ? "" : "s"} from FicHub…`);
+    const t = toast.loading(`Updating ${n} book${n === 1 ? "" : "s"} from FanFicFare…`);
     try {
       const { data } = await api.post("/books/refresh-all", {}, { timeout: 600000 });
-      toast.success(`Updated ${data.refreshed} of ${data.eligible} from FicHub`, { id: t });
+      toast.success(`Updated ${data.refreshed} of ${data.eligible} from FanFicFare`, { id: t });
       if (data.failures && data.failures.length) {
-        console.warn("FicHub failures:", data.failures);
+        console.warn("FanFicFare failures:", data.failures);
       }
       await load();
     } catch (e) {
-      toast.error("Couldn't update from FicHub", { id: t });
+      toast.error("Couldn't update from FanFicFare", { id: t });
     } finally {
       setRefreshingAll(false);
     }
@@ -201,7 +201,7 @@ export default function Dashboard() {
               </div>
               <div>
                 <p className="font-serif text-xl text-[#2C2C2C] leading-tight">
-                  {refreshStatus.refreshable} book{refreshStatus.refreshable === 1 ? "" : "s"} can be updated from FicHub
+                  {refreshStatus.refreshable} book{refreshStatus.refreshable === 1 ? "" : "s"} can be updated from FanFicFare
                 </p>
                 <p className="text-sm text-[#6B705C] mt-1">
                   Pull the newest chapters straight from AO3, FFnet, Royal Road and friends —
@@ -224,7 +224,7 @@ export default function Dashboard() {
               ) : (
                 <>
                   <RefreshCw className="w-4 h-4" />
-                  Update all from FicHub
+                  Update all from FanFicFare
                 </>
               )}
             </button>
@@ -383,7 +383,7 @@ export default function Dashboard() {
                       ? "bg-[#6B705C] text-white border-[#6B705C]"
                       : "bg-white border-[#6B705C]/30 text-[#6B705C] hover:bg-[#6B705C]/10"
                   }`}
-                  title="FicHub couldn't find these — skipped on bulk update"
+                  title="FanFicFare couldn't find these — skipped on bulk update"
                 >
                   🚫 Can't find online · {refreshStatus.unavailable}
                 </button>

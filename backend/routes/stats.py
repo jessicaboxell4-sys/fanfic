@@ -47,8 +47,8 @@ async def stats_overview(user: User = Depends(get_current_user)):
     pages_total = 0.0
     for b in books:
         words = None
-        if isinstance(b.get("fichub_meta"), dict):
-            words = b["fichub_meta"].get("words")
+        if isinstance(b.get("source_meta"), dict):
+            words = b["source_meta"].get("words")
         if isinstance(words, (int, float)) and words > 0:
             pages = float(words) / WORDS_PER_PAGE
         else:

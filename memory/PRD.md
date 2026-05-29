@@ -262,6 +262,20 @@
 ### Tests + coverage
 - New test classes: `TestStreakAndHeartbeat` (4), `TestStatsCsvExport` (1), `TestFFFOptions` (4). **173 passing, 1 by-design skip, coverage 77.3%** (up from 76.7%).
 
+### Added 2026-05-29 (FicHub → FanFicFare full rename)
+- **198 replacements across 8 files**: all `fichub*` / `FicHub*` / `FICHUB*` symbols renamed to fanfic-flavoured names. The library has been FanFicFare under the hood for a while — now the names match.
+- Symbols: `fichub_fetch_epub` → `fanfic_fetch_epub`, `FicHubNotFoundError` → `FanficNotFoundError`, `FICHUB_SOURCE_PATTERNS` → `FANFIC_SOURCE_PATTERNS`, `FICHUB_USER_AGENT` → `FANFICFARE_USER_AGENT`, `_probe_fichub_now` → `_probe_fanfic_now`, `_fichub_status_cache` → `_fanfic_status_cache`.
+- API endpoint: `/api/fichub/status` → `/api/fanfic/status` (clean cutover — no deprecated alias kept).
+- DB fields renamed on every book document via a one-shot startup migration (idempotent `$rename`):
+  - `fichub_unavailable` → `unavailable`
+  - `fichub_last_error` → `last_fetch_error`
+  - `fichub_last_attempt_at` → `last_fetch_attempt_at`
+  - `fichub_meta` → `source_meta`
+- Env vars: `FICHUB_BASE_URL` → `FANFIC_BASE_URL`, `FICHUB_MOCKED` → `FANFIC_MOCKED` (test harness only).
+- Frontend testids: `fichub-status-banner` → `fanfic-status-banner`, `fichub-status-detail` → `fanfic-status-detail`, `fichub-unavailable-tag` → `unavailable-tag`.
+- User-facing strings: "FicHub said: …" → "Source said: …", "books FicHub couldn't find online" → "books we couldn't fetch online" — neutral and accurate for the 100+ sites FanFicFare supports.
+- All 173 backend tests still pass at 77.3% coverage; preview server logged a successful migration of 2 existing book records on first startup.
+
 ### Deferred / Declined
 - Google Drive import — declined by user (2026-02-28). Local upload remains the only ingest path.
 

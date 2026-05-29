@@ -66,7 +66,7 @@ export default function BookDetail() {
     }
   };
 
-  const refreshFromFichub = async () => {
+  const refreshFromSource = async () => {
     setRefreshing(true);
     const t = toast.loading("Generating a fresh copy…");
     try {
@@ -351,10 +351,10 @@ export default function BookDetail() {
               )}
             </div>
 
-            {book.fichub_unavailable && !editing && (
+            {book.unavailable && !editing && (
               <div className="shelf-card p-5 mb-6 bg-[#FDF3E1]/40 border-[#E07A5F]/20" data-testid="recover-source-panel">
                 <p className="text-sm font-semibold text-[#2C2C2C] mb-1">
-                  🚫 FicHub couldn't find this story
+                  🚫 FanFicFare couldn't find this story
                 </p>
                 <p className="text-xs text-[#6B705C] mb-3">
                   We tried <code className="bg-white/60 px-1.5 py-0.5 rounded text-[#E07A5F]">{book.source_url}</code>. If the work moved
@@ -460,21 +460,21 @@ export default function BookDetail() {
                 {book.source_url && (
                   <button
                     data-testid="refresh-btn"
-                    onClick={refreshFromFichub}
+                    onClick={refreshFromSource}
                     disabled={refreshing}
                     className={`flex items-center gap-2 text-sm px-4 py-2 rounded-lg disabled:opacity-50 transition-colors ${
-                      book.fichub_unavailable
+                      book.unavailable
                         ? "bg-[#6B705C]/10 text-[#6B705C] hover:bg-[#6B705C]/20 border border-[#6B705C]/30"
                         : "btn-secondary"
                     }`}
-                    title={book.fichub_unavailable ? ("Last error: " + (book.fichub_last_error || "FicHub couldn't find this")) : ("Source: " + book.source_url)}
+                    title={book.unavailable ? ("Last error: " + (book.last_fetch_error || "FanFicFare couldn't find this")) : ("Source: " + book.source_url)}
                   >
                     <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
                     {refreshing
                       ? "Updating…"
-                      : book.fichub_unavailable
-                      ? "Try FicHub again"
-                      : "Update from FicHub"}
+                      : book.unavailable
+                      ? "Try FanFicFare again"
+                      : "Update from FanFicFare"}
                   </button>
                 )}
                 <button
@@ -517,15 +517,15 @@ export default function BookDetail() {
               )}
               {book.last_refreshed_at && (
                 <Meta
-                  label="Last updated from FicHub"
+                  label="Last updated from FanFicFare"
                   value={new Date(book.last_refreshed_at).toLocaleString()}
                 />
               )}
-              {book.fichub_unavailable && (
+              {book.unavailable && (
                 <Meta
-                  label="FicHub status"
+                  label="FanFicFare status"
                   value={
-                    <span className="text-[#D9534F]" data-testid="fichub-unavailable-tag">
+                    <span className="text-[#D9534F]" data-testid="unavailable-tag">
                       🚫 Can't find online
                     </span>
                   }
@@ -549,14 +549,14 @@ export default function BookDetail() {
               {typeof book.progress_percent === "number" && book.progress_percent > 0 && (
                 <Meta label="Progress" value={`${Math.round(book.progress_percent * 100)}%`} />
               )}
-              {book.fichub_meta?.chapters && (
-                <Meta label="Chapters" value={book.fichub_meta.chapters} />
+              {book.source_meta?.chapters && (
+                <Meta label="Chapters" value={book.source_meta.chapters} />
               )}
-              {book.fichub_meta?.words && (
-                <Meta label="Words" value={Number(book.fichub_meta.words).toLocaleString()} />
+              {book.source_meta?.words && (
+                <Meta label="Words" value={Number(book.source_meta.words).toLocaleString()} />
               )}
-              {book.fichub_meta?.status && (
-                <Meta label="Status" value={book.fichub_meta.status} />
+              {book.source_meta?.status && (
+                <Meta label="Status" value={book.source_meta.status} />
               )}
             </div>
           </div>

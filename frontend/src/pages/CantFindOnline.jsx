@@ -44,7 +44,7 @@ export default function CantFindOnline() {
   const probeStatus = async (force = false) => {
     setStatusLoading(true);
     try {
-      const { data } = await api.get("/fichub/status", { params: force ? { force: true } : {} });
+      const { data } = await api.get("/fanfic/status", { params: force ? { force: true } : {} });
       setStatus(data);
     } catch (e) {
       setStatus({ ok: false, detail: "Couldn't reach the status check", checked_at: null });
@@ -66,7 +66,7 @@ export default function CantFindOnline() {
   useEffect(() => { probeStatus(false); }, []);
 
   const retryAll = async () => {
-    if (!window.confirm(`Retry FicHub for all ${books.length} unavailable book(s)? This may take a minute or two.`)) return;
+    if (!window.confirm(`Retry FanFicFare for all ${books.length} unavailable book(s)? This may take a minute or two.`)) return;
     setRetryAllBusy(true);
     try {
       const { data } = await api.post("/books/retry-unavailable");
@@ -74,7 +74,7 @@ export default function CantFindOnline() {
         toast.success(`${data.refreshed} book${data.refreshed === 1 ? "" : "s"} refreshed!`);
       }
       if (data.still_unavailable > 0) {
-        toast.warning(`${data.still_unavailable} book${data.still_unavailable === 1 ? "" : "s"} still unavailable — FicHub may still be down.`);
+        toast.warning(`${data.still_unavailable} book${data.still_unavailable === 1 ? "" : "s"} still unavailable — FanFicFare may still be down.`);
       }
       if (data.refreshed === 0 && data.still_unavailable === 0 && data.attempted === 0) {
         toast.info("Nothing to retry.");
@@ -92,10 +92,10 @@ export default function CantFindOnline() {
     const { silent = false } = opts;
     // If we've already auto-tried once for this book, ask for confirmation
     if (!silent && autoTriedIds.has(bid)) {
-      if (!window.confirm("FicHub already tried this once. Try again?")) return;
+      if (!window.confirm("FanFicFare already tried this once. Try again?")) return;
     }
     setBusyId(bid);
-    const t = toast.loading("Pulling latest from FicHub…");
+    const t = toast.loading("Pulling latest from FanFicFare…");
     try {
       const { data } = await api.post(`/books/${bid}/refresh`, {}, { timeout: 300000 });
       toast.success(`Updated to "${data.title}"`, { id: t });
@@ -116,7 +116,7 @@ export default function CantFindOnline() {
   const saveUrl = async (bid) => {
     try {
       await api.patch(`/books/${bid}/source-url`, { source_url: editUrl.trim() });
-      toast.success("Source URL updated. Click Retry FicHub to try again.");
+      toast.success("Source URL updated. Click Retry FanFicFare to try again.");
       setEditingId(null);
       setEditUrl("");
     } catch (e) {
@@ -145,7 +145,7 @@ export default function CantFindOnline() {
               Lost & found
             </h1>
             <p className="text-[#6B705C] mt-3 max-w-xl">
-              FicHub couldn't find these online. Try a same-site search to see if the work moved,
+              FanFicFare couldn't find these online. Try a same-site search to see if the work moved,
               then paste the new URL to bring it back into your refresh queue.
             </p>
           </div>
@@ -156,7 +156,7 @@ export default function CantFindOnline() {
                 onClick={retryAll}
                 disabled={retryAllBusy}
                 className="btn-primary text-sm flex items-center gap-2 disabled:opacity-60"
-                title="Clear the unavailable flag on every book and re-attempt FicHub"
+                title="Clear the unavailable flag on every book and re-attempt FanFicFare"
               >
                 {retryAllBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCw className="w-4 h-4" />}
                 Retry all ({books.length})
@@ -173,10 +173,10 @@ export default function CantFindOnline() {
           )}
         </div>
 
-        {/* FicHub status banner */}
+        {/* FanFicFare status banner */}
         {status && (
           <div
-            data-testid="fichub-status-banner"
+            data-testid="fanfic-status-banner"
             className={`mb-6 rounded-2xl border p-4 flex items-start gap-3 ${
               status.ok
                 ? "bg-[#E5EBE6] border-[#3A5A40]/30 text-[#2C2C2C]"
@@ -190,9 +190,9 @@ export default function CantFindOnline() {
             )}
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold">
-                {status.ok ? "FicHub is responding normally" : "FicHub is having trouble right now"}
+                {status.ok ? "FanFicFare is responding normally" : "FanFicFare is having trouble right now"}
               </p>
-              <p className="text-xs text-[#6B705C] mt-0.5" data-testid="fichub-status-detail">
+              <p className="text-xs text-[#6B705C] mt-0.5" data-testid="fanfic-status-detail">
                 {status.detail}
                 {status.checked_at && (
                   <span className="ml-1">
@@ -203,7 +203,7 @@ export default function CantFindOnline() {
               </p>
               {!status.ok && (
                 <p className="text-xs text-[#6B705C] mt-1.5">
-                  Your library is safe — books are flagged so we don't keep retrying. Once FicHub is back, "Retry all" will sweep them back into sync.
+                  Your library is safe — books are flagged so we don't keep retrying. Once FanFicFare is back, "Retry all" will sweep them back into sync.
                 </p>
               )}
             </div>
@@ -226,7 +226,7 @@ export default function CantFindOnline() {
           <div className="text-center py-16 shelf-card">
             <Book className="w-12 h-12 text-[#3A5A40] mx-auto mb-4 opacity-70" />
             <h2 className="font-serif text-2xl text-[#2C2C2C] mb-2">Nothing's lost</h2>
-            <p className="text-[#6B705C]">Every refreshable book in your library is reachable on FicHub.</p>
+            <p className="text-[#6B705C]">Every refreshable book in your library is reachable on FanFicFare.</p>
           </div>
         ) : (
           <ul className="space-y-4" data-testid="lost-list">
@@ -259,9 +259,9 @@ export default function CantFindOnline() {
                         {b.source_url}
                       </p>
                     )}
-                    {b.fichub_last_error && (
+                    {b.last_fetch_error && (
                       <p className="text-xs text-[#D9534F] mt-1">
-                        FicHub said: {b.fichub_last_error}
+                        Source said: {b.last_fetch_error}
                       </p>
                     )}
 
@@ -320,7 +320,7 @@ export default function CantFindOnline() {
                           ) : (
                             <RefreshCw className="w-3.5 h-3.5" />
                           )}
-                          Retry FicHub
+                          Retry FanFicFare
                         </button>
                       </div>
                     )}

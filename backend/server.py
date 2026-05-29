@@ -42,17 +42,34 @@ async def on_startup():
         await db.books.create_index([("user_id", 1), ("tags", 1)])
     except Exception as e:
         logger.warning(f"Index setup: {e}")
-    # One-time migration: clear fichub_unavailable flags since we've moved off
-    # FicHub onto FanFicFare. Existing flagged books deserve a fresh shot.
+    # One-time migration (2026-05): rename legacy `fichub_*` DB fields on
+    # existing book records to their new names. Idempotent: only matches docs
+    # that still have at least one legacy field. Safe to run on every startup.
     try:
+        legacy_filter = {
+            "$or": [
+                {"fichub_unavailable": {"$exists": True}},
+                {"fichub_last_error": {"$exists": True}},
+                {"fichub_last_attempt_at": {"$exists": True}},
+                {"fichub_meta": {"$exists": True}},
+            ]
+        }
         result = await db.books.update_many(
-            {"fichub_unavailable": True},
-            {"$unset": {"fichub_unavailable": "", "fichub_last_error": ""}},
+            legacy_filter,
+            {"$rename": {
+                "fichub_unavailable": "unavailable",
+                "fichub_last_error": "last_fetch_error",
+                "fichub_last_attempt_at": "last_fetch_attempt_at",
+                "fichub_meta": "source_meta",
+            }},
         )
         if result.modified_count:
-            logger.info("Cleared fichub_unavailable flag on %d books (FanFicFare migration).", result.modified_count)
+            logger.info(
+                "Migrated %d book records from legacy fichub_* fields to new names.",
+                result.modified_count,
+            )
     except Exception as e:
-        logger.warning("FanFicFare migration: %s", e)
+        logger.warning("Fanfic field rename migration: %s", e)
     try:
         digest.start_digest_scheduler()
     except Exception as e:

@@ -1,9 +1,9 @@
-"""Comprehensive tests for routes/books.py — upload, FicHub refresh, and AI
+"""Comprehensive tests for routes/books.py — upload, FanFicFare refresh, and AI
 classification — to push backend coverage above 70%.
 
 External services are mocked:
-- FicHub HTTP calls → redirected to a local pytest-httpserver via the
-  `FICHUB_BASE_URL` env var read by `fichub_fetch_epub`.
+- FanFicFare HTTP calls → redirected to a local pytest-httpserver via the
+  `FANFIC_BASE_URL` env var read by `fanfic_fetch_epub`.
 - Claude (LlmChat) → bypassed via `SHELFSORT_TEST_AI_RESPONSE` env var
   read by `classify_with_ai`.
 
@@ -11,7 +11,7 @@ NOTE: env vars must be set BEFORE the uvicorn server starts (i.e. they are
 exported from `scripts/run_coverage.sh`). In a normal pytest run against
 the already-running preview server, these tests will:
   - upload + bulk_metadata + delete will exercise real classifier paths
-  - FicHub-redirected tests will be SKIPPED unless FICHUB_BASE_URL is set
+  - FanFicFare-redirected tests will be SKIPPED unless FANFIC_BASE_URL is set
 """
 from __future__ import annotations
 
@@ -161,7 +161,7 @@ class TestUpload:
         assert book["links_count"] >= 1
         assert book["book_id"].startswith("book_")
 
-    def test_upload_with_fichub_url_detects_source(self):
+    def test_upload_with_fanfic_url_detects_source(self):
         epub = _build_minimal_epub(
             "Magical Cookies and the Fan Saga", "FanWriter01",
             body_html='<p>Story: <a href="https://archiveofourown.org/works/12345">on AO3</a></p>',
@@ -217,23 +217,23 @@ class TestUpload:
 
 
 # --------------------------------------------------------------------------
-# FicHub refresh tests — uses pytest-httpserver to mock fichub.net.
-# These only run when the server was started with FICHUB_BASE_URL set.
+# FanFicFare refresh tests — uses pytest-httpserver to mock fanfic.net.
+# These only run when the server was started with FANFIC_BASE_URL set.
 # --------------------------------------------------------------------------
-FICHUB_MOCKED = bool(os.environ.get("FICHUB_BASE_URL"))
+FANFIC_MOCKED = bool(os.environ.get("FANFIC_BASE_URL"))
 
 
 @pytest.fixture(scope="module")
-def fichub_mock_server():
+def fanfic_mock_server():
     """Provides a pytest-httpserver bound to the URL the test server is
     pointed at. Only used in coverage mode."""
-    if not FICHUB_MOCKED:
-        pytest.skip("FICHUB_BASE_URL not set — skipping FicHub mock tests")
+    if not FANFIC_MOCKED:
+        pytest.skip("FANFIC_BASE_URL not set — skipping FanFicFare mock tests")
 
-    # Parse FICHUB_BASE_URL to extract host/port
+    # Parse FANFIC_BASE_URL to extract host/port
     from urllib.parse import urlparse
     from pytest_httpserver import HTTPServer
-    parsed = urlparse(os.environ["FICHUB_BASE_URL"])
+    parsed = urlparse(os.environ["FANFIC_BASE_URL"])
     host = parsed.hostname or "127.0.0.1"
     port = parsed.port or 8766
 
@@ -266,13 +266,13 @@ def _build_canned_fff_response(title="Refreshed Title", author="Updated Author",
 
 # FanFicFare integration is exercised via SHELFSORT_TEST_FFF_RESPONSE env hook
 # (set by scripts/run_coverage.sh + CI workflow). The pytest-httpserver mock
-# is kept ONLY for the legacy /api/fichub/status probe and is not needed for
+# is kept ONLY for the legacy /api/fanfic/status probe and is not needed for
 # refresh calls anymore.
-FFF_MOCKED = bool(os.environ.get("SHELFSORT_TEST_FFF_RESPONSE")) or FICHUB_MOCKED
+FFF_MOCKED = bool(os.environ.get("SHELFSORT_TEST_FFF_RESPONSE")) or FANFIC_MOCKED
 
 
 @pytest.mark.skipif(not FFF_MOCKED, reason="No FanFicFare test hook configured")
-class TestFicHubRefresh:
+class TestFanficRefresh:
     def _seed_book_via_upload(self, source_url: str) -> str:
         """Upload a real EPUB then patch its source_url so refresh has a
         local file to overwrite."""
@@ -286,16 +286,16 @@ class TestFicHubRefresh:
         db.books.update_one({"book_id": bid}, {"$set": {"source_url": source_url}})
         return bid
 
-    def test_refresh_book_fichub_not_found(self, fichub_mock_server):
+    def test_refresh_book_fanfic_not_found(self, fanfic_mock_server):
         """Setting a hook to {not_found: true} would mark unavailable.
         Skipped here since the run_coverage.sh hook is set to success globally.
         The flag-and-handle behavior is exercised by test_retry_unavailable_clears_and_retries."""
         pytest.skip("Per-test FanFicFare hook variation not supported across HTTP boundary")
 
-    def test_refresh_book_succeeds_with_fresh_epub(self, fichub_mock_server):
+    def test_refresh_book_succeeds_with_fresh_epub(self, fanfic_mock_server):
         """Happy path: FanFicFare-hook returns success → book updated."""
         # The SHELFSORT_TEST_FFF_RESPONSE env (set in run_coverage.sh) makes
-        # fichub_fetch_epub return a canned EPUB with title "Refreshed Title"
+        # fanfic_fetch_epub return a canned EPUB with title "Refreshed Title"
         # and author "Updated Author".
         bid = self._seed_book_via_upload("https://archiveofourown.org/works/77777")
         # Tag the old book so we can assert tags carry over to the refreshed copy
@@ -325,7 +325,7 @@ class TestFicHubRefresh:
         assert new.get("last_refreshed_at") is not None
         assert new.get("source_url") == "https://archiveofourown.org/works/77777"
 
-    def test_refresh_skips_already_archived_books(self, fichub_mock_server):
+    def test_refresh_skips_already_archived_books(self, fanfic_mock_server):
         """refresh-all should not re-refresh books already on the Old stories shelf."""
         bid = self._seed_book_via_upload("https://archiveofourown.org/works/archived-already")
         db.books.update_one(
@@ -341,7 +341,7 @@ class TestFicHubRefresh:
         still = db.books.find_one({"book_id": bid})
         assert still["category"] == "Old stories"
 
-    def test_refresh_registers_dated_shelf_and_filters(self, fichub_mock_server):
+    def test_refresh_registers_dated_shelf_and_filters(self, fanfic_mock_server):
         """After a successful refresh:
         - Response includes a `message` mentioning the dated shelf
         - GET /api/categories includes the dated shelf in `custom`
@@ -392,7 +392,7 @@ class TestFicHubRefresh:
             f"refresh-status changed unexpectedly: pre={pre_refreshable}, post={post_status['refreshable']}"
         )
 
-    def test_refresh_all_runs(self, fichub_mock_server):
+    def test_refresh_all_runs(self, fanfic_mock_server):
         """Bulk refresh executes the loop and returns aggregate counts."""
         self._seed_book_via_upload("https://archiveofourown.org/works/aaa1")
         r = requests.post(f"{BASE}/api/books/refresh-all", headers=H())
@@ -403,7 +403,7 @@ class TestFicHubRefresh:
         assert "failures" in body
 
     def test_refresh_status_endpoint(self):
-        """GET /api/books/refresh-status reports current FicHub-eligible counts."""
+        """GET /api/books/refresh-status reports current FanFicFare-eligible counts."""
         r = requests.get(f"{BASE}/api/books/refresh-status", headers=H())
         assert r.status_code == 200
         body = r.json()
@@ -412,25 +412,25 @@ class TestFicHubRefresh:
         assert "unavailable" in body
         assert "total" in body
 
-    def test_fichub_status_probe(self, fichub_mock_server):
-        """GET /api/fichub/status reports the probe result and caches it."""
-        # The probe now hits AO3 directly (or the mock if FICHUB_BASE_URL set).
-        r = requests.get(f"{BASE}/api/fichub/status?force=true", headers=H())
+    def test_fanfic_status_probe(self, fanfic_mock_server):
+        """GET /api/fanfic/status reports the probe result and caches it."""
+        # The probe now hits AO3 directly (or the mock if FANFIC_BASE_URL set).
+        r = requests.get(f"{BASE}/api/fanfic/status?force=true", headers=H())
         assert r.status_code == 200, r.text
         body = r.json()
         assert "ok" in body
         assert "detail" in body
         assert body["cached"] is False
         # Second call should be cached
-        r = requests.get(f"{BASE}/api/fichub/status", headers=H())
+        r = requests.get(f"{BASE}/api/fanfic/status", headers=H())
         assert r.json()["cached"] is True
 
-    def test_retry_unavailable_clears_and_retries(self, fichub_mock_server):
+    def test_retry_unavailable_clears_and_retries(self, fanfic_mock_server):
         """retry-unavailable clears flags and calls refresh on each book."""
         bid = self._seed_book_via_upload("https://archiveofourown.org/works/retry-me")
         db.books.update_one(
             {"book_id": bid},
-            {"$set": {"fichub_unavailable": True, "fichub_last_error": "old failure"}},
+            {"$set": {"unavailable": True, "last_fetch_error": "old failure"}},
         )
         r = requests.post(f"{BASE}/api/books/retry-unavailable", headers=H())
         assert r.status_code == 200, r.text
@@ -441,8 +441,8 @@ class TestFicHubRefresh:
         """Empty result when no books are flagged."""
         # Make sure no unavailable books for this user
         db.books.update_many(
-            {"user_id": USER_ID, "fichub_unavailable": True},
-            {"$unset": {"fichub_unavailable": ""}},
+            {"user_id": USER_ID, "unavailable": True},
+            {"$unset": {"unavailable": ""}},
         )
         r = requests.post(f"{BASE}/api/books/retry-unavailable", headers=H())
         assert r.status_code == 200

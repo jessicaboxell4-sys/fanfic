@@ -28,7 +28,7 @@ export CORS_ORIGINS=${CORS_ORIGINS:-*}
 export COOKIE_SECURE=${COOKIE_SECURE:-false}
 export COOKIE_SAMESITE=${COOKIE_SAMESITE:-lax}
 # Point the server's FicHub client at a local mock that the test process spins up.
-export FICHUB_BASE_URL=${FICHUB_BASE_URL:-http://127.0.0.1:8766}
+export FANFIC_BASE_URL=${FANFIC_BASE_URL:-http://127.0.0.1:8766}
 # Generate a real (small but valid) EPUB on the fly for the FanFicFare hook
 FFF_CANNED=$(python3 -c "
 import io, zipfile, base64, json, uuid
