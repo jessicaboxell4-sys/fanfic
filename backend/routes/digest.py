@@ -644,6 +644,47 @@ async def send_update_email_preview(user: User = Depends(get_current_user)):
     return await _send_update_digest_email(user_doc, bids)
 
 
+@api_router.get("/user/email-overview")
+async def email_overview(user: User = Depends(get_current_user)):
+    """One-stop summary of all three email channels for the preferences page."""
+    user_doc = await db.users.find_one({"user_id": user.user_id}) or {}
+    digest_prefs = _get_digest_prefs(user_doc)
+    update_prefs = _get_update_email_prefs(user_doc)
+    last_year_sent = (user_doc.get("digest") or {}).get("last_year_sent")
+    last_sent = digest_prefs.get("last_sent_at")
+
+    # Count of available refreshed books (for the update-email preview affordance)
+    refreshed_count = await db.books.count_documents({
+        "user_id": user.user_id,
+        "replaces": {"$ne": None, "$exists": True},
+    })
+
+    return {
+        "email": user_doc.get("email", ""),
+        "sender_email": SENDER_EMAIL,
+        "email_configured": bool(RESEND_API_KEY),
+        "weekly_digest": {
+            "enabled": bool(digest_prefs.get("enabled")),
+            "day_of_week": int(digest_prefs.get("day_of_week", 6)),
+            "hour": int(digest_prefs.get("hour", 8)),
+            "last_sent_at": last_sent.isoformat() if isinstance(last_sent, datetime) else last_sent,
+        },
+        "fic_updates": {
+            "enabled": update_prefs["enabled"],
+            "refreshed_book_count": refreshed_count,
+        },
+        "year_recap": {
+            # Tied to weekly digest opt-in; fires once on Jan 1 per year
+            "enabled": bool(digest_prefs.get("enabled")),
+            "last_year_sent": last_year_sent,
+            "note": "Fires automatically each Jan 1 at your chosen hour, while the weekly digest is on.",
+        },
+    }
+
+
+
+
+
 
 def start_digest_scheduler():
     global _scheduler

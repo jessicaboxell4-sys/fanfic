@@ -223,6 +223,54 @@ class TestFicUpdateEmail:
         assert body["summary"]["total_changed"] == 1
 
 
+# ---------- EMAIL OVERVIEW (consolidated preferences page) ----------
+class TestEmailOverview:
+    def test_overview_shape(self, H, seeded_user):
+        r = requests.get(f"{BASE}/api/user/email-overview", headers=H)
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["email"] == seeded_user["email"]
+        assert "sender_email" in body
+        assert "email_configured" in body
+        # weekly_digest
+        wd = body["weekly_digest"]
+        for k in ("enabled", "day_of_week", "hour", "last_sent_at"):
+            assert k in wd
+        # fic_updates
+        fu = body["fic_updates"]
+        assert "enabled" in fu
+        assert "refreshed_book_count" in fu
+        assert isinstance(fu["refreshed_book_count"], int)
+        # year_recap
+        yr = body["year_recap"]
+        for k in ("enabled", "last_year_sent", "note"):
+            assert k in yr
+        # Year recap mirrors weekly digest enabled state
+        assert yr["enabled"] == wd["enabled"]
+
+    def test_overview_requires_auth(self):
+        r = requests.get(f"{BASE}/api/user/email-overview")
+        assert r.status_code == 401
+
+    def test_overview_reflects_settings_changes(self, H):
+        # Turn weekly digest on
+        requests.put(
+            f"{BASE}/api/user/digest-settings", headers=H,
+            json={"enabled": True, "day_of_week": 3, "hour": 10},
+        )
+        # Turn fic-update on
+        requests.put(
+            f"{BASE}/api/user/update-email-settings", headers=H,
+            json={"enabled": True},
+        )
+        body = requests.get(f"{BASE}/api/user/email-overview", headers=H).json()
+        assert body["weekly_digest"]["enabled"] is True
+        assert body["weekly_digest"]["day_of_week"] == 3
+        assert body["weekly_digest"]["hour"] == 10
+        assert body["fic_updates"]["enabled"] is True
+        assert body["year_recap"]["enabled"] is True
+
+
 # ---------- SCHEDULER LOG CHECK ----------
 class TestSchedulerLog:
     def test_scheduler_started_log_present(self):

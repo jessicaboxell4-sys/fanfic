@@ -236,6 +236,13 @@
 - Falls back to `delivered=False, logged=True` when `RESEND_API_KEY` is empty (no breakage in preview env).
 - Tests: **`TestFicUpdateEmail`** in `test_digest.py` — 5 cases covering default-disabled, toggle on/off, auth required, 400 when no refreshed books, and a full preview flow with seeded refresh data. **161 passing, 1 by-design skip, coverage 76.6%**.
 
+### Added 2026-05-29 (Consolidated Email Preferences page)
+- **`GET /api/user/email-overview`** — single endpoint returning the user's email + sender address + `email_configured` flag + the state of all three channels (weekly digest, fic updates, year recap). Year-recap mirrors weekly-digest's enabled flag (it shares the cron tick).
+- **`/account/emails`** — new `EmailPreferences.jsx` page with three large channel cards (Weekly digest / Fic updates / Year recap), shared toggle styling, per-channel "Send a sample" buttons, and a top sender-info pill showing the configured `from` address + a green "Delivery configured" / amber "Delivery not configured" badge.
+- **`Account.jsx`** trimmed: the two inline 80-line email sections are replaced with a single compact "Email preferences" card linking to `/account/emails`. Account page shrinks from 474 → 213 lines, ~55% lighter.
+- Page is fully responsive (channel cards stack), all interactive elements carry `data-testid`s, and shows a contextual "email delivery not configured" banner only when `RESEND_API_KEY` is missing.
+- Tests: **`TestEmailOverview`** — 3 cases (shape, auth-required, reflects-changes). **164 passing, 1 by-design skip, coverage 76.7%**.
+
 ### Deferred / Declined
 - Google Drive import — declined by user (2026-02-28). Local upload remains the only ingest path.
 
