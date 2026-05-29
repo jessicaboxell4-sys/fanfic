@@ -154,6 +154,11 @@
 - **`SmartShelves` page** gets a "Browse tags" button alongside "New smart shelf".
 - Pure frontend addition — no new backend code (the existing `/api/tags`, `/api/smart-shelves/preview`, and `/api/tags/{name}` endpoints fully drive it). Tests held at 139/139, coverage 80.1%.
 
+### Added 2026-02-29 (AI tag suggestions in BookDetail)
+- **`POST /api/books/{id}/suggest-tags`**: re-uses `classify_with_ai` with the book's stored metadata (+ disk-cached EPUB sample text when available), returns up to 5 suggested tags that aren't already on the book. Returns `{suggested, all, ai_used}`.
+- **`BookDetail.jsx`**: new "Suggest tags" button beside the Tags heading. On click, fires the endpoint; suggestions render as orange "+ tag" chips in an AI panel below the TagInput. Click any chip to add (optimistic UI). Dismiss button clears the panel.
+- **Tests**: +2 (suggest returns shape, 404 on unknown book). Total **141/141 passing, coverage 80.2%**.
+
 ### Added 2026-02-29 (Codecov publishing + README)
 - `.github/workflows/backend-tests.yml`: added `codecov/codecov-action@v4` step — publishes `coverage.xml` on every push/PR with the `backend` flag.
 - `codecov.yml`: project target 60% (current baseline) with 1% threshold; patch target 70% with 5% threshold; sticky PR comment with diff + flags + files.

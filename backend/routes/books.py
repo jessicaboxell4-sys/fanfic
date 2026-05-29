@@ -1544,6 +1544,46 @@ async def delete_tag(name: str, user: User = Depends(get_current_user)):
     return {"updated": result.modified_count}
 
 
+@api_router.post("/books/{book_id}/suggest-tags")
+async def suggest_book_tags(book_id: str, user: User = Depends(get_current_user)):
+    """Use the AI classifier to suggest tags for an existing book.
+
+    Excludes tags the book already has; returns up to 5 suggestions.
+    """
+    book = await db.books.find_one(
+        {"book_id": book_id, "user_id": user.user_id}, {"_id": 0}
+    )
+    if not book:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    # Try to grab a sample of body text if the EPUB is still on disk
+    sample_text = ""
+    try:
+        epub_path = STORAGE_DIR / book["user_id"] / f"{book_id}.epub"
+        if epub_path.exists():
+            meta = extract_epub_metadata(epub_path)
+            sample_text = (meta or {}).get("sample_text", "") if isinstance(meta, dict) else ""
+    except Exception as e:
+        logger.warning("suggest-tags: epub read failed: %s", e)
+
+    meta_for_ai = {
+        "title": book.get("title", ""),
+        "author": book.get("author", ""),
+        "publisher": book.get("publisher", ""),
+        "description": book.get("description", ""),
+        "sample_text": sample_text,
+    }
+    ai = await classify_with_ai(meta_for_ai)
+    suggested = _normalize_tags(ai.get("tags") or [])
+    existing = set(book.get("tags") or [])
+    filtered = [t for t in suggested if t not in existing][:5]
+    return {
+        "suggested": filtered,
+        "all": suggested,
+        "ai_used": bool(EMERGENT_LLM_KEY) or bool(os.environ.get("SHELFSORT_TEST_AI_RESPONSE")),
+    }
+
+
 # ============================================================
 # AUTHOR ROUTES
 # ============================================================

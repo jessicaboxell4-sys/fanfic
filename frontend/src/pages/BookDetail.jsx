@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { api, API } from "../lib/api";
 import Navbar from "../components/Navbar";
 import TagInput from "../components/TagInput";
-import { ArrowLeft, Download, Trash2, Sparkles, Book, Edit3, Link as LinkIcon, BookOpen, RefreshCw, Tag as TagIcon } from "lucide-react";
+import { ArrowLeft, Download, Trash2, Sparkles, Book, Edit3, Link as LinkIcon, BookOpen, RefreshCw, Tag as TagIcon, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 const DEFAULT_CATEGORIES = ["Fanfiction", "Original Fiction", "Non-fiction", "Unclassified"];
@@ -23,6 +23,8 @@ export default function BookDetail() {
   const [allCategories, setAllCategories] = useState(DEFAULT_CATEGORIES);
   const [allTags, setAllTags] = useState([]);
   const [savingTags, setSavingTags] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggested, setSuggested] = useState([]);
 
   const load = async () => {
     try {
@@ -203,16 +205,42 @@ export default function BookDetail() {
 
             {/* Tags */}
             <div className="mb-8" data-testid="book-tags-section">
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] mb-2 flex items-center gap-1.5">
-                <TagIcon className="w-3 h-3" /> Tags
-              </p>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] flex items-center gap-1.5">
+                  <TagIcon className="w-3 h-3" /> Tags
+                </p>
+                <button
+                  type="button"
+                  data-testid="suggest-tags-btn"
+                  disabled={suggesting}
+                  onClick={async () => {
+                    setSuggesting(true);
+                    try {
+                      const { data } = await api.post(`/books/${book.book_id}/suggest-tags`);
+                      const newOnes = (data.suggested || []).filter((t) => !(book.tags || []).includes(t));
+                      if (newOnes.length === 0) {
+                        toast.info("No new tag suggestions — already well-tagged!");
+                      } else {
+                        setSuggested(newOnes);
+                      }
+                    } catch (e) {
+                      toast.error("Couldn't get suggestions");
+                    } finally {
+                      setSuggesting(false);
+                    }
+                  }}
+                  className="text-xs text-[#E07A5F] hover:text-[#a8532f] inline-flex items-center gap-1.5 font-semibold disabled:opacity-60"
+                >
+                  {suggesting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                  Suggest tags
+                </button>
+              </div>
               <TagInput
                 value={book.tags || []}
                 onChange={async (next) => {
                   if (savingTags) return;
                   setSavingTags(true);
                   const prev = book.tags || [];
-                  // Optimistic update
                   setBook((b) => ({ ...b, tags: next }));
                   try {
                     const added = next.filter((t) => !prev.includes(t));
@@ -223,12 +251,11 @@ export default function BookDetail() {
                     for (const t of removed) {
                       await api.delete(`/books/${book.book_id}/tags/${encodeURIComponent(t)}`);
                     }
-                    // Refresh tag suggestions
                     const tagRes = await api.get(`/tags`);
                     setAllTags((tagRes.data.tags || []).map((tt) => tt.name));
                   } catch (e) {
                     toast.error(e?.response?.data?.detail || "Couldn't update tags");
-                    setBook((b) => ({ ...b, tags: prev })); // revert
+                    setBook((b) => ({ ...b, tags: prev }));
                   } finally {
                     setSavingTags(false);
                   }
@@ -238,6 +265,45 @@ export default function BookDetail() {
                 placeholder="Add tag (e.g. fluff, wip)…"
                 testIdPrefix="book-tags"
               />
+              {suggested.length > 0 && (
+                <div className="mt-3 p-3 rounded-xl bg-[#FDF3E1] border border-[#B87A00]/20" data-testid="tag-suggestions">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#B87A00] flex items-center gap-1.5">
+                      <Sparkles className="w-3 h-3" /> AI suggestions
+                    </p>
+                    <button
+                      type="button"
+                      data-testid="dismiss-suggestions"
+                      onClick={() => setSuggested([])}
+                      className="text-xs text-[#6B705C] hover:text-[#2C2C2C]"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                  <p className="text-xs text-[#6B705C] mb-2">Click to add:</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {suggested.map((t) => (
+                      <button
+                        type="button"
+                        key={t}
+                        data-testid={`suggestion-${t}`}
+                        onClick={async () => {
+                          try {
+                            await api.post(`/books/${book.book_id}/tags`, { tags: [t] });
+                            setBook((b) => ({ ...b, tags: [...(b.tags || []), t] }));
+                            setSuggested((s) => s.filter((x) => x !== t));
+                          } catch (e) {
+                            toast.error("Couldn't add");
+                          }
+                        }}
+                        className="inline-flex items-center gap-1 bg-white text-[#B87A00] border border-[#B87A00]/30 hover:bg-[#B87A00] hover:text-white transition-colors text-xs px-2.5 py-1 rounded-full font-semibold"
+                      >
+                        + {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {book.fichub_unavailable && !editing && (

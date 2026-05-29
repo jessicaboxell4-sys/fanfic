@@ -225,6 +225,24 @@ class TestAIAutoTags:
         if tags:
             assert all(isinstance(t, str) for t in tags)
 
+    def test_suggest_tags_returns_suggestions(self):
+        bid = _upload_book("Suggest Test", "Suggest Author")
+        r = requests.post(f"{BASE}/api/books/{bid}/suggest-tags", headers=H())
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert "suggested" in body
+        assert "all" in body
+        # The canned response yields ["fluff","wip","au"] — at least one should bubble up
+        assert isinstance(body["suggested"], list)
+        if body["suggested"]:
+            # Suggestions should not include tags the book already has
+            existing = b.get("tags", []) if (b := requests.get(f"{BASE}/api/books/{bid}", headers=H()).json()) else []
+            assert all(t not in existing for t in body["suggested"])
+
+    def test_suggest_tags_404_unknown_book(self):
+        r = requests.post(f"{BASE}/api/books/not-a-real-id/suggest-tags", headers=H())
+        assert r.status_code == 404
+
 
 class TestSmartShelves:
     def test_create_list_get_delete(self):
