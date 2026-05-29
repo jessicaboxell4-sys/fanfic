@@ -196,6 +196,18 @@
 - `POST /books/{id}/refresh` response gains `updated_shelf` field; toast in `BookDetail.jsx` shows the dated shelf name.
 - Tests: updated `test_refresh_book_succeeds_with_fresh_epub` to assert new shape + tag carry-over, added `test_refresh_skips_already_archived_books`, plus testing-agent added `test_refresh_registers_dated_shelf_and_filters`. **145 passing, 1 by-design skip, coverage 75.4%** (CI gate ≥75%).
 
+### Added 2026-05-29 (Compare versions — per-chapter diff between book versions)
+- **`GET /api/books/{book_id}/diff[?vs={other_id}]`** — auto-resolves the counterpart via `book.replaces` (this book is an Updated copy) or `book.replaced_by` (this book is the archived original). Returns `{old, new, diff}` where:
+  - `old` / `new` each include `{book_id, title, author, category, created_at, last_refreshed_at, replaced_at, chapters: [{index, title, words}]}`
+  - `diff.added_chapters` / `removed_chapters` / `changed_chapters` / `unchanged_chapters`
+  - `diff.summary`: chapter counts (old/new/added/removed/changed/unchanged), old/new total words, words_delta
+- **`extract_chapters(epub_path)`** walks the EPUB spine in order, prefers `<h1>/<h2>/<h3>` then `<title>` for chapter naming, computes per-chapter word count.
+- **`diff_chapters(old, new)`** matches chapters by **normalized title** (lowercase, "Chapter N:" prefix stripped, whitespace collapsed) so cosmetic renames like "Chapter 7" → "Chapter 7: Storm" still match.
+- **`/book/:id/compare`** — new React page (`CompareVersions.jsx`) with a warm-paper Old → New header card pair, 4 big summary stat blocks (chapters added / removed / edited / word delta), and grouped sections (Added in green, Edited in amber, Removed in red, Unchanged in muted gray). Empty state when no counterpart linked.
+- **`BookDetail.jsx`** version banner gains a "Compare versions →" link whenever the book has a `replaces` or `replaced_by` link.
+- **Bug fix**: `BookDetail.jsx` had two broken navigations using `/books/${id}` (plural) — the actual route is singular `/book/:id`. Fixed alongside this feature.
+- Tests: added `TestVersionDiff` class — 6 tests covering auto-resolve, explicit `?vs=`, 400 when no counterpart, 404 when book missing, 404 when counterpart missing, 404 when EPUB file missing on disk. **151 passing, 1 by-design skip, coverage 75.9%**.
+
 ### Deferred / Declined
 - Google Drive import — declined by user (2026-02-28). Local upload remains the only ingest path.
 
