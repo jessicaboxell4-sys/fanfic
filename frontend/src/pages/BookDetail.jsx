@@ -6,7 +6,7 @@ import TagInput from "../components/TagInput";
 import { ArrowLeft, Download, Trash2, Sparkles, Book, Edit3, Link as LinkIcon, BookOpen, RefreshCw, Tag as TagIcon, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-const DEFAULT_CATEGORIES = ["Fanfiction", "Original Fiction", "Non-fiction", "Unclassified"];
+const DEFAULT_CATEGORIES = ["Fanfiction", "Original Fiction", "Non-fiction", "Unclassified", "Updated stories", "Old stories"];
 
 export default function BookDetail() {
   const { id } = useParams();
@@ -68,13 +68,17 @@ export default function BookDetail() {
 
   const refreshFromFichub = async () => {
     setRefreshing(true);
-    const t = toast.loading("Pulling latest from FicHub…");
+    const t = toast.loading("Generating a fresh copy…");
     try {
       const { data } = await api.post(`/books/${id}/refresh`, {}, { timeout: 300000 });
-      toast.success(`Updated to "${data.title}"`, { id: t });
-      await load();
+      toast.success(`Created "${data.title}" in Updated stories`, { id: t });
+      if (data.new_book_id) {
+        navigate(`/books/${data.new_book_id}`);
+      } else {
+        await load();
+      }
     } catch (e) {
-      const msg = e?.response?.data?.detail || "FicHub update failed";
+      const msg = e?.response?.data?.detail || "Refresh failed";
       toast.error(msg, { id: t });
     } finally {
       setRefreshing(false);
@@ -179,6 +183,30 @@ export default function BookDetail() {
                 book.author
               )}
             </p>
+
+            {(book.replaces || book.replaced_by) && (
+              <div
+                data-testid="version-banner"
+                className="mb-4 p-3 rounded-xl border border-[#B87A00]/30 bg-[#FDF3E1] text-sm"
+              >
+                {book.replaces && (
+                  <p className="text-[#2C2C2C]">
+                    <span className="font-semibold text-[#B87A00]">Updated copy</span> ·{" "}
+                    <Link to={`/books/${book.replaces}`} className="text-[#3A5A40] hover:underline">
+                      see original
+                    </Link>
+                  </p>
+                )}
+                {book.replaced_by && (
+                  <p className="text-[#2C2C2C]">
+                    <span className="font-semibold text-[#B87A00]">Old version</span> · a refreshed copy is in{" "}
+                    <Link to={`/books/${book.replaced_by}`} className="text-[#3A5A40] hover:underline">
+                      Updated stories
+                    </Link>
+                  </p>
+                )}
+              </div>
+            )}
             <h1 className="font-serif text-4xl sm:text-5xl text-[#2C2C2C] leading-tight mb-4" data-testid="book-detail-title">
               {book.title}
             </h1>

@@ -4,7 +4,7 @@ import { api } from "../lib/api";
 import { toast } from "sonner";
 import TagInput from "./TagInput";
 
-const DEFAULT_SHELVES = ["Fanfiction", "Original Fiction", "Non-fiction", "Unclassified"];
+const DEFAULT_SHELVES = ["Fanfiction", "Original Fiction", "Non-fiction", "Unclassified", "Updated stories", "Old stories"];
 
 function BulkMetadataDialog({ ids, customCats, onClose, onDone }) {
   const [busy, setBusy] = useState(false);

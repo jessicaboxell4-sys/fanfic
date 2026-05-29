@@ -441,42 +441,87 @@ async def fichub_fetch_epub(source_url: str) -> tuple:
 
 
 async def apply_refresh(book: Dict[str, Any], user_id: str, source_url: str) -> Dict[str, Any]:
-    """Download from FicHub, replace local EPUB + cover + links, update DB. Returns updated fields."""
+    """Refresh a fanfic by generating a new EPUB via FanFicFare.
+
+    Behavior change (2026-02): instead of overwriting the existing EPUB and
+    book record, we create a NEW book in the "Updated stories" shelf and move
+    the original to the "Old stories" shelf. This preserves your reading
+    history on the old copy and gives you a clean slate on the new one.
+
+    Cross-links:
+      - new book .replaces -> old book_id
+      - old book .replaced_by -> new book_id
+    """
     epub_bytes, fichub_meta = await fichub_fetch_epub(source_url)
 
     user_dir = STORAGE_DIR / user_id
-    epub_path = user_dir / f"{book['book_id']}.epub"
-    epub_path.write_bytes(epub_bytes)
+    user_dir.mkdir(parents=True, exist_ok=True)
 
-    new_meta = extract_epub_metadata(epub_path)
-    cover_path = user_dir / f"{book['book_id']}.cover"
-    if new_meta.get('cover_bytes'):
-        cover_path.write_bytes(new_meta['cover_bytes'])
+    # Generate a fresh book_id + path for the new copy
+    new_book_id = f"book_{uuid.uuid4().hex[:12]}"
+    new_epub_path = user_dir / f"{new_book_id}.epub"
+    new_epub_path.write_bytes(epub_bytes)
 
-    links = extract_urls_from_epub(epub_path)
-    (user_dir / f"{book['book_id']}.links.txt").write_text(
-        format_links_txt(new_meta['title'], new_meta['author'], links),
-        encoding='utf-8',
+    new_meta = extract_epub_metadata(new_epub_path)
+    new_cover_path = user_dir / f"{new_book_id}.cover"
+    if new_meta.get("cover_bytes"):
+        new_cover_path.write_bytes(new_meta["cover_bytes"])
+
+    links = extract_urls_from_epub(new_epub_path)
+    (user_dir / f"{new_book_id}.links.txt").write_text(
+        format_links_txt(new_meta["title"], new_meta["author"], links),
+        encoding="utf-8",
     )
 
-    update = {
-        "title": new_meta['title'],
-        "author": new_meta['author'],
-        "description": new_meta['description'],
-        "language": new_meta['language'],
-        "publisher": new_meta['publisher'],
-        "has_cover": bool(new_meta.get('cover_bytes')),
+    now_iso = datetime.now(timezone.utc).isoformat()
+    old_book_id = book["book_id"]
+
+    # 1) Insert the new book in the "Updated stories" shelf
+    new_doc = {
+        "book_id": new_book_id,
+        "user_id": user_id,
+        "filename": book.get("filename") or f"{new_meta['title']}.epub",
+        "title": new_meta["title"],
+        "author": new_meta["author"],
+        "description": new_meta["description"],
+        "language": new_meta["language"],
+        "publisher": new_meta["publisher"],
+        "has_cover": bool(new_meta.get("cover_bytes")),
+        # Same category/fandom/series so it stays grouped correctly
+        "category": "Updated stories",
+        "fandom": book.get("fandom"),
+        "series_name": book.get("series_name"),
+        "series_index": book.get("series_index"),
+        "tags": book.get("tags") or [],
+        "confidence": book.get("confidence", 0.0),
+        "classifier": book.get("classifier", "metadata"),
         "size_bytes": len(epub_bytes),
         "links_count": len(links),
         "source_url": source_url,
-        "last_refreshed_at": datetime.now(timezone.utc).isoformat(),
+        "last_refreshed_at": now_iso,
         "fichub_meta": fichub_meta,
+        "replaces": old_book_id,
+        "created_at": now_iso,
     }
+    await db.books.insert_one(new_doc)
+
+    # 2) Move the old book to the "Old stories" shelf with a back-pointer
     await db.books.update_one(
-        {"book_id": book['book_id'], "user_id": user_id},
-        {"$set": update},
+        {"book_id": old_book_id, "user_id": user_id},
+        {"$set": {
+            "category": "Old stories",
+            "replaced_by": new_book_id,
+            "replaced_at": now_iso,
+        }},
     )
-    return update
+
+    return {
+        "new_book_id": new_book_id,
+        "old_book_id": old_book_id,
+        "title": new_meta["title"],
+        "author": new_meta["author"],
+        "last_refreshed_at": now_iso,
+    }
 
 
 def classify_by_metadata(meta: Dict[str, Any]) -> Dict[str, Any]:
@@ -1469,7 +1514,7 @@ async def refresh_book(book_id: str, user: User = Depends(get_current_user)):
             }},
         )
         raise HTTPException(status_code=404, detail=str(e))
-    # Clear unavailable flag on success
+    # Clear unavailable flag on the (now-old) book
     await db.books.update_one(
         {"book_id": book_id, "user_id": user.user_id},
         {"$set": {"fichub_unavailable": False, "fichub_last_error": None}},
@@ -1479,7 +1524,9 @@ async def refresh_book(book_id: str, user: User = Depends(get_current_user)):
         "source_url": source_url,
         "title": updated["title"],
         "last_refreshed_at": updated["last_refreshed_at"],
-        "fichub_meta": updated.get("fichub_meta"),
+        "new_book_id": updated.get("new_book_id"),
+        "old_book_id": updated.get("old_book_id"),
+        "message": "Created a refreshed copy in Updated stories; the original moved to Old stories.",
     }
 
 

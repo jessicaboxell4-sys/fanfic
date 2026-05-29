@@ -10,7 +10,7 @@ import StatsCard from "../components/StatsCard";
 import { Search, X, Plus, ArrowRight, CheckSquare, Sparkles, Loader2, RefreshCw, Library, UserCircle2, Filter, Pin } from "lucide-react";
 import { toast } from "sonner";
 
-const DEFAULT_CATEGORIES = ["All", "Fanfiction", "Original Fiction", "Non-fiction", "Unclassified"];
+const DEFAULT_CATEGORIES = ["All", "Fanfiction", "Original Fiction", "Non-fiction", "Unclassified", "Updated stories", "Old stories"];
 
 export default function Dashboard() {
   const navigate = useNavigate();

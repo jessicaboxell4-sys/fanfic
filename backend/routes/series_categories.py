@@ -76,7 +76,7 @@ async def get_series(name: str, user: User = Depends(get_current_user)):
 @api_router.get("/categories")
 async def list_categories(user: User = Depends(get_current_user)):
     docs = await db.categories.find({"user_id": user.user_id}, {"_id": 0}).to_list(200)
-    base = ["Fanfiction", "Original Fiction", "Non-fiction", "Unclassified"]
+    base = ["Fanfiction", "Original Fiction", "Non-fiction", "Unclassified", "Updated stories", "Old stories"]
     customs = [d['name'] for d in docs]
     return {"defaults": base, "custom": customs}
 
