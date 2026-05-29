@@ -12,6 +12,7 @@ import {
   Equal,
   Loader2,
   ArrowRight,
+  BookOpen,
 } from "lucide-react";
 
 function StatBlock({ value, label, tone = "neutral", testid }) {
@@ -31,7 +32,7 @@ function StatBlock({ value, label, tone = "neutral", testid }) {
   );
 }
 
-function ChapterRow({ kind, entry }) {
+function ChapterRow({ kind, entry, newBookId, navigate }) {
   const palettes = {
     added: {
       border: "border-l-4 border-[#3A5A40]",
@@ -67,10 +68,25 @@ function ChapterRow({ kind, entry }) {
     const sign = entry.delta > 0 ? "+" : "";
     return `${entry.old_words.toLocaleString()} → ${entry.new_words.toLocaleString()} (${sign}${entry.delta.toLocaleString()})`;
   })();
+  const jumpHref = entry.new_href; // present for added, changed, unchanged
+  const canJump = kind !== "removed" && jumpHref && newBookId;
   return (
     <div
-      className={`flex items-center gap-3 px-4 py-3 rounded-lg ${p.border} ${p.bg}`}
+      className={`flex items-center gap-3 px-4 py-3 rounded-lg ${p.border} ${p.bg} ${canJump ? "cursor-pointer hover:brightness-95 transition" : ""}`}
       data-testid={`chapter-row-${kind}`}
+      onClick={canJump ? () => navigate(`/read/${newBookId}?at=${encodeURIComponent(jumpHref)}`) : undefined}
+      role={canJump ? "button" : undefined}
+      tabIndex={canJump ? 0 : undefined}
+      onKeyDown={
+        canJump
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                navigate(`/read/${newBookId}?at=${encodeURIComponent(jumpHref)}`);
+              }
+            }
+          : undefined
+      }
     >
       <div className="flex-shrink-0">{p.icon}</div>
       <div className="flex-1 min-w-0">
@@ -235,6 +251,38 @@ export default function CompareVersions() {
               />
             </div>
 
+            {/* Re-read changes CTA */}
+            {data.diff.first_changed_chapter && (
+              <div
+                className="mb-8 p-5 rounded-2xl bg-[#FDF3E1] border border-[#B87A00]/30 flex flex-col sm:flex-row sm:items-center gap-4"
+                data-testid="reread-cta"
+              >
+                <div className="flex-1">
+                  <p className="font-serif text-lg text-[#2C2C2C] mb-1">
+                    Jump straight to what changed
+                  </p>
+                  <p className="text-sm text-[#6E6E6E]">
+                    Skip the parts you've already read. The first {data.diff.first_changed_chapter.kind}{" "}
+                    chapter is "{data.diff.first_changed_chapter.title}".
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    const href = data.diff.first_changed_chapter.new_href || "";
+                    const url = href
+                      ? `/read/${data.new.book_id}?at=${encodeURIComponent(href)}`
+                      : `/read/${data.new.book_id}`;
+                    navigate(url);
+                  }}
+                  className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-[#3A5A40] hover:bg-[#2D4730] text-white font-semibold transition-colors flex-shrink-0"
+                  data-testid="reread-changes-btn"
+                >
+                  <BookOpen className="h-4 w-4" />
+                  Re-read changes
+                </button>
+              </div>
+            )}
+
             {/* Chapter list */}
             <div className="space-y-6">
               {data.diff.added_chapters.length > 0 && (
@@ -244,7 +292,7 @@ export default function CompareVersions() {
                   </h2>
                   <div className="space-y-2">
                     {data.diff.added_chapters.map((c, i) => (
-                      <ChapterRow key={`a-${i}`} kind="added" entry={c} />
+                      <ChapterRow key={`a-${i}`} kind="added" entry={c} newBookId={data.new.book_id} navigate={navigate} />
                     ))}
                   </div>
                 </section>
@@ -257,7 +305,7 @@ export default function CompareVersions() {
                   </h2>
                   <div className="space-y-2">
                     {data.diff.changed_chapters.map((c, i) => (
-                      <ChapterRow key={`c-${i}`} kind="changed" entry={c} />
+                      <ChapterRow key={`c-${i}`} kind="changed" entry={c} newBookId={data.new.book_id} navigate={navigate} />
                     ))}
                   </div>
                 </section>
@@ -270,7 +318,7 @@ export default function CompareVersions() {
                   </h2>
                   <div className="space-y-2">
                     {data.diff.removed_chapters.map((c, i) => (
-                      <ChapterRow key={`r-${i}`} kind="removed" entry={c} />
+                      <ChapterRow key={`r-${i}`} kind="removed" entry={c} newBookId={data.new.book_id} navigate={navigate} />
                     ))}
                   </div>
                 </section>
@@ -283,7 +331,7 @@ export default function CompareVersions() {
                   </h2>
                   <div className="space-y-2">
                     {data.diff.unchanged_chapters.map((c, i) => (
-                      <ChapterRow key={`u-${i}`} kind="unchanged" entry={c} />
+                      <ChapterRow key={`u-${i}`} kind="unchanged" entry={c} newBookId={data.new.book_id} navigate={navigate} />
                     ))}
                   </div>
                 </section>

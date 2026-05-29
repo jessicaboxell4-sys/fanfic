@@ -336,7 +336,13 @@ def extract_chapters(filepath: Path) -> List[Dict[str, Any]]:
         text = soup.get_text(separator=' ', strip=True)
         words = len([w for w in text.split() if w])
 
-        chapters.append({"index": idx, "title": title, "words": words})
+        href = ""
+        try:
+            href = item.get_name() or item.file_name or ""
+        except Exception:
+            href = ""
+
+        chapters.append({"index": idx, "title": title, "words": words, "href": href})
 
     return chapters
 
@@ -364,7 +370,12 @@ def diff_chapters(old: List[Dict[str, Any]], new: List[Dict[str, Any]]) -> Dict[
                 match_idx = cidx
                 break
         if match_idx is None:
-            added.append({"title": new_ch["title"], "words": new_ch["words"], "new_index": new_ch["index"]})
+            added.append({
+                "title": new_ch["title"],
+                "words": new_ch["words"],
+                "new_index": new_ch["index"],
+                "new_href": new_ch.get("href", ""),
+            })
             continue
         matched_old.add(match_idx)
         old_ch = old[match_idx]
@@ -375,6 +386,8 @@ def diff_chapters(old: List[Dict[str, Any]], new: List[Dict[str, Any]]) -> Dict[
             "old_words": old_ch["words"],
             "new_words": new_ch["words"],
             "delta": new_ch["words"] - old_ch["words"],
+            "new_href": new_ch.get("href", ""),
+            "old_href": old_ch.get("href", ""),
         }
         if old_ch["words"] == new_ch["words"]:
             unchanged.append(entry)
@@ -382,18 +395,32 @@ def diff_chapters(old: List[Dict[str, Any]], new: List[Dict[str, Any]]) -> Dict[
             changed.append(entry)
 
     removed = [
-        {"title": old[i]["title"], "words": old[i]["words"], "old_index": old[i]["index"]}
+        {"title": old[i]["title"], "words": old[i]["words"], "old_index": old[i]["index"], "old_href": old[i].get("href", "")}
         for i in range(len(old)) if i not in matched_old
     ]
 
     old_total = sum(ch["words"] for ch in old)
     new_total = sum(ch["words"] for ch in new)
 
+    # Find the first "interesting" chapter in spine order on the NEW side so
+    # the UI can offer a one-click "Re-read changed chapters only" jump.
+    # Priority: added > changed (then earliest by new_index).
+    interesting = (
+        [(c["new_index"], c.get("new_href", ""), "added", c["title"]) for c in added]
+        + [(c["new_index"], c.get("new_href", ""), "changed", c["title"]) for c in changed]
+    )
+    interesting.sort(key=lambda t: t[0])
+    first_changed = None
+    if interesting:
+        idx, href, kind, title = interesting[0]
+        first_changed = {"new_index": idx, "new_href": href, "kind": kind, "title": title}
+
     return {
         "added_chapters": added,
         "removed_chapters": removed,
         "changed_chapters": changed,
         "unchanged_chapters": unchanged,
+        "first_changed_chapter": first_changed,
         "summary": {
             "old_chapter_count": len(old),
             "new_chapter_count": len(new),

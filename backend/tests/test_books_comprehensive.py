@@ -513,6 +513,18 @@ class TestVersionDiff:
             "old_total_words", "new_total_words", "words_delta",
         ):
             assert field in s, f"missing summary field: {field}"
+        # Each chapter has an href (used by the Reader chapter-jump feature)
+        for ch in body["new"]["chapters"]:
+            assert "href" in ch
+        for ch in body["old"]["chapters"]:
+            assert "href" in ch
+        # first_changed_chapter is populated when there's something to jump to
+        fc = body["diff"]["first_changed_chapter"]
+        assert fc is not None
+        assert fc["kind"] in ("added", "changed")
+        assert "new_href" in fc
+        assert "new_index" in fc
+        assert "title" in fc
 
     def test_diff_with_explicit_vs_param(self):
         """Passing ?vs={other_id} works without any link in mongo."""

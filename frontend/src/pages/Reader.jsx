@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { ReactReader } from "react-reader";
 import { ArrowLeft, BookOpen, Minus, Plus, BookText, AlignLeft } from "lucide-react";
 import { api } from "../lib/api";
@@ -10,6 +10,8 @@ const FLOW_KEY = "shelfsort-flow"; // "paginated" | "scrolled"
 export default function Reader() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const jumpAt = searchParams.get("at"); // chapter href to jump to on open
   const [book, setBook] = useState(null);
   const [bookData, setBookData] = useState(null);
   const [location, setLocation] = useState(null);
@@ -134,7 +136,20 @@ export default function Reader() {
     applyFont(fontSize);
 
     const saved = savedLocationRef.current;
-    if (saved) {
+    // If we have a ?at=<href> jump target, prefer it over the saved location.
+    // This is used by the "Re-read changed chapters" button on the Compare page.
+    if (jumpAt) {
+      try {
+        rendition.display(jumpAt);
+        toast.success("Jumped to changed chapter");
+      } catch (e) {
+        // Fallback: try the saved location instead
+        if (saved) {
+          try { rendition.display(saved); } catch (e2) {}
+        }
+      }
+      savedLocationRef.current = null;
+    } else if (saved) {
       try { rendition.display(saved); } catch (e) {}
       savedLocationRef.current = null;
     }

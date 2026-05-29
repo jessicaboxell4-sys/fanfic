@@ -208,6 +208,12 @@
 - **Bug fix**: `BookDetail.jsx` had two broken navigations using `/books/${id}` (plural) — the actual route is singular `/book/:id`. Fixed alongside this feature.
 - Tests: added `TestVersionDiff` class — 6 tests covering auto-resolve, explicit `?vs=`, 400 when no counterpart, 404 when book missing, 404 when counterpart missing, 404 when EPUB file missing on disk. **151 passing, 1 by-design skip, coverage 75.9%**.
 
+### Added 2026-05-29 (Re-read changed chapters jump)
+- **`extract_chapters`** now also emits the `href` (in-EPUB chapter path) per chapter; `diff_chapters` returns `new_href`/`old_href` on every entry and a top-level **`first_changed_chapter`** field (first added or changed chapter by spine order — what a returning reader actually wants to read).
+- **Reader** (`Reader.jsx`) reads a new `?at=<href>` query param via `useSearchParams` and calls `rendition.display(href)` on init to jump straight to that chapter (with a small "Jumped to changed chapter" toast). Falls back to saved location if epubjs can't resolve the href.
+- **Compare page** gains a prominent amber CTA card — "Jump straight to what changed" with a "Re-read changes" button that links to `/read/{new_book_id}?at=<first_changed_href>`. Individual chapter rows in the Added / Changed / Unchanged sections are also clickable (with role=button + keyboard support) to jump straight to that chapter. Removed-chapter rows stay non-clickable (no destination).
+- Test extended to assert `chapters` carry `href`, `first_changed_chapter` is populated with `kind`/`new_href`/`new_index`/`title`. **151 passing, coverage 75.9%**.
+
 ### Deferred / Declined
 - Google Drive import — declined by user (2026-02-28). Local upload remains the only ingest path.
 
