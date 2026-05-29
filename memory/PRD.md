@@ -84,6 +84,19 @@
   - Prev/next year navigation (next hidden when ≥ current year)
 - **Stats page**: gradient CTA card to open the current Year-in-Books
 
+### Added 2026-02-29 (Public sharing for Year-in-Books)
+- **Publicly shareable yearly recap** — anyone with the link can view the recap; no Shelfsort account needed:
+  - `POST /api/year-in-books/{year}/share` — create or return existing share token (idempotent per user+year)
+  - `GET /api/year-in-books/{year}/share` — view share status, public URL, view_count, last_viewed_at
+  - `DELETE /api/year-in-books/{year}/share` — revoke (link immediately stops working)
+  - `GET /api/public/year/{token}` — **unauthenticated** public endpoint; increments view counter, last_viewed_at; sanitises response (no email, no book_id)
+  - Mongo: new `year_in_books_shares` collection with unique index on `share_token` and compound index on `(user_id, year)`
+- **`PublicYearInBooks.jsx`** at `/share/yib/:token` (unprotected route):
+  - Same beautiful recap design, branded "Made on Shelfsort" CTA → /login
+  - Sets `document.title` + `og:title`/`og:description`/`twitter:card` meta tags for nicer link previews
+  - Friendly "This recap isn't available" not-found state for bad/revoked tokens
+- **`YearInBooksPage`**: Share dialog with copy-to-clipboard, "Open" link, view counter, and Revoke button. Button label switches between "Share this recap" and "Manage share link" based on share state.
+
 ### Deferred / Declined
 - Google Drive import — declined by user (2026-02-28). Local upload remains the only ingest path.
 
