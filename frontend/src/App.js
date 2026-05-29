@@ -16,6 +16,8 @@ import YearInBooksPage from "@/pages/YearInBooksPage";
 import PublicYearInBooks from "@/pages/PublicYearInBooks";
 import SmartShelves from "@/pages/SmartShelves";
 import SmartShelfPage from "@/pages/SmartShelfPage";
+import TagCloudPage from "@/pages/TagCloudPage";
+import TagShelfPage from "@/pages/TagShelfPage";
 import CantFindOnline from "@/pages/CantFindOnline";
 import Account from "@/pages/Account";
 import Reader from "@/pages/Reader";
@@ -55,6 +57,8 @@ function AppRouter() {
       <Route path="/library/year/:year" element={<ProtectedRoute><YearInBooksPage /></ProtectedRoute>} />
       <Route path="/library/smart-shelves" element={<ProtectedRoute><SmartShelves /></ProtectedRoute>} />
       <Route path="/library/smart/:id" element={<ProtectedRoute><SmartShelfPage /></ProtectedRoute>} />
+      <Route path="/library/tags" element={<ProtectedRoute><TagCloudPage /></ProtectedRoute>} />
+      <Route path="/library/tag/:name" element={<ProtectedRoute><TagShelfPage /></ProtectedRoute>} />
       <Route path="/library/cant-find-online" element={<ProtectedRoute><CantFindOnline /></ProtectedRoute>} />
       <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
       <Route path="/book/:id" element={<ProtectedRoute><BookDetail /></ProtectedRoute>} />

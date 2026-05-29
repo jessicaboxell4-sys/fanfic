@@ -110,6 +110,21 @@ export default function BookCard({ book, selectMode, selected, onToggleSelect, o
           {book.title}
         </h3>
         <p className="text-xs text-[#6B705C] mt-1 line-clamp-1">{book.author}</p>
+        {(book.tags || []).length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-2 max-h-7 overflow-hidden" data-testid={`book-tags-${book.book_id}`}>
+            {(book.tags || []).slice(0, 3).map((t) => (
+              <span
+                key={t}
+                className="text-[10px] bg-[#FDF3E1] text-[#B87A00] px-1.5 py-0.5 rounded-full font-semibold"
+              >
+                {t}
+              </span>
+            ))}
+            {(book.tags || []).length > 3 && (
+              <span className="text-[10px] text-[#6B705C]">+{book.tags.length - 3}</span>
+            )}
+          </div>
+        )}
       </div>
     </>
   );

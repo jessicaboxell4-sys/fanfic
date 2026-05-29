@@ -433,13 +433,23 @@ export default function SmartShelves() {
               Filters that stay alive — pin them to your dashboard for one-click access.
             </p>
           </div>
-          <button
-            onClick={() => { setEditing(null); setBuilderOpen(true); }}
-            data-testid="new-smart-shelf-btn"
-            className="btn-primary text-sm inline-flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" /> New smart shelf
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              to="/library/tags"
+              data-testid="open-tag-cloud"
+              className="btn-secondary text-sm inline-flex items-center gap-2"
+              title="Browse all tags"
+            >
+              <TagIcon className="w-4 h-4" /> Browse tags
+            </Link>
+            <button
+              onClick={() => { setEditing(null); setBuilderOpen(true); }}
+              data-testid="new-smart-shelf-btn"
+              className="btn-primary text-sm inline-flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" /> New smart shelf
+            </button>
+          </div>
         </div>
 
         {loading ? (

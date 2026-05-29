@@ -147,6 +147,13 @@
 - **Tests**: +22 new tests covering tag CRUD, normalization, bulk add/remove, rename, merge, delete-everywhere, smart-shelf CRUD, OR/AND combinators, status filter, preview-without-saving, 404s. Coverage held at **80.1%** with **139 passing**.
 - **UX polish**: pinned smart shelves now show even when the library is empty (lifted above the empty-state gate per testing-agent feedback).
 
+### Added 2026-02-29 (Tag discovery: cloud + per-tag shelf)
+- **`/library/tags`** (`TagCloudPage.jsx`) — tag cloud with 5-tier size scaling by usage, search box, sort by count/alpha. Tag count shown inline on each chip.
+- **`/library/tag/:name`** (`TagShelfPage.jsx`) — runs `tags_any` against `POST /api/smart-shelves/preview`; offers "Save as smart shelf" (auto-builds and navigates) and "Remove tag everywhere" (purges via `DELETE /api/tags/{name}`).
+- **`BookCard`** now shows up to 3 tag chips (with `+N` overflow indicator) — turns tags into a visible part of the grid.
+- **`SmartShelves` page** gets a "Browse tags" button alongside "New smart shelf".
+- Pure frontend addition — no new backend code (the existing `/api/tags`, `/api/smart-shelves/preview`, and `/api/tags/{name}` endpoints fully drive it). Tests held at 139/139, coverage 80.1%.
+
 ### Added 2026-02-29 (Codecov publishing + README)
 - `.github/workflows/backend-tests.yml`: added `codecov/codecov-action@v4` step — publishes `coverage.xml` on every push/PR with the `backend` flag.
 - `codecov.yml`: project target 60% (current baseline) with 1% threshold; patch target 70% with 5% threshold; sticky PR comment with diff + flags + files.
