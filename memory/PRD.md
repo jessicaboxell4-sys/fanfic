@@ -188,6 +188,14 @@
 - `README.md`: real project README with build + codecov badges, feature list, tech stack, env vars, codebase layout, and the test-running incantation. Replace `OWNER/REPO` in the badges after pushing to GitHub.
 - Codecov token (`CODECOV_TOKEN`) only needed for private repos; public repos auto-publish.
 
+### Added 2026-05-29 (Per-refresh dated shelves — version history preserved)
+- **`apply_refresh`** in `routes/books.py` now puts every freshly-downloaded EPUB on its own date-stamped shelf `Updated stories YYYY-MM-DD` (helper `_updated_shelf_name`) instead of a single bucket. Each refresh batch is clearly separated; previous versions all collect on the constant `Old stories` shelf.
+- The dated shelf is **auto-registered** in the `categories` collection (idempotent upsert) so it surfaces in the Dashboard chip list.
+- The new book record links back via `replaces` (old book_id); the archived record gets `replaced_by`, `replaced_at`, and `category="Old stories"`. Tags / fandom / series / source_url all carry over.
+- `refresh-all` and `refresh-status` now skip books with `replaced_by` set or category `"Old stories"` — prevents chain-refreshes of archived versions.
+- `POST /books/{id}/refresh` response gains `updated_shelf` field; toast in `BookDetail.jsx` shows the dated shelf name.
+- Tests: updated `test_refresh_book_succeeds_with_fresh_epub` to assert new shape + tag carry-over, added `test_refresh_skips_already_archived_books`, plus testing-agent added `test_refresh_registers_dated_shelf_and_filters`. **145 passing, 1 by-design skip, coverage 75.4%** (CI gate ≥75%).
+
 ### Deferred / Declined
 - Google Drive import — declined by user (2026-02-28). Local upload remains the only ingest path.
 
