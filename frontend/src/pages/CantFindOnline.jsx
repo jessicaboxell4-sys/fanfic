@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
+import PoweredByFanFicFare from "../components/PoweredByFanFicFare";
 import { api, API } from "../lib/api";
 import { ArrowLeft, ExternalLink, RefreshCw, Edit3, Download, Loader2, Book, AlertTriangle, CheckCircle2, RotateCw } from "lucide-react";
 import { toast } from "sonner";
@@ -148,6 +149,9 @@ export default function CantFindOnline() {
               FanFicFare couldn't find these online. Try a same-site search to see if the work moved,
               then paste the new URL to bring it back into your refresh queue.
             </p>
+            <div className="mt-4">
+              <PoweredByFanFicFare />
+            </div>
           </div>
           {books.length > 0 && (
             <div className="flex items-center gap-2 flex-wrap">

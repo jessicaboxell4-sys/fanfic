@@ -7,6 +7,7 @@ import UploadZone from "../components/UploadZone";
 import SelectionBar from "../components/SelectionBar";
 import ContinueReadingRail from "../components/ContinueReadingRail";
 import StatsCard from "../components/StatsCard";
+import PoweredByFanFicFare from "../components/PoweredByFanFicFare";
 import { Search, X, Plus, ArrowRight, CheckSquare, Sparkles, Loader2, RefreshCw, Library, UserCircle2, Filter, Pin } from "lucide-react";
 import { toast } from "sonner";
 
@@ -270,6 +271,9 @@ export default function Dashboard() {
             />
             <h2 className="font-serif text-2xl text-[#2C2C2C] mb-2">No books just yet</h2>
             <p className="text-[#6B705C]">Drop a few EPUBs above to start sorting your library.</p>
+            <div className="mt-6 flex justify-center">
+              <PoweredByFanFicFare />
+            </div>
           </div>
         ) : (
           <>
