@@ -28,6 +28,7 @@ from deps import (
     db, app, api_router, logger, ROOT_DIR, STORAGE_DIR,
     EMERGENT_LLM_KEY, RESET_TOKEN_TTL_HOURS, RESEND_API_KEY,
     SENDER_EMAIL, FRONTEND_URL,
+    COOKIE_SECURE, COOKIE_SAMESITE,
 )
 from models import User, BookOut
 from auth_dep import get_current_user
@@ -90,8 +91,8 @@ async def auth_google(request: Request, response: Response):
         value=session_token,
         max_age=7 * 24 * 60 * 60,
         httponly=True,
-        secure=True,
-        samesite="none",
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
         path="/",
     )
     return {"user_id": user_id, "email": email, "name": name, "picture": picture}
@@ -144,8 +145,8 @@ async def _issue_session(user_id: str, response: Response) -> str:
         value=token,
         max_age=7 * 24 * 60 * 60,
         httponly=True,
-        secure=True,
-        samesite="none",
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
         path="/",
     )
     return token

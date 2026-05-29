@@ -107,6 +107,14 @@
 - Zero behavioral change. 106/106 regression tests pass. Backend healthy.
 - `books.py` is still 1,521 lines and a candidate for further splitting (epub parsing / fichub / classification → `services/`).
 
+### Added 2026-02-29 (CI: pytest coverage gate)
+- Installed `pytest-cov` + `coverage` (added to `requirements.txt`).
+- `backend/scripts/run_coverage.sh` — starts uvicorn under `coverage run` so true coverage is recorded while integration tests hit the running server via HTTP. Configurable `--fail-under=N`.
+- `backend/pytest.ini` + `backend/.coveragerc` — coverage scope: app code only, sensible excludes.
+- `.github/workflows/backend-tests.yml` — runs pytest with coverage on every push/PR to `backend/**`; fails build below 60% (current baseline 64.8%). MongoDB 7 service container provided. Coverage XML uploaded as artifact.
+- Tweak: added `COOKIE_SECURE`/`COOKIE_SAMESITE` env vars so integration tests can run over plain HTTP without dropping session cookies. Production still uses `secure=true; samesite=none`.
+- Per-module coverage today: stats 90% · year 92% · series_categories 91% · digest 63% · auth 56% · books 53%. The next wins are in `books.py` (EPUB upload, FicHub refresh, AI classification — all need external-service mocks).
+
 ### Deferred / Declined
 - Google Drive import — declined by user (2026-02-28). Local upload remains the only ingest path.
 

@@ -31,6 +31,13 @@ RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
 SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "")
 
+# Session-cookie security flags. In production these are set so cookies
+# only travel over HTTPS and cross-origin (the SPA lives on a separate
+# subdomain). For local HTTP integration tests `COOKIE_SECURE=false`
+# emits a plain cookie so `requests.Session` will echo it back.
+COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "true").lower() not in ("0", "false", "no")
+COOKIE_SAMESITE = os.environ.get("COOKIE_SAMESITE", "none" if COOKIE_SECURE else "lax")
+
 # FastAPI singletons
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
