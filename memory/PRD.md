@@ -97,6 +97,16 @@
   - Friendly "This recap isn't available" not-found state for bad/revoked tokens
 - **`YearInBooksPage`**: Share dialog with copy-to-clipboard, "Open" link, view counter, and Revoke button. Button label switches between "Share this recap" and "Manage share link" based on share state.
 
+### Added 2026-02-29 (Backend refactor — modular routers)
+- Split monolithic `server.py` (3,110 lines) into modular files:
+  - `server.py` (50 lines) — slim FastAPI entry-point, scheduler bootstrap, lifecycle hooks
+  - `deps.py` — shared singletons (app, api_router, db, env, logger)
+  - `models.py` — Pydantic models
+  - `auth_dep.py` — `get_current_user` dependency
+  - `routes/auth.py` (462) · `routes/books.py` (1,521) · `routes/stats.py` (192) · `routes/series_categories.py` (103) · `routes/digest.py` (416) · `routes/year.py` (473) · `routes/root.py` (38)
+- Zero behavioral change. 106/106 regression tests pass. Backend healthy.
+- `books.py` is still 1,521 lines and a candidate for further splitting (epub parsing / fichub / classification → `services/`).
+
 ### Deferred / Declined
 - Google Drive import — declined by user (2026-02-28). Local upload remains the only ingest path.
 
