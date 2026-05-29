@@ -27,6 +27,11 @@ export REACT_APP_BACKEND_URL="http://${HOST}:${PORT}"
 export CORS_ORIGINS=${CORS_ORIGINS:-*}
 export COOKIE_SECURE=${COOKIE_SECURE:-false}
 export COOKIE_SAMESITE=${COOKIE_SAMESITE:-lax}
+# Point the server's FicHub client at a local mock that the test process spins up.
+export FICHUB_BASE_URL=${FICHUB_BASE_URL:-http://127.0.0.1:8766}
+# Bypass Claude with canned response so classify_with_ai exercises full path
+export EMERGENT_LLM_KEY=${EMERGENT_LLM_KEY:-test-classifier-key}
+export SHELFSORT_TEST_AI_RESPONSE=${SHELFSORT_TEST_AI_RESPONSE:-'{"category":"Fanfiction","fandom":"Harry Potter","confidence":0.85}'}
 export COVERAGE_PROCESS_START="$PWD/.coveragerc"
 
 # Clean previous coverage data

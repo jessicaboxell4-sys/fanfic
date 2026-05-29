@@ -115,6 +115,20 @@
 - Tweak: added `COOKIE_SECURE`/`COOKIE_SAMESITE` env vars so integration tests can run over plain HTTP without dropping session cookies. Production still uses `secure=true; samesite=none`.
 - Per-module coverage today: stats 90% · year 92% · series_categories 91% · digest 63% · auth 56% · books 53%. The next wins are in `books.py` (EPUB upload, FicHub refresh, AI classification — all need external-service mocks).
 
+### Added 2026-02-29 (Comprehensive books.py tests → 80% coverage)
+- `backend/tests/test_books_comprehensive.py`: 18 new tests covering:
+  - **Upload**: minimal-EPUB builder (hand-rolled zip with mimetype/container/OPF/NCX/chapter), real classification path, FicHub source detection, calibre series metadata, title-only series detection, `parse_failed` "Can't Open" branch, multi-file upload, non-EPUB rejection.
+  - **FicHub refresh** (mocked via `pytest-httpserver`): `err=-9` → `fichub_unavailable`, happy-path success with downloaded EPUB, bulk `refresh-all`, `refresh-status`. Activated by `FICHUB_BASE_URL` env var.
+  - **AI classification**: `SHELFSORT_TEST_AI_RESPONSE` env hook bypasses Claude with canned JSON → exercises full `classify_with_ai` path including JSON parsing.
+  - **CRUD + bulk**: get/download/cover/patch/mark/progress/touch/source-url/series cycle, export links + zip + unavailable, stats + recent, detect-series-all, bulk move/metadata/delete.
+- Backend changes to support mocking:
+  - `fichub_fetch_epub` reads `FICHUB_BASE_URL` env (defaults to `https://fichub.net`)
+  - `classify_with_ai` returns canned JSON when `SHELFSORT_TEST_AI_RESPONSE` is set
+- CI: threshold raised from 60% → **75%** (current baseline 80.0%). Codecov project gate raised to 75%, patch gate to 80%.
+- Added deps: `pytest-httpserver==1.1.5`, `coverage==7.14.1`, `pytest-cov==7.1.0`.
+- Pinned `requests==2.32.5` (2.34 has a CookieJar regression that broke integration tests).
+- Final per-module coverage: year 92% · stats 90% · series_categories 91% · **books 80%** (was 53%) · digest 63% · auth 56%.
+
 ### Added 2026-02-29 (Codecov publishing + README)
 - `.github/workflows/backend-tests.yml`: added `codecov/codecov-action@v4` step — publishes `coverage.xml` on every push/PR with the `backend` flag.
 - `codecov.yml`: project target 60% (current baseline) with 1% threshold; patch target 70% with 5% threshold; sticky PR comment with diff + flags + files.

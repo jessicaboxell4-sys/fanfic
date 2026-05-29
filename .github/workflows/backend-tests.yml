@@ -39,6 +39,9 @@ jobs:
       CORS_ORIGINS: "*"
       COOKIE_SECURE: "false"
       COOKIE_SAMESITE: "lax"
+      FICHUB_BASE_URL: "http://127.0.0.1:8766"
+      EMERGENT_LLM_KEY: "test-classifier-key"
+      SHELFSORT_TEST_AI_RESPONSE: '{"category":"Fanfiction","fandom":"Harry Potter","confidence":0.85}'
 
     steps:
       - uses: actions/checkout@v4
@@ -57,18 +60,16 @@ jobs:
           pip install -r requirements.txt
           pip install emergentintegrations --extra-index-url https://d33sy5i8bnduwe.cloudfront.net/simple/ || true
 
-      - name: Run pytest with TRUE coverage (fails below 60%)
+      - name: Run pytest with TRUE coverage (fails below 75%)
         working-directory: backend
         env:
           MONGO_URL: mongodb://localhost:27017
           DB_NAME: shelfsort_ci
-        # NOTE: current baseline is ~65%. Raise --fail-under as more tests are
-        # added (target: 70%). The biggest coverage gap is in routes/books.py
-        # — EPUB upload, FicHub refresh, and AI classification need mocked
-        # external services to be properly exercised.
+        # Current baseline ~80%. Threshold set to 75% to allow small
+        # regressions. Raise as coverage continues to grow.
         run: |
           mkdir -p test_reports/pytest
-          ./scripts/run_coverage.sh --fail-under=60
+          ./scripts/run_coverage.sh --fail-under=75
 
       - name: Upload coverage XML
         if: always()

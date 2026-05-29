@@ -311,10 +311,12 @@ async def fichub_fetch_epub(source_url: str) -> tuple:
     Returns (epub_bytes, fichub_meta_dict). Raises HTTPException on failure.
     """
     loop = asyncio.get_event_loop()
+    # FICHUB_BASE_URL lets the test suite redirect calls to a local mock server.
+    base = os.environ.get("FICHUB_BASE_URL", "https://fichub.net").rstrip("/")
 
     def _meta_call():
         r = http_requests.get(
-            "https://fichub.net/api/v0/epub",
+            f"{base}/api/v0/epub",
             params={"q": source_url},
             headers={"User-Agent": FICHUB_USER_AGENT, "Accept": "application/json"},
             timeout=90,
@@ -333,7 +335,7 @@ async def fichub_fetch_epub(source_url: str) -> tuple:
         msg = data.get("info") or data.get("msg") or "couldn't generate EPUB"
         # err -9 is FicHub's generic "couldn't fetch this story" code — treat as not-found.
         # Any non-zero err is also treated as unavailable so we stop hammering FicHub.
-        detail = f"FicHub couldn't find this story" if err_code in (-9, -1) else f"FicHub: {msg}"
+        detail = "FicHub couldn't find this story" if err_code in (-9, -1) else f"FicHub: {msg}"
         raise FicHubNotFoundError(detail)
 
     urls = data.get("urls") or {}
@@ -341,7 +343,7 @@ async def fichub_fetch_epub(source_url: str) -> tuple:
     if not epub_href:
         raise HTTPException(status_code=502, detail="FicHub returned no EPUB URL")
     if epub_href.startswith("/"):
-        epub_href = f"https://fichub.net{epub_href}"
+        epub_href = f"{base}{epub_href}"
 
     def _epub_call():
         r = http_requests.get(
@@ -447,6 +449,20 @@ async def classify_with_ai(meta: Dict[str, Any]) -> Dict[str, Any]:
     """Use Claude to classify when metadata heuristics are uncertain."""
     if not EMERGENT_LLM_KEY:
         return {"category": "Unclassified", "fandom": None, "confidence": 0.0, "classifier": "ai"}
+
+    # Test hook: when set, return this canned JSON instead of calling Claude.
+    canned = os.environ.get("SHELFSORT_TEST_AI_RESPONSE")
+    if canned:
+        try:
+            obj = json.loads(canned)
+            return {
+                "category": obj.get("category", "Unclassified"),
+                "fandom": obj.get("fandom"),
+                "confidence": float(obj.get("confidence", 0.8)),
+                "classifier": "ai",
+            }
+        except Exception:
+            pass
 
     system_msg = (
         "You are a librarian classifying ebooks. Given book metadata, respond with strict JSON only: "

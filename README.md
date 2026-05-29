@@ -24,7 +24,7 @@ A FastAPI + React + MongoDB app that auto-categorises your EPUB library (Fanfict
 
 - **Backend**: FastAPI · Motor (async MongoDB) · APScheduler · bcrypt · Resend · ebooklib + BeautifulSoup
 - **Frontend**: React · React Router · Tailwind CSS · shadcn/ui · epubjs · Sonner toasts
-- **Tests**: pytest + integration suite (106 tests, ~65% coverage). Coverage gate enforced in CI.
+- **Tests**: pytest + integration suite (124 tests, ~80% coverage). Coverage gate enforced in CI.
 
 ## Local development
 
@@ -46,8 +46,8 @@ cd backend
 pytest tests/
 
 # True coverage — starts uvicorn under `coverage run` so the integration
-# tests hit an instrumented server. Threshold currently 60%.
-./scripts/run_coverage.sh --fail-under=60
+# tests hit an instrumented server. Threshold currently 75%.
+./scripts/run_coverage.sh --fail-under=75
 ```
 
 CI runs the same script on every push/PR and uploads the coverage XML to Codecov.
