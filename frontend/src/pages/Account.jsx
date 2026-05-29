@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
-import { User as UserIcon, Mail, Lock, Loader2, Mail as MailIcon, Send, Calendar } from "lucide-react";
+import { User as UserIcon, Mail, Lock, Loader2, Mail as MailIcon, Send, Calendar, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 function errMsg(d) {
@@ -30,6 +30,11 @@ export default function Account() {
   const [savingDigest, setSavingDigest] = useState(false);
   const [sendingPreview, setSendingPreview] = useState(false);
 
+  // Fic-update email settings
+  const [updateEmail, setUpdateEmail] = useState(null);
+  const [savingUpdateEmail, setSavingUpdateEmail] = useState(false);
+  const [sendingUpdatePreview, setSendingUpdatePreview] = useState(false);
+
   useEffect(() => {
     (async () => {
       try {
@@ -44,8 +49,44 @@ export default function Account() {
         const { data: d } = await api.get("/user/digest-settings");
         setDigest(d);
       } catch (e) { /* ignore */ }
+      try {
+        const { data: u } = await api.get("/user/update-email-settings");
+        setUpdateEmail(u);
+      } catch (e) { /* ignore */ }
     })();
   }, [navigate]);
+
+  const saveUpdateEmail = async (next) => {
+    setSavingUpdateEmail(true);
+    try {
+      const { data } = await api.put("/user/update-email-settings", next);
+      setUpdateEmail((u) => ({ ...(u || {}), ...data }));
+      toast.success(next.enabled === false ? "Fic-update emails paused" : "Fic-update emails enabled");
+    } catch (e) {
+      toast.error(errMsg(e?.response?.data?.detail));
+    } finally {
+      setSavingUpdateEmail(false);
+    }
+  };
+
+  const sendUpdatePreview = async () => {
+    setSendingUpdatePreview(true);
+    try {
+      const { data } = await api.post("/user/update-email-preview");
+      if (data.delivered) {
+        toast.success(`Preview sent to ${profile.email}`);
+      } else if (data.logged) {
+        toast.warning("Email sending isn't configured on this server — but the preview was logged.");
+        console.log("Update digest summary:", data.summary);
+      } else {
+        toast.error(data.error || "Couldn't send preview");
+      }
+    } catch (e) {
+      toast.error(errMsg(e?.response?.data?.detail));
+    } finally {
+      setSendingUpdatePreview(false);
+    }
+  };
 
   const saveDigest = async (next) => {
     setSavingDigest(true);
@@ -276,6 +317,75 @@ export default function Account() {
                 </button>
                 <p className="text-xs text-[#6B705C]">
                   Useful for previewing the layout without waiting for the schedule.
+                </p>
+              </div>
+            </>
+          )}
+        </section>
+
+        {/* Fic-update emails */}
+        <section className="shelf-card p-6 mb-6" data-testid="update-email-card">
+          <div className="flex items-start gap-3 mb-1">
+            <div className="w-10 h-10 rounded-xl bg-[#EEF3EC] text-[#3A5A40] flex items-center justify-center flex-shrink-0">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="font-serif text-2xl text-[#2C2C2C]">Fic-update emails</h2>
+              <p className="text-sm text-[#6B705C] mt-0.5">
+                The instant any of your fanfics get refreshed, we'll email you a summary —
+                new chapters, edits, and a one-click jump to what changed. Best paired with
+                the "Refresh all" button or a scheduled sweep.
+              </p>
+            </div>
+          </div>
+
+          {updateEmail === null ? (
+            <p className="text-sm text-[#6B705C] mt-4">Loading…</p>
+          ) : (
+            <>
+              {!updateEmail.email_configured && (
+                <p className="text-xs text-[#B87A00] bg-[#FDF3E1] rounded-lg p-3 mt-4" data-testid="update-email-warning">
+                  Email delivery isn't fully configured on this server yet. Your preference is saved; once Resend is set up, emails will start arriving.
+                </p>
+              )}
+
+              <div className="mt-5 flex items-center justify-between gap-3 p-3 rounded-xl border border-[#E8E6E1] bg-white">
+                <div>
+                  <p className="text-sm font-semibold text-[#2C2C2C]">Email me when my fics update</p>
+                  <p className="text-xs text-[#6B705C]">One email per refresh batch · only when there's something to report.</p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={updateEmail.enabled}
+                  data-testid="update-email-toggle"
+                  disabled={savingUpdateEmail}
+                  onClick={() => saveUpdateEmail({ enabled: !updateEmail.enabled })}
+                  className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors flex-shrink-0 ${
+                    updateEmail.enabled ? "bg-[#3A5A40]" : "bg-[#E8E6E1]"
+                  } ${savingUpdateEmail ? "opacity-60" : ""}`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                      updateEmail.enabled ? "translate-x-6" : "translate-x-1"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div className="mt-5 flex flex-wrap gap-2 items-center border-t border-[#E8E6E1] pt-4">
+                <button
+                  type="button"
+                  onClick={sendUpdatePreview}
+                  disabled={sendingUpdatePreview}
+                  data-testid="update-email-preview-btn"
+                  className="btn-secondary text-sm flex items-center gap-2 disabled:opacity-60"
+                >
+                  {sendingUpdatePreview ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  Send me a sample
+                </button>
+                <p className="text-xs text-[#6B705C]">
+                  Uses your 10 most-recently refreshed fics. (Needs at least one prior refresh.)
                 </p>
               </div>
             </>

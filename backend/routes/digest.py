@@ -429,6 +429,222 @@ async def _digest_tick():
         logger.warning("FicHub recovery probe failed: %s", e)
 
 
+
+# ============================================================
+# FANFIC UPDATE DIGEST (sent after refresh-all runs)
+# ============================================================
+
+class UpdateEmailBody(BaseModel):
+    enabled: Optional[bool] = None
+
+
+def _get_update_email_prefs(user_doc: Dict[str, Any]) -> Dict[str, Any]:
+    return {"enabled": bool((user_doc.get("update_email") or {}).get("enabled", False))}
+
+
+async def _build_update_digest_payload(
+    user_doc: Dict[str, Any],
+    new_book_ids: List[str],
+) -> Optional[Dict[str, Any]]:
+    """Build a 'your fics just updated' email payload. Returns None if no eligible books."""
+    name = (user_doc.get("name") or user_doc.get("email", "").split("@")[0] or "there").split(" ")[0]
+    books = await db.books.find(
+        {"user_id": user_doc["user_id"], "book_id": {"$in": new_book_ids}},
+        {"_id": 0},
+    ).to_list(len(new_book_ids))
+    # Sort: biggest "new chapters" first, then by most-recent refresh
+    books.sort(
+        key=lambda b: (
+            -(b.get("refresh_summary") or {}).get("chapters_added", 0),
+            -(b.get("refresh_summary") or {}).get("chapters_changed", 0),
+            b.get("last_refreshed_at", ""),
+        )
+    )
+    if not books:
+        return None
+
+    base = (FRONTEND_URL or "").rstrip("/")
+    total_added = sum((b.get("refresh_summary") or {}).get("chapters_added", 0) for b in books)
+    total_changed = sum((b.get("refresh_summary") or {}).get("chapters_changed", 0) for b in books)
+
+    headline = f"{len(books)} fic{'s' if len(books) != 1 else ''} updated"
+    if total_added > 0:
+        headline += f" · +{total_added} new chapter{'s' if total_added != 1 else ''}"
+    subject = f"Shelfsort · {headline}"
+
+    rows_html: List[str] = []
+    for b in books:
+        rs = b.get("refresh_summary") or {}
+        added = rs.get("chapters_added", 0)
+        changed = rs.get("chapters_changed", 0)
+        compare_url = f"{base}/book/{b['book_id']}/compare"
+        pill_parts: List[str] = []
+        if added > 0:
+            pill_parts.append(
+                f'<span style="display:inline-block;padding:3px 9px;border-radius:999px;background:#EEF3EC;color:#3A5A40;font-size:11px;font-weight:600;margin-right:6px;">+{added} new</span>'
+            )
+        if changed > 0:
+            pill_parts.append(
+                f'<span style="display:inline-block;padding:3px 9px;border-radius:999px;background:#FDF3E1;color:#B87A00;font-size:11px;font-weight:600;margin-right:6px;">{changed} edited</span>'
+            )
+        if not pill_parts:
+            pill_parts.append(
+                '<span style="display:inline-block;padding:3px 9px;border-radius:999px;background:#F1EFE8;color:#6E6E6E;font-size:11px;font-weight:600;margin-right:6px;">Refreshed</span>'
+            )
+        fandom_html = f' · {b.get("fandom")}' if b.get("fandom") else ""
+        rows_html.append(f"""
+            <tr><td style="padding:14px 0;border-bottom:1px solid #F1EFE8;">
+              <p style="margin:0 0 4px 0;font-family:Georgia,serif;font-size:16px;color:#2C2C2C;">{b.get("title","")}</p>
+              <p style="margin:0 0 8px 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#6B705C;">{b.get("author","")}{fandom_html}</p>
+              <p style="margin:0 0 8px 0;">{"".join(pill_parts)}</p>
+              <a href="{compare_url}" style="font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#3A5A40;text-decoration:underline;font-weight:600;">See what changed →</a>
+            </td></tr>
+        """)
+    rows_html_str = "".join(rows_html)
+
+    library_url = f"{base}/library"
+
+    html = f"""
+    <!DOCTYPE html>
+    <html><body style="margin:0;padding:0;background:#FBF7EE;font-family:Helvetica,Arial,sans-serif;color:#2C2C2C;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#FBF7EE;padding:32px 16px;">
+      <tr><td align="center">
+        <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #E8E6E1;border-radius:16px;padding:32px;">
+          <tr><td>
+            <p style="margin:0 0 8px 0;font-size:11px;letter-spacing:3px;color:#3A5A40;font-weight:bold;text-transform:uppercase;">Shelfsort · fic updates</p>
+            <h1 style="margin:0 0 8px 0;color:#2C2C2C;font-size:28px;line-height:1.2;font-family:Georgia,serif;">Hi {name}, your fics just updated</h1>
+            <p style="margin:0 0 24px 0;color:#6B705C;font-size:15px;line-height:1.6;">
+              {headline}. Jump straight to what's new — your reading progress on the old version stays intact.
+            </p>
+            <table width="100%" cellpadding="0" cellspacing="0">{rows_html_str}</table>
+            <p style="margin:32px 0 0 0;text-align:center;">
+              <a href="{library_url}" style="display:inline-block;background:#3A5A40;color:#ffffff;text-decoration:none;padding:13px 22px;border-radius:10px;font-weight:600;font-size:14px;">Open your library</a>
+            </p>
+            <p style="margin:28px 0 0 0;color:#6B705C;font-size:11px;text-align:center;">
+              You're receiving this because you turned on fic-update emails.
+              Change your settings any time in <a href="{base}/account" style="color:#3A5A40;">your account</a>.
+            </p>
+          </td></tr>
+        </table>
+      </td></tr>
+    </table>
+    </body></html>
+    """
+
+    text_lines = [f"Hi {name},", "", f"{headline}.", ""]
+    for b in books:
+        rs = b.get("refresh_summary") or {}
+        parts: List[str] = []
+        if rs.get("chapters_added"):
+            parts.append(f"+{rs['chapters_added']} new")
+        if rs.get("chapters_changed"):
+            parts.append(f"{rs['chapters_changed']} edited")
+        bits = (" (" + ", ".join(parts) + ")") if parts else ""
+        text_lines.append(f"  · {b.get('title','')}{bits} — {base}/book/{b['book_id']}/compare")
+    text_lines += ["", f"Open your library: {library_url}", "", "— Shelfsort"]
+
+    summary = {
+        "book_count": len(books),
+        "total_added": total_added,
+        "total_changed": total_changed,
+    }
+    return {"subject": subject, "html": html, "text": text_lines and "\n".join(text_lines), "summary": summary}
+
+
+async def _send_update_digest_email(
+    user_doc: Dict[str, Any],
+    new_book_ids: List[str],
+) -> Dict[str, Any]:
+    """Send the update digest email. Caller should have already checked the user's preference."""
+    payload = await _build_update_digest_payload(user_doc, new_book_ids)
+    if not payload:
+        return {"delivered": False, "reason": "no_books"}
+    to_email = user_doc["email"]
+    if not RESEND_API_KEY:
+        logger.warning(
+            "RESEND_API_KEY not set — would have sent fic-update digest to %s (%d books)",
+            to_email, payload["summary"]["book_count"],
+        )
+        return {"delivered": False, "logged": True, "summary": payload["summary"]}
+    try:
+        resend.api_key = RESEND_API_KEY
+        params = {
+            "from": SENDER_EMAIL,
+            "to": [to_email],
+            "subject": payload["subject"],
+            "html": payload["html"],
+            "text": payload["text"],
+        }
+        result = await asyncio.to_thread(resend.Emails.send, params)
+        return {"delivered": True, "id": result.get("id"), "summary": payload["summary"]}
+    except Exception as e:
+        logger.error("Update-digest Resend send failed for %s: %s", to_email, e)
+        return {"delivered": False, "error": str(e), "summary": payload["summary"]}
+
+
+async def maybe_send_update_digest(user_id: str, new_book_ids: List[str]) -> None:
+    """If the user opted in, send a fic-update digest. Failures are logged, not raised."""
+    if not new_book_ids:
+        return
+    try:
+        user_doc = await db.users.find_one({"user_id": user_id})
+        if not user_doc:
+            return
+        prefs = _get_update_email_prefs(user_doc)
+        if not prefs["enabled"]:
+            return
+        await _send_update_digest_email(user_doc, new_book_ids)
+    except Exception as e:
+        logger.warning("maybe_send_update_digest failed for user %s: %s", user_id, e)
+
+
+@api_router.get("/user/update-email-settings")
+async def get_update_email_settings(user: User = Depends(get_current_user)):
+    user_doc = await db.users.find_one({"user_id": user.user_id}) or {}
+    prefs = _get_update_email_prefs(user_doc)
+    return {
+        "enabled": prefs["enabled"],
+        "email_configured": bool(RESEND_API_KEY),
+    }
+
+
+@api_router.put("/user/update-email-settings")
+async def update_update_email_settings(
+    body: UpdateEmailBody,
+    user: User = Depends(get_current_user),
+):
+    user_doc = await db.users.find_one({"user_id": user.user_id}) or {}
+    prefs = _get_update_email_prefs(user_doc)
+    if body.enabled is not None:
+        prefs["enabled"] = bool(body.enabled)
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": {"update_email": prefs}},
+    )
+    return {"enabled": prefs["enabled"]}
+
+
+@api_router.post("/user/update-email-preview")
+async def send_update_email_preview(user: User = Depends(get_current_user)):
+    """Send a preview using the user's 10 most-recent refreshed books."""
+    user_doc = await db.users.find_one({"user_id": user.user_id})
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="User not found")
+    # Pull the 10 most recent refreshed books regardless of seen-state
+    recent = await db.books.find(
+        {"user_id": user.user_id, "replaces": {"$ne": None, "$exists": True}},
+        {"_id": 0, "book_id": 1},
+    ).sort("last_refreshed_at", -1).limit(10).to_list(10)
+    bids = [b["book_id"] for b in recent]
+    if not bids:
+        raise HTTPException(
+            status_code=400,
+            detail="No refreshed books yet — run a refresh to generate sample data, then try again.",
+        )
+    return await _send_update_digest_email(user_doc, bids)
+
+
+
 def start_digest_scheduler():
     global _scheduler
     if _scheduler:

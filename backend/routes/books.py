@@ -1486,12 +1486,15 @@ async def refresh_all(user: User = Depends(get_current_user)):
             eligible.append((b, src))
 
     refreshed = 0
+    refreshed_new_ids: List[str] = []
     failures: List[Dict[str, str]] = []
     marked_unavailable = 0
     for b, src in eligible:
         try:
-            await apply_refresh(b, user.user_id, src)
+            result = await apply_refresh(b, user.user_id, src)
             refreshed += 1
+            if result.get("new_book_id"):
+                refreshed_new_ids.append(result["new_book_id"])
             await db.books.update_one(
                 {"book_id": b["book_id"], "user_id": user.user_id},
                 {"$set": {"fichub_unavailable": False, "fichub_last_error": None}},
@@ -1512,6 +1515,14 @@ async def refresh_all(user: User = Depends(get_current_user)):
         except Exception as e:
             failures.append({"book_id": b["book_id"], "title": b.get("title", ""), "error": str(e)})
         await asyncio.sleep(1.5)
+
+    # If anything was refreshed, fire off the opt-in fic-update digest (best-effort)
+    if refreshed_new_ids:
+        try:
+            from routes.digest import maybe_send_update_digest  # lazy to avoid circular
+            asyncio.create_task(maybe_send_update_digest(user.user_id, refreshed_new_ids))
+        except Exception as e:
+            logger.warning("Failed to schedule update digest: %s", e)
 
     return {
         "eligible": len(eligible),
@@ -1590,13 +1601,16 @@ async def _sweep_user_unavailable(user_id: str) -> Dict[str, int]:
 
     refreshed = 0
     still_unavailable = 0
+    refreshed_new_ids: List[str] = []
     for b in books:
         src = b.get("source_url")
         if not src:
             continue
         try:
-            await apply_refresh(b, user_id, src)
+            result = await apply_refresh(b, user_id, src)
             refreshed += 1
+            if result.get("new_book_id"):
+                refreshed_new_ids.append(result["new_book_id"])
         except FicHubNotFoundError as e:
             await db.books.update_one(
                 {"book_id": b["book_id"], "user_id": user_id},
@@ -1610,6 +1624,13 @@ async def _sweep_user_unavailable(user_id: str) -> Dict[str, int]:
         except Exception:
             pass
         await asyncio.sleep(1.5)
+    # Best-effort opt-in digest
+    if refreshed_new_ids:
+        try:
+            from routes.digest import maybe_send_update_digest  # lazy import
+            asyncio.create_task(maybe_send_update_digest(user_id, refreshed_new_ids))
+        except Exception as e:
+            logger.warning("Failed to schedule update digest from sweep: %s", e)
     return {"attempted": len(books), "refreshed": refreshed, "still_unavailable": still_unavailable}
 
 

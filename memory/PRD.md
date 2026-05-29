@@ -224,6 +224,18 @@
 - Polling: 60-second interval (lightweight, MongoDB query is indexed on user_id).
 - Tests: **`TestRecentUpdates`** — 5 tests covering unseen listing, single mark-seen, bulk mark-seen, 404 on bad id, regular-uploads-excluded. **156 passing, 1 by-design skip, coverage 76.4%**.
 
+### Added 2026-05-29 (Opt-in "your fics just updated" email digest)
+- **`routes/digest.py`**: new `_build_update_digest_payload()` + `_send_update_digest_email()` build a warm, paper-themed HTML email listing every freshly-refreshed book with +N new / N edited pills and direct "See what changed →" links to its Compare page. Text fallback included for plain-text clients.
+- **`maybe_send_update_digest(user_id, new_book_ids)`** — gated helper called via lazy import from `books.py`. Checks the user's `update_email.enabled` preference; silently noops if disabled. All errors are caught and logged.
+- **`refresh-all` and `_sweep_user_unavailable`** both collect the new `book_id`s of every successful refresh, then fire-and-forget the digest via `asyncio.create_task(...)` so the API response stays fast.
+- New endpoints:
+  - `GET  /api/user/update-email-settings` → `{enabled, email_configured}`
+  - `PUT  /api/user/update-email-settings` body `{enabled: bool}`
+  - `POST /api/user/update-email-preview` — sends a sample using the user's 10 most-recently refreshed books (400 if none yet).
+- **`Account.jsx`**: new "Fic-update emails" card (sparkle icon, green accent) with a toggle, "Send me a sample" CTA, and the standard "email delivery not configured" warning when `RESEND_API_KEY` is unset. Default OFF (opt-in).
+- Falls back to `delivered=False, logged=True` when `RESEND_API_KEY` is empty (no breakage in preview env).
+- Tests: **`TestFicUpdateEmail`** in `test_digest.py` — 5 cases covering default-disabled, toggle on/off, auth required, 400 when no refreshed books, and a full preview flow with seeded refresh data. **161 passing, 1 by-design skip, coverage 76.6%**.
+
 ### Deferred / Declined
 - Google Drive import — declined by user (2026-02-28). Local upload remains the only ingest path.
 

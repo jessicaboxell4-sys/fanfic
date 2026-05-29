@@ -151,6 +151,78 @@ class TestDigestPreview:
         assert r.status_code == 401
 
 
+# ---------- FIC-UPDATE EMAIL: settings + preview ----------
+class TestFicUpdateEmail:
+    def test_settings_default_disabled(self, H):
+        r = requests.get(f"{BASE}/api/user/update-email-settings", headers=H)
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert d["enabled"] is False
+        assert "email_configured" in d
+
+    def test_settings_toggle_on_off(self, H):
+        r = requests.put(
+            f"{BASE}/api/user/update-email-settings",
+            headers=H,
+            json={"enabled": True},
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["enabled"] is True
+        g = requests.get(f"{BASE}/api/user/update-email-settings", headers=H).json()
+        assert g["enabled"] is True
+        # Flip back off
+        r = requests.put(
+            f"{BASE}/api/user/update-email-settings",
+            headers=H,
+            json={"enabled": False},
+        )
+        assert r.json()["enabled"] is False
+
+    def test_settings_requires_auth(self):
+        r = requests.put(
+            f"{BASE}/api/user/update-email-settings", json={"enabled": True}
+        )
+        assert r.status_code == 401
+
+    def test_preview_400_without_refreshed_books(self, H, seeded_user):
+        # Clean any previously-seeded refreshed books for this user
+        db.books.delete_many({"user_id": seeded_user["user_id"]})
+        r = requests.post(f"{BASE}/api/user/update-email-preview", headers=H)
+        assert r.status_code == 400
+        assert "refresh" in r.json()["detail"].lower()
+
+    def test_preview_with_refreshed_book(self, H, seeded_user):
+        # Seed a refreshed book directly in mongo
+        from pymongo import MongoClient as _MC
+        bid = f"book_upd_{uuid.uuid4().hex[:8]}"
+        db.books.insert_one({
+            "user_id": seeded_user["user_id"],
+            "book_id": bid,
+            "title": "Updated Test Fic",
+            "author": "Test Author",
+            "fandom": "Harry Potter",
+            "category": "Updated stories 2026-05-29",
+            "replaces": "book_old_xyz",
+            "last_refreshed_at": datetime.now(timezone.utc).isoformat(),
+            "refresh_summary": {
+                "chapters_added": 3,
+                "chapters_changed": 1,
+                "chapters_removed": 0,
+                "words_delta": 4200,
+            },
+        })
+        r = requests.post(f"{BASE}/api/user/update-email-preview", headers=H)
+        assert r.status_code == 200, r.text
+        body = r.json()
+        # In preview env (no RESEND_API_KEY), delivered=False logged=True
+        assert "delivered" in body
+        if not body.get("delivered"):
+            assert body.get("logged") is True
+        assert body["summary"]["book_count"] == 1
+        assert body["summary"]["total_added"] == 3
+        assert body["summary"]["total_changed"] == 1
+
+
 # ---------- SCHEDULER LOG CHECK ----------
 class TestSchedulerLog:
     def test_scheduler_started_log_present(self):
