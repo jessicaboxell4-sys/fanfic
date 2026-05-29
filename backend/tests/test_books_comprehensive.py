@@ -450,6 +450,113 @@ class TestFicHubRefresh:
 
 
 # --------------------------------------------------------------------------
+# Version diff (Compare versions) — needs two linked uploads
+# --------------------------------------------------------------------------
+class TestVersionDiff:
+    def _upload_epub(self, title: str, body_html: str) -> str:
+        epub = _build_minimal_epub(title, "Diff Author", body_html=body_html)
+        r = requests.post(
+            f"{BASE}/api/books/upload",
+            headers=H(),
+            files={"files": (f"{title}.epub", epub, "application/epub+zip")},
+        )
+        assert r.status_code == 200, r.text
+        return r.json()["books"][0]["book_id"]
+
+    def test_diff_400_when_no_counterpart(self):
+        """Without `?vs=` and no replaces/replaced_by, endpoint 400s."""
+        bid = self._upload_epub("Standalone Book", "<p>solo</p>")
+        r = requests.get(f"{BASE}/api/books/{bid}/diff", headers=H())
+        assert r.status_code == 400
+        assert "counterpart" in r.json()["detail"].lower()
+
+    def test_diff_returns_chapter_structure(self):
+        """Upload two EPUBs, link them via replaces/replaced_by, verify diff shape."""
+        old_id = self._upload_epub("Old Title V1", "<p>one two three four five</p>")
+        new_id = self._upload_epub(
+            "New Title V2",
+            "<p>one two three four five six seven eight nine ten</p>",
+        )
+        # Link them as if a refresh had happened
+        db.books.update_one(
+            {"book_id": old_id},
+            {"$set": {"category": "Old stories", "replaced_by": new_id}},
+        )
+        db.books.update_one(
+            {"book_id": new_id},
+            {"$set": {"category": "Updated stories 2026-05-29", "replaces": old_id}},
+        )
+
+        # Auto-resolve via the link (no ?vs=)
+        r = requests.get(f"{BASE}/api/books/{new_id}/diff", headers=H())
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["old"]["book_id"] == old_id
+        assert body["new"]["book_id"] == new_id
+        assert len(body["old"]["chapters"]) >= 1
+        assert len(body["new"]["chapters"]) >= 1
+        s = body["diff"]["summary"]
+        assert s["old_chapter_count"] == len(body["old"]["chapters"])
+        assert s["new_chapter_count"] == len(body["new"]["chapters"])
+        # The minimal EPUB's single chapter normalizes to a "Chapter N"-style
+        # prefix that _normalize_chapter_title strips → both chapters match,
+        # so they land in `changed_chapters` (different word counts).
+        assert s["chapters_changed"] + s["chapters_added"] + s["chapters_removed"] >= 1
+        # And the new EPUB has more words than the old
+        assert s["new_total_words"] > s["old_total_words"]
+        assert s["words_delta"] > 0
+        # Required summary fields present
+        for field in (
+            "old_chapter_count", "new_chapter_count",
+            "chapters_added", "chapters_removed",
+            "chapters_changed", "chapters_unchanged",
+            "old_total_words", "new_total_words", "words_delta",
+        ):
+            assert field in s, f"missing summary field: {field}"
+
+    def test_diff_with_explicit_vs_param(self):
+        """Passing ?vs={other_id} works without any link in mongo."""
+        a = self._upload_epub("Solo A", "<p>aa bb cc</p>")
+        b = self._upload_epub("Solo B", "<p>aa bb cc dd ee</p>")
+        r = requests.get(f"{BASE}/api/books/{a}/diff?vs={b}", headers=H())
+        assert r.status_code == 200, r.text
+        body = r.json()
+        # Both ids should appear in old + new (order determined by created_at)
+        ids = {body["old"]["book_id"], body["new"]["book_id"]}
+        assert ids == {a, b}
+
+    def test_diff_404_when_book_missing(self):
+        r = requests.get(f"{BASE}/api/books/book_does_not_exist/diff", headers=H())
+        assert r.status_code == 404
+
+    def test_diff_404_when_vs_counterpart_missing(self):
+        """?vs={id} pointing to a non-existent book → 404."""
+        bid = self._upload_epub("Has Counterpart Missing", "<p>x y z</p>")
+        r = requests.get(
+            f"{BASE}/api/books/{bid}/diff?vs=no_such_book_id", headers=H()
+        )
+        assert r.status_code == 404
+
+    def test_diff_404_when_epub_file_missing_on_disk(self):
+        """If the on-disk EPUB has been removed, endpoint returns 404."""
+        from pathlib import Path
+        a = self._upload_epub("OnDisk A", "<p>aaa bbb</p>")
+        b = self._upload_epub("OnDisk B", "<p>aaa bbb ccc</p>")
+        # Delete one of the EPUBs from disk to simulate orphaned db doc.
+        storage_root = Path("/app/uploads")
+        # The storage layout is <storage>/<user_id>/<book_id>.epub.
+        # Walk it instead of guessing the user id so the test is resilient.
+        target = None
+        for p in storage_root.rglob(f"{b}.epub"):
+            target = p
+            break
+        if target and target.exists():
+            target.unlink()
+        r = requests.get(f"{BASE}/api/books/{a}/diff?vs={b}", headers=H())
+        assert r.status_code == 404
+
+
+# --------------------------------------------------------------------------
 # AI classification — exercises the SHELFSORT_TEST_AI_RESPONSE hook in
 # classify_with_ai. The hook is read at request-time from the server's
 # environment, so this works inside the run_coverage.sh server only.

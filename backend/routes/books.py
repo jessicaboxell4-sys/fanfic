@@ -273,6 +273,144 @@ def format_links_txt(book_title: str, book_author: str, links: List[Dict[str, st
     return "\n".join(lines) + "\n"
 
 
+_CHAPTER_NORMALIZE_RE = re.compile(r'\s+')
+_CHAPTER_PREFIX_RE = re.compile(r'^\s*(?:chapter|ch\.?|part|prologue|epilogue)\s*[:\-\.]?\s*\d*[:\-\.]?\s*', re.IGNORECASE)
+
+
+def _normalize_chapter_title(title: str) -> str:
+    """Lowercase, strip common 'Chapter N: ' prefixes, collapse whitespace.
+    Used to match chapters between an old and new EPUB."""
+    if not title:
+        return ""
+    cleaned = _CHAPTER_PREFIX_RE.sub('', title.strip())
+    cleaned = _CHAPTER_NORMALIZE_RE.sub(' ', cleaned).lower().strip()
+    return cleaned
+
+
+def extract_chapters(filepath: Path) -> List[Dict[str, Any]]:
+    """Extract chapter list from an EPUB in spine order.
+    Returns: [{index, title, words}] — index is 0-based spine position."""
+    chapters: List[Dict[str, Any]] = []
+    try:
+        book = epub.read_epub(str(filepath), options={"ignore_ncx": True})
+    except Exception as e:
+        logger.warning(f"EPUB read failed for chapter extraction: {e}")
+        return chapters
+
+    # Build href -> item map for spine resolution
+    items_by_id = {item.get_id(): item for item in book.get_items_of_type(ebooklib.ITEM_DOCUMENT)}
+
+    spine_items: List[Any] = []
+    try:
+        for spine_entry in book.spine or []:
+            idref = spine_entry[0] if isinstance(spine_entry, (tuple, list)) else spine_entry
+            if idref in items_by_id:
+                spine_items.append(items_by_id[idref])
+    except Exception:
+        pass
+    if not spine_items:
+        # Fallback: just iterate documents in file order
+        spine_items = list(book.get_items_of_type(ebooklib.ITEM_DOCUMENT))
+
+    for idx, item in enumerate(spine_items):
+        try:
+            raw = item.get_content().decode('utf-8', errors='ignore')
+        except Exception:
+            continue
+        soup = BeautifulSoup(raw, 'html.parser')
+
+        # Title: prefer first h1/h2/h3, then <title>, then filename-based fallback
+        title = ""
+        for tag in ('h1', 'h2', 'h3'):
+            el = soup.find(tag)
+            if el:
+                title = el.get_text(separator=' ', strip=True)
+                if title:
+                    break
+        if not title and soup.title and soup.title.string:
+            title = soup.title.string.strip()
+        if not title:
+            title = f"Chapter {idx + 1}"
+        title = title[:200]
+
+        text = soup.get_text(separator=' ', strip=True)
+        words = len([w for w in text.split() if w])
+
+        chapters.append({"index": idx, "title": title, "words": words})
+
+    return chapters
+
+
+def diff_chapters(old: List[Dict[str, Any]], new: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Compare two chapter lists. Match by normalized title first; fall back to
+    spine position for any leftovers."""
+    # Build lookup from normalized title -> list of (chapter, consumed-flag-idx)
+    old_by_norm: Dict[str, List[int]] = {}
+    for i, ch in enumerate(old):
+        key = _normalize_chapter_title(ch["title"])
+        old_by_norm.setdefault(key, []).append(i)
+
+    matched_old: set = set()
+    added: List[Dict[str, Any]] = []
+    changed: List[Dict[str, Any]] = []
+    unchanged: List[Dict[str, Any]] = []
+
+    for new_ch in new:
+        key = _normalize_chapter_title(new_ch["title"])
+        candidates = old_by_norm.get(key, [])
+        match_idx = None
+        for cidx in candidates:
+            if cidx not in matched_old:
+                match_idx = cidx
+                break
+        if match_idx is None:
+            added.append({"title": new_ch["title"], "words": new_ch["words"], "new_index": new_ch["index"]})
+            continue
+        matched_old.add(match_idx)
+        old_ch = old[match_idx]
+        entry = {
+            "title": new_ch["title"],
+            "old_index": old_ch["index"],
+            "new_index": new_ch["index"],
+            "old_words": old_ch["words"],
+            "new_words": new_ch["words"],
+            "delta": new_ch["words"] - old_ch["words"],
+        }
+        if old_ch["words"] == new_ch["words"]:
+            unchanged.append(entry)
+        else:
+            changed.append(entry)
+
+    removed = [
+        {"title": old[i]["title"], "words": old[i]["words"], "old_index": old[i]["index"]}
+        for i in range(len(old)) if i not in matched_old
+    ]
+
+    old_total = sum(ch["words"] for ch in old)
+    new_total = sum(ch["words"] for ch in new)
+
+    return {
+        "added_chapters": added,
+        "removed_chapters": removed,
+        "changed_chapters": changed,
+        "unchanged_chapters": unchanged,
+        "summary": {
+            "old_chapter_count": len(old),
+            "new_chapter_count": len(new),
+            "chapters_added": len(added),
+            "chapters_removed": len(removed),
+            "chapters_changed": len(changed),
+            "chapters_unchanged": len(unchanged),
+            "old_total_words": old_total,
+            "new_total_words": new_total,
+            "words_delta": new_total - old_total,
+        },
+    }
+
+
+
+
+
 # ============================================================
 # FICHUB REFRESH — pull latest version of a fanfic from its source URL
 # ============================================================
@@ -1567,6 +1705,81 @@ async def refresh_book(book_id: str, user: User = Depends(get_current_user)):
         "updated_shelf": updated.get("updated_shelf"),
         "message": f"Created a refreshed copy in '{updated.get('updated_shelf')}'; the original moved to Old stories.",
     }
+
+
+@api_router.get("/books/{book_id}/diff")
+async def book_diff(
+    book_id: str,
+    vs: Optional[str] = None,
+    user: User = Depends(get_current_user),
+):
+    """Per-chapter diff between two versions of a book.
+
+    If `vs` is omitted, auto-resolves the counterpart via the book's
+    `replaces` (current is "Updated stories") or `replaced_by` (current is
+    "Old stories") link.
+
+    Returns: old + new metadata, chapter lists, and a structured diff payload.
+    """
+    book = await db.books.find_one({"book_id": book_id, "user_id": user.user_id}, {"_id": 0})
+    if not book:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    counterpart_id = vs
+    if not counterpart_id:
+        counterpart_id = book.get("replaces") or book.get("replaced_by")
+    if not counterpart_id:
+        raise HTTPException(
+            status_code=400,
+            detail="No counterpart version found. Refresh this book first to create a version history, or pass ?vs={other_book_id}.",
+        )
+
+    other = await db.books.find_one(
+        {"book_id": counterpart_id, "user_id": user.user_id}, {"_id": 0}
+    )
+    if not other:
+        raise HTTPException(status_code=404, detail="Counterpart book not found")
+
+    # Order them: old version first, new version second
+    if book.get("replaced_by") == counterpart_id:
+        old_doc, new_doc = book, other
+    elif book.get("replaces") == counterpart_id:
+        old_doc, new_doc = other, book
+    else:
+        # Explicit vs= without a link — use timestamps to order
+        old_doc, new_doc = book, other
+        if (other.get("created_at") or "") < (book.get("created_at") or ""):
+            old_doc, new_doc = other, book
+
+    user_dir = STORAGE_DIR / user.user_id
+    old_path = user_dir / f"{old_doc['book_id']}.epub"
+    new_path = user_dir / f"{new_doc['book_id']}.epub"
+    if not old_path.exists() or not new_path.exists():
+        raise HTTPException(status_code=404, detail="One or both EPUB files are missing on disk")
+
+    loop = asyncio.get_event_loop()
+    old_chapters = await loop.run_in_executor(None, extract_chapters, old_path)
+    new_chapters = await loop.run_in_executor(None, extract_chapters, new_path)
+    diff = diff_chapters(old_chapters, new_chapters)
+
+    def _doc_summary(d: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "book_id": d["book_id"],
+            "title": d.get("title", ""),
+            "author": d.get("author", ""),
+            "category": d.get("category", ""),
+            "created_at": d.get("created_at"),
+            "last_refreshed_at": d.get("last_refreshed_at"),
+            "replaced_at": d.get("replaced_at"),
+        }
+
+    return {
+        "old": {**_doc_summary(old_doc), "chapters": old_chapters},
+        "new": {**_doc_summary(new_doc), "chapters": new_chapters},
+        "diff": diff,
+    }
+
+
 
 
 class BulkIdsBody(BaseModel):

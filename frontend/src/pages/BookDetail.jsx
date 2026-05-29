@@ -74,7 +74,7 @@ export default function BookDetail() {
       const shelf = data.updated_shelf || "Updated stories";
       toast.success(`Created "${data.title}" in ${shelf}`, { id: t });
       if (data.new_book_id) {
-        navigate(`/books/${data.new_book_id}`);
+        navigate(`/book/${data.new_book_id}`);
       } else {
         await load();
       }
@@ -193,16 +193,32 @@ export default function BookDetail() {
                 {book.replaces && (
                   <p className="text-[#2C2C2C]">
                     <span className="font-semibold text-[#B87A00]">Updated copy</span> ·{" "}
-                    <Link to={`/books/${book.replaces}`} className="text-[#3A5A40] hover:underline">
+                    <Link to={`/book/${book.replaces}`} className="text-[#3A5A40] hover:underline">
                       see original
+                    </Link>
+                    {" · "}
+                    <Link
+                      to={`/book/${book.book_id}/compare`}
+                      className="text-[#3A5A40] hover:underline font-semibold"
+                      data-testid="compare-versions-link"
+                    >
+                      Compare versions →
                     </Link>
                   </p>
                 )}
                 {book.replaced_by && (
                   <p className="text-[#2C2C2C]">
                     <span className="font-semibold text-[#B87A00]">Old version</span> · a refreshed copy is in{" "}
-                    <Link to={`/books/${book.replaced_by}`} className="text-[#3A5A40] hover:underline">
+                    <Link to={`/book/${book.replaced_by}`} className="text-[#3A5A40] hover:underline">
                       Updated stories
+                    </Link>
+                    {" · "}
+                    <Link
+                      to={`/book/${book.book_id}/compare`}
+                      className="text-[#3A5A40] hover:underline font-semibold"
+                      data-testid="compare-versions-link"
+                    >
+                      Compare versions →
                     </Link>
                   </p>
                 )}
