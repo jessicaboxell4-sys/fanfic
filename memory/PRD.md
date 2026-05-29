@@ -129,6 +129,10 @@
 - Pinned `requests==2.32.5` (2.34 has a CookieJar regression that broke integration tests).
 - Final per-module coverage: year 92% · stats 90% · series_categories 91% · **books 80%** (was 53%) · digest 63% · auth 56%.
 
+### Added 2026-02-29 (Dependabot + auto-merge)
+- `.github/dependabot.yml`: weekly grouped PRs (Monday 07:00 UTC) for backend pip, frontend npm, and GitHub Actions. Patch/minor bundled per ecosystem to reduce PR noise. Pins documented (e.g. `requests<2.34`, React 19 major-update ignore).
+- `.github/workflows/dependabot-auto-merge.yml`: waits for `pytest` check, then auto-approves + auto-squash-merges patch/minor bumps; comments and parks major bumps for human review.
+
 ### Added 2026-02-29 (Codecov publishing + README)
 - `.github/workflows/backend-tests.yml`: added `codecov/codecov-action@v4` step — publishes `coverage.xml` on every push/PR with the `backend` flag.
 - `codecov.yml`: project target 60% (current baseline) with 1% threshold; patch target 70% with 5% threshold; sticky PR comment with diff + flags + files.

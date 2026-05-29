@@ -52,6 +52,15 @@ pytest tests/
 
 CI runs the same script on every push/PR and uploads the coverage XML to Codecov.
 
+## Dependency updates
+
+Dependabot opens grouped weekly PRs (Monday 07:00 UTC) for `backend/`, `frontend/`, and GitHub Actions. The `dependabot-auto-merge` workflow:
+- Waits for the `pytest` check to pass.
+- **Patch + minor** bumps → auto-approved and squash-merged.
+- **Major** bumps → left for human review with an explanatory comment.
+
+Tweak `.github/dependabot.yml` for limits/grouping and `.github/workflows/dependabot-auto-merge.yml` for the merge policy.
+
 ## Environment
 
 Required (`backend/.env`):
