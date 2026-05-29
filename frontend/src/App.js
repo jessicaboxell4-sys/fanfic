@@ -13,6 +13,7 @@ import SeriesShelf from "@/pages/SeriesShelf";
 import AuthorShelf from "@/pages/AuthorShelf";
 import StatsPage from "@/pages/StatsPage";
 import YearInBooksPage from "@/pages/YearInBooksPage";
+import PublicYearInBooks from "@/pages/PublicYearInBooks";
 import CantFindOnline from "@/pages/CantFindOnline";
 import Account from "@/pages/Account";
 import Reader from "@/pages/Reader";
@@ -43,6 +44,7 @@ function AppRouter() {
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/share/yib/:token" element={<PublicYearInBooks />} />
       <Route path="/library" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/library/fandom/:fandom" element={<ProtectedRoute><FandomShelf /></ProtectedRoute>} />
       <Route path="/library/series/:name" element={<ProtectedRoute><SeriesShelf /></ProtectedRoute>} />

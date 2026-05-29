@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { api } from "../lib/api";
 import Navbar from "../components/Navbar";
 import { toast } from "sonner";
-import { ArrowLeft, ArrowRight, BookOpen, Flame, Trophy, Calendar, Sparkles, UserCircle2, Mail, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Flame, Trophy, Calendar, Sparkles, UserCircle2, Mail, Loader2, Share2, Copy, Link as LinkIcon, Eye, X, Trash2 } from "lucide-react";
 
 function BigStat({ value, label, color }) {
   return (
@@ -51,6 +51,11 @@ export default function YearInBooksPage() {
   const [loading, setLoading] = useState(true);
   const [sendingEmail, setSendingEmail] = useState(false);
 
+  // Sharing
+  const [share, setShare] = useState(null); // {shared, token, url, view_count, ...}
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [sharing, setSharing] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -66,6 +71,56 @@ export default function YearInBooksPage() {
     })();
     return () => { cancelled = true; };
   }, [year]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get(`/year-in-books/${year}/share`);
+        if (!cancelled) setShare(data);
+      } catch (e) { /* ignore — non-critical */ }
+    })();
+    return () => { cancelled = true; };
+  }, [year]);
+
+  const createShare = async () => {
+    setSharing(true);
+    try {
+      const { data } = await api.post(`/year-in-books/${year}/share`);
+      setShare(data);
+      setShareDialogOpen(true);
+      toast.success("Share link ready");
+    } catch (e) {
+      toast.error("Couldn't create share link");
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  const revokeShare = async () => {
+    if (!window.confirm("Revoke this share link? The URL will stop working immediately.")) return;
+    setSharing(true);
+    try {
+      await api.delete(`/year-in-books/${year}/share`);
+      setShare({ shared: false });
+      setShareDialogOpen(false);
+      toast.success("Share link revoked");
+    } catch (e) {
+      toast.error("Couldn't revoke");
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  const copyShareUrl = async () => {
+    if (!share?.url) return;
+    try {
+      await navigator.clipboard.writeText(share.url);
+      toast.success("Link copied!");
+    } catch (e) {
+      toast.error("Couldn't copy — please copy manually");
+    }
+  };
 
   const emailMe = async () => {
     setSendingEmail(true);
@@ -317,24 +372,124 @@ export default function YearInBooksPage() {
               )}
             </section>
 
-            {/* Email me */}
+            {/* Email me + Share */}
             <section className="text-center mb-16">
-              <button
-                onClick={emailMe}
-                disabled={sendingEmail}
-                data-testid="email-year-recap"
-                className="btn-primary text-sm inline-flex items-center gap-2 disabled:opacity-60"
-              >
-                {sendingEmail ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
-                Email this recap to myself
-              </button>
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <button
+                  onClick={emailMe}
+                  disabled={sendingEmail}
+                  data-testid="email-year-recap"
+                  className="btn-primary text-sm inline-flex items-center gap-2 disabled:opacity-60"
+                >
+                  {sendingEmail ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+                  Email this recap to myself
+                </button>
+                <button
+                  onClick={share?.shared ? () => setShareDialogOpen(true) : createShare}
+                  disabled={sharing}
+                  data-testid="share-year-recap"
+                  className="btn-secondary text-sm inline-flex items-center gap-2 disabled:opacity-60"
+                >
+                  {sharing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
+                  {share?.shared ? "Manage share link" : "Share this recap"}
+                </button>
+              </div>
               <p className="text-xs text-[#6B705C] mt-3">
-                Saved in the form of a Resend email — share or archive however you like.
+                Public link works without a Shelfsort account — revoke any time.
               </p>
             </section>
           </>
         )}
       </main>
+
+      {/* Share dialog */}
+      {shareDialogOpen && share?.shared && (
+        <div
+          className="fixed inset-0 z-[60] bg-[#2C2C2C]/40 flex items-center justify-center p-4"
+          onClick={() => setShareDialogOpen(false)}
+          data-testid="share-dialog-overlay"
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl max-w-md w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6 border-b border-[#E8E6E1] flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] mb-1">Public link</p>
+                <h2 className="font-serif text-2xl text-[#2C2C2C]">Share your {year}</h2>
+              </div>
+              <button
+                onClick={() => setShareDialogOpen(false)}
+                data-testid="share-dialog-close"
+                className="w-9 h-9 rounded-full hover:bg-[#F5F3EC] flex items-center justify-center text-[#6B705C]"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-[#6B705C]">
+                Anyone with this link can see your {year} recap — no Shelfsort account needed.
+                Your email and book IDs stay private.
+              </p>
+
+              <div className="relative">
+                <LinkIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#6B705C]" />
+                <input
+                  data-testid="share-url-input"
+                  type="text"
+                  readOnly
+                  value={share.url || ""}
+                  onClick={(e) => e.target.select()}
+                  className="w-full bg-[#F5F3EC] border border-[#E8E6E1] rounded-xl pl-10 pr-3 py-2.5 text-sm text-[#2C2C2C] font-mono"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={copyShareUrl}
+                  data-testid="share-copy-btn"
+                  className="btn-primary text-sm flex-1 inline-flex items-center justify-center gap-2"
+                >
+                  <Copy className="w-4 h-4" />
+                  Copy link
+                </button>
+                <a
+                  href={share.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-testid="share-open-btn"
+                  className="btn-secondary text-sm inline-flex items-center gap-2"
+                >
+                  <ArrowRight className="w-4 h-4" />
+                  Open
+                </a>
+              </div>
+
+              <div className="flex items-center justify-between pt-3 border-t border-[#E8E6E1]">
+                <div className="flex items-center gap-2 text-sm text-[#6B705C]" data-testid="share-view-count">
+                  <Eye className="w-4 h-4" />
+                  {share.view_count ?? 0} view{(share.view_count ?? 0) === 1 ? "" : "s"}
+                  {share.last_viewed_at && (
+                    <span className="text-xs text-[#6B705C]">
+                      · last seen {new Date(share.last_viewed_at).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={revokeShare}
+                  disabled={sharing}
+                  data-testid="share-revoke-btn"
+                  className="text-sm text-[#D9534F] hover:text-[#a83a36] inline-flex items-center gap-1.5 font-semibold disabled:opacity-60"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Revoke
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

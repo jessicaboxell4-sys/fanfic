@@ -2980,6 +2980,108 @@ async def send_year_in_books_email(year: int, user: User = Depends(get_current_u
     return await _send_year_email(user_doc, year)
 
 
+# ---- Public sharing ----
+def _share_public_url(token: str) -> str:
+    base = FRONTEND_URL or os.environ.get("REACT_APP_BACKEND_URL", "")
+    return f"{base}/share/yib/{token}" if base else f"/share/yib/{token}"
+
+
+@api_router.get("/year-in-books/{year}/share")
+async def get_year_share(year: int, user: User = Depends(get_current_user)):
+    if year < 1900 or year > 2200:
+        raise HTTPException(status_code=400, detail="Year out of range")
+    doc = await db.year_in_books_shares.find_one({"user_id": user.user_id, "year": year})
+    if not doc:
+        return {"shared": False, "token": None, "url": None, "view_count": 0, "created_at": None, "last_viewed_at": None}
+    return {
+        "shared": True,
+        "token": doc["share_token"],
+        "url": _share_public_url(doc["share_token"]),
+        "view_count": int(doc.get("view_count") or 0),
+        "created_at": doc.get("created_at"),
+        "last_viewed_at": doc.get("last_viewed_at"),
+    }
+
+
+@api_router.post("/year-in-books/{year}/share")
+async def create_year_share(year: int, user: User = Depends(get_current_user)):
+    """Create-or-return the share token for this user+year (idempotent)."""
+    if year < 1900 or year > 2200:
+        raise HTTPException(status_code=400, detail="Year out of range")
+    existing = await db.year_in_books_shares.find_one({"user_id": user.user_id, "year": year})
+    if existing:
+        return {
+            "shared": True,
+            "token": existing["share_token"],
+            "url": _share_public_url(existing["share_token"]),
+            "view_count": int(existing.get("view_count") or 0),
+            "created_at": existing.get("created_at"),
+        }
+    token = secrets.token_urlsafe(16)
+    now = datetime.now(timezone.utc).isoformat()
+    await db.year_in_books_shares.insert_one({
+        "share_token": token,
+        "user_id": user.user_id,
+        "year": year,
+        "created_at": now,
+        "view_count": 0,
+        "last_viewed_at": None,
+    })
+    return {
+        "shared": True,
+        "token": token,
+        "url": _share_public_url(token),
+        "view_count": 0,
+        "created_at": now,
+    }
+
+
+@api_router.delete("/year-in-books/{year}/share")
+async def revoke_year_share(year: int, user: User = Depends(get_current_user)):
+    if year < 1900 or year > 2200:
+        raise HTTPException(status_code=400, detail="Year out of range")
+    result = await db.year_in_books_shares.delete_one({"user_id": user.user_id, "year": year})
+    return {"revoked": result.deleted_count > 0}
+
+
+# Public endpoint — no auth required
+@api_router.get("/public/year/{token}")
+async def get_public_year(token: str):
+    doc = await db.year_in_books_shares.find_one({"share_token": token})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Share link not found or revoked")
+    user_doc = await db.users.find_one({"user_id": doc["user_id"]})
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="User not found")
+    payload = await _build_year_payload(user_doc, int(doc["year"]))
+    # Increment view counter (fire & forget)
+    try:
+        await db.year_in_books_shares.update_one(
+            {"share_token": token},
+            {
+                "$inc": {"view_count": 1},
+                "$set": {"last_viewed_at": datetime.now(timezone.utc).isoformat()},
+            },
+        )
+    except Exception:
+        pass
+    # Sanitize: don't expose email or last_book/first_book book_ids
+    summary = dict(payload["summary"])
+    for k in ("first_book", "last_book"):
+        v = summary.get(k)
+        if v:
+            v = dict(v)
+            v.pop("book_id", None)
+            summary[k] = v
+    display_name = (user_doc.get("name") or "").strip() or user_doc.get("email", "").split("@")[0]
+    return {
+        "summary": summary,
+        "has_data": payload["has_data"],
+        "display_name": display_name,
+        "year": int(doc["year"]),
+    }
+
+
 app.include_router(api_router)
 
 
@@ -2992,6 +3094,8 @@ async def on_startup():
         await db.login_attempts.create_index("ts")
         await db.password_reset_tokens.create_index("token", unique=True)
         await db.password_reset_tokens.create_index("user_id")
+        await db.year_in_books_shares.create_index("share_token", unique=True)
+        await db.year_in_books_shares.create_index([("user_id", 1), ("year", 1)])
     except Exception as e:
         logger.warning(f"Index setup: {e}")
     # Start the weekly digest scheduler
