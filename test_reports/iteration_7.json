@@ -1,0 +1,37 @@
+{
+  "summary": "Post-refactor regression for the server.py -> routes/* split (3110-line monolith -> deps.py + 7 router modules). Ran the full existing pytest regression suite under /app/backend/tests/ (backend_test.py + test_digest.py + test_new_features.py + test_year_in_books.py + test_year_share.py). All 106 tests PASS (75s). Frontend smoke (landing -> /api/ -> register -> /library -> /library/stats) loads correctly via the production-style preview URL, no console errors beyond expected 401s on the public landing page when no session cookie is present.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_digest.py",
+    "/app/backend/tests/test_new_features.py",
+    "/app/backend/tests/test_year_in_books.py",
+    "/app/backend/tests/test_year_share.py",
+    "/app/test_reports/pytest/pytest_iter7.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Refactor looks clean: deps.py owns the singletons (app, api_router, db, client, logger, env vars, STORAGE_DIR). server.py is now 50 lines and only imports the routes/* modules so their @api_router.X decorators register endpoints. Startup hook still seeds Mongo indexes and starts the digest scheduler.",
+    "All 32 endpoint paths listed in the review request continue to respond identically (verified by 106 tests covering auth, books CRUD/upload/cover/download/patch/delete, bulk ops, stats, authors, series, categories, digest, year-in-books, public share lifecycle, public token endpoint).",
+    "Backend stderr log shows a transient NameError ('SetSourceBody is not defined' in routes/books.py) that occurred mid-edit during hot-reload, but the next reload picked up the fix; current process is healthy and /api/ returns 200. No action needed.",
+    "Pre-existing lint warnings (auth.py F841 unused `ip` and books.py F541 empty f-string) carried over from server_old.py — flagged for cleanup but not blocking.",
+    "deps.py uses os.environ[\"MONGO_URL\"] / os.environ[\"DB_NAME\"] (fail-fast) — correct per environment-variable rules. CORS still honours CORS_ORIGINS env var.",
+    "books.py is 1521 lines — over the 700-line guideline. Consider further splitting epub-parsing, fichub fetch, and AI classification helpers into their own helper module in a follow-up. Not blocking."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (106/106)", "frontend": "100% (smoke: landing + register + /library + /library/stats)"},
+  "test_credentials": "Each test registers an ephemeral TEST_ user (per /app/memory/test_credentials.md) and seeds session_token directly in Mongo for Bearer-token auth where needed.",
+  "seed_data_creation": "All test data is per-test ephemeral (TEST_* users, books, year_in_books_shares, reading_activity) and is cleaned up in module/class teardown.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Refactor of server.py into routes/* is verified working with zero behavioral regression. The canonical regression command is: `cd /app/backend && MONGO_URL=mongodb://localhost:27017 DB_NAME=test_database REACT_APP_BACKEND_URL=https://genre-sort.preview.emergentagent.com python -m pytest tests/ -v --junitxml=/app/test_reports/pytest/pytest_iterN.xml` — completes in ~75s and covers 106 cases across all 32 endpoint groups. If a future change touches deps.py or a routes/*.py file, re-run this same suite; no new tests needed for pure structural changes.",
+  "rca of the issue": "N/A — pure structural refactor verified to have zero behavioral impact."
+}
