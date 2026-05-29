@@ -243,6 +243,25 @@
 - Page is fully responsive (channel cards stack), all interactive elements carry `data-testid`s, and shows a contextual "email delivery not configured" banner only when `RESEND_API_KEY` is missing.
 - Tests: **`TestEmailOverview`** — 3 cases (shape, auth-required, reflects-changes). **164 passing, 1 by-design skip, coverage 76.7%**.
 
+### Added 2026-05-29 (Reading streak + reading-time heartbeat)
+- **Heartbeat endpoint** `POST /api/books/{id}/heartbeat` accepts `{seconds: 0..600}`; updates `db.reading_activity.{date}.minutes` and per-book `reading_minutes`. Server caps each ping (defense in depth against clock skew/replay).
+- **Reader.jsx** pings every 60s (one minute per ping) while the tab is visible AND the user has interacted in the last 90 seconds — no time recorded for idle tabs.
+- **`GET /api/stats/streak`** — lightweight endpoint for navbar; returns `{streak_days, grace_today, today_minutes, today_active}`. Grace-day logic: streak stays alive if user read yesterday but not yet today.
+- **`StreakBadge.jsx`** — flame-icon pill in the navbar, color-coded: green (1-6 days), amber (grace day pending), pulsing coral (≥7 days "hot streak"). Auto-hides at 0 days. Refreshes on focus + every 5 min.
+- `reading_minutes_total` added to `/api/stats/overview`.
+
+### Added 2026-05-29 (Analytics CSV export)
+- **`GET /api/stats/export.csv`** — streams a UTF-8-BOM CSV with sections: Summary (books_total, books_finished, reading_minutes_total), Authors, Fandoms, Categories. Imports cleanly into Excel/Sheets/Numbers. Filename includes today's date.
+- **`StatsPage.jsx`** gains an "Export CSV" download button (only shown when library isn't empty).
+
+### Added 2026-05-29 (FanFicFare per-user options)
+- **`GET/PUT /api/user/fff-options`** — persists `include_author_notes`, `include_images`, `keep_chapter_links` on the user document. Defaults to safe `{notes: true, images: true, links: false}`.
+- **`fichub_fetch_epub(source_url, options=…)`** now applies the user's prefs via `config.set("epub", …)` before every download. `apply_refresh` reads the user pref and threads it through; existing copies are untouched.
+- **`Account.jsx`** gains a "Fanfic download options" card with three labelled toggles. Idempotent partial updates (one toggle at a time).
+
+### Tests + coverage
+- New test classes: `TestStreakAndHeartbeat` (4), `TestStatsCsvExport` (1), `TestFFFOptions` (4). **173 passing, 1 by-design skip, coverage 77.3%** (up from 76.7%).
+
 ### Deferred / Declined
 - Google Drive import — declined by user (2026-02-28). Local upload remains the only ingest path.
 

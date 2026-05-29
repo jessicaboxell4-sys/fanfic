@@ -49,6 +49,29 @@ export default function Reader() {
     } catch (e) {}
   }, [id]);
 
+  // Reading-time heartbeat: every 60s, if the tab is visible AND user is
+  // active (mouse/scroll/key/touch in the last 90s), send a 60-second ping.
+  useEffect(() => {
+    let lastActivity = Date.now();
+    const bump = () => { lastActivity = Date.now(); };
+    const events = ["mousemove", "scroll", "keydown", "touchstart"];
+    events.forEach((ev) => window.addEventListener(ev, bump, { passive: true }));
+
+    const tick = () => {
+      if (document.hidden) return;
+      const idleMs = Date.now() - lastActivity;
+      if (idleMs > 90_000) return; // user is idle
+      api
+        .post(`/books/${id}/heartbeat`, { seconds: 60 })
+        .catch(() => {});
+    };
+    const handle = setInterval(tick, 60_000);
+    return () => {
+      clearInterval(handle);
+      events.forEach((ev) => window.removeEventListener(ev, bump));
+    };
+  }, [id]);
+
   // Load book metadata + EPUB bytes
   useEffect(() => {
     let cancelled = false;

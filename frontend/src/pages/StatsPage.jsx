@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { api } from "../lib/api";
+import { api, API } from "../lib/api";
 import Navbar from "../components/Navbar";
 import StatsCard from "../components/StatsCard";
-import { ArrowLeft, ArrowRight, TrendingUp, Calendar, UserCircle2, Sparkles, BookCheck } from "lucide-react";
+import { ArrowLeft, ArrowRight, TrendingUp, Calendar, UserCircle2, Sparkles, BookCheck, Download } from "lucide-react";
 
 function BarRow({ label, value, max, to, accent }) {
   const pct = max > 0 ? Math.max(4, (value / max) * 100) : 0;
@@ -103,18 +103,31 @@ export default function StatsPage() {
           <ArrowLeft className="w-4 h-4" /> Back to library
         </button>
 
-        <div className="mb-10">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] mb-2">
-            Reading statistics
-          </p>
-          <h1 className="font-serif text-4xl sm:text-5xl text-[#2C2C2C]" data-testid="stats-page-title">
-            Your reading, by the numbers.
-          </h1>
-          <p className="text-[#6B705C] mt-3">
-            {isEmpty
-              ? "Once you start reading, the patterns will appear here."
-              : "What you've been picking up, how often, and from where."}
-          </p>
+        <div className="mb-10 flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] mb-2">
+              Reading statistics
+            </p>
+            <h1 className="font-serif text-4xl sm:text-5xl text-[#2C2C2C]" data-testid="stats-page-title">
+              Your reading, by the numbers.
+            </h1>
+            <p className="text-[#6B705C] mt-3">
+              {isEmpty
+                ? "Once you start reading, the patterns will appear here."
+                : "What you've been picking up, how often, and from where."}
+            </p>
+          </div>
+          {!isEmpty && (
+            <a
+              href={`${API}/stats/export.csv`}
+              data-testid="stats-export-csv"
+              className="btn-secondary text-sm flex items-center gap-2 mt-2 flex-shrink-0"
+              title="Download author / fandom / category analytics as CSV"
+            >
+              <Download className="w-4 h-4" />
+              Export CSV
+            </a>
+          )}
         </div>
 
         {overview && <StatsCard stats={overview} />}

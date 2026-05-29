@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
-import { User as UserIcon, Mail, Lock, Loader2, Mail as MailIcon } from "lucide-react";
+import { User as UserIcon, Mail, Lock, Loader2, Mail as MailIcon, Settings2 } from "lucide-react";
 import { toast } from "sonner";
 
 function errMsg(d) {
@@ -27,6 +27,10 @@ export default function Account() {
 
   // (Email preferences moved to /account/emails — handled in EmailPreferences.jsx)
 
+  // FanFicFare options for fanfic downloads
+  const [fff, setFff] = useState(null);
+  const [savingFff, setSavingFff] = useState(false);
+
   useEffect(() => {
     (async () => {
       try {
@@ -37,8 +41,28 @@ export default function Account() {
         toast.error("Couldn't load your profile");
         navigate("/login");
       }
+      try {
+        const { data: f } = await api.get("/user/fff-options");
+        setFff(f);
+      } catch (e) { /* ignore */ }
     })();
   }, [navigate]);
+
+  const toggleFff = async (key) => {
+    if (!fff) return;
+    setSavingFff(true);
+    const next = { ...fff, [key]: !fff[key] };
+    setFff(next);
+    try {
+      await api.put("/user/fff-options", { [key]: next[key] });
+      toast.success("Saved");
+    } catch (e) {
+      toast.error("Couldn't save");
+      setFff(fff); // revert
+    } finally {
+      setSavingFff(false);
+    }
+  };
 
   const saveName = async (e) => {
     e.preventDefault();
@@ -154,6 +178,74 @@ export default function Account() {
               Manage
             </button>
           </div>
+        </section>
+
+        {/* FanFicFare options */}
+        <section className="shelf-card p-6 mb-6" data-testid="fff-options-card">
+          <div className="flex items-start gap-3 mb-1">
+            <div className="w-10 h-10 rounded-xl bg-[#EEF3EC] text-[#3A5A40] flex items-center justify-center flex-shrink-0">
+              <Settings2 className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="font-serif text-2xl text-[#2C2C2C]">Fanfic download options</h2>
+              <p className="text-sm text-[#6B705C] mt-0.5">
+                Tweak how Shelfsort builds EPUBs from AO3, FFN, SpaceBattles and the
+                other 100+ supported sites. Applies to every refresh from now on —
+                existing copies stay untouched.
+              </p>
+            </div>
+          </div>
+
+          {fff === null ? (
+            <p className="text-sm text-[#6B705C] mt-4">Loading…</p>
+          ) : (
+            <div className="mt-5 space-y-3">
+              {[
+                {
+                  key: "include_author_notes",
+                  title: "Include author's notes",
+                  blurb: "Keep the author's pre- and post-chapter commentary inside the EPUB.",
+                },
+                {
+                  key: "include_images",
+                  title: "Include images",
+                  blurb: "Embed images linked in the story (only AO3 hosts these reliably).",
+                },
+                {
+                  key: "keep_chapter_links",
+                  title: "Keep external chapter links",
+                  blurb: "Preserve in-text hyperlinks rather than flattening them to plain text.",
+                },
+              ].map((opt) => (
+                <div
+                  key={opt.key}
+                  className="flex items-start justify-between gap-3 p-3 rounded-xl border border-[#E8E6E1] bg-[#FBFAF6]"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-[#2C2C2C]">{opt.title}</p>
+                    <p className="text-xs text-[#6B705C] mt-0.5">{opt.blurb}</p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={!!fff[opt.key]}
+                    data-testid={`fff-toggle-${opt.key}`}
+                    disabled={savingFff}
+                    onClick={() => toggleFff(opt.key)}
+                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors flex-shrink-0 ${
+                      fff[opt.key] ? "bg-[#3A5A40]" : "bg-[#E8E6E1]"
+                    } ${savingFff ? "opacity-60" : ""}`}
+                  >
+                    <span
+                      className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                        fff[opt.key] ? "translate-x-6" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
 
         {/* Password */}

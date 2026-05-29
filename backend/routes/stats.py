@@ -88,6 +88,52 @@ async def stats_overview(user: User = Depends(get_current_user)):
         "pages_total": int(pages_total),
         "reading_streak_days": streak,
         "active_days_count": len(active_dates),
+        "reading_minutes_total": int(sum(float(a.get("minutes") or 0) for a in
+            await db.reading_activity.find(
+                {"user_id": user.user_id}, {"_id": 0, "minutes": 1}
+            ).to_list(2000)
+        )),
+    }
+
+
+@api_router.get("/stats/streak")
+async def streak_only(user: User = Depends(get_current_user)):
+    """Lightweight endpoint for the navbar streak badge (no aggregation cost)."""
+    from datetime import date as _date, timedelta as _td
+    activity = await db.reading_activity.find(
+        {"user_id": user.user_id}, {"_id": 0, "date": 1, "minutes": 1}
+    ).to_list(2000)
+    active_dates = set()
+    for a in activity:
+        try:
+            y, m, d = a["date"].split("-")
+            active_dates.add(_date(int(y), int(m), int(d)))
+        except Exception:
+            continue
+    today = datetime.now(timezone.utc).date()
+    streak = 0
+    grace_today = False  # True if user hasn't read today yet but streak is still alive from yesterday
+    if today in active_dates:
+        cur = today
+    elif (today - timedelta(days=1)) in active_dates:
+        cur = today - timedelta(days=1)
+        grace_today = True
+    else:
+        cur = None
+    while cur and cur in active_dates:
+        streak += 1
+        cur = cur - timedelta(days=1)
+    today_minutes = 0.0
+    today_key = today.isoformat()
+    for a in activity:
+        if a.get("date") == today_key:
+            today_minutes = float(a.get("minutes") or 0)
+            break
+    return {
+        "streak_days": streak,
+        "grace_today": grace_today,
+        "today_minutes": int(today_minutes),
+        "today_active": (today in active_dates),
     }
 
 
@@ -189,4 +235,73 @@ async def stats_detailed(user: User = Depends(get_current_user)):
         "categories": categories,
         "books_total": len(books),
     }
+
+
+@api_router.get("/stats/export.csv")
+async def stats_export_csv(user: User = Depends(get_current_user)):
+    """Download author / fandom / category analytics as a single CSV file.
+
+    Each section is separated by a blank line + header row, so it imports
+    cleanly into Excel / Sheets / Numbers."""
+    import csv as _csv
+    from io import StringIO as _SIO
+
+    books = await db.books.find({"user_id": user.user_id}, {"_id": 0}).to_list(5000)
+
+    # Aggregate
+    fandom_counts: Dict[str, int] = {}
+    author_counts: Dict[str, int] = {}
+    cat_counts: Dict[str, int] = {}
+    finished_total = 0
+    minutes_total = 0.0
+    for b in books:
+        f = b.get("fandom")
+        if f:
+            fandom_counts[f] = fandom_counts.get(f, 0) + 1
+        a = (b.get("author") or "").strip()
+        if a:
+            author_counts[a] = author_counts.get(a, 0) + 1
+        c = b.get("category") or "Unclassified"
+        cat_counts[c] = cat_counts.get(c, 0) + 1
+        if (b.get("progress_percent") or 0) >= 0.99:
+            finished_total += 1
+        minutes_total += float(b.get("reading_minutes") or 0)
+
+    buf = _SIO()
+    w = _csv.writer(buf)
+
+    today_iso = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    w.writerow(["Shelfsort analytics export", today_iso])
+    w.writerow([])
+    w.writerow(["Summary"])
+    w.writerow(["metric", "value"])
+    w.writerow(["books_total", len(books)])
+    w.writerow(["books_finished", finished_total])
+    w.writerow(["reading_minutes_total", int(minutes_total)])
+    w.writerow([])
+
+    w.writerow(["Authors"])
+    w.writerow(["author", "book_count"])
+    for name, count in sorted(author_counts.items(), key=lambda kv: (-kv[1], kv[0])):
+        w.writerow([name, count])
+    w.writerow([])
+
+    w.writerow(["Fandoms"])
+    w.writerow(["fandom", "book_count"])
+    for name, count in sorted(fandom_counts.items(), key=lambda kv: (-kv[1], kv[0])):
+        w.writerow([name, count])
+    w.writerow([])
+
+    w.writerow(["Categories"])
+    w.writerow(["category", "book_count"])
+    for name, count in sorted(cat_counts.items(), key=lambda kv: (-kv[1], kv[0])):
+        w.writerow([name, count])
+
+    content = buf.getvalue()
+    filename = f"shelfsort-analytics-{today_iso}.csv"
+    return StreamingResponse(
+        io.BytesIO(content.encode("utf-8-sig")),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 

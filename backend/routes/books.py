@@ -510,17 +510,16 @@ def find_source_url(links: List[Dict[str, str]]) -> Optional[str]:
     return None
 
 
-async def fichub_fetch_epub(source_url: str) -> tuple:
+async def fichub_fetch_epub(source_url: str, options: Optional[Dict[str, Any]] = None) -> tuple:
     """Generate an EPUB for the given fanfic URL using FanFicFare.
 
-    Returns (epub_bytes, fichub_meta_dict). Raises HTTPException on transport
-    errors, FicHubNotFoundError when the source can't be fetched (so the
-    upstream code-paths that flag `fichub_unavailable` keep working).
-
-    The function name is kept for backwards compatibility with the rest of
-    the codebase — under the hood we now use FanFicFare directly.
+    Optional `options` dict (per-user FanFicFare prefs):
+      - include_author_notes: bool (default True)
+      - include_images: bool (default True)
+      - keep_chapter_links: bool (default False)
     """
     loop = asyncio.get_event_loop()
+    options = options or {}
 
     # Test hook: when set, returns canned content immediately so tests don't
     # need a real internet connection.
@@ -546,6 +545,19 @@ async def fichub_fetch_epub(source_url: str) -> tuple:
         host = urlparse(source_url).hostname or ""
         try:
             config = Configuration([host], "EPUB")
+            # Apply per-user FanFicFare options. FFF expects strings for ini values.
+            try:
+                if "include_author_notes" in options:
+                    val = "true" if options["include_author_notes"] else "false"
+                    config.set("epub", "include_author_notes", val)
+                if "include_images" in options:
+                    val = "true" if options["include_images"] else "false"
+                    config.set("epub", "include_images", val)
+                if "keep_chapter_links" in options:
+                    val = "true" if options["keep_chapter_links"] else "false"
+                    config.set("epub", "keep_summary_html", val)
+            except Exception as cfg_err:
+                logger.warning("Failed to apply FFF user options: %s", cfg_err)
             adapter = adapters.getAdapter(config, source_url)
         except fff_exc.UnknownSite as e:
             raise FicHubNotFoundError(f"This site isn't supported: {host}")
@@ -630,7 +642,10 @@ async def apply_refresh(book: Dict[str, Any], user_id: str, source_url: str) -> 
       - new book .replaces -> old book_id
       - old book .replaced_by -> new book_id
     """
-    epub_bytes, fichub_meta = await fichub_fetch_epub(source_url)
+    # Honor per-user FanFicFare options
+    user_doc = await db.users.find_one({"user_id": user_id}, {"_id": 0, "fff_options": 1})
+    fff_options = (user_doc or {}).get("fff_options") or {}
+    epub_bytes, fichub_meta = await fichub_fetch_epub(source_url, options=fff_options)
 
     user_dir = STORAGE_DIR / user_id
     user_dir.mkdir(parents=True, exist_ok=True)
@@ -1214,6 +1229,45 @@ async def mark_all_updates_seen(user: User = Depends(get_current_user)):
     return {"ok": True, "marked": result.modified_count}
 
 
+# ============================================================
+# FANFICFARE USER OPTIONS
+# ============================================================
+class FFFOptionsBody(BaseModel):
+    include_author_notes: Optional[bool] = None
+    include_images: Optional[bool] = None
+    keep_chapter_links: Optional[bool] = None
+
+
+FFF_OPTION_DEFAULTS = {
+    "include_author_notes": True,
+    "include_images": True,
+    "keep_chapter_links": False,
+}
+
+
+@api_router.get("/user/fff-options")
+async def get_fff_options(user: User = Depends(get_current_user)):
+    """Return the user's FanFicFare options for fanfiction downloads."""
+    user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "fff_options": 1})
+    stored = (user_doc or {}).get("fff_options") or {}
+    return {**FFF_OPTION_DEFAULTS, **stored}
+
+
+@api_router.put("/user/fff-options")
+async def update_fff_options(body: FFFOptionsBody, user: User = Depends(get_current_user)):
+    user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "fff_options": 1})
+    stored = (user_doc or {}).get("fff_options") or {}
+    patch = body.dict(exclude_none=True)
+    stored.update(patch)
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": {"fff_options": stored}},
+    )
+    return {**FFF_OPTION_DEFAULTS, **stored}
+
+
+
+
 
 
 @api_router.get("/books/{book_id}")
@@ -1749,17 +1803,52 @@ async def mark_book(book_id: str, body: MarkBody, user: User = Depends(get_curre
     return {"ok": True, "read": body.read}
 
 
-async def _log_activity(user_id: str, book_id: str):
-    """Append today's reading activity for streak calculations."""
+async def _log_activity(user_id: str, book_id: str, minutes: float = 0.0):
+    """Append today's reading activity for streak calculations.
+
+    `minutes` adds to the day's accumulated reading time. Pass 0 for plain
+    "opened" events (progress updates, touch) so we don't double-count time.
+    """
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    update: Dict[str, Any] = {
+        "$addToSet": {"book_ids": book_id},
+        "$set": {"last_ts": datetime.now(timezone.utc).isoformat()},
+    }
+    if minutes and minutes > 0:
+        update["$inc"] = {"minutes": float(minutes)}
     await db.reading_activity.update_one(
         {"user_id": user_id, "date": today},
-        {
-            "$addToSet": {"book_ids": book_id},
-            "$set": {"last_ts": datetime.now(timezone.utc).isoformat()},
-        },
+        update,
         upsert=True,
     )
+
+
+class HeartbeatBody(BaseModel):
+    seconds: float = Field(..., ge=0, le=600)  # cap at 10 min per ping (sanity)
+
+
+@api_router.post("/books/{book_id}/heartbeat")
+async def reading_heartbeat(
+    book_id: str,
+    body: HeartbeatBody,
+    user: User = Depends(get_current_user),
+):
+    """Record reading time for the Reader page. Frontend sends one ping per
+    minute (with `seconds`=60) while the tab is focused and the user is active.
+    Server caps each ping at 10 min to defend against clock-skew / replay."""
+    book = await db.books.find_one(
+        {"book_id": book_id, "user_id": user.user_id}, {"_id": 0, "book_id": 1}
+    )
+    if not book:
+        raise HTTPException(status_code=404, detail="Not found")
+    minutes = float(body.seconds) / 60.0
+    await _log_activity(user.user_id, book_id, minutes=minutes)
+    # Mirror onto the book itself for per-book stats
+    await db.books.update_one(
+        {"book_id": book_id, "user_id": user.user_id},
+        {"$inc": {"reading_minutes": minutes}},
+    )
+    return {"ok": True, "minutes_added": minutes}
 
 
 class ProgressBody(BaseModel):

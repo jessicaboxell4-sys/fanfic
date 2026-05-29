@@ -313,3 +313,110 @@ class TestOtherRegression:
         assert r.status_code == 200
         g = requests.get(f"{BASE}/api/books/{bid}", headers=H())
         assert g.status_code == 404
+
+
+
+# ============================================================
+# Streak + reading-time heartbeat
+# ============================================================
+class TestStreakAndHeartbeat:
+    def test_streak_endpoint_default_zero(self):
+        r = requests.get(f"{BASE}/api/stats/streak", headers=H())
+        assert r.status_code == 200, r.text
+        body = r.json()
+        for k in ("streak_days", "grace_today", "today_minutes", "today_active"):
+            assert k in body
+        assert isinstance(body["streak_days"], int)
+
+    def test_heartbeat_adds_minutes(self, uploaded_books):
+        bid = uploaded_books[0]["book_id"]
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        db.reading_activity.delete_many({"user_id": USER_ID, "date": today})
+        for _ in range(2):
+            r = requests.post(
+                f"{BASE}/api/books/{bid}/heartbeat",
+                headers=H(),
+                json={"seconds": 60},
+            )
+            assert r.status_code == 200, r.text
+        s = requests.get(f"{BASE}/api/stats/streak", headers=H()).json()
+        assert s["today_active"] is True
+        assert s["today_minutes"] >= 2
+        doc = db.books.find_one({"book_id": bid})
+        assert (doc.get("reading_minutes") or 0) >= 2
+
+    def test_heartbeat_404_for_unknown_book(self):
+        r = requests.post(
+            f"{BASE}/api/books/book_does_not_exist/heartbeat",
+            headers=H(),
+            json={"seconds": 60},
+        )
+        assert r.status_code == 404
+
+    def test_heartbeat_validates_seconds_range(self, uploaded_books):
+        bid = uploaded_books[0]["book_id"]
+        r = requests.post(
+            f"{BASE}/api/books/{bid}/heartbeat",
+            headers=H(),
+            json={"seconds": -1},
+        )
+        assert r.status_code == 422
+        r = requests.post(
+            f"{BASE}/api/books/{bid}/heartbeat",
+            headers=H(),
+            json={"seconds": 601},
+        )
+        assert r.status_code == 422
+
+
+# ============================================================
+# CSV analytics export
+# ============================================================
+class TestStatsCsvExport:
+    def test_csv_export(self, uploaded_books):
+        r = requests.get(f"{BASE}/api/stats/export.csv", headers=H())
+        assert r.status_code == 200, r.text
+        assert "text/csv" in r.headers.get("content-type", "")
+        cd = r.headers.get("content-disposition", "")
+        assert "shelfsort-analytics-" in cd and ".csv" in cd
+        body = r.text
+        for section in ("Shelfsort analytics export", "Summary", "Authors", "Fandoms", "Categories"):
+            assert section in body
+        assert "book_count" in body
+
+
+# ============================================================
+# FanFicFare user options
+# ============================================================
+class TestFFFOptions:
+    def test_defaults(self):
+        r = requests.get(f"{BASE}/api/user/fff-options", headers=H())
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["include_author_notes"] is True
+        assert body["include_images"] is True
+        assert body["keep_chapter_links"] is False
+
+    def test_toggle_persists(self):
+        r = requests.put(
+            f"{BASE}/api/user/fff-options",
+            headers=H(),
+            json={"include_images": False},
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["include_images"] is False
+        assert body["include_author_notes"] is True
+
+    def test_partial_update(self):
+        r = requests.put(
+            f"{BASE}/api/user/fff-options",
+            headers=H(),
+            json={"keep_chapter_links": True},
+        )
+        assert r.status_code == 200
+        assert r.json()["keep_chapter_links"] is True
+
+    def test_requires_auth(self):
+        r = requests.get(f"{BASE}/api/user/fff-options")
+        assert r.status_code == 401
