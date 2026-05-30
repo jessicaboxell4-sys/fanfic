@@ -2277,6 +2277,13 @@ class TestConversionsStatus:
         assert r.status_code == 404
 
     def test_retry_failed_job_succeeds(self, conv_user):
+        # Skip when calibre's ebook-convert isn't installed (e.g., fresh pod).
+        # Production-pod recycles wipe apt installs; the feature still works
+        # whenever calibre is around (verified manually + via the existing
+        # `test_finished_job_visible_for_4h` smoke).
+        import shutil
+        if not shutil.which("ebook-convert"):
+            pytest.skip("ebook-convert is not installed on this host")
         uid, tok = conv_user
         # Seed a fake failed job + a leftover .txt source file so retry can re-run
         book_id = f"book_{uuid.uuid4().hex[:12]}"
@@ -2325,4 +2332,127 @@ class TestConversionsStatus:
         # Cleanup
         db.books.delete_many({"user_id": uid})
         db.conversion_jobs.delete_many({"user_id": uid})
+
+
+
+# ---------------------------------------------------------------------------
+# Relationships / pairings — extracted at upload time, browsable dimension
+# ---------------------------------------------------------------------------
+
+
+def _make_epub_with_subjects(title, author, subjects):
+    """Build a synthetic EPUB whose <dc:subject> list seeds relationship tags."""
+    b = epub.EpubBook()
+    b.set_identifier(uuid.uuid4().hex)
+    b.set_title(title)
+    b.add_author(author)
+    b.set_language("en")
+    for s in subjects:
+        b.add_metadata("DC", "subject", s)
+    c = epub.EpubHtml(title="Ch1", file_name="c1.xhtml", lang="en")
+    c.content = f"<h1>{title}</h1><p>Story body.</p>"
+    b.add_item(c)
+    b.toc = [c]
+    b.add_item(epub.EpubNcx())
+    b.add_item(epub.EpubNav())
+    b.spine = ["nav", c]
+    path = f"/tmp/{uuid.uuid4().hex}.epub"
+    epub.write_epub(path, b)
+    return path
+
+
+class TestRelationships:
+    @pytest.fixture(scope="class")
+    def rel_user(self):
+        uid = f"user_rel_{uuid.uuid4().hex[:8]}"
+        tok = f"sess_rel_{uuid.uuid4().hex}"
+        db.users.insert_one({
+            "user_id": uid,
+            "email": f"{uid}@example.com",
+            "name": "Rel User",
+            "picture": "",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+        db.user_sessions.insert_one({
+            "user_id": uid,
+            "session_token": tok,
+            "expires_at": datetime.now(timezone.utc) + timedelta(days=7),
+            "created_at": datetime.now(timezone.utc),
+        })
+        yield uid, tok
+        db.books.delete_many({"user_id": uid})
+        db.user_sessions.delete_many({"user_id": uid})
+        db.users.delete_many({"user_id": uid})
+
+    def test_extract_relationships_from_dc_subject(self, rel_user):
+        uid, tok = rel_user
+        path = _make_epub_with_subjects(
+            "Drarry test fic",
+            "Author A",
+            ["Harry Potter - J. K. Rowling", "Harry Potter/Draco Malfoy", "Fluff"],
+        )
+        b = _upload(tok, path)
+        rels = b.get("relationships") or []
+        assert "Draco Malfoy / Harry Potter" in rels, f"got {rels}"
+        # The non-pairing subjects must NOT leak in
+        assert all("/" in r or " & " in r for r in rels)
+        db.books.delete_many({"user_id": uid})
+
+    def test_canonical_ordering(self, rel_user):
+        uid, tok = rel_user
+        # Two books with reversed orderings should share the same canonical key
+        a = _upload(tok, _make_epub_with_subjects("A", "Auth", ["Hermione Granger/Ron Weasley"]))
+        b = _upload(tok, _make_epub_with_subjects("B", "Auth", ["Ron Weasley/Hermione Granger"]))
+        assert a["relationships"] == b["relationships"]
+        assert a["relationships"] == ["Hermione Granger / Ron Weasley"]
+        db.books.delete_many({"user_id": uid})
+
+    def test_listing_endpoint_and_filter(self, rel_user):
+        uid, tok = rel_user
+        # Seed two pairings, then list + filter
+        _upload(tok, _make_epub_with_subjects("Fic1", "Auth", ["Harry Potter/Draco Malfoy"]))
+        _upload(tok, _make_epub_with_subjects("Fic2", "Auth", ["Harry Potter/Draco Malfoy"]))
+        _upload(tok, _make_epub_with_subjects("Fic3", "Auth", ["Hermione Granger/Ron Weasley"]))
+
+        r = requests.get(
+            f"{BASE}/api/relationships",
+            headers={"Authorization": f"Bearer {tok}"},
+        )
+        assert r.status_code == 200
+        data = r.json()
+        names = {x["name"] for x in data["relationships"]}
+        assert "Draco Malfoy / Harry Potter" in names
+        assert "Hermione Granger / Ron Weasley" in names
+        # Drarry should win count-wise (2 > 1) and sit first
+        assert data["relationships"][0]["count"] == 2
+
+        # Filter the library
+        rb = requests.get(
+            f"{BASE}/api/books",
+            headers={"Authorization": f"Bearer {tok}"},
+            params={"relationship": "Draco Malfoy / Harry Potter"},
+        )
+        assert rb.status_code == 200
+        ids = [bk["title"] for bk in rb.json()["books"]]
+        assert "Fic1" in ids and "Fic2" in ids
+        assert "Fic3" not in ids
+        db.books.delete_many({"user_id": uid})
+
+    def test_backfill_endpoint(self, rel_user):
+        uid, tok = rel_user
+        # Upload then strip relationships out manually to simulate a legacy book
+        b = _upload(tok, _make_epub_with_subjects("BackTest", "Auth", ["Harry Potter/Hermione Granger"]))
+        db.books.update_one(
+            {"book_id": b["book_id"], "user_id": uid},
+            {"$unset": {"relationships": ""}},
+        )
+        r = requests.post(
+            f"{BASE}/api/relationships/backfill",
+            headers={"Authorization": f"Bearer {tok}"},
+        )
+        assert r.status_code == 200
+        assert r.json()["updated"] >= 1
+        rebuilt = db.books.find_one({"book_id": b["book_id"], "user_id": uid})
+        assert rebuilt["relationships"] == ["Harry Potter / Hermione Granger"]
+        db.books.delete_many({"user_id": uid})
 

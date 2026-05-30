@@ -559,6 +559,24 @@ export default function BookDetail() {
               <Meta label="Size" value={`${(book.size_bytes / 1024).toFixed(0)} KB`} />
               <Meta label="Language" value={book.language || "—"} />
               {book.publisher && <Meta label="Publisher" value={book.publisher} />}
+              {Array.isArray(book.relationships) && book.relationships.length > 0 && (
+                <Meta
+                  label="Pairings"
+                  value={
+                    <div className="flex flex-wrap gap-1">
+                      {book.relationships.map((r) => (
+                        <Link
+                          key={r}
+                          to={`/library?relationship=${encodeURIComponent(r)}`}
+                          className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-pink-50 text-pink-800 border border-pink-200 hover:bg-pink-100"
+                        >
+                          {r}
+                        </Link>
+                      ))}
+                    </div>
+                  }
+                />
+              )}
               {book.converted_from && (
                 <Meta
                   label="Original format"

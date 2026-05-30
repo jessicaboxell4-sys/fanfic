@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { api } from "../lib/api";
 import Navbar from "../components/Navbar";
 import BookCard from "../components/BookCard";
@@ -17,11 +17,13 @@ const DEFAULT_CATEGORIES = ["All", "Fanfiction", "Original Fiction", "Non-fictio
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ total: 0, categories: [], fandoms: [] });
+  const [stats, setStats] = useState({ total: 0, categories: [], fandoms: [], relationships: [] });
   const [category, setCategory] = useState("All");
   const [fandom, setFandom] = useState(null);
+  const [relationship, setRelationship] = useState(null);
   const [search, setSearch] = useState("");
   const [customCats, setCustomCats] = useState([]);
   const [newCat, setNewCat] = useState("");
@@ -90,6 +92,7 @@ export default function Dashboard() {
       const params = {};
       if (category && category !== "All") params.category = category;
       if (fandom) params.fandom = fandom;
+      if (relationship) params.relationship = relationship;
       if (search) params.q = search;
       if (smart) params.smart = smart;
       const [b, s, c] = await Promise.all([
@@ -142,9 +145,17 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [category, fandom, search, smart]);
+  }, [category, fandom, relationship, search, smart]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Honor `?relationship=...` query param on first mount so deep-links from
+  // BookDetail pairing chips land on a pre-filtered library.
+  useEffect(() => {
+    const rel = searchParams.get("relationship");
+    if (rel) setRelationship(rel);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Poll the conversion-status endpoint while uploads with heavy formats
   // (PDF, MOBI etc.) are running — Calibre conversion can take 30+ seconds.
@@ -853,6 +864,41 @@ export default function Dashboard() {
               </div>
             )}
 
+            {stats.relationships && stats.relationships.length > 0 && (
+              <div className="mb-8">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40]">
+                    Relationships
+                  </p>
+                  <p className="text-xs text-[#6B705C] hidden sm:block">
+                    Click a pairing to filter the library
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {stats.relationships.slice(0, 20).map(r => {
+                    const active = relationship === r.name;
+                    return (
+                      <button
+                        key={r.name}
+                        data-testid={`open-relationship-${r.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`}
+                        onClick={() => {
+                          if (active) setRelationship(null);
+                          else { setRelationship(r.name); setCategory("All"); setFandom(null); setSmart(null); }
+                        }}
+                        className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors flex items-center gap-1.5 ${
+                          active
+                            ? "bg-pink-700 text-white border-pink-700"
+                            : "bg-pink-50 text-pink-800 border-pink-200 hover:bg-pink-700 hover:text-white hover:border-pink-700"
+                        }`}
+                      >
+                        {r.name} · {r.count}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {authorsList.length > 0 && (
               <div className="mb-8">
                 <div className="flex items-center justify-between mb-3">
@@ -879,6 +925,14 @@ export default function Dashboard() {
               </div>
             )}
 
+            {relationship && (
+              <div data-testid="active-relationship-banner" className="mb-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-pink-50 text-pink-800 border border-pink-200">
+                Showing pairing · <span className="font-semibold">{relationship}</span>
+                <button onClick={() => setRelationship(null)} className="hover:text-pink-900" aria-label="Clear relationship filter">
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            )}
             {loading ? (
               <p className="text-[#6B705C] py-12 text-center">Loading…</p>
             ) : books.length === 0 ? (

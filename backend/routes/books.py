@@ -121,7 +121,45 @@ def extract_epub_metadata(filepath: Path) -> Dict[str, Any]:
     except Exception:
         pass
 
-    # Get cover
+    # --- Relationships / pairings ---------------------------------------
+    # AO3 export EPUBs put each relationship tag in its own <dc:subject>
+    # element (alongside fandom + freeform tags). We pick up everything that
+    # looks like a pairing — i.e. contains "/" or " & " — and canonicalize.
+    # FFnet/SpaceBattles tend to embed pairings in the description instead
+    # ("Pairings: Harry/Hermione, Ron/Lavender") so we also scan there.
+    relationships: List[str] = []
+    seen_rel: set = set()
+
+    def _add_rel(raw: str) -> None:
+        canonical = _canonicalize_relationship(raw)
+        if canonical and canonical not in seen_rel:
+            seen_rel.add(canonical)
+            relationships.append(canonical)
+
+    try:
+        for value, _attrs in (book.get_metadata('DC', 'subject') or []):
+            if not value:
+                continue
+            s = value.strip()
+            # Only treat the subject tag as a relationship if it looks like one
+            if '/' in s or ' & ' in s:
+                _add_rel(s)
+    except Exception:
+        pass
+
+    # Fallback: parse "Pairings:" / "Relationship(s):" lines from the description
+    if description:
+        for m in re.finditer(
+            r'(?:pairing|relationship)s?\s*[:\-—]\s*([^\n\r.;]+)',
+            description,
+            re.IGNORECASE,
+        ):
+            for piece in re.split(r',|;', m.group(1)):
+                piece = piece.strip()
+                if piece and ('/' in piece or ' & ' in piece):
+                    _add_rel(piece)
+
+
     cover_bytes = None
     try:
         for item in book.get_items_of_type(ebooklib.ITEM_COVER):
@@ -169,8 +207,49 @@ def extract_epub_metadata(filepath: Path) -> Dict[str, Any]:
         "sample_text": sample_text[:5000],
         "series_name": series_name,
         "series_index": series_index,
+        "relationships": relationships,
         "parse_failed": False,
     }
+
+
+# ---------------------------------------------------------------------------
+# Relationship canonicalization
+# ---------------------------------------------------------------------------
+# Fanfic readers expect "Harry Potter/Hermione Granger" and
+# "Hermione Granger/Harry Potter" to live on the same shelf. We canonicalize
+# by:
+#   1. splitting on the AO3 separator "/" (romantic) or " & " (platonic);
+#      "/" wins when both appear so romantic > platonic for grouping.
+#   2. stripping whitespace, fandom suffixes ("(Harry Potter)"), and any
+#      trailing notes ("Harry/Draco - mentioned").
+#   3. sorting the participants alphabetically with a stable lowercase key.
+#   4. re-joining with " / " (single space, classic fandom convention).
+# Three-or-more-way pairings are preserved as-is, just sorted.
+
+def _canonicalize_relationship(raw: str) -> Optional[str]:
+    s = (raw or "").strip()
+    if not s:
+        return None
+    # Drop trailing "(Fandom Name)" — common AO3 ambiguity disambiguator
+    s = re.sub(r'\s*\([^)]+\)\s*$', '', s).strip()
+    # Strip "- mentioned" / "- past" / etc.
+    s = re.sub(r'\s*[-—]\s*(?:past|former|implied|mentioned|background|brief|one-sided|unrequited).*$', '', s, flags=re.IGNORECASE).strip()
+    # Determine separator: prefer "/" (romantic) if present, else " & "
+    if '/' in s:
+        sep = '/'
+    elif ' & ' in s:
+        sep = ' & '
+    else:
+        # Single name — not a pairing
+        return None
+    parts = [p.strip() for p in s.split(sep) if p.strip()]
+    if len(parts) < 2:
+        return None
+    # Reject if any part is suspiciously short (typo guard) or numeric-only
+    if any(len(p) < 2 or p.isdigit() for p in parts):
+        return None
+    parts.sort(key=lambda p: p.lower())
+    return " / ".join(parts)
 
 
 # Series patterns (used when EPUB has no calibre:series meta)
@@ -1915,6 +1994,7 @@ async def upload_books(
             "last_refreshed_at": None,
             "series_name": series_name,
             "series_index": series_index,
+            "relationships": meta.get("relationships") or [],
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         if original_format:
@@ -1980,6 +2060,7 @@ async def list_books(
     request: Request,
     category: Optional[str] = None,
     fandom: Optional[str] = None,
+    relationship: Optional[str] = None,
     q: Optional[str] = None,
     smart: Optional[str] = None,
     user: User = Depends(get_current_user),
@@ -1992,6 +2073,8 @@ async def list_books(
         query['category'] = {"$ne": TRASH_SHELF}
     if fandom:
         query['fandom'] = fandom
+    if relationship:
+        query['relationships'] = relationship
 
     or_clauses: List[List[Dict[str, Any]]] = []
     if q:
@@ -2033,8 +2116,15 @@ async def book_stats(user: User = Depends(get_current_user)):
         {"$group": {"_id": "$fandom", "count": {"$sum": 1}}},
         {"$sort": {"count": -1}},
     ]
+    pipeline_rel = [
+        {"$match": {"user_id": user.user_id, "relationships": {"$exists": True, "$ne": []}}},
+        {"$unwind": "$relationships"},
+        {"$group": {"_id": "$relationships", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+    ]
     cats = await db.books.aggregate(pipeline_cat).to_list(100)
     fandoms = await db.books.aggregate(pipeline_fandom).to_list(100)
+    relationships = await db.books.aggregate(pipeline_rel).to_list(200)
     total = await db.books.count_documents({"user_id": user.user_id})
     reading = await db.books.count_documents({
         "user_id": user.user_id,
@@ -2055,6 +2145,7 @@ async def book_stats(user: User = Depends(get_current_user)):
         "unreadable": unreadable,
         "categories": [{"name": c['_id'], "count": c['count']} for c in cats],
         "fandoms": [{"name": f['_id'], "count": f['count']} for f in fandoms],
+        "relationships": [{"name": r['_id'], "count": r['count']} for r in relationships],
     }
 
 
@@ -5100,4 +5191,61 @@ async def sweep_expired_trash() -> int:
         res = await db.books.delete_one({"book_id": bid, "user_id": uid})
         removed += res.deleted_count
     return removed
+
+
+
+# ----------------------------------------------------------------------
+# RELATIONSHIPS / PAIRINGS — first-class browsable dimension
+# ----------------------------------------------------------------------
+
+@api_router.get("/relationships")
+async def list_relationships(user: User = Depends(get_current_user)):
+    """Every distinct relationship across the user's library, with counts."""
+    pipeline = [
+        {"$match": {"user_id": user.user_id, "category": {"$ne": TRASH_SHELF}, "relationships": {"$exists": True, "$ne": []}}},
+        {"$unwind": "$relationships"},
+        {"$group": {"_id": "$relationships", "count": {"$sum": 1}, "fandoms": {"$addToSet": "$fandom"}}},
+        {"$sort": {"count": -1}},
+    ]
+    out = []
+    async for r in db.books.aggregate(pipeline):
+        out.append({
+            "name": r["_id"],
+            "count": r["count"],
+            "fandoms": [f for f in (r.get("fandoms") or []) if f],
+        })
+    return {"relationships": out, "count": len(out)}
+
+
+@api_router.post("/relationships/backfill")
+async def backfill_relationships(user: User = Depends(get_current_user)):
+    """Walk every book in the library and re-extract relationships from the
+    EPUB metadata. Useful for libraries seeded before this feature shipped."""
+    user_dir = STORAGE_DIR / user.user_id
+    cursor = db.books.find(
+        {"user_id": user.user_id, "category": {"$ne": TRASH_SHELF}},
+        {"_id": 0, "book_id": 1, "description": 1, "relationships": 1},
+    )
+    updated = 0
+    skipped = 0
+    async for b in cursor:
+        epub_path = user_dir / f"{b['book_id']}.epub"
+        if not epub_path.exists():
+            skipped += 1
+            continue
+        try:
+            loop = asyncio.get_event_loop()
+            meta = await loop.run_in_executor(None, extract_epub_metadata, epub_path)
+            new_rels = meta.get("relationships") or []
+            old_rels = b.get("relationships") or []
+            if sorted(new_rels) != sorted(old_rels):
+                await db.books.update_one(
+                    {"book_id": b["book_id"], "user_id": user.user_id},
+                    {"$set": {"relationships": new_rels}},
+                )
+                updated += 1
+        except Exception as e:
+            logger.warning("backfill_relationships failed for %s: %s", b.get("book_id"), e)
+            skipped += 1
+    return {"updated": updated, "skipped": skipped}
 
