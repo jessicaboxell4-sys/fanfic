@@ -40,6 +40,7 @@ export default function Dashboard() {
   const [pendingDupes, setPendingDupes] = useState([]);
   const [undoActions, setUndoActions] = useState([]);  // {book_id, title, action, target_book_id, undoable}
   const [trashCount, setTrashCount] = useState(0);
+  const [conversions, setConversions] = useState({ converting: 0, jobs: [] });
   const [glanceOrder, setGlanceOrder] = useState(["continue", "stats", "shelves"]);
   const [glanceHidden, setGlanceHidden] = useState([]);
   const [organizing, setOrganizing] = useState(false);
@@ -145,6 +146,23 @@ export default function Dashboard() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Poll the conversion-status endpoint while uploads with heavy formats
+  // (PDF, MOBI etc.) are running — Calibre conversion can take 30+ seconds.
+  useEffect(() => {
+    let stopped = false;
+    let interval = null;
+    const tick = async () => {
+      try {
+        const { data } = await api.get("/conversions/status");
+        if (stopped) return;
+        setConversions(data || { converting: 0, jobs: [] });
+      } catch (e) { /* non-fatal */ }
+    };
+    tick();
+    interval = setInterval(tick, 3000);
+    return () => { stopped = true; if (interval) clearInterval(interval); };
+  }, []);
+
   const moveGlance = (key, dir) => {
     setGlanceOrder((prev) => {
       const idx = prev.indexOf(key);
@@ -207,6 +225,16 @@ export default function Dashboard() {
             >
               <Trash2 className="w-3 h-3" /> Trash · {trashCount}
             </Link>
+          )}
+          {conversions.converting > 0 && (
+            <div
+              data-testid="conversion-chip"
+              className="inline-flex items-center gap-1.5 mt-3 ml-2 px-3 py-1 rounded-full text-xs font-medium border border-amber-300 bg-amber-50 text-amber-800"
+              title={(conversions.jobs || []).map((j) => `${j.title} (.${j.original_format})`).join("\n")}
+            >
+              <Loader2 className="w-3 h-3 animate-spin" />
+              Converting · {conversions.converting} {conversions.converting === 1 ? "book" : "books"}
+            </div>
           )}
         </div>
 

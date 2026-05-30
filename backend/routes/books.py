@@ -1547,6 +1547,33 @@ async def convert_to_epub(src_path: Path, dest_path: Path) -> Optional[str]:
     return await loop.run_in_executor(None, _convert_to_epub_sync, src_path, dest_path)
 
 
+# In-flight conversion tracker — keyed by user_id, holds a list of dicts
+# describing each conversion currently running. The dashboard polls
+# `/api/conversions/status` every few seconds while this isn't empty.
+_conversion_jobs: Dict[str, List[Dict[str, Any]]] = {}
+_conversion_jobs_lock = asyncio.Lock()
+
+
+async def _conversion_start(user_id: str, job: Dict[str, Any]) -> None:
+    async with _conversion_jobs_lock:
+        _conversion_jobs.setdefault(user_id, []).append(job)
+
+
+async def _conversion_end(user_id: str, job_id: str) -> None:
+    async with _conversion_jobs_lock:
+        if user_id in _conversion_jobs:
+            _conversion_jobs[user_id] = [j for j in _conversion_jobs[user_id] if j.get("id") != job_id]
+            if not _conversion_jobs[user_id]:
+                _conversion_jobs.pop(user_id, None)
+
+
+@api_router.get("/conversions/status")
+async def conversions_status(user: User = Depends(get_current_user)):
+    async with _conversion_jobs_lock:
+        jobs = list(_conversion_jobs.get(user.user_id, []))
+    return {"converting": len(jobs), "jobs": jobs}
+
+
 @api_router.post("/books/upload")
 async def upload_books(
     request: Request,
@@ -1574,7 +1601,18 @@ async def upload_books(
             content = await f.read()
             src_target.write_bytes(content)
             epub_target = user_dir / f"{book_id}.epub"
-            err = await convert_to_epub(src_target, epub_target)
+            job_id = uuid.uuid4().hex
+            await _conversion_start(user.user_id, {
+                "id": job_id,
+                "book_id": book_id,
+                "title": (f.filename or "Untitled").rsplit(".", 1)[0],
+                "original_format": ext.lstrip("."),
+                "started_at": datetime.now(timezone.utc).isoformat(),
+            })
+            try:
+                err = await convert_to_epub(src_target, epub_target)
+            finally:
+                await _conversion_end(user.user_id, job_id)
             if err:
                 base_name = (f.filename or "Untitled").rsplit(".", 1)[0]
                 now_iso = datetime.now(timezone.utc).isoformat()

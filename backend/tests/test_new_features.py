@@ -2194,3 +2194,38 @@ class TestTrashShelf:
             assert d["category"] != "Trash"
             assert "trash_expires_at" not in d
         db.books.delete_many({"user_id": uid})
+
+
+class TestConversionsStatus:
+    @pytest.fixture(scope="class")
+    def conv_user(self):
+        uid = f"user_conv_{uuid.uuid4().hex[:8]}"
+        tok = f"sess_conv_{uuid.uuid4().hex}"
+        db.users.insert_one({
+            "user_id": uid,
+            "email": f"{uid}@example.com",
+            "name": "Conv User",
+            "picture": "",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+        db.user_sessions.insert_one({
+            "user_id": uid,
+            "session_token": tok,
+            "expires_at": datetime.now(timezone.utc) + timedelta(days=7),
+            "created_at": datetime.now(timezone.utc),
+        })
+        yield uid, tok
+        db.user_sessions.delete_many({"user_id": uid})
+        db.users.delete_many({"user_id": uid})
+
+    def test_idle_status_is_zero(self, conv_user):
+        _, tok = conv_user
+        r = requests.get(
+            f"{BASE}/api/conversions/status",
+            headers={"Authorization": f"Bearer {tok}"},
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["converting"] == 0
+        assert data["jobs"] == []
+
