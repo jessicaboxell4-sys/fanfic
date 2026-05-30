@@ -1629,6 +1629,85 @@ async def conversions_dismiss(user: User = Depends(get_current_user)):
     return {"dismissed": result.deleted_count}
 
 
+@api_router.post("/conversions/{job_id}/retry")
+async def retry_conversion(job_id: str, user: User = Depends(get_current_user)):
+    """Re-run a failed conversion against the original source file.
+
+    Looks up the failed job, finds the source file on disk (still kept after
+    failure), runs `ebook-convert` again, and on success extracts metadata +
+    re-classifies the book so it lands on the right shelf and is openable in
+    the Reader. The job record is updated in place (no new row).
+    """
+    job = await db.conversion_jobs.find_one({"id": job_id, "user_id": user.user_id})
+    if not job:
+        raise HTTPException(status_code=404, detail="Conversion job not found")
+    if job.get("status") not in ("failed", "done"):
+        raise HTTPException(status_code=400, detail="Job is still in progress")
+
+    book_id = job.get("book_id")
+    ext = "." + (job.get("original_format") or "")
+    user_dir = STORAGE_DIR / user.user_id
+    src_path = user_dir / f"{book_id}{ext}"
+    if not src_path.exists():
+        raise HTTPException(status_code=404, detail="Original source file is no longer on disk")
+    epub_target = user_dir / f"{book_id}.epub"
+
+    # Mark as processing again
+    await db.conversion_jobs.update_one(
+        {"id": job_id, "user_id": user.user_id},
+        {
+            "$set": {
+                "status": "processing",
+                "started_at": datetime.now(timezone.utc).isoformat(),
+            },
+            "$unset": {"finished_at": "", "expires_at": "", "error": ""},
+        },
+    )
+
+    err = await convert_to_epub(src_path, epub_target)
+    await _conversion_end(user.user_id, job_id, error=err)
+    if err:
+        return {"ok": False, "error": err}
+
+    # Conversion succeeded — extract metadata + reclassify
+    try:
+        meta = extract_epub_metadata(epub_target)
+        cls = await classify_book(meta)
+        links = extract_urls_from_epub(epub_target)
+        source_url = find_source_url(links)
+        fanfic_urls = extract_fanfic_urls(links)
+        update = {
+            "title": meta.get("title") or "Untitled",
+            "author": meta.get("author") or "Unknown",
+            "description": meta.get("description") or "",
+            "language": meta.get("language") or "",
+            "publisher": meta.get("publisher") or "",
+            "has_cover": bool(meta.get("cover_bytes")),
+            "category": cls.get("category") or "Unclassified",
+            "fandom": cls.get("fandom"),
+            "confidence": cls.get("confidence") or 0.5,
+            "classifier": cls.get("classifier") or "retry",
+            "tags": cls.get("tags") or [],
+            "links_count": len(links),
+            "source_url": source_url,
+            "fanfic_urls": fanfic_urls,
+            "converted_from": ext.lstrip("."),
+            "original_format": ext.lstrip("."),
+        }
+        await db.books.update_one(
+            {"book_id": book_id, "user_id": user.user_id},
+            {
+                "$set": update,
+                "$unset": {"needs_conversion": "", "conversion_error": ""},
+            },
+        )
+    except Exception as e:
+        logger.warning("retry_conversion metadata pass failed for %s: %s", book_id, e)
+        return {"ok": True, "warning": f"Converted but metadata refresh failed: {e}"}
+
+    return {"ok": True, "book_id": book_id, "category": update.get("category")}
+
+
 @api_router.post("/books/upload")
 async def upload_books(
     request: Request,

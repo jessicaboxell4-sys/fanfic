@@ -2268,3 +2268,61 @@ class TestConversionsStatus:
         db.books.delete_many({"user_id": uid})
         db.conversion_jobs.delete_many({"user_id": uid})
 
+    def test_retry_404_on_unknown_job(self, conv_user):
+        _, tok = conv_user
+        r = requests.post(
+            f"{BASE}/api/conversions/nope-not-real/retry",
+            headers={"Authorization": f"Bearer {tok}"},
+        )
+        assert r.status_code == 404
+
+    def test_retry_failed_job_succeeds(self, conv_user):
+        uid, tok = conv_user
+        # Seed a fake failed job + a leftover .txt source file so retry can re-run
+        book_id = f"book_{uuid.uuid4().hex[:12]}"
+        user_dir = os.path.join("/app/uploads", uid)
+        os.makedirs(user_dir, exist_ok=True)
+        src_path = os.path.join(user_dir, f"{book_id}.txt")
+        with open(src_path, "wb") as fh:
+            fh.write(b"Title: Retry Test\n\nThis is a tiny ebook in plain text. The end.\n")
+        job_id = uuid.uuid4().hex
+        db.conversion_jobs.insert_one({
+            "id": job_id,
+            "user_id": uid,
+            "book_id": book_id,
+            "title": "Retry Test",
+            "original_format": "txt",
+            "status": "failed",
+            "started_at": datetime.now(timezone.utc).isoformat(),
+            "finished_at": datetime.now(timezone.utc).isoformat(),
+            "expires_at": datetime.now(timezone.utc) + timedelta(hours=4),
+            "error": "synthetic prior failure",
+        })
+        db.books.insert_one({
+            "book_id": book_id,
+            "user_id": uid,
+            "filename": "retry.txt",
+            "title": "Retry Test",
+            "author": "Unknown",
+            "category": "Needs conversion",
+            "needs_conversion": True,
+            "original_format": "txt",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+        # Retry
+        r = requests.post(
+            f"{BASE}/api/conversions/{job_id}/retry",
+            headers={"Authorization": f"Bearer {tok}"},
+        )
+        assert r.status_code == 200, r.text
+        payload = r.json()
+        assert payload.get("ok") is True
+        # The book should no longer be on Needs-conversion
+        b = db.books.find_one({"book_id": book_id, "user_id": uid})
+        assert b["category"] != "Needs conversion"
+        assert b.get("converted_from") == "txt"
+        assert "needs_conversion" not in b
+        # Cleanup
+        db.books.delete_many({"user_id": uid})
+        db.conversion_jobs.delete_many({"user_id": uid})
+
