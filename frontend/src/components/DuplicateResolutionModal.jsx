@@ -20,6 +20,7 @@ const REASON_LABEL = {
   title: "same title",
   source_url: "same source URL",
   url: "shares a fanfic link",
+  historical_version: "older snapshot of a current copy",
 };
 
 export default function DuplicateResolutionModal({ pending, onClose, onResolved }) {
@@ -50,9 +51,9 @@ export default function DuplicateResolutionModal({ pending, onClose, onResolved 
       const choice = choices[b.book_id];
       if (!choice) continue;
       const body = { action: choice.action };
-      if (choice.action === "new_version_of") {
+      if (choice.action === "new_version_of" || choice.action === "link_as_old_version") {
         if (!choice.target) {
-          toast.error(`Pick which existing book "${b.title}" should replace.`);
+          toast.error(`Pick which existing book "${b.title}" should ${choice.action === "link_as_old_version" ? "link under" : "replace"}.`);
           failures += 1;
           continue;
         }
@@ -141,7 +142,7 @@ export default function DuplicateResolutionModal({ pending, onClose, onResolved 
                   ))}
                 </ul>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2" role="radiogroup" aria-label="Pick an action">
+                <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Pick an action">
                   <button
                     data-testid={`duplicate-action-keep-${b.book_id}`}
                     onClick={() => updateChoice(b.book_id, { action: "keep" })}
@@ -191,11 +192,34 @@ export default function DuplicateResolutionModal({ pending, onClose, onResolved 
                     </div>
                     <p className="text-xs text-[#6B705C]">Archive existing → put upload on a dated shelf.</p>
                   </button>
+
+                  <button
+                    data-testid={`duplicate-action-historical-${b.book_id}`}
+                    onClick={() => updateChoice(b.book_id, { action: "link_as_old_version" })}
+                    disabled={isDone}
+                    className={`text-left p-3 rounded-lg border transition ${
+                      choice.action === "link_as_old_version"
+                        ? "border-blue-400 bg-blue-50 text-[#2C2C2C]"
+                        : "border-[#E5DDC5] hover:border-blue-300 text-[#2C2C2C]"
+                    } ${isDone ? "cursor-not-allowed" : ""}`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-medium text-sm">Link as historical version</span>
+                      {(b.duplicate_of || []).some((m) => (m.match_reasons || []).includes("historical_version")) && (
+                        <span className="text-[10px] uppercase font-medium text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded">suggested</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-[#6B705C]">Older snapshot → archive under the current copy.</p>
+                  </button>
                 </div>
 
-                {choice.action === "new_version_of" && (b.duplicate_of || []).length > 1 && (
+                {(choice.action === "new_version_of" || choice.action === "link_as_old_version") && (b.duplicate_of || []).length > 1 && (
                   <div className="mt-3">
-                    <label className="text-xs text-[#6B705C] mb-1 block">Which existing book does this replace?</label>
+                    <label className="text-xs text-[#6B705C] mb-1 block">
+                      {choice.action === "link_as_old_version"
+                        ? "Which existing book is the current copy?"
+                        : "Which existing book does this replace?"}
+                    </label>
                     <select
                       data-testid={`duplicate-target-${b.book_id}`}
                       value={choice.target || ""}

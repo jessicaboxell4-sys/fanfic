@@ -478,3 +478,10 @@
   - The standard descriptive copy when the count hasn't loaded yet
 - Button label flips between "Scan library" and "Review duplicates" based on the count.
 - Tests: `TestDuplicatesCount` — 2 cases (empty library, reflects dupes accurately). **234 passing, 1 by-design skip**.
+
+### Added 2026-05-30 (Cross-version dupe detection — historical snapshots)
+- **Problem**: uploading a 2020 snapshot of a fic you've since re-fetched used to either miss the match entirely or get offered as a "new version" (replacing the current copy, which is backwards).
+- **`find_duplicate_candidates`** rewritten: now searches archived books too. When a match lands on an archived book, walks the `replaced_by` chain to its current head and surfaces the head as the candidate, with `historical_version` added to `match_reasons`. Multiple archived matches that walk to the same head are merged into a single result with combined reasons. Orphaned chains (heads that are themselves archived/missing) are skipped.
+- New `resolve-duplicate` action `"link_as_old_version"` — archives the just-uploaded book under `target_book_id` (the current head) with `category="Old stories"`, `replaced_by=target_book_id`, `replaced_at=now`. Reverse polarity of `new_version_of`.
+- **Frontend**: `DuplicateResolutionModal` switches to a 4-button 2x2 action grid. The new blue "Link as historical version" tile picks up a small "suggested" badge when the match carries the `historical_version` reason. Target-picker dropdown (when there's >1 match) now contextually relabels to "Which existing book is the current copy?" for the historical action.
+- Tests: 2 new in `TestDuplicateDetection` (cross-version detection against archived books, resolve link_as_old_version archives correctly). **236 passing, 1 by-design skip, coverage 80.1%** (`routes/books.py` 81.6%).

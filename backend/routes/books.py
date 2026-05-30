@@ -792,9 +792,10 @@ async def find_duplicate_candidates(
       - exact source_url equality
       - any shared canonical fanfic URL (intersection on `fanfic_urls`)
 
-    Archived versions (category == "Old stories" or `replaced_by` set) are
-    excluded — we don't want to flag the newly-uploaded copy as a dupe of an
-    already-superseded earlier version.
+    Archived versions are searched too — when a match lands on an archived
+    book we walk the `replaced_by` chain to its current head and surface the
+    head as the match (with `historical_version` added to match_reasons),
+    so the upload can be offered as a historical version of a current copy.
 
     Returns a list of `{book_id, title, author, match_reasons: [...]}` dicts.
     """
@@ -815,17 +816,38 @@ async def find_duplicate_candidates(
     if not or_clauses:
         return []
 
-    query: Dict[str, Any] = {
-        "user_id": user_id,
-        "$or": or_clauses,
-        "category": {"$ne": OLD_STORIES_SHELF},
-        "replaced_by": {"$exists": False},
-    }
+    query: Dict[str, Any] = {"user_id": user_id, "$or": or_clauses}
     if exclude_book_id:
         query["book_id"] = {"$ne": exclude_book_id}
 
-    out: List[Dict[str, Any]] = []
-    async for doc in db.books.find(query, {"_id": 0, "book_id": 1, "title": 1, "author": 1, "source_url": 1, "fanfic_urls": 1}):
+    projection = {"_id": 0, "book_id": 1, "title": 1, "author": 1, "source_url": 1, "fanfic_urls": 1, "category": 1, "replaced_by": 1}
+    matches_by_head: Dict[str, Dict[str, Any]] = {}
+
+    async def _walk_to_head(doc: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Follow `replaced_by` until we hit a current (non-archived) copy."""
+        current = doc
+        seen: set = set()
+        while current.get("replaced_by"):
+            if current["book_id"] in seen:
+                return None  # cycle guard
+            seen.add(current["book_id"])
+            nxt = await db.books.find_one(
+                {"book_id": current["replaced_by"], "user_id": user_id},
+                projection,
+            )
+            if not nxt:
+                return None
+            current = nxt
+        if current.get("category") == OLD_STORIES_SHELF:
+            return None  # orphaned archived chain
+        return current
+
+    async for doc in db.books.find(query, projection):
+        is_archived = doc.get("category") == OLD_STORIES_SHELF or bool(doc.get("replaced_by"))
+        head_doc = doc if not is_archived else await _walk_to_head(doc)
+        if not head_doc:
+            continue
+
         reasons: List[str] = []
         if norm_title and _normalize_title_for_match(doc.get("title")) == norm_title:
             reasons.append("title")
@@ -835,14 +857,27 @@ async def find_duplicate_candidates(
             shared = [u for u in (doc.get("fanfic_urls") or []) if u in urls]
             if shared:
                 reasons.append("url")
-        if reasons:
-            out.append({
-                "book_id": doc["book_id"],
-                "title": doc.get("title") or "",
-                "author": doc.get("author") or "",
-                "match_reasons": reasons,
-            })
-    return out
+        if not reasons:
+            continue
+        if is_archived:
+            reasons.append("historical_version")
+
+        head_id = head_doc["book_id"]
+        if head_id == exclude_book_id:
+            continue
+        existing = matches_by_head.get(head_id)
+        if existing:
+            # Merge reasons (de-duped)
+            existing["match_reasons"] = sorted(set(existing["match_reasons"]) | set(reasons))
+        else:
+            matches_by_head[head_id] = {
+                "book_id": head_id,
+                "title": head_doc.get("title") or "",
+                "author": head_doc.get("author") or "",
+                "match_reasons": sorted(set(reasons)),
+            }
+
+    return list(matches_by_head.values())
 
 
 async def fanfic_fetch_epub(source_url: str, options: Optional[Dict[str, Any]] = None) -> tuple:
@@ -3862,9 +3897,13 @@ async def resolve_duplicate(
       * `new_version_of`    — archive `target_book_id` to "Old stories" and
                               move the new book to a dated "Updated stories"
                               shelf with a proper chapter-diff refresh_summary
+      * `link_as_old_version` — archive the just-uploaded book under
+                                `target_book_id` (the current head). Use this
+                                when the upload is actually an older snapshot
+                                of a fic you've since re-fetched.
     """
-    if body.action not in ("keep", "discard", "new_version_of"):
-        raise HTTPException(status_code=400, detail="action must be one of keep/discard/new_version_of")
+    if body.action not in ("keep", "discard", "new_version_of", "link_as_old_version"):
+        raise HTTPException(status_code=400, detail="action must be one of keep/discard/new_version_of/link_as_old_version")
 
     book = await db.books.find_one({"book_id": book_id, "user_id": user.user_id})
     if not book:
@@ -3890,9 +3929,9 @@ async def resolve_duplicate(
         await db.books.delete_one({"book_id": book_id, "user_id": user.user_id})
         return {"ok": True, "action": "discard", "book_id": book_id}
 
-    # new_version_of
+    # link_as_old_version + new_version_of both need a target
     if not body.target_book_id:
-        raise HTTPException(status_code=400, detail="target_book_id is required for new_version_of")
+        raise HTTPException(status_code=400, detail="target_book_id is required")
     if body.target_book_id == book_id:
         raise HTTPException(status_code=400, detail="target_book_id cannot equal the uploaded book")
 
@@ -3901,6 +3940,28 @@ async def resolve_duplicate(
         raise HTTPException(status_code=404, detail="Target book not found")
     if target.get("category") == OLD_STORIES_SHELF or target.get("replaced_by"):
         raise HTTPException(status_code=400, detail="Target book is already archived; pick its current version instead")
+
+    if body.action == "link_as_old_version":
+        # Archive the just-uploaded book under the target (current head).
+        now_iso = datetime.now(timezone.utc).isoformat()
+        await db.books.update_one(
+            {"book_id": book_id, "user_id": user.user_id},
+            {
+                "$set": {
+                    "category": OLD_STORIES_SHELF,
+                    "replaced_by": target["book_id"],
+                    "replaced_at": now_iso,
+                },
+                "$unset": {"duplicate_pending": "", "duplicate_of": ""},
+            },
+        )
+        return {
+            "ok": True,
+            "action": "link_as_old_version",
+            "old_book_id": book_id,
+            "head_book_id": target["book_id"],
+            "message": f'Linked as a historical version of "{target.get("title") or "the current copy"}".',
+        }
 
     now_dt = datetime.now(timezone.utc)
     now_iso = now_dt.isoformat()

@@ -1416,6 +1416,61 @@ class TestDuplicateDetection:
         assert r2.status_code == 400
         db.books.delete_many({"user_id": uid})
 
+    def test_cross_version_detection_against_archived(self, dup_user):
+        """Upload that shares a URL with an archived book gets matched
+        against the chain head (current copy), with `historical_version`
+        added to match_reasons."""
+        uid, tok = dup_user
+        shared = "https://archiveofourown.org/works/55001100"
+        # Build a chain: A (archived) -> B (current)
+        a = _upload(tok, _make_epub_with_links("Xverse A", "Auth", [shared]))
+        b = _upload(tok, _make_epub_with_links("Xverse B", "Auth", [shared]))
+        # Manually archive `a` under `b`
+        db.books.update_one(
+            {"book_id": a["book_id"], "user_id": uid},
+            {"$set": {"category": "Old stories", "replaced_by": b["book_id"]}},
+        )
+        # Also clear b's duplicate flag from the upload-time match
+        db.books.update_one(
+            {"book_id": b["book_id"], "user_id": uid},
+            {"$unset": {"duplicate_pending": "", "duplicate_of": ""}},
+        )
+        # Upload another snapshot with the shared URL — should match `b`
+        # (chain head) AND be flagged as historical_version
+        third = _upload(tok, _make_epub_with_links("Xverse Snapshot", "Auth", [shared]))
+        assert third.get("duplicate_pending") is True
+        dups = third.get("duplicate_of") or []
+        # Should land on the chain head only once
+        head_match = next((m for m in dups if m["book_id"] == b["book_id"]), None)
+        assert head_match is not None, f"expected match on chain head {b['book_id']}, got {dups}"
+        assert "historical_version" in head_match["match_reasons"]
+        db.books.delete_many({"user_id": uid})
+
+    def test_resolve_link_as_old_version(self, dup_user):
+        uid, tok = dup_user
+        a = _upload(tok, _make_epub_with_links("HistoricalLink Title", "Auth", []))
+        b = _upload(tok, _make_epub_with_links("HistoricalLink Title", "Auth", []))
+        assert b["duplicate_pending"]
+        r = requests.post(
+            f"{BASE}/api/books/{b['book_id']}/resolve-duplicate",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"action": "link_as_old_version", "target_book_id": a["book_id"]},
+        )
+        assert r.status_code == 200, r.text
+        payload = r.json()
+        assert payload["action"] == "link_as_old_version"
+        # The just-uploaded book is now archived under `a`
+        archived = db.books.find_one({"book_id": b["book_id"], "user_id": uid})
+        assert archived["category"] == "Old stories"
+        assert archived["replaced_by"] == a["book_id"]
+        assert "duplicate_pending" not in archived
+        # `a` (current head) is untouched
+        head = db.books.find_one({"book_id": a["book_id"], "user_id": uid})
+        assert head["category"] != "Old stories"
+        assert "replaced_by" not in head
+        db.books.delete_many({"user_id": uid})
+
+
 
 # ---------------------------------------------------------------------------
 # Find duplicates in library + resolve-group
