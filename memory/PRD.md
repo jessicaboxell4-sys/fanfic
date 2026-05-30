@@ -485,3 +485,9 @@
 - New `resolve-duplicate` action `"link_as_old_version"` — archives the just-uploaded book under `target_book_id` (the current head) with `category="Old stories"`, `replaced_by=target_book_id`, `replaced_at=now`. Reverse polarity of `new_version_of`.
 - **Frontend**: `DuplicateResolutionModal` switches to a 4-button 2x2 action grid. The new blue "Link as historical version" tile picks up a small "suggested" badge when the match carries the `historical_version` reason. Target-picker dropdown (when there's >1 match) now contextually relabels to "Which existing book is the current copy?" for the historical action.
 - Tests: 2 new in `TestDuplicateDetection` (cross-version detection against archived books, resolve link_as_old_version archives correctly). **236 passing, 1 by-design skip, coverage 80.1%** (`routes/books.py` 81.6%).
+
+### Added 2026-05-30 (At-a-glance folder on Dashboard + user-orderable sections)
+- **Dashboard reorg**: Continue-reading, reading stats (StatsCard), and pinned smart shelves now live together in a single warm-gradient "At a glance" folder card at the very top of the dashboard. Empty-library state stays clean (folder auto-hides).
+- **`GET/PUT /api/user/dashboard-layout`** persists `{order: ["continue"|"stats"|"shelves"...]}` on the user doc. Validation: rejects unknown sections (400), rejects duplicates (400), pads missing sections at the end of any partial save so the order is always complete.
+- **Frontend**: header has an "Organize" toggle. While in organize mode, each section sprouts a small vertical pair of ↑/↓ buttons (left-aligned, white-on-cream chips). Each move fires an idempotent PUT to the layout endpoint — no save button needed.
+- Tests: `TestDashboardLayout` — 5 cases (default order, save+round-trip, partial-pad behavior, rejects unknown, rejects duplicates). **241 passing, 1 by-design skip**.

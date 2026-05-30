@@ -1762,6 +1762,58 @@ async def update_fff_options(body: FFFOptionsBody, user: User = Depends(get_curr
     return {**FFF_OPTION_DEFAULTS, **stored}
 
 
+# Dashboard "At a glance" folder — user-orderable section list.
+DASHBOARD_SECTIONS = ("continue", "stats", "shelves")
+DASHBOARD_DEFAULT_ORDER = list(DASHBOARD_SECTIONS)
+
+
+class DashboardLayoutBody(BaseModel):
+    order: List[str]
+
+
+@api_router.get("/user/dashboard-layout")
+async def get_dashboard_layout(user: User = Depends(get_current_user)):
+    user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "dashboard_layout": 1})
+    stored = (user_doc or {}).get("dashboard_layout") or {}
+    order = stored.get("order") or DASHBOARD_DEFAULT_ORDER
+    # Drop unknown keys, pad with any missing defaults so the UI is never empty
+    seen: set = set()
+    cleaned: List[str] = []
+    for k in order:
+        if k in DASHBOARD_SECTIONS and k not in seen:
+            seen.add(k)
+            cleaned.append(k)
+    for k in DASHBOARD_DEFAULT_ORDER:
+        if k not in seen:
+            cleaned.append(k)
+            seen.add(k)
+    return {"order": cleaned}
+
+
+@api_router.put("/user/dashboard-layout")
+async def update_dashboard_layout(body: DashboardLayoutBody, user: User = Depends(get_current_user)):
+    # Validate: every item must be a known section, no duplicates
+    seen: set = set()
+    cleaned: List[str] = []
+    for k in body.order:
+        if k not in DASHBOARD_SECTIONS:
+            raise HTTPException(status_code=400, detail=f"Unknown section '{k}'")
+        if k in seen:
+            raise HTTPException(status_code=400, detail=f"Section '{k}' appears more than once")
+        seen.add(k)
+        cleaned.append(k)
+    # Pad missing sections at the end so the order is always complete
+    for k in DASHBOARD_DEFAULT_ORDER:
+        if k not in seen:
+            cleaned.append(k)
+            seen.add(k)
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": {"dashboard_layout": {"order": cleaned}}},
+    )
+    return {"order": cleaned}
+
+
 @api_router.post("/user/apply-template-to-all")
 async def apply_template_to_all(user: User = Depends(get_current_user)):
     """Run apply_template_to_epub over every EPUB the user has on disk.

@@ -1659,3 +1659,83 @@ class TestDuplicatesCount:
         assert data["total_dupe_books"] == 2
         db.books.delete_many({"user_id": uid})
 
+
+
+class TestDashboardLayout:
+    @pytest.fixture(scope="class")
+    def lay_user(self):
+        uid = f"user_lay_{uuid.uuid4().hex[:8]}"
+        tok = f"sess_lay_{uuid.uuid4().hex}"
+        db.users.insert_one({
+            "user_id": uid,
+            "email": f"{uid}@example.com",
+            "name": "Layout User",
+            "picture": "",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+        db.user_sessions.insert_one({
+            "user_id": uid,
+            "session_token": tok,
+            "expires_at": datetime.now(timezone.utc) + timedelta(days=7),
+            "created_at": datetime.now(timezone.utc),
+        })
+        yield uid, tok
+        db.user_sessions.delete_many({"user_id": uid})
+        db.users.delete_many({"user_id": uid})
+
+    def test_default_order(self, lay_user):
+        _, tok = lay_user
+        r = requests.get(
+            f"{BASE}/api/user/dashboard-layout",
+            headers={"Authorization": f"Bearer {tok}"},
+        )
+        assert r.status_code == 200
+        assert r.json() == {"order": ["continue", "stats", "shelves"]}
+
+    def test_save_and_round_trip(self, lay_user):
+        _, tok = lay_user
+        r = requests.put(
+            f"{BASE}/api/user/dashboard-layout",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"order": ["shelves", "continue", "stats"]},
+        )
+        assert r.status_code == 200, r.text
+        assert r.json() == {"order": ["shelves", "continue", "stats"]}
+        # GET should return what we stored
+        r2 = requests.get(
+            f"{BASE}/api/user/dashboard-layout",
+            headers={"Authorization": f"Bearer {tok}"},
+        )
+        assert r2.json() == {"order": ["shelves", "continue", "stats"]}
+
+    def test_partial_order_pads_missing(self, lay_user):
+        _, tok = lay_user
+        r = requests.put(
+            f"{BASE}/api/user/dashboard-layout",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"order": ["stats"]},
+        )
+        assert r.status_code == 200
+        # missing keys appended at the end in default order
+        out = r.json()["order"]
+        assert out[0] == "stats"
+        assert set(out) == {"continue", "stats", "shelves"}
+
+    def test_rejects_unknown_section(self, lay_user):
+        _, tok = lay_user
+        r = requests.put(
+            f"{BASE}/api/user/dashboard-layout",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"order": ["continue", "bogus"]},
+        )
+        assert r.status_code == 400
+
+    def test_rejects_duplicates(self, lay_user):
+        _, tok = lay_user
+        r = requests.put(
+            f"{BASE}/api/user/dashboard-layout",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"order": ["stats", "stats", "continue"]},
+        )
+        assert r.status_code == 400
+

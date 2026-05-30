@@ -10,7 +10,7 @@ import StatsCard from "../components/StatsCard";
 import PoweredByFanFicFare from "../components/PoweredByFanFicFare";
 import OnboardingPrompt from "../components/OnboardingPrompt";
 import DuplicateResolutionModal from "../components/DuplicateResolutionModal";
-import { Search, X, Plus, ArrowRight, CheckSquare, Sparkles, Loader2, RefreshCw, Library, UserCircle2, Filter, Pin, FolderOpen } from "lucide-react";
+import { Search, X, Plus, ArrowRight, CheckSquare, Sparkles, Loader2, RefreshCw, Library, UserCircle2, Filter, Pin, FolderOpen, ArrowUpDown, ChevronUp, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 
 const DEFAULT_CATEGORIES = ["All", "Fanfiction", "Original Fiction", "Non-fiction", "Unclassified", "Updated stories", "Old stories"];
@@ -38,6 +38,8 @@ export default function Dashboard() {
   const [authorsList, setAuthorsList] = useState([]);
   const [pinnedShelves, setPinnedShelves] = useState([]);
   const [pendingDupes, setPendingDupes] = useState([]);
+  const [glanceOrder, setGlanceOrder] = useState(["continue", "stats", "shelves"]);
+  const [organizing, setOrganizing] = useState(false);
 
   const unclassifiedCount = useMemo(() => {
     const row = (stats.categories || []).find((c) => c.name === "Unclassified");
@@ -118,6 +120,12 @@ export default function Dashboard() {
         const sh = await api.get("/smart-shelves");
         setPinnedShelves((sh.data.shelves || []).filter((s) => s.pinned));
       } catch (e) {}
+      try {
+        const dl = await api.get("/user/dashboard-layout");
+        if (Array.isArray(dl.data.order) && dl.data.order.length === 3) {
+          setGlanceOrder(dl.data.order);
+        }
+      } catch (e) {}
     } catch (e) {
       console.error(e);
     } finally {
@@ -126,6 +134,20 @@ export default function Dashboard() {
   }, [category, fandom, search, smart]);
 
   useEffect(() => { load(); }, [load]);
+
+  const moveGlance = (key, dir) => {
+    setGlanceOrder((prev) => {
+      const idx = prev.indexOf(key);
+      const next = idx + dir;
+      if (idx < 0 || next < 0 || next >= prev.length) return prev;
+      const out = [...prev];
+      [out[idx], out[next]] = [out[next], out[idx]];
+      api.put("/user/dashboard-layout", { order: out }).catch(() => {
+        toast.error("Couldn't save layout");
+      });
+      return out;
+    });
+  };
   const showEmpty = !loading && stats.total === 0;
 
   return (
@@ -159,41 +181,96 @@ export default function Dashboard() {
               <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] flex items-center gap-2">
                 <FolderOpen className="w-4 h-4" /> At a glance
               </p>
+              <button
+                data-testid="organize-glance-btn"
+                onClick={() => setOrganizing((v) => !v)}
+                className={`text-xs font-semibold uppercase tracking-wider inline-flex items-center gap-1 px-2 py-1 rounded ${
+                  organizing ? "text-white bg-[#3A5A40]" : "text-[#3A5A40] hover:text-[#2C2C2C]"
+                }`}
+                title="Reorder these sections"
+              >
+                <ArrowUpDown className="w-3 h-3" /> {organizing ? "Done" : "Organize"}
+              </button>
             </div>
             <div className="space-y-6">
-              {recentBooks.length > 0 && <ContinueReadingRail books={recentBooks} />}
-              {overview && (overview.books_finished > 0 || overview.pages_read > 0 || overview.reading_streak_days > 0) && (
-                <StatsCard stats={overview} viewMoreTo="/library/stats" />
-              )}
-              {pinnedShelves.length > 0 && (
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] flex items-center gap-2">
-                      <Pin className="w-3 h-3" /> Pinned smart shelves
-                    </p>
-                    <Link
-                      to="/library/smart-shelves"
-                      data-testid="manage-smart-shelves"
-                      className="text-xs text-[#3A5A40] hover:text-[#2C2C2C] font-semibold uppercase tracking-wider inline-flex items-center gap-1"
-                    >
-                      <Filter className="w-3 h-3" /> Manage
-                    </Link>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {pinnedShelves.map((s) => (
-                      <button
-                        key={s.shelf_id}
-                        data-testid={`open-smart-shelf-${s.shelf_id}`}
-                        onClick={() => navigate(`/library/smart/${s.shelf_id}`)}
-                        className="px-3 py-1 rounded-full text-xs font-semibold border bg-[#FDF3E1] text-[#B87A00] border-[#B87A00]/30 hover:bg-[#B87A00] hover:text-white transition-colors flex items-center gap-1.5"
+              {glanceOrder.map((key, idx) => {
+                const hasContinue = recentBooks.length > 0;
+                const hasStats = overview && (overview.books_finished > 0 || overview.pages_read > 0 || overview.reading_streak_days > 0);
+                const hasShelves = pinnedShelves.length > 0;
+
+                const section = (() => {
+                  if (key === "continue" && hasContinue) {
+                    return <ContinueReadingRail books={recentBooks} />;
+                  }
+                  if (key === "stats" && hasStats) {
+                    return <StatsCard stats={overview} viewMoreTo="/library/stats" />;
+                  }
+                  if (key === "shelves" && hasShelves) {
+                    return (
+                      <div>
+                        <div className="flex items-center justify-between mb-3">
+                          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] flex items-center gap-2">
+                            <Pin className="w-3 h-3" /> Pinned smart shelves
+                          </p>
+                          <Link
+                            to="/library/smart-shelves"
+                            data-testid="manage-smart-shelves"
+                            className="text-xs text-[#3A5A40] hover:text-[#2C2C2C] font-semibold uppercase tracking-wider inline-flex items-center gap-1"
+                          >
+                            <Filter className="w-3 h-3" /> Manage
+                          </Link>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {pinnedShelves.map((s) => (
+                            <button
+                              key={s.shelf_id}
+                              data-testid={`open-smart-shelf-${s.shelf_id}`}
+                              onClick={() => navigate(`/library/smart/${s.shelf_id}`)}
+                              className="px-3 py-1 rounded-full text-xs font-semibold border bg-[#FDF3E1] text-[#B87A00] border-[#B87A00]/30 hover:bg-[#B87A00] hover:text-white transition-colors flex items-center gap-1.5"
+                            >
+                              <Filter className="w-3 h-3" />
+                              {s.name} · {s.count}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })();
+
+                if (!section) return null;
+                return (
+                  <div key={key} className="relative">
+                    {organizing && (
+                      <div
+                        data-testid={`glance-reorder-${key}`}
+                        className="absolute -left-2 top-0 flex flex-col gap-1 z-10"
                       >
-                        <Filter className="w-3 h-3" />
-                        {s.name} · {s.count}
-                      </button>
-                    ))}
+                        <button
+                          data-testid={`glance-up-${key}`}
+                          onClick={() => moveGlance(key, -1)}
+                          disabled={idx === 0}
+                          className="w-6 h-6 rounded bg-white border border-[#B87A00]/30 text-[#3A5A40] hover:bg-[#FDF3E1] disabled:opacity-30 flex items-center justify-center"
+                          title="Move up"
+                        >
+                          <ChevronUp className="w-3 h-3" />
+                        </button>
+                        <button
+                          data-testid={`glance-down-${key}`}
+                          onClick={() => moveGlance(key, +1)}
+                          disabled={idx === glanceOrder.length - 1}
+                          className="w-6 h-6 rounded bg-white border border-[#B87A00]/30 text-[#3A5A40] hover:bg-[#FDF3E1] disabled:opacity-30 flex items-center justify-center"
+                          title="Move down"
+                        >
+                          <ChevronDown className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
+                    <div className={organizing ? "pl-6 transition-all" : ""}>{section}</div>
                   </div>
-                </div>
-              )}
+                );
+              })}
             </div>
           </section>
         )}
