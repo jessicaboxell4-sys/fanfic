@@ -1690,7 +1690,7 @@ class TestDashboardLayout:
             headers={"Authorization": f"Bearer {tok}"},
         )
         assert r.status_code == 200
-        assert r.json() == {"order": ["continue", "stats", "shelves"]}
+        assert r.json() == {"order": ["continue", "stats", "shelves"], "hidden": []}
 
     def test_save_and_round_trip(self, lay_user):
         _, tok = lay_user
@@ -1700,13 +1700,38 @@ class TestDashboardLayout:
             json={"order": ["shelves", "continue", "stats"]},
         )
         assert r.status_code == 200, r.text
-        assert r.json() == {"order": ["shelves", "continue", "stats"]}
+        assert r.json() == {"order": ["shelves", "continue", "stats"], "hidden": []}
         # GET should return what we stored
         r2 = requests.get(
             f"{BASE}/api/user/dashboard-layout",
             headers={"Authorization": f"Bearer {tok}"},
         )
-        assert r2.json() == {"order": ["shelves", "continue", "stats"]}
+        assert r2.json() == {"order": ["shelves", "continue", "stats"], "hidden": []}
+
+    def test_hidden_sections_round_trip(self, lay_user):
+        _, tok = lay_user
+        r = requests.put(
+            f"{BASE}/api/user/dashboard-layout",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"order": ["continue", "stats", "shelves"], "hidden": ["shelves"]},
+        )
+        assert r.status_code == 200
+        assert r.json() == {"order": ["continue", "stats", "shelves"], "hidden": ["shelves"]}
+        # GET reflects it
+        r2 = requests.get(
+            f"{BASE}/api/user/dashboard-layout",
+            headers={"Authorization": f"Bearer {tok}"},
+        )
+        assert r2.json() == {"order": ["continue", "stats", "shelves"], "hidden": ["shelves"]}
+
+    def test_hidden_rejects_unknown(self, lay_user):
+        _, tok = lay_user
+        r = requests.put(
+            f"{BASE}/api/user/dashboard-layout",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"order": ["continue", "stats", "shelves"], "hidden": ["nope"]},
+        )
+        assert r.status_code == 400
 
     def test_partial_order_pads_missing(self, lay_user):
         _, tok = lay_user

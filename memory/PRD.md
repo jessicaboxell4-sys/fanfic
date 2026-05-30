@@ -490,4 +490,9 @@
 - **Dashboard reorg**: Continue-reading, reading stats (StatsCard), and pinned smart shelves now live together in a single warm-gradient "At a glance" folder card at the very top of the dashboard. Empty-library state stays clean (folder auto-hides).
 - **`GET/PUT /api/user/dashboard-layout`** persists `{order: ["continue"|"stats"|"shelves"...]}` on the user doc. Validation: rejects unknown sections (400), rejects duplicates (400), pads missing sections at the end of any partial save so the order is always complete.
 - **Frontend**: header has an "Organize" toggle. While in organize mode, each section sprouts a small vertical pair of ↑/↓ buttons (left-aligned, white-on-cream chips). Each move fires an idempotent PUT to the layout endpoint — no save button needed.
-- Tests: `TestDashboardLayout` — 5 cases (default order, save+round-trip, partial-pad behavior, rejects unknown, rejects duplicates). **241 passing, 1 by-design skip**.
+- Tests: `TestDashboardLayout` — 7 cases (default order/hidden, save+round-trip preserves hidden default of [], hidden round-trip, hidden rejects unknown, partial-pad behavior, rejects unknown section, rejects duplicates). **243 passing, 1 by-design skip**.
+
+### Added 2026-05-30 (At-a-glance: show/hide sections)
+- **Backend** `dashboard_layout` now stores `{order, hidden}`. PUT accepts an optional `hidden: [section,…]`, validates each entry against the section whitelist (400 on unknown). GET seeds default `[]`. Old documents that pre-date the field default to no hidden sections.
+- **Frontend** organize mode adds a third per-section button — Eye / EyeOff — alongside the up/down arrows. Hidden sections render at 40% opacity in organize mode (so the user can find and un-hide them); outside organize mode they're collapsed entirely. Switching state idempotently PUTs to the layout endpoint.
+- Bonus polish: in organize mode, empty sections now show a dashed-border placeholder ("Reading stats — nothing here yet") so users see what the layout would look like once content arrives.

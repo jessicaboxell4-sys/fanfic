@@ -10,7 +10,7 @@ import StatsCard from "../components/StatsCard";
 import PoweredByFanFicFare from "../components/PoweredByFanFicFare";
 import OnboardingPrompt from "../components/OnboardingPrompt";
 import DuplicateResolutionModal from "../components/DuplicateResolutionModal";
-import { Search, X, Plus, ArrowRight, CheckSquare, Sparkles, Loader2, RefreshCw, Library, UserCircle2, Filter, Pin, FolderOpen, ArrowUpDown, ChevronUp, ChevronDown } from "lucide-react";
+import { Search, X, Plus, ArrowRight, CheckSquare, Sparkles, Loader2, RefreshCw, Library, UserCircle2, Filter, Pin, FolderOpen, ArrowUpDown, ChevronUp, ChevronDown, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 
 const DEFAULT_CATEGORIES = ["All", "Fanfiction", "Original Fiction", "Non-fiction", "Unclassified", "Updated stories", "Old stories"];
@@ -39,6 +39,7 @@ export default function Dashboard() {
   const [pinnedShelves, setPinnedShelves] = useState([]);
   const [pendingDupes, setPendingDupes] = useState([]);
   const [glanceOrder, setGlanceOrder] = useState(["continue", "stats", "shelves"]);
+  const [glanceHidden, setGlanceHidden] = useState([]);
   const [organizing, setOrganizing] = useState(false);
 
   const unclassifiedCount = useMemo(() => {
@@ -125,6 +126,9 @@ export default function Dashboard() {
         if (Array.isArray(dl.data.order) && dl.data.order.length === 3) {
           setGlanceOrder(dl.data.order);
         }
+        if (Array.isArray(dl.data.hidden)) {
+          setGlanceHidden(dl.data.hidden);
+        }
       } catch (e) {}
     } catch (e) {
       console.error(e);
@@ -142,7 +146,17 @@ export default function Dashboard() {
       if (idx < 0 || next < 0 || next >= prev.length) return prev;
       const out = [...prev];
       [out[idx], out[next]] = [out[next], out[idx]];
-      api.put("/user/dashboard-layout", { order: out }).catch(() => {
+      api.put("/user/dashboard-layout", { order: out, hidden: glanceHidden }).catch(() => {
+        toast.error("Couldn't save layout");
+      });
+      return out;
+    });
+  };
+
+  const toggleGlanceHidden = (key) => {
+    setGlanceHidden((prev) => {
+      const out = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key];
+      api.put("/user/dashboard-layout", { order: glanceOrder, hidden: out }).catch(() => {
         toast.error("Couldn't save layout");
       });
       return out;
@@ -187,7 +201,7 @@ export default function Dashboard() {
                 className={`text-xs font-semibold uppercase tracking-wider inline-flex items-center gap-1 px-2 py-1 rounded ${
                   organizing ? "text-white bg-[#3A5A40]" : "text-[#3A5A40] hover:text-[#2C2C2C]"
                 }`}
-                title="Reorder these sections"
+                title="Reorder or hide these sections"
               >
                 <ArrowUpDown className="w-3 h-3" /> {organizing ? "Done" : "Organize"}
               </button>
@@ -197,15 +211,28 @@ export default function Dashboard() {
                 const hasContinue = recentBooks.length > 0;
                 const hasStats = overview && (overview.books_finished > 0 || overview.pages_read > 0 || overview.reading_streak_days > 0);
                 const hasShelves = pinnedShelves.length > 0;
+                const isHidden = glanceHidden.includes(key);
+
+                const LABEL = { continue: "Continue reading", stats: "Reading stats", shelves: "Pinned smart shelves" };
+
+                const hasContent = (key === "continue" && hasContinue) || (key === "stats" && hasStats) || (key === "shelves" && hasShelves);
+
+                // In organize mode we always render every section (hidden or not)
+                // so the user can un-hide. Outside organize mode hidden+content-less
+                // sections collapse entirely.
+                if (!organizing && (isHidden || !hasContent)) return null;
 
                 const section = (() => {
-                  if (key === "continue" && hasContinue) {
-                    return <ContinueReadingRail books={recentBooks} />;
+                  if (!hasContent) {
+                    return (
+                      <div className="text-xs text-[#6B705C] italic px-3 py-2 rounded border border-dashed border-[#B87A00]/30 bg-white/40">
+                        {LABEL[key]} — nothing here yet
+                      </div>
+                    );
                   }
-                  if (key === "stats" && hasStats) {
-                    return <StatsCard stats={overview} viewMoreTo="/library/stats" />;
-                  }
-                  if (key === "shelves" && hasShelves) {
+                  if (key === "continue") return <ContinueReadingRail books={recentBooks} />;
+                  if (key === "stats") return <StatsCard stats={overview} viewMoreTo="/library/stats" />;
+                  if (key === "shelves") {
                     return (
                       <div>
                         <div className="flex items-center justify-between mb-3">
@@ -239,9 +266,8 @@ export default function Dashboard() {
                   return null;
                 })();
 
-                if (!section) return null;
                 return (
-                  <div key={key} className="relative">
+                  <div key={key} className={`relative ${isHidden && organizing ? "opacity-40" : ""}`}>
                     {organizing && (
                       <div
                         data-testid={`glance-reorder-${key}`}
@@ -264,6 +290,18 @@ export default function Dashboard() {
                           title="Move down"
                         >
                           <ChevronDown className="w-3 h-3" />
+                        </button>
+                        <button
+                          data-testid={`glance-hide-${key}`}
+                          onClick={() => toggleGlanceHidden(key)}
+                          className={`w-6 h-6 rounded border flex items-center justify-center ${
+                            isHidden
+                              ? "bg-[#FDF3E1] border-[#B87A00] text-[#B87A00]"
+                              : "bg-white border-[#B87A00]/30 text-[#3A5A40] hover:bg-[#FDF3E1]"
+                          }`}
+                          title={isHidden ? "Show on dashboard" : "Hide from dashboard"}
+                        >
+                          {isHidden ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
                         </button>
                       </div>
                     )}

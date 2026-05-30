@@ -1769,6 +1769,7 @@ DASHBOARD_DEFAULT_ORDER = list(DASHBOARD_SECTIONS)
 
 class DashboardLayoutBody(BaseModel):
     order: List[str]
+    hidden: Optional[List[str]] = None
 
 
 @api_router.get("/user/dashboard-layout")
@@ -1776,6 +1777,7 @@ async def get_dashboard_layout(user: User = Depends(get_current_user)):
     user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "dashboard_layout": 1})
     stored = (user_doc or {}).get("dashboard_layout") or {}
     order = stored.get("order") or DASHBOARD_DEFAULT_ORDER
+    hidden = stored.get("hidden") or []
     # Drop unknown keys, pad with any missing defaults so the UI is never empty
     seen: set = set()
     cleaned: List[str] = []
@@ -1787,7 +1789,8 @@ async def get_dashboard_layout(user: User = Depends(get_current_user)):
         if k not in seen:
             cleaned.append(k)
             seen.add(k)
-    return {"order": cleaned}
+    cleaned_hidden = [k for k in hidden if k in DASHBOARD_SECTIONS]
+    return {"order": cleaned, "hidden": cleaned_hidden}
 
 
 @api_router.put("/user/dashboard-layout")
@@ -1807,11 +1810,18 @@ async def update_dashboard_layout(body: DashboardLayoutBody, user: User = Depend
         if k not in seen:
             cleaned.append(k)
             seen.add(k)
+    cleaned_hidden: List[str] = []
+    if body.hidden is not None:
+        for k in body.hidden:
+            if k not in DASHBOARD_SECTIONS:
+                raise HTTPException(status_code=400, detail=f"Unknown hidden section '{k}'")
+            if k not in cleaned_hidden:
+                cleaned_hidden.append(k)
     await db.users.update_one(
         {"user_id": user.user_id},
-        {"$set": {"dashboard_layout": {"order": cleaned}}},
+        {"$set": {"dashboard_layout": {"order": cleaned, "hidden": cleaned_hidden}}},
     )
-    return {"order": cleaned}
+    return {"order": cleaned, "hidden": cleaned_hidden}
 
 
 @api_router.post("/user/apply-template-to-all")
