@@ -1629,6 +1629,41 @@ async def conversions_dismiss(user: User = Depends(get_current_user)):
     return {"dismissed": result.deleted_count}
 
 
+@api_router.post("/conversions/retry-all")
+async def retry_all_failed_conversions(user: User = Depends(get_current_user)):
+    """Re-run every failed conversion in the visibility window. Returns a
+    per-job summary so the UI can show how many recovered vs are still failing."""
+    cursor = db.conversion_jobs.find(
+        {"user_id": user.user_id, "status": "failed"},
+        {"_id": 0, "id": 1},
+    )
+    job_ids = [j["id"] async for j in cursor]
+    succeeded = 0
+    still_failed = 0
+    errors: List[Dict[str, str]] = []
+    for jid in job_ids:
+        try:
+            # Re-use the per-job retry logic by calling it directly.
+            result = await retry_conversion(jid, user)
+            if result.get("ok"):
+                succeeded += 1
+            else:
+                still_failed += 1
+                errors.append({"job_id": jid, "error": result.get("error") or "unknown"})
+        except HTTPException as e:
+            still_failed += 1
+            errors.append({"job_id": jid, "error": e.detail})
+        except Exception as e:
+            still_failed += 1
+            errors.append({"job_id": jid, "error": str(e)})
+    return {
+        "attempted": len(job_ids),
+        "succeeded": succeeded,
+        "still_failed": still_failed,
+        "errors": errors,
+    }
+
+
 @api_router.post("/conversions/{job_id}/retry")
 async def retry_conversion(job_id: str, user: User = Depends(get_current_user)):
     """Re-run a failed conversion against the original source file.

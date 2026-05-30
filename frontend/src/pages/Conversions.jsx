@@ -92,6 +92,29 @@ export default function Conversions() {
     }
   };
 
+  const retryAll = async () => {
+    setRetrying((s) => ({ ...s, _all: true }));
+    try {
+      const { data: r } = await api.post("/conversions/retry-all");
+      if (r.succeeded > 0 && r.still_failed === 0) {
+        toast.success(`Recovered ${r.succeeded} conversion${r.succeeded === 1 ? "" : "s"}`);
+      } else if (r.succeeded > 0) {
+        toast(`Recovered ${r.succeeded}, still failing ${r.still_failed}`);
+      } else if (r.attempted === 0) {
+        toast("Nothing to retry");
+      } else {
+        toast.error(`Still failing: ${r.still_failed}`);
+      }
+      load();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Retry-all failed");
+    } finally {
+      setRetrying((s) => ({ ...s, _all: false }));
+    }
+  };
+
+  const failedCount = (data.jobs || []).filter((j) => j.status === "failed").length;
+
   const showEmpty = !loading && data.jobs.length === 0;
 
   return (
@@ -113,13 +136,26 @@ export default function Conversions() {
             </p>
           </div>
           {(data.recent_done + data.recent_failed) > 0 && (
-            <button
-              data-testid="dismiss-all-btn"
-              onClick={dismissAll}
-              className="px-3 py-1.5 rounded text-xs font-medium bg-white border border-[#6B705C]/30 text-[#6B705C] hover:bg-[#6B705C]/10 inline-flex items-center gap-1"
-            >
-              <X className="w-3 h-3" /> Clear history
-            </button>
+            <div className="flex flex-wrap gap-2">
+              {failedCount > 0 && (
+                <button
+                  data-testid="retry-all-btn"
+                  onClick={retryAll}
+                  disabled={!!retrying._all}
+                  className="px-3 py-1.5 rounded text-xs font-medium bg-amber-700 text-white hover:bg-amber-800 disabled:opacity-60 inline-flex items-center gap-1"
+                >
+                  {retrying._all ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
+                  Retry {failedCount} failed
+                </button>
+              )}
+              <button
+                data-testid="dismiss-all-btn"
+                onClick={dismissAll}
+                className="px-3 py-1.5 rounded text-xs font-medium bg-white border border-[#6B705C]/30 text-[#6B705C] hover:bg-[#6B705C]/10 inline-flex items-center gap-1"
+              >
+                <X className="w-3 h-3" /> Clear history
+              </button>
+            </div>
           )}
         </div>
 
