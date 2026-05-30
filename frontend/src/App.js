@@ -23,6 +23,7 @@ import Account from "@/pages/Account";
 import Reader from "@/pages/Reader";
 import CompareVersions from "@/pages/CompareVersions";
 import EmailPreferences from "@/pages/EmailPreferences";
+import FindDuplicates from "@/pages/FindDuplicates";
 import AuthCallback from "@/pages/AuthCallback";
 import ResetPassword from "@/pages/ResetPassword";
 
@@ -64,6 +65,7 @@ function AppRouter() {
       <Route path="/library/cant-find-online" element={<ProtectedRoute><CantFindOnline /></ProtectedRoute>} />
       <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
       <Route path="/account/emails" element={<ProtectedRoute><EmailPreferences /></ProtectedRoute>} />
+      <Route path="/account/duplicates" element={<ProtectedRoute><FindDuplicates /></ProtectedRoute>} />
       <Route path="/book/:id" element={<ProtectedRoute><BookDetail /></ProtectedRoute>} />
       <Route path="/book/:id/compare" element={<ProtectedRoute><CompareVersions /></ProtectedRoute>} />
       <Route path="/read/:id" element={<ProtectedRoute><Reader /></ProtectedRoute>} />

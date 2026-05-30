@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
-import { User as UserIcon, Mail, Lock, Loader2, Mail as MailIcon, Settings2, AlertTriangle } from "lucide-react";
+import { User as UserIcon, Mail, Lock, Loader2, Mail as MailIcon, Settings2, AlertTriangle, Layers } from "lucide-react";
 import { toast } from "sonner";
 
 function errMsg(d) {
@@ -470,6 +470,28 @@ export default function Account() {
               from the sign-in page to set one.
             </p>
           )}
+        </section>
+
+        {/* Find duplicates — scan the library for matching books */}
+        <section className="shelf-card p-6 mb-6" data-testid="find-duplicates-card">
+          <div className="flex items-start gap-3 mb-3">
+            <div className="w-10 h-10 rounded-xl bg-[#E07A5F]/10 text-[#E07A5F] flex items-center justify-center flex-shrink-0">
+              <Layers className="w-5 h-5" />
+            </div>
+            <div className="flex-1">
+              <h2 className="font-serif text-2xl text-[#2C2C2C]">Find duplicates</h2>
+              <p className="text-sm text-[#6B705C] mt-1">
+                Scan your library for books that share a title, source URL, or fanfic permalink — pick a keeper, archive or delete the rest.
+              </p>
+            </div>
+            <button
+              data-testid="find-duplicates-btn"
+              onClick={() => navigate("/account/duplicates")}
+              className="px-4 py-2 rounded-lg text-sm font-medium bg-[#E07A5F] text-white hover:bg-[#d06a4f] flex-shrink-0"
+            >
+              Scan library
+            </button>
+          </div>
         </section>
 
         {/* Reset library state — selective wipe of metadata, books stay */}

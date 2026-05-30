@@ -1415,3 +1415,143 @@ class TestDuplicateDetection:
         )
         assert r2.status_code == 400
         db.books.delete_many({"user_id": uid})
+
+
+# ---------------------------------------------------------------------------
+# Find duplicates in library + resolve-group
+# ---------------------------------------------------------------------------
+
+
+class TestFindDuplicatesInLibrary:
+    @pytest.fixture(scope="class")
+    def lib_user(self):
+        uid = f"user_findd_{uuid.uuid4().hex[:8]}"
+        tok = f"sess_findd_{uuid.uuid4().hex}"
+        db.users.insert_one({
+            "user_id": uid,
+            "email": f"{uid}@example.com",
+            "name": "Find Dupes User",
+            "picture": "",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+        db.user_sessions.insert_one({
+            "user_id": uid,
+            "session_token": tok,
+            "expires_at": datetime.now(timezone.utc) + timedelta(days=7),
+            "created_at": datetime.now(timezone.utc),
+        })
+        yield uid, tok
+        db.books.delete_many({"user_id": uid})
+        db.user_sessions.delete_many({"user_id": uid})
+        db.users.delete_many({"user_id": uid})
+
+    def test_no_duplicates_returns_empty_groups(self, lib_user):
+        uid, tok = lib_user
+        # Upload one unique book
+        path = _make_epub_with_links("Singleton Story", "Unique Author", [])
+        b = _upload(tok, path)
+        assert not b.get("duplicate_pending")
+        r = requests.get(
+            f"{BASE}/api/library/duplicates",
+            headers={"Authorization": f"Bearer {tok}"},
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["total_groups"] == 0
+        assert data["groups"] == []
+        db.books.delete_many({"user_id": uid})
+
+    def test_groups_books_by_title_and_url(self, lib_user):
+        uid, tok = lib_user
+        shared = "https://archiveofourown.org/works/99887766"
+        # Group A: matched by title
+        _upload(tok, _make_epub_with_links("Group Alpha", "Auth A", []))
+        _upload(tok, _make_epub_with_links("Group Alpha", "Auth A v2", []))
+        # Group B: matched by shared fanfic URL
+        _upload(tok, _make_epub_with_links("Different X", "Auth B", [shared]))
+        _upload(tok, _make_epub_with_links("Different Y", "Auth B", [shared]))
+        # Singleton: no match
+        _upload(tok, _make_epub_with_links("Unique Story", "Auth C", []))
+
+        r = requests.get(
+            f"{BASE}/api/library/duplicates",
+            headers={"Authorization": f"Bearer {tok}"},
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["total_groups"] == 2
+        assert data["total_dupe_books"] == 4
+        # Each group has 2 members; reasons must include the matching signal
+        reasons = sorted([",".join(sorted(g["match_reasons"])) for g in data["groups"]])
+        assert any("title" in r for r in reasons)
+        assert any("url" in r or "source_url" in r for r in reasons)
+        db.books.delete_many({"user_id": uid})
+
+    def test_resolve_group_archives_and_discards(self, lib_user):
+        uid, tok = lib_user
+        a = _upload(tok, _make_epub_with_links("Resolved Title", "Auth", []))
+        b = _upload(tok, _make_epub_with_links("Resolved Title", "Auth", []))
+        c = _upload(tok, _make_epub_with_links("Resolved Title", "Auth", []))
+
+        # Make `a` the keeper, archive `b`, discard `c`
+        r = requests.post(
+            f"{BASE}/api/books/resolve-group",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={
+                "keeper_id": a["book_id"],
+                "decisions": [
+                    {"book_id": b["book_id"], "action": "archive"},
+                    {"book_id": c["book_id"], "action": "discard"},
+                ],
+            },
+        )
+        assert r.status_code == 200, r.text
+        payload = r.json()
+        assert payload["archived"] == 1
+        assert payload["discarded"] == 1
+        assert payload["kept"] == 1
+
+        # Keeper untouched
+        keeper = db.books.find_one({"book_id": a["book_id"], "user_id": uid})
+        assert keeper["category"] != "Old stories"
+        assert "duplicate_pending" not in keeper
+
+        # `b` archived with replaced_by pointer
+        archived = db.books.find_one({"book_id": b["book_id"], "user_id": uid})
+        assert archived["category"] == "Old stories"
+        assert archived["replaced_by"] == a["book_id"]
+
+        # `c` gone
+        assert db.books.find_one({"book_id": c["book_id"], "user_id": uid}) is None
+
+        db.books.delete_many({"user_id": uid})
+
+    def test_resolve_group_rejects_archived_keeper(self, lib_user):
+        uid, tok = lib_user
+        a = _upload(tok, _make_epub_with_links("Bad Keeper", "Auth", []))
+        b = _upload(tok, _make_epub_with_links("Bad Keeper", "Auth", []))
+        # Manually archive `a` so it cannot be a keeper
+        db.books.update_one(
+            {"book_id": a["book_id"], "user_id": uid},
+            {"$set": {"category": "Old stories", "replaced_by": b["book_id"]}},
+        )
+        r = requests.post(
+            f"{BASE}/api/books/resolve-group",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={
+                "keeper_id": a["book_id"],
+                "decisions": [{"book_id": b["book_id"], "action": "keep"}],
+            },
+        )
+        assert r.status_code == 400
+        db.books.delete_many({"user_id": uid})
+
+    def test_resolve_group_rejects_unknown_keeper(self, lib_user):
+        uid, tok = lib_user
+        r = requests.post(
+            f"{BASE}/api/books/resolve-group",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"keeper_id": "book_does_not_exist", "decisions": []},
+        )
+        assert r.status_code == 404
+

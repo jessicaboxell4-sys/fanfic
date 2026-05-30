@@ -3988,3 +3988,262 @@ async def resolve_duplicate(
         "message": f'Saved as a new version in "{updated_shelf}". The previous copy moved to Old stories.',
     }
 
+
+
+# ----------------------------------------------------------------------
+# FIND DUPLICATES IN LIBRARY
+# Scans the user's library after-the-fact and surfaces groups of books
+# that look like dupes — same title, same source URL, or shared fanfic
+# permalinks. Legacy books that pre-date the `fanfic_urls` field get a
+# lazy backfill from the on-disk `.links.txt` sidecar before grouping.
+# ----------------------------------------------------------------------
+
+FIND_DUPES_BACKFILL_LIMIT = 1000  # max books to backfill in a single call
+
+
+def _parse_urls_from_sidecar(path: Path) -> List[str]:
+    """Pull URLs out of a `<book_id>.links.txt` sidecar (one URL per line, the
+    sidecar's `format_links_txt` writes each URL on its own line)."""
+    if not path.exists():
+        return []
+    out: List[str] = []
+    try:
+        for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+            line = line.strip()
+            if line.startswith("http://") or line.startswith("https://"):
+                out.append(line)
+    except OSError:
+        return []
+    return out
+
+
+@api_router.get("/library/duplicates")
+async def find_duplicates(user: User = Depends(get_current_user)):
+    """Group the user's library by potential duplicate signal.
+
+    Returns `{groups: [...], total_groups, total_dupe_books, backfilled}`.
+    Archived (`Old stories` / `replaced_by`) books are excluded.
+    """
+    user_dir = STORAGE_DIR / user.user_id
+
+    # 1) Load all non-archived books for the user
+    cursor = db.books.find(
+        {
+            "user_id": user.user_id,
+            "category": {"$ne": OLD_STORIES_SHELF},
+            "replaced_by": {"$exists": False},
+        },
+        {
+            "_id": 0,
+            "book_id": 1,
+            "title": 1,
+            "author": 1,
+            "category": 1,
+            "fandom": 1,
+            "source_url": 1,
+            "fanfic_urls": 1,
+            "created_at": 1,
+            "reading_minutes": 1,
+            "progress_percent": 1,
+        },
+    )
+    books: List[Dict[str, Any]] = []
+    async for b in cursor:
+        books.append(b)
+
+    # 2) Opportunistic backfill of `fanfic_urls` for legacy books (capped)
+    backfilled = 0
+    for b in books:
+        if "fanfic_urls" in b:
+            continue
+        if backfilled >= FIND_DUPES_BACKFILL_LIMIT:
+            break
+        urls_raw = _parse_urls_from_sidecar(user_dir / f"{b['book_id']}.links.txt")
+        canonical: List[str] = []
+        seen: set = set()
+        for u in urls_raw:
+            for pat in FANFIC_SOURCE_PATTERNS:
+                m = re.search(pat, u, re.IGNORECASE)
+                if m and m.group(0) not in seen:
+                    seen.add(m.group(0))
+                    canonical.append(m.group(0))
+                    break
+        b["fanfic_urls"] = canonical
+        await db.books.update_one(
+            {"book_id": b["book_id"], "user_id": user.user_id},
+            {"$set": {"fanfic_urls": canonical}},
+        )
+        backfilled += 1
+
+    # 3) Build inverted indexes for fast grouping
+    by_title: Dict[str, List[int]] = {}
+    by_source: Dict[str, List[int]] = {}
+    by_url: Dict[str, List[int]] = {}
+    for i, b in enumerate(books):
+        nt = _normalize_title_for_match(b.get("title"))
+        if nt:
+            by_title.setdefault(nt, []).append(i)
+        s = b.get("source_url")
+        if s:
+            by_source.setdefault(s, []).append(i)
+        for u in (b.get("fanfic_urls") or []):
+            by_url.setdefault(u, []).append(i)
+
+    # 4) Union-find across the three indexes
+    parent = list(range(len(books)))
+
+    def find(x: int) -> int:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a: int, b: int):
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[rb] = ra
+
+    reasons_for_group: Dict[int, set] = {}
+
+    def link_group(indexes: List[int], reason: str):
+        if len(indexes) < 2:
+            return
+        head = indexes[0]
+        for j in indexes[1:]:
+            union(head, j)
+        reasons_for_group.setdefault(find(head), set()).add(reason)
+
+    for nt, idxs in by_title.items():
+        link_group(idxs, "title")
+    for src, idxs in by_source.items():
+        link_group(idxs, "source_url")
+    for url, idxs in by_url.items():
+        link_group(idxs, "url")
+
+    # 5) Materialise groups (only those with >1 member)
+    groups_by_root: Dict[int, List[int]] = {}
+    for i in range(len(books)):
+        r = find(i)
+        groups_by_root.setdefault(r, []).append(i)
+
+    out_groups: List[Dict[str, Any]] = []
+    for root, member_ids in groups_by_root.items():
+        if len(member_ids) < 2:
+            continue
+        reasons = sorted(reasons_for_group.get(root, set()))
+        # Stable ordering: oldest first so the "keeper" defaults to the
+        # original copy.
+        member_books = [books[i] for i in member_ids]
+        member_books.sort(key=lambda b: b.get("created_at") or "")
+        out_groups.append({
+            "match_reasons": reasons,
+            "books": [
+                {
+                    "book_id": b["book_id"],
+                    "title": b.get("title") or "",
+                    "author": b.get("author") or "",
+                    "category": b.get("category") or "",
+                    "fandom": b.get("fandom") or "",
+                    "created_at": b.get("created_at") or "",
+                    "reading_minutes": int(b.get("reading_minutes") or 0),
+                    "progress_percent": float(b.get("progress_percent") or 0.0),
+                }
+                for b in member_books
+            ],
+        })
+
+    # Largest groups first so the worst offenders are visible
+    out_groups.sort(key=lambda g: len(g["books"]), reverse=True)
+
+    return {
+        "groups": out_groups,
+        "total_groups": len(out_groups),
+        "total_dupe_books": sum(len(g["books"]) for g in out_groups),
+        "backfilled": backfilled,
+    }
+
+
+class GroupDecision(BaseModel):
+    book_id: str
+    action: str  # "keep" | "discard" | "archive"
+
+
+class ResolveGroupBody(BaseModel):
+    keeper_id: str
+    decisions: List[GroupDecision]
+
+
+@api_router.post("/books/resolve-group")
+async def resolve_group(body: ResolveGroupBody, user: User = Depends(get_current_user)):
+    """Resolve a single duplicate group.
+
+    The caller picks a `keeper_id` (the book that should stay current) and a
+    per-book action for every other book in the group:
+      * `keep`      — leave it alone (sit alongside the keeper)
+      * `discard`   — delete the book + its on-disk files
+      * `archive`   — move it to "Old stories" with `replaced_by = keeper_id`
+                      so the keeper becomes its current version
+
+    The keeper itself is implicitly kept and must appear in `decisions` as
+    `keep` (or be omitted — we ignore any decision referring to the keeper).
+    """
+    keeper = await db.books.find_one({"book_id": body.keeper_id, "user_id": user.user_id})
+    if not keeper:
+        raise HTTPException(status_code=404, detail="Keeper book not found")
+    if keeper.get("category") == OLD_STORIES_SHELF or keeper.get("replaced_by"):
+        raise HTTPException(status_code=400, detail="Keeper is already archived; pick a current copy instead")
+
+    user_dir = STORAGE_DIR / user.user_id
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    summary = {"kept": 1, "discarded": 0, "archived": 0, "skipped": 0}
+
+    for d in body.decisions:
+        if d.book_id == body.keeper_id:
+            continue
+        if d.action not in ("keep", "discard", "archive"):
+            raise HTTPException(status_code=400, detail=f"Unknown action '{d.action}' for {d.book_id}")
+
+        b = await db.books.find_one({"book_id": d.book_id, "user_id": user.user_id})
+        if not b:
+            summary["skipped"] += 1
+            continue
+
+        if d.action == "keep":
+            summary["kept"] += 1
+            continue
+
+        if d.action == "discard":
+            for ext in (".epub", ".cover", ".links.txt"):
+                p = user_dir / f"{d.book_id}{ext}"
+                if p.exists():
+                    try:
+                        p.unlink()
+                    except OSError:
+                        pass
+            await db.books.delete_one({"book_id": d.book_id, "user_id": user.user_id})
+            summary["discarded"] += 1
+            continue
+
+        # archive
+        await db.books.update_one(
+            {"book_id": d.book_id, "user_id": user.user_id},
+            {
+                "$set": {
+                    "category": OLD_STORIES_SHELF,
+                    "replaced_by": body.keeper_id,
+                    "replaced_at": now_iso,
+                },
+                "$unset": {"duplicate_pending": "", "duplicate_of": ""},
+            },
+        )
+        summary["archived"] += 1
+
+    # Clear any lingering duplicate_pending flag on the keeper
+    await db.books.update_one(
+        {"book_id": body.keeper_id, "user_id": user.user_id},
+        {"$unset": {"duplicate_pending": "", "duplicate_of": ""}},
+    )
+
+    return {"ok": True, **summary}
+
