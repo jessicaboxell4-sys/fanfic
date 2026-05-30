@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { api, API } from "../lib/api";
 import Navbar from "../components/Navbar";
 import TagInput from "../components/TagInput";
+import ReadingStatsCard from "../components/ReadingStatsCard";
 import { ArrowLeft, Download, Trash2, Sparkles, Book, Edit3, Link as LinkIcon, BookOpen, RefreshCw, Tag as TagIcon, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -247,6 +248,11 @@ export default function BookDetail() {
                 {book.description}
               </p>
             )}
+
+            {/* Per-book reading stats (auto-hides if user hasn't read this book) */}
+            <div className="mb-8">
+              <ReadingStatsCard bookId={book.book_id} />
+            </div>
 
             {/* Tags */}
             <div className="mb-8" data-testid="book-tags-section">

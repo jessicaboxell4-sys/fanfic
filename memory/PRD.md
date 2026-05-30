@@ -276,6 +276,13 @@
 - User-facing strings: "FicHub said: …" → "Source said: …", "books FicHub couldn't find online" → "books we couldn't fetch online" — neutral and accurate for the 100+ sites FanFicFare supports.
 - All 173 backend tests still pass at 77.3% coverage; preview server logged a successful migration of 2 existing book records on first startup.
 
+### Added 2026-05-29 (Per-book reading stats card on BookDetail)
+- **`GET /api/books/{id}/reading-stats`** — returns `{reading_minutes, session_count, first_opened_at, last_opened_at, sparkline[30]}`. `session_count` = distinct days the book appears in `reading_activity`; `first_opened_at` = earliest such date. Sparkline is binary (active/inactive) per day over the last 30 days.
+- **`ReadingStatsCard.jsx`** — four-stat grid (Time spent in `Hh Mm`, Sessions, First opened on, Last opened relative) plus a 30-day binary sparkline rendered as flex bars (green when active, muted dots when not). Hovering each bar shows the date + active state. Card **auto-hides** entirely when the user has never opened the book — keeps fresh-uploaded pages clean.
+- Slotted into BookDetail just below the description, above the tags section.
+- **Powered by FanFicFare** credit chip (separate small component) added to Dashboard empty state + CantFindOnline header. Links to the FanFicFare GitHub repo, hover-tints to the green accent.
+- Tests: `TestBookReadingStats` (3 cases — unread / read aggregated / 404). **176 passing, 1 by-design skip, coverage 77.4%**.
+
 ### Deferred / Declined
 - Google Drive import — declined by user (2026-02-28). Local upload remains the only ingest path.
 

@@ -1278,6 +1278,54 @@ async def get_book(book_id: str, user: User = Depends(get_current_user)):
     return book
 
 
+@api_router.get("/books/{book_id}/reading-stats")
+async def book_reading_stats(book_id: str, user: User = Depends(get_current_user)):
+    """Per-book reading stats for the book-detail page.
+
+    Returns:
+      - reading_minutes: total time spent in this book (from heartbeats)
+      - session_count: distinct days this book was opened/read
+      - first_opened_at: ISO date of the first reading_activity row with this book
+      - last_opened_at: from book document
+      - sparkline: last 30 days, binary { date, active } per day
+    """
+    from datetime import date as _date, timedelta as _td
+
+    book = await db.books.find_one(
+        {"book_id": book_id, "user_id": user.user_id},
+        {"_id": 0, "book_id": 1, "reading_minutes": 1, "last_opened_at": 1, "created_at": 1},
+    )
+    if not book:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    activity = await db.reading_activity.find(
+        {"user_id": user.user_id, "book_ids": book_id},
+        {"_id": 0, "date": 1},
+    ).sort("date", 1).to_list(2000)
+    dates: List[str] = [a["date"] for a in activity if a.get("date")]
+
+    today = datetime.now(timezone.utc).date()
+    cutoff = today - _td(days=29)
+    date_set = set(dates)
+    sparkline: List[Dict[str, Any]] = []
+    for i in range(30):
+        d = cutoff + _td(days=i)
+        key = d.isoformat()
+        sparkline.append({"date": key, "active": key in date_set})
+
+    return {
+        "book_id": book_id,
+        "reading_minutes": int(book.get("reading_minutes") or 0),
+        "session_count": len(dates),
+        "first_opened_at": dates[0] if dates else None,
+        "last_opened_at": book.get("last_opened_at"),
+        "sparkline": sparkline,
+    }
+
+
+
+
+
 @api_router.get("/books/{book_id}/cover")
 async def get_cover(book_id: str, request: Request):
     # Allow token in query for img src

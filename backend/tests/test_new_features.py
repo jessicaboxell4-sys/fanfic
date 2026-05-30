@@ -370,6 +370,55 @@ class TestStreakAndHeartbeat:
 
 
 # ============================================================
+# Per-book reading stats
+# ============================================================
+class TestBookReadingStats:
+    def test_unread_book_returns_zero(self, uploaded_books):
+        # Use book index 1 to avoid heartbeat-test pollution
+        bid = uploaded_books[1]["book_id"]
+        # Make sure no activity row references this book
+        db.reading_activity.update_many(
+            {"user_id": USER_ID},
+            {"$pull": {"book_ids": bid}},
+        )
+        db.books.update_one(
+            {"book_id": bid},
+            {"$unset": {"reading_minutes": "", "last_opened_at": ""}},
+        )
+        r = requests.get(f"{BASE}/api/books/{bid}/reading-stats", headers=H())
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["reading_minutes"] == 0
+        assert body["session_count"] == 0
+        assert body["first_opened_at"] is None
+        assert body["last_opened_at"] is None
+        assert len(body["sparkline"]) == 30
+        assert all("date" in d and "active" in d for d in body["sparkline"])
+        assert all(d["active"] is False for d in body["sparkline"])
+
+    def test_read_book_returns_aggregated(self, uploaded_books):
+        bid = uploaded_books[0]["book_id"]
+        # The heartbeat tests above pushed activity onto bid for today
+        r = requests.get(f"{BASE}/api/books/{bid}/reading-stats", headers=H())
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["reading_minutes"] >= 2  # heartbeat tests added ≥2 min
+        assert body["session_count"] >= 1
+        assert body["first_opened_at"] is not None
+        # Today must be marked active in the sparkline
+        today_iso = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        spark_today = [d for d in body["sparkline"] if d["date"] == today_iso]
+        assert spark_today and spark_today[0]["active"] is True
+
+    def test_404_for_unknown_book(self):
+        r = requests.get(
+            f"{BASE}/api/books/book_does_not_exist/reading-stats", headers=H()
+        )
+        assert r.status_code == 404
+
+
+
+# ============================================================
 # CSV analytics export
 # ============================================================
 class TestStatsCsvExport:
