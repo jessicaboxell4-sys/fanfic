@@ -62,6 +62,16 @@ export default function Trash() {
     }
   };
 
+  const restoreAll = async () => {
+    try {
+      const { data: r } = await api.post("/trash/restore-all");
+      toast.success(`Restored ${r.restored} book${r.restored === 1 ? "" : "s"}`);
+      load();
+    } catch (e) {
+      toast.error("Couldn't restore all");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#FAF6EE]">
       <Navbar />
@@ -81,15 +91,24 @@ export default function Trash() {
             </p>
           </div>
           {data.count > 0 && (
-            <button
-              data-testid="empty-trash-btn"
-              onClick={emptyTrash}
-              disabled={emptying}
-              className="px-4 py-2 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 disabled:opacity-60 inline-flex items-center gap-2"
-            >
-              {emptying && <Loader2 className="w-4 h-4 animate-spin" />}
-              Empty trash
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                data-testid="restore-all-btn"
+                onClick={restoreAll}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-white border border-[#3A5A40]/30 text-[#3A5A40] hover:bg-[#E5EBE6] inline-flex items-center gap-2"
+              >
+                <RotateCcw className="w-4 h-4" /> Restore all
+              </button>
+              <button
+                data-testid="empty-trash-btn"
+                onClick={emptyTrash}
+                disabled={emptying}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 disabled:opacity-60 inline-flex items-center gap-2"
+              >
+                {emptying && <Loader2 className="w-4 h-4 animate-spin" />}
+                Empty trash
+              </button>
+            </div>
           )}
         </div>
 

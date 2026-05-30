@@ -526,6 +526,13 @@
 - **Account "Duplicate handling"** card relabels: "Send to Trash" with "Move duplicates to Trash for 30 days, then auto-delete." Modal action renamed similarly.
 - Tests: `TestTrashShelf` — 6 cases (list, restore, restore 400 on non-trashed, empty hard-deletes, sweep-listing, excluded from library). Existing `test_resolve_discard_deletes_book` and `test_upload_with_discard_policy_removes_dup` rewritten for the new soft-delete semantics. **257 passing, 1 by-design skip, coverage 80.1%**.
 
+### Added 2026-05-30 (Bulk-delete now soft-deletes to Trash)
+- **`POST /api/books/bulk/delete`** rewritten: instead of hard-deleting, it now moves every selected book to the `Trash` shelf with a 30-day grace window. Records `prev_category_new` per book under `dupe_action_meta` so restore is clean. Single-book `DELETE /api/books/{id}` left untouched (intentional click on BookDetail = explicit, no soft-delete safety net).
+- **`POST /api/trash/restore-all`** — new mass-restore endpoint that walks every trashed book and restores it to its prior category.
+- **Trash page**: header gets a "Restore all" button alongside "Empty trash".
+- **SelectionBar** confirm/toast copy updated: "Move N books to Trash · restorable for 30 days".
+- Tests: 2 new (`test_bulk_delete_soft_deletes`, `test_restore_all_endpoint`) + the existing `TestOtherRegression::test_bulk_delete` rewritten to verify the new soft-delete shape. **259 passing, 1 by-design skip**.
+
 ### Added 2026-05-30 (Folder + mixed-format uploads)
 - **UploadZone** now accepts folders (drag a folder onto the dropzone or click "Pick a folder" — uses `webkitdirectory` + recursive `webkitGetAsEntry` walk).
 - Accepted extensions widened: `.epub` flows through the EPUB pipeline; `.pdf`, `.mobi`, `.azw`, `.azw3`, `.kf8`, `.kfx`, `.docx`, `.doc`, `.rtf`, `.fb2`, `.lit`, `.lrf`, `.pdb`, `.txt`, `.html`, `.htm` all land on the existing **"Needs conversion"** shelf with a Calibre nudge.

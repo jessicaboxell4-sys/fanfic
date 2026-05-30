@@ -3375,18 +3375,38 @@ class BulkMoveBody(BaseModel):
 
 @api_router.post("/books/bulk/delete")
 async def bulk_delete(body: BulkIdsBody, user: User = Depends(get_current_user)):
+    """Bulk soft-delete — books move to Trash with a 30-day grace window so
+    accidental "select all → delete" mishaps are reversible. Use
+    `/api/trash/empty` if you want immediate hard deletion afterwards.
+    """
     if not body.book_ids:
         return {"deleted": 0}
-    user_dir = STORAGE_DIR / user.user_id
-    for bid in body.book_ids:
-        for ext in ['.epub', '.cover', '.links.txt']:
-            p = user_dir / f"{bid}{ext}"
-            if p.exists():
-                p.unlink()
-    result = await db.books.delete_many(
-        {"book_id": {"$in": body.book_ids}, "user_id": user.user_id}
+    now_dt = datetime.now(timezone.utc)
+    now_iso = now_dt.isoformat()
+    expires_at = (now_dt + timedelta(days=TRASH_GRACE_DAYS)).isoformat()
+    # Record each book's prior category so it can be restored from Trash
+    cursor = db.books.find(
+        {"book_id": {"$in": body.book_ids}, "user_id": user.user_id, "category": {"$ne": TRASH_SHELF}},
+        {"_id": 0, "book_id": 1, "category": 1},
     )
-    return {"deleted": result.deleted_count}
+    moved = 0
+    async for b in cursor:
+        await db.books.update_one(
+            {"book_id": b["book_id"], "user_id": user.user_id},
+            {
+                "$set": {
+                    "category": TRASH_SHELF,
+                    "trash_expires_at": expires_at,
+                    "dupe_action_meta": {
+                        "action": "discard",
+                        "prev_category_new": b.get("category"),
+                        "applied_at": now_iso,
+                    },
+                },
+            },
+        )
+        moved += 1
+    return {"deleted": moved, "trashed": moved, "trash_expires_at": expires_at}
 
 
 class ResetStateBody(BaseModel):
@@ -4746,6 +4766,27 @@ async def restore_from_trash(book_id: str, user: User = Depends(get_current_user
         },
     )
     return {"ok": True, "book_id": book_id, "restored_to": prev_cat}
+
+
+@api_router.post("/trash/restore-all")
+async def restore_all_trash(user: User = Depends(get_current_user)):
+    """Restore every book in the user's Trash to its previous category."""
+    cursor = db.books.find(
+        {"user_id": user.user_id, "category": TRASH_SHELF},
+        {"_id": 0, "book_id": 1, "dupe_action_meta": 1},
+    )
+    restored = 0
+    async for b in cursor:
+        prev_cat = (b.get("dupe_action_meta") or {}).get("prev_category_new") or "Unclassified"
+        await db.books.update_one(
+            {"book_id": b["book_id"], "user_id": user.user_id},
+            {
+                "$set": {"category": prev_cat},
+                "$unset": {"trash_expires_at": "", "dupe_action_meta": ""},
+            },
+        )
+        restored += 1
+    return {"restored": restored}
 
 
 @api_router.post("/trash/empty")

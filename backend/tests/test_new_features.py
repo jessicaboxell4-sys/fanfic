@@ -305,14 +305,20 @@ class TestOtherRegression:
         assert r.status_code == 400
 
     def test_bulk_delete(self, uploaded_books):
-        # Delete book 2 (John Other) at end
+        # Bulk delete now soft-deletes to Trash with a 30-day grace window
         bid = uploaded_books[2]["book_id"]
         r = requests.post(f"{BASE}/api/books/bulk/delete", headers=H(), json={
             "book_ids": [bid],
         })
         assert r.status_code == 200
-        g = requests.get(f"{BASE}/api/books/{bid}", headers=H())
-        assert g.status_code == 404
+        body = r.json()
+        assert body.get("trashed") == 1
+        # The book is now in Trash — listing excludes it, but the doc still
+        # exists in the DB with category="Trash".
+        d = db.books.find_one({"book_id": bid})
+        assert d is not None
+        assert d["category"] == "Trash"
+        assert d.get("trash_expires_at")
 
 
 
@@ -2146,3 +2152,45 @@ class TestTrashShelf:
         assert b["book_id"] not in ids
         db.books.delete_many({"user_id": uid})
 
+
+
+    def test_bulk_delete_soft_deletes(self, trash_user):
+        uid, tok = trash_user
+        a = _upload(tok, _make_epub_with_links("Bulk1", "Auth", []))
+        b = _upload(tok, _make_epub_with_links("Bulk2", "Auth", []))
+        r = requests.post(
+            f"{BASE}/api/books/bulk/delete",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"book_ids": [a["book_id"], b["book_id"]]},
+        )
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert data["trashed"] == 2
+        # Both books in Trash with prev_category preserved
+        for bid in (a["book_id"], b["book_id"]):
+            d = db.books.find_one({"book_id": bid, "user_id": uid})
+            assert d["category"] == "Trash"
+            assert d.get("trash_expires_at")
+            assert (d.get("dupe_action_meta") or {}).get("prev_category_new") is not None
+        db.books.delete_many({"user_id": uid})
+
+    def test_restore_all_endpoint(self, trash_user):
+        uid, tok = trash_user
+        a = _upload(tok, _make_epub_with_links("RA1", "Auth", []))
+        b = _upload(tok, _make_epub_with_links("RA2", "Auth", []))
+        requests.post(
+            f"{BASE}/api/books/bulk/delete",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"book_ids": [a["book_id"], b["book_id"]]},
+        )
+        r = requests.post(
+            f"{BASE}/api/trash/restore-all",
+            headers={"Authorization": f"Bearer {tok}"},
+        )
+        assert r.status_code == 200
+        assert r.json()["restored"] == 2
+        for bid in (a["book_id"], b["book_id"]):
+            d = db.books.find_one({"book_id": bid, "user_id": uid})
+            assert d["category"] != "Trash"
+            assert "trash_expires_at" not in d
+        db.books.delete_many({"user_id": uid})

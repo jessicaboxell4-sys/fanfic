@@ -273,11 +273,11 @@ export default function SelectionBar({ selectedIds, customCats, onDone, onCancel
   };
 
   const remove = async () => {
-    if (!window.confirm(`Remove ${count} book${count === 1 ? "" : "s"} from your library? This can't be undone.`)) return;
+    if (!window.confirm(`Move ${count} book${count === 1 ? "" : "s"} to Trash? They'll be auto-deleted after 30 days unless you restore them.`)) return;
     setBusy(true);
     try {
       await api.post("/books/bulk/delete", { book_ids: ids });
-      toast.success(`Removed ${count} book${count === 1 ? "" : "s"}`);
+      toast.success(`Moved ${count} book${count === 1 ? "" : "s"} to Trash · restorable for 30 days`);
       onDone && onDone();
     } catch (e) {
       toast.error("Couldn't delete selection");
