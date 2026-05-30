@@ -17,7 +17,7 @@ export default function ContinueReadingRail({ books }) {
   if (!books || books.length === 0) return null;
 
   return (
-    <section className="mb-10" data-testid="continue-reading-rail">
+    <section className="" data-testid="continue-reading-rail">
       <div className="flex items-end justify-between mb-4">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] mb-1">
