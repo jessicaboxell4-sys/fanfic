@@ -153,6 +153,38 @@ export default function Dashboard() {
             <StatsCard stats={overview} viewMoreTo="/library/stats" />
           )}
           {recentBooks.length > 0 && <ContinueReadingRail books={recentBooks} />}
+          {pinnedShelves.length > 0 && (
+            <div className="mt-6">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] flex items-center gap-2">
+                  <Pin className="w-3 h-3" /> Pinned smart shelves
+                </p>
+                <Link
+                  to="/library/smart-shelves"
+                  data-testid="manage-smart-shelves"
+                  className="text-xs text-[#3A5A40] hover:text-[#2C2C2C] font-semibold uppercase tracking-wider inline-flex items-center gap-1"
+                >
+                  <Filter className="w-3 h-3" /> Manage
+                </Link>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {pinnedShelves.map((s) => (
+                  <button
+                    key={s.shelf_id}
+                    data-testid={`open-smart-shelf-${s.shelf_id}`}
+                    onClick={() => navigate(`/library/smart/${s.shelf_id}`)}
+                    className="px-3 py-1 rounded-full text-xs font-semibold border bg-[#FDF3E1] text-[#B87A00] border-[#B87A00]/30 hover:bg-[#B87A00] hover:text-white transition-colors flex items-center gap-1.5"
+                  >
+                    <Filter className="w-3 h-3" />
+                    {s.name} · {s.count}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="mb-10">
           <UploadZone onUploaded={(dupes) => { if (dupes && dupes.length > 0) setPendingDupes(dupes); load(); }} />
         </div>
 
@@ -241,36 +273,6 @@ export default function Dashboard() {
                 </>
               )}
             </button>
-          </div>
-        )}
-
-        {pinnedShelves.length > 0 && (
-          <div className="mb-8">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] flex items-center gap-2">
-                <Pin className="w-3 h-3" /> Pinned smart shelves
-              </p>
-              <Link
-                to="/library/smart-shelves"
-                data-testid="manage-smart-shelves"
-                className="text-xs text-[#3A5A40] hover:text-[#2C2C2C] font-semibold uppercase tracking-wider inline-flex items-center gap-1"
-              >
-                <Filter className="w-3 h-3" /> Manage
-              </Link>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {pinnedShelves.map((s) => (
-                <button
-                  key={s.shelf_id}
-                  data-testid={`open-smart-shelf-${s.shelf_id}`}
-                  onClick={() => navigate(`/library/smart/${s.shelf_id}`)}
-                  className="px-3 py-1 rounded-full text-xs font-semibold border bg-[#FDF3E1] text-[#B87A00] border-[#B87A00]/30 hover:bg-[#B87A00] hover:text-white transition-colors flex items-center gap-1.5"
-                >
-                  <Filter className="w-3 h-3" />
-                  {s.name} · {s.count}
-                </button>
-              ))}
-            </div>
           </div>
         )}
 
