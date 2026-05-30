@@ -17,6 +17,7 @@ export default function UploadZone({ onUploaded }) {
     }
     setUploading(true);
     setProgress({ done: 0, total: files.length });
+    const duplicates = [];
     try {
       // Upload in batches of 3 for responsiveness
       const batchSize = 3;
@@ -25,14 +26,23 @@ export default function UploadZone({ onUploaded }) {
         const batch = files.slice(i, i + batchSize);
         const form = new FormData();
         batch.forEach(f => form.append("files", f));
-        await api.post("/books/upload", form, {
+        const { data } = await api.post("/books/upload", form, {
           headers: { "Content-Type": "multipart/form-data" },
         });
+        for (const b of (data?.books || [])) {
+          if (b?.duplicate_pending && (b.duplicate_of || []).length > 0) {
+            duplicates.push(b);
+          }
+        }
         uploaded += batch.length;
         setProgress({ done: uploaded, total: files.length });
       }
-      toast.success(`Sorted ${files.length} book${files.length > 1 ? "s" : ""} into your library`);
-      onUploaded && onUploaded();
+      if (duplicates.length === 0) {
+        toast.success(`Sorted ${files.length} book${files.length > 1 ? "s" : ""} into your library`);
+      } else {
+        toast.success(`Sorted ${files.length} book${files.length > 1 ? "s" : ""} — ${duplicates.length} possible duplicate${duplicates.length > 1 ? "s" : ""} to review`);
+      }
+      onUploaded && onUploaded(duplicates);
     } catch (e) {
       console.error(e);
       toast.error("Upload failed. Please try again.");

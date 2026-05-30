@@ -751,6 +751,100 @@ def find_source_url(links: List[Dict[str, str]]) -> Optional[str]:
     return None
 
 
+def extract_fanfic_urls(links: List[Dict[str, str]]) -> List[str]:
+    """Return every canonical fanfic-permalink URL found in the EPUB's link set.
+
+    We only keep URLs that match `FANFIC_SOURCE_PATTERNS` (AO3 /works/N, FFnet
+    /s/N, RoyalRoad /fiction/N, etc.) so that duplicate detection doesn't trip
+    on boilerplate navigation links shared by every AO3 EPUB.
+    """
+    seen: set = set()
+    out: List[str] = []
+    for item in links or []:
+        url = (item.get('url') or '').strip()
+        for pat in FANFIC_SOURCE_PATTERNS:
+            m = re.search(pat, url, re.IGNORECASE)
+            if m:
+                canonical = m.group(0)
+                if canonical not in seen:
+                    seen.add(canonical)
+                    out.append(canonical)
+                break
+    return out
+
+
+def _normalize_title_for_match(title: Optional[str]) -> str:
+    return re.sub(r"\s+", " ", (title or "").strip()).lower()
+
+
+async def find_duplicate_candidates(
+    user_id: str,
+    *,
+    title: Optional[str],
+    source_url: Optional[str],
+    fanfic_urls: Optional[List[str]] = None,
+    exclude_book_id: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """Find existing books in the user's library that look like duplicates.
+
+    Match rules (any of):
+      - normalized title equality (case-insensitive, whitespace-collapsed)
+      - exact source_url equality
+      - any shared canonical fanfic URL (intersection on `fanfic_urls`)
+
+    Archived versions (category == "Old stories" or `replaced_by` set) are
+    excluded — we don't want to flag the newly-uploaded copy as a dupe of an
+    already-superseded earlier version.
+
+    Returns a list of `{book_id, title, author, match_reasons: [...]}` dicts.
+    """
+    norm_title = _normalize_title_for_match(title)
+    urls = [u for u in (fanfic_urls or []) if u]
+
+    or_clauses: List[Dict[str, Any]] = []
+    if norm_title:
+        # Case-insensitive exact match on title (with collapsed whitespace).
+        # We use $regex anchored to ^…$ so partial matches don't trip.
+        escaped = re.escape(norm_title)
+        or_clauses.append({"title": {"$regex": f"^\\s*{escaped}\\s*$", "$options": "i"}})
+    if source_url:
+        or_clauses.append({"source_url": source_url})
+    if urls:
+        or_clauses.append({"fanfic_urls": {"$in": urls}})
+
+    if not or_clauses:
+        return []
+
+    query: Dict[str, Any] = {
+        "user_id": user_id,
+        "$or": or_clauses,
+        "category": {"$ne": OLD_STORIES_SHELF},
+        "replaced_by": {"$exists": False},
+    }
+    if exclude_book_id:
+        query["book_id"] = {"$ne": exclude_book_id}
+
+    out: List[Dict[str, Any]] = []
+    async for doc in db.books.find(query, {"_id": 0, "book_id": 1, "title": 1, "author": 1, "source_url": 1, "fanfic_urls": 1}):
+        reasons: List[str] = []
+        if norm_title and _normalize_title_for_match(doc.get("title")) == norm_title:
+            reasons.append("title")
+        if source_url and doc.get("source_url") == source_url:
+            reasons.append("source_url")
+        if urls:
+            shared = [u for u in (doc.get("fanfic_urls") or []) if u in urls]
+            if shared:
+                reasons.append("url")
+        if reasons:
+            out.append({
+                "book_id": doc["book_id"],
+                "title": doc.get("title") or "",
+                "author": doc.get("author") or "",
+                "match_reasons": reasons,
+            })
+    return out
+
+
 async def fanfic_fetch_epub(source_url: str, options: Optional[Dict[str, Any]] = None) -> tuple:
     """Generate an EPUB for the given fanfic URL using FanFicFare.
 
@@ -1296,6 +1390,7 @@ async def upload_books(
             encoding='utf-8',
         )
         source_url = find_source_url(links)
+        fanfic_urls = extract_fanfic_urls(links)
 
         # Series detection: prefer EPUB Calibre meta, fall back to title regex
         series_name = meta.get('series_name')
@@ -1324,11 +1419,26 @@ async def upload_books(
             "size_bytes": len(content),
             "links_count": len(links),
             "source_url": source_url,
+            "fanfic_urls": fanfic_urls,
             "last_refreshed_at": None,
             "series_name": series_name,
             "series_index": series_index,
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
+
+        # Duplicate detection — flag, don't block. The UI pops a modal letting
+        # the user choose: keep both / discard this upload / promote as new
+        # version of the existing book.
+        dupes = await find_duplicate_candidates(
+            user.user_id,
+            title=meta['title'],
+            source_url=source_url,
+            fanfic_urls=fanfic_urls,
+        )
+        if dupes:
+            doc["duplicate_pending"] = True
+            doc["duplicate_of"] = dupes
+
         await db.books.insert_one(doc)
         results.append({k: v for k, v in doc.items() if k != '_id'})
 
@@ -3720,6 +3830,160 @@ async def upload_new_version(
         "new_book_id": new_book_id,
         "old_book_id": old_book_id,
         "title": new_meta["title"],
+        "updated_shelf": updated_shelf,
+        "message": f'Saved as a new version in "{updated_shelf}". The previous copy moved to Old stories.',
+    }
+
+
+
+# ----------------------------------------------------------------------
+# DUPLICATE RESOLUTION
+# When an upload trips dup detection (matching title / source_url / shared
+# fanfic permalink), the book is saved with `duplicate_pending=true` and a
+# `duplicate_of` list. The UI shows a modal that POSTs here to resolve.
+# ----------------------------------------------------------------------
+
+class ResolveDuplicateBody(BaseModel):
+    action: str  # "keep" | "discard" | "new_version_of"
+    target_book_id: Optional[str] = None
+
+
+@api_router.post("/books/{book_id}/resolve-duplicate")
+async def resolve_duplicate(
+    book_id: str,
+    body: ResolveDuplicateBody,
+    user: User = Depends(get_current_user),
+):
+    """Resolve a pending-duplicate upload.
+
+    Actions:
+      * `keep`              — clear the `duplicate_pending` flag (keep both copies)
+      * `discard`           — delete the just-uploaded book + its files
+      * `new_version_of`    — archive `target_book_id` to "Old stories" and
+                              move the new book to a dated "Updated stories"
+                              shelf with a proper chapter-diff refresh_summary
+    """
+    if body.action not in ("keep", "discard", "new_version_of"):
+        raise HTTPException(status_code=400, detail="action must be one of keep/discard/new_version_of")
+
+    book = await db.books.find_one({"book_id": book_id, "user_id": user.user_id})
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+
+    user_dir = STORAGE_DIR / user.user_id
+
+    if body.action == "keep":
+        await db.books.update_one(
+            {"book_id": book_id, "user_id": user.user_id},
+            {"$unset": {"duplicate_pending": "", "duplicate_of": ""}},
+        )
+        return {"ok": True, "action": "keep", "book_id": book_id}
+
+    if body.action == "discard":
+        for ext in (".epub", ".cover", ".links.txt"):
+            p = user_dir / f"{book_id}{ext}"
+            if p.exists():
+                try:
+                    p.unlink()
+                except OSError:
+                    pass
+        await db.books.delete_one({"book_id": book_id, "user_id": user.user_id})
+        return {"ok": True, "action": "discard", "book_id": book_id}
+
+    # new_version_of
+    if not body.target_book_id:
+        raise HTTPException(status_code=400, detail="target_book_id is required for new_version_of")
+    if body.target_book_id == book_id:
+        raise HTTPException(status_code=400, detail="target_book_id cannot equal the uploaded book")
+
+    target = await db.books.find_one({"book_id": body.target_book_id, "user_id": user.user_id})
+    if not target:
+        raise HTTPException(status_code=404, detail="Target book not found")
+    if target.get("category") == OLD_STORIES_SHELF or target.get("replaced_by"):
+        raise HTTPException(status_code=400, detail="Target book is already archived; pick its current version instead")
+
+    now_dt = datetime.now(timezone.utc)
+    now_iso = now_dt.isoformat()
+    updated_shelf = _updated_shelf_name(now_dt)
+
+    # Carry over user-curated fields from the target onto the new book so the
+    # user's tagging/shelving doesn't get lost.
+    carry = {
+        "fandom": book.get("fandom") or target.get("fandom"),
+        "series_name": book.get("series_name") or target.get("series_name"),
+        "series_index": book.get("series_index") or target.get("series_index"),
+        "tags": list({*(book.get("tags") or []), *(target.get("tags") or [])}),
+        "source_url": book.get("source_url") or target.get("source_url"),
+    }
+
+    await db.books.update_one(
+        {"book_id": book_id, "user_id": user.user_id},
+        {
+            "$set": {
+                "category": updated_shelf,
+                "replaces": target["book_id"],
+                "last_refreshed_at": now_iso,
+                "update_seen": False,
+                **{k: v for k, v in carry.items() if v is not None},
+            },
+            "$unset": {"duplicate_pending": "", "duplicate_of": ""},
+        },
+    )
+
+    # Register the dated shelf as a custom category
+    await db.categories.update_one(
+        {"user_id": user.user_id, "name": updated_shelf},
+        {"$setOnInsert": {
+            "user_id": user.user_id,
+            "name": updated_shelf,
+            "created_at": now_iso,
+            "auto_created": True,
+        }},
+        upsert=True,
+    )
+
+    # Archive the target
+    await db.books.update_one(
+        {"book_id": target["book_id"], "user_id": user.user_id},
+        {"$set": {
+            "category": OLD_STORIES_SHELF,
+            "replaced_by": book_id,
+            "replaced_at": now_iso,
+        }},
+    )
+
+    # Chapter diff for refresh_summary so the bell badge + Compare page work
+    refresh_summary: Optional[Dict[str, Any]] = None
+    try:
+        loop = asyncio.get_event_loop()
+        old_epub = user_dir / f"{target['book_id']}.epub"
+        new_epub = user_dir / f"{book_id}.epub"
+        if old_epub.exists() and new_epub.exists():
+            old_chapters = await loop.run_in_executor(None, extract_chapters, old_epub)
+            new_chapters = await loop.run_in_executor(None, extract_chapters, new_epub)
+            d = diff_chapters(old_chapters, new_chapters)
+            refresh_summary = {
+                "chapters_added": d["summary"]["chapters_added"],
+                "chapters_changed": d["summary"]["chapters_changed"],
+                "chapters_removed": d["summary"]["chapters_removed"],
+                "words_delta": d["summary"]["words_delta"],
+                "first_changed_href": (d.get("first_changed_chapter") or {}).get("new_href", ""),
+                "first_changed_title": (d.get("first_changed_chapter") or {}).get("title", ""),
+                "first_changed_kind": (d.get("first_changed_chapter") or {}).get("kind", ""),
+            }
+    except Exception as e:
+        logger.warning("resolve_duplicate diff failed for %s -> %s: %s", target["book_id"], book_id, e)
+
+    await db.books.update_one(
+        {"book_id": book_id, "user_id": user.user_id},
+        {"$set": {"refresh_summary": refresh_summary}},
+    )
+
+    return {
+        "ok": True,
+        "action": "new_version_of",
+        "new_book_id": book_id,
+        "old_book_id": target["book_id"],
         "updated_shelf": updated_shelf,
         "message": f'Saved as a new version in "{updated_shelf}". The previous copy moved to Old stories.',
     }

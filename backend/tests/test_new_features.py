@@ -1243,3 +1243,175 @@ class TestResetState:
             assert d["category"] == "Fanfiction"
             assert "replaced_by" not in d
             assert "replaces" not in d
+
+
+
+# ---------------------------------------------------------------------------
+# Duplicate detection on upload + resolution endpoint
+# ---------------------------------------------------------------------------
+
+
+def _make_epub_with_links(title, author, urls):
+    """Build a real EPUB whose chapter HTML contains the given list of URLs."""
+    b = epub.EpubBook()
+    b.set_identifier(uuid.uuid4().hex)
+    b.set_title(title)
+    b.add_author(author)
+    b.set_language("en")
+    links_html = "".join(f'<a href="{u}">{u}</a>' for u in urls)
+    c = epub.EpubHtml(title="Ch1", file_name="c1.xhtml", lang="en")
+    c.content = f"<h1>{title}</h1><p>Story body.</p><p>{links_html}</p>"
+    b.add_item(c)
+    b.toc = [c]
+    b.add_item(epub.EpubNcx())
+    b.add_item(epub.EpubNav())
+    b.spine = ["nav", c]
+    path = f"/tmp/{uuid.uuid4().hex}.epub"
+    epub.write_epub(path, b)
+    return path
+
+
+def _upload(token, path):
+    with open(path, "rb") as f:
+        r = requests.post(
+            f"{BASE}/api/books/upload",
+            headers={"Authorization": f"Bearer {token}"},
+            files={"files": (os.path.basename(path), f, "application/epub+zip")},
+        )
+    assert r.status_code == 200, r.text
+    return r.json()["books"][0]
+
+
+class TestDuplicateDetection:
+    """Verifies the upload flow flags duplicates by title and by shared
+    fanfic URL, and that the resolve-duplicate endpoint applies each action
+    correctly."""
+
+    @pytest.fixture(scope="class")
+    def dup_user(self):
+        uid = f"user_dup_{uuid.uuid4().hex[:8]}"
+        tok = f"sess_dup_{uuid.uuid4().hex}"
+        db.users.insert_one({
+            "user_id": uid,
+            "email": f"{uid}@example.com",
+            "name": "Dup User",
+            "picture": "",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+        db.user_sessions.insert_one({
+            "user_id": uid,
+            "session_token": tok,
+            "expires_at": datetime.now(timezone.utc) + timedelta(days=7),
+            "created_at": datetime.now(timezone.utc),
+        })
+        yield uid, tok
+        db.books.delete_many({"user_id": uid})
+        db.user_sessions.delete_many({"user_id": uid})
+        db.users.delete_many({"user_id": uid})
+
+    def test_title_match_triggers_duplicate_flag(self, dup_user):
+        uid, tok = dup_user
+        a = _make_epub_with_links("The Duplicate Test", "Same Author", [])
+        b = _make_epub_with_links("the duplicate test", "Same Author", [])  # case differs
+        first = _upload(tok, a)
+        assert not first.get("duplicate_pending")
+        second = _upload(tok, b)
+        assert second.get("duplicate_pending") is True
+        reasons = (second.get("duplicate_of") or [{}])[0].get("match_reasons") or []
+        assert "title" in reasons
+        # cleanup
+        db.books.delete_many({"user_id": uid, "book_id": {"$in": [first["book_id"], second["book_id"]]}})
+
+    def test_shared_fanfic_url_triggers_duplicate_flag(self, dup_user):
+        uid, tok = dup_user
+        shared = "https://archiveofourown.org/works/12345678"
+        a = _make_epub_with_links("Story A unique title", "Author A", [shared])
+        b = _make_epub_with_links("Different Title Entirely", "Author B", [shared])
+        first = _upload(tok, a)
+        second = _upload(tok, b)
+        assert second.get("duplicate_pending") is True
+        reasons = (second.get("duplicate_of") or [{}])[0].get("match_reasons") or []
+        assert "url" in reasons or "source_url" in reasons
+        db.books.delete_many({"user_id": uid, "book_id": {"$in": [first["book_id"], second["book_id"]]}})
+
+    def test_resolve_keep_clears_flag(self, dup_user):
+        uid, tok = dup_user
+        a = _make_epub_with_links("Keepboth Title", "Auth", [])
+        b = _make_epub_with_links("Keepboth Title", "Auth", [])
+        _upload(tok, a)
+        second = _upload(tok, b)
+        assert second["duplicate_pending"]
+        r = requests.post(
+            f"{BASE}/api/books/{second['book_id']}/resolve-duplicate",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"action": "keep"},
+        )
+        assert r.status_code == 200
+        d = db.books.find_one({"book_id": second["book_id"], "user_id": uid})
+        assert "duplicate_pending" not in d
+        assert "duplicate_of" not in d
+        db.books.delete_many({"user_id": uid})
+
+    def test_resolve_discard_deletes_book(self, dup_user):
+        uid, tok = dup_user
+        a = _make_epub_with_links("Discard Title", "Auth", [])
+        b = _make_epub_with_links("Discard Title", "Auth", [])
+        _upload(tok, a)
+        second = _upload(tok, b)
+        assert second["duplicate_pending"]
+        r = requests.post(
+            f"{BASE}/api/books/{second['book_id']}/resolve-duplicate",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"action": "discard"},
+        )
+        assert r.status_code == 200
+        assert db.books.find_one({"book_id": second["book_id"], "user_id": uid}) is None
+        db.books.delete_many({"user_id": uid})
+
+    def test_resolve_new_version_archives_target(self, dup_user):
+        uid, tok = dup_user
+        a = _make_epub_with_links("Version Test", "Auth", [])
+        b = _make_epub_with_links("Version Test", "Auth", [])
+        first = _upload(tok, a)
+        second = _upload(tok, b)
+        assert second["duplicate_pending"]
+        r = requests.post(
+            f"{BASE}/api/books/{second['book_id']}/resolve-duplicate",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"action": "new_version_of", "target_book_id": first["book_id"]},
+        )
+        assert r.status_code == 200, r.text
+        payload = r.json()
+        assert payload["action"] == "new_version_of"
+        assert payload["updated_shelf"].startswith("Updated stories ")
+        # old book archived
+        old = db.books.find_one({"book_id": first["book_id"], "user_id": uid})
+        assert old["category"] == "Old stories"
+        assert old["replaced_by"] == second["book_id"]
+        # new book on dated shelf with replaces back-pointer
+        new = db.books.find_one({"book_id": second["book_id"], "user_id": uid})
+        assert new["category"].startswith("Updated stories ")
+        assert new["replaces"] == first["book_id"]
+        assert "duplicate_pending" not in new
+        db.books.delete_many({"user_id": uid})
+
+    def test_resolve_400_on_bad_action(self, dup_user):
+        uid, tok = dup_user
+        a = _make_epub_with_links("Bad Action Title", "Auth", [])
+        b = _make_epub_with_links("Bad Action Title", "Auth", [])
+        _upload(tok, a)
+        second = _upload(tok, b)
+        r = requests.post(
+            f"{BASE}/api/books/{second['book_id']}/resolve-duplicate",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"action": "burn-it"},
+        )
+        assert r.status_code == 400
+        # And new_version_of without target_book_id → 400
+        r2 = requests.post(
+            f"{BASE}/api/books/{second['book_id']}/resolve-duplicate",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"action": "new_version_of"},
+        )
+        assert r2.status_code == 400
+        db.books.delete_many({"user_id": uid})

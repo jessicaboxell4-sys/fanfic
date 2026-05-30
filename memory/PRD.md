@@ -445,3 +445,19 @@
 ### Verified 2026-05-30 (Reset-state + Wipe-library E2E)
 - Testing agent ran full HTTP integration + Playwright UI verification: 14/14 backend tests + 4/4 frontend scenarios all green. No regressions. Feature formally closed.
 - Side-fix: stale `test_upload_rejects_non_epub` updated to match the new "Needs conversion" .txt-upload behavior (now `test_upload_non_epub_flagged_for_conversion`). Coverage held at 79.5%.
+
+### Added 2026-05-30 (Duplicate detection on upload + resolution modal)
+- **Problem**: nothing prevented re-uploading the same book; users could end up with silent dupes.
+- **Detection signals** (cheap + low false-positive — checked at upload-time, doesn't block ingestion):
+  - normalized title equality (case-insensitive, whitespace-collapsed)
+  - exact `source_url` equality
+  - any shared canonical fanfic URL (matches against `FANFIC_SOURCE_PATTERNS` — AO3 `/works/N`, FFnet `/s/N`, RoyalRoad `/fiction/N`, SpaceBattles/SufficientVelocity threads, etc., so boilerplate AO3 nav links don't trigger false hits)
+  - archived versions (`Old stories` / `replaced_by`) are excluded so resolved dupes don't re-surface
+- New per-book persisted field: `fanfic_urls: List[str]` — canonical permalinks extracted from the EPUB's link set. Saved on every fresh upload going forward; legacy books fall back to title + source_url matching.
+- **Upload still succeeds**; offending books are flagged with `duplicate_pending: true` + `duplicate_of: [{book_id, title, author, match_reasons}]`.
+- **`POST /api/books/{book_id}/resolve-duplicate`** body `{action, target_book_id?}`:
+  - `"keep"` — clear the flag, keep both copies
+  - `"discard"` — delete the just-uploaded book + its EPUB/cover/links sidecar
+  - `"new_version_of"` (with `target_book_id`) — archive the target to `Old stories`, move the uploaded book to a date-stamped `Updated stories YYYY-MM-DD` shelf, compute a `refresh_summary` via the existing `extract_chapters` + `diff_chapters` machinery, fire `update_seen=false` so the navbar bell badge + Compare-versions page light up just like an auto-refresh
+- **Frontend**: `DuplicateResolutionModal.jsx` pops automatically when the upload response contains any `duplicate_pending` books. Per row, three big action cards (Keep both / Discard upload / Replace as new version). When the new book matches more than one existing book, a dropdown lets the user pick which one to replace. Apply-all button posts each resolution then refreshes the dashboard.
+- Tests: `TestDuplicateDetection` — 6 cases (title match, shared-URL match, resolve keep clears flag, resolve discard deletes book + files, resolve new_version_of archives target & sets dated shelf, 400 on bad action / missing target). **227 passing, 1 by-design skip, coverage 80.1%** (`routes/books.py` 81.8%).

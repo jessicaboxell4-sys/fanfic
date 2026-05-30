@@ -9,6 +9,7 @@ import ContinueReadingRail from "../components/ContinueReadingRail";
 import StatsCard from "../components/StatsCard";
 import PoweredByFanFicFare from "../components/PoweredByFanFicFare";
 import OnboardingPrompt from "../components/OnboardingPrompt";
+import DuplicateResolutionModal from "../components/DuplicateResolutionModal";
 import { Search, X, Plus, ArrowRight, CheckSquare, Sparkles, Loader2, RefreshCw, Library, UserCircle2, Filter, Pin } from "lucide-react";
 import { toast } from "sonner";
 
@@ -36,6 +37,7 @@ export default function Dashboard() {
   const [seriesList, setSeriesList] = useState([]);
   const [authorsList, setAuthorsList] = useState([]);
   const [pinnedShelves, setPinnedShelves] = useState([]);
+  const [pendingDupes, setPendingDupes] = useState([]);
 
   const unclassifiedCount = useMemo(() => {
     const row = (stats.categories || []).find((c) => c.name === "Unclassified");
@@ -151,8 +153,16 @@ export default function Dashboard() {
             <StatsCard stats={overview} viewMoreTo="/library/stats" />
           )}
           {recentBooks.length > 0 && <ContinueReadingRail books={recentBooks} />}
-          <UploadZone onUploaded={load} />
+          <UploadZone onUploaded={(dupes) => { if (dupes && dupes.length > 0) setPendingDupes(dupes); load(); }} />
         </div>
+
+        {pendingDupes.length > 0 && (
+          <DuplicateResolutionModal
+            pending={pendingDupes}
+            onClose={() => setPendingDupes([])}
+            onResolved={() => { setPendingDupes([]); load(); }}
+          />
+        )}
 
         {unclassifiedCount > 0 && (
           <div
