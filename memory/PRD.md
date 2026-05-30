@@ -346,3 +346,12 @@
 - **Fresh refreshes** save the new book with the templated filename in `book.filename`.
 - **`POST /user/tidy-filenames`** — sweep endpoint that backfills every existing book's `filename` field to the templated pattern. Idempotent (already-correct count returned separately). Account page adds a "Tidy filenames" button beside the "Apply template to all my books" button.
 - Tests: 4 new in `TestTidyFilenames` (helper unit + sweep + auth + download Content-Disposition). **187 passing, 1 by-design skip, coverage 78.6%** (up from 78.4%).
+
+### Added 2026-05-30 (Onboarding prompt — asks before polishing the library)
+- Replaced the silent auto-run idea with a friendly **opt-in banner** on the Dashboard.
+- **`GET /api/user/onboarding-status`** → `{template_prompt_pending, book_count}`. Pending iff user has ≥1 book AND has never been prompted.
+- **`POST /api/user/dismiss-template-prompt`** body `{accept: bool}`:
+  - Sets `template_prompt_dismissed=true` + `template_prompt_accepted` + timestamp regardless of choice (so we never ask twice).
+  - When `accept=true`, runs BOTH sweeps inline (template + tidy filenames) and returns structured counts.
+- **`OnboardingPrompt.jsx`** — amber banner with sparkle icon, dismissable X, "Not now" + "Yes, polish everything" buttons. Auto-hides after either button click. Slotted at the top of the Dashboard `<main>`. Shows the user's current book count in the copy.
+- Tests: `TestOnboardingPrompt` (4 cases — pending status, dismiss-decline, accept runs sweeps, auth). **191 passing, 1 by-design skip, coverage 78.9%** (up from 78.6%).

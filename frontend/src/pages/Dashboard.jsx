@@ -8,6 +8,7 @@ import SelectionBar from "../components/SelectionBar";
 import ContinueReadingRail from "../components/ContinueReadingRail";
 import StatsCard from "../components/StatsCard";
 import PoweredByFanFicFare from "../components/PoweredByFanFicFare";
+import OnboardingPrompt from "../components/OnboardingPrompt";
 import { Search, X, Plus, ArrowRight, CheckSquare, Sparkles, Loader2, RefreshCw, Library, UserCircle2, Filter, Pin } from "lucide-react";
 import { toast } from "sonner";
 
@@ -130,6 +131,7 @@ export default function Dashboard() {
       <Navbar />
 
       <main className="max-w-7xl mx-auto px-6 md:px-8 py-8 md:py-12 fade-in">
+        <OnboardingPrompt />
         <div className="mb-10">
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] mb-2">
             Your library

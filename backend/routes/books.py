@@ -1653,6 +1653,120 @@ async def tidy_filenames(user: User = Depends(get_current_user)):
     }
 
 
+# ============================================================
+# Onboarding prompt — asks first-time users if they want their
+# library polished with the Shelfsort template + tidy filenames.
+# ============================================================
+class OnboardingDecisionBody(BaseModel):
+    accept: bool
+
+
+@api_router.get("/user/onboarding-status")
+async def onboarding_status(user: User = Depends(get_current_user)):
+    """Return whether the template-onboarding banner should be shown."""
+    user_doc = await db.users.find_one(
+        {"user_id": user.user_id},
+        {"_id": 0, "template_prompt_dismissed": 1, "created_at": 1},
+    ) or {}
+    book_count = await db.books.count_documents({"user_id": user.user_id})
+    return {
+        "template_prompt_pending": (
+            book_count >= 1
+            and not bool(user_doc.get("template_prompt_dismissed"))
+        ),
+        "book_count": book_count,
+    }
+
+
+@api_router.post("/user/dismiss-template-prompt")
+async def dismiss_template_prompt(
+    body: OnboardingDecisionBody,
+    user: User = Depends(get_current_user),
+):
+    """Persist the user's onboarding choice. When `accept=true`, run both the
+    template + tidy sweeps inline so the user sees the polished result on
+    their very next page load."""
+    # Mark dismissed regardless — we never want to ask twice
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": {
+            "template_prompt_dismissed": True,
+            "template_prompt_dismissed_at": datetime.now(timezone.utc).isoformat(),
+            "template_prompt_accepted": bool(body.accept),
+        }},
+    )
+    if not body.accept:
+        return {"ok": True, "accepted": False}
+
+    # Run both sweeps inline. Reuses the same logic as the standalone endpoints.
+    user_dir = STORAGE_DIR / user.user_id
+    template_summary: Dict[str, int] = {
+        "templated": 0, "already_templated": 0, "errors": 0, "skipped": 0,
+    }
+    if user_dir.exists():
+        books = await db.books.find(
+            {"user_id": user.user_id},
+            {
+                "_id": 0, "book_id": 1, "title": 1, "author": 1, "description": 1,
+                "source_url": 1, "source_meta": 1, "chapters": 1, "words": 1,
+            },
+        ).limit(1000).to_list(1000)
+        loop = asyncio.get_event_loop()
+        def _process(book: Dict[str, Any]) -> str:
+            epub_path = user_dir / f"{book['book_id']}.epub"
+            if not epub_path.exists():
+                return "skipped"
+            try:
+                raw = epub_path.read_bytes()
+            except Exception:
+                return "error"
+            meta: Dict[str, Any] = {
+                "title": book.get("title") or "",
+                "author": book.get("author") or "",
+                "description": book.get("description") or "",
+                "chapters": book.get("chapters") or 0,
+                "rawExtendedMeta": (book.get("source_meta") or {}).get("rawExtendedMeta") or {},
+            }
+            new_bytes = apply_template_to_epub(raw, meta, book.get("source_url") or "")
+            if new_bytes == raw:
+                return "already_templated"
+            try:
+                epub_path.write_bytes(new_bytes)
+                return "templated"
+            except Exception:
+                return "error"
+        for b in books:
+            outcome = await loop.run_in_executor(None, _process, b)
+            if outcome in template_summary:
+                template_summary[outcome] += 1
+
+    # Tidy filenames sweep (DB-only, fast)
+    tidied = 0
+    tidied_already = 0
+    all_books = await db.books.find(
+        {"user_id": user.user_id},
+        {"_id": 0, "book_id": 1, "title": 1, "author": 1, "filename": 1},
+    ).limit(5000).to_list(5000)
+    for b in all_books:
+        target = _templated_filename(b.get("title"), b.get("author"), b["book_id"])
+        if (b.get("filename") or "") == target:
+            tidied_already += 1
+            continue
+        await db.books.update_one(
+            {"book_id": b["book_id"], "user_id": user.user_id},
+            {"$set": {"filename": target}},
+        )
+        tidied += 1
+
+    return {
+        "ok": True,
+        "accepted": True,
+        "template": template_summary,
+        "filenames": {"updated": tidied, "already_correct": tidied_already},
+    }
+
+
+
 
 
 

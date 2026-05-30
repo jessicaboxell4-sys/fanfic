@@ -759,3 +759,105 @@ class TestTidyFilenames:
         # The Content-Disposition filename must match the templated pattern
         assert "_by_" in cd
         assert ".epub" in cd
+
+
+# ============================================================
+# Onboarding prompt — first-run template + tidy choice
+# ============================================================
+class TestOnboardingPrompt:
+    def test_status_pending_when_books_exist(self, uploaded_books):
+        # Reset dismissed state for this user
+        db.users.update_one(
+            {"user_id": USER_ID},
+            {"$unset": {"template_prompt_dismissed": ""}},
+        )
+        r = requests.get(f"{BASE}/api/user/onboarding-status", headers=H())
+        assert r.status_code == 200
+        body = r.json()
+        assert body["template_prompt_pending"] is True
+        assert body["book_count"] >= 1
+
+    def test_status_not_pending_after_dismiss_decline(self, uploaded_books):
+        db.users.update_one(
+            {"user_id": USER_ID},
+            {"$unset": {"template_prompt_dismissed": ""}},
+        )
+        r = requests.post(
+            f"{BASE}/api/user/dismiss-template-prompt",
+            headers=H(),
+            json={"accept": False},
+        )
+        assert r.status_code == 200
+        body = r.json()
+        assert body["accepted"] is False
+        # Status should now report dismissed
+        s = requests.get(f"{BASE}/api/user/onboarding-status", headers=H()).json()
+        assert s["template_prompt_pending"] is False
+        # User doc has the flag
+        doc = db.users.find_one({"user_id": USER_ID})
+        assert doc["template_prompt_dismissed"] is True
+        assert doc["template_prompt_accepted"] is False
+
+    def test_dismiss_accept_runs_both_sweeps(self, uploaded_books):
+        from routes.books import STORAGE_DIR
+        import zipfile
+        from io import BytesIO
+
+        # Reset state
+        db.users.update_one(
+            {"user_id": USER_ID},
+            {"$unset": {"template_prompt_dismissed": ""}},
+        )
+        # Mess with one book's filename so the rename can be observed
+        bid = uploaded_books[1]["book_id"]
+        db.books.update_one(
+            {"book_id": bid},
+            {"$set": {"filename": "obviously_wrong.epub"}},
+        )
+
+        # Seed an untemplated EPUB on disk so the template sweep has work
+        user_dir = STORAGE_DIR / USER_ID
+        user_dir.mkdir(parents=True, exist_ok=True)
+        buf = BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+            info = zipfile.ZipInfo("mimetype")
+            info.compress_type = zipfile.ZIP_STORED
+            z.writestr(info, "application/epub+zip")
+            z.writestr("META-INF/container.xml",
+                '<?xml version="1.0"?>\n<container version="1.0" '
+                'xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+                '<rootfiles><rootfile full-path="OEBPS/content.opf" '
+                'media-type="application/oebps-package+xml"/></rootfiles></container>')
+            z.writestr("OEBPS/content.opf",
+                '<?xml version="1.0"?>\n<package xmlns="http://www.idpf.org/2007/opf" '
+                'version="3.0" unique-identifier="id"><metadata '
+                'xmlns:dc="http://purl.org/dc/elements/1.1/">'
+                '<dc:identifier id="id">onb1</dc:identifier>'
+                '<dc:title>Onb Test</dc:title><dc:language>en</dc:language>'
+                '</metadata><manifest><item href="c1.xhtml" id="c1" '
+                'media-type="application/xhtml+xml"/></manifest>'
+                '<spine><itemref idref="c1"/></spine></package>')
+            z.writestr("OEBPS/c1.xhtml",
+                '<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml">'
+                '<head><title>1</title></head><body><p>x</p></body></html>')
+        (user_dir / f"{bid}.epub").write_bytes(buf.getvalue())
+
+        r = requests.post(
+            f"{BASE}/api/user/dismiss-template-prompt",
+            headers=H(),
+            json={"accept": True},
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["accepted"] is True
+        assert "template" in body and "filenames" in body
+        # At least our seeded book was templated, and at least one filename renamed
+        assert body["template"]["templated"] >= 1
+        assert body["filenames"]["updated"] >= 1
+        # And it's idempotent: the next status check says not pending
+        s = requests.get(f"{BASE}/api/user/onboarding-status", headers=H()).json()
+        assert s["template_prompt_pending"] is False
+
+    def test_status_requires_auth(self):
+        r = requests.get(f"{BASE}/api/user/onboarding-status")
+        assert r.status_code == 401
