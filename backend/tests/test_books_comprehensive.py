@@ -136,13 +136,18 @@ def _build_minimal_epub(
 # extract_urls_from_epub + find_source_url + detect_series_from_title
 # --------------------------------------------------------------------------
 class TestUpload:
-    def test_upload_rejects_non_epub(self):
+    def test_upload_non_epub_flagged_for_conversion(self):
+        # .txt uploads no longer hard-fail — they're saved with category
+        # "Needs conversion" so the user can convert with Calibre and re-upload.
         files = {"files": ("notes.txt", b"plain text not epub", "text/plain")}
         r = requests.post(f"{BASE}/api/books/upload", headers=H(), files=files)
         assert r.status_code == 200, r.text
         body = r.json()
         assert body["uploaded"] == 1
-        assert body["books"][0].get("error") == "Not an EPUB"
+        book = body["books"][0]
+        assert book.get("needs_conversion") is True
+        assert book.get("category") == "Needs conversion"
+        assert book.get("original_format") == "txt"
 
     def test_upload_basic_epub_creates_book(self):
         epub = _build_minimal_epub(

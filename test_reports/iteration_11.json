@@ -1,0 +1,52 @@
+{
+  "summary": "Verified Shelfsort reset-state + wipe-library feature end-to-end against the live preview backend and via Playwright on the Account page. 14/14 backend HTTP tests pass; 4/4 frontend interaction scenarios pass. No regressions or issues found.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_reset_and_wipe_e2e.py",
+    "/app/test_reports/pytest/pytest_iter11.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Spec compliance: both endpoints correctly require auth (verified 403 without session), reset-state returns 400 when no flags set, wipe-library returns 400 on wrong phrase and 422 when 'confirm' field missing — exactly as the PRD describes.",
+    "Note (informational, not a bug): backend stores confirm phrase as 'DELETE_EVERYTHING' (underscore) but the UI prompt asks the user to type 'DELETE EVERYTHING' (with a space). The frontend translates between them — works correctly, but the two-phrase divergence is a small footgun for any future endpoint consumer reading code without the UI; consider documenting in the endpoint docstring or accepting both.",
+    "books.py is now 3727 lines — exceeds the 700-line guideline. Recommend splitting into route modules (reading, library, reset/admin, bulk) for maintainability. Not blocking."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_reset_and_wipe_e2e.py (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Ephemeral users created on-demand via POST /api/auth/register (password 'hunter2pw_test', random email). Cookie session_token persists in the browser/requests context.",
+  "seed_data_creation": "None — each test class registers its own fresh user via /api/auth/register so the suite is hermetic and never touches existing data.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend regression suite for reset-state + wipe-library lives at /app/backend/tests/test_reset_and_wipe_e2e.py (14 tests, ~2s runtime, hits the live preview URL). Frontend test ids verified: reset-state-card, danger-zone-card, reset-state-btn, wipe-library-btn, reset-opt-{reset_progress,reset_tags,reset_smart_shelves,reset_versions}. UI flow uses window.confirm for reset and window.prompt expecting the literal string 'DELETE EVERYTHING' (space, not underscore) — the frontend converts to underscore form before POSTing.",
+  "rca of the issue": "N/A — no defects found.",
+  "verified_scenarios": [
+    "POST /api/books/reset-state without flags → 400 ('Pick at least one thing to reset.')",
+    "POST /api/books/reset-state with all flags false → 400",
+    "POST /api/books/reset-state {reset_progress:true} → 200, returns books_progress_cleared + activity_rows_deleted only",
+    "POST /api/books/reset-state {reset_tags:true} → 200, returns books_tags_cleared only",
+    "POST /api/books/reset-state {reset_smart_shelves:true} → 200, returns smart_shelves_deleted only",
+    "POST /api/books/reset-state {reset_versions:true} → 200, returns versions_collapsed only",
+    "POST /api/books/reset-state with all 4 flags → 200, returns all 5 counters",
+    "POST /api/books/wipe-library {} (missing confirm) → 422",
+    "POST /api/books/wipe-library {confirm:'delete_everything'} (wrong case) → 400 with detail mentioning DELETE_EVERYTHING",
+    "POST /api/books/wipe-library {confirm:'yes'} → 400",
+    "POST /api/books/wipe-library {confirm:'DELETE_EVERYTHING'} → 200, returns ok/files_removed/books/reading_activity/smart_shelves/categories/message",
+    "GET /api/books after wipe → empty list (data persistence verified)",
+    "Unauthenticated POST to both endpoints → 403",
+    "UI: /account renders both cards + 4 reset checkboxes + 2 action buttons with correct data-testids",
+    "UI: clicking reset-state-btn with no boxes checked → no API call (client-side rejection)",
+    "UI: checking reset_tags + clicking → window.confirm dialog → POST /api/books/reset-state payload {reset_progress:false,reset_tags:true,reset_smart_shelves:false,reset_versions:false} → 200",
+    "UI: wipe-library-btn → window.prompt; typing 'nope' → no API call",
+    "UI: wipe-library-btn → window.prompt; typing 'DELETE EVERYTHING' → POST /api/books/wipe-library with {confirm:'DELETE_EVERYTHING'} → 200 → redirect to /library showing 'No books just yet'"
+  ]
+}
