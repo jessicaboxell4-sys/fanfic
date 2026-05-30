@@ -451,7 +451,9 @@ FANFIC_SOURCE_PATTERNS = [
     r'https?://(?:www\.)?questionablequesting\.com/threads/[\w-]+\.\d+',
 ]
 
-FANFICFARE_USER_AGENT = "Shelfsort/0.1 (+https://github.com/shelfsort)"
+FANFICFARE_USER_AGENT = (
+    "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"
+)
 
 
 # ----------------------------------------------------------------------
@@ -784,6 +786,14 @@ async def fanfic_fetch_epub(source_url: str, options: Optional[Dict[str, Any]] =
         host = urlparse(source_url).hostname or ""
         try:
             config = Configuration([host], "EPUB")
+            # Use a realistic browser User-Agent — AO3 / FFN / Cloudflare
+            # actively block obvious scraper UAs with HTTP 403.
+            try:
+                config.set("defaults", "user_agent", FANFICFARE_USER_AGENT)
+                config.set(host, "user_agent", FANFICFARE_USER_AGENT)
+            except Exception:
+                # Not all FFF builds expose the same INI sections; fall through.
+                pass
             # Apply per-user FanFicFare options. FFF expects strings for ini values.
             try:
                 if "include_author_notes" in options:
@@ -810,7 +820,28 @@ async def fanfic_fetch_epub(source_url: str, options: Optional[Dict[str, Any]] =
         except fff_exc.StoryDoesNotExist as e:
             raise FanficNotFoundError(f"Story not found: {e}")
         except fff_exc.HTTPErrorFFF as e:
-            raise FanficNotFoundError(f"Couldn't reach source: {e}")
+            msg = str(e)
+            if "403" in msg:
+                # 403 is frequently a transient rate-limit / Cloudflare challenge.
+                # Wait briefly and try once more before flagging as unavailable.
+                logger.info("403 from %s — backing off 30s and retrying once", host)
+                import time as _time
+                _time.sleep(30)
+                try:
+                    adapter.getStoryMetadataOnly()
+                    # Retry succeeded — fall through to writeStory below
+                except fff_exc.HTTPErrorFFF as e2:
+                    if "403" in str(e2):
+                        raise FanficNotFoundError(
+                            f"Source site blocked the request (HTTP 403, retried). The site may be rate-limiting, "
+                            f"behind a Cloudflare challenge, or restricting this work to registered users. "
+                            f"Try opening the URL in a browser to check."
+                        )
+                    raise FanficNotFoundError(f"Couldn't reach source after retry: {e2}")
+                except Exception as e2:
+                    raise FanficNotFoundError(f"Couldn't reach source after retry: {e2}")
+            else:
+                raise FanficNotFoundError(f"Couldn't reach source: {e}")
         except fff_exc.RegularDelayException as e:
             raise HTTPException(status_code=503, detail=f"Source rate-limited: {e}")
         except Exception as e:

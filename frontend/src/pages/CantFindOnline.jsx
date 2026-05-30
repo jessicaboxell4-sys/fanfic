@@ -259,12 +259,28 @@ export default function CantFindOnline() {
                     </Link>
                     <p className="text-sm text-[#6B705C] mt-0.5">{b.author}</p>
                     {b.source_url && (
-                      <p className="text-xs text-[#E07A5F] mt-2 break-all line-clamp-1">
+                      <a
+                        href={b.source_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        data-testid={`source-link-${b.book_id}`}
+                        className="text-xs text-[#E07A5F] hover:underline mt-2 break-all line-clamp-1 inline-flex items-center gap-1"
+                        title="Open in a new browser tab"
+                      >
                         {b.source_url}
-                      </p>
+                        <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                      </a>
                     )}
                     {b.last_fetch_error && (
-                      <p className="text-xs text-[#D9534F] mt-1">
+                      <p
+                        className={`text-xs mt-1 ${
+                          /\b403\b/.test(b.last_fetch_error)
+                            ? "text-[#B87A00]"
+                            : "text-[#D9534F]"
+                        }`}
+                        data-testid={`error-${b.book_id}`}
+                      >
+                        {/\b403\b/.test(b.last_fetch_error) ? "⚠ " : ""}
                         Source said: {b.last_fetch_error}
                       </p>
                     )}
@@ -294,6 +310,19 @@ export default function CantFindOnline() {
                       </form>
                     ) : (
                       <div className="flex flex-wrap gap-2 mt-3">
+                        {b.source_url && (
+                          <a
+                            data-testid={`open-source-${b.book_id}`}
+                            href={b.source_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn-secondary text-xs flex items-center gap-1.5 py-1.5"
+                            title="Try opening this URL directly in your browser"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                            Try in browser
+                          </a>
+                        )}
                         {search && (
                           <a
                             data-testid={`search-${b.book_id}`}

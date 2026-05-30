@@ -1,0 +1,10 @@
+Title:  Canned Refreshed
+Author: FFF Hook
+Links:  2
+============================================================
+
+1. https://archiveofourown.org/works/aaa1
+   ↳ https://archiveofourown.org/works/aaa1
+2. https://github.com/JimmXinu/FanFicFare
+   ↳ FanFicFare
+

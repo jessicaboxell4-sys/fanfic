@@ -355,3 +355,17 @@
   - When `accept=true`, runs BOTH sweeps inline (template + tidy filenames) and returns structured counts.
 - **`OnboardingPrompt.jsx`** — amber banner with sparkle icon, dismissable X, "Not now" + "Yes, polish everything" buttons. Auto-hides after either button click. Slotted at the top of the Dashboard `<main>`. Shows the user's current book count in the copy.
 - Tests: `TestOnboardingPrompt` (4 cases — pending status, dismiss-decline, accept runs sweeps, auth). **191 passing, 1 by-design skip, coverage 78.9%** (up from 78.6%).
+
+### Fixed 2026-05-30 (HTTP 403 from fanfic sources)
+- Symptom: refresh failed with "Couldn't reach source: HTTP Error in FFF '403"
+- **Root cause**: `FANFICFARE_USER_AGENT = "Shelfsort/0.1 ..."` looked like a scraper; AO3 / FFN / Cloudflare reject those. Also the UA was only set on our own status-probe requests, never on FanFicFare's actual scraping requests.
+- **Fix**:
+  - Replaced UA with a modern Firefox string: `"Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"`.
+  - Injected it into the FanFicFare `Configuration` via `config.set("defaults", "user_agent", …)` and `config.set(host, "user_agent", …)` so FFF itself uses it.
+  - Added **automatic retry-with-30s-backoff** on 403 — Cloudflare challenges and rate-limits often clear inside a minute. Only after the retry fails do we flag the book unavailable.
+  - Friendlier error message: distinguishes 403 (rate-limit / Cloudflare / restricted work) from generic transport failures.
+- **CantFindOnline page** improvements:
+  - Source URL is now a clickable link (with external-link icon) instead of plain text.
+  - 403 errors render in **amber** (transient) instead of red (permanent), with a ⚠ glyph.
+  - New per-book **"Try in browser"** button on every failing row — opens the source URL directly so the user can verify the work isn't deleted/locked.
+- All 191 tests still pass at 78.4% coverage.
