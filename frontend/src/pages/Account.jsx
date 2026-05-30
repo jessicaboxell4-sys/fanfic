@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
-import { User as UserIcon, Mail, Lock, Loader2, Mail as MailIcon, Settings2 } from "lucide-react";
+import { User as UserIcon, Mail, Lock, Loader2, Mail as MailIcon, Settings2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
 function errMsg(d) {
@@ -32,6 +32,7 @@ export default function Account() {
   const [savingFff, setSavingFff] = useState(false);
   const [applyingTpl, setApplyingTpl] = useState(false);
   const [tidyingNames, setTidyingNames] = useState(false);
+  const [wiping, setWiping] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -63,6 +64,27 @@ export default function Account() {
       setFff(fff); // revert
     } finally {
       setSavingFff(false);
+    }
+  };
+
+  const wipeLibrary = async () => {
+    const phrase = window.prompt(
+      "This will PERMANENTLY delete every book in your library — EPUBs, covers, reading history, smart shelves, the lot.\n\nThis cannot be undone.\n\nType DELETE EVERYTHING (in capitals, exactly) to confirm:",
+    );
+    if (phrase !== "DELETE EVERYTHING") {
+      if (phrase !== null) toast.error("Phrase didn't match. Nothing was deleted.");
+      return;
+    }
+    setWiping(true);
+    const t = toast.loading("Wiping library…");
+    try {
+      const { data } = await api.post("/books/wipe-library", { confirm: "DELETE_EVERYTHING" }, { timeout: 600000 });
+      toast.success(data.message || "Library wiped.", { id: t });
+      setTimeout(() => { window.location.href = "/library"; }, 1500);
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't wipe library", { id: t });
+    } finally {
+      setWiping(false);
     }
   };
 
@@ -412,6 +434,36 @@ export default function Account() {
               from the sign-in page to set one.
             </p>
           )}
+        </section>
+
+        {/* Danger zone — wipe entire library */}
+        <section
+          className="shelf-card p-6 mb-6 border-2 border-[#D9534F]/30"
+          data-testid="danger-zone-card"
+        >
+          <div className="flex items-start gap-3 mb-3">
+            <div className="w-10 h-10 rounded-xl bg-[#FBE9E7] text-[#D9534F] flex items-center justify-center flex-shrink-0">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="font-serif text-2xl text-[#2C2C2C]">Danger zone</h2>
+              <p className="text-sm text-[#6B705C] mt-0.5">
+                Permanently delete every book in your library. EPUBs, covers,
+                reading history, smart shelves, and custom categories all go.
+                Your account stays — only the books are wiped. <strong>This cannot be undone.</strong>
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={wipeLibrary}
+            disabled={wiping}
+            data-testid="wipe-library-btn"
+            className="px-4 py-2 rounded-xl bg-[#D9534F] hover:bg-[#B53C39] text-white text-sm font-semibold flex items-center gap-2 disabled:opacity-60 transition-colors"
+          >
+            {wiping ? <Loader2 className="w-4 h-4 animate-spin" /> : <AlertTriangle className="w-4 h-4" />}
+            {wiping ? "Wiping…" : "Delete entire library"}
+          </button>
         </section>
       </main>
     </div>

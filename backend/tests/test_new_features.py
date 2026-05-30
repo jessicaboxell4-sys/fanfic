@@ -1123,3 +1123,55 @@ class TestLinksExportByFolder:
         wb = load_workbook(BytesIO(r.content), data_only=True)
         # Summary + just the filtered fandom
         assert set(wb.sheetnames) == {"Summary", "XLSXOnlyMe"}
+
+
+# ============================================================
+# Wipe library — destructive, requires explicit confirmation
+# ============================================================
+class TestWipeLibrary:
+    def test_wipe_requires_explicit_confirm(self):
+        r = requests.post(
+            f"{BASE}/api/books/wipe-library", headers=H(), json={"confirm": "yes please"}
+        )
+        assert r.status_code == 400
+        assert "DELETE_EVERYTHING" in r.json()["detail"]
+
+    def test_wipe_clears_books_and_files(self, uploaded_books):
+        from routes.books import STORAGE_DIR
+        # Seed an extra book + on-disk file for this user
+        bid = f"book_wipe_{uuid.uuid4().hex[:8]}"
+        db.books.insert_one({
+            "user_id": USER_ID,
+            "book_id": bid,
+            "title": "To Be Wiped",
+            "author": "Soon Gone",
+        })
+        user_dir = STORAGE_DIR / USER_ID
+        user_dir.mkdir(parents=True, exist_ok=True)
+        (user_dir / f"{bid}.epub").write_bytes(b"PK\x03\x04dummy")
+
+        # Sanity: precondition has books
+        pre_count = db.books.count_documents({"user_id": USER_ID})
+        assert pre_count >= 1
+
+        r = requests.post(
+            f"{BASE}/api/books/wipe-library",
+            headers=H(),
+            json={"confirm": "DELETE_EVERYTHING"},
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["ok"] is True
+        assert body["books"] >= 1
+        assert body["files_removed"] >= 1
+
+        # Postcondition: zero books left for this user
+        assert db.books.count_documents({"user_id": USER_ID}) == 0
+        # And the seeded on-disk file is gone
+        assert not (user_dir / f"{bid}.epub").exists()
+
+    def test_wipe_requires_auth(self):
+        r = requests.post(
+            f"{BASE}/api/books/wipe-library", json={"confirm": "DELETE_EVERYTHING"}
+        )
+        assert r.status_code == 401

@@ -425,3 +425,9 @@
 - User refinement: keep only Title, Author, Fandom, Source URL — in that exact order. Removed Status, Words, Chapters, Progress %, Reading min., Last refreshed, Created.
 - Simplified the row-build loop (no more `_status` / `_words` / `_progress` special-keys). Test updated to assert the exact column ordering via `headers == ["Title", "Author", "Fandom", "Source URL"]`.
 - **201 passing, 1 by-design skip, coverage 79.3%**.
+
+### Added 2026-05-30 (Bulk + total library deletion)
+- Bulk delete already existed via the Dashboard selection toolbar (`POST /api/books/bulk/delete`) — multiple books at once with checkbox selection.
+- **NEW: `POST /api/books/wipe-library`** — requires body `{"confirm": "DELETE_EVERYTHING"}` (sentinel) to prevent accidental nukes. Drops every book row, every on-disk EPUB/cover/links sidecar, reading_activity, smart_shelves, and custom categories for the user. Also resets the onboarding flag so the user-prompt can fire again on fresh re-upload. Account record stays.
+- **Account → Danger zone card** (bottom of page, amber-bordered) with a single "Delete entire library" button. Two-step confirmation: a browser `prompt()` requires the user to type `DELETE EVERYTHING` (capitals exact) — phrase-mismatch toasts an error, no API call fires. After success, page redirects to `/library` after 1.5s.
+- Tests: `TestWipeLibrary` (3 cases — confirmation-required, full-wipe clears DB + files, auth required). **204 passing, 1 by-design skip, coverage 79.4%**.

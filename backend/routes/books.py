@@ -2864,6 +2864,63 @@ async def bulk_delete(body: BulkIdsBody, user: User = Depends(get_current_user))
     return {"deleted": result.deleted_count}
 
 
+class WipeLibraryBody(BaseModel):
+    confirm: str  # must equal "DELETE_EVERYTHING"
+
+
+@api_router.post("/books/wipe-library")
+async def wipe_library(body: WipeLibraryBody, user: User = Depends(get_current_user)):
+    """Delete every book the user owns — DB rows, EPUBs, covers, link sidecars.
+    Requires `confirm == "DELETE_EVERYTHING"` so an accidental POST won't nuke a library.
+
+    Note: also clears reading_activity, smart_shelves, and the templated-onboarding
+    flag so the user effectively starts fresh.
+    """
+    if body.confirm != "DELETE_EVERYTHING":
+        raise HTTPException(
+            status_code=400,
+            detail='Confirmation required. Pass {"confirm": "DELETE_EVERYTHING"} to proceed.',
+        )
+
+    # Drop every on-disk file under the user's storage dir
+    user_dir = STORAGE_DIR / user.user_id
+    files_removed = 0
+    if user_dir.exists():
+        for p in user_dir.iterdir():
+            try:
+                if p.is_file():
+                    p.unlink()
+                    files_removed += 1
+            except Exception as e:
+                logger.warning("wipe_library couldn't delete %s: %s", p, e)
+
+    # Drop collections scoped to this user
+    deletes = {
+        "books": (await db.books.delete_many({"user_id": user.user_id})).deleted_count,
+        "reading_activity": (await db.reading_activity.delete_many({"user_id": user.user_id})).deleted_count,
+        "smart_shelves": (await db.smart_shelves.delete_many({"user_id": user.user_id})).deleted_count,
+        "categories": (await db.categories.delete_many({"user_id": user.user_id})).deleted_count,
+    }
+    # Reset onboarding so the user-prompt can show again on fresh re-upload
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$unset": {
+            "template_prompt_dismissed": "",
+            "template_prompt_accepted": "",
+            "template_prompt_dismissed_at": "",
+        }},
+    )
+
+    return {
+        "ok": True,
+        "files_removed": files_removed,
+        **deletes,
+        "message": f"Library wiped: {deletes['books']} books and {files_removed} files removed.",
+    }
+
+
+
+
 @api_router.post("/books/bulk/move")
 async def bulk_move(body: BulkMoveBody, user: User = Depends(get_current_user)):
     if not body.book_ids:
