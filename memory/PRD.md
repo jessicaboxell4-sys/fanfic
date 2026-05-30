@@ -398,3 +398,12 @@
 - Filter params (`category`, `fandom`) still apply — e.g. `?format=zip&fandom=Harry%20Potter` returns only HP books, each in its own folder under `Fanfiction/Harry_Potter/`.
 - **Navbar** "Download links" button + **FandomShelf** "Export links" button both now default to `format=zip`.
 - Tests: `TestLinksExportByFolder` (3 cases — default txt back-compat, zip structure verification, fandom filter). **199 passing, 1 by-design skip, coverage 78.9%**.
+
+### Changed 2026-05-30 (Links export grouped by fandom, not per-fic)
+- User refinement: "put each fanfiction into a .txt with other like fanfiction. Harry Potter, twilight, star trek etc."
+- Reworked the ZIP export from "one folder per fic" to **"one .txt per fandom"** (or per category for non-fanfiction).
+- Each fandom's .txt opens with `=== FandomName ===` + book count + Total URLs, then each book is listed `Title — Author` followed by its URLs (one per line, indented). Books are separated by blank lines so it scans naturally.
+- Books with no EPUB on disk now still appear in the listing (annotated `(EPUB missing on disk)`) so the file is a complete inventory rather than silently skipping.
+- Fandom filter on the export endpoint still works — produces a single `<fandom>.txt` inside the ZIP.
+- Navbar tooltip updated to "one .txt per fandom (Harry Potter, Star Trek, etc.)"
+- Tests: `TestLinksExportByFolder` rewritten for the new flat layout (default-txt back-compat, per-fandom .txt grouping, fandom filter). **199 passing, 1 by-design skip, coverage 79.0%**.

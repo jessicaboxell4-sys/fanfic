@@ -58,7 +58,7 @@ export default function Navbar() {
             data-testid="navbar-download-links"
             onClick={handleDownloadLinks}
             className="btn-secondary text-sm flex items-center gap-2"
-            title="Download a ZIP — one folder per fanfic, each with its own links.txt"
+            title="Download a ZIP — one .txt per fandom (Harry Potter, Star Trek, etc.)"
           >
             <LinkIcon className="w-4 h-4" />
             <span className="hidden md:inline">All links (.txt)</span>

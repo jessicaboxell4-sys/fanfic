@@ -2003,44 +2003,71 @@ async def export_all_links(
 
     user_dir = STORAGE_DIR / user.user_id
 
-    # ZIP format — one folder per fanfic, organized by shelf at the top level
+    # ZIP format — one .txt per fandom (or category for non-fanfiction)
     if format == "zip":
         import io as _io
+        # Group books by their bucket — fanfiction sub-groups by fandom,
+        # everything else groups by category.
+        buckets: Dict[str, List[Dict[str, Any]]] = {}
+        for b in books:
+            category_val = b.get('category') or 'Uncategorized'
+            if category_val == 'Fanfiction':
+                bucket = b.get('fandom') or 'Unsorted Fanfiction'
+            else:
+                bucket = category_val
+            buckets.setdefault(bucket, []).append(b)
+
         buf = _io.BytesIO()
         with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-            # Top-level summary
             now_str = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
             summary_lines = [
-                "Shelfsort — links by fanfiction",
+                "Shelfsort — links grouped by fandom",
                 f"Generated: {now_str}",
                 f"Books: {len(books)}",
+                f"Fandoms / shelves: {len(buckets)}",
                 "",
-                "Each fanfic gets its own folder under its shelf. Open the links.txt",
-                "inside any folder to see the URLs extracted from that book's EPUB.",
+                "Each .txt file groups every fanfic from one fandom (or",
+                "category, for non-fanfiction books). Stories are separated",
+                "by blank lines so you can scan a whole fandom at a glance.",
                 "",
             ]
             zf.writestr("README.txt", "\n".join(summary_lines))
 
-            for b in books:
-                epub_path = user_dir / f"{b['book_id']}.epub"
-                if not epub_path.exists():
-                    continue
-                links = extract_urls_from_epub(epub_path)
-                # Build folder path: <shelf>/<Title_by_Author>/links.txt
-                shelf = b.get('category') or 'Uncategorized'
-                shelf_parts = [_safe_folder(shelf)]
-                if shelf == 'Fanfiction' and b.get('fandom'):
-                    shelf_parts = ['Fanfiction', _safe_folder(b['fandom'])]
-                shelf_path = "/".join(shelf_parts)
-                book_folder = _templated_filename(
-                    b.get('title'), b.get('author'), b['book_id'], ext=''
+            for bucket_name, bucket_books in sorted(buckets.items()):
+                bucket_lines: List[str] = []
+                bucket_lines.append(f"=== {bucket_name} ===")
+                bucket_lines.append(
+                    f"{len(bucket_books)} book{'s' if len(bucket_books) != 1 else ''} · generated {now_str}"
                 )
-                arcpath = f"{shelf_path}/{book_folder}/links.txt"
-                content = format_links_txt(b.get('title') or '', b.get('author') or '', links)
-                zf.writestr(arcpath, content)
+                bucket_lines.append("")
+                bucket_total = 0
+                for b in bucket_books:
+                    epub_path = user_dir / f"{b['book_id']}.epub"
+                    bucket_lines.append(
+                        f"{b.get('title','Untitled')} — {b.get('author','Unknown')}"
+                    )
+                    if not epub_path.exists():
+                        bucket_lines.append("  (EPUB missing on disk)")
+                        bucket_lines.append("")
+                        continue
+                    links = extract_urls_from_epub(epub_path)
+                    bucket_total += len(links)
+                    if not links:
+                        bucket_lines.append("  (no URLs)")
+                    else:
+                        for item in links:
+                            anchor = item.get('anchor')
+                            if anchor:
+                                bucket_lines.append(f"  {item['url']}  —  {anchor}")
+                            else:
+                                bucket_lines.append(f"  {item['url']}")
+                    bucket_lines.append("")
+                bucket_lines.insert(2, f"Total URLs: {bucket_total}")
+                arcname = f"{_safe_folder(bucket_name)}.txt"
+                zf.writestr(arcname, "\n".join(bucket_lines) + "\n")
 
         buf.seek(0)
-        zip_name = "shelfsort_links_by_fic.zip"
+        zip_name = "shelfsort_links_by_fandom.zip"
         if fandom:
             zip_name = f"shelfsort_{_safe_folder(fandom)}_links.zip"
         elif category:

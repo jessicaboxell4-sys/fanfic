@@ -995,26 +995,48 @@ class TestLinksExportByFolder:
         assert "text/plain" in r.headers.get("content-type", "")
         assert "Shelfsort — links extracted from" in r.text
 
-    def test_zip_format_returns_zip_with_folder_per_fic(self, uploaded_books):
+    def test_zip_format_returns_zip_with_one_txt_per_fandom(self, uploaded_books):
         import zipfile
         from io import BytesIO
+        # Seed 3 books across 2 fandoms so we can verify grouping
+        for i, bid_idx in enumerate(uploaded_books[:2]):
+            db.books.update_one(
+                {"book_id": bid_idx["book_id"]},
+                {"$set": {"category": "Fanfiction", "fandom": "ZipGroupHP"}},
+            )
+        # And one more on a different fandom
+        db.books.insert_one({
+            "user_id": USER_ID,
+            "book_id": f"book_zg_{uuid.uuid4().hex[:8]}",
+            "title": "Borg Encounter",
+            "author": "Trekkie",
+            "category": "Fanfiction",
+            "fandom": "ZipGroupStarTrek",
+        })
+
         r = requests.get(f"{BASE}/api/books/export/links?format=zip", headers=H())
         assert r.status_code == 200, r.text
         assert r.headers.get("content-type") == "application/zip"
-        cd = r.headers.get("content-disposition", "")
-        assert ".zip" in cd
-        # Read the zip
         zf = zipfile.ZipFile(BytesIO(r.content))
         names = zf.namelist()
-        # README at the root
         assert "README.txt" in names
-        # Every other entry MUST be a per-fanfic links.txt in its own folder
-        per_fic = [n for n in names if n != "README.txt"]
-        assert len(per_fic) >= 1
-        for n in per_fic:
-            assert n.endswith("/links.txt"), f"expected '<shelf>/<book>/links.txt', got {n}"
-            # Path has at least 2 separators: shelf / book_folder / links.txt
-            assert n.count("/") >= 2
+        # Top-level .txt files only (no nested folders any more) — one per fandom
+        per_bucket = [n for n in names if n != "README.txt"]
+        for n in per_bucket:
+            assert n.endswith(".txt"), f"expected top-level fandom .txt, got {n}"
+            assert "/" not in n, f"expected flat .txt files, got nested: {n}"
+        # Both seeded fandoms must appear as their own .txt
+        assert "ZipGroupHP.txt" in names
+        assert "ZipGroupStarTrek.txt" in names
+        # The HP txt must contain BOTH of our HP books (grouped together)
+        hp_content = zf.read("ZipGroupHP.txt").decode("utf-8")
+        # Read the current titles from DB (other tests may have renamed them)
+        for b_fixture in uploaded_books[:2]:
+            current = db.books.find_one({"book_id": b_fixture["book_id"]})
+            assert current["title"] in hp_content
+        # Star Trek txt has the one Borg fic
+        st_content = zf.read("ZipGroupStarTrek.txt").decode("utf-8")
+        assert "Borg Encounter" in st_content
 
     def test_zip_format_respects_fandom_filter(self, uploaded_books):
         # Tag one book with a known fandom so we can filter
@@ -1031,7 +1053,6 @@ class TestLinksExportByFolder:
         )
         assert r.status_code == 200
         zf = zipfile.ZipFile(BytesIO(r.content))
-        per_fic = [n for n in zf.namelist() if n != "README.txt"]
-        # Every entry's top-level folder is the fandom
-        for n in per_fic:
-            assert n.startswith("ZipFilterTestFandom/") or n.startswith("Fanfiction/ZipFilterTestFandom/")
+        non_readme = [n for n in zf.namelist() if n != "README.txt"]
+        # Filter result: only the fandom-named .txt should appear
+        assert non_readme == ["ZipFilterTestFandom.txt"]
