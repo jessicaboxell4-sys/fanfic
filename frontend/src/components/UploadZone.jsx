@@ -84,10 +84,13 @@ export default function UploadZone({ onUploaded }) {
     setUploading(true);
     setProgress({ done: 0, total: files.length });
     const duplicates = [];
+    let resp = null;
     try {
       // Upload in batches of 3 for responsiveness
       const batchSize = 3;
       let uploaded = 0;
+      let totalAuto = 0;
+      let lastPolicy = null;
       for (let i = 0; i < files.length; i += batchSize) {
         const batch = files.slice(i, i + batchSize);
         const form = new FormData();
@@ -100,11 +103,21 @@ export default function UploadZone({ onUploaded }) {
             duplicates.push(b);
           }
         }
+        totalAuto += data?.auto_resolved || 0;
+        if (data?.policy) lastPolicy = data.policy;
         uploaded += batch.length;
         setProgress({ done: uploaded, total: files.length });
       }
+      resp = { auto_resolved: totalAuto, policy: lastPolicy };
       if (duplicates.length === 0) {
-        toast.success(`Sorted ${files.length} file${files.length > 1 ? "s" : ""} into your library`);
+        const autoCount = (resp && resp.auto_resolved) || 0;
+        const policy = resp && resp.policy;
+        if (autoCount > 0 && policy && policy !== "ask") {
+          const LABEL = { keep_both: "kept both", discard: "discarded", new_version: "replaced as new versions", historical: "linked as historical versions" };
+          toast.success(`Sorted ${files.length} file${files.length > 1 ? "s" : ""} · ${autoCount} duplicate${autoCount > 1 ? "s" : ""} ${LABEL[policy] || "auto-resolved"}`);
+        } else {
+          toast.success(`Sorted ${files.length} file${files.length > 1 ? "s" : ""} into your library`);
+        }
       } else {
         toast.success(
           `Sorted ${files.length} file${files.length > 1 ? "s" : ""} — ${duplicates.length} possible duplicate${duplicates.length > 1 ? "s" : ""} to review`,

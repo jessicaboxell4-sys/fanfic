@@ -41,6 +41,8 @@ export default function Account() {
     reset_versions: false,
   });
   const [dupeCount, setDupeCount] = useState(null);
+  const [dupePolicy, setDupePolicy] = useState("ask");
+  const [savingDupePolicy, setSavingDupePolicy] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -60,6 +62,10 @@ export default function Account() {
         const { data: dc } = await api.get("/library/duplicates/count");
         setDupeCount(dc);
       } catch (e) { /* non-fatal — hide the count if it fails */ }
+      try {
+        const { data: dp } = await api.get("/user/duplicate-policy");
+        setDupePolicy(dp.policy || "ask");
+      } catch (e) { /* ignore */ }
     })();
   }, [navigate]);
 
@@ -475,6 +481,59 @@ export default function Account() {
               from the sign-in page to set one.
             </p>
           )}
+        </section>
+
+        {/* Duplicate handling default policy */}
+        <section className="shelf-card p-6 mb-6" data-testid="duplicate-policy-card">
+          <div className="flex items-start gap-3 mb-4">
+            <div className="w-10 h-10 rounded-xl bg-[#E07A5F]/10 text-[#E07A5F] flex items-center justify-center flex-shrink-0">
+              <Layers className="w-5 h-5" />
+            </div>
+            <div className="flex-1">
+              <h2 className="font-serif text-2xl text-[#2C2C2C]">Duplicate handling</h2>
+              <p className="text-sm text-[#6B705C] mt-1">
+                When an upload matches a book already on your shelves, what should happen by default?
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" role="radiogroup" aria-label="Default duplicate policy">
+            {[
+              { val: "ask", label: "Ask me each time", desc: "Pop the duplicate-resolution modal (current behavior)." },
+              { val: "keep_both", label: "Keep both copies", desc: "Just add the upload alongside, no questions asked." },
+              { val: "discard", label: "Discard the upload", desc: "Delete the new copy when a match is found." },
+              { val: "new_version", label: "Replace as new version", desc: "Archive the existing copy, put upload on a dated shelf." },
+              { val: "historical", label: "Link as historical version", desc: "Archive the upload under the existing copy." },
+            ].map((opt) => (
+              <button
+                key={opt.val}
+                data-testid={`dupe-policy-${opt.val}`}
+                onClick={async () => {
+                  if (dupePolicy === opt.val) return;
+                  setSavingDupePolicy(true);
+                  const prev = dupePolicy;
+                  setDupePolicy(opt.val);
+                  try {
+                    await api.put("/user/duplicate-policy", { policy: opt.val });
+                    toast.success("Default updated");
+                  } catch (e) {
+                    setDupePolicy(prev);
+                    toast.error("Couldn't save");
+                  } finally {
+                    setSavingDupePolicy(false);
+                  }
+                }}
+                disabled={savingDupePolicy}
+                className={`text-left p-3 rounded-lg border transition ${
+                  dupePolicy === opt.val
+                    ? "border-[#E07A5F] bg-[#FDF3E1]"
+                    : "border-[#E5DDC5] hover:border-[#E07A5F]/50"
+                } ${savingDupePolicy ? "opacity-60" : ""}`}
+              >
+                <div className="font-medium text-sm text-[#2C2C2C]">{opt.label}</div>
+                <p className="text-xs text-[#6B705C] mt-0.5">{opt.desc}</p>
+              </button>
+            ))}
+          </div>
         </section>
 
         {/* Find duplicates — scan the library for matching books */}

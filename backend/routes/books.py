@@ -880,6 +880,99 @@ async def find_duplicate_candidates(
     return list(matches_by_head.values())
 
 
+async def _apply_duplicate_policy(
+    user_id: str,
+    new_book_id: str,
+    target_book_id: Optional[str],
+    policy: str,
+) -> Optional[Dict[str, Any]]:
+    """Apply a default-policy auto-resolution to a freshly-uploaded book.
+
+    Returns a dict describing what was done, or None if the policy couldn't
+    apply (e.g., no target). The expensive chapter-diff step from the
+    interactive resolve flow is skipped for batch uploads — users running on
+    a stand policy chose convenience over the bell badge.
+    """
+    user_dir = STORAGE_DIR / user_id
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    if policy == "keep_both":
+        await db.books.update_one(
+            {"book_id": new_book_id, "user_id": user_id},
+            {"$unset": {"duplicate_pending": "", "duplicate_of": ""}},
+        )
+        return {"action": "keep_both"}
+
+    if policy == "discard":
+        for ext in (".epub", ".cover", ".links.txt"):
+            p = user_dir / f"{new_book_id}{ext}"
+            if p.exists():
+                try:
+                    p.unlink()
+                except OSError:
+                    pass
+        await db.books.delete_one({"book_id": new_book_id, "user_id": user_id})
+        return {"action": "discard", "deleted": True}
+
+    # The remaining two need a current head; bail if there isn't one
+    if not target_book_id:
+        return None
+    target = await db.books.find_one({"book_id": target_book_id, "user_id": user_id})
+    if not target or target.get("category") == OLD_STORIES_SHELF or target.get("replaced_by"):
+        return None
+
+    if policy == "historical":
+        await db.books.update_one(
+            {"book_id": new_book_id, "user_id": user_id},
+            {
+                "$set": {
+                    "category": OLD_STORIES_SHELF,
+                    "replaced_by": target_book_id,
+                    "replaced_at": now_iso,
+                },
+                "$unset": {"duplicate_pending": "", "duplicate_of": ""},
+            },
+        )
+        return {"action": "historical"}
+
+    if policy == "new_version":
+        now_dt = datetime.now(timezone.utc)
+        updated_shelf = _updated_shelf_name(now_dt)
+        await db.books.update_one(
+            {"book_id": new_book_id, "user_id": user_id},
+            {
+                "$set": {
+                    "category": updated_shelf,
+                    "replaces": target_book_id,
+                    "last_refreshed_at": now_iso,
+                    "update_seen": False,
+                },
+                "$unset": {"duplicate_pending": "", "duplicate_of": ""},
+            },
+        )
+        await db.categories.update_one(
+            {"user_id": user_id, "name": updated_shelf},
+            {"$setOnInsert": {
+                "user_id": user_id,
+                "name": updated_shelf,
+                "created_at": now_iso,
+                "auto_created": True,
+            }},
+            upsert=True,
+        )
+        await db.books.update_one(
+            {"book_id": target_book_id, "user_id": user_id},
+            {"$set": {
+                "category": OLD_STORIES_SHELF,
+                "replaced_by": new_book_id,
+                "replaced_at": now_iso,
+            }},
+        )
+        return {"action": "new_version", "updated_shelf": updated_shelf}
+
+    return None
+
+
 async def fanfic_fetch_epub(source_url: str, options: Optional[Dict[str, Any]] = None) -> tuple:
     """Generate an EPUB for the given fanfic URL using FanFicFare.
 
@@ -1477,7 +1570,33 @@ async def upload_books(
         await db.books.insert_one(doc)
         results.append({k: v for k, v in doc.items() if k != '_id'})
 
-    return {"uploaded": len(results), "books": results}
+    # Auto-resolve based on the user's default duplicate policy. When the
+    # policy is "ask" we leave duplicate_pending on every flagged book so the
+    # UI pops the modal. For other policies we apply the action immediately.
+    user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "duplicate_policy": 1})
+    policy = (user_doc or {}).get("duplicate_policy") or DUPE_POLICY_DEFAULT
+    auto_resolved = 0
+    if policy != "ask":
+        for i, doc in enumerate(results):
+            if not doc.get("duplicate_pending"):
+                continue
+            target_id = (doc.get("duplicate_of") or [{}])[0].get("book_id")
+            applied = await _apply_duplicate_policy(
+                user.user_id, doc["book_id"], target_id, policy,
+            )
+            if applied:
+                auto_resolved += 1
+                # Reflect the auto-resolve in the response so the UI knows
+                if applied.get("deleted"):
+                    results[i] = {**doc, "duplicate_pending": False, "duplicate_resolved": "discard", "removed": True}
+                else:
+                    fresh = await db.books.find_one({"book_id": doc["book_id"], "user_id": user.user_id})
+                    if fresh:
+                        fresh.pop("_id", None)
+                        fresh["duplicate_resolved"] = applied.get("action")
+                        results[i] = fresh
+
+    return {"uploaded": len(results), "books": results, "auto_resolved": auto_resolved, "policy": policy}
 
 
 @api_router.get("/books")
@@ -1765,6 +1884,33 @@ async def update_fff_options(body: FFFOptionsBody, user: User = Depends(get_curr
 # Dashboard "At a glance" folder — user-orderable section list.
 DASHBOARD_SECTIONS = ("continue", "stats", "shelves")
 DASHBOARD_DEFAULT_ORDER = list(DASHBOARD_SECTIONS)
+
+
+# Default duplicate-handling policy. "ask" = show the modal (current behavior);
+# the rest run silently after upload, matching the resolve-duplicate actions.
+DUPE_POLICIES = ("ask", "keep_both", "discard", "new_version", "historical")
+DUPE_POLICY_DEFAULT = "ask"
+
+
+class DuplicatePolicyBody(BaseModel):
+    policy: str
+
+
+@api_router.get("/user/duplicate-policy")
+async def get_duplicate_policy(user: User = Depends(get_current_user)):
+    user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "duplicate_policy": 1})
+    return {"policy": (user_doc or {}).get("duplicate_policy") or DUPE_POLICY_DEFAULT}
+
+
+@api_router.put("/user/duplicate-policy")
+async def update_duplicate_policy(body: DuplicatePolicyBody, user: User = Depends(get_current_user)):
+    if body.policy not in DUPE_POLICIES:
+        raise HTTPException(status_code=400, detail=f"policy must be one of {list(DUPE_POLICIES)}")
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": {"duplicate_policy": body.policy}},
+    )
+    return {"policy": body.policy}
 
 
 class DashboardLayoutBody(BaseModel):

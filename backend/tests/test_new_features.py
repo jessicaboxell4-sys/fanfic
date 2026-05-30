@@ -1764,3 +1764,126 @@ class TestDashboardLayout:
         )
         assert r.status_code == 400
 
+
+
+class TestDuplicatePolicy:
+    @pytest.fixture(scope="class")
+    def pol_user(self):
+        uid = f"user_pol_{uuid.uuid4().hex[:8]}"
+        tok = f"sess_pol_{uuid.uuid4().hex}"
+        db.users.insert_one({
+            "user_id": uid,
+            "email": f"{uid}@example.com",
+            "name": "Policy User",
+            "picture": "",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+        db.user_sessions.insert_one({
+            "user_id": uid,
+            "session_token": tok,
+            "expires_at": datetime.now(timezone.utc) + timedelta(days=7),
+            "created_at": datetime.now(timezone.utc),
+        })
+        yield uid, tok
+        db.books.delete_many({"user_id": uid})
+        db.user_sessions.delete_many({"user_id": uid})
+        db.users.delete_many({"user_id": uid})
+
+    def test_default_policy_is_ask(self, pol_user):
+        _, tok = pol_user
+        r = requests.get(
+            f"{BASE}/api/user/duplicate-policy",
+            headers={"Authorization": f"Bearer {tok}"},
+        )
+        assert r.status_code == 200
+        assert r.json() == {"policy": "ask"}
+
+    def test_set_and_round_trip(self, pol_user):
+        _, tok = pol_user
+        r = requests.put(
+            f"{BASE}/api/user/duplicate-policy",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"policy": "discard"},
+        )
+        assert r.status_code == 200
+        assert r.json() == {"policy": "discard"}
+        r2 = requests.get(
+            f"{BASE}/api/user/duplicate-policy",
+            headers={"Authorization": f"Bearer {tok}"},
+        )
+        assert r2.json() == {"policy": "discard"}
+        # Reset for following tests
+        requests.put(
+            f"{BASE}/api/user/duplicate-policy",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"policy": "ask"},
+        )
+
+    def test_invalid_policy_rejected(self, pol_user):
+        _, tok = pol_user
+        r = requests.put(
+            f"{BASE}/api/user/duplicate-policy",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"policy": "yolo"},
+        )
+        assert r.status_code == 400
+
+    def test_upload_with_discard_policy_removes_dup(self, pol_user):
+        uid, tok = pol_user
+        requests.put(
+            f"{BASE}/api/user/duplicate-policy",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"policy": "discard"},
+        )
+        _upload(tok, _make_epub_with_links("PolicyTitle", "Auth", []))
+        # Second upload should be auto-discarded
+        with open(_make_epub_with_links("PolicyTitle", "Auth", []), "rb") as f:
+            r = requests.post(
+                f"{BASE}/api/books/upload",
+                headers={"Authorization": f"Bearer {tok}"},
+                files={"files": ("dup.epub", f, "application/epub+zip")},
+            )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["auto_resolved"] == 1
+        assert data["policy"] == "discard"
+        # Only one book in the library
+        count = db.books.count_documents({"user_id": uid, "category": {"$ne": "Old stories"}})
+        assert count == 1
+        db.books.delete_many({"user_id": uid})
+        requests.put(
+            f"{BASE}/api/user/duplicate-policy",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"policy": "ask"},
+        )
+
+    def test_upload_with_historical_policy_archives_new(self, pol_user):
+        uid, tok = pol_user
+        requests.put(
+            f"{BASE}/api/user/duplicate-policy",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"policy": "historical"},
+        )
+        first = _upload(tok, _make_epub_with_links("HistPolicyTitle", "Auth", []))
+        with open(_make_epub_with_links("HistPolicyTitle", "Auth", []), "rb") as f:
+            r = requests.post(
+                f"{BASE}/api/books/upload",
+                headers={"Authorization": f"Bearer {tok}"},
+                files={"files": ("dup.epub", f, "application/epub+zip")},
+            )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["auto_resolved"] == 1
+        new_id = data["books"][0]["book_id"]
+        new = db.books.find_one({"book_id": new_id, "user_id": uid})
+        assert new["category"] == "Old stories"
+        assert new["replaced_by"] == first["book_id"]
+        head = db.books.find_one({"book_id": first["book_id"], "user_id": uid})
+        assert head["category"] != "Old stories"
+        db.books.delete_many({"user_id": uid})
+        requests.put(
+            f"{BASE}/api/user/duplicate-policy",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"policy": "ask"},
+        )
+

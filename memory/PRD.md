@@ -496,3 +496,17 @@
 - **Backend** `dashboard_layout` now stores `{order, hidden}`. PUT accepts an optional `hidden: [section,…]`, validates each entry against the section whitelist (400 on unknown). GET seeds default `[]`. Old documents that pre-date the field default to no hidden sections.
 - **Frontend** organize mode adds a third per-section button — Eye / EyeOff — alongside the up/down arrows. Hidden sections render at 40% opacity in organize mode (so the user can find and un-hide them); outside organize mode they're collapsed entirely. Switching state idempotently PUTs to the layout endpoint.
 - Bonus polish: in organize mode, empty sections now show a dashed-border placeholder ("Reading stats — nothing here yet") so users see what the layout would look like once content arrives.
+- Reset-to-defaults button surfaces in organize mode (single click restores `["continue","stats","shelves"]` with `hidden: []`).
+
+### Added 2026-05-30 (Default duplicate-handling policy)
+- **`GET/PUT /api/user/duplicate-policy`** — persists one of `ask` (default — pops the modal), `keep_both`, `discard`, `new_version`, `historical` on the user doc.
+- **`_apply_duplicate_policy()`** helper called at the end of `/books/upload`: when the policy isn't `ask`, every freshly-flagged duplicate is auto-resolved server-side. Chapter diff computation is skipped for batch convenience (users on a stand policy chose speed over the bell badge).
+- **UploadZone**: response now exposes `auto_resolved` + `policy`. Toast adapts: `"Sorted 5 files · 2 duplicates linked as historical versions"` etc.
+- **Account page** gets a "Duplicate handling" card with 5 radio-style picker buttons that PUT on click — instant save.
+- Tests: `TestDuplicatePolicy` — 5 cases (default ask, set+round-trip, invalid policy 400, discard policy removes dup, historical policy archives the upload under the existing head). **248 passing, 1 by-design skip**.
+
+### Added 2026-05-30 (Folder + mixed-format uploads)
+- **UploadZone** now accepts folders (drag a folder onto the dropzone or click "Pick a folder" — uses `webkitdirectory` + recursive `webkitGetAsEntry` walk).
+- Accepted extensions widened: `.epub` flows through the EPUB pipeline; `.pdf`, `.mobi`, `.azw`, `.azw3`, `.kf8`, `.kfx`, `.docx`, `.doc`, `.rtf`, `.fb2`, `.lit`, `.lrf`, `.pdb`, `.txt`, `.html`, `.htm` all land on the existing **"Needs conversion"** shelf with a Calibre nudge.
+- Unsupported files are gracefully skipped with a count toast.
+- No backend changes — the existing `NEEDS_CONVERSION_EXTS` set already covered every common ebook format.
