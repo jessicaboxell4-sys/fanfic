@@ -16,7 +16,8 @@ export default function Navbar() {
   };
 
   const handleDownloadLinks = async () => {
-    const url = `${API}/books/export/links`;
+    // Per-fic folders inside a ZIP — each fanfic gets its own links.txt
+    const url = `${API}/books/export/links?format=zip`;
     window.open(url, "_blank");
   };
 
@@ -57,7 +58,7 @@ export default function Navbar() {
             data-testid="navbar-download-links"
             onClick={handleDownloadLinks}
             className="btn-secondary text-sm flex items-center gap-2"
-            title="Download a single .txt file with every URL from your EPUBs"
+            title="Download a ZIP — one folder per fanfic, each with its own links.txt"
           >
             <LinkIcon className="w-4 h-4" />
             <span className="hidden md:inline">All links (.txt)</span>

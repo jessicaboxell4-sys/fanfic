@@ -1,0 +1,11 @@
+Title:  Between two Worlds
+Author: Schattengestalt
+Links:  3
+============================================================
+
+1. http://storymaster.the-code-monkey.com/
+2. http://storymaster.the-code-monkey.com
+   ↳ http://storymaster.the-code-monkey.com
+3. http://www.fanfiction.net/s/8659193/
+   ↳ http://www.fanfiction.net/s/8659193/
+

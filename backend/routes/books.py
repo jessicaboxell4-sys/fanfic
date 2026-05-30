@@ -1982,9 +1982,16 @@ def _templated_filename(title: Optional[str], author: Optional[str], book_id: st
 async def export_all_links(
     category: Optional[str] = None,
     fandom: Optional[str] = None,
+    format: str = "txt",
     user: User = Depends(get_current_user),
 ):
-    """Download a single .txt file with every URL across the user's library (or a filter)."""
+    """Download every URL across the user's library (or a filter).
+
+    `format=txt` (default): one combined .txt file.
+    `format=zip`: a .zip with one folder per fanfic, each containing its
+        own `links.txt`. Folder names use the templated 'Title_by_Author'
+        pattern, organized by shelf at the top level.
+    """
     query: Dict[str, Any] = {"user_id": user.user_id}
     if category:
         query["category"] = category
@@ -1995,6 +2002,56 @@ async def export_all_links(
         raise HTTPException(status_code=404, detail="No books")
 
     user_dir = STORAGE_DIR / user.user_id
+
+    # ZIP format — one folder per fanfic, organized by shelf at the top level
+    if format == "zip":
+        import io as _io
+        buf = _io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            # Top-level summary
+            now_str = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
+            summary_lines = [
+                "Shelfsort — links by fanfiction",
+                f"Generated: {now_str}",
+                f"Books: {len(books)}",
+                "",
+                "Each fanfic gets its own folder under its shelf. Open the links.txt",
+                "inside any folder to see the URLs extracted from that book's EPUB.",
+                "",
+            ]
+            zf.writestr("README.txt", "\n".join(summary_lines))
+
+            for b in books:
+                epub_path = user_dir / f"{b['book_id']}.epub"
+                if not epub_path.exists():
+                    continue
+                links = extract_urls_from_epub(epub_path)
+                # Build folder path: <shelf>/<Title_by_Author>/links.txt
+                shelf = b.get('category') or 'Uncategorized'
+                shelf_parts = [_safe_folder(shelf)]
+                if shelf == 'Fanfiction' and b.get('fandom'):
+                    shelf_parts = ['Fanfiction', _safe_folder(b['fandom'])]
+                shelf_path = "/".join(shelf_parts)
+                book_folder = _templated_filename(
+                    b.get('title'), b.get('author'), b['book_id'], ext=''
+                )
+                arcpath = f"{shelf_path}/{book_folder}/links.txt"
+                content = format_links_txt(b.get('title') or '', b.get('author') or '', links)
+                zf.writestr(arcpath, content)
+
+        buf.seek(0)
+        zip_name = "shelfsort_links_by_fic.zip"
+        if fandom:
+            zip_name = f"shelfsort_{_safe_folder(fandom)}_links.zip"
+        elif category:
+            zip_name = f"shelfsort_{_safe_folder(category)}_links.zip"
+        return StreamingResponse(
+            buf,
+            media_type="application/zip",
+            headers={"Content-Disposition": f"attachment; filename={zip_name}"},
+        )
+
+    # TXT format — combined single file (default, backward-compatible)
     scope = "your library"
     if fandom:
         scope = f"the {fandom} shelf"

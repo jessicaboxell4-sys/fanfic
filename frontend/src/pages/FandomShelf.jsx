@@ -38,6 +38,7 @@ export default function FandomShelf() {
     const url = new URL(`${API}/books/export/links`);
     url.searchParams.set("category", "Fanfiction");
     url.searchParams.set("fandom", fandom);
+    url.searchParams.set("format", "zip");
     window.open(url.toString(), "_blank");
   };
 

@@ -983,3 +983,55 @@ class TestUploadNewVersion:
             files=files,
         )
         assert r.status_code == 404
+
+
+# ============================================================
+# Links export — ZIP format with one folder per fanfic
+# ============================================================
+class TestLinksExportByFolder:
+    def test_default_format_still_txt(self, uploaded_books):
+        r = requests.get(f"{BASE}/api/books/export/links", headers=H())
+        assert r.status_code == 200, r.text
+        assert "text/plain" in r.headers.get("content-type", "")
+        assert "Shelfsort — links extracted from" in r.text
+
+    def test_zip_format_returns_zip_with_folder_per_fic(self, uploaded_books):
+        import zipfile
+        from io import BytesIO
+        r = requests.get(f"{BASE}/api/books/export/links?format=zip", headers=H())
+        assert r.status_code == 200, r.text
+        assert r.headers.get("content-type") == "application/zip"
+        cd = r.headers.get("content-disposition", "")
+        assert ".zip" in cd
+        # Read the zip
+        zf = zipfile.ZipFile(BytesIO(r.content))
+        names = zf.namelist()
+        # README at the root
+        assert "README.txt" in names
+        # Every other entry MUST be a per-fanfic links.txt in its own folder
+        per_fic = [n for n in names if n != "README.txt"]
+        assert len(per_fic) >= 1
+        for n in per_fic:
+            assert n.endswith("/links.txt"), f"expected '<shelf>/<book>/links.txt', got {n}"
+            # Path has at least 2 separators: shelf / book_folder / links.txt
+            assert n.count("/") >= 2
+
+    def test_zip_format_respects_fandom_filter(self, uploaded_books):
+        # Tag one book with a known fandom so we can filter
+        bid = uploaded_books[0]["book_id"]
+        db.books.update_one(
+            {"book_id": bid},
+            {"$set": {"category": "Fanfiction", "fandom": "ZipFilterTestFandom"}},
+        )
+        import zipfile
+        from io import BytesIO
+        r = requests.get(
+            f"{BASE}/api/books/export/links?format=zip&fandom=ZipFilterTestFandom",
+            headers=H(),
+        )
+        assert r.status_code == 200
+        zf = zipfile.ZipFile(BytesIO(r.content))
+        per_fic = [n for n in zf.namelist() if n != "README.txt"]
+        # Every entry's top-level folder is the fandom
+        for n in per_fic:
+            assert n.startswith("ZipFilterTestFandom/") or n.startswith("Fanfiction/ZipFilterTestFandom/")

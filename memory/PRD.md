@@ -391,3 +391,10 @@
   - Applies the house template; tidies the filename.
 - **BookDetail** + **CantFindOnline** buttons relabelled "Upload new version" with a navigate-on-success that takes the user to the freshly-created copy.
 - Tests: `TestUploadNewVersion` (5 cases — happy path with full metadata carry-over, blocked-on-archived, non-epub reject, garbage-bytes reject, 404). **196 passing, 1 by-design skip, coverage 78.6%**.
+
+### Added 2026-05-30 (Per-fanfic folders in the links .txt export)
+- User feedback: "when making a .txt, separate each fanfiction into different folders."
+- **`GET /api/books/export/links?format=zip`** — returns a ZIP organized as `<shelf>/<Title_by_Author>/links.txt`, one folder per fanfic. Top-level `README.txt` explains the layout. Default `format=txt` still returns the single combined .txt (back-compat).
+- Filter params (`category`, `fandom`) still apply — e.g. `?format=zip&fandom=Harry%20Potter` returns only HP books, each in its own folder under `Fanfiction/Harry_Potter/`.
+- **Navbar** "Download links" button + **FandomShelf** "Export links" button both now default to `format=zip`.
+- Tests: `TestLinksExportByFolder` (3 cases — default txt back-compat, zip structure verification, fandom filter). **199 passing, 1 by-design skip, coverage 78.9%**.

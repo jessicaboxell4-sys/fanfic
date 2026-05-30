@@ -1,0 +1,11 @@
+Title:  Bizzaro Twilight
+Author: booboo_kitty
+Links:  3
+============================================================
+
+1. http://storymaster.the-code-monkey.com/
+2. http://storymaster.the-code-monkey.com
+   ↳ http://storymaster.the-code-monkey.com
+3. http://www.twilighted.net//viewstory.php?sid=2950
+   ↳ http://www.twilighted.net//viewstory.php?sid=2950
+

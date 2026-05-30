@@ -1,0 +1,11 @@
+Title:  Everything's Different, yet Everything's the Same
+Author: cleo4u2
+Links:  3
+============================================================
+
+1. http://storymaster.the-code-monkey.com/
+2. http://storymaster.the-code-monkey.com
+   ↳ http://storymaster.the-code-monkey.com
+3. http://www.fanfiction.net/s/9756136/
+   ↳ http://www.fanfiction.net/s/9756136/
+

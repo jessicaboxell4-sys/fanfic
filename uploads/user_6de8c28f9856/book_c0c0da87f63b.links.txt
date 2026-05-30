@@ -1,0 +1,11 @@
+Title:  Silence Isn't Always Golden
+Author: Edward Cullen Rules
+Links:  3
+============================================================
+
+1. http://storymaster.the-code-monkey.com/
+2. http://storymaster.the-code-monkey.com
+   ↳ http://storymaster.the-code-monkey.com
+3. http://www.twilighted.net/viewstory.php?sid=6890
+   ↳ http://www.twilighted.net/viewstory.php?sid=6890
+
