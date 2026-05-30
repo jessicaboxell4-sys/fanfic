@@ -10,7 +10,7 @@ import StatsCard from "../components/StatsCard";
 import PoweredByFanFicFare from "../components/PoweredByFanFicFare";
 import OnboardingPrompt from "../components/OnboardingPrompt";
 import DuplicateResolutionModal from "../components/DuplicateResolutionModal";
-import { Search, X, Plus, ArrowRight, CheckSquare, Sparkles, Loader2, RefreshCw, Library, UserCircle2, Filter, Pin, FolderOpen, ArrowUpDown, ChevronUp, ChevronDown, Eye, EyeOff } from "lucide-react";
+import { Search, X, Plus, ArrowRight, CheckSquare, Sparkles, Loader2, RefreshCw, Library, UserCircle2, Filter, Pin, FolderOpen, ArrowUpDown, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 
 const DEFAULT_CATEGORIES = ["All", "Fanfiction", "Original Fiction", "Non-fiction", "Unclassified", "Updated stories", "Old stories"];
@@ -162,6 +162,17 @@ export default function Dashboard() {
       return out;
     });
   };
+
+  const resetGlanceLayout = () => {
+    const defaults = { order: ["continue", "stats", "shelves"], hidden: [] };
+    setGlanceOrder(defaults.order);
+    setGlanceHidden(defaults.hidden);
+    api.put("/user/dashboard-layout", defaults).then(() => {
+      toast.success("Layout reset to defaults");
+    }).catch(() => {
+      toast.error("Couldn't save layout");
+    });
+  };
   const showEmpty = !loading && stats.total === 0;
 
   return (
@@ -195,16 +206,28 @@ export default function Dashboard() {
               <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] flex items-center gap-2">
                 <FolderOpen className="w-4 h-4" /> At a glance
               </p>
-              <button
-                data-testid="organize-glance-btn"
-                onClick={() => setOrganizing((v) => !v)}
-                className={`text-xs font-semibold uppercase tracking-wider inline-flex items-center gap-1 px-2 py-1 rounded ${
-                  organizing ? "text-white bg-[#3A5A40]" : "text-[#3A5A40] hover:text-[#2C2C2C]"
-                }`}
-                title="Reorder or hide these sections"
-              >
-                <ArrowUpDown className="w-3 h-3" /> {organizing ? "Done" : "Organize"}
-              </button>
+              <div className="flex items-center gap-2">
+                {organizing && (
+                  <button
+                    data-testid="reset-glance-btn"
+                    onClick={resetGlanceLayout}
+                    className="text-xs font-semibold uppercase tracking-wider inline-flex items-center gap-1 px-2 py-1 rounded text-[#3A5A40] hover:text-[#2C2C2C] hover:bg-white/60"
+                    title="Restore the default order with everything visible"
+                  >
+                    <RotateCcw className="w-3 h-3" /> Reset
+                  </button>
+                )}
+                <button
+                  data-testid="organize-glance-btn"
+                  onClick={() => setOrganizing((v) => !v)}
+                  className={`text-xs font-semibold uppercase tracking-wider inline-flex items-center gap-1 px-2 py-1 rounded ${
+                    organizing ? "text-white bg-[#3A5A40]" : "text-[#3A5A40] hover:text-[#2C2C2C]"
+                  }`}
+                  title="Reorder or hide these sections"
+                >
+                  <ArrowUpDown className="w-3 h-3" /> {organizing ? "Done" : "Organize"}
+                </button>
+              </div>
             </div>
             <div className="space-y-6">
               {glanceOrder.map((key, idx) => {
