@@ -3170,48 +3170,56 @@ async def set_series(book_id: str, body: SetSeriesBody, user: User = Depends(get
 
 
 
-@api_router.post("/books/{book_id}/replace-epub")
-async def replace_epub(
+@api_router.post("/books/{book_id}/upload-new-version")
+async def upload_new_version(
     book_id: str,
     file: UploadFile = File(...),
     user: User = Depends(get_current_user),
 ):
-    """Replace a book's EPUB file with a freshly-uploaded one, preserving every
-    bit of user data (tags, category, progress, reading time, source URL,
-    series, custom shelves, etc.) — only the bytes on disk + a handful of
-    derived fields (size, chapters, words, last_refreshed_at) get updated.
+    """Upload a freshly-downloaded EPUB as a NEW version of the given book.
 
-    Use case: when the source site's bot-protection won't let FanFicFare
-    fetch the latest version, you can grab the EPUB yourself (browser-side
-    Calibre / Web2EPUB / a fresh FFN download) and drop it here. Faster than
-    deleting + re-uploading because nothing else changes.
+    Mirrors the refresh flow exactly:
+      * new book record on a date-stamped 'Updated stories YYYY-MM-DD' shelf
+      * old book archived to 'Old stories' (with replaced_by back-pointer)
+      * tags / source_url / fandom / series / classifier carried over
+      * refresh_summary computed for the bell badge + email digest
+      * house template applied (if enabled)
+      * existing "Old stories" / archived books are NOT re-versioned
+
+    Use case: when FanFicFare can't fetch from the source (bot protection,
+    Cloudflare, locked work) you grab the EPUB locally and drop it here.
     """
     book = await db.books.find_one({"book_id": book_id, "user_id": user.user_id})
     if not book:
         raise HTTPException(status_code=404, detail="Not found")
+    # Block uploads onto already-archived books — pick the current copy instead
+    if book.get("category") == OLD_STORIES_SHELF or book.get("replaced_by"):
+        raise HTTPException(
+            status_code=400,
+            detail="This is already an archived copy. Open the current version and upload there.",
+        )
 
-    # Validate filename + content-type cheaply before reading the bytes
+    # Validate
     name = (file.filename or "").lower()
     if not name.endswith(".epub"):
         raise HTTPException(status_code=400, detail="Please upload an .epub file")
-
     raw = await file.read()
     if not raw or len(raw) < 256:
         raise HTTPException(status_code=400, detail="That file is empty or too small to be an EPUB")
     if not raw.startswith(b"PK\x03\x04"):
         raise HTTPException(status_code=400, detail="That doesn't look like a valid EPUB (zip header missing)")
 
-    # Persist the new bytes; apply the house template (idempotent)
+    # Apply the house template (idempotent — noop if already templated)
     user_dir = STORAGE_DIR / user.user_id
     user_dir.mkdir(parents=True, exist_ok=True)
-    epub_path = user_dir / f"{book_id}.epub"
+    old_book_id = book_id
 
     fff_options = (
         (await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "fff_options": 1}) or {})
         .get("fff_options") or {}
     )
+    loop = asyncio.get_event_loop()
     if fff_options.get("apply_template", True):
-        loop = asyncio.get_event_loop()
         meta_for_template = {
             "title": book.get("title") or "",
             "author": book.get("author") or "",
@@ -3227,64 +3235,134 @@ async def replace_epub(
             book.get("source_url") or "",
         )
 
-    epub_path.write_bytes(raw)
+    # Allocate new book_id and persist the bytes
+    new_book_id = f"book_{uuid.uuid4().hex[:12]}"
+    new_epub_path = user_dir / f"{new_book_id}.epub"
+    new_epub_path.write_bytes(raw)
 
-    # Try to extract refreshed metadata (chapters / words) — non-fatal if it fails
-    extracted: Dict[str, Any] = {}
+    # Try to extract fresh metadata (chapters/words) — non-fatal
+    new_meta: Dict[str, Any] = {
+        "title": book.get("title") or "Untitled",
+        "author": book.get("author") or "Unknown",
+        "description": book.get("description") or "",
+        "language": book.get("language") or "en",
+        "publisher": book.get("publisher") or "",
+    }
+    extracted_extra: Dict[str, Any] = {}
     try:
-        extracted = extract_epub_metadata(epub_path) or {}
+        ex = extract_epub_metadata(new_epub_path) or {}
+        if ex.get("title"):
+            new_meta["title"] = ex["title"]
+        if ex.get("author"):
+            new_meta["author"] = ex["author"]
+        if ex.get("description"):
+            new_meta["description"] = ex["description"]
+        if ex.get("chapters"):
+            extracted_extra["chapters"] = int(ex["chapters"])
+        if ex.get("words"):
+            extracted_extra["words"] = int(ex["words"])
     except Exception as e:
-        logger.warning("replace_epub metadata extract failed: %s", e)
+        logger.warning("upload_new_version metadata extract failed: %s", e)
 
-    # Re-extract embedded URLs (.links.txt sidecar)
+    # Re-extract embedded URLs
     try:
-        new_links = extract_urls_from_epub(epub_path) or []
-        links_path = user_dir / f"{book_id}.links.txt"
-        title_for_links = book.get("title") or "Untitled"
-        author_for_links = book.get("author") or "Unknown"
+        new_links = extract_urls_from_epub(new_epub_path) or []
+        links_path = user_dir / f"{new_book_id}.links.txt"
         links_path.write_text(
-            format_links_txt(title_for_links, author_for_links, new_links),
+            format_links_txt(new_meta["title"], new_meta["author"], new_links),
             encoding="utf-8",
         )
         links_count = len(new_links)
     except Exception as e:
-        logger.warning("replace_epub link extract failed: %s", e)
-        links_count = book.get("links_count") or 0
+        logger.warning("upload_new_version link extract failed: %s", e)
+        links_count = 0
 
-    now_iso = datetime.now(timezone.utc).isoformat()
-    set_fields: Dict[str, Any] = {
+    now_dt = datetime.now(timezone.utc)
+    now_iso = now_dt.isoformat()
+    updated_shelf = _updated_shelf_name(now_dt)
+
+    # 1) Insert the new book on the dated shelf
+    new_doc = {
+        "book_id": new_book_id,
+        "user_id": user.user_id,
+        "filename": _templated_filename(new_meta["title"], new_meta["author"], new_book_id),
+        "title": new_meta["title"],
+        "author": new_meta["author"],
+        "description": new_meta["description"],
+        "language": new_meta["language"],
+        "publisher": new_meta["publisher"],
+        "has_cover": book.get("has_cover", False),  # cover preserved separately if needed
+        "category": updated_shelf,
+        "fandom": book.get("fandom"),
+        "series_name": book.get("series_name"),
+        "series_index": book.get("series_index"),
+        "tags": book.get("tags") or [],
+        "confidence": book.get("confidence", 0.0),
+        "classifier": "manual_upload",
         "size_bytes": len(raw),
         "links_count": links_count,
+        "source_url": book.get("source_url"),
         "last_refreshed_at": now_iso,
-        "manually_replaced_at": now_iso,
-        "unavailable": False,
-        "last_fetch_error": None,
-        "filename": _templated_filename(book.get("title"), book.get("author"), book_id),
+        "manually_uploaded_at": now_iso,
+        "replaces": old_book_id,
+        "created_at": now_iso,
+        **extracted_extra,
     }
-    # Refresh chapter / word counts if we managed to extract them
-    if extracted.get("chapters"):
-        try:
-            set_fields["chapters"] = int(extracted["chapters"])
-        except Exception:
-            pass
-    if extracted.get("words"):
-        try:
-            set_fields["words"] = int(extracted["words"])
-        except Exception:
-            pass
+    await db.books.insert_one(new_doc)
+
+    # Register the dated shelf as a custom category
+    await db.categories.update_one(
+        {"user_id": user.user_id, "name": updated_shelf},
+        {"$setOnInsert": {
+            "user_id": user.user_id,
+            "name": updated_shelf,
+            "created_at": now_iso,
+            "auto_created": True,
+        }},
+        upsert=True,
+    )
+
+    # 2) Archive the old book
+    await db.books.update_one(
+        {"book_id": old_book_id, "user_id": user.user_id},
+        {"$set": {
+            "category": OLD_STORIES_SHELF,
+            "replaced_by": new_book_id,
+            "replaced_at": now_iso,
+        }},
+    )
+
+    # 3) Compute refresh_summary for the bell badge / email digest
+    refresh_summary: Optional[Dict[str, Any]] = None
+    try:
+        old_epub_path = user_dir / f"{old_book_id}.epub"
+        if old_epub_path.exists():
+            old_chapters = await loop.run_in_executor(None, extract_chapters, old_epub_path)
+            new_chapters = await loop.run_in_executor(None, extract_chapters, new_epub_path)
+            d = diff_chapters(old_chapters, new_chapters)
+            refresh_summary = {
+                "chapters_added": d["summary"]["chapters_added"],
+                "chapters_changed": d["summary"]["chapters_changed"],
+                "chapters_removed": d["summary"]["chapters_removed"],
+                "words_delta": d["summary"]["words_delta"],
+                "first_changed_href": (d.get("first_changed_chapter") or {}).get("new_href", ""),
+                "first_changed_title": (d.get("first_changed_chapter") or {}).get("title", ""),
+                "first_changed_kind": (d.get("first_changed_chapter") or {}).get("kind", ""),
+            }
+    except Exception as e:
+        logger.warning("upload_new_version diff failed for %s -> %s: %s", old_book_id, new_book_id, e)
 
     await db.books.update_one(
-        {"book_id": book_id, "user_id": user.user_id},
-        {"$set": set_fields, "$unset": {"last_fetch_attempt_at": ""}},
+        {"book_id": new_book_id, "user_id": user.user_id},
+        {"$set": {"refresh_summary": refresh_summary, "update_seen": False}},
     )
 
     return {
         "ok": True,
-        "book_id": book_id,
-        "size_bytes": len(raw),
-        "chapters": set_fields.get("chapters") or book.get("chapters"),
-        "words": set_fields.get("words") or book.get("words"),
-        "templated": bool(fff_options.get("apply_template", True)),
-        "message": "Replaced — all your tags, progress, and reading time are preserved.",
+        "new_book_id": new_book_id,
+        "old_book_id": old_book_id,
+        "title": new_meta["title"],
+        "updated_shelf": updated_shelf,
+        "message": f'Saved as a new version in "{updated_shelf}". The previous copy moved to Old stories.',
     }
 

@@ -94,18 +94,25 @@ export default function BookDetail() {
       return;
     }
     setRefreshing(true);
-    const t = toast.loading("Uploading replacement EPUB…");
+    const t = toast.loading("Saving as a new version…");
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      await api.post(`/books/${id}/replace-epub`, fd, {
+      const { data } = await api.post(`/books/${id}/upload-new-version`, (() => {
+        const fd = new FormData();
+        fd.append("file", file);
+        return fd;
+      })(), {
         timeout: 300000,
         headers: { "Content-Type": "multipart/form-data" },
       });
-      toast.success("Replaced — your tags, progress, and reading time are preserved.", { id: t });
-      await load();
+      const shelf = data.updated_shelf || "Updated stories";
+      toast.success(`Saved as "${data.title}" in ${shelf}`, { id: t });
+      if (data.new_book_id) {
+        navigate(`/book/${data.new_book_id}`);
+      } else {
+        await load();
+      }
     } catch (e) {
-      const msg = e?.response?.data?.detail || "Replace failed";
+      const msg = e?.response?.data?.detail || "Upload failed";
       toast.error(msg, { id: t });
     } finally {
       setRefreshing(false);
@@ -512,20 +519,20 @@ export default function BookDetail() {
                     grabbed themselves when FanFicFare can't reach the source. */}
                 <label
                   className="btn-secondary flex items-center gap-2 text-sm cursor-pointer disabled:opacity-50"
-                  title="Upload a freshly-downloaded EPUB to replace this copy (tags + progress preserved)"
-                  data-testid="replace-epub-label"
+                  title="Upload a freshly-downloaded EPUB as a new version (old version archives to 'Old stories')"
+                  data-testid="upload-new-version-label"
                 >
                   <Upload className="w-4 h-4" />
-                  Upload replacement
+                  Upload new version
                   <input
                     type="file"
                     accept=".epub,application/epub+zip"
                     className="hidden"
                     disabled={refreshing}
-                    data-testid="replace-epub-input"
+                    data-testid="upload-new-version-input"
                     onChange={(e) => {
                       const f = e.target.files?.[0];
-                      e.target.value = ""; // allow re-uploading the same file later
+                      e.target.value = "";
                       if (f) replaceEpub(f);
                     }}
                   />

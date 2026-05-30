@@ -97,18 +97,18 @@ export default function CantFindOnline() {
       return;
     }
     setBusyId(bid);
-    const t = toast.loading("Uploading replacement…");
+    const t = toast.loading("Saving as a new version…");
     try {
       const fd = new FormData();
       fd.append("file", file);
-      await api.post(`/books/${bid}/replace-epub`, fd, {
+      const { data } = await api.post(`/books/${bid}/upload-new-version`, fd, {
         timeout: 300000,
         headers: { "Content-Type": "multipart/form-data" },
       });
-      toast.success("Replaced — tags + progress preserved", { id: t });
+      toast.success(`Saved in ${data.updated_shelf || "Updated stories"}`, { id: t });
       await load();
     } catch (e) {
-      toast.error(e?.response?.data?.detail || "Couldn't replace", { id: t });
+      toast.error(e?.response?.data?.detail || "Couldn't upload", { id: t });
     } finally {
       setBusyId(null);
     }
@@ -383,17 +383,17 @@ export default function CantFindOnline() {
                         </button>
                         <label
                           className="btn-secondary text-xs flex items-center gap-1.5 py-1.5 cursor-pointer"
-                          data-testid={`replace-${b.book_id}`}
-                          title="Upload a fresh EPUB to replace this copy — your tags and progress stay intact"
+                          data-testid={`upload-new-${b.book_id}`}
+                          title="Upload a fresh EPUB as a new version. The old copy moves to 'Old stories'."
                         >
                           <Upload className="w-3.5 h-3.5" />
-                          Upload replacement
+                          Upload new version
                           <input
                             type="file"
                             accept=".epub,application/epub+zip"
                             className="hidden"
                             disabled={busyId === b.book_id}
-                            data-testid={`replace-input-${b.book_id}`}
+                            data-testid={`upload-new-input-${b.book_id}`}
                             onChange={(e) => {
                               const f = e.target.files?.[0];
                               e.target.value = "";

@@ -378,3 +378,16 @@
 - **`CantFindOnline.jsx`**: same button on every failing row (where users actually need it most).
 - **Improved FFN error message**: when `StoryDoesNotExist` fires on a FanFiction.net URL, the message now points the user at "Upload replacement" instead of suggesting the work moved.
 - Tests: `TestReplaceEpub` (4 cases — preserve-metadata, reject-non-epub, reject-garbage-bytes, 404). **195 passing, 1 by-design skip, coverage 78.3%**.
+
+### Changed 2026-05-30 (Upload-as-new-version replaces upload-replacement)
+- User feedback: "instead of uploading a replacement of an epub with link, just upload into a whole new file" — so the manual upload flow now mirrors the refresh flow exactly instead of overwriting in place.
+- **`POST /api/books/{book_id}/upload-new-version`** (replaces `/replace-epub`):
+  - Creates a brand-new book record on a date-stamped `Updated stories YYYY-MM-DD` shelf.
+  - Archives the old book to `Old stories` with `replaced_by` back-pointer.
+  - Carries over tags, source_url, fandom, series, etc. to the new copy; classifier is always `"manual_upload"`.
+  - Computes `refresh_summary` (chapter diff via `extract_chapters` + `diff_chapters`) so the bell badge + email digest fire, and the Compare-versions page works just like for an automatic refresh.
+  - Sets `update_seen=False`, `manually_uploaded_at`.
+  - Refuses to upload onto an already-archived book (400 with friendly message — "open the current version and upload there").
+  - Applies the house template; tidies the filename.
+- **BookDetail** + **CantFindOnline** buttons relabelled "Upload new version" with a navigate-on-success that takes the user to the freshly-created copy.
+- Tests: `TestUploadNewVersion` (5 cases — happy path with full metadata carry-over, blocked-on-archived, non-epub reject, garbage-bytes reject, 404). **196 passing, 1 by-design skip, coverage 78.6%**.
