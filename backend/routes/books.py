@@ -1547,31 +1547,86 @@ async def convert_to_epub(src_path: Path, dest_path: Path) -> Optional[str]:
     return await loop.run_in_executor(None, _convert_to_epub_sync, src_path, dest_path)
 
 
-# In-flight conversion tracker — keyed by user_id, holds a list of dicts
-# describing each conversion currently running. The dashboard polls
-# `/api/conversions/status` every few seconds while this isn't empty.
-_conversion_jobs: Dict[str, List[Dict[str, Any]]] = {}
-_conversion_jobs_lock = asyncio.Lock()
+# Persistent conversion-job tracking — backed by MongoDB so jobs survive
+# backend restarts, tab closes, and cross-device sessions. A TTL index on
+# `expires_at` cleans up finished jobs after the 4-hour visibility window.
+CONVERSION_VISIBILITY_HOURS = 4
+_conversion_index_ensured = False
+
+
+async def _ensure_conversion_index() -> None:
+    """Lazily create a TTL index on conversion_jobs.expires_at."""
+    global _conversion_index_ensured
+    if _conversion_index_ensured:
+        return
+    try:
+        await db.conversion_jobs.create_index("expires_at", expireAfterSeconds=0)
+        await db.conversion_jobs.create_index([("user_id", 1), ("started_at", -1)])
+        _conversion_index_ensured = True
+    except Exception as e:
+        logger.warning("Failed to create conversion_jobs indexes: %s", e)
 
 
 async def _conversion_start(user_id: str, job: Dict[str, Any]) -> None:
-    async with _conversion_jobs_lock:
-        _conversion_jobs.setdefault(user_id, []).append(job)
+    await _ensure_conversion_index()
+    doc = {
+        **job,
+        "user_id": user_id,
+        "status": "processing",
+        # expires_at intentionally omitted so the TTL doesn't apply while
+        # the job is still running.
+    }
+    await db.conversion_jobs.insert_one(doc)
 
 
-async def _conversion_end(user_id: str, job_id: str) -> None:
-    async with _conversion_jobs_lock:
-        if user_id in _conversion_jobs:
-            _conversion_jobs[user_id] = [j for j in _conversion_jobs[user_id] if j.get("id") != job_id]
-            if not _conversion_jobs[user_id]:
-                _conversion_jobs.pop(user_id, None)
+async def _conversion_end(user_id: str, job_id: str, *, error: Optional[str] = None) -> None:
+    now = datetime.now(timezone.utc)
+    expires = now + timedelta(hours=CONVERSION_VISIBILITY_HOURS)
+    await db.conversion_jobs.update_one(
+        {"id": job_id, "user_id": user_id},
+        {
+            "$set": {
+                "status": "failed" if error else "done",
+                "error": error,
+                "finished_at": now.isoformat(),
+                "expires_at": expires,
+            }
+        },
+    )
 
 
 @api_router.get("/conversions/status")
 async def conversions_status(user: User = Depends(get_current_user)):
-    async with _conversion_jobs_lock:
-        jobs = list(_conversion_jobs.get(user.user_id, []))
-    return {"converting": len(jobs), "jobs": jobs}
+    """Return the user's conversion-job history within the visibility window
+    (default 4 hours after completion). Includes both in-progress and recently
+    completed/failed jobs."""
+    await _ensure_conversion_index()
+    cursor = db.conversion_jobs.find(
+        {"user_id": user.user_id},
+        {"_id": 0, "user_id": 0},
+    ).sort("started_at", -1).limit(50)
+    jobs = [j async for j in cursor]
+    converting = sum(1 for j in jobs if j.get("status") == "processing")
+    recent_done = sum(1 for j in jobs if j.get("status") == "done")
+    recent_failed = sum(1 for j in jobs if j.get("status") == "failed")
+    return {
+        "converting": converting,
+        "recent_done": recent_done,
+        "recent_failed": recent_failed,
+        "visibility_hours": CONVERSION_VISIBILITY_HOURS,
+        "jobs": jobs,
+    }
+
+
+@api_router.post("/conversions/dismiss")
+async def conversions_dismiss(user: User = Depends(get_current_user)):
+    """Hide all completed/failed conversion jobs immediately (the chip will
+    only show in-progress jobs after this). In-progress jobs are untouched."""
+    result = await db.conversion_jobs.delete_many({
+        "user_id": user.user_id,
+        "status": {"$in": ["done", "failed"]},
+    })
+    return {"dismissed": result.deleted_count}
 
 
 @api_router.post("/books/upload")
@@ -1609,10 +1664,11 @@ async def upload_books(
                 "original_format": ext.lstrip("."),
                 "started_at": datetime.now(timezone.utc).isoformat(),
             })
+            err = None
             try:
                 err = await convert_to_epub(src_target, epub_target)
             finally:
-                await _conversion_end(user.user_id, job_id)
+                await _conversion_end(user.user_id, job_id, error=err)
             if err:
                 base_name = (f.filename or "Untitled").rsplit(".", 1)[0]
                 now_iso = datetime.now(timezone.utc).isoformat()

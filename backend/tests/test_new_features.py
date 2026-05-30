@@ -2227,5 +2227,44 @@ class TestConversionsStatus:
         assert r.status_code == 200
         data = r.json()
         assert data["converting"] == 0
+        assert data["recent_done"] == 0
+        assert data["recent_failed"] == 0
+        assert data["visibility_hours"] == 4
         assert data["jobs"] == []
+
+    def test_finished_job_visible_for_4h(self, conv_user):
+        uid, tok = conv_user
+        # Trigger an upload-time conversion to seed a real conversion_jobs row
+        with open(_make_epub_with_links("Doesn't matter", "Auth", []), "rb") as src:
+            # Use a .txt to force the conversion path (Calibre handles plain text)
+            data = b"This is a tiny test ebook in plain text form. The end."
+        r = requests.post(
+            f"{BASE}/api/books/upload",
+            headers={"Authorization": f"Bearer {tok}"},
+            files={"files": ("test.txt", data, "text/plain")},
+        )
+        assert r.status_code == 200, r.text
+        # Now fetch status — at least one finished job should show
+        s = requests.get(
+            f"{BASE}/api/conversions/status",
+            headers={"Authorization": f"Bearer {tok}"},
+        )
+        assert s.status_code == 200
+        sdata = s.json()
+        finished = (sdata["recent_done"] + sdata["recent_failed"])
+        assert finished >= 1, f"Expected a finished job in status, got {sdata}"
+        # Dismiss + re-check
+        d = requests.post(
+            f"{BASE}/api/conversions/dismiss",
+            headers={"Authorization": f"Bearer {tok}"},
+        )
+        assert d.status_code == 200
+        s2 = requests.get(
+            f"{BASE}/api/conversions/status",
+            headers={"Authorization": f"Bearer {tok}"},
+        )
+        assert s2.json()["recent_done"] == 0
+        assert s2.json()["recent_failed"] == 0
+        db.books.delete_many({"user_id": uid})
+        db.conversion_jobs.delete_many({"user_id": uid})
 

@@ -40,7 +40,7 @@ export default function Dashboard() {
   const [pendingDupes, setPendingDupes] = useState([]);
   const [undoActions, setUndoActions] = useState([]);  // {book_id, title, action, target_book_id, undoable}
   const [trashCount, setTrashCount] = useState(0);
-  const [conversions, setConversions] = useState({ converting: 0, jobs: [] });
+  const [conversions, setConversions] = useState({ converting: 0, recent_done: 0, recent_failed: 0, visibility_hours: 4, jobs: [] });
   const [glanceOrder, setGlanceOrder] = useState(["continue", "stats", "shelves"]);
   const [glanceHidden, setGlanceHidden] = useState([]);
   const [organizing, setOrganizing] = useState(false);
@@ -148,6 +148,8 @@ export default function Dashboard() {
 
   // Poll the conversion-status endpoint while uploads with heavy formats
   // (PDF, MOBI etc.) are running — Calibre conversion can take 30+ seconds.
+  // The endpoint also surfaces recently-completed jobs within a 4-hour
+  // visibility window so users see what happened across browser sessions.
   useEffect(() => {
     let stopped = false;
     let interval = null;
@@ -155,10 +157,12 @@ export default function Dashboard() {
       try {
         const { data } = await api.get("/conversions/status");
         if (stopped) return;
-        setConversions(data || { converting: 0, jobs: [] });
+        setConversions(data || { converting: 0, recent_done: 0, recent_failed: 0, visibility_hours: 4, jobs: [] });
       } catch (e) { /* non-fatal */ }
     };
     tick();
+    // Poll every 3s when anything is in-flight, every 30s otherwise (keeps
+    // the chip fresh without hammering the API on idle dashboards).
     interval = setInterval(tick, 3000);
     return () => { stopped = true; if (interval) clearInterval(interval); };
   }, []);
@@ -226,15 +230,37 @@ export default function Dashboard() {
               <Trash2 className="w-3 h-3" /> Trash · {trashCount}
             </Link>
           )}
-          {conversions.converting > 0 && (
+          {conversions.converting > 0 ? (
             <div
               data-testid="conversion-chip"
               className="inline-flex items-center gap-1.5 mt-3 ml-2 px-3 py-1 rounded-full text-xs font-medium border border-amber-300 bg-amber-50 text-amber-800"
-              title={(conversions.jobs || []).map((j) => `${j.title} (.${j.original_format})`).join("\n")}
+              title={(conversions.jobs || []).filter((j) => j.status === "processing").map((j) => `${j.title} (.${j.original_format})`).join("\n")}
             >
               <Loader2 className="w-3 h-3 animate-spin" />
               Converting · {conversions.converting} {conversions.converting === 1 ? "book" : "books"}
+              {(conversions.recent_done + conversions.recent_failed) > 0 && (
+                <span className="text-amber-600 font-normal">
+                  · {conversions.recent_done + conversions.recent_failed} done
+                </span>
+              )}
             </div>
+          ) : (conversions.recent_done + conversions.recent_failed) > 0 && (
+            <button
+              data-testid="conversion-chip"
+              onClick={async () => {
+                try {
+                  await api.post("/conversions/dismiss");
+                  setConversions({ ...conversions, recent_done: 0, recent_failed: 0, jobs: [] });
+                } catch (e) { /* ignore */ }
+              }}
+              className="inline-flex items-center gap-1.5 mt-3 ml-2 px-3 py-1 rounded-full text-xs font-medium border border-[#3A5A40]/30 bg-[#E5EBE6] text-[#3A5A40] hover:bg-[#d8e1d9]"
+              title={`${(conversions.jobs || []).map((j) => `${j.title} (.${j.original_format}) — ${j.status}`).join("\n")}\n\nClick to dismiss`}
+            >
+              <Sparkles className="w-3 h-3" />
+              {conversions.recent_done > 0 && `${conversions.recent_done} converted`}
+              {conversions.recent_failed > 0 && (conversions.recent_done > 0 ? `, ${conversions.recent_failed} failed` : `${conversions.recent_failed} failed`)}
+              <span className="text-[#6B705C] font-normal">· last {conversions.visibility_hours}h</span>
+            </button>
           )}
         </div>
 
