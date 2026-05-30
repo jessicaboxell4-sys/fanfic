@@ -149,10 +149,10 @@ export default function Dashboard() {
         </div>
 
         <div className="mb-10">
+          {recentBooks.length > 0 && <ContinueReadingRail books={recentBooks} />}
           {overview && (overview.books_finished > 0 || overview.pages_read > 0 || overview.reading_streak_days > 0) && (
             <StatsCard stats={overview} viewMoreTo="/library/stats" />
           )}
-          {recentBooks.length > 0 && <ContinueReadingRail books={recentBooks} />}
           {pinnedShelves.length > 0 && (
             <div className="mt-6">
               <div className="flex items-center justify-between mb-3">
