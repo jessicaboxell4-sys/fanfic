@@ -861,3 +861,107 @@ class TestOnboardingPrompt:
     def test_status_requires_auth(self):
         r = requests.get(f"{BASE}/api/user/onboarding-status")
         assert r.status_code == 401
+
+
+# ============================================================
+# Replace EPUB — manual upload preserves all user data
+# ============================================================
+class TestReplaceEpub:
+    def _minimal_epub_bytes(self, title: str = "Manual Replace") -> bytes:
+        import zipfile
+        from io import BytesIO
+        buf = BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+            info = zipfile.ZipInfo("mimetype")
+            info.compress_type = zipfile.ZIP_STORED
+            z.writestr(info, "application/epub+zip")
+            z.writestr("META-INF/container.xml",
+                '<?xml version="1.0"?>\n<container version="1.0" '
+                'xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+                '<rootfiles><rootfile full-path="OEBPS/content.opf" '
+                'media-type="application/oebps-package+xml"/></rootfiles></container>')
+            z.writestr("OEBPS/content.opf",
+                '<?xml version="1.0"?>\n<package xmlns="http://www.idpf.org/2007/opf" '
+                'version="3.0" unique-identifier="id"><metadata '
+                'xmlns:dc="http://purl.org/dc/elements/1.1/">'
+                '<dc:identifier id="id">manual1</dc:identifier>'
+                f'<dc:title>{title}</dc:title><dc:language>en</dc:language>'
+                '</metadata><manifest><item href="c1.xhtml" id="c1" '
+                'media-type="application/xhtml+xml"/></manifest>'
+                '<spine><itemref idref="c1"/></spine></package>')
+            z.writestr("OEBPS/c1.xhtml",
+                '<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml">'
+                '<head><title>1</title></head><body><p>fresh upload</p></body></html>')
+        return buf.getvalue()
+
+    def test_replace_preserves_metadata(self, uploaded_books):
+        bid = uploaded_books[0]["book_id"]
+        # Seed rich state on the book that MUST be preserved
+        db.books.update_one(
+            {"book_id": bid},
+            {"$set": {
+                "tags": ["fav-fic", "to-reread"],
+                "progress_percent": 0.42,
+                "reading_minutes": 73,
+                "category": "Fanfiction",
+                "fandom": "Test Fandom",
+                "source_url": "https://www.fanfiction.net/s/1902191",
+                "unavailable": True,
+                "last_fetch_error": "Cloudflare blocked",
+            }},
+        )
+
+        files = {"file": ("freshly-downloaded.epub", self._minimal_epub_bytes(), "application/epub+zip")}
+        r = requests.post(
+            f"{BASE}/api/books/{bid}/replace-epub", headers=H(), files=files
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["ok"] is True
+        assert body["book_id"] == bid
+        assert body["size_bytes"] > 0
+
+        # All the user data MUST still be there
+        doc = db.books.find_one({"book_id": bid})
+        assert set(doc.get("tags", [])) == {"fav-fic", "to-reread"}
+        assert doc["progress_percent"] == 0.42
+        assert doc["reading_minutes"] == 73
+        assert doc["category"] == "Fanfiction"
+        assert doc["fandom"] == "Test Fandom"
+        assert doc["source_url"] == "https://www.fanfiction.net/s/1902191"
+        # And the unavailable flag was cleared
+        assert doc.get("unavailable") is False
+        assert doc.get("last_fetch_error") is None
+        # Filename was tidied to the templated pattern
+        assert doc["filename"].endswith(".epub")
+        assert "_by_" in doc["filename"]
+        # And the timestamps were updated
+        assert doc.get("manually_replaced_at")
+        assert doc.get("last_refreshed_at")
+
+    def test_replace_rejects_non_epub(self, uploaded_books):
+        bid = uploaded_books[0]["book_id"]
+        files = {"file": ("not.txt", b"hello world", "text/plain")}
+        r = requests.post(
+            f"{BASE}/api/books/{bid}/replace-epub", headers=H(), files=files
+        )
+        assert r.status_code == 400
+        assert "epub" in r.json()["detail"].lower()
+
+    def test_replace_rejects_garbage_bytes(self, uploaded_books):
+        bid = uploaded_books[0]["book_id"]
+        # Right extension but no zip header → reject
+        files = {"file": ("fake.epub", b"this is not actually a zip file", "application/epub+zip")}
+        r = requests.post(
+            f"{BASE}/api/books/{bid}/replace-epub", headers=H(), files=files
+        )
+        assert r.status_code == 400
+
+    def test_replace_404_for_unknown_book(self):
+        files = {"file": ("x.epub", self._minimal_epub_bytes(), "application/epub+zip")}
+        r = requests.post(
+            f"{BASE}/api/books/book_does_not_exist/replace-epub",
+            headers=H(),
+            files=files,
+        )
+        assert r.status_code == 404

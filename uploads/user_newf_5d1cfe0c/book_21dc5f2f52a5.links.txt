@@ -1,0 +1,10 @@
+Title:  The First Book
+Author: Renamed Author
+Links:  2
+============================================================
+
+1. https://www.fanfiction.net/s/1902191
+   ↳ https://www.fanfiction.net/s/1902191
+2. https://github.com/JimmXinu/FanFicFare
+   ↳ FanFicFare
+

@@ -818,6 +818,15 @@ async def fanfic_fetch_epub(source_url: str, options: Optional[Dict[str, Any]] =
         try:
             adapter.getStoryMetadataOnly()
         except fff_exc.StoryDoesNotExist as e:
+            # Heuristic: FFN's Cloudflare/anti-bot pages get parsed as
+            # "story doesn't exist" because the real HTML isn't there. Give
+            # the user a clearer hint when the site is FFN.
+            if "fanfiction.net" in (host or "").lower():
+                raise FanficNotFoundError(
+                    "FanFiction.net's bot protection blocked the download. The work itself is "
+                    "likely still online — try the 'Upload replacement' button on the book's page "
+                    "to drop in a fresh EPUB you exported from your own browser/Calibre."
+                )
             raise FanficNotFoundError(f"Story not found: {e}")
         except fff_exc.HTTPErrorFFF as e:
             msg = str(e)
@@ -3158,3 +3167,124 @@ async def set_series(book_id: str, body: SetSeriesBody, user: User = Depends(get
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Not found")
     return {"ok": True}
+
+
+
+@api_router.post("/books/{book_id}/replace-epub")
+async def replace_epub(
+    book_id: str,
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+):
+    """Replace a book's EPUB file with a freshly-uploaded one, preserving every
+    bit of user data (tags, category, progress, reading time, source URL,
+    series, custom shelves, etc.) — only the bytes on disk + a handful of
+    derived fields (size, chapters, words, last_refreshed_at) get updated.
+
+    Use case: when the source site's bot-protection won't let FanFicFare
+    fetch the latest version, you can grab the EPUB yourself (browser-side
+    Calibre / Web2EPUB / a fresh FFN download) and drop it here. Faster than
+    deleting + re-uploading because nothing else changes.
+    """
+    book = await db.books.find_one({"book_id": book_id, "user_id": user.user_id})
+    if not book:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    # Validate filename + content-type cheaply before reading the bytes
+    name = (file.filename or "").lower()
+    if not name.endswith(".epub"):
+        raise HTTPException(status_code=400, detail="Please upload an .epub file")
+
+    raw = await file.read()
+    if not raw or len(raw) < 256:
+        raise HTTPException(status_code=400, detail="That file is empty or too small to be an EPUB")
+    if not raw.startswith(b"PK\x03\x04"):
+        raise HTTPException(status_code=400, detail="That doesn't look like a valid EPUB (zip header missing)")
+
+    # Persist the new bytes; apply the house template (idempotent)
+    user_dir = STORAGE_DIR / user.user_id
+    user_dir.mkdir(parents=True, exist_ok=True)
+    epub_path = user_dir / f"{book_id}.epub"
+
+    fff_options = (
+        (await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "fff_options": 1}) or {})
+        .get("fff_options") or {}
+    )
+    if fff_options.get("apply_template", True):
+        loop = asyncio.get_event_loop()
+        meta_for_template = {
+            "title": book.get("title") or "",
+            "author": book.get("author") or "",
+            "description": book.get("description") or "",
+            "chapters": book.get("chapters") or 0,
+            "rawExtendedMeta": (book.get("source_meta") or {}).get("rawExtendedMeta") or {},
+        }
+        raw = await loop.run_in_executor(
+            None,
+            apply_template_to_epub,
+            raw,
+            meta_for_template,
+            book.get("source_url") or "",
+        )
+
+    epub_path.write_bytes(raw)
+
+    # Try to extract refreshed metadata (chapters / words) — non-fatal if it fails
+    extracted: Dict[str, Any] = {}
+    try:
+        extracted = extract_epub_metadata(epub_path) or {}
+    except Exception as e:
+        logger.warning("replace_epub metadata extract failed: %s", e)
+
+    # Re-extract embedded URLs (.links.txt sidecar)
+    try:
+        new_links = extract_urls_from_epub(epub_path) or []
+        links_path = user_dir / f"{book_id}.links.txt"
+        title_for_links = book.get("title") or "Untitled"
+        author_for_links = book.get("author") or "Unknown"
+        links_path.write_text(
+            format_links_txt(title_for_links, author_for_links, new_links),
+            encoding="utf-8",
+        )
+        links_count = len(new_links)
+    except Exception as e:
+        logger.warning("replace_epub link extract failed: %s", e)
+        links_count = book.get("links_count") or 0
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    set_fields: Dict[str, Any] = {
+        "size_bytes": len(raw),
+        "links_count": links_count,
+        "last_refreshed_at": now_iso,
+        "manually_replaced_at": now_iso,
+        "unavailable": False,
+        "last_fetch_error": None,
+        "filename": _templated_filename(book.get("title"), book.get("author"), book_id),
+    }
+    # Refresh chapter / word counts if we managed to extract them
+    if extracted.get("chapters"):
+        try:
+            set_fields["chapters"] = int(extracted["chapters"])
+        except Exception:
+            pass
+    if extracted.get("words"):
+        try:
+            set_fields["words"] = int(extracted["words"])
+        except Exception:
+            pass
+
+    await db.books.update_one(
+        {"book_id": book_id, "user_id": user.user_id},
+        {"$set": set_fields, "$unset": {"last_fetch_attempt_at": ""}},
+    )
+
+    return {
+        "ok": True,
+        "book_id": book_id,
+        "size_bytes": len(raw),
+        "chapters": set_fields.get("chapters") or book.get("chapters"),
+        "words": set_fields.get("words") or book.get("words"),
+        "templated": bool(fff_options.get("apply_template", True)),
+        "message": "Replaced — all your tags, progress, and reading time are preserved.",
+    }
+

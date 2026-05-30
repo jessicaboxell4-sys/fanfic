@@ -4,7 +4,7 @@ import { api, API } from "../lib/api";
 import Navbar from "../components/Navbar";
 import TagInput from "../components/TagInput";
 import ReadingStatsCard from "../components/ReadingStatsCard";
-import { ArrowLeft, Download, Trash2, Sparkles, Book, Edit3, Link as LinkIcon, BookOpen, RefreshCw, Tag as TagIcon, Loader2 } from "lucide-react";
+import { ArrowLeft, Download, Trash2, Sparkles, Book, Edit3, Link as LinkIcon, BookOpen, RefreshCw, Tag as TagIcon, Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 const DEFAULT_CATEGORIES = ["Fanfiction", "Original Fiction", "Non-fiction", "Unclassified", "Updated stories", "Old stories"];
@@ -81,6 +81,31 @@ export default function BookDetail() {
       }
     } catch (e) {
       const msg = e?.response?.data?.detail || "Refresh failed";
+      toast.error(msg, { id: t });
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const replaceEpub = async (file) => {
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".epub")) {
+      toast.error("Please choose an .epub file");
+      return;
+    }
+    setRefreshing(true);
+    const t = toast.loading("Uploading replacement EPUB…");
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      await api.post(`/books/${id}/replace-epub`, fd, {
+        timeout: 300000,
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      toast.success("Replaced — your tags, progress, and reading time are preserved.", { id: t });
+      await load();
+    } catch (e) {
+      const msg = e?.response?.data?.detail || "Replace failed";
       toast.error(msg, { id: t });
     } finally {
       setRefreshing(false);
@@ -483,6 +508,28 @@ export default function BookDetail() {
                       : "Update from FanFicFare"}
                   </button>
                 )}
+                {/* Upload-replacement: lets the user drop in an EPUB they
+                    grabbed themselves when FanFicFare can't reach the source. */}
+                <label
+                  className="btn-secondary flex items-center gap-2 text-sm cursor-pointer disabled:opacity-50"
+                  title="Upload a freshly-downloaded EPUB to replace this copy (tags + progress preserved)"
+                  data-testid="replace-epub-label"
+                >
+                  <Upload className="w-4 h-4" />
+                  Upload replacement
+                  <input
+                    type="file"
+                    accept=".epub,application/epub+zip"
+                    className="hidden"
+                    disabled={refreshing}
+                    data-testid="replace-epub-input"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      e.target.value = ""; // allow re-uploading the same file later
+                      if (f) replaceEpub(f);
+                    }}
+                  />
+                </label>
                 <button
                   data-testid="edit-btn"
                   onClick={() => setEditing(true)}

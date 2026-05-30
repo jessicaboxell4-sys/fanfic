@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import PoweredByFanFicFare from "../components/PoweredByFanFicFare";
 import { api, API } from "../lib/api";
-import { ArrowLeft, ExternalLink, RefreshCw, Edit3, Download, Loader2, Book, AlertTriangle, CheckCircle2, RotateCw } from "lucide-react";
+import { ArrowLeft, ExternalLink, RefreshCw, Edit3, Download, Loader2, Book, AlertTriangle, CheckCircle2, RotateCw, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 function suggestSearchUrl(sourceUrl, title, author) {
@@ -88,6 +88,32 @@ export default function CantFindOnline() {
       setRetryAllBusy(false);
     }
   };
+
+
+  const replaceEpub = async (bid, file) => {
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".epub")) {
+      toast.error("Please choose an .epub file");
+      return;
+    }
+    setBusyId(bid);
+    const t = toast.loading("Uploading replacement…");
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      await api.post(`/books/${bid}/replace-epub`, fd, {
+        timeout: 300000,
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      toast.success("Replaced — tags + progress preserved", { id: t });
+      await load();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't replace", { id: t });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
 
   const retry = async (bid, opts = {}) => {
     const { silent = false } = opts;
@@ -355,6 +381,26 @@ export default function CantFindOnline() {
                           )}
                           Retry FanFicFare
                         </button>
+                        <label
+                          className="btn-secondary text-xs flex items-center gap-1.5 py-1.5 cursor-pointer"
+                          data-testid={`replace-${b.book_id}`}
+                          title="Upload a fresh EPUB to replace this copy — your tags and progress stay intact"
+                        >
+                          <Upload className="w-3.5 h-3.5" />
+                          Upload replacement
+                          <input
+                            type="file"
+                            accept=".epub,application/epub+zip"
+                            className="hidden"
+                            disabled={busyId === b.book_id}
+                            data-testid={`replace-input-${b.book_id}`}
+                            onChange={(e) => {
+                              const f = e.target.files?.[0];
+                              e.target.value = "";
+                              if (f) replaceEpub(b.book_id, f);
+                            }}
+                          />
+                        </label>
                       </div>
                     )}
                   </div>

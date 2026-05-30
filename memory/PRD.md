@@ -369,3 +369,12 @@
   - 403 errors render in **amber** (transient) instead of red (permanent), with a ⚠ glyph.
   - New per-book **"Try in browser"** button on every failing row — opens the source URL directly so the user can verify the work isn't deleted/locked.
 - All 191 tests still pass at 78.4% coverage.
+
+### Added 2026-05-30 ("Upload replacement EPUB" — bypasses bot-protection)
+- Context: FanFiction.net's Cloudflare anti-bot is serving FFF a challenge page that gets parsed as `StoryDoesNotExist` (misleading "Story not found" toast). Server-side scraping can't reliably solve Turnstile challenges — but the user can grab the EPUB themselves and upload it.
+- **`POST /api/books/{book_id}/replace-epub`** (multipart upload) — preserves EVERY user-side field (tags, category, progress_percent, reading_minutes, source_url, fandom, series, custom shelf assignments, classifier, confidence). Only updates `size_bytes`, `links_count`, `last_refreshed_at`, `manually_replaced_at`, `filename` (tidied), and `chapters`/`words` if successfully re-extracted from the new EPUB. Clears `unavailable` + `last_fetch_error`. Applies the house template if the user has `apply_template` enabled.
+- Validates: filename ends `.epub`, byte length ≥256, starts with `PK\x03\x04` (zip header). Friendly errors otherwise.
+- **`BookDetail.jsx`**: new "Upload replacement" button alongside "Update from FanFicFare", with hidden `<input type="file" accept=".epub">` and a clear tooltip.
+- **`CantFindOnline.jsx`**: same button on every failing row (where users actually need it most).
+- **Improved FFN error message**: when `StoryDoesNotExist` fires on a FanFiction.net URL, the message now points the user at "Upload replacement" instead of suggesting the work moved.
+- Tests: `TestReplaceEpub` (4 cases — preserve-metadata, reject-non-epub, reject-garbage-bytes, 404). **195 passing, 1 by-design skip, coverage 78.3%**.
