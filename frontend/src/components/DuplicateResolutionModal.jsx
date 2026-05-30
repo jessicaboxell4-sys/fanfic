@@ -172,9 +172,9 @@ export default function DuplicateResolutionModal({ pending, onClose, onResolved 
                   >
                     <div className="flex items-center gap-2 mb-1">
                       <Trash2 className="w-4 h-4 text-red-600" />
-                      <span className="font-medium text-sm">Discard upload</span>
+                      <span className="font-medium text-sm">Send to Trash</span>
                     </div>
-                    <p className="text-xs text-[#6B705C]">Delete the just-uploaded copy.</p>
+                    <p className="text-xs text-[#6B705C]">Soft-delete — restorable for 30 days.</p>
                   </button>
 
                   <button

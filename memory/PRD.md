@@ -513,6 +513,19 @@
 - **Dashboard**: amber undo strip surfaces after upload when one or more actions are undoable. Shows the count + action kind ("linked as historical versions" / "replaced as new versions"). "Undo" button reverses every action in the batch; auto-dismisses after 30 seconds.
 - Tests: `TestUndoResolve` — 3 cases (undo historical restores book, undo new_version restores both books, undo rejects keep_both with 400). **251 passing, 1 by-design skip**.
 
+### Added 2026-05-30 (Trash shelf — 30-day grace window for discards)
+- **`TRASH_SHELF` + `TRASH_GRACE_DAYS = 30`** constants. Discard actions (both interactive modal and auto-policy) now move books to `Trash` with `trash_expires_at = now + 30 days` instead of hard-deleting. Files stay on disk so restore is possible.
+- **`GET /api/trash`** lists trashed books with `{books, count, grace_days}`.
+- **`POST /api/trash/restore/{book_id}`** restores to the previous category (400 if not actually in Trash).
+- **`POST /api/trash/empty`** immediate hard-delete of every trashed book + on-disk files.
+- **`sweep_expired_trash()`** appended to the hourly `_digest_tick` — hard-deletes any trashed book past its grace window.
+- **`GET /books`** now excludes the Trash shelf by default (only surfaces when explicitly filtered by `?category=Trash`).
+- **Undo strip** now also covers the `discard` action — clicking Undo restores from Trash.
+- **`/library/trash`** new page: list rows with "X days left" badges + per-book Restore button, "Empty trash" header button, friendly empty state.
+- **Dashboard** gets a small "Trash · N" chip below the library header (only when count > 0).
+- **Account "Duplicate handling"** card relabels: "Send to Trash" with "Move duplicates to Trash for 30 days, then auto-delete." Modal action renamed similarly.
+- Tests: `TestTrashShelf` — 6 cases (list, restore, restore 400 on non-trashed, empty hard-deletes, sweep-listing, excluded from library). Existing `test_resolve_discard_deletes_book` and `test_upload_with_discard_policy_removes_dup` rewritten for the new soft-delete semantics. **257 passing, 1 by-design skip, coverage 80.1%**.
+
 ### Added 2026-05-30 (Folder + mixed-format uploads)
 - **UploadZone** now accepts folders (drag a folder onto the dropzone or click "Pick a folder" — uses `webkitdirectory` + recursive `webkitGetAsEntry` walk).
 - Accepted extensions widened: `.epub` flows through the EPUB pipeline; `.pdf`, `.mobi`, `.azw`, `.azw3`, `.kf8`, `.kfx`, `.docx`, `.doc`, `.rtf`, `.fb2`, `.lit`, `.lrf`, `.pdb`, `.txt`, `.html`, `.htm` all land on the existing **"Needs conversion"** shelf with a Calibre nudge.

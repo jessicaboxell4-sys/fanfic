@@ -10,7 +10,7 @@ import StatsCard from "../components/StatsCard";
 import PoweredByFanFicFare from "../components/PoweredByFanFicFare";
 import OnboardingPrompt from "../components/OnboardingPrompt";
 import DuplicateResolutionModal from "../components/DuplicateResolutionModal";
-import { Search, X, Plus, ArrowRight, CheckSquare, Sparkles, Loader2, RefreshCw, Library, UserCircle2, Filter, Pin, FolderOpen, ArrowUpDown, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw } from "lucide-react";
+import { Search, X, Plus, ArrowRight, CheckSquare, Sparkles, Loader2, RefreshCw, Library, UserCircle2, Filter, Pin, FolderOpen, ArrowUpDown, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 const DEFAULT_CATEGORIES = ["All", "Fanfiction", "Original Fiction", "Non-fiction", "Unclassified", "Updated stories", "Old stories"];
@@ -39,6 +39,7 @@ export default function Dashboard() {
   const [pinnedShelves, setPinnedShelves] = useState([]);
   const [pendingDupes, setPendingDupes] = useState([]);
   const [undoActions, setUndoActions] = useState([]);  // {book_id, title, action, target_book_id, undoable}
+  const [trashCount, setTrashCount] = useState(0);
   const [glanceOrder, setGlanceOrder] = useState(["continue", "stats", "shelves"]);
   const [glanceHidden, setGlanceHidden] = useState([]);
   const [organizing, setOrganizing] = useState(false);
@@ -131,6 +132,10 @@ export default function Dashboard() {
           setGlanceHidden(dl.data.hidden);
         }
       } catch (e) {}
+      try {
+        const t = await api.get("/trash");
+        setTrashCount(t.data?.count || 0);
+      } catch (e) {}
     } catch (e) {
       console.error(e);
     } finally {
@@ -193,6 +198,15 @@ export default function Dashboard() {
             <p className="text-[#6B705C] mt-2">
               {stats.fandoms.slice(0, 4).map(f => `${f.name} (${f.count})`).join(" · ")}
             </p>
+          )}
+          {trashCount > 0 && (
+            <Link
+              to="/library/trash"
+              data-testid="trash-chip"
+              className="inline-flex items-center gap-1.5 mt-3 px-3 py-1 rounded-full text-xs font-medium border border-[#6B705C]/30 bg-white text-[#6B705C] hover:bg-[#6B705C]/10 transition-colors"
+            >
+              <Trash2 className="w-3 h-3" /> Trash · {trashCount}
+            </Link>
           )}
         </div>
 
@@ -365,6 +379,7 @@ export default function Dashboard() {
                   const kind = undoActions[0]?.action;
                   if (kind === "historical") return " · linked as historical versions";
                   if (kind === "new_version") return " · replaced as new versions";
+                  if (kind === "discard") return " · sent to Trash";
                   return "";
                 })()}.
               </p>

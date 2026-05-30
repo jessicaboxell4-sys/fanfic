@@ -500,7 +500,7 @@ export default function Account() {
             {[
               { val: "ask", label: "Ask me each time", desc: "Pop the duplicate-resolution modal (current behavior)." },
               { val: "keep_both", label: "Keep both copies", desc: "Just add the upload alongside, no questions asked." },
-              { val: "discard", label: "Discard the upload", desc: "Delete the new copy when a match is found." },
+              { val: "discard", label: "Send to Trash", desc: "Move duplicates to Trash for 30 days, then auto-delete." },
               { val: "new_version", label: "Replace as new version", desc: "Archive the existing copy, put upload on a dated shelf." },
               { val: "historical", label: "Link as historical version", desc: "Archive the upload under the existing copy." },
             ].map((opt) => (

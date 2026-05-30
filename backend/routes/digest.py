@@ -32,7 +32,7 @@ from deps import (
 from models import User, BookOut
 from auth_dep import get_current_user
 from routes.year import _send_year_email
-from routes.books import _probe_fanfic_now, _sweep_user_unavailable, _fanfic_status_cache
+from routes.books import _probe_fanfic_now, _sweep_user_unavailable, _fanfic_status_cache, sweep_expired_trash
 
 
 # ============================================================
@@ -427,6 +427,14 @@ async def _digest_tick():
                     logger.warning("Auto-sweep failed for user %s: %s", uid, e)
     except Exception as e:
         logger.warning("Fanfic source recovery probe failed: %s", e)
+
+    # Trash sweep: hard-delete books whose 30-day grace window expired
+    try:
+        removed = await sweep_expired_trash()
+        if removed:
+            logger.info("Trash sweep: hard-deleted %d expired book(s)", removed)
+    except Exception as e:
+        logger.warning("Trash sweep failed: %s", e)
 
 
 

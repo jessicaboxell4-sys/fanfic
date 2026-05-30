@@ -911,15 +911,29 @@ async def _apply_duplicate_policy(
         return {"action": "keep_both", "undoable": False}
 
     if policy == "discard":
-        for ext in (".epub", ".cover", ".links.txt"):
-            p = user_dir / f"{new_book_id}{ext}"
-            if p.exists():
-                try:
-                    p.unlink()
-                except OSError:
-                    pass
-        await db.books.delete_one({"book_id": new_book_id, "user_id": user_id})
-        return {"action": "discard", "deleted": True, "undoable": False}
+        # Soft-delete: move to Trash shelf with a 30-day grace window so the
+        # user can restore. A background sweep hard-deletes books whose
+        # `trash_expires_at` is in the past.
+        new_doc_before = await db.books.find_one({"book_id": new_book_id, "user_id": user_id})
+        if not new_doc_before:
+            return None
+        expires_at = (datetime.now(timezone.utc) + timedelta(days=TRASH_GRACE_DAYS)).isoformat()
+        await db.books.update_one(
+            {"book_id": new_book_id, "user_id": user_id},
+            {
+                "$set": {
+                    "category": TRASH_SHELF,
+                    "trash_expires_at": expires_at,
+                    "dupe_action_meta": {
+                        "action": "discard",
+                        "prev_category_new": new_doc_before.get("category"),
+                        "applied_at": now_iso,
+                    },
+                },
+                "$unset": {"duplicate_pending": "", "duplicate_of": ""},
+            },
+        )
+        return {"action": "discard", "undoable": True, "trash_expires_at": expires_at}
 
     # The remaining two need a current head; bail if there isn't one
     if not target_book_id:
@@ -1020,8 +1034,19 @@ async def undo_resolve(book_id: str, user: User = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Book not found")
     meta = book.get("dupe_action_meta") or {}
     action = meta.get("action")
-    if action not in ("historical", "new_version"):
+    if action not in ("historical", "new_version", "discard"):
         raise HTTPException(status_code=400, detail=f"Action '{action}' is not undoable")
+
+    if action == "discard":
+        prev_cat = meta.get("prev_category_new") or "Unclassified"
+        await db.books.update_one(
+            {"book_id": book_id, "user_id": user.user_id},
+            {
+                "$set": {"category": prev_cat},
+                "$unset": {"trash_expires_at": "", "dupe_action_meta": ""},
+            },
+        )
+        return {"ok": True, "undone": "discard", "book_id": book_id}
 
     if action == "historical":
         prev_cat = meta.get("prev_category_new") or "Unclassified"
@@ -1222,6 +1247,8 @@ def _updated_shelf_name(now: Optional[datetime] = None) -> str:
 
 
 OLD_STORIES_SHELF = "Old stories"
+TRASH_SHELF = "Trash"
+TRASH_GRACE_DAYS = 30
 
 
 async def apply_refresh(book: Dict[str, Any], user_id: str, source_url: str) -> Dict[str, Any]:
@@ -1702,6 +1729,9 @@ async def list_books(
     query: Dict[str, Any] = {"user_id": user.user_id}
     if category:
         query['category'] = category
+    else:
+        # Trash is opt-in — only show when the user explicitly asks for it
+        query['category'] = {"$ne": TRASH_SHELF}
     if fandom:
         query['fandom'] = fandom
 
@@ -4218,15 +4248,26 @@ async def resolve_duplicate(
         return {"ok": True, "action": "keep", "book_id": book_id}
 
     if body.action == "discard":
-        for ext in (".epub", ".cover", ".links.txt"):
-            p = user_dir / f"{book_id}{ext}"
-            if p.exists():
-                try:
-                    p.unlink()
-                except OSError:
-                    pass
-        await db.books.delete_one({"book_id": book_id, "user_id": user.user_id})
-        return {"ok": True, "action": "discard", "book_id": book_id}
+        # Soft-delete: move to Trash shelf with a 30-day grace window. Files
+        # stay on disk so the user can restore from /library/trash.
+        now_iso = datetime.now(timezone.utc).isoformat()
+        expires_at = (datetime.now(timezone.utc) + timedelta(days=TRASH_GRACE_DAYS)).isoformat()
+        await db.books.update_one(
+            {"book_id": book_id, "user_id": user.user_id},
+            {
+                "$set": {
+                    "category": TRASH_SHELF,
+                    "trash_expires_at": expires_at,
+                    "dupe_action_meta": {
+                        "action": "discard",
+                        "prev_category_new": book.get("category"),
+                        "applied_at": now_iso,
+                    },
+                },
+                "$unset": {"duplicate_pending": "", "duplicate_of": ""},
+            },
+        )
+        return {"ok": True, "action": "discard", "book_id": book_id, "trash_expires_at": expires_at}
 
     # link_as_old_version + new_version_of both need a target
     if not body.target_book_id:
@@ -4670,4 +4711,93 @@ async def resolve_group(body: ResolveGroupBody, user: User = Depends(get_current
     )
 
     return {"ok": True, **summary}
+
+
+
+# ----------------------------------------------------------------------
+# TRASH SHELF — 30-day grace window before hard deletion
+# ----------------------------------------------------------------------
+
+@api_router.get("/trash")
+async def list_trash(user: User = Depends(get_current_user)):
+    """List every book currently sitting in Trash for the user."""
+    cursor = db.books.find(
+        {"user_id": user.user_id, "category": TRASH_SHELF},
+        {"_id": 0, "book_id": 1, "title": 1, "author": 1, "trash_expires_at": 1, "dupe_action_meta": 1},
+    ).sort("trash_expires_at", 1)
+    books = [b async for b in cursor]
+    return {"books": books, "count": len(books), "grace_days": TRASH_GRACE_DAYS}
+
+
+@api_router.post("/trash/restore/{book_id}")
+async def restore_from_trash(book_id: str, user: User = Depends(get_current_user)):
+    """Restore a book from Trash to its previous category."""
+    book = await db.books.find_one({"book_id": book_id, "user_id": user.user_id})
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+    if book.get("category") != TRASH_SHELF:
+        raise HTTPException(status_code=400, detail="Book is not in Trash")
+    prev_cat = (book.get("dupe_action_meta") or {}).get("prev_category_new") or "Unclassified"
+    await db.books.update_one(
+        {"book_id": book_id, "user_id": user.user_id},
+        {
+            "$set": {"category": prev_cat},
+            "$unset": {"trash_expires_at": "", "dupe_action_meta": ""},
+        },
+    )
+    return {"ok": True, "book_id": book_id, "restored_to": prev_cat}
+
+
+@api_router.post("/trash/empty")
+async def empty_trash(user: User = Depends(get_current_user)):
+    """Hard-delete every book currently in Trash for the user."""
+    user_dir = STORAGE_DIR / user.user_id
+    cursor = db.books.find(
+        {"user_id": user.user_id, "category": TRASH_SHELF},
+        {"_id": 0, "book_id": 1},
+    )
+    book_ids = [b["book_id"] async for b in cursor]
+    for bid in book_ids:
+        for ext in (".epub", ".cover", ".links.txt"):
+            p = user_dir / f"{bid}{ext}"
+            if p.exists():
+                try:
+                    p.unlink()
+                except OSError:
+                    pass
+    result = await db.books.delete_many(
+        {"user_id": user.user_id, "category": TRASH_SHELF},
+    )
+    return {"deleted": result.deleted_count}
+
+
+async def sweep_expired_trash() -> int:
+    """Background sweep — hard-delete books whose Trash grace window expired.
+
+    Returns the total number of books removed. Walks every user's storage dir
+    to also drop the EPUB/cover/links sidecar.
+    """
+    now_iso = datetime.now(timezone.utc).isoformat()
+    cursor = db.books.find(
+        {"category": TRASH_SHELF, "trash_expires_at": {"$lt": now_iso}},
+        {"_id": 0, "book_id": 1, "user_id": 1},
+    )
+    to_delete = [b async for b in cursor]
+    removed = 0
+    for b in to_delete:
+        uid = b.get("user_id")
+        bid = b.get("book_id")
+        if not uid or not bid:
+            continue
+        user_dir = STORAGE_DIR / uid
+        for ext in (".epub", ".cover", ".links.txt"):
+            p = user_dir / f"{bid}{ext}"
+            if p.exists():
+                try:
+                    p.unlink()
+                except OSError:
+                    pass
+        res = await db.books.delete_one({"book_id": bid, "user_id": uid})
+        removed += res.deleted_count
+    return removed
 
