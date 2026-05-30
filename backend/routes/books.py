@@ -4017,6 +4017,70 @@ def _parse_urls_from_sidecar(path: Path) -> List[str]:
     return out
 
 
+@api_router.get("/library/duplicates/count")
+async def find_duplicates_count(user: User = Depends(get_current_user)):
+    """Cheap pre-flight count of likely duplicates without the expensive
+    backfill step. Used by the Account-page card to nudge users when there's
+    cleanup to be done. Counts groups by:
+      * normalized title equality
+      * exact `source_url` equality
+      * shared `fanfic_urls` (only on books that already have the field; no
+        sidecar backfill — that's reserved for the full scan)
+    """
+    cursor = db.books.find(
+        {
+            "user_id": user.user_id,
+            "category": {"$ne": OLD_STORIES_SHELF},
+            "replaced_by": {"$exists": False},
+        },
+        {"_id": 0, "book_id": 1, "title": 1, "source_url": 1, "fanfic_urls": 1},
+    )
+
+    by_title: Dict[str, List[int]] = {}
+    by_source: Dict[str, List[int]] = {}
+    by_url: Dict[str, List[int]] = {}
+    books: List[Dict[str, Any]] = []
+    async for b in cursor:
+        i = len(books)
+        books.append(b)
+        nt = _normalize_title_for_match(b.get("title"))
+        if nt:
+            by_title.setdefault(nt, []).append(i)
+        s = b.get("source_url")
+        if s:
+            by_source.setdefault(s, []).append(i)
+        for u in (b.get("fanfic_urls") or []):
+            by_url.setdefault(u, []).append(i)
+
+    parent = list(range(len(books)))
+
+    def find(x: int) -> int:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a: int, b: int):
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[rb] = ra
+
+    for indexes in list(by_title.values()) + list(by_source.values()) + list(by_url.values()):
+        if len(indexes) < 2:
+            continue
+        head = indexes[0]
+        for j in indexes[1:]:
+            union(head, j)
+
+    counts_by_root: Dict[int, int] = {}
+    for i in range(len(books)):
+        counts_by_root[find(i)] = counts_by_root.get(find(i), 0) + 1
+
+    total_groups = sum(1 for c in counts_by_root.values() if c >= 2)
+    total_dupe_books = sum(c for c in counts_by_root.values() if c >= 2)
+    return {"total_groups": total_groups, "total_dupe_books": total_dupe_books}
+
+
 @api_router.get("/library/duplicates")
 async def find_duplicates(user: User = Depends(get_current_user)):
     """Group the user's library by potential duplicate signal.

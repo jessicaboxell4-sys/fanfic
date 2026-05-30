@@ -40,6 +40,7 @@ export default function Account() {
     reset_smart_shelves: false,
     reset_versions: false,
   });
+  const [dupeCount, setDupeCount] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -55,6 +56,10 @@ export default function Account() {
         const { data: f } = await api.get("/user/fff-options");
         setFff(f);
       } catch (e) { /* ignore */ }
+      try {
+        const { data: dc } = await api.get("/library/duplicates/count");
+        setDupeCount(dc);
+      } catch (e) { /* non-fatal — hide the count if it fails */ }
     })();
   }, [navigate]);
 
@@ -480,16 +485,29 @@ export default function Account() {
             </div>
             <div className="flex-1">
               <h2 className="font-serif text-2xl text-[#2C2C2C]">Find duplicates</h2>
-              <p className="text-sm text-[#6B705C] mt-1">
-                Scan your library for books that share a title, source URL, or fanfic permalink — pick a keeper, archive or delete the rest.
-              </p>
+              {dupeCount && dupeCount.total_groups > 0 ? (
+                <p
+                  data-testid="find-duplicates-count"
+                  className="text-sm text-amber-700 mt-1 font-medium"
+                >
+                  {dupeCount.total_groups} possible duplicate group{dupeCount.total_groups === 1 ? "" : "s"} found across {dupeCount.total_dupe_books} books.
+                </p>
+              ) : dupeCount && dupeCount.total_groups === 0 ? (
+                <p data-testid="find-duplicates-count" className="text-sm text-[#6B705C] mt-1">
+                  No duplicates spotted right now.
+                </p>
+              ) : (
+                <p className="text-sm text-[#6B705C] mt-1">
+                  Scan your library for books that share a title, source URL, or fanfic permalink — pick a keeper, archive or delete the rest.
+                </p>
+              )}
             </div>
             <button
               data-testid="find-duplicates-btn"
               onClick={() => navigate("/account/duplicates")}
               className="px-4 py-2 rounded-lg text-sm font-medium bg-[#E07A5F] text-white hover:bg-[#d06a4f] flex-shrink-0"
             >
-              Scan library
+              {dupeCount && dupeCount.total_groups > 0 ? "Review duplicates" : "Scan library"}
             </button>
           </div>
         </section>

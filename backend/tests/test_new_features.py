@@ -1555,3 +1555,52 @@ class TestFindDuplicatesInLibrary:
         )
         assert r.status_code == 404
 
+
+
+class TestDuplicatesCount:
+    @pytest.fixture(scope="class")
+    def cnt_user(self):
+        uid = f"user_cnt_{uuid.uuid4().hex[:8]}"
+        tok = f"sess_cnt_{uuid.uuid4().hex}"
+        db.users.insert_one({
+            "user_id": uid,
+            "email": f"{uid}@example.com",
+            "name": "Cnt User",
+            "picture": "",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+        db.user_sessions.insert_one({
+            "user_id": uid,
+            "session_token": tok,
+            "expires_at": datetime.now(timezone.utc) + timedelta(days=7),
+            "created_at": datetime.now(timezone.utc),
+        })
+        yield uid, tok
+        db.books.delete_many({"user_id": uid})
+        db.user_sessions.delete_many({"user_id": uid})
+        db.users.delete_many({"user_id": uid})
+
+    def test_count_empty_library(self, cnt_user):
+        uid, tok = cnt_user
+        r = requests.get(
+            f"{BASE}/api/library/duplicates/count",
+            headers={"Authorization": f"Bearer {tok}"},
+        )
+        assert r.status_code == 200
+        assert r.json() == {"total_groups": 0, "total_dupe_books": 0}
+
+    def test_count_reflects_dupes(self, cnt_user):
+        uid, tok = cnt_user
+        # 2 books with same title → 1 group, 2 books
+        _upload(tok, _make_epub_with_links("Count Title", "Auth", []))
+        _upload(tok, _make_epub_with_links("Count Title", "Auth", []))
+        r = requests.get(
+            f"{BASE}/api/library/duplicates/count",
+            headers={"Authorization": f"Bearer {tok}"},
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["total_groups"] == 1
+        assert data["total_dupe_books"] == 2
+        db.books.delete_many({"user_id": uid})
+

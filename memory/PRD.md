@@ -469,3 +469,12 @@
 - **`/account/duplicates`** — new `FindDuplicates.jsx` page. Shows summary banner + one card per group: radio-pick the keeper (defaulting to oldest), then per-dupe action grid (Keep alongside / Archive as old / Delete) styled distinctly (orange/amber/red). Per-group "Apply" button posts the resolution and disables the card on success. Empty state shows a green check with backfill summary.
 - **Account page** gets a "Find duplicates" card (orange Layers icon, "Scan library" CTA) sitting just above "Reset library state".
 - Tests: `TestFindDuplicatesInLibrary` — 5 cases (empty library returns no groups, books grouped correctly by title and shared URL, resolve-group archives + discards correctly, 400 on archived keeper, 404 on unknown keeper). **232 passing, 1 by-design skip, coverage 79.9%** (`routes/books.py` 81.3%).
+
+### Added 2026-05-30 (Likely-duplicates count nudge on Account page)
+- **`GET /api/library/duplicates/count`** — cheap pre-flight that runs the same union-find scan but **skips the on-disk sidecar backfill** (only uses already-stored title/source_url/`fanfic_urls` indexes). Returns `{total_groups, total_dupe_books}`.
+- **Account page** fetches the count on mount and the Find-duplicates card now contextually shows:
+  - "12 possible duplicate groups found across 28 books" (amber, font-medium) when dupes exist
+  - "No duplicates spotted right now." (muted) when clean
+  - The standard descriptive copy when the count hasn't loaded yet
+- Button label flips between "Scan library" and "Review duplicates" based on the count.
+- Tests: `TestDuplicatesCount` — 2 cases (empty library, reflects dupes accurately). **234 passing, 1 by-design skip**.
