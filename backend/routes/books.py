@@ -1177,6 +1177,13 @@ async def classify_book(meta: Dict[str, Any], force_ai: bool = False) -> Dict[st
 # ============================================================
 # BOOK ROUTES
 
+NEEDS_CONVERSION_EXTS = {
+    ".pdf", ".mobi", ".azw", ".azw3", ".kf8", ".kfx",
+    ".docx", ".doc", ".rtf", ".fb2", ".lit", ".lrf", ".pdb", ".txt", ".html", ".htm",
+}
+NEEDS_CONVERSION_SHELF = "Needs conversion"
+
+
 @api_router.post("/books/upload")
 async def upload_books(
     request: Request,
@@ -1188,7 +1195,51 @@ async def upload_books(
     results = []
 
     for f in files:
-        if not f.filename.lower().endswith('.epub'):
+        lower = (f.filename or "").lower()
+        ext = "." + lower.rsplit(".", 1)[-1] if "." in lower else ""
+
+        # Non-EPUB but a known ebook format → file it under "Needs conversion"
+        # and tell the user to run it through Calibre.
+        if ext != ".epub" and ext in NEEDS_CONVERSION_EXTS:
+            book_id = f"book_{uuid.uuid4().hex[:12]}"
+            target = user_dir / f"{book_id}{ext}"
+            content = await f.read()
+            target.write_bytes(content)
+            base_name = (f.filename or "Untitled").rsplit(".", 1)[0]
+            now_iso = datetime.now(timezone.utc).isoformat()
+            doc = {
+                "book_id": book_id,
+                "user_id": user.user_id,
+                "filename": f.filename,
+                "title": base_name,
+                "author": "Unknown",
+                "description": (
+                    f"Uploaded as .{ext.lstrip('.')}. Shelfsort only reads EPUB, "
+                    f"so convert this file with Calibre's 'Convert books' tool, "
+                    f"then upload the resulting .epub."
+                ),
+                "language": "",
+                "publisher": "",
+                "has_cover": False,
+                "category": NEEDS_CONVERSION_SHELF,
+                "fandom": None,
+                "confidence": 1.0,
+                "classifier": "needs-conversion",
+                "size_bytes": len(content),
+                "links_count": 0,
+                "source_url": None,
+                "last_refreshed_at": None,
+                "series_name": None,
+                "series_index": None,
+                "needs_conversion": True,
+                "original_format": ext.lstrip("."),
+                "created_at": now_iso,
+            }
+            await db.books.insert_one(doc)
+            results.append({k: v for k, v in doc.items() if k != "_id"})
+            continue
+
+        if ext != ".epub":
             results.append({"filename": f.filename, "error": "Not an EPUB"})
             continue
 
