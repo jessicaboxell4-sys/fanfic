@@ -290,6 +290,15 @@
 - Hover tooltips now show the actual minutes ("2026-05-28 · 32m") instead of just "read".
 - Test extended to assert every sparkline entry has `{date, active, minutes}` plus the top-level `sparkline_max_minutes`. **176 passing, 1 by-design skip, coverage 77.5%**.
 
+### Added 2026-05-29 (Reading-pace estimate on book detail)
+- **`/books/{id}/reading-stats`** response gains `estimated_minutes_left` (int or null) and `progress_percent` (float). Formula: `(reading_minutes / progress) × (1 - progress)`. Gated off when there isn't enough signal:
+  - reading_minutes < 5 (per-progress would be noisy)
+  - progress < 5% (division blows up)
+  - progress ≥ 99% (book is essentially done)
+- Sanity-clamped at 10,080 min (1 week) to swallow wild outliers.
+- **`ReadingStatsCard`** shows a warm-paper banner above the stat grid: clock icon + "At your current pace, about **3h 40m left** to finish (45% done)." Auto-hides when `estimated_minutes_left` is null.
+- Tests: 2 new cases (gated-off across three boundaries; computed value + clamp). **178 passing, 1 by-design skip, coverage 77.5%**.
+
 ### Deferred / Declined
 - Google Drive import — declined by user (2026-02-28). Local upload remains the only ingest path.
 

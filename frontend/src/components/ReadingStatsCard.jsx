@@ -75,6 +75,21 @@ export default function ReadingStatsCard({ bookId }) {
       <div className="flex items-center justify-between mb-5">
         <h3 className="font-serif text-xl text-[#2C2C2C]">Your reading on this book</h3>
       </div>
+      {stats.estimated_minutes_left != null && (
+        <div
+          className="mb-5 p-3 rounded-xl bg-[#FDF3E1] border border-[#B87A00]/30 flex items-start gap-2"
+          data-testid="reading-pace-estimate"
+        >
+          <Clock className="h-4 w-4 text-[#B87A00] mt-0.5 flex-shrink-0" />
+          <p className="text-sm text-[#2C2C2C] leading-snug">
+            <span className="italic text-[#6B705C]">At your current pace,</span>{" "}
+            <span className="font-semibold">about {formatDuration(stats.estimated_minutes_left)} left</span>{" "}
+            <span className="text-[#6B705C]">
+              to finish ({Math.round(stats.progress_percent * 100)}% done).
+            </span>
+          </p>
+        </div>
+      )}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-5 mb-5">
         <Stat
           icon={<Clock className="h-3 w-3" />}

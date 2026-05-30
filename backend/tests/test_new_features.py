@@ -424,6 +424,58 @@ class TestBookReadingStats:
         )
         assert r.status_code == 404
 
+    def test_pace_estimate_gated_off_when_low_signal(self, uploaded_books):
+        """No estimate when reading_minutes < 5 OR progress < 5% OR ≥99%."""
+        # Seed a fresh book (uploaded_books[2] is deleted by an earlier test)
+        bid = f"book_pace_off_{uuid.uuid4().hex[:8]}"
+        db.books.insert_one({
+            "user_id": USER_ID,
+            "book_id": bid,
+            "title": "Pace Off",
+            "author": "T",
+            "reading_minutes": 1,
+            "progress_percent": 0.5,
+        })
+        body = requests.get(f"{BASE}/api/books/{bid}/reading-stats", headers=H()).json()
+        assert body["estimated_minutes_left"] is None
+
+        db.books.update_one(
+            {"book_id": bid},
+            {"$set": {"reading_minutes": 60, "progress_percent": 0.01}},
+        )
+        body = requests.get(f"{BASE}/api/books/{bid}/reading-stats", headers=H()).json()
+        assert body["estimated_minutes_left"] is None
+
+        db.books.update_one(
+            {"book_id": bid},
+            {"$set": {"reading_minutes": 100, "progress_percent": 0.995}},
+        )
+        body = requests.get(f"{BASE}/api/books/{bid}/reading-stats", headers=H()).json()
+        assert body["estimated_minutes_left"] is None
+
+    def test_pace_estimate_computed_with_clamp(self, uploaded_books):
+        """Plenty of signal → estimate matches (minutes/progress)*(1-progress)."""
+        bid = f"book_pace_on_{uuid.uuid4().hex[:8]}"
+        db.books.insert_one({
+            "user_id": USER_ID,
+            "book_id": bid,
+            "title": "Pace On",
+            "author": "T",
+            "reading_minutes": 60,
+            "progress_percent": 0.30,
+        })
+        body = requests.get(f"{BASE}/api/books/{bid}/reading-stats", headers=H()).json()
+        # Expected: 60 / 0.30 * 0.70 = 140 minutes (±2 for rounding)
+        assert body["estimated_minutes_left"] is not None
+        assert 138 <= body["estimated_minutes_left"] <= 142
+        # Sanity clamp: huge pace caps at one week
+        db.books.update_one(
+            {"book_id": bid},
+            {"$set": {"reading_minutes": 600, "progress_percent": 0.05}},
+        )
+        body = requests.get(f"{BASE}/api/books/{bid}/reading-stats", headers=H()).json()
+        assert body["estimated_minutes_left"] == 10080
+
 
 
 # ============================================================

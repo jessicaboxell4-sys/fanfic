@@ -1293,7 +1293,7 @@ async def book_reading_stats(book_id: str, user: User = Depends(get_current_user
 
     book = await db.books.find_one(
         {"book_id": book_id, "user_id": user.user_id},
-        {"_id": 0, "book_id": 1, "reading_minutes": 1, "last_opened_at": 1, "created_at": 1},
+        {"_id": 0, "book_id": 1, "reading_minutes": 1, "last_opened_at": 1, "created_at": 1, "progress_percent": 1},
     )
     if not book:
         raise HTTPException(status_code=404, detail="Not found")
@@ -1330,14 +1330,33 @@ async def book_reading_stats(book_id: str, user: User = Depends(get_current_user
             "minutes": int(mins),
         })
 
+    # Reading-pace estimate: time-to-finish based on minutes-per-progress so far.
+    # Only show when there's enough signal to avoid wild extrapolations:
+    #   * at least 5 minutes of tracked reading (otherwise per-progress is noisy)
+    #   * progress between 5% and 99% (else division explodes or book is done)
+    reading_minutes = int(book.get("reading_minutes") or 0)
+    progress = float(book.get("progress_percent") or 0)
+    estimated_minutes_left: Optional[int] = None
+    if reading_minutes >= 5 and 0.05 <= progress < 0.99:
+        try:
+            estimated_minutes_left = max(0, int(round(
+                (reading_minutes / progress) * (1 - progress)
+            )))
+            # Sanity cap at 1 week of reading (10080 min) — clamps wild outliers
+            estimated_minutes_left = min(estimated_minutes_left, 10080)
+        except (ZeroDivisionError, ValueError):
+            estimated_minutes_left = None
+
     return {
         "book_id": book_id,
-        "reading_minutes": int(book.get("reading_minutes") or 0),
+        "reading_minutes": reading_minutes,
         "session_count": len(dates),
         "first_opened_at": dates[0] if dates else None,
         "last_opened_at": book.get("last_opened_at"),
         "sparkline": sparkline,
         "sparkline_max_minutes": int(max_minutes),
+        "progress_percent": progress,
+        "estimated_minutes_left": estimated_minutes_left,
     }
 
 
