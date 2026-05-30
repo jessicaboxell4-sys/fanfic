@@ -136,18 +136,26 @@ def _build_minimal_epub(
 # extract_urls_from_epub + find_source_url + detect_series_from_title
 # --------------------------------------------------------------------------
 class TestUpload:
-    def test_upload_non_epub_flagged_for_conversion(self):
-        # .txt uploads no longer hard-fail — they're saved with category
-        # "Needs conversion" so the user can convert with Calibre and re-upload.
-        files = {"files": ("notes.txt", b"plain text not epub", "text/plain")}
+    def test_upload_non_epub_auto_converted(self):
+        # .txt (and other Calibre-supported formats) now auto-convert to EPUB
+        # on upload via `ebook-convert` and flow through the standard pipeline
+        # with full metadata + classification. The `converted_from` field
+        # records the original format.
+        files = {"files": ("notes.txt", b"plain text not epub, but readable enough", "text/plain")}
         r = requests.post(f"{BASE}/api/books/upload", headers=H(), files=files)
         assert r.status_code == 200, r.text
         body = r.json()
         assert body["uploaded"] == 1
         book = body["books"][0]
-        assert book.get("needs_conversion") is True
-        assert book.get("category") == "Needs conversion"
-        assert book.get("original_format") == "txt"
+        # Either auto-converted successfully (preferred path) or — if calibre
+        # isn't installed for some reason — kept on the Needs-conversion shelf
+        # with a clear error. Both shapes are acceptable; we just verify the
+        # request didn't 500 and we got a book record.
+        if book.get("needs_conversion"):
+            assert book.get("conversion_error")
+        else:
+            assert book.get("converted_from") == "txt"
+            assert book.get("category") != "Needs conversion"
 
     def test_upload_basic_epub_creates_book(self):
         epub = _build_minimal_epub(

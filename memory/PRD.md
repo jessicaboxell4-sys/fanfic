@@ -533,8 +533,10 @@
 - **SelectionBar** confirm/toast copy updated: "Move N books to Trash · restorable for 30 days".
 - Tests: 2 new (`test_bulk_delete_soft_deletes`, `test_restore_all_endpoint`) + the existing `TestOtherRegression::test_bulk_delete` rewritten to verify the new soft-delete shape. **259 passing, 1 by-design skip**.
 
-### Added 2026-05-30 (Folder + mixed-format uploads)
+### Added 2026-05-30 (Folder + mixed-format uploads → full EPUB pipeline via Calibre)
 - **UploadZone** now accepts folders (drag a folder onto the dropzone or click "Pick a folder" — uses `webkitdirectory` + recursive `webkitGetAsEntry` walk).
-- Accepted extensions widened: `.epub` flows through the EPUB pipeline; `.pdf`, `.mobi`, `.azw`, `.azw3`, `.kf8`, `.kfx`, `.docx`, `.doc`, `.rtf`, `.fb2`, `.lit`, `.lrf`, `.pdb`, `.txt`, `.html`, `.htm` all land on the existing **"Needs conversion"** shelf with a Calibre nudge.
-- Unsupported files are gracefully skipped with a count toast.
-- No backend changes — the existing `NEEDS_CONVERSION_EXTS` set already covered every common ebook format.
+- Accepted extensions widened: `.epub`, `.pdf`, `.mobi`, `.azw`, `.azw3`, `.kf8`, `.kfx`, `.docx`, `.doc`, `.rtf`, `.fb2`, `.lit`, `.lrf`, `.pdb`, `.txt`, `.html`, `.htm`.
+- **Server-side auto-conversion**: installed Calibre (`apt-get install calibre`, brings in `ebook-convert` 6.13.0). Every non-EPUB upload is run through `ebook-convert <src> <dest>.epub` in a worker-pool subprocess (3-min cap per book). On success the converted EPUB **flows through the full standard pipeline** — metadata extraction, AI classification, fanfic URL detection, source URL detection, chapter parsing, template applier, duplicate detection. On failure (corrupt source, weird format, conversion crash) the original file lands on the `Needs conversion` shelf with the actual error message attached.
+- New per-book fields: `converted_from: "<ext>"` (also mirrored as `original_format`) so the UI can show "Original format: .pdf → .epub" in BookDetail.
+- **BookDetail page** surfaces the "Original format" meta row when present.
+- Result: PDFs, MOBIs, KFX, DOCX etc. are now **first-class books** — fully readable in the in-app Reader, classified onto the right shelf, deduplicated, refresh-eligible.

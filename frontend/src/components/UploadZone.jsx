@@ -194,7 +194,7 @@ export default function UploadZone({ onUploaded }) {
           <UploadCloud className="w-10 h-10 text-[#E07A5F] mb-4" />
           <p className="font-serif text-2xl text-[#2C2C2C] mb-1">Drop files or folders here</p>
           <p className="text-sm text-[#6B705C] mb-4">
-            EPUB · PDF · Kindle (.azw/.mobi) · DOCX · and more — bulk upload supported
+            EPUB · PDF · Kindle (.azw/.mobi) · DOCX · auto-converted to EPUB and sorted
           </p>
           <div className="flex gap-3" onClick={(e) => e.stopPropagation()}>
             <button

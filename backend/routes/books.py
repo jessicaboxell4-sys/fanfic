@@ -1516,6 +1516,37 @@ NEEDS_CONVERSION_EXTS = {
 NEEDS_CONVERSION_SHELF = "Needs conversion"
 
 
+def _convert_to_epub_sync(src_path: Path, dest_path: Path) -> Optional[str]:
+    """Run `ebook-convert <src> <dest>` synchronously. Returns None on success,
+    or an error message on failure. Called from an executor so the FastAPI
+    event loop stays responsive."""
+    import subprocess
+    try:
+        proc = subprocess.run(
+            ["ebook-convert", str(src_path), str(dest_path)],
+            capture_output=True,
+            text=True,
+            timeout=180,  # 3 min cap per book — heavy PDFs can be slow
+        )
+        if proc.returncode != 0:
+            tail = (proc.stderr or proc.stdout or "")[-400:]
+            return f"ebook-convert failed (rc={proc.returncode}): {tail.strip()}"
+        if not dest_path.exists() or dest_path.stat().st_size < 256:
+            return "ebook-convert produced no usable output"
+        return None
+    except FileNotFoundError:
+        return "ebook-convert is not installed on the server"
+    except subprocess.TimeoutExpired:
+        return "ebook-convert timed out (>3 min)"
+    except Exception as e:
+        return f"ebook-convert crashed: {e}"
+
+
+async def convert_to_epub(src_path: Path, dest_path: Path) -> Optional[str]:
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, _convert_to_epub_sync, src_path, dest_path)
+
+
 @api_router.post("/books/upload")
 async def upload_books(
     request: Request,
@@ -1530,55 +1561,70 @@ async def upload_books(
         lower = (f.filename or "").lower()
         ext = "." + lower.rsplit(".", 1)[-1] if "." in lower else ""
 
-        # Non-EPUB but a known ebook format → file it under "Needs conversion"
-        # and tell the user to run it through Calibre.
+        # Non-EPUB but a known ebook format → auto-convert to EPUB via
+        # Calibre's `ebook-convert`, then fall through to the normal EPUB
+        # pipeline below (metadata / classification / fanfic / template).
+        # On conversion failure we keep the original file under the
+        # "Needs conversion" shelf with a friendly error message.
+        original_format: Optional[str] = None
+        convert_error: Optional[str] = None
         if ext != ".epub" and ext in NEEDS_CONVERSION_EXTS:
             book_id = f"book_{uuid.uuid4().hex[:12]}"
-            target = user_dir / f"{book_id}{ext}"
+            src_target = user_dir / f"{book_id}{ext}"
             content = await f.read()
-            target.write_bytes(content)
-            base_name = (f.filename or "Untitled").rsplit(".", 1)[0]
-            now_iso = datetime.now(timezone.utc).isoformat()
-            doc = {
-                "book_id": book_id,
-                "user_id": user.user_id,
-                "filename": f.filename,
-                "title": base_name,
-                "author": "Unknown",
-                "description": (
-                    f"Uploaded as .{ext.lstrip('.')}. Shelfsort only reads EPUB, "
-                    f"so convert this file with Calibre's 'Convert books' tool, "
-                    f"then upload the resulting .epub."
-                ),
-                "language": "",
-                "publisher": "",
-                "has_cover": False,
-                "category": NEEDS_CONVERSION_SHELF,
-                "fandom": None,
-                "confidence": 1.0,
-                "classifier": "needs-conversion",
-                "size_bytes": len(content),
-                "links_count": 0,
-                "source_url": None,
-                "last_refreshed_at": None,
-                "series_name": None,
-                "series_index": None,
-                "needs_conversion": True,
-                "original_format": ext.lstrip("."),
-                "created_at": now_iso,
-            }
-            await db.books.insert_one(doc)
-            results.append({k: v for k, v in doc.items() if k != "_id"})
-            continue
-
-        if ext != ".epub":
+            src_target.write_bytes(content)
+            epub_target = user_dir / f"{book_id}.epub"
+            err = await convert_to_epub(src_target, epub_target)
+            if err:
+                base_name = (f.filename or "Untitled").rsplit(".", 1)[0]
+                now_iso = datetime.now(timezone.utc).isoformat()
+                doc = {
+                    "book_id": book_id,
+                    "user_id": user.user_id,
+                    "filename": f.filename,
+                    "title": base_name,
+                    "author": "Unknown",
+                    "description": (
+                        f"Uploaded as .{ext.lstrip('.')} but auto-conversion failed: {err}. "
+                        f"Convert it manually with Calibre's 'Convert books' tool and re-upload."
+                    ),
+                    "language": "",
+                    "publisher": "",
+                    "has_cover": False,
+                    "category": NEEDS_CONVERSION_SHELF,
+                    "fandom": None,
+                    "confidence": 1.0,
+                    "classifier": "needs-conversion",
+                    "size_bytes": len(content),
+                    "links_count": 0,
+                    "source_url": None,
+                    "last_refreshed_at": None,
+                    "series_name": None,
+                    "series_index": None,
+                    "needs_conversion": True,
+                    "original_format": ext.lstrip("."),
+                    "conversion_error": err,
+                    "created_at": now_iso,
+                }
+                await db.books.insert_one(doc)
+                results.append({k: v for k, v in doc.items() if k != "_id"})
+                continue
+            # Conversion succeeded — keep the original file too (so the user
+            # has the source) but route the rest of the pipeline at the EPUB.
+            original_format = ext.lstrip(".")
+            content = epub_target.read_bytes()
+            target = epub_target
+            # Fall through to the standard EPUB processing below using the
+            # already-written EPUB. We jump straight to metadata extraction by
+            # reusing the local `book_id` we generated above.
+        elif ext != ".epub":
             results.append({"filename": f.filename, "error": "Not an EPUB"})
             continue
-
-        book_id = f"book_{uuid.uuid4().hex[:12]}"
-        target = user_dir / f"{book_id}.epub"
-        content = await f.read()
-        target.write_bytes(content)
+        else:
+            book_id = f"book_{uuid.uuid4().hex[:12]}"
+            target = user_dir / f"{book_id}.epub"
+            content = await f.read()
+            target.write_bytes(content)
 
         meta = extract_epub_metadata(target)
 
@@ -1663,6 +1709,10 @@ async def upload_books(
             "series_index": series_index,
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
+        if original_format:
+            # Surface the source format so the UI can show e.g. "Converted from PDF"
+            doc["original_format"] = original_format
+            doc["converted_from"] = original_format
 
         # Duplicate detection — flag, don't block. The UI pops a modal letting
         # the user choose: keep both / discard this upload / promote as new

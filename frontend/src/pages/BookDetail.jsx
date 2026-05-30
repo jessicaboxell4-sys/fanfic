@@ -559,6 +559,12 @@ export default function BookDetail() {
               <Meta label="Size" value={`${(book.size_bytes / 1024).toFixed(0)} KB`} />
               <Meta label="Language" value={book.language || "—"} />
               {book.publisher && <Meta label="Publisher" value={book.publisher} />}
+              {book.converted_from && (
+                <Meta
+                  label="Original format"
+                  value={<span className="font-mono uppercase text-xs">.{book.converted_from} → .epub</span>}
+                />
+              )}
               {book.source_url && (
                 <Meta
                   label="Source"
