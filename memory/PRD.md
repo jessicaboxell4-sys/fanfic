@@ -441,3 +441,7 @@
   - `reset_versions`: collapses `Old stories` + `Updated stories YYYY-MM-DD` shelves back to `Fanfiction` (if book has fandom) or `Unclassified`; unsets `replaces`/`replaced_by`/`refresh_summary`; deletes auto-created dated `categories` entries.
 - **Account → "Reset library state"** card (sits above Danger zone) — four checkbox toggles + a "Reset selected" button. Confirms with a native confirm() listing the picked options. Browser-confirm declined ⇒ no API call. Errors when nothing's checked.
 - Tests: `TestResetState` (3 cases — 400 when nothing picked, progress-only reset wipes the right things and leaves tags alone, version-collapse cleans up shelf+pointers). **207 passing, 1 by-design skip, coverage 79.5%**.
+
+### Verified 2026-05-30 (Reset-state + Wipe-library E2E)
+- Testing agent ran full HTTP integration + Playwright UI verification: 14/14 backend tests + 4/4 frontend scenarios all green. No regressions. Feature formally closed.
+- Side-fix: stale `test_upload_rejects_non_epub` updated to match the new "Needs conversion" .txt-upload behavior (now `test_upload_non_epub_flagged_for_conversion`). Coverage held at 79.5%.
