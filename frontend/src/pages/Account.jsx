@@ -216,6 +216,11 @@ export default function Account() {
                   title: "Keep external chapter links",
                   blurb: "Preserve in-text hyperlinks rather than flattening them to plain text.",
                 },
+                {
+                  key: "apply_template",
+                  title: "Use Shelfsort template",
+                  blurb: "Add a clean intro page (title, author, source URL, chapter count) and apply the house stylesheet to every refresh.",
+                },
               ].map((opt) => (
                 <div
                   key={opt.key}

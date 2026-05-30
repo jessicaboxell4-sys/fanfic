@@ -505,6 +505,7 @@ class TestFFFOptions:
         assert body["include_author_notes"] is True
         assert body["include_images"] is True
         assert body["keep_chapter_links"] is False
+        assert body["apply_template"] is True
 
     def test_toggle_persists(self):
         r = requests.put(
@@ -529,3 +530,109 @@ class TestFFFOptions:
     def test_requires_auth(self):
         r = requests.get(f"{BASE}/api/user/fff-options")
         assert r.status_code == 401
+
+
+# ============================================================
+# EPUB template applier — injects intro page + house stylesheet
+# ============================================================
+class TestEpubTemplateApplier:
+    def _build_minimal_fff_epub(self, title: str = "Sample Story") -> bytes:
+        """Build a tiny valid EPUB resembling FanFicFare's output (no intro page).
+        We just need enough structure for `apply_template_to_epub` to mutate."""
+        import zipfile
+        from io import BytesIO
+        buf = BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+            info = zipfile.ZipInfo("mimetype")
+            info.compress_type = zipfile.ZIP_STORED
+            z.writestr(info, "application/epub+zip")
+            z.writestr("META-INF/container.xml",
+                '<?xml version="1.0"?>\n<container version="1.0" '
+                'xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+                '<rootfiles><rootfile full-path="OEBPS/content.opf" '
+                'media-type="application/oebps-package+xml"/></rootfiles></container>')
+            z.writestr("OEBPS/content.opf",
+                '<?xml version="1.0"?>\n<package xmlns="http://www.idpf.org/2007/opf" '
+                'version="3.0" unique-identifier="id">\n'
+                '<metadata xmlns:dc="http://purl.org/dc/elements/1.1/">'
+                f'<dc:identifier id="id">test123</dc:identifier>'
+                f'<dc:title>{title}</dc:title><dc:language>en</dc:language>'
+                '</metadata>\n'
+                '<manifest><item href="chap_1.xhtml" id="c1" '
+                'media-type="application/xhtml+xml"/></manifest>\n'
+                '<spine><itemref idref="c1"/></spine></package>')
+            z.writestr("OEBPS/chap_1.xhtml",
+                '<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml">'
+                '<head><title>Chapter 1</title></head><body><h2>Chapter 1</h2>'
+                '<p>Once upon a time…</p></body></html>')
+        return buf.getvalue()
+
+    def test_template_injects_intro_and_marker(self):
+        from routes.books import apply_template_to_epub, SHELFSORT_TEMPLATE_MARKER
+        import zipfile
+        from io import BytesIO
+
+        raw = self._build_minimal_fff_epub("Templated Test")
+        meta = {
+            "title": "Templated Test",
+            "author": "Ada Lovelace",
+            "description": "A story.",
+            "chapters": 12,
+            "rawExtendedMeta": {
+                "status": "complete",
+                "datePublished": "2025-01-01",
+                "dateUpdated": "2025-06-30",
+                "words": 42000,
+                "rating": "M",
+                "language": "English",
+                "reviews": "1,234",
+                "favs": "9,001",
+                "follows": "555",
+            },
+        }
+        out = apply_template_to_epub(raw, meta, "https://archiveofourown.org/works/777")
+        assert isinstance(out, bytes) and len(out) > 0
+        assert out != raw  # something changed
+
+        with zipfile.ZipFile(BytesIO(out), "r") as z:
+            names = set(z.namelist())
+            assert "OEBPS/shelfsort_intro.xhtml" in names
+            intro = z.read("OEBPS/shelfsort_intro.xhtml").decode("utf-8")
+            # Intro must mirror the template structure
+            assert "<h1>Templated Test</h1>" in intro
+            assert "<b>By: Ada Lovelace</b>" in intro
+            assert "Status: complete" in intro
+            assert "Words: 42,000" in intro  # formatted with thousand-separator
+            assert "Chapters: 12" in intro
+            assert "Published: 2025-01-01" in intro
+            assert "Updated: 2025-06-30" in intro
+            assert "Fiction M" in intro
+            assert "Original source:" in intro
+            assert "https://archiveofourown.org/works/777" in intro
+
+            opf = z.read("OEBPS/content.opf").decode("utf-8")
+            assert SHELFSORT_TEMPLATE_MARKER in opf
+            assert 'id="shelfsort-intro"' in opf
+            # Spine must reference the intro BEFORE the original c1
+            assert opf.index('idref="shelfsort-intro"') < opf.index('idref="c1"')
+
+            # House stylesheet was added
+            css_files = [n for n in names if n.endswith(".css")]
+            assert css_files
+            css = z.read(css_files[0]).decode("utf-8")
+            assert "Verdana" in css
+
+    def test_template_is_idempotent(self):
+        """Re-applying the template to an already-templated EPUB is a no-op."""
+        from routes.books import apply_template_to_epub
+        raw = self._build_minimal_fff_epub("Idem Test")
+        meta = {"title": "Idem Test", "author": "X", "rawExtendedMeta": {}}
+        once = apply_template_to_epub(raw, meta, "https://x.test/1")
+        twice = apply_template_to_epub(once, meta, "https://x.test/1")
+        assert twice == once  # exact bytes match → idempotent
+
+    def test_template_returns_original_on_broken_input(self):
+        """Malformed EPUB shouldn't blow up — just return the original bytes."""
+        from routes.books import apply_template_to_epub
+        out = apply_template_to_epub(b"not an epub", {"title": "X"}, "https://x.test/1")
+        assert out == b"not an epub"

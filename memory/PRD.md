@@ -322,3 +322,13 @@
 - Refactor `server.py` into routers if backend keeps growing
 - Add reading-time tracking on Reader.jsx (currently only tracks opens)
 - Consider exporting Author/Fandom analytics as downloadable CSV
+
+### Added 2026-05-29 (EPUB template applier — matches user's reference EPUB)
+- User uploaded a FicHub-style EPUB as a template; every fanfic download/refresh now passes through `apply_template_to_epub()` which:
+  - **Captures more metadata** from FanFicFare: title, author, description, status, datePublished, dateUpdated, numWords, numChapters, rating, language, reviews, favs, follows, genre, category.
+  - **Injects an "Introduction" XHTML** BEFORE the TOC, mirroring the reference layout: `<h1>Title</h1>`, `<p><b>By: Author</b></p>`, description, Status / Published / Updated / Words / Chapters / "Rated: Fiction M - Language: English - Reviews: ..." / "Original source: <link>" / "Exported with the assistance of FanFicFare via Shelfsort".
+  - **Replaces the stylesheet** with Verdana sans-serif rules (centred `<h1>`, bold left-aligned `<h2>`).
+  - **Stamps a `shelfsort:templated` marker** in `content.opf` for idempotency (re-runs are no-ops, verified by test).
+  - **Fails safe**: malformed EPUB → returns original bytes unchanged.
+- Wired into `apply_refresh` (covers single, bulk-refresh-all, and sweep paths). Gated by new `fff_options.apply_template` (default **True**); user can disable from `/account` (the FanFicFare options card now has 4 toggles).
+- Tests: 3 new cases in `TestEpubTemplateApplier` + `test_defaults` extended. **181 passing, 1 by-design skip, coverage 78.3%** (up from 77.5%).
