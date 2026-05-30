@@ -16,8 +16,8 @@ export default function Navbar() {
   };
 
   const handleDownloadLinks = async () => {
-    // Per-fic folders inside a ZIP — each fanfic gets its own links.txt
-    const url = `${API}/books/export/links?format=zip`;
+    // Excel workbook: one sheet per fandom with full metadata
+    const url = `${API}/books/export/links?format=xlsx`;
     window.open(url, "_blank");
   };
 
@@ -58,10 +58,10 @@ export default function Navbar() {
             data-testid="navbar-download-links"
             onClick={handleDownloadLinks}
             className="btn-secondary text-sm flex items-center gap-2"
-            title="Download a ZIP — one .txt per fandom (Harry Potter, Star Trek, etc.)"
+            title="Download an Excel workbook — one sheet per fandom with full metadata"
           >
             <LinkIcon className="w-4 h-4" />
-            <span className="hidden md:inline">All links (.txt)</span>
+            <span className="hidden md:inline">Library (.xlsx)</span>
           </button>
           <button
             data-testid="navbar-download-zip"

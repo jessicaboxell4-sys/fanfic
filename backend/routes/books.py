@@ -1988,9 +1988,9 @@ async def export_all_links(
     """Download every URL across the user's library (or a filter).
 
     `format=txt` (default): one combined .txt file.
-    `format=zip`: a .zip with one folder per fanfic, each containing its
-        own `links.txt`. Folder names use the templated 'Title_by_Author'
-        pattern, organized by shelf at the top level.
+    `format=zip`: a .zip with one .txt per fandom (grouped by like fanfiction).
+    `format=xlsx`: a single .xlsx workbook with one sheet per fandom, each
+        row containing the book's full metadata + extracted URL count.
     """
     query: Dict[str, Any] = {"user_id": user.user_id}
     if category:
@@ -2002,6 +2002,112 @@ async def export_all_links(
         raise HTTPException(status_code=404, detail="No books")
 
     user_dir = STORAGE_DIR / user.user_id
+
+    # XLSX format — single workbook, one sheet per fandom, full metadata per row
+    if format == "xlsx":
+        import io as _io
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment
+
+        wb = Workbook()
+        # Group books by fandom (or category for non-fanfic)
+        buckets: Dict[str, List[Dict[str, Any]]] = {}
+        for b in books:
+            cat = b.get('category') or 'Uncategorized'
+            bucket = b.get('fandom') if cat == 'Fanfiction' and b.get('fandom') else cat
+            buckets.setdefault(bucket, []).append(b)
+
+        header_font = Font(bold=True, color="FFFFFF")
+        header_fill = PatternFill("solid", fgColor="3A5A40")
+        header_align = Alignment(horizontal="left", vertical="center")
+        columns = [
+            ("Title", "title", 36),
+            ("Author", "author", 22),
+            ("Fandom", "fandom", 22),
+            ("Status", "_status", 12),
+            ("Words", "_words", 10),
+            ("Chapters", "chapters", 9),
+            ("Progress %", "_progress", 11),
+            ("Reading min.", "reading_minutes", 12),
+            ("Source URL", "source_url", 48),
+            ("Last refreshed", "last_refreshed_at", 22),
+            ("Created", "created_at", 22),
+        ]
+
+        # Summary sheet first
+        ws_summary = wb.active
+        ws_summary.title = "Summary"
+        ws_summary["A1"] = "Shelfsort library export"
+        ws_summary["A1"].font = Font(bold=True, size=14)
+        ws_summary["A2"] = f"Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}"
+        ws_summary["A3"] = f"Books total: {len(books)}"
+        ws_summary["A4"] = f"Fandoms / categories: {len(buckets)}"
+        ws_summary["A6"] = "Fandom / Category"
+        ws_summary["B6"] = "Books"
+        ws_summary["A6"].font = header_font
+        ws_summary["B6"].font = header_font
+        ws_summary["A6"].fill = header_fill
+        ws_summary["B6"].fill = header_fill
+        for i, (bk, lst) in enumerate(sorted(buckets.items()), start=7):
+            ws_summary[f"A{i}"] = bk
+            ws_summary[f"B{i}"] = len(lst)
+        ws_summary.column_dimensions["A"].width = 30
+        ws_summary.column_dimensions["B"].width = 10
+
+        def _sheet_name(name: str) -> str:
+            # Excel limits: ≤31 chars, no : \ / ? * [ ]
+            cleaned = re.sub(r'[:\\/?*\[\]]', '-', name)[:31] or "Sheet"
+            return cleaned
+
+        used_names: set = {"Summary"}
+        for bucket_name, bucket_books in sorted(buckets.items()):
+            base = _sheet_name(bucket_name)
+            name = base
+            suffix = 2
+            while name in used_names:
+                name = (base[:28] + f"_{suffix}")[:31]
+                suffix += 1
+            used_names.add(name)
+            ws = wb.create_sheet(title=name)
+            # Header row
+            for col_idx, (label, _key, width) in enumerate(columns, start=1):
+                cell = ws.cell(row=1, column=col_idx, value=label)
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = header_align
+                ws.column_dimensions[cell.column_letter].width = width
+            ws.freeze_panes = "A2"
+            # Data rows
+            for r_idx, b in enumerate(bucket_books, start=2):
+                raw_extended = (b.get('source_meta') or {}).get('rawExtendedMeta') or {}
+                row_vals: List[Any] = []
+                for label, key, _w in columns:
+                    if key == "_status":
+                        row_vals.append(raw_extended.get("status") or "")
+                    elif key == "_words":
+                        row_vals.append(b.get("words") or raw_extended.get("words") or "")
+                    elif key == "_progress":
+                        p = b.get("progress_percent")
+                        row_vals.append(round(float(p) * 100, 1) if p is not None else "")
+                    else:
+                        row_vals.append(b.get(key) or "")
+                for c_idx, val in enumerate(row_vals, start=1):
+                    ws.cell(row=r_idx, column=c_idx, value=val)
+            ws.auto_filter.ref = ws.dimensions
+
+        buf = _io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        xlsx_name = "shelfsort_library.xlsx"
+        if fandom:
+            xlsx_name = f"shelfsort_{_safe_folder(fandom)}.xlsx"
+        elif category:
+            xlsx_name = f"shelfsort_{_safe_folder(category)}.xlsx"
+        return StreamingResponse(
+            buf,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={xlsx_name}"},
+        )
 
     # ZIP format — one .txt per fandom (or category for non-fanfiction)
     if format == "zip":

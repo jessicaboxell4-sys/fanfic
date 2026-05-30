@@ -407,3 +407,16 @@
 - Fandom filter on the export endpoint still works — produces a single `<fandom>.txt` inside the ZIP.
 - Navbar tooltip updated to "one .txt per fandom (Harry Potter, Star Trek, etc.)"
 - Tests: `TestLinksExportByFolder` rewritten for the new flat layout (default-txt back-compat, per-fandom .txt grouping, fandom filter). **199 passing, 1 by-design skip, coverage 79.0%**.
+
+### Added 2026-05-30 (Excel/XLSX library export — full metadata per book)
+- User refinement: instead of a .txt, get an Excel workbook with categories that include full metadata (title, author, fandom, status, word count, source URL, last refreshed).
+- **New dep**: `openpyxl==3.1.5` (added to `requirements.txt`).
+- **`GET /api/books/export/links?format=xlsx`** returns a styled `.xlsx`:
+  - **Summary** sheet at the top: generation timestamp + book / fandom counts + a "books per fandom" table.
+  - **One sheet per fandom** (or per category for non-fanfic). Sheet names are sanitized to Excel's rules (≤31 chars, no `: \ / ? * [ ]`).
+  - Columns per row: Title, Author, Fandom, Status, Words, Chapters, Progress %, Reading min., Source URL, Last refreshed, Created.
+  - Header row styled (white-on-green, bold), frozen pane on row 1, auto-filter enabled, sensible column widths.
+- Filter params still apply: `?format=xlsx&fandom=Harry%20Potter` → just one fandom sheet + summary.
+- **Frontend**: navbar button relabelled `Library (.xlsx)`, defaults to xlsx, tooltip updated.
+- **Backward compat**: `format=txt` (default if omitted) still returns the single combined .txt. `format=zip` still returns per-fandom .txt files in a zip.
+- Tests: 2 new cases in `TestLinksExportByFolder` (per-fandom sheet structure + filter). **201 passing, 1 by-design skip, coverage 79.4%**.

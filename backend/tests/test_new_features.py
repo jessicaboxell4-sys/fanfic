@@ -1056,3 +1056,72 @@ class TestLinksExportByFolder:
         non_readme = [n for n in zf.namelist() if n != "README.txt"]
         # Filter result: only the fandom-named .txt should appear
         assert non_readme == ["ZipFilterTestFandom.txt"]
+
+    def test_xlsx_format_one_sheet_per_fandom(self, uploaded_books):
+        from openpyxl import load_workbook
+        from io import BytesIO
+        # Seed two distinct fandoms
+        db.books.update_one(
+            {"book_id": uploaded_books[0]["book_id"]},
+            {"$set": {
+                "category": "Fanfiction",
+                "fandom": "XLSXFandomA",
+                "source_url": "https://archiveofourown.org/works/123",
+                "words": 12345,
+                "progress_percent": 0.42,
+            }},
+        )
+        db.books.insert_one({
+            "user_id": USER_ID,
+            "book_id": f"book_xlb_{uuid.uuid4().hex[:8]}",
+            "title": "XLSX-only book",
+            "author": "Author B",
+            "category": "Fanfiction",
+            "fandom": "XLSXFandomB",
+            "source_url": "https://example.com/x",
+            "words": 5000,
+            "chapters": 3,
+        })
+
+        r = requests.get(f"{BASE}/api/books/export/links?format=xlsx", headers=H())
+        assert r.status_code == 200, r.text
+        assert (
+            r.headers.get("content-type")
+            == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        assert ".xlsx" in r.headers.get("content-disposition", "")
+
+        wb = load_workbook(BytesIO(r.content), data_only=True)
+        # Summary sheet always present
+        assert "Summary" in wb.sheetnames
+        # Both fandoms get their own sheet
+        assert "XLSXFandomA" in wb.sheetnames
+        assert "XLSXFandomB" in wb.sheetnames
+        # Header row + data row layout
+        ws = wb["XLSXFandomA"]
+        headers = [c.value for c in ws[1]]
+        for expected in ("Title", "Author", "Fandom", "Status", "Words", "Chapters", "Source URL", "Last refreshed"):
+            assert expected in headers, f"missing header: {expected}"
+        # First data row contains our seeded values
+        row2 = {h: ws.cell(row=2, column=i + 1).value for i, h in enumerate(headers)}
+        assert row2["Fandom"] == "XLSXFandomA"
+        assert row2["Source URL"] == "https://archiveofourown.org/works/123"
+        assert row2["Words"] == 12345
+        # progress_percent of 0.42 → 42.0
+        assert row2["Progress %"] == 42.0
+
+    def test_xlsx_format_respects_fandom_filter(self, uploaded_books):
+        from openpyxl import load_workbook
+        from io import BytesIO
+        bid = uploaded_books[0]["book_id"]
+        db.books.update_one(
+            {"book_id": bid},
+            {"$set": {"category": "Fanfiction", "fandom": "XLSXOnlyMe"}},
+        )
+        r = requests.get(
+            f"{BASE}/api/books/export/links?format=xlsx&fandom=XLSXOnlyMe", headers=H()
+        )
+        assert r.status_code == 200
+        wb = load_workbook(BytesIO(r.content), data_only=True)
+        # Summary + just the filtered fandom
+        assert set(wb.sheetnames) == {"Summary", "XLSXOnlyMe"}
