@@ -338,3 +338,11 @@
 - Idempotent: already-templated EPUBs are detected by the `shelfsort:templated` marker and skipped without rewriting (zero-byte diff).
 - **Account.jsx** gains an "Apply template to all my books" button beneath the FFF toggles, with browser confirm + loading spinner + structured success toast ("12 updated · 8 already templated · 0 errors").
 - Tests: `TestApplyTemplateToAll` (sweep flow + idempotent re-run + auth required). **183 passing, 1 by-design skip, coverage 78.4%** (up from 78.3%).
+
+### Added 2026-05-30 ("Tidy filenames" sweep — matches attachment naming)
+- **`_templated_filename(title, author, book_id)`** helper → `Title_by_Author-<8charid>.epub` (spaces → underscores, filesystem-unsafe chars stripped). Matches the user's reference EPUB exactly: `A_Black_Comedy_by_nonjon-2F4YtDd3.epub`.
+- **Per-book download** (`GET /books/{id}/download`) now uses the templated name in Content-Disposition.
+- **ZIP library export** (`GET /books/export-zip`) uses the templated name for each arcname inside the archive.
+- **Fresh refreshes** save the new book with the templated filename in `book.filename`.
+- **`POST /user/tidy-filenames`** — sweep endpoint that backfills every existing book's `filename` field to the templated pattern. Idempotent (already-correct count returned separately). Account page adds a "Tidy filenames" button beside the "Apply template to all my books" button.
+- Tests: 4 new in `TestTidyFilenames` (helper unit + sweep + auth + download Content-Disposition). **187 passing, 1 by-design skip, coverage 78.6%** (up from 78.4%).

@@ -933,7 +933,7 @@ async def apply_refresh(book: Dict[str, Any], user_id: str, source_url: str) -> 
     new_doc = {
         "book_id": new_book_id,
         "user_id": user_id,
-        "filename": book.get("filename") or f"{new_meta['title']}.epub",
+        "filename": _templated_filename(new_meta.get("title"), new_meta.get("author"), new_book_id),
         "title": new_meta["title"],
         "author": new_meta["author"],
         "description": new_meta["description"],
@@ -1617,6 +1617,44 @@ async def apply_template_to_all(user: User = Depends(get_current_user)):
     }
 
 
+@api_router.post("/user/tidy-filenames")
+async def tidy_filenames(user: User = Depends(get_current_user)):
+    """Rename every book's stored `filename` field to the templated pattern:
+       'Title_by_Author-<short_id>.epub' (matches the user's reference EPUB).
+
+    On-disk filenames stay as `{book_id}.epub` (an internal id) — only the
+    user-facing field changes. The single-book download endpoint and the ZIP
+    export already build the templated name from book.title/author, so this is
+    purely a cosmetic backfill for the BookDetail page's "File" line.
+    """
+    books = await db.books.find(
+        {"user_id": user.user_id},
+        {"_id": 0, "book_id": 1, "title": 1, "author": 1, "filename": 1},
+    ).limit(5000).to_list(5000)
+
+    updated = 0
+    already_correct = 0
+    for b in books:
+        target = _templated_filename(b.get("title"), b.get("author"), b["book_id"])
+        current = b.get("filename") or ""
+        if current == target:
+            already_correct += 1
+            continue
+        await db.books.update_one(
+            {"book_id": b["book_id"], "user_id": user.user_id},
+            {"$set": {"filename": target}},
+        )
+        updated += 1
+
+    return {
+        "updated": updated,
+        "already_correct": already_correct,
+        "total": len(books),
+    }
+
+
+
+
 
 
 
@@ -1747,7 +1785,8 @@ async def download_book(book_id: str, user: User = Depends(get_current_user)):
     fp = STORAGE_DIR / user.user_id / f"{book_id}.epub"
     if not fp.exists():
         raise HTTPException(status_code=404, detail="File missing")
-    return FileResponse(str(fp), media_type="application/epub+zip", filename=book['filename'])
+    download_name = _templated_filename(book.get('title'), book.get('author'), book_id)
+    return FileResponse(str(fp), media_type="application/epub+zip", filename=download_name)
 
 
 @api_router.delete("/books/{book_id}")
@@ -1768,6 +1807,21 @@ def _safe_filename(name: str, ext: str) -> str:
     base = re.sub(r'[\\/:*?"<>|\x00-\x1f]', '_', name or 'book').strip().rstrip('.')
     base = base[:120] or 'book'
     return f"{base}{ext}"
+
+
+def _templated_filename(title: Optional[str], author: Optional[str], book_id: str, ext: str = ".epub") -> str:
+    """Build a filename matching the attachment template: 'Title_by_Author-id.epub'.
+    Underscores replace spaces, control + filesystem-unsafe chars are stripped,
+    and a short 8-char book_id suffix disambiguates same-name fics."""
+    def _clean(s: str) -> str:
+        s = re.sub(r'[\\/:*?"<>|\x00-\x1f]', '', s or '')
+        s = re.sub(r'\s+', '_', s.strip())
+        return s.strip('._') or ''
+    title_part = _clean(title or 'Untitled')[:80]
+    author_part = _clean(author or 'Unknown')[:50]
+    # Take the trailing 8 chars of the book_id for a stable, short, unique suffix
+    short_id = (book_id or '').split('_')[-1][:8] or 'x'
+    return f"{title_part}_by_{author_part}-{short_id}{ext}"
 
 
 @api_router.get("/books/export/links")
@@ -2855,7 +2909,7 @@ async def export_zip(
                     folder = f"Fanfiction/{_safe_folder(fnd)}"
                 else:
                     folder = cat
-                arcname = f"{folder}/{b['filename']}"
+                arcname = f"{folder}/{_templated_filename(b.get('title'), b.get('author'), b['book_id'])}"
                 zf.write(str(fp), arcname=arcname)
         buf.seek(0)
         return buf

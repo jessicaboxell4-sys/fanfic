@@ -31,6 +31,7 @@ export default function Account() {
   const [fff, setFff] = useState(null);
   const [savingFff, setSavingFff] = useState(false);
   const [applyingTpl, setApplyingTpl] = useState(false);
+  const [tidyingNames, setTidyingNames] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -62,6 +63,25 @@ export default function Account() {
       setFff(fff); // revert
     } finally {
       setSavingFff(false);
+    }
+  };
+
+  const tidyFilenames = async () => {
+    if (!window.confirm(
+      "Rename every book's display filename to 'Title_by_Author-<id>.epub'? Books that already match are skipped."
+    )) return;
+    setTidyingNames(true);
+    const t = toast.loading("Tidying filenames…");
+    try {
+      const { data } = await api.post("/user/tidy-filenames", {}, { timeout: 600000 });
+      const parts = [];
+      if (data.updated > 0) parts.push(`${data.updated} renamed`);
+      if (data.already_correct > 0) parts.push(`${data.already_correct} already correct`);
+      toast.success(parts.join(" · ") || "Nothing to rename", { id: t });
+    } catch (e) {
+      toast.error("Couldn't tidy filenames — try again later", { id: t });
+    } finally {
+      setTidyingNames(false);
     }
   };
 
@@ -275,24 +295,45 @@ export default function Account() {
           )}
 
           {fff !== null && (
-            <div className="mt-5 pt-5 border-t border-[#E8E6E1] flex flex-wrap gap-3 items-center">
-              <button
-                type="button"
-                onClick={applyTemplateToAll}
-                disabled={applyingTpl}
-                data-testid="apply-template-all-btn"
-                className="btn-secondary text-sm flex items-center gap-2 disabled:opacity-60"
-              >
-                {applyingTpl ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Settings2 className="w-4 h-4" />
-                )}
-                {applyingTpl ? "Working…" : "Apply template to all my books"}
-              </button>
-              <p className="text-xs text-[#6B705C]">
-                Retroactively adds the intro page + house stylesheet to every existing EPUB. Idempotent — already-templated books are skipped automatically.
-              </p>
+            <div className="mt-5 pt-5 border-t border-[#E8E6E1] space-y-3">
+              <div className="flex flex-wrap gap-3 items-center">
+                <button
+                  type="button"
+                  onClick={applyTemplateToAll}
+                  disabled={applyingTpl}
+                  data-testid="apply-template-all-btn"
+                  className="btn-secondary text-sm flex items-center gap-2 disabled:opacity-60"
+                >
+                  {applyingTpl ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Settings2 className="w-4 h-4" />
+                  )}
+                  {applyingTpl ? "Working…" : "Apply template to all my books"}
+                </button>
+                <p className="text-xs text-[#6B705C]">
+                  Retroactively adds the intro page + house stylesheet to every existing EPUB. Idempotent.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-3 items-center">
+                <button
+                  type="button"
+                  onClick={tidyFilenames}
+                  disabled={tidyingNames}
+                  data-testid="tidy-filenames-btn"
+                  className="btn-secondary text-sm flex items-center gap-2 disabled:opacity-60"
+                >
+                  {tidyingNames ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Settings2 className="w-4 h-4" />
+                  )}
+                  {tidyingNames ? "Working…" : "Tidy filenames"}
+                </button>
+                <p className="text-xs text-[#6B705C]">
+                  Renames display filenames to <span className="font-mono text-[10px]">Title_by_Author-id.epub</span>.
+                </p>
+              </div>
             </div>
           )}
         </section>

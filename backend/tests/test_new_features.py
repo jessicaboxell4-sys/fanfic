@@ -705,3 +705,57 @@ class TestApplyTemplateToAll:
     def test_sweep_requires_auth(self):
         r = requests.post(f"{BASE}/api/user/apply-template-to-all")
         assert r.status_code == 401
+
+
+# ============================================================
+# "Tidy filenames" — backfills book.filename to 'Title_by_Author-id.epub'
+# ============================================================
+class TestTidyFilenames:
+    def test_templated_filename_helper(self):
+        from routes.books import _templated_filename
+        # Matches the attachment pattern exactly
+        out = _templated_filename("A Black Comedy", "nonjon", "book_2F4YtDd3")
+        assert out == "A_Black_Comedy_by_nonjon-2F4YtDd3.epub"
+        # Spaces, slashes, control chars all sanitized
+        out = _templated_filename("Some/Title:With?Bad*chars", "Author Name", "book_id1234567890")
+        assert "/" not in out and ":" not in out and "?" not in out and "*" not in out
+        assert "_by_" in out
+        assert out.endswith(".epub")
+        # Missing fields fall back to sensible defaults
+        out = _templated_filename(None, None, "")
+        assert out == "Untitled_by_Unknown-x.epub"
+
+    def test_tidy_sweep(self, uploaded_books):
+        # Mess with one book's filename so we can verify the rename
+        bid = uploaded_books[0]["book_id"]
+        db.books.update_one(
+            {"book_id": bid},
+            {"$set": {"filename": "wrong_name_xyz.epub"}},
+        )
+        r = requests.post(f"{BASE}/api/user/tidy-filenames", headers=H())
+        assert r.status_code == 200, r.text
+        body = r.json()
+        for key in ("updated", "already_correct", "total"):
+            assert key in body
+        assert body["updated"] >= 1
+        # Verify the targeted book now has the templated filename
+        doc = db.books.find_one({"book_id": bid})
+        assert doc["filename"].endswith(".epub")
+        assert "_by_" in doc["filename"]
+        # Re-run is idempotent — already-correct count goes up, no more updates
+        r2 = requests.post(f"{BASE}/api/user/tidy-filenames", headers=H())
+        body2 = r2.json()
+        assert body2["already_correct"] >= 1
+
+    def test_tidy_requires_auth(self):
+        r = requests.post(f"{BASE}/api/user/tidy-filenames")
+        assert r.status_code == 401
+
+    def test_download_filename_uses_template(self, uploaded_books):
+        bid = uploaded_books[0]["book_id"]
+        r = requests.get(f"{BASE}/api/books/{bid}/download", headers=H(), stream=True)
+        assert r.status_code == 200
+        cd = r.headers.get("content-disposition", "")
+        # The Content-Disposition filename must match the templated pattern
+        assert "_by_" in cd
+        assert ".epub" in cd
