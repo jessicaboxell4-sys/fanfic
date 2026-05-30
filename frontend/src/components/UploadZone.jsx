@@ -84,6 +84,7 @@ export default function UploadZone({ onUploaded }) {
     setUploading(true);
     setProgress({ done: 0, total: files.length });
     const duplicates = [];
+    const allActions = [];
     let resp = null;
     try {
       // Upload in batches of 3 for responsiveness
@@ -103,12 +104,13 @@ export default function UploadZone({ onUploaded }) {
             duplicates.push(b);
           }
         }
+        if (Array.isArray(data?.actions)) allActions.push(...data.actions);
         totalAuto += data?.auto_resolved || 0;
         if (data?.policy) lastPolicy = data.policy;
         uploaded += batch.length;
         setProgress({ done: uploaded, total: files.length });
       }
-      resp = { auto_resolved: totalAuto, policy: lastPolicy };
+      resp = { auto_resolved: totalAuto, policy: lastPolicy, actions: allActions };
       if (duplicates.length === 0) {
         const autoCount = (resp && resp.auto_resolved) || 0;
         const policy = resp && resp.policy;
@@ -123,7 +125,7 @@ export default function UploadZone({ onUploaded }) {
           `Sorted ${files.length} file${files.length > 1 ? "s" : ""} — ${duplicates.length} possible duplicate${duplicates.length > 1 ? "s" : ""} to review`,
         );
       }
-      onUploaded && onUploaded(duplicates);
+      onUploaded && onUploaded(duplicates, allActions);
     } catch (e) {
       console.error(e);
       toast.error("Upload failed. Please try again.");

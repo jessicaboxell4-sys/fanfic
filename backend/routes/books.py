@@ -892,6 +892,10 @@ async def _apply_duplicate_policy(
     apply (e.g., no target). The expensive chapter-diff step from the
     interactive resolve flow is skipped for batch uploads — users running on
     a stand policy chose convenience over the bell badge.
+
+    Side effect: every change is recorded under the book's `dupe_action_meta`
+    field with the previous values so the action can be undone via
+    `POST /api/books/{book_id}/undo-resolve`.
     """
     user_dir = STORAGE_DIR / user_id
     now_iso = datetime.now(timezone.utc).isoformat()
@@ -899,9 +903,12 @@ async def _apply_duplicate_policy(
     if policy == "keep_both":
         await db.books.update_one(
             {"book_id": new_book_id, "user_id": user_id},
-            {"$unset": {"duplicate_pending": "", "duplicate_of": ""}},
+            {
+                "$unset": {"duplicate_pending": "", "duplicate_of": ""},
+                "$set": {"dupe_action_meta": {"action": "keep_both", "applied_at": now_iso}},
+            },
         )
-        return {"action": "keep_both"}
+        return {"action": "keep_both", "undoable": False}
 
     if policy == "discard":
         for ext in (".epub", ".cover", ".links.txt"):
@@ -912,13 +919,17 @@ async def _apply_duplicate_policy(
                 except OSError:
                     pass
         await db.books.delete_one({"book_id": new_book_id, "user_id": user_id})
-        return {"action": "discard", "deleted": True}
+        return {"action": "discard", "deleted": True, "undoable": False}
 
     # The remaining two need a current head; bail if there isn't one
     if not target_book_id:
         return None
     target = await db.books.find_one({"book_id": target_book_id, "user_id": user_id})
     if not target or target.get("category") == OLD_STORIES_SHELF or target.get("replaced_by"):
+        return None
+
+    new_doc_before = await db.books.find_one({"book_id": new_book_id, "user_id": user_id})
+    if not new_doc_before:
         return None
 
     if policy == "historical":
@@ -929,11 +940,21 @@ async def _apply_duplicate_policy(
                     "category": OLD_STORIES_SHELF,
                     "replaced_by": target_book_id,
                     "replaced_at": now_iso,
+                    "dupe_action_meta": {
+                        "action": "historical",
+                        "target_book_id": target_book_id,
+                        "prev_category_new": new_doc_before.get("category"),
+                        "applied_at": now_iso,
+                    },
                 },
                 "$unset": {"duplicate_pending": "", "duplicate_of": ""},
             },
         )
-        return {"action": "historical"}
+        return {
+            "action": "historical",
+            "target_book_id": target_book_id,
+            "undoable": True,
+        }
 
     if policy == "new_version":
         now_dt = datetime.now(timezone.utc)
@@ -946,6 +967,13 @@ async def _apply_duplicate_policy(
                     "replaces": target_book_id,
                     "last_refreshed_at": now_iso,
                     "update_seen": False,
+                    "dupe_action_meta": {
+                        "action": "new_version",
+                        "target_book_id": target_book_id,
+                        "prev_category_new": new_doc_before.get("category"),
+                        "prev_category_target": target.get("category"),
+                        "applied_at": now_iso,
+                    },
                 },
                 "$unset": {"duplicate_pending": "", "duplicate_of": ""},
             },
@@ -968,9 +996,64 @@ async def _apply_duplicate_policy(
                 "replaced_at": now_iso,
             }},
         )
-        return {"action": "new_version", "updated_shelf": updated_shelf}
+        return {
+            "action": "new_version",
+            "target_book_id": target_book_id,
+            "updated_shelf": updated_shelf,
+            "undoable": True,
+        }
 
     return None
+
+
+@api_router.post("/books/{book_id}/undo-resolve")
+async def undo_resolve(book_id: str, user: User = Depends(get_current_user)):
+    """Undo a recent policy-driven duplicate resolution.
+
+    Reads `dupe_action_meta` from the book and reverses the field changes.
+    For `historical` and `new_version` we restore the previous categories
+    and unset `replaced_by`/`replaces`. `keep_both` and `discard` are not
+    undoable (the former is a no-op; the latter is a hard delete).
+    """
+    book = await db.books.find_one({"book_id": book_id, "user_id": user.user_id})
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+    meta = book.get("dupe_action_meta") or {}
+    action = meta.get("action")
+    if action not in ("historical", "new_version"):
+        raise HTTPException(status_code=400, detail=f"Action '{action}' is not undoable")
+
+    if action == "historical":
+        prev_cat = meta.get("prev_category_new") or "Unclassified"
+        await db.books.update_one(
+            {"book_id": book_id, "user_id": user.user_id},
+            {
+                "$set": {"category": prev_cat},
+                "$unset": {"replaced_by": "", "replaced_at": "", "dupe_action_meta": ""},
+            },
+        )
+        return {"ok": True, "undone": "historical", "book_id": book_id}
+
+    # new_version
+    target_id = meta.get("target_book_id")
+    prev_cat_new = meta.get("prev_category_new") or "Unclassified"
+    prev_cat_target = meta.get("prev_category_target") or "Fanfiction"
+    await db.books.update_one(
+        {"book_id": book_id, "user_id": user.user_id},
+        {
+            "$set": {"category": prev_cat_new},
+            "$unset": {"replaces": "", "last_refreshed_at": "", "update_seen": "", "dupe_action_meta": ""},
+        },
+    )
+    if target_id:
+        await db.books.update_one(
+            {"book_id": target_id, "user_id": user.user_id},
+            {
+                "$set": {"category": prev_cat_target},
+                "$unset": {"replaced_by": "", "replaced_at": ""},
+            },
+        )
+    return {"ok": True, "undone": "new_version", "book_id": book_id, "target_book_id": target_id}
 
 
 async def fanfic_fetch_epub(source_url: str, options: Optional[Dict[str, Any]] = None) -> tuple:
@@ -1576,6 +1659,7 @@ async def upload_books(
     user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "duplicate_policy": 1})
     policy = (user_doc or {}).get("duplicate_policy") or DUPE_POLICY_DEFAULT
     auto_resolved = 0
+    actions: List[Dict[str, Any]] = []
     if policy != "ask":
         for i, doc in enumerate(results):
             if not doc.get("duplicate_pending"):
@@ -1586,6 +1670,13 @@ async def upload_books(
             )
             if applied:
                 auto_resolved += 1
+                actions.append({
+                    "book_id": doc["book_id"],
+                    "title": doc.get("title") or "",
+                    "action": applied.get("action"),
+                    "target_book_id": applied.get("target_book_id"),
+                    "undoable": applied.get("undoable", False),
+                })
                 # Reflect the auto-resolve in the response so the UI knows
                 if applied.get("deleted"):
                     results[i] = {**doc, "duplicate_pending": False, "duplicate_resolved": "discard", "removed": True}
@@ -1596,7 +1687,7 @@ async def upload_books(
                         fresh["duplicate_resolved"] = applied.get("action")
                         results[i] = fresh
 
-    return {"uploaded": len(results), "books": results, "auto_resolved": auto_resolved, "policy": policy}
+    return {"uploaded": len(results), "books": results, "auto_resolved": auto_resolved, "policy": policy, "actions": actions}
 
 
 @api_router.get("/books")

@@ -38,6 +38,7 @@ export default function Dashboard() {
   const [authorsList, setAuthorsList] = useState([]);
   const [pinnedShelves, setPinnedShelves] = useState([]);
   const [pendingDupes, setPendingDupes] = useState([]);
+  const [undoActions, setUndoActions] = useState([]);  // {book_id, title, action, target_book_id, undoable}
   const [glanceOrder, setGlanceOrder] = useState(["continue", "stats", "shelves"]);
   const [glanceHidden, setGlanceHidden] = useState([]);
   const [organizing, setOrganizing] = useState(false);
@@ -337,8 +338,69 @@ export default function Dashboard() {
         )}
 
         <div className="mb-10">
-          <UploadZone onUploaded={(dupes) => { if (dupes && dupes.length > 0) setPendingDupes(dupes); load(); }} />
+          <UploadZone
+            onUploaded={(dupes, actions) => {
+              if (dupes && dupes.length > 0) setPendingDupes(dupes);
+              const undoable = (actions || []).filter((a) => a.undoable);
+              if (undoable.length > 0) {
+                setUndoActions(undoable);
+                // Auto-clear after 30s
+                setTimeout(() => setUndoActions((cur) => cur === undoable ? [] : cur), 30000);
+              }
+              load();
+            }}
+          />
         </div>
+
+        {undoActions.length > 0 && (
+          <div
+            data-testid="undo-strip"
+            className="mb-6 shelf-card p-4 flex flex-wrap items-center justify-between gap-3 bg-amber-50 border-amber-200"
+          >
+            <div className="flex items-center gap-3">
+              <RotateCcw className="w-5 h-5 text-amber-700 flex-shrink-0" />
+              <p className="text-sm text-[#2C2C2C]">
+                Just auto-resolved <strong>{undoActions.length}</strong> duplicate{undoActions.length === 1 ? "" : "s"}
+                {(() => {
+                  const kind = undoActions[0]?.action;
+                  if (kind === "historical") return " · linked as historical versions";
+                  if (kind === "new_version") return " · replaced as new versions";
+                  return "";
+                })()}.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                data-testid="undo-all-btn"
+                onClick={async () => {
+                  let failed = 0;
+                  for (const a of undoActions) {
+                    try {
+                      await api.post(`/books/${a.book_id}/undo-resolve`);
+                    } catch (e) {
+                      failed += 1;
+                    }
+                  }
+                  if (failed === 0) toast.success(`Undid ${undoActions.length} action${undoActions.length === 1 ? "" : "s"}`);
+                  else toast.error(`${failed} couldn't be undone`);
+                  setUndoActions([]);
+                  load();
+                }}
+                className="px-3 py-1.5 rounded-lg text-sm font-medium bg-amber-700 text-white hover:bg-amber-800"
+              >
+                Undo
+              </button>
+              <button
+                data-testid="undo-dismiss-btn"
+                onClick={() => setUndoActions([])}
+                className="px-2 py-1.5 rounded text-sm text-[#6B705C] hover:text-[#2C2C2C]"
+                aria-label="Dismiss"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
 
         {pendingDupes.length > 0 && (
           <DuplicateResolutionModal

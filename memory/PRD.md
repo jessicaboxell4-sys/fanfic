@@ -505,6 +505,14 @@
 - **Account page** gets a "Duplicate handling" card with 5 radio-style picker buttons that PUT on click — instant save.
 - Tests: `TestDuplicatePolicy` — 5 cases (default ask, set+round-trip, invalid policy 400, discard policy removes dup, historical policy archives the upload under the existing head). **248 passing, 1 by-design skip**.
 
+### Added 2026-05-30 (Undo strip for auto-resolved duplicates)
+- **Problem**: with a default policy other than `ask`, an upload could silently archive/replace books — surprising if the user uploaded a fresh fetch the system mis-classified.
+- **`_apply_duplicate_policy`** now records previous categories (`prev_category_new`, `prev_category_target`, `target_book_id`) under each affected book's `dupe_action_meta` field.
+- **`POST /api/books/{book_id}/undo-resolve`** — reverses `historical` (restores category, unsets `replaced_by`/`replaced_at`) and `new_version` (restores both books' categories, unsets `replaces`/`replaced_by`/`update_seen`). Returns 400 for `keep_both` (no-op) and `discard` (file is gone — hard-delete only).
+- **Upload response** gains an `actions: [{book_id, title, action, target_book_id, undoable}]` array per batch.
+- **Dashboard**: amber undo strip surfaces after upload when one or more actions are undoable. Shows the count + action kind ("linked as historical versions" / "replaced as new versions"). "Undo" button reverses every action in the batch; auto-dismisses after 30 seconds.
+- Tests: `TestUndoResolve` — 3 cases (undo historical restores book, undo new_version restores both books, undo rejects keep_both with 400). **251 passing, 1 by-design skip**.
+
 ### Added 2026-05-30 (Folder + mixed-format uploads)
 - **UploadZone** now accepts folders (drag a folder onto the dropzone or click "Pick a folder" — uses `webkitdirectory` + recursive `webkitGetAsEntry` walk).
 - Accepted extensions widened: `.epub` flows through the EPUB pipeline; `.pdf`, `.mobi`, `.azw`, `.azw3`, `.kf8`, `.kfx`, `.docx`, `.doc`, `.rtf`, `.fb2`, `.lit`, `.lrf`, `.pdb`, `.txt`, `.html`, `.htm` all land on the existing **"Needs conversion"** shelf with a Calibre nudge.

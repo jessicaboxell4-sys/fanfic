@@ -1887,3 +1887,131 @@ class TestDuplicatePolicy:
             json={"policy": "ask"},
         )
 
+
+
+class TestUndoResolve:
+    @pytest.fixture(scope="class")
+    def undo_user(self):
+        uid = f"user_undo_{uuid.uuid4().hex[:8]}"
+        tok = f"sess_undo_{uuid.uuid4().hex}"
+        db.users.insert_one({
+            "user_id": uid,
+            "email": f"{uid}@example.com",
+            "name": "Undo User",
+            "picture": "",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+        db.user_sessions.insert_one({
+            "user_id": uid,
+            "session_token": tok,
+            "expires_at": datetime.now(timezone.utc) + timedelta(days=7),
+            "created_at": datetime.now(timezone.utc),
+        })
+        yield uid, tok
+        db.books.delete_many({"user_id": uid})
+        db.user_sessions.delete_many({"user_id": uid})
+        db.users.delete_many({"user_id": uid})
+
+    def test_undo_historical_restores_book(self, undo_user):
+        uid, tok = undo_user
+        requests.put(
+            f"{BASE}/api/user/duplicate-policy",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"policy": "historical"},
+        )
+        first = _upload(tok, _make_epub_with_links("UndoHist", "Auth", []))
+        prev_cat_target = db.books.find_one({"book_id": first["book_id"], "user_id": uid})["category"]
+        with open(_make_epub_with_links("UndoHist", "Auth", []), "rb") as f:
+            r = requests.post(
+                f"{BASE}/api/books/upload",
+                headers={"Authorization": f"Bearer {tok}"},
+                files={"files": ("dup.epub", f, "application/epub+zip")},
+            )
+        new_id = r.json()["books"][0]["book_id"]
+        # Confirm archived
+        archived = db.books.find_one({"book_id": new_id, "user_id": uid})
+        assert archived["category"] == "Old stories"
+        # Undo
+        u = requests.post(
+            f"{BASE}/api/books/{new_id}/undo-resolve",
+            headers={"Authorization": f"Bearer {tok}"},
+        )
+        assert u.status_code == 200, u.text
+        restored = db.books.find_one({"book_id": new_id, "user_id": uid})
+        assert restored["category"] != "Old stories"
+        assert "replaced_by" not in restored
+        # Target untouched (it was the head; should still be on its prior cat)
+        head = db.books.find_one({"book_id": first["book_id"], "user_id": uid})
+        assert head["category"] == prev_cat_target
+        db.books.delete_many({"user_id": uid})
+        requests.put(
+            f"{BASE}/api/user/duplicate-policy",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"policy": "ask"},
+        )
+
+    def test_undo_new_version_restores_pair(self, undo_user):
+        uid, tok = undo_user
+        requests.put(
+            f"{BASE}/api/user/duplicate-policy",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"policy": "new_version"},
+        )
+        first = _upload(tok, _make_epub_with_links("UndoNV", "Auth", []))
+        prev_cat_target = db.books.find_one({"book_id": first["book_id"], "user_id": uid})["category"]
+        with open(_make_epub_with_links("UndoNV", "Auth", []), "rb") as f:
+            r = requests.post(
+                f"{BASE}/api/books/upload",
+                headers={"Authorization": f"Bearer {tok}"},
+                files={"files": ("dup.epub", f, "application/epub+zip")},
+            )
+        new_id = r.json()["books"][0]["book_id"]
+        # Confirm: new on dated shelf, target archived
+        assert db.books.find_one({"book_id": new_id, "user_id": uid})["category"].startswith("Updated stories ")
+        assert db.books.find_one({"book_id": first["book_id"], "user_id": uid})["category"] == "Old stories"
+        # Undo
+        u = requests.post(
+            f"{BASE}/api/books/{new_id}/undo-resolve",
+            headers={"Authorization": f"Bearer {tok}"},
+        )
+        assert u.status_code == 200, u.text
+        new_restored = db.books.find_one({"book_id": new_id, "user_id": uid})
+        target_restored = db.books.find_one({"book_id": first["book_id"], "user_id": uid})
+        assert not new_restored["category"].startswith("Updated stories ")
+        assert "replaces" not in new_restored
+        assert target_restored["category"] == prev_cat_target
+        assert "replaced_by" not in target_restored
+        db.books.delete_many({"user_id": uid})
+        requests.put(
+            f"{BASE}/api/user/duplicate-policy",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"policy": "ask"},
+        )
+
+    def test_undo_rejects_keep_both(self, undo_user):
+        uid, tok = undo_user
+        requests.put(
+            f"{BASE}/api/user/duplicate-policy",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"policy": "keep_both"},
+        )
+        _upload(tok, _make_epub_with_links("UndoKB", "Auth", []))
+        with open(_make_epub_with_links("UndoKB", "Auth", []), "rb") as f:
+            r = requests.post(
+                f"{BASE}/api/books/upload",
+                headers={"Authorization": f"Bearer {tok}"},
+                files={"files": ("dup.epub", f, "application/epub+zip")},
+            )
+        new_id = r.json()["books"][0]["book_id"]
+        u = requests.post(
+            f"{BASE}/api/books/{new_id}/undo-resolve",
+            headers={"Authorization": f"Bearer {tok}"},
+        )
+        assert u.status_code == 400
+        db.books.delete_many({"user_id": uid})
+        requests.put(
+            f"{BASE}/api/user/duplicate-policy",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"policy": "ask"},
+        )
+
