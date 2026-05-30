@@ -1300,18 +1300,35 @@ async def book_reading_stats(book_id: str, user: User = Depends(get_current_user
 
     activity = await db.reading_activity.find(
         {"user_id": user.user_id, "book_ids": book_id},
-        {"_id": 0, "date": 1},
+        {"_id": 0, "date": 1, "book_minutes": 1},
     ).sort("date", 1).to_list(2000)
     dates: List[str] = [a["date"] for a in activity if a.get("date")]
+    # Map date -> minutes spent on THIS book that day. Older activity rows
+    # (before per-book tracking landed) lack `book_minutes`; treat as 0.
+    minutes_by_date: Dict[str, float] = {}
+    for a in activity:
+        bm = a.get("book_minutes") or {}
+        minutes_by_date[a["date"]] = float(bm.get(book_id, 0))
 
     today = datetime.now(timezone.utc).date()
     cutoff = today - _td(days=29)
     date_set = set(dates)
     sparkline: List[Dict[str, Any]] = []
+    # Find the day's max minutes (within the window) so the UI can normalize
+    # bar heights without a second pass.
+    window_minutes: List[float] = [
+        minutes_by_date.get((cutoff + _td(days=i)).isoformat(), 0) for i in range(30)
+    ]
+    max_minutes = max(window_minutes) if window_minutes else 0
     for i in range(30):
         d = cutoff + _td(days=i)
         key = d.isoformat()
-        sparkline.append({"date": key, "active": key in date_set})
+        mins = minutes_by_date.get(key, 0)
+        sparkline.append({
+            "date": key,
+            "active": key in date_set,
+            "minutes": int(mins),
+        })
 
     return {
         "book_id": book_id,
@@ -1320,6 +1337,7 @@ async def book_reading_stats(book_id: str, user: User = Depends(get_current_user
         "first_opened_at": dates[0] if dates else None,
         "last_opened_at": book.get("last_opened_at"),
         "sparkline": sparkline,
+        "sparkline_max_minutes": int(max_minutes),
     }
 
 
@@ -1854,8 +1872,12 @@ async def mark_book(book_id: str, body: MarkBody, user: User = Depends(get_curre
 async def _log_activity(user_id: str, book_id: str, minutes: float = 0.0):
     """Append today's reading activity for streak calculations.
 
-    `minutes` adds to the day's accumulated reading time. Pass 0 for plain
-    "opened" events (progress updates, touch) so we don't double-count time.
+    `minutes` adds to:
+      - the day's total accumulated reading time (for streak/digest aggregates)
+      - the day's per-book accumulator (for per-book sparklines)
+
+    Pass 0 for plain "opened" events (progress updates, touch) so we don't
+    double-count time but still register the day as active.
     """
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     update: Dict[str, Any] = {
@@ -1863,7 +1885,11 @@ async def _log_activity(user_id: str, book_id: str, minutes: float = 0.0):
         "$set": {"last_ts": datetime.now(timezone.utc).isoformat()},
     }
     if minutes and minutes > 0:
-        update["$inc"] = {"minutes": float(minutes)}
+        update["$inc"] = {
+            "minutes": float(minutes),
+            # Per-book accumulator (book_id is safe — alphanumeric + underscore)
+            f"book_minutes.{book_id}": float(minutes),
+        }
     await db.reading_activity.update_one(
         {"user_id": user_id, "date": today},
         update,

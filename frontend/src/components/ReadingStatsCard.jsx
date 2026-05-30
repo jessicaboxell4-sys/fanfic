@@ -102,21 +102,52 @@ export default function ReadingStatsCard({ bookId }) {
           testid="stat-last-opened"
         />
       </div>
-      {/* Sparkline: last 30 days, binary active/inactive */}
+      {/* Sparkline: last 30 days. Bar height + green intensity scale with minutes
+          read on that day. Days with activity but no recorded minutes (older
+          rows from before per-book tracking) fall back to a small green stub. */}
       <div data-testid="reading-stats-sparkline">
-        <p className="text-[10px] uppercase tracking-widest text-[#6B705C] mb-2">
-          Last 30 days
-        </p>
-        <div className="flex items-end gap-[3px] h-8">
-          {(stats.sparkline || []).map((d) => (
-            <div
-              key={d.date}
-              title={`${d.date}${d.active ? " · read" : ""}`}
-              className={`flex-1 rounded-sm ${
-                d.active ? "bg-[#3A5A40] h-full" : "bg-[#F1EFE8] h-1.5 self-end"
-              }`}
-            />
-          ))}
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[10px] uppercase tracking-widest text-[#6B705C]">
+            Last 30 days
+          </p>
+          {stats.sparkline_max_minutes > 0 && (
+            <p className="text-[10px] text-[#6B705C]">
+              busiest day: <span className="font-semibold text-[#3A5A40]">{formatDuration(stats.sparkline_max_minutes)}</span>
+            </p>
+          )}
+        </div>
+        <div className="flex items-end gap-[3px] h-10">
+          {(stats.sparkline || []).map((d) => {
+            const max = stats.sparkline_max_minutes || 0;
+            // Bar height: gradient from 12% (low) → 100% (busiest day)
+            // Days with activity but no recorded minutes get a flat 14%.
+            let heightPct = 6; // baseline empty day
+            let bg = "bg-[#F1EFE8]";
+            if (d.active && d.minutes > 0 && max > 0) {
+              heightPct = Math.max(14, Math.round((d.minutes / max) * 100));
+              // Green intensity scales with the same ratio
+              const ratio = d.minutes / max;
+              if (ratio > 0.66) bg = "bg-[#3A5A40]";
+              else if (ratio > 0.33) bg = "bg-[#5B7A60]";
+              else bg = "bg-[#8FA68F]";
+            } else if (d.active) {
+              heightPct = 14;
+              bg = "bg-[#8FA68F]"; // legacy active day (no minutes recorded)
+            }
+            const tip = d.active
+              ? d.minutes > 0
+                ? `${d.date} · ${formatDuration(d.minutes)}`
+                : `${d.date} · read`
+              : d.date;
+            return (
+              <div
+                key={d.date}
+                title={tip}
+                className={`flex-1 rounded-sm ${bg} transition-colors`}
+                style={{ height: `${heightPct}%` }}
+              />
+            );
+          })}
         </div>
       </div>
     </section>

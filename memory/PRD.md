@@ -283,6 +283,13 @@
 - **Powered by FanFicFare** credit chip (separate small component) added to Dashboard empty state + CantFindOnline header. Links to the FanFicFare GitHub repo, hover-tints to the green accent.
 - Tests: `TestBookReadingStats` (3 cases — unread / read aggregated / 404). **176 passing, 1 by-design skip, coverage 77.4%**.
 
+### Updated 2026-05-29 (Gradient sparkline + per-book minute tracking)
+- **`_log_activity`** now also `$inc`s `book_minutes.<book_id>` on each heartbeat — so we have honest per-book per-day minute counts going forward (legacy rows pre-dating this lack the field; they fall back to a flat low-intensity bar instead of being lost).
+- **`/books/{id}/reading-stats`** response: each `sparkline` entry gains a `minutes` integer; the top-level payload gains `sparkline_max_minutes` so the UI can normalize bar heights without a second pass.
+- **`ReadingStatsCard`** sparkline switches from binary to **gradient** — both bar **height** (12% → 100%) and green **intensity** (`#8FA68F` → `#5B7A60` → `#3A5A40`) scale with the day's minutes-on-this-book as a ratio of the 30-day max. Legacy active-but-no-minutes days render as a small mid-tone stub so they're not invisible. Header gets a "busiest day: 1h 12m" label.
+- Hover tooltips now show the actual minutes ("2026-05-28 · 32m") instead of just "read".
+- Test extended to assert every sparkline entry has `{date, active, minutes}` plus the top-level `sparkline_max_minutes`. **176 passing, 1 by-design skip, coverage 77.5%**.
+
 ### Deferred / Declined
 - Google Drive import — declined by user (2026-02-28). Local upload remains the only ingest path.
 

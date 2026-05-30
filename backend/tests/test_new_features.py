@@ -405,10 +405,18 @@ class TestBookReadingStats:
         assert body["reading_minutes"] >= 2  # heartbeat tests added ≥2 min
         assert body["session_count"] >= 1
         assert body["first_opened_at"] is not None
-        # Today must be marked active in the sparkline
+        # Today must be marked active in the sparkline + have minutes recorded
         today_iso = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         spark_today = [d for d in body["sparkline"] if d["date"] == today_iso]
         assert spark_today and spark_today[0]["active"] is True
+        # New per-day minutes tracking: today must have minutes > 0
+        assert spark_today[0]["minutes"] >= 2
+        # Each sparkline entry has the three required fields
+        for d in body["sparkline"]:
+            assert set(d.keys()) >= {"date", "active", "minutes"}
+        # Top-level sparkline_max_minutes is exposed for height normalization
+        assert "sparkline_max_minutes" in body
+        assert body["sparkline_max_minutes"] >= 2
 
     def test_404_for_unknown_book(self):
         r = requests.get(
