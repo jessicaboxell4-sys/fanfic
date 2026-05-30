@@ -1106,7 +1106,7 @@ class TestLinksExportByFolder:
         # Header row + data row layout — exactly four columns in this order
         ws = wb["XLSXFandomA"]
         headers = [c.value for c in ws[1]]
-        assert headers == ["Title", "Author", "Fandom", "Source URL"]
+        assert headers == ["Filename", "Title", "Author", "Fandom", "Source URL"]
         # First data row contains our seeded values
         row2 = {h: ws.cell(row=2, column=i + 1).value for i, h in enumerate(headers)}
         assert row2["Fandom"] == "XLSXFandomA"

@@ -2804,6 +2804,7 @@ async def export_all_links(
         header_fill = PatternFill("solid", fgColor="3A5A40")
         header_align = Alignment(horizontal="left", vertical="center")
         columns = [
+            ("Filename", "filename", 32),
             ("Title", "title", 36),
             ("Author", "author", 22),
             ("Fandom", "fandom", 22),
