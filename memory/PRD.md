@@ -420,3 +420,8 @@
 - **Frontend**: navbar button relabelled `Library (.xlsx)`, defaults to xlsx, tooltip updated.
 - **Backward compat**: `format=txt` (default if omitted) still returns the single combined .txt. `format=zip` still returns per-fandom .txt files in a zip.
 - Tests: 2 new cases in `TestLinksExportByFolder` (per-fandom sheet structure + filter). **201 passing, 1 by-design skip, coverage 79.4%**.
+
+### Changed 2026-05-30 (XLSX export trimmed to 4 columns, fixed order)
+- User refinement: keep only Title, Author, Fandom, Source URL — in that exact order. Removed Status, Words, Chapters, Progress %, Reading min., Last refreshed, Created.
+- Simplified the row-build loop (no more `_status` / `_words` / `_progress` special-keys). Test updated to assert the exact column ordering via `headers == ["Title", "Author", "Fandom", "Source URL"]`.
+- **201 passing, 1 by-design skip, coverage 79.3%**.

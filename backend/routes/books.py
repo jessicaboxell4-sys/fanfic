@@ -2024,14 +2024,7 @@ async def export_all_links(
             ("Title", "title", 36),
             ("Author", "author", 22),
             ("Fandom", "fandom", 22),
-            ("Status", "_status", 12),
-            ("Words", "_words", 10),
-            ("Chapters", "chapters", 9),
-            ("Progress %", "_progress", 11),
-            ("Reading min.", "reading_minutes", 12),
-            ("Source URL", "source_url", 48),
-            ("Last refreshed", "last_refreshed_at", 22),
-            ("Created", "created_at", 22),
+            ("Source URL", "source_url", 60),
         ]
 
         # Summary sheet first
@@ -2079,20 +2072,8 @@ async def export_all_links(
             ws.freeze_panes = "A2"
             # Data rows
             for r_idx, b in enumerate(bucket_books, start=2):
-                raw_extended = (b.get('source_meta') or {}).get('rawExtendedMeta') or {}
-                row_vals: List[Any] = []
-                for label, key, _w in columns:
-                    if key == "_status":
-                        row_vals.append(raw_extended.get("status") or "")
-                    elif key == "_words":
-                        row_vals.append(b.get("words") or raw_extended.get("words") or "")
-                    elif key == "_progress":
-                        p = b.get("progress_percent")
-                        row_vals.append(round(float(p) * 100, 1) if p is not None else "")
-                    else:
-                        row_vals.append(b.get(key) or "")
-                for c_idx, val in enumerate(row_vals, start=1):
-                    ws.cell(row=r_idx, column=c_idx, value=val)
+                for c_idx, (label, key, _w) in enumerate(columns, start=1):
+                    ws.cell(row=r_idx, column=c_idx, value=b.get(key) or "")
             ws.auto_filter.ref = ws.dimensions
 
         buf = _io.BytesIO()

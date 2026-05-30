@@ -1097,18 +1097,16 @@ class TestLinksExportByFolder:
         # Both fandoms get their own sheet
         assert "XLSXFandomA" in wb.sheetnames
         assert "XLSXFandomB" in wb.sheetnames
-        # Header row + data row layout
+        # Header row + data row layout — exactly four columns in this order
         ws = wb["XLSXFandomA"]
         headers = [c.value for c in ws[1]]
-        for expected in ("Title", "Author", "Fandom", "Status", "Words", "Chapters", "Source URL", "Last refreshed"):
-            assert expected in headers, f"missing header: {expected}"
+        assert headers == ["Title", "Author", "Fandom", "Source URL"]
         # First data row contains our seeded values
         row2 = {h: ws.cell(row=2, column=i + 1).value for i, h in enumerate(headers)}
         assert row2["Fandom"] == "XLSXFandomA"
         assert row2["Source URL"] == "https://archiveofourown.org/works/123"
-        assert row2["Words"] == 12345
-        # progress_percent of 0.42 → 42.0
-        assert row2["Progress %"] == 42.0
+        assert row2["Title"]  # whatever upload fixture set it to
+        assert row2["Author"]
 
     def test_xlsx_format_respects_fandom_filter(self, uploaded_books):
         from openpyxl import load_workbook
