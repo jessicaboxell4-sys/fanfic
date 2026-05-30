@@ -30,6 +30,7 @@ export default function Account() {
   // FanFicFare options for fanfic downloads
   const [fff, setFff] = useState(null);
   const [savingFff, setSavingFff] = useState(false);
+  const [applyingTpl, setApplyingTpl] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -61,6 +62,27 @@ export default function Account() {
       setFff(fff); // revert
     } finally {
       setSavingFff(false);
+    }
+  };
+
+  const applyTemplateToAll = async () => {
+    if (!window.confirm(
+      "Re-template every existing book on your library? Already-templated copies are skipped automatically. This may take a minute for large libraries."
+    )) return;
+    setApplyingTpl(true);
+    const t = toast.loading("Applying template to all books…");
+    try {
+      const { data } = await api.post("/user/apply-template-to-all", {}, { timeout: 600000 });
+      const parts = [];
+      if (data.templated > 0) parts.push(`${data.templated} updated`);
+      if (data.already_templated > 0) parts.push(`${data.already_templated} already templated`);
+      if (data.errors > 0) parts.push(`${data.errors} errors`);
+      if (data.skipped > 0) parts.push(`${data.skipped} skipped (no EPUB file)`);
+      toast.success(parts.join(" · ") || "Done — nothing to do", { id: t });
+    } catch (e) {
+      toast.error("Couldn't apply template — try again later", { id: t });
+    } finally {
+      setApplyingTpl(false);
     }
   };
 
@@ -249,6 +271,28 @@ export default function Account() {
                   </button>
                 </div>
               ))}
+            </div>
+          )}
+
+          {fff !== null && (
+            <div className="mt-5 pt-5 border-t border-[#E8E6E1] flex flex-wrap gap-3 items-center">
+              <button
+                type="button"
+                onClick={applyTemplateToAll}
+                disabled={applyingTpl}
+                data-testid="apply-template-all-btn"
+                className="btn-secondary text-sm flex items-center gap-2 disabled:opacity-60"
+              >
+                {applyingTpl ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Settings2 className="w-4 h-4" />
+                )}
+                {applyingTpl ? "Working…" : "Apply template to all my books"}
+              </button>
+              <p className="text-xs text-[#6B705C]">
+                Retroactively adds the intro page + house stylesheet to every existing EPUB. Idempotent — already-templated books are skipped automatically.
+              </p>
             </div>
           )}
         </section>

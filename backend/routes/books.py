@@ -1526,6 +1526,98 @@ async def update_fff_options(body: FFFOptionsBody, user: User = Depends(get_curr
     return {**FFF_OPTION_DEFAULTS, **stored}
 
 
+@api_router.post("/user/apply-template-to-all")
+async def apply_template_to_all(user: User = Depends(get_current_user)):
+    """Run apply_template_to_epub over every EPUB the user has on disk.
+
+    Idempotent — already-templated EPUBs are detected via the marker in
+    content.opf and skipped without rewriting bytes. Returns a summary.
+
+    Implementation note: we run synchronously inside a worker thread so the
+    request blocks until done. For typical libraries (≤500 books) this is
+    well under a minute. We hard-cap at 1000 books so an outlier library
+    doesn't hang the API; the user can re-run to pick up the rest.
+    """
+    user_dir = STORAGE_DIR / user.user_id
+    if not user_dir.exists():
+        return {"processed": 0, "templated": 0, "already_templated": 0, "errors": 0, "skipped": 0}
+
+    # Pull a lean list of books (need: book_id, title, author, source_url, metadata, ...)
+    books = await db.books.find(
+        {"user_id": user.user_id},
+        {
+            "_id": 0,
+            "book_id": 1,
+            "title": 1,
+            "author": 1,
+            "description": 1,
+            "source_url": 1,
+            "source_meta": 1,
+            "chapters": 1,
+            "words": 1,
+        },
+    ).limit(1000).to_list(1000)
+
+    processed = 0
+    templated = 0
+    already_templated = 0
+    errors = 0
+    skipped = 0
+
+    loop = asyncio.get_event_loop()
+
+    def _process_one(book: Dict[str, Any]) -> str:
+        nonlocal processed, templated, already_templated, errors, skipped
+        epub_path = user_dir / f"{book['book_id']}.epub"
+        if not epub_path.exists():
+            return "skipped"
+        try:
+            raw = epub_path.read_bytes()
+        except Exception:
+            return "error"
+        # Build meta dict matching what apply_refresh would pass
+        meta: Dict[str, Any] = {
+            "title": book.get("title") or "",
+            "author": book.get("author") or "",
+            "description": book.get("description") or "",
+            "chapters": book.get("chapters") or 0,
+            "rawExtendedMeta": (book.get("source_meta") or {}).get("rawExtendedMeta") or {},
+        }
+        # source_url falls back to whatever's on the book or empty string
+        src = book.get("source_url") or ""
+        new_bytes = apply_template_to_epub(raw, meta, src)
+        if new_bytes == raw:
+            return "already_templated"
+        try:
+            epub_path.write_bytes(new_bytes)
+            return "templated"
+        except Exception:
+            return "error"
+
+    # Run in a thread pool so we don't block the event loop
+    for book in books:
+        outcome = await loop.run_in_executor(None, _process_one, book)
+        processed += 1
+        if outcome == "templated":
+            templated += 1
+        elif outcome == "already_templated":
+            already_templated += 1
+        elif outcome == "error":
+            errors += 1
+        elif outcome == "skipped":
+            skipped += 1
+
+    return {
+        "processed": processed,
+        "templated": templated,
+        "already_templated": already_templated,
+        "errors": errors,
+        "skipped": skipped,
+        "total_in_library": len(books),
+    }
+
+
+
 
 
 

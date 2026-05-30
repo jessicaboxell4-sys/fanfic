@@ -332,3 +332,9 @@
   - **Fails safe**: malformed EPUB → returns original bytes unchanged.
 - Wired into `apply_refresh` (covers single, bulk-refresh-all, and sweep paths). Gated by new `fff_options.apply_template` (default **True**); user can disable from `/account` (the FanFicFare options card now has 4 toggles).
 - Tests: 3 new cases in `TestEpubTemplateApplier` + `test_defaults` extended. **181 passing, 1 by-design skip, coverage 78.3%** (up from 77.5%).
+
+### Added 2026-05-30 ("Apply template to all my books" retroactive sweep)
+- **`POST /api/user/apply-template-to-all`** — iterates the user's books (capped at 1000 per request), reads each EPUB from disk, runs `apply_template_to_epub` in a thread pool to keep the event loop responsive, writes back changed bytes. Returns `{processed, templated, already_templated, errors, skipped, total_in_library}`.
+- Idempotent: already-templated EPUBs are detected by the `shelfsort:templated` marker and skipped without rewriting (zero-byte diff).
+- **Account.jsx** gains an "Apply template to all my books" button beneath the FFF toggles, with browser confirm + loading spinner + structured success toast ("12 updated · 8 already templated · 0 errors").
+- Tests: `TestApplyTemplateToAll` (sweep flow + idempotent re-run + auth required). **183 passing, 1 by-design skip, coverage 78.4%** (up from 78.3%).

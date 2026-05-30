@@ -636,3 +636,72 @@ class TestEpubTemplateApplier:
         from routes.books import apply_template_to_epub
         out = apply_template_to_epub(b"not an epub", {"title": "X"}, "https://x.test/1")
         assert out == b"not an epub"
+
+
+# ============================================================
+# "Apply template to all my books" — retroactive sweep
+# ============================================================
+class TestApplyTemplateToAll:
+    def test_sweep_endpoint(self, uploaded_books):
+        from routes.books import STORAGE_DIR
+        import zipfile
+        from io import BytesIO
+
+        user_dir = STORAGE_DIR / USER_ID
+        user_dir.mkdir(parents=True, exist_ok=True)
+
+        # Seed one untemplated EPUB on disk for an existing book
+        bid_to_template = uploaded_books[0]["book_id"]
+        raw_path = user_dir / f"{bid_to_template}.epub"
+        # Build the same minimal EPUB used by TestEpubTemplateApplier
+        buf = BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+            info = zipfile.ZipInfo("mimetype")
+            info.compress_type = zipfile.ZIP_STORED
+            z.writestr(info, "application/epub+zip")
+            z.writestr("META-INF/container.xml",
+                '<?xml version="1.0"?>\n<container version="1.0" '
+                'xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+                '<rootfiles><rootfile full-path="OEBPS/content.opf" '
+                'media-type="application/oebps-package+xml"/></rootfiles></container>')
+            z.writestr("OEBPS/content.opf",
+                '<?xml version="1.0"?>\n<package xmlns="http://www.idpf.org/2007/opf" '
+                'version="3.0" unique-identifier="id"><metadata '
+                'xmlns:dc="http://purl.org/dc/elements/1.1/">'
+                '<dc:identifier id="id">sweep1</dc:identifier>'
+                '<dc:title>Sweep Test</dc:title><dc:language>en</dc:language>'
+                '</metadata><manifest><item href="c1.xhtml" id="c1" '
+                'media-type="application/xhtml+xml"/></manifest>'
+                '<spine><itemref idref="c1"/></spine></package>')
+            z.writestr("OEBPS/c1.xhtml",
+                '<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml">'
+                '<head><title>1</title></head><body><p>hi</p></body></html>')
+        raw_path.write_bytes(buf.getvalue())
+
+        original_size = raw_path.stat().st_size
+
+        # Fire the sweep
+        r = requests.post(f"{BASE}/api/user/apply-template-to-all", headers=H())
+        assert r.status_code == 200, r.text
+        body = r.json()
+        for key in ("processed", "templated", "already_templated", "errors", "skipped", "total_in_library"):
+            assert key in body
+        assert body["processed"] >= 1
+        # Our seeded EPUB must have been templated
+        assert body["templated"] >= 1
+
+        # File on disk was rewritten and is larger (intro page added)
+        new_size = raw_path.stat().st_size
+        assert new_size > original_size
+
+        # Re-run is idempotent — nothing should be re-templated
+        r2 = requests.post(f"{BASE}/api/user/apply-template-to-all", headers=H())
+        body2 = r2.json()
+        # The book we just templated now counts as already_templated
+        assert body2["already_templated"] >= 1
+        # File size unchanged across the second run
+        assert raw_path.stat().st_size == new_size
+
+    def test_sweep_requires_auth(self):
+        r = requests.post(f"{BASE}/api/user/apply-template-to-all")
+        assert r.status_code == 401
