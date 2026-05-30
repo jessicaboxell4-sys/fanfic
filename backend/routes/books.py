@@ -2864,6 +2864,85 @@ async def bulk_delete(body: BulkIdsBody, user: User = Depends(get_current_user))
     return {"deleted": result.deleted_count}
 
 
+class ResetStateBody(BaseModel):
+    reset_progress: bool = False  # progress_percent, last_opened_at, reading_minutes, reading_activity
+    reset_tags: bool = False       # clear book.tags
+    reset_smart_shelves: bool = False  # drop user's smart_shelves
+    reset_versions: bool = False   # collapse "Old stories"/"Updated stories YYYY-MM-DD" back into a single category
+
+
+@api_router.post("/books/reset-state")
+async def reset_state(body: ResetStateBody, user: User = Depends(get_current_user)):
+    """Selectively wipe non-book metadata while keeping every EPUB intact.
+
+    Each flag is independent — pass `true` only on the dimensions you want to clear.
+    All books and their files stay on disk; only DB metadata is touched.
+    """
+    if not any([body.reset_progress, body.reset_tags, body.reset_smart_shelves, body.reset_versions]):
+        raise HTTPException(status_code=400, detail="Pick at least one thing to reset.")
+
+    summary: Dict[str, int] = {}
+
+    if body.reset_progress:
+        r = await db.books.update_many(
+            {"user_id": user.user_id},
+            {"$unset": {
+                "progress_percent": "",
+                "last_opened_at": "",
+                "reading_minutes": "",
+                "manually_uploaded_at": "",
+            }},
+        )
+        ra = await db.reading_activity.delete_many({"user_id": user.user_id})
+        summary["books_progress_cleared"] = r.modified_count
+        summary["activity_rows_deleted"] = ra.deleted_count
+
+    if body.reset_tags:
+        r = await db.books.update_many(
+            {"user_id": user.user_id},
+            {"$set": {"tags": []}},
+        )
+        summary["books_tags_cleared"] = r.modified_count
+
+    if body.reset_smart_shelves:
+        ss = await db.smart_shelves.delete_many({"user_id": user.user_id})
+        summary["smart_shelves_deleted"] = ss.deleted_count
+
+    if body.reset_versions:
+        # Collapse old/updated shelves back to their best-guess category.
+        # If a book has a fandom we send it to "Fanfiction", else to "Unclassified".
+        cursor = db.books.find(
+            {
+                "user_id": user.user_id,
+                "$or": [
+                    {"category": OLD_STORIES_SHELF},
+                    {"category": {"$regex": r"^Updated stories \d{4}-\d{2}-\d{2}$"}},
+                ],
+            },
+            {"_id": 0, "book_id": 1, "fandom": 1},
+        )
+        count = 0
+        async for b in cursor:
+            target = "Fanfiction" if b.get("fandom") else "Unclassified"
+            await db.books.update_one(
+                {"book_id": b["book_id"], "user_id": user.user_id},
+                {
+                    "$set": {"category": target},
+                    "$unset": {"replaced_by": "", "replaces": "", "replaced_at": "", "refresh_summary": "", "update_seen": "", "manually_uploaded_at": ""},
+                },
+            )
+            count += 1
+        # And remove any auto-created dated-shelf entries in `categories`
+        await db.categories.delete_many({
+            "user_id": user.user_id,
+            "auto_created": True,
+            "name": {"$regex": r"^Updated stories \d{4}-\d{2}-\d{2}$"},
+        })
+        summary["versions_collapsed"] = count
+
+    return {"ok": True, **summary}
+
+
 class WipeLibraryBody(BaseModel):
     confirm: str  # must equal "DELETE_EVERYTHING"
 

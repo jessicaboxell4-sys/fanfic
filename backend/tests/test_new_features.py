@@ -1175,3 +1175,71 @@ class TestWipeLibrary:
             f"{BASE}/api/books/wipe-library", json={"confirm": "DELETE_EVERYTHING"}
         )
         assert r.status_code == 401
+
+
+# ============================================================
+# Reset state — opt-in selective wipe (books + EPUBs stay)
+# ============================================================
+class TestResetState:
+    def test_400_when_nothing_picked(self):
+        r = requests.post(
+            f"{BASE}/api/books/reset-state",
+            headers=H(),
+            json={"reset_progress": False, "reset_tags": False, "reset_smart_shelves": False, "reset_versions": False},
+        )
+        assert r.status_code == 400
+
+    def test_reset_progress_only(self):
+        # Seed a book with progress + activity
+        bid = f"book_rs_{uuid.uuid4().hex[:8]}"
+        db.books.insert_one({
+            "user_id": USER_ID, "book_id": bid,
+            "title": "RS Book", "author": "X",
+            "progress_percent": 0.5, "reading_minutes": 30,
+            "tags": ["keep-me"],
+        })
+        db.reading_activity.insert_one({
+            "user_id": USER_ID, "date": "2026-05-30", "book_ids": [bid], "minutes": 30,
+        })
+        r = requests.post(
+            f"{BASE}/api/books/reset-state",
+            headers=H(),
+            json={"reset_progress": True},
+        )
+        assert r.status_code == 200, r.text
+        doc = db.books.find_one({"book_id": bid})
+        assert "progress_percent" not in doc
+        assert "reading_minutes" not in doc
+        # Tags survived (different reset dimension)
+        assert doc["tags"] == ["keep-me"]
+        # Reading activity rows are gone
+        assert db.reading_activity.count_documents({"user_id": USER_ID}) == 0
+
+    def test_reset_versions_collapses(self):
+        # Seed an old/updated pair
+        old_id = f"book_rv_o_{uuid.uuid4().hex[:6]}"
+        new_id = f"book_rv_n_{uuid.uuid4().hex[:6]}"
+        db.books.insert_one({
+            "user_id": USER_ID, "book_id": old_id,
+            "title": "Old", "author": "Y",
+            "category": "Old stories", "replaced_by": new_id,
+            "fandom": "RVTestFandom",
+        })
+        db.books.insert_one({
+            "user_id": USER_ID, "book_id": new_id,
+            "title": "New", "author": "Y",
+            "category": "Updated stories 2026-05-30", "replaces": old_id,
+            "fandom": "RVTestFandom",
+        })
+        r = requests.post(
+            f"{BASE}/api/books/reset-state",
+            headers=H(),
+            json={"reset_versions": True},
+        )
+        assert r.status_code == 200
+        # Both go to Fanfiction (they have fandom)
+        for bid in (old_id, new_id):
+            d = db.books.find_one({"book_id": bid})
+            assert d["category"] == "Fanfiction"
+            assert "replaced_by" not in d
+            assert "replaces" not in d

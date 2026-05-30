@@ -431,3 +431,13 @@
 - **NEW: `POST /api/books/wipe-library`** — requires body `{"confirm": "DELETE_EVERYTHING"}` (sentinel) to prevent accidental nukes. Drops every book row, every on-disk EPUB/cover/links sidecar, reading_activity, smart_shelves, and custom categories for the user. Also resets the onboarding flag so the user-prompt can fire again on fresh re-upload. Account record stays.
 - **Account → Danger zone card** (bottom of page, amber-bordered) with a single "Delete entire library" button. Two-step confirmation: a browser `prompt()` requires the user to type `DELETE EVERYTHING` (capitals exact) — phrase-mismatch toasts an error, no API call fires. After success, page redirects to `/library` after 1.5s.
 - Tests: `TestWipeLibrary` (3 cases — confirmation-required, full-wipe clears DB + files, auth required). **204 passing, 1 by-design skip, coverage 79.4%**.
+
+### Added 2026-05-30 (Selective "Reset library state" — optional, opt-in)
+- User refinement: keep the books, but offer an OPTIONAL way to wipe selected metadata.
+- **`POST /api/books/reset-state`** body `{reset_progress, reset_tags, reset_smart_shelves, reset_versions}` — each flag independent (must pick ≥1 or 400). Returns summary counts per dimension.
+  - `reset_progress`: unsets `progress_percent`, `last_opened_at`, `reading_minutes`, drops `reading_activity` rows.
+  - `reset_tags`: clears `book.tags` to empty array.
+  - `reset_smart_shelves`: drops `smart_shelves` collection rows for the user.
+  - `reset_versions`: collapses `Old stories` + `Updated stories YYYY-MM-DD` shelves back to `Fanfiction` (if book has fandom) or `Unclassified`; unsets `replaces`/`replaced_by`/`refresh_summary`; deletes auto-created dated `categories` entries.
+- **Account → "Reset library state"** card (sits above Danger zone) — four checkbox toggles + a "Reset selected" button. Confirms with a native confirm() listing the picked options. Browser-confirm declined ⇒ no API call. Errors when nothing's checked.
+- Tests: `TestResetState` (3 cases — 400 when nothing picked, progress-only reset wipes the right things and leaves tags alone, version-collapse cleans up shelf+pointers). **207 passing, 1 by-design skip, coverage 79.5%**.

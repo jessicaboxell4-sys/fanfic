@@ -33,6 +33,13 @@ export default function Account() {
   const [applyingTpl, setApplyingTpl] = useState(false);
   const [tidyingNames, setTidyingNames] = useState(false);
   const [wiping, setWiping] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [resetOpts, setResetOpts] = useState({
+    reset_progress: false,
+    reset_tags: false,
+    reset_smart_shelves: false,
+    reset_versions: false,
+  });
 
   useEffect(() => {
     (async () => {
@@ -64,6 +71,35 @@ export default function Account() {
       setFff(fff); // revert
     } finally {
       setSavingFff(false);
+    }
+  };
+
+  const resetState = async () => {
+    const picks = Object.entries(resetOpts).filter(([_, v]) => v).map(([k]) => k);
+    if (picks.length === 0) {
+      toast.error("Pick at least one thing to reset.");
+      return;
+    }
+    if (!window.confirm(
+      `Reset the following — books and EPUBs stay, only this metadata is cleared:\n\n` +
+      picks.map(p => "  • " + p.replace(/^reset_/, "").replace(/_/g, " ")).join("\n") +
+      "\n\nProceed?"
+    )) return;
+    setResetting(true);
+    const t = toast.loading("Resetting…");
+    try {
+      const { data } = await api.post("/books/reset-state", resetOpts, { timeout: 600000 });
+      const parts = [];
+      if (data.books_progress_cleared) parts.push(`${data.books_progress_cleared} books · progress wiped`);
+      if (data.books_tags_cleared) parts.push(`${data.books_tags_cleared} books · tags cleared`);
+      if (data.smart_shelves_deleted) parts.push(`${data.smart_shelves_deleted} smart shelves removed`);
+      if (data.versions_collapsed) parts.push(`${data.versions_collapsed} versions collapsed`);
+      toast.success(parts.join(" · ") || "Nothing to reset", { id: t });
+      setResetOpts({ reset_progress: false, reset_tags: false, reset_smart_shelves: false, reset_versions: false });
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't reset", { id: t });
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -434,6 +470,60 @@ export default function Account() {
               from the sign-in page to set one.
             </p>
           )}
+        </section>
+
+        {/* Reset library state — selective wipe of metadata, books stay */}
+        <section
+          className="shelf-card p-6 mb-6"
+          data-testid="reset-state-card"
+        >
+          <div className="flex items-start gap-3 mb-3">
+            <div className="w-10 h-10 rounded-xl bg-[#FDF3E1] text-[#B87A00] flex items-center justify-center flex-shrink-0">
+              <Settings2 className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="font-serif text-2xl text-[#2C2C2C]">Reset library state</h2>
+              <p className="text-sm text-[#6B705C] mt-0.5">
+                Wipe selected metadata while keeping every book + EPUB intact.
+                Useful when sharing/cloning a library without your private reading habits.
+              </p>
+            </div>
+          </div>
+          <div className="space-y-2 mt-4">
+            {[
+              { key: "reset_progress", label: "Reading progress", blurb: "Bookmarks, time spent, streak history." },
+              { key: "reset_tags", label: "Tags", blurb: "Clear every tag you've added to every book." },
+              { key: "reset_smart_shelves", label: "Smart shelves", blurb: "Delete your saved smart-shelf queries." },
+              { key: "reset_versions", label: "Version history", blurb: "Collapse 'Old stories' + dated 'Updated stories' back into one category." },
+            ].map((opt) => (
+              <label
+                key={opt.key}
+                className="flex items-start gap-3 p-3 rounded-xl border border-[#E8E6E1] bg-[#FBFAF6] cursor-pointer hover:border-[#B87A00]/40"
+              >
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={resetOpts[opt.key]}
+                  data-testid={`reset-opt-${opt.key}`}
+                  onChange={(e) => setResetOpts((s) => ({ ...s, [opt.key]: e.target.checked }))}
+                />
+                <div>
+                  <p className="text-sm font-semibold text-[#2C2C2C]">{opt.label}</p>
+                  <p className="text-xs text-[#6B705C]">{opt.blurb}</p>
+                </div>
+              </label>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={resetState}
+            disabled={resetting}
+            data-testid="reset-state-btn"
+            className="mt-4 px-4 py-2 rounded-xl bg-[#B87A00] hover:bg-[#9D6A00] text-white text-sm font-semibold flex items-center gap-2 disabled:opacity-60 transition-colors"
+          >
+            {resetting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Settings2 className="w-4 h-4" />}
+            {resetting ? "Resetting…" : "Reset selected"}
+          </button>
         </section>
 
         {/* Danger zone — wipe entire library */}
