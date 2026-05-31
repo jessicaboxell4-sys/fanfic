@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { api, API } from "../lib/api";
+import { api } from "../lib/api";
 import Navbar from "../components/Navbar";
 import BookCard from "../components/BookCard";
 import { ArrowLeft, Download, Link as LinkIcon, Search, BookOpen } from "lucide-react";
@@ -27,19 +27,36 @@ export default function FandomShelf() {
 
   useEffect(() => { load(); }, [load]);
 
+  const downloadAsFile = async (path, fallbackName) => {
+    try {
+      const resp = await api.get(path, { responseType: "blob" });
+      let name = fallbackName;
+      const disp = resp.headers["content-disposition"] || resp.headers["Content-Disposition"];
+      if (disp) {
+        const m = disp.match(/filename\*?=(?:UTF-8'')?["']?([^;"']+)/i);
+        if (m && m[1]) name = decodeURIComponent(m[1]);
+      }
+      const url = window.URL.createObjectURL(resp.data);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const exportZip = () => {
-    const url = new URL(`${API}/books/export/zip`);
-    url.searchParams.set("category", "Fanfiction");
-    url.searchParams.set("fandom", fandom);
-    window.open(url.toString(), "_blank");
+    const params = new URLSearchParams({ category: "Fanfiction", fandom });
+    downloadAsFile(`/books/export/zip?${params}`, `shelfsort_${fandom}.zip`);
   };
 
   const exportLinks = () => {
-    const url = new URL(`${API}/books/export/links`);
-    url.searchParams.set("category", "Fanfiction");
-    url.searchParams.set("fandom", fandom);
-    url.searchParams.set("format", "zip");
-    window.open(url.toString(), "_blank");
+    const params = new URLSearchParams({ category: "Fanfiction", fandom, format: "zip" });
+    downloadAsFile(`/books/export/links?${params}`, `shelfsort_${fandom}_links.zip`);
   };
 
   return (

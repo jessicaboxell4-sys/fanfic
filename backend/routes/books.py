@@ -2,7 +2,7 @@ from fastapi import (
     APIRouter, UploadFile, File, HTTPException, Request, Response,
     Depends, Form,
 )
-from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
+from fastapi.responses import FileResponse, StreamingResponse, JSONResponse, Response
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone, timedelta, date
@@ -2953,16 +2953,19 @@ async def export_all_links(
 
         buf = _io.BytesIO()
         wb.save(buf)
-        buf.seek(0)
+        payload = buf.getvalue()
         xlsx_name = "shelfsort_library.xlsx"
         if fandom:
             xlsx_name = f"shelfsort_{_safe_folder(fandom)}.xlsx"
         elif category:
             xlsx_name = f"shelfsort_{_safe_folder(category)}.xlsx"
-        return StreamingResponse(
-            buf,
+        return Response(
+            content=payload,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            headers={"Content-Disposition": f"attachment; filename={xlsx_name}"},
+            headers={
+                "Content-Disposition": f'attachment; filename="{xlsx_name}"',
+                "Content-Length": str(len(payload)),
+            },
         )
 
     # ZIP format — one .txt per fandom (or category for non-fanfiction)
@@ -3028,16 +3031,19 @@ async def export_all_links(
                 arcname = f"{_safe_folder(bucket_name)}.txt"
                 zf.writestr(arcname, "\n".join(bucket_lines) + "\n")
 
-        buf.seek(0)
+        payload = buf.getvalue()
         zip_name = "shelfsort_links_by_fandom.zip"
         if fandom:
             zip_name = f"shelfsort_{_safe_folder(fandom)}_links.zip"
         elif category:
             zip_name = f"shelfsort_{_safe_folder(category)}_links.zip"
-        return StreamingResponse(
-            buf,
+        return Response(
+            content=payload,
             media_type="application/zip",
-            headers={"Content-Disposition": f"attachment; filename={zip_name}"},
+            headers={
+                "Content-Disposition": f'attachment; filename="{zip_name}"',
+                "Content-Length": str(len(payload)),
+            },
         )
 
     # TXT format — combined single file (default, backward-compatible)
@@ -4271,13 +4277,17 @@ async def export_zip(
         return buf
 
     buf = iter_zip()
+    payload = buf.getvalue()
     zip_name = "shelfsort_library.zip"
     if fandom:
         zip_name = f"shelfsort_{_safe_folder(fandom)}.zip"
     elif category:
         zip_name = f"shelfsort_{_safe_folder(category)}.zip"
-    headers = {"Content-Disposition": f"attachment; filename={zip_name}"}
-    return StreamingResponse(buf, media_type="application/zip", headers=headers)
+    headers = {
+        "Content-Disposition": f'attachment; filename="{zip_name}"',
+        "Content-Length": str(len(payload)),
+    }
+    return Response(content=payload, media_type="application/zip", headers=headers)
 
 
 @api_router.post("/books/detect-series-all")

@@ -2,24 +2,43 @@ import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { BookOpen, LogOut, Download, Link as LinkIcon, BarChart3, Filter } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { api, API } from "../lib/api";
+import { api } from "../lib/api";
 import UpdatesBell from "./UpdatesBell";
 import StreakBadge from "./StreakBadge";
+import { toast } from "sonner";
+
+// Authenticated file download — bypasses cross-site cookie blocks that
+// `window.open(url)` runs into (browser fetches without auth → server
+// returns 401 HTML, browser saves it as <name>.zip, file won't open).
+async function downloadAsFile(path, fallbackName) {
+  try {
+    const resp = await api.get(path, { responseType: "blob" });
+    let name = fallbackName;
+    const disp = resp.headers["content-disposition"] || resp.headers["Content-Disposition"];
+    if (disp) {
+      const m = disp.match(/filename\*?=(?:UTF-8'')?["']?([^;"']+)/i);
+      if (m && m[1]) name = decodeURIComponent(m[1]);
+    }
+    const url = window.URL.createObjectURL(resp.data);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  } catch (e) {
+    console.error(e);
+    toast.error("Download failed — please try again");
+  }
+}
 
 export default function Navbar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
-  const handleDownloadAll = async () => {
-    const url = `${API}/books/export/zip`;
-    window.open(url, "_blank");
-  };
-
-  const handleDownloadLinks = async () => {
-    // Excel workbook: one sheet per fandom with full metadata
-    const url = `${API}/books/export/links?format=xlsx`;
-    window.open(url, "_blank");
-  };
+  const handleDownloadAll = () => downloadAsFile("/books/export/zip", "shelfsort_library.zip");
+  const handleDownloadLinks = () => downloadAsFile("/books/export/links?format=xlsx", "shelfsort_library.xlsx");
 
   return (
     <header className="sticky top-0 z-40 backdrop-blur-xl bg-[#FDFBF7]/80 border-b border-[#E8E6E1]">
