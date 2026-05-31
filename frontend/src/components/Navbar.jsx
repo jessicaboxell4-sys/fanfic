@@ -2,65 +2,13 @@ import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { BookOpen, LogOut, Download, Link as LinkIcon, BarChart3, Filter } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { api } from "../lib/api";
+import { API } from "../lib/api";
 import UpdatesBell from "./UpdatesBell";
 import StreakBadge from "./StreakBadge";
-import { toast } from "sonner";
-
-// Authenticated file download — bypasses cross-site cookie blocks that
-// `window.open(url)` runs into (browser fetches without auth → server
-// returns 401 HTML, browser saves it as <name>.zip, file won't open).
-async function downloadAsFile(path, fallbackName) {
-  try {
-    const resp = await api.get(path, { responseType: "blob" });
-    // If the server actually returned a JSON error in a blob, surface it as a toast
-    // instead of silently saving "{"detail":"No books"}" as a .zip / .xlsx.
-    const ct = (resp.headers["content-type"] || resp.headers["Content-Type"] || "").toLowerCase();
-    if (ct.includes("application/json")) {
-      const text = await resp.data.text();
-      try {
-        const j = JSON.parse(text);
-        toast.error(j.detail || j.message || "Download failed");
-      } catch {
-        toast.error("Download failed");
-      }
-      return;
-    }
-    let name = fallbackName;
-    const disp = resp.headers["content-disposition"] || resp.headers["Content-Disposition"];
-    if (disp) {
-      const m = disp.match(/filename\*?=(?:UTF-8'')?["']?([^;"']+)/i);
-      if (m && m[1]) name = decodeURIComponent(m[1]);
-    }
-    const url = window.URL.createObjectURL(resp.data);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = name;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    window.URL.revokeObjectURL(url);
-  } catch (e) {
-    console.error(e);
-    // Try to read the error blob body if axios threw on a 4xx/5xx
-    if (e.response && e.response.data) {
-      try {
-        const text = await e.response.data.text();
-        const j = JSON.parse(text);
-        toast.error(j.detail || "Download failed — please try again");
-        return;
-      } catch { /* fall through */ }
-    }
-    toast.error("Download failed — please try again");
-  }
-}
 
 export default function Navbar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-
-  const handleDownloadAll = () => downloadAsFile("/books/export/zip", "shelfsort_library.zip");
-  const handleDownloadLinks = () => downloadAsFile("/books/export/links?format=xlsx", "shelfsort_library.xlsx");
 
   return (
     <header className="sticky top-0 z-40 backdrop-blur-xl bg-[#FDFBF7]/80 border-b border-[#E8E6E1]">
@@ -95,24 +43,26 @@ export default function Navbar() {
               <span className="hidden md:inline">Stats</span>
             </Link>
           )}
-          <button
+          <a
             data-testid="navbar-download-links"
-            onClick={handleDownloadLinks}
+            href={`${API}/books/export/links?format=xlsx`}
+            download="shelfsort_library.xlsx"
             className="btn-secondary text-sm flex items-center gap-2"
             title="Download an Excel workbook — one sheet per fandom with full metadata"
           >
             <LinkIcon className="w-4 h-4" />
             <span className="hidden md:inline">Library (.xlsx)</span>
-          </button>
-          <button
+          </a>
+          <a
             data-testid="navbar-download-zip"
-            onClick={handleDownloadAll}
+            href={`${API}/books/export/zip`}
+            download="shelfsort_library.zip"
             className="btn-secondary text-sm flex items-center gap-2"
             title="Download organized ZIP"
           >
             <Download className="w-4 h-4" />
             <span className="hidden md:inline">Download ZIP</span>
-          </button>
+          </a>
           {user && (
             <>
               <Link
