@@ -75,6 +75,29 @@ async def on_startup():
     except Exception as e:
         logger.warning(f"Digest scheduler failed to start: {e}")
 
+    # Calibre self-heal — the pod environment occasionally recycles apt packages.
+    # If `ebook-convert` isn't on PATH, fire a background `apt-get install` so
+    # PDF/MOBI/AZW uploads keep auto-converting without manual intervention.
+    try:
+        import shutil
+        if not shutil.which("ebook-convert"):
+            import asyncio
+            async def _ensure_calibre():
+                logger.info("Calibre missing on startup — running `apt-get install -y calibre` in background")
+                proc = await asyncio.create_subprocess_exec(
+                    "apt-get", "install", "-y", "calibre",
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                _, stderr = await proc.communicate()
+                if proc.returncode == 0 and shutil.which("ebook-convert"):
+                    logger.info("Calibre installed successfully — uploads will auto-convert from now on")
+                else:
+                    logger.warning("Calibre install failed (rc=%s): %s", proc.returncode, (stderr or b"").decode()[-300:])
+            asyncio.create_task(_ensure_calibre())
+    except Exception as e:
+        logger.warning(f"Calibre self-heal failed to schedule: {e}")
+
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
