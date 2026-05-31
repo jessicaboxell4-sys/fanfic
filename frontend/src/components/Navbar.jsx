@@ -13,6 +13,19 @@ import { toast } from "sonner";
 async function downloadAsFile(path, fallbackName) {
   try {
     const resp = await api.get(path, { responseType: "blob" });
+    // If the server actually returned a JSON error in a blob, surface it as a toast
+    // instead of silently saving "{"detail":"No books"}" as a .zip / .xlsx.
+    const ct = (resp.headers["content-type"] || resp.headers["Content-Type"] || "").toLowerCase();
+    if (ct.includes("application/json")) {
+      const text = await resp.data.text();
+      try {
+        const j = JSON.parse(text);
+        toast.error(j.detail || j.message || "Download failed");
+      } catch {
+        toast.error("Download failed");
+      }
+      return;
+    }
     let name = fallbackName;
     const disp = resp.headers["content-disposition"] || resp.headers["Content-Disposition"];
     if (disp) {
@@ -29,6 +42,15 @@ async function downloadAsFile(path, fallbackName) {
     window.URL.revokeObjectURL(url);
   } catch (e) {
     console.error(e);
+    // Try to read the error blob body if axios threw on a 4xx/5xx
+    if (e.response && e.response.data) {
+      try {
+        const text = await e.response.data.text();
+        const j = JSON.parse(text);
+        toast.error(j.detail || "Download failed — please try again");
+        return;
+      } catch { /* fall through */ }
+    }
     toast.error("Download failed — please try again");
   }
 }

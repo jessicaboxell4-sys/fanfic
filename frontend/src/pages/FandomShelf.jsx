@@ -4,6 +4,7 @@ import { api } from "../lib/api";
 import Navbar from "../components/Navbar";
 import BookCard from "../components/BookCard";
 import { ArrowLeft, Download, Link as LinkIcon, Search, BookOpen } from "lucide-react";
+import { toast } from "sonner";
 
 export default function FandomShelf() {
   const params = useParams();
@@ -30,6 +31,15 @@ export default function FandomShelf() {
   const downloadAsFile = async (path, fallbackName) => {
     try {
       const resp = await api.get(path, { responseType: "blob" });
+      const ct = (resp.headers["content-type"] || resp.headers["Content-Type"] || "").toLowerCase();
+      if (ct.includes("application/json")) {
+        const text = await resp.data.text();
+        try {
+          const j = JSON.parse(text);
+          toast.error(j.detail || "Download failed");
+        } catch { toast.error("Download failed"); }
+        return;
+      }
       let name = fallbackName;
       const disp = resp.headers["content-disposition"] || resp.headers["Content-Disposition"];
       if (disp) {
@@ -46,6 +56,15 @@ export default function FandomShelf() {
       window.URL.revokeObjectURL(url);
     } catch (e) {
       console.error(e);
+      if (e.response && e.response.data) {
+        try {
+          const text = await e.response.data.text();
+          const j = JSON.parse(text);
+          toast.error(j.detail || "Download failed");
+          return;
+        } catch { /* fall through */ }
+      }
+      toast.error("Download failed");
     }
   };
 
