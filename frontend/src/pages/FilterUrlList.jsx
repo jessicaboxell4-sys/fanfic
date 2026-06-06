@@ -139,6 +139,26 @@ export default function FilterUrlList() {
               </div>
             )}
 
+            {report.ao3_mirrors && Object.keys(report.ao3_mirrors).length > 0 && (
+              <div
+                className="mb-4 p-3 rounded-lg bg-[#FDF4E5] border border-[#E5C97A]/60 text-sm text-[#7A5C00]"
+                data-testid="ao3-mirror-banner"
+              >
+                <p className="font-medium">
+                  Heads up — you pasted from {Object.values(report.ao3_mirrors).reduce((a, b) => a + b, 0)} AO3
+                  mirror URL{Object.values(report.ao3_mirrors).reduce((a, b) => a + b, 0) === 1 ? "" : "s"}.
+                </p>
+                <p className="mt-1 text-xs text-[#8A6800]">
+                  {Object.entries(report.ao3_mirrors)
+                    .map(([host, n]) => `${host}${n > 1 ? ` (×${n})` : ""}`)
+                    .join(" · ")}
+                  {" — these all point to the same archive. They've been deduped to the canonical "}
+                  <code className="text-[11px] bg-white/60 px-1 py-0.5 rounded">archiveofourown.org</code>
+                  {" form."}
+                </p>
+              </div>
+            )}
+
             {report.already_owned.length > 0 && (
               <div className="mb-4">
                 <p className="text-xs uppercase tracking-wide text-[#6B705C] mb-2 flex items-center gap-1">

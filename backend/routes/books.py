@@ -1286,6 +1286,26 @@ async def _dedupe_url_list(text: str, user_id: str) -> Dict[str, Any]:
     if unrecognized:
         by_source["Unrecognized"] = len(unrecognized)
 
+    # AO3 mirror detection — surface a friendly heads-up when the user
+    # pasted URLs from a non-`.org` AO3 hostname (archiveofourown.com/net/gay,
+    # ao3.org, archive.transformativeworks.org, insecure.archiveofourown.org).
+    # All of them serve the same archive but the heads-up is useful when a
+    # user wonders why every mirror dedupes to the same work.
+    ao3_mirror_hosts: Dict[str, int] = {}
+    for url_str in raw_urls:
+        lower = url_str.lower()
+        if not _is_ao3_host(lower):
+            continue
+        # Skip the canonical host — only surface the alt mirrors.
+        if "archiveofourown.org" in lower and "insecure." not in lower:
+            continue
+        # Pull out just the hostname for the chip label.
+        try:
+            host = lower.split("://", 1)[1].split("/", 1)[0]
+        except IndexError:
+            continue
+        ao3_mirror_hosts[host] = ao3_mirror_hosts.get(host, 0) + 1
+
     return {
         "total": len(raw_urls),
         "already_owned": already_owned,
@@ -1294,6 +1314,7 @@ async def _dedupe_url_list(text: str, user_id: str) -> Dict[str, Any]:
         "ao3_non_work": ao3_non_work,
         "duplicate_in_list": duplicate_in_list,
         "by_source": by_source,
+        "ao3_mirrors": ao3_mirror_hosts,
     }
 
 

@@ -590,3 +590,8 @@
 - Implementation: single `_AO3_HOST_RE` host alternation reused by `FANFIC_SOURCE_PATTERNS[0]`, `_AO3_WORK_CANON_RE`, and `_AO3_NON_WORK_PATTERNS`. `_source_for()` now routes through `_is_ao3_host()` so the by-source bucket labels every variant "AO3".
 - Chapter URLs with fragments (`/works/N/chapters/M#workskin`) already normalized correctly — confirmed in the new test.
 - Test: `test_ao3_alternate_hostnames_all_dedupe` seeds one canonical book and pastes 9 surface variants (all hosts + chapter URLs + `#workskin` fragment) → exactly 1 owned + 8 duplicate_in_list + 9 in AO3 bucket. **10/10 in `TestAo3UrlNormalization` passing.**
+
+### Added 2026-06-06 (AO3 mirror heads-up banner)
+- `/api/books/url-list/dedupe` response now includes `ao3_mirrors: {host → count}` listing every non-`.org` AO3 hostname seen in the paste (`.com`, `.net`, `.gay`, `ao3.org`, `archive.transformativeworks.org`, `insecure.archiveofourown.org`). Canonical `archiveofourown.org` host (with or without `www.` / `m.`) is excluded so the banner only triggers on actual mirrors.
+- **`FilterUrlList.jsx`**: amber heads-up banner above the source-chip row when `ao3_mirrors` is non-empty — "Heads up, you pasted from N AO3 mirror URLs · `archiveofourown.gay` (×2) · `ao3.org` — they all point to the same archive. They've been deduped to the canonical `archiveofourown.org` form." Auto-hides when only the canonical host is used.
+- Tests: 2 new (`test_ao3_mirrors_surfaced_in_response`, `test_ao3_mirrors_empty_when_only_canonical_host`). **12/12 in `TestAo3UrlNormalization` passing.**

@@ -2797,3 +2797,43 @@ class TestAo3UrlNormalization:
         # Every variant lands in the AO3 source bucket
         assert data["by_source"]["AO3"] == 9
         db.books.delete_many({"user_id": uid})
+
+
+    def test_ao3_mirrors_surfaced_in_response(self, url_user):
+        """When the user pastes URLs using alternate AO3 hostnames, the
+        response surfaces an `ao3_mirrors` map of hostname → count so the
+        UI can show a friendly 'these all point to the same archive' banner.
+        The canonical `.org` host should NOT appear in the mirror map."""
+        uid, tok = url_user
+        db.books.delete_many({"user_id": uid})
+        text = "\n".join([
+            "https://archiveofourown.org/works/9001",            # canonical → NOT a mirror
+            "https://archiveofourown.gay/works/9002",            # mirror
+            "https://archiveofourown.gay/works/9003",            # mirror (same host, 2nd hit)
+            "https://ao3.org/works/9004",                        # mirror
+            "https://archive.transformativeworks.org/works/9005",  # mirror
+            "http://insecure.archiveofourown.org/works/9006",    # insecure subdomain counts as mirror
+        ])
+        r = requests.post(
+            f"{BASE}/api/books/url-list/dedupe",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"text": text},
+        )
+        assert r.status_code == 200, r.text
+        mirrors = r.json()["ao3_mirrors"]
+        assert mirrors.get("archiveofourown.gay") == 2
+        assert mirrors.get("ao3.org") == 1
+        assert mirrors.get("archive.transformativeworks.org") == 1
+        assert mirrors.get("insecure.archiveofourown.org") == 1
+        # The bare canonical `.org` host should NOT appear in the mirror map
+        assert "archiveofourown.org" not in mirrors
+
+    def test_ao3_mirrors_empty_when_only_canonical_host(self, url_user):
+        uid, tok = url_user
+        r = requests.post(
+            f"{BASE}/api/books/url-list/dedupe",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"text": "https://archiveofourown.org/works/1\nhttps://www.archiveofourown.org/works/2"},
+        )
+        assert r.status_code == 200
+        assert r.json()["ao3_mirrors"] == {}
