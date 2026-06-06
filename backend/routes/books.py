@@ -4473,6 +4473,8 @@ async def export_zip(
     request: Request,
     category: Optional[str] = None,
     fandom: Optional[str] = None,
+    relationship: Optional[str] = None,
+    author: Optional[str] = None,
     user: User = Depends(get_current_user),
 ):
     query: Dict[str, Any] = {"user_id": user.user_id}
@@ -4480,6 +4482,13 @@ async def export_zip(
         query["category"] = category
     if fandom:
         query["fandom"] = fandom
+    if relationship:
+        # `relationships` is an array on the book doc — Mongo equality on an
+        # array field tests membership, so this matches any book listing the
+        # given pairing.
+        query["relationships"] = relationship
+    if author:
+        query["author"] = author
     books = await db.books.find(query, {"_id": 0}).to_list(5000)
     if not books:
         raise HTTPException(status_code=404, detail="No books")
@@ -4549,6 +4558,10 @@ async def export_zip(
         scope_lines: List[str] = []
         if fandom:
             scope_lines.append(f"Filter: fandom = {fandom}")
+        if relationship:
+            scope_lines.append(f"Filter: pairing = {relationship}")
+        if author:
+            scope_lines.append(f"Filter: author = {author}")
         if category:
             scope_lines.append(f"Filter: category = {category}")
         lines: List[str] = [
@@ -4656,8 +4669,14 @@ async def export_zip(
                 yield (arcname, modified_at, mode, ZIP_64, _file_chunks(fp))
 
     zip_name = "shelfsort_library.zip"
-    if fandom:
+    if fandom and relationship:
+        zip_name = f"shelfsort_{_safe_folder(fandom)}_{_safe_folder(relationship)}.zip"
+    elif fandom:
         zip_name = f"shelfsort_{_safe_folder(fandom)}.zip"
+    elif relationship:
+        zip_name = f"shelfsort_{_safe_folder(relationship)}.zip"
+    elif author:
+        zip_name = f"shelfsort_{_safe_folder(author)}.zip"
     elif category:
         zip_name = f"shelfsort_{_safe_folder(category)}.zip"
 
