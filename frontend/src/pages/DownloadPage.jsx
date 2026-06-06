@@ -15,13 +15,18 @@ const AO3_SCROLLBAR_CSS = `
 .ao3-scrollbar { scrollbar-color: #900 #fffaf0; scrollbar-width: thin; }
 `;
 
-function CheckboxFilter({ label, testId, options, selected, onToggle, onBulkSet }) {
+function CheckboxFilter({ label, testId, options, selected, onToggle, onBulkSet, topN }) {
   const [q, setQ] = useState("");
-  const filtered = useMemo(() => {
+  const [showAll, setShowAll] = useState(false);
+  const allFiltered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     if (!needle) return options;
     return options.filter((o) => (o.name || "").toLowerCase().includes(needle));
   }, [q, options]);
+  // Apply the "Top N" cap only when no search is active. While searching,
+  // the user knows what they're looking for — show every match.
+  const isCapped = !!topN && !q.trim() && !showAll && allFiltered.length > topN;
+  const filtered = isCapped ? allFiltered.slice(0, topN) : allFiltered;
 
   const allVisiblePicked = filtered.length > 0 && filtered.every((o) => selected.has(o.name));
   const handleBulk = () => {
@@ -72,6 +77,16 @@ function CheckboxFilter({ label, testId, options, selected, onToggle, onBulkSet 
                 : `Select all ${filtered.length}`}
             </button>
           )}
+          {topN && !q.trim() && allFiltered.length > topN && (
+            <button
+              type="button"
+              onClick={() => setShowAll((v) => !v)}
+              className="mt-1 ml-3 text-xs text-[#2a6496] hover:text-[#900] underline"
+              data-testid={`${testId}-toggle-all`}
+            >
+              {showAll ? `Show top ${topN} only` : `Show all ${allFiltered.length}`}
+            </button>
+          )}
         </div>
         <div className="border border-[#ccc] bg-white max-h-[55vh] overflow-y-auto ao3-scrollbar">
           {filtered.length === 0 && (
@@ -97,6 +112,11 @@ function CheckboxFilter({ label, testId, options, selected, onToggle, onBulkSet 
               </label>
             );
           })}
+          {isCapped && (
+            <div className="px-2 py-1.5 text-[11px] text-[#666] text-center bg-[#fffaf0] border-t border-[#eee] italic">
+              Showing top {topN} of {allFiltered.length} — use search or "Show all" to see the rest
+            </div>
+          )}
         </div>
       </div>
     </fieldset>
@@ -332,6 +352,7 @@ export default function DownloadPage() {
               testId="zip-filter-fandom"
               options={fandoms}
               selected={fandom}
+              topN={25}
               onToggle={(v) => { toggleIn(setFandom)(v); setRelationship(new Set()); }}
               onBulkSet={(next) => { setFandom(next); setRelationship(new Set()); }}
             />
@@ -349,6 +370,7 @@ export default function DownloadPage() {
               testId="zip-filter-pairing"
               options={pairingsForFandom}
               selected={relationship}
+              topN={25}
               onToggle={toggleIn(setRelationship)}
               onBulkSet={setRelationship}
             />
@@ -357,6 +379,7 @@ export default function DownloadPage() {
               testId="zip-filter-author"
               options={authors}
               selected={author}
+              topN={25}
               onToggle={toggleIn(setAuthor)}
               onBulkSet={setAuthor}
             />
