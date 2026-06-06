@@ -624,14 +624,97 @@ def diff_chapters(old: List[Dict[str, Any]], new: List[Dict[str, Any]]) -> Dict[
 # FANFIC REFRESH — pull latest version of a fanfic from its source URL
 # ============================================================
 FANFIC_SOURCE_PATTERNS = [
-    r'https?://(?:www\.)?archiveofourown\.org/works/\d+',
+    # AO3 — handles `www.` / `m.` mobile / `/collections/<name>/works/N` prefix.
+    # The collection prefix is captured as part of the pattern so the match
+    # succeeds; normalize_fanfic_url() collapses it back to the bare work URL.
+    r'https?://(?:www\.|m\.)?archiveofourown\.org/(?:collections/[^/?#]+/)?works/\d+',
     r'https?://(?:www\.)?fanfiction\.net/s/\d+',
     r'https?://(?:www\.)?fictionpress\.com/s/\d+',
     r'https?://(?:www\.)?royalroad\.com/fiction/\d+',
-    r'https?://(?:www\.)?spacebattles\.com/threads/[\w-]+\.\d+',
-    r'https?://(?:www\.)?sufficientvelocity\.com/threads/[\w-]+\.\d+',
-    r'https?://(?:www\.)?questionablequesting\.com/threads/[\w-]+\.\d+',
+    r'https?://(?:forums?\.|www\.)?spacebattles\.com/threads/[\w-]+\.\d+',
+    r'https?://(?:forums?\.|www\.)?sufficientvelocity\.com/threads/[\w-]+\.\d+',
+    r'https?://(?:forums?\.|www\.)?questionablequesting\.com/threads/[\w-]+\.\d+',
 ]
+
+
+# Per-host canonical normalization. Each entry: (compiled regex with one
+# capturing group, canonical template). Matched against the substring already
+# pulled out by FANFIC_SOURCE_PATTERNS so we know we have a real fanfic URL.
+_AO3_WORK_CANON_RE = re.compile(
+    r"https?://(?:www\.|m\.)?archiveofourown\.org/(?:collections/[^/?#]+/)?works/(\d+)",
+    re.IGNORECASE,
+)
+_FFNET_CANON_RE = re.compile(r"https?://(?:www\.)?fanfiction\.net/s/(\d+)", re.IGNORECASE)
+_FP_CANON_RE = re.compile(r"https?://(?:www\.)?fictionpress\.com/s/(\d+)", re.IGNORECASE)
+_RR_CANON_RE = re.compile(r"https?://(?:www\.)?royalroad\.com/fiction/(\d+)", re.IGNORECASE)
+_SB_CANON_RE = re.compile(r"https?://(?:forums?\.|www\.)?spacebattles\.com/threads/([\w-]+\.\d+)", re.IGNORECASE)
+_SV_CANON_RE = re.compile(r"https?://(?:forums?\.|www\.)?sufficientvelocity\.com/threads/([\w-]+\.\d+)", re.IGNORECASE)
+_QQ_CANON_RE = re.compile(r"https?://(?:forums?\.|www\.)?questionablequesting\.com/threads/([\w-]+\.\d+)", re.IGNORECASE)
+
+
+def normalize_fanfic_url(url: Optional[str]) -> Optional[str]:
+    """Reduce a fanfic URL to a single canonical form per source site.
+
+    Returns None when the URL doesn't match any known fanfic permalink
+    pattern. Same return value as `_canonical_fanfic_url` but always
+    normalized — different surface forms of the same work (mobile host,
+    `www.` prefix, collection prefix, chapter id, query string, http vs
+    https, trailing slash) all collapse to the same string.
+
+    Examples (all → ``https://archiveofourown.org/works/12345``):
+      * https://archiveofourown.org/works/12345
+      * https://www.archiveofourown.org/works/12345/
+      * https://m.archiveofourown.org/works/12345?view_adult=true
+      * http://archiveofourown.org/works/12345/chapters/67890
+      * https://archiveofourown.org/collections/SomeCollection/works/12345
+    """
+    if not url:
+        return None
+    m = _AO3_WORK_CANON_RE.search(url)
+    if m:
+        return f"https://archiveofourown.org/works/{m.group(1)}"
+    m = _FFNET_CANON_RE.search(url)
+    if m:
+        return f"https://www.fanfiction.net/s/{m.group(1)}"
+    m = _FP_CANON_RE.search(url)
+    if m:
+        return f"https://www.fictionpress.com/s/{m.group(1)}"
+    m = _RR_CANON_RE.search(url)
+    if m:
+        return f"https://www.royalroad.com/fiction/{m.group(1)}"
+    m = _SB_CANON_RE.search(url)
+    if m:
+        return f"https://forums.spacebattles.com/threads/{m.group(1).lower()}"
+    m = _SV_CANON_RE.search(url)
+    if m:
+        return f"https://forums.sufficientvelocity.com/threads/{m.group(1).lower()}"
+    m = _QQ_CANON_RE.search(url)
+    if m:
+        return f"https://forum.questionablequesting.com/threads/{m.group(1).lower()}"
+    return None
+
+
+# AO3-side URLs that aren't story permalinks but users frequently paste in a
+# URL list (series indexes, bookmark dumps, collection landing pages). We
+# don't dedupe these against the library; instead the frontend surfaces them
+# in a separate "AO3 (not a story link)" bucket so the user knows we saw them.
+_AO3_NON_WORK_PATTERNS = [
+    (re.compile(r"https?://(?:www\.|m\.)?archiveofourown\.org/series/(\d+)", re.IGNORECASE), "ao3_series"),
+    (re.compile(r"https?://(?:www\.|m\.)?archiveofourown\.org/collections/([^/?#]+)/?$", re.IGNORECASE), "ao3_collection"),
+    (re.compile(r"https?://(?:www\.|m\.)?archiveofourown\.org/users/([^/?#]+)(?:/(?:pseuds|works|bookmarks)?/?)?(?:[?#]|$)", re.IGNORECASE), "ao3_user"),
+]
+
+
+def classify_ao3_non_work(url: str) -> Optional[str]:
+    """If `url` is an AO3 link that isn't a story permalink, return a label
+    (`ao3_series`, `ao3_collection`, `ao3_user`); else None.
+    """
+    if not url or "archiveofourown.org" not in url.lower():
+        return None
+    for pat, label in _AO3_NON_WORK_PATTERNS:
+        if pat.search(url):
+            return label
+    return None
 
 FANFICFARE_USER_AGENT = (
     "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"
@@ -923,13 +1006,13 @@ class FanficNotFoundError(Exception):
 
 
 def find_source_url(links: List[Dict[str, str]]) -> Optional[str]:
-    """Return the first URL in the list that points to a supported fanfic source."""
+    """Return the first URL in the list that points to a supported fanfic source,
+    already normalized to its canonical form."""
     for item in links:
         url = (item.get('url') or '').strip()
-        for pat in FANFIC_SOURCE_PATTERNS:
-            m = re.search(pat, url, re.IGNORECASE)
-            if m:
-                return m.group(0)
+        canon = normalize_fanfic_url(url)
+        if canon:
+            return canon
     return None
 
 
@@ -938,20 +1021,19 @@ def extract_fanfic_urls(links: List[Dict[str, str]]) -> List[str]:
 
     We only keep URLs that match `FANFIC_SOURCE_PATTERNS` (AO3 /works/N, FFnet
     /s/N, RoyalRoad /fiction/N, etc.) so that duplicate detection doesn't trip
-    on boilerplate navigation links shared by every AO3 EPUB.
+    on boilerplate navigation links shared by every AO3 EPUB. URLs are
+    normalized (mobile host stripped, `www.` collapsed, AO3 collection prefix
+    removed, chapter id dropped, http→https, etc.) so different surface forms
+    of the same work dedupe correctly.
     """
     seen: set = set()
     out: List[str] = []
     for item in links or []:
         url = (item.get('url') or '').strip()
-        for pat in FANFIC_SOURCE_PATTERNS:
-            m = re.search(pat, url, re.IGNORECASE)
-            if m:
-                canonical = m.group(0)
-                if canonical not in seen:
-                    seen.add(canonical)
-                    out.append(canonical)
-                break
+        canon = normalize_fanfic_url(url)
+        if canon and canon not in seen:
+            seen.add(canon)
+            out.append(canon)
     return out
 
 
@@ -982,11 +1064,8 @@ async def dedupe_url_list_endpoint(body: UrlListBody, user: User = Depends(get_c
 
 
 def _canonical_fanfic_url(url: str) -> Optional[str]:
-    for pat in FANFIC_SOURCE_PATTERNS:
-        m = re.search(pat, url, re.IGNORECASE)
-        if m:
-            return m.group(0)
-    return None
+    """Return the normalized canonical form of a fanfic URL, or None."""
+    return normalize_fanfic_url(url)
 
 
 def _looks_like_url_list(text: str) -> bool:
@@ -1011,26 +1090,43 @@ def _looks_like_url_list(text: str) -> bool:
 async def _dedupe_url_list(text: str, user_id: str) -> Dict[str, Any]:
     """Walk every URL in `text`, dedupe against the user's library.
 
-    Returns `{total, already_owned, new_urls, unrecognized}`.
+    Returns `{total, already_owned, new_urls, unrecognized, by_source,
+    ao3_non_work, duplicate_in_list}`.
     """
     raw_urls: List[str] = []
     seen: set = set()
     for m in _URL_RE.finditer(text):
-        url = m.group(0).rstrip('.,);')
+        url = m.group(0).rstrip('.,);]>')
         if url in seen:
             continue
         seen.add(url)
         raw_urls.append(url)
 
-    # Bucket each URL: canonical fanfic permalink → check ownership; else → "unrecognized"
+    # Bucket each URL:
+    #   * fanfic permalink → check ownership
+    #   * AO3 non-work link (series / collection / user) → separate bucket
+    #     (the user pasted it; we want to surface that we saw it but it's
+    #     not a story to dedupe against)
+    #   * everything else → "unrecognized"
     canonical_pairs: List[Dict[str, str]] = []
+    canonical_first_seen: Dict[str, int] = {}
+    duplicate_in_list: List[Dict[str, str]] = []
     unrecognized: List[str] = []
+    ao3_non_work: List[Dict[str, str]] = []
     for url in raw_urls:
         canonical = _canonical_fanfic_url(url)
         if canonical:
-            canonical_pairs.append({"url": url, "canonical": canonical})
-        else:
-            unrecognized.append(url)
+            if canonical in canonical_first_seen:
+                duplicate_in_list.append({"url": url, "canonical": canonical})
+            else:
+                canonical_first_seen[canonical] = len(canonical_pairs)
+                canonical_pairs.append({"url": url, "canonical": canonical})
+            continue
+        non_work = classify_ao3_non_work(url)
+        if non_work:
+            ao3_non_work.append({"url": url, "kind": non_work})
+            continue
+        unrecognized.append(url)
 
     canonicals = sorted({p["canonical"] for p in canonical_pairs})
     # Look up everything in one Mongo round-trip
@@ -1071,11 +1167,27 @@ async def _dedupe_url_list(text: str, user_id: str) -> Dict[str, Any]:
         else:
             new_urls.append({"url": p["url"], "canonical": p["canonical"]})
 
+    # Per-source breakdown across the whole list (including unrecognized).
+    by_source: Dict[str, int] = {}
+    for p in canonical_pairs:
+        src = _source_for(p["canonical"]) or "Other"
+        by_source[src] = by_source.get(src, 0) + 1
+    for d in duplicate_in_list:
+        src = _source_for(d["canonical"]) or "Other"
+        by_source[src] = by_source.get(src, 0) + 1
+    if ao3_non_work:
+        by_source["AO3 (not a story)"] = len(ao3_non_work)
+    if unrecognized:
+        by_source["Unrecognized"] = len(unrecognized)
+
     return {
         "total": len(raw_urls),
         "already_owned": already_owned,
         "new_urls": new_urls,
         "unrecognized": unrecognized,
+        "ao3_non_work": ao3_non_work,
+        "duplicate_in_list": duplicate_in_list,
+        "by_source": by_source,
     }
 
 
@@ -1091,8 +1203,10 @@ def _source_for(u: str) -> str:
     u_lower = (u or "").lower()
     if "archiveofourown" in u_lower: return "AO3"
     if "fanfiction.net" in u_lower: return "FFnet"
+    if "fictionpress.com" in u_lower: return "FictionPress"
     if "spacebattles.com" in u_lower: return "SpaceBattles"
     if "sufficientvelocity.com" in u_lower: return "SufficientVelocity"
+    if "questionablequesting.com" in u_lower: return "QQ"
     if "royalroad" in u_lower: return "RoyalRoad"
     return ""
 

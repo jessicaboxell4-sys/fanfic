@@ -70,6 +70,52 @@ async def on_startup():
             )
     except Exception as e:
         logger.warning("Fanfic field rename migration: %s", e)
+
+    # One-time migration (2026-06): renormalize existing `source_url` and
+    # `fanfic_urls` to the canonical form (www/m subdomain collapsed, AO3
+    # collection prefix dropped, chapter id stripped, http→https). Without
+    # this, a freshly-pasted URL won't match a book whose stored URL was
+    # captured under the old non-normalized rules. Idempotent: only writes
+    # when normalization produces a different string.
+    try:
+        from routes.books import normalize_fanfic_url  # noqa: WPS433
+        scanned = 0
+        updated = 0
+        cursor = db.books.find(
+            {"$or": [
+                {"source_url": {"$exists": True, "$ne": None}},
+                {"fanfic_urls": {"$exists": True, "$ne": []}},
+            ]},
+            {"book_id": 1, "source_url": 1, "fanfic_urls": 1},
+        )
+        async for doc in cursor:
+            scanned += 1
+            patch = {}
+            src = doc.get("source_url")
+            if src:
+                norm = normalize_fanfic_url(src)
+                if norm and norm != src:
+                    patch["source_url"] = norm
+            urls = doc.get("fanfic_urls") or []
+            if urls:
+                seen = set()
+                new_list = []
+                for u in urls:
+                    n = normalize_fanfic_url(u) or u
+                    if n not in seen:
+                        seen.add(n)
+                        new_list.append(n)
+                if new_list != urls:
+                    patch["fanfic_urls"] = new_list
+            if patch:
+                await db.books.update_one({"book_id": doc["book_id"]}, {"$set": patch})
+                updated += 1
+        if updated:
+            logger.info(
+                "Renormalized fanfic URLs on %d/%d book records.", updated, scanned,
+            )
+    except Exception as e:
+        logger.warning("Fanfic URL renormalization migration: %s", e)
     try:
         digest.start_digest_scheduler()
     except Exception as e:

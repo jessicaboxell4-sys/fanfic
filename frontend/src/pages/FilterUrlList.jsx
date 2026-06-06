@@ -79,7 +79,7 @@ export default function FilterUrlList() {
           <div>
             <h1 className="font-serif text-4xl text-[#2C2C2C] leading-tight">Filter a URL list</h1>
             <p className="text-[#6B705C] mt-1">
-              Paste fanfic URLs (one per line). We&apos;ll split them into &quot;already in your library&quot; vs &quot;new&quot;, and the Excel export bundles both lists in one workbook.
+              Paste fanfic URLs (one per line). We&apos;ll split them into &quot;already in your library&quot; vs &quot;new&quot;, and the Excel export bundles both lists in one workbook. AO3 link variants (collections, chapter URLs, mobile <code>m.</code> host, <code>www.</code>, query strings) all dedupe to the same work.
             </p>
             <div className="mt-2">
               <HelpHint section="url-list" label="How does this work?" testId="filter-urls-help" />
@@ -114,8 +114,24 @@ export default function FilterUrlList() {
               <strong className="text-[#2C2C2C]">{report.total}</strong> URLs found ·
               {" "}<span className="text-green-700">{report.already_owned.length} already in your library</span> ·
               {" "}<span className="text-amber-700">{report.new_urls.length} new</span>
+              {report.duplicate_in_list?.length > 0 && <> · <span className="text-[#6B705C]">{report.duplicate_in_list.length} duplicate paste{report.duplicate_in_list.length === 1 ? "" : "s"}</span></>}
+              {report.ao3_non_work?.length > 0 && <> · <span className="text-[#6B705C]">{report.ao3_non_work.length} AO3 non-story link{report.ao3_non_work.length === 1 ? "" : "s"}</span></>}
               {report.unrecognized.length > 0 && <> · <span className="text-[#6B705C]">{report.unrecognized.length} unrecognized</span></>}
             </p>
+
+            {report.by_source && Object.keys(report.by_source).length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-4" data-testid="url-list-by-source">
+                {Object.entries(report.by_source).map(([src, n]) => (
+                  <span
+                    key={src}
+                    className="text-xs px-2.5 py-1 rounded-full bg-[#E5DDC5]/60 text-[#2C2C2C] border border-[#E5DDC5]"
+                    data-testid={`source-chip-${src.replace(/\s+/g, "-").toLowerCase()}`}
+                  >
+                    {src} · {n}
+                  </span>
+                ))}
+              </div>
+            )}
 
             {report.already_owned.length > 0 && (
               <div className="mb-4">
@@ -142,6 +158,25 @@ export default function FilterUrlList() {
                     <div key={idx} className="text-xs font-mono truncate">{u.url}</div>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {report.ao3_non_work?.length > 0 && (
+              <div className="mb-4" data-testid="ao3-non-work-block">
+                <p className="text-xs uppercase tracking-wide text-[#6B705C] mb-2 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" /> AO3 links that aren&apos;t individual stories
+                </p>
+                <div className="space-y-1 max-h-32 overflow-y-auto bg-white rounded-lg border border-dashed border-[#6B705C]/30 p-3">
+                  {report.ao3_non_work.map((item, idx) => (
+                    <div key={idx} className="text-xs truncate flex items-center gap-2">
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#E5DDC5]/60 text-[#2C2C2C] uppercase tracking-wide">
+                        {item.kind === "ao3_series" ? "series" : item.kind === "ao3_collection" ? "collection" : "user"}
+                      </span>
+                      <span className="text-[#6B705C] font-mono truncate">{item.url}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-[#6B705C] mt-1">These point to a series index, collection, or author page — open them in your browser and grab the individual work URLs to dedupe properly.</p>
               </div>
             )}
 

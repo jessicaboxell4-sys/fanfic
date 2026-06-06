@@ -540,3 +540,21 @@
 - New per-book fields: `converted_from: "<ext>"` (also mirrored as `original_format`) so the UI can show "Original format: .pdf → .epub" in BookDetail.
 - **BookDetail page** surfaces the "Original format" meta row when present.
 - Result: PDFs, MOBIs, KFX, DOCX etc. are now **first-class books** — fully readable in the in-app Reader, classified onto the right shelf, deduplicated, refresh-eligible.
+
+### Added 2026-06-06 (AO3-aware URL list filter)
+- **Problem**: pasting AO3 URLs into the Filter-URL-list page produced inconsistent dedupe results because surface variants of the same work (`www.` / `m.` mobile / `/collections/X/works/N` / `/works/N/chapters/M` / query strings / trailing slash / `http://` vs `https://`) each got their own canonical key.
+- **`normalize_fanfic_url()`** (new) collapses every fanfic-permalink variant to a single canonical:
+  - AO3 → `https://archiveofourown.org/works/{N}`
+  - FFnet → `https://www.fanfiction.net/s/{N}`
+  - FictionPress → `https://www.fictionpress.com/s/{N}`
+  - RoyalRoad → `https://www.royalroad.com/fiction/{N}`
+  - SB/SV/QQ thread IDs lowercased; host normalized to `forums.*`
+- `_canonical_fanfic_url`, `find_source_url`, and `extract_fanfic_urls` all route through it — so newly uploaded books store the canonical form on disk.
+- **`classify_ao3_non_work()`** recognises AO3 series/collection/user pages so they no longer fall into the "unrecognized" bucket; the dedupe response now surfaces them in a dedicated `ao3_non_work` array tagged `ao3_series` / `ao3_collection` / `ao3_user`.
+- **`/api/books/url-list/dedupe`** response gains:
+  - `duplicate_in_list` — repeat surface forms of the same canonical (so the user can see "you pasted /works/12345/chapters/9 even though you already had /works/12345 above")
+  - `ao3_non_work` — the AO3 non-story buckets above
+  - `by_source` — count per source ("AO3 · 3 · FFnet · 1 · AO3 (not a story) · 1") for an at-a-glance overview
+- **Startup migration**: idempotently renormalizes existing books' `source_url` and `fanfic_urls` so previously-stored www-prefixed / mobile / chapter URLs match newly-pasted bare permalinks. Logs the count of records touched.
+- **`FilterUrlList.jsx`**: header description now mentions AO3 variant handling; results card displays per-source breakdown chips, lists duplicate pastes, and shows a dedicated "AO3 links that aren't individual stories" section with kind badges (series / collection / user).
+- **Tests**: `TestAo3UrlNormalization` — 5 cases covering (1) 6 AO3 surface variants all dedupe to one canonical, (2) fresh paste of mixed AO3 forms normalize consistently, (3) AO3 series / collection / user URLs bucket separately + by_source breakdown, (4) legacy-stored URL still matches pasted variants, (5) FFnet + RoyalRoad normalization. **All 5 new tests pass.**

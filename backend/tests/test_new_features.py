@@ -2456,3 +2456,152 @@ class TestRelationships:
         assert rebuilt["relationships"] == ["Harry Potter / Hermione Granger"]
         db.books.delete_many({"user_id": uid})
 
+
+
+
+# ---------------------------------------------------------------------------
+# AO3-AWARE URL LIST DEDUPE
+# ---------------------------------------------------------------------------
+class TestAo3UrlNormalization:
+    """The Filter-URL-list endpoint should treat every surface form of an AO3
+    work URL as the same work — collections / chapters / mobile host / www /
+    query strings / trailing slash / http-vs-https all collapse to one
+    canonical permalink. And AO3 series/collection/user URLs should land in
+    a dedicated 'not a story' bucket instead of being silently dropped as
+    unrecognized.
+    """
+
+    @pytest.fixture(scope="class")
+    def url_user(self):
+        uid = f"user_urln_{uuid.uuid4().hex[:8]}"
+        tok = f"sess_urln_{uuid.uuid4().hex}"
+        db.users.insert_one({"user_id": uid, "email": f"{uid}@x.com", "name": "URLN", "picture": "", "created_at": datetime.now(timezone.utc).isoformat()})
+        db.user_sessions.insert_one({"user_id": uid, "session_token": tok, "expires_at": datetime.now(timezone.utc) + timedelta(days=7), "created_at": datetime.now(timezone.utc)})
+        yield uid, tok
+        db.users.delete_many({"user_id": uid})
+        db.user_sessions.delete_many({"user_id": uid})
+        db.books.delete_many({"user_id": uid})
+
+    def _seed(self, uid, canonical_url):
+        # Seed a book with the canonical URL pre-stored. Skip the upload
+        # path so we exercise the dedupe matcher directly.
+        bid = f"bk_urln_{uuid.uuid4().hex[:6]}"
+        db.books.insert_one({
+            "book_id": bid,
+            "user_id": uid,
+            "title": "AO3 Test Fic",
+            "author": "TestAuthor",
+            "category": "Fanfiction",
+            "fandom": "Harry Potter",
+            "fanfic_urls": [canonical_url],
+            "source_url": canonical_url,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+        return bid
+
+    def test_ao3_variants_all_dedupe(self, url_user):
+        uid, tok = url_user
+        # Seed one book with the canonical URL
+        self._seed(uid, "https://archiveofourown.org/works/12345")
+        # Paste 6 surface variants that all point to the same work
+        text = "\n".join([
+            "https://archiveofourown.org/works/12345",
+            "https://www.archiveofourown.org/works/12345",
+            "http://archiveofourown.org/works/12345/",
+            "https://m.archiveofourown.org/works/12345?view_adult=true",
+            "https://archiveofourown.org/works/12345/chapters/67890",
+            "https://archiveofourown.org/collections/MyCollection/works/12345",
+        ])
+        r = requests.post(f"{BASE}/api/books/url-list/dedupe", headers={"Authorization": f"Bearer {tok}"}, json={"text": text})
+        assert r.status_code == 200, r.text
+        data = r.json()
+        # ALL six should resolve to the same canonical → 1 owned + 5 duplicate_in_list
+        assert len(data["already_owned"]) == 1
+        assert data["already_owned"][0]["canonical"] == "https://archiveofourown.org/works/12345"
+        assert len(data["duplicate_in_list"]) == 5
+        assert data["new_urls"] == []
+        assert data["unrecognized"] == []
+        db.books.delete_many({"user_id": uid})
+
+    def test_ao3_new_urls_normalize_consistently(self, url_user):
+        uid, tok = url_user
+        # No seed — fresh paste of three different works in mixed forms
+        text = "\n".join([
+            "https://m.archiveofourown.org/works/100",
+            "http://www.archiveofourown.org/works/200/chapters/9",
+            "https://archiveofourown.org/collections/Whatever/works/300?view_full_work=true",
+        ])
+        r = requests.post(f"{BASE}/api/books/url-list/dedupe", headers={"Authorization": f"Bearer {tok}"}, json={"text": text})
+        assert r.status_code == 200, r.text
+        data = r.json()
+        canons = sorted(u["canonical"] for u in data["new_urls"])
+        assert canons == [
+            "https://archiveofourown.org/works/100",
+            "https://archiveofourown.org/works/200",
+            "https://archiveofourown.org/works/300",
+        ]
+        assert data["unrecognized"] == []
+
+    def test_ao3_series_and_user_pages_bucketed_separately(self, url_user):
+        uid, tok = url_user
+        text = "\n".join([
+            "https://archiveofourown.org/series/42",
+            "https://archiveofourown.org/collections/somecoll",
+            "https://archiveofourown.org/users/some_user",
+            "https://example.com/not-a-fanfic",
+            "https://archiveofourown.org/works/9999",
+        ])
+        r = requests.post(f"{BASE}/api/books/url-list/dedupe", headers={"Authorization": f"Bearer {tok}"}, json={"text": text})
+        assert r.status_code == 200, r.text
+        data = r.json()
+        # 1 actual work URL → new
+        assert len(data["new_urls"]) == 1
+        assert data["new_urls"][0]["canonical"] == "https://archiveofourown.org/works/9999"
+        # 3 AO3 non-work URLs
+        kinds = sorted(item["kind"] for item in data["ao3_non_work"])
+        assert kinds == ["ao3_collection", "ao3_series", "ao3_user"]
+        # 1 unrecognized non-AO3 URL
+        assert data["unrecognized"] == ["https://example.com/not-a-fanfic"]
+        # by_source breakdown surfaces all buckets
+        assert data["by_source"]["AO3"] == 1
+        assert data["by_source"]["AO3 (not a story)"] == 3
+        assert data["by_source"]["Unrecognized"] == 1
+
+    def test_dedupe_matches_legacy_stored_url(self, url_user):
+        """Books seeded with the OLD non-normalized canonical (e.g. with
+        a `www.` prefix) should still match when the user pastes a fresh
+        URL — covered by the startup migration that renormalizes stored
+        values. Here we seed an already-normalized canonical so the match
+        works whether or not the migration has run, which is the steady
+        state."""
+        uid, tok = url_user
+        db.books.delete_many({"user_id": uid})
+        self._seed(uid, "https://archiveofourown.org/works/55512345")
+        text = "https://www.archiveofourown.org/works/55512345/chapters/1?style_align=1"
+        r = requests.post(f"{BASE}/api/books/url-list/dedupe", headers={"Authorization": f"Bearer {tok}"}, json={"text": text})
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert len(data["already_owned"]) == 1
+        assert data["already_owned"][0]["canonical"] == "https://archiveofourown.org/works/55512345"
+        db.books.delete_many({"user_id": uid})
+
+    def test_ffnet_and_royalroad_normalize(self, url_user):
+        uid, tok = url_user
+        text = "\n".join([
+            "https://fanfiction.net/s/777/1/Some-Story-Title",
+            "http://www.fanfiction.net/s/777",
+            "https://royalroad.com/fiction/4242",
+            "https://www.royalroad.com/fiction/4242/chapter/1",
+        ])
+        r = requests.post(f"{BASE}/api/books/url-list/dedupe", headers={"Authorization": f"Bearer {tok}"}, json={"text": text})
+        assert r.status_code == 200, r.text
+        data = r.json()
+        # FFnet 777 → 1 canonical (the second is dup), RR 4242 → 1 canonical (the second is dup)
+        canons = sorted(u["canonical"] for u in data["new_urls"])
+        assert canons == [
+            "https://www.fanfiction.net/s/777",
+            "https://www.royalroad.com/fiction/4242",
+        ]
+        assert len(data["duplicate_in_list"]) == 2
+        assert data["by_source"]["FFnet"] == 2
+        assert data["by_source"]["RoyalRoad"] == 2
