@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { BookOpen, LogOut, Download, Link as LinkIcon, BarChart3, Filter } from "lucide-react";
+import { BookOpen, LogOut, Download, Link as LinkIcon, BarChart3, Filter, HelpCircle } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { API } from "../lib/api";
 import UpdatesBell from "./UpdatesBell";
@@ -65,6 +65,14 @@ export default function Navbar() {
           </a>
           {user && (
             <>
+              <Link
+                to="/help"
+                data-testid="navbar-help"
+                className="p-2 hover:bg-[#F5F3EC] rounded-lg"
+                title="Help & guide"
+              >
+                <HelpCircle className="w-4 h-4 text-[#6B705C]" />
+              </Link>
               <Link
                 to="/account"
                 data-testid="navbar-account"
