@@ -43,6 +43,8 @@ export default function Account() {
   const [dupeCount, setDupeCount] = useState(null);
   const [dupePolicy, setDupePolicy] = useState("ask");
   const [savingDupePolicy, setSavingDupePolicy] = useState(false);
+  const [formatPrefs, setFormatPrefs] = useState(null);
+  const [savingFormatPrefs, setSavingFormatPrefs] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -66,6 +68,10 @@ export default function Account() {
         const { data: dp } = await api.get("/user/duplicate-policy");
         setDupePolicy(dp.policy || "ask");
       } catch (e) { /* ignore */ }
+      try {
+        const { data: fp } = await api.get("/user/format-prefs");
+        setFormatPrefs(fp);
+      } catch (e) { /* ignore — falls back to default "ask" */ }
     })();
   }, [navigate]);
 
@@ -533,6 +539,81 @@ export default function Account() {
                 <p className="text-xs text-[#6B705C] mt-0.5">{opt.desc}</p>
               </button>
             ))}
+          </div>
+        </section>
+
+        {/* Non-EPUB upload preferences — per-format default action */}
+        <section className="shelf-card p-6 mb-6" data-testid="format-prefs-card">
+          <div className="flex items-start gap-3 mb-4">
+            <div className="w-10 h-10 rounded-xl bg-[#E07A5F]/10 text-[#E07A5F] flex items-center justify-center flex-shrink-0">
+              <Settings2 className="w-5 h-5" />
+            </div>
+            <div className="flex-1">
+              <h2 className="font-serif text-2xl text-[#2C2C2C]">Non-EPUB upload preferences</h2>
+              <p className="text-sm text-[#6B705C] mt-1">
+                EPUBs always upload silently. For everything else, decide once whether to auto-convert,
+                skip silently, or ask each time.
+              </p>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {[
+              { key: "pdf", label: "PDF", exts: ".pdf" },
+              { key: "kindle", label: "Kindle", exts: ".mobi .azw .azw3 .kf8 .kfx" },
+              { key: "word", label: "Word / RTF", exts: ".docx .doc .rtf" },
+              { key: "other_ebook", label: "Other ebook", exts: ".fb2 .lit .lrf .pdb" },
+              { key: "txt", label: "Plain text", exts: ".txt (URL lists are deduped instead)" },
+              { key: "html", label: "HTML", exts: ".html .htm" },
+            ].map((grp) => {
+              const cur = (formatPrefs && formatPrefs[grp.key]) || "ask";
+              return (
+                <div
+                  key={grp.key}
+                  data-testid={`format-row-${grp.key}`}
+                  className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg border border-[#E5DDC5] bg-white"
+                >
+                  <div className="min-w-[140px]">
+                    <div className="text-sm font-medium text-[#2C2C2C]">{grp.label}</div>
+                    <div className="text-xs text-[#6B705C] font-mono">{grp.exts}</div>
+                  </div>
+                  <div className="flex gap-1.5" role="radiogroup" aria-label={`${grp.label} preference`}>
+                    {[
+                      { val: "ask", label: "Ask" },
+                      { val: "convert", label: "Auto-add" },
+                      { val: "skip", label: "Skip" },
+                    ].map((opt) => (
+                      <button
+                        key={opt.val}
+                        data-testid={`format-${grp.key}-${opt.val}`}
+                        onClick={async () => {
+                          if (cur === opt.val) return;
+                          const prev = formatPrefs || {};
+                          setFormatPrefs({ ...prev, [grp.key]: opt.val });
+                          setSavingFormatPrefs(true);
+                          try {
+                            const { data } = await api.put("/user/format-prefs", { [grp.key]: opt.val });
+                            setFormatPrefs(data);
+                          } catch (e) {
+                            setFormatPrefs(prev);
+                            toast.error("Couldn't save");
+                          } finally {
+                            setSavingFormatPrefs(false);
+                          }
+                        }}
+                        disabled={savingFormatPrefs}
+                        className={`px-3 py-1 rounded-full text-xs font-medium transition ${
+                          cur === opt.val
+                            ? "bg-[#E07A5F] text-white"
+                            : "bg-[#FDF3E1] text-[#6B705C] hover:bg-[#E07A5F]/10 hover:text-[#E07A5F]"
+                        } ${savingFormatPrefs ? "opacity-60" : ""}`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </section>
 

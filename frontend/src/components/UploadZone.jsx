@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { UploadCloud, Loader2, FolderUp } from "lucide-react";
 import { api } from "../lib/api";
 import { toast } from "sonner";
@@ -12,6 +12,27 @@ const ACCEPTED_EXTS = [
   ".docx", ".doc", ".rtf", ".fb2", ".lit", ".lrf", ".pdb",
   ".txt", ".html", ".htm",
 ];
+
+// Map each extension to a group that matches the backend's `format_prefs`.
+// EPUBs are not in the table — they always upload silently.
+const EXT_TO_GROUP = {
+  ".pdf": "pdf",
+  ".mobi": "kindle", ".azw": "kindle", ".azw3": "kindle", ".kf8": "kindle", ".kfx": "kindle",
+  ".docx": "word", ".doc": "word", ".rtf": "word",
+  ".fb2": "other_ebook", ".lit": "other_ebook", ".lrf": "other_ebook", ".pdb": "other_ebook",
+  ".txt": "txt",
+  ".html": "html", ".htm": "html",
+};
+
+function extOf(name) {
+  const lower = (name || "").toLowerCase();
+  const dot = lower.lastIndexOf(".");
+  return dot >= 0 ? lower.slice(dot) : "";
+}
+
+function groupOf(name) {
+  return EXT_TO_GROUP[extOf(name)] || null;
+}
 
 function isAccepted(name) {
   const lower = (name || "").toLowerCase();
@@ -65,6 +86,22 @@ export default function UploadZone({ onUploaded }) {
   const [drag, setDrag] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
+  const [formatPrefs, setFormatPrefs] = useState({}); // {pdf: "ask"|"convert"|"skip", ...}
+
+  // Lazy-load the user's per-format preferences once. Default to "ask"
+  // for every group if the fetch fails — preserves current behavior.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get("/user/format-prefs");
+        if (!cancelled) setFormatPrefs(data || {});
+      } catch {
+        if (!cancelled) setFormatPrefs({});
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const handleFiles = useCallback(async (filesList) => {
     const all = Array.from(filesList);
@@ -82,33 +119,58 @@ export default function UploadZone({ onUploaded }) {
       toast(`Skipping ${skipped} unsupported file${skipped === 1 ? "" : "s"}`, { duration: 3500 });
     }
 
-    // EPUBs always upload silently — no confirmation. Non-EPUBs (PDF/MOBI/
-    // AZW/DOCX/.txt URL-lists/etc.) get a confirm prompt so the user
-    // explicitly opts into Calibre conversion or URL dedupe. Declining the
-    // prompt skips just the non-EPUBs — the EPUBs still go through.
+    // EPUBs always upload silently — no confirmation. Non-EPUBs are routed
+    // by the user's per-format preference (Account → Non-EPUB upload prefs):
+    //   "convert" → auto-add silently (Calibre will run server-side)
+    //   "skip"    → silently drop (helpful if you import lots of .pdb you
+    //               never actually want; just set it once and forget)
+    //   "ask"     → batched into a single confirm prompt (default behavior)
     const epubs = files.filter((f) => f.name.toLowerCase().endsWith(".epub"));
     const nonEpub = files.filter((f) => !f.name.toLowerCase().endsWith(".epub"));
-    let toUpload = [...epubs];
-    if (nonEpub.length > 0) {
-      const formats = [...new Set(nonEpub.map((f) => "." + f.name.split(".").pop().toLowerCase()))];
+
+    const autoAdd = []; // pref === "convert"
+    const autoSkip = []; // pref === "skip"
+    const toAsk = []; // pref === "ask" (or unknown group → safe default)
+    for (const f of nonEpub) {
+      const grp = groupOf(f.name);
+      const pref = grp ? (formatPrefs[grp] || "ask") : "ask";
+      if (pref === "convert") autoAdd.push(f);
+      else if (pref === "skip") autoSkip.push(f);
+      else toAsk.push(f);
+    }
+    if (autoSkip.length > 0) {
+      toast(
+        `Skipped ${autoSkip.length} file${autoSkip.length === 1 ? "" : "s"} per your format preferences`,
+        { duration: 3500 },
+      );
+    }
+
+    let toUpload = [...epubs, ...autoAdd];
+    if (toAsk.length > 0) {
+      const formats = [...new Set(toAsk.map((f) => extOf(f.name)))];
       const formatList = formats.join(", ");
+      const knownCount = epubs.length + autoAdd.length;
       const summary =
-        epubs.length > 0
-          ? `${epubs.length} EPUB${epubs.length === 1 ? "" : "s"} will be added directly.\n\nAlso add ${nonEpub.length} non-EPUB file${nonEpub.length === 1 ? "" : "s"} (${formatList})?`
-          : `Add ${nonEpub.length} non-EPUB file${nonEpub.length === 1 ? "" : "s"} (${formatList}) to your library?`;
+        knownCount > 0
+          ? `${knownCount} file${knownCount === 1 ? "" : "s"} will be added directly.\n\nAlso add ${toAsk.length} non-EPUB file${toAsk.length === 1 ? "" : "s"} (${formatList})?`
+          : `Add ${toAsk.length} non-EPUB file${toAsk.length === 1 ? "" : "s"} (${formatList}) to your library?`;
       const ok = window.confirm(
-        `${summary}\n\nNon-EPUBs get auto-converted via Calibre. .txt files containing fanfic URLs are deduped against your library — no book is added for those.`,
+        `${summary}\n\nNon-EPUBs get auto-converted via Calibre. .txt files containing fanfic URLs are deduped against your library — no book is added for those.\n\nTip: set per-format defaults in Account → "Non-EPUB upload preferences" to skip this prompt next time.`,
       );
       if (ok) {
-        toUpload = toUpload.concat(nonEpub);
-      } else if (epubs.length === 0) {
+        toUpload = toUpload.concat(toAsk);
+      } else if (toUpload.length === 0) {
         toast("Upload cancelled");
         return;
       } else {
-        toast(`Skipping ${nonEpub.length} non-EPUB file${nonEpub.length === 1 ? "" : "s"} · sorting your ${epubs.length} EPUB${epubs.length === 1 ? "" : "s"}`);
+        toast(`Skipping ${toAsk.length} non-EPUB file${toAsk.length === 1 ? "" : "s"} · sorting your ${toUpload.length} file${toUpload.length === 1 ? "" : "s"}`);
       }
     }
     const filesToSend = toUpload;
+    if (filesToSend.length === 0) {
+      // Everything got filtered out (e.g. all on "skip"). Already toasted above.
+      return;
+    }
 
     setUploading(true);
     setProgress({ done: 0, total: filesToSend.length });
@@ -171,7 +233,7 @@ export default function UploadZone({ onUploaded }) {
       setUploading(false);
       setProgress({ done: 0, total: 0 });
     }
-  }, [onUploaded]);
+  }, [onUploaded, formatPrefs]);
 
   const handleDrop = async (e) => {
     e.preventDefault();

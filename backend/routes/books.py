@@ -2568,6 +2568,47 @@ async def update_duplicate_policy(body: DuplicatePolicyBody, user: User = Depend
     return {"policy": body.policy}
 
 
+# Per-format upload preferences for non-EPUB files. Each format group can be
+# "ask" (show the confirm prompt — current behavior), "convert" (auto-add via
+# Calibre with no prompt), or "skip" (silently drop without uploading).
+FORMAT_GROUPS = ("pdf", "kindle", "word", "other_ebook", "txt", "html")
+FORMAT_ACTIONS = ("ask", "convert", "skip")
+FORMAT_PREFS_DEFAULT = {g: "ask" for g in FORMAT_GROUPS}
+
+
+class FormatPrefsBody(BaseModel):
+    # Partial patch — only keys actually present are updated.
+    pdf: Optional[str] = None
+    kindle: Optional[str] = None
+    word: Optional[str] = None
+    other_ebook: Optional[str] = None
+    txt: Optional[str] = None
+    html: Optional[str] = None
+
+
+@api_router.get("/user/format-prefs")
+async def get_format_prefs(user: User = Depends(get_current_user)):
+    user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "format_prefs": 1})
+    stored = (user_doc or {}).get("format_prefs") or {}
+    return {**FORMAT_PREFS_DEFAULT, **{k: v for k, v in stored.items() if k in FORMAT_GROUPS and v in FORMAT_ACTIONS}}
+
+
+@api_router.put("/user/format-prefs")
+async def update_format_prefs(body: FormatPrefsBody, user: User = Depends(get_current_user)):
+    patch = body.dict(exclude_none=True)
+    for k, v in patch.items():
+        if v not in FORMAT_ACTIONS:
+            raise HTTPException(status_code=400, detail=f"{k} must be one of {list(FORMAT_ACTIONS)}")
+    user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "format_prefs": 1})
+    stored = (user_doc or {}).get("format_prefs") or {}
+    stored.update(patch)
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": {"format_prefs": stored}},
+    )
+    return {**FORMAT_PREFS_DEFAULT, **stored}
+
+
 class DashboardLayoutBody(BaseModel):
     order: List[str]
     hidden: Optional[List[str]] = None
