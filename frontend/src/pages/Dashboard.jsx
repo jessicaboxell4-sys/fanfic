@@ -427,6 +427,15 @@ export default function Dashboard() {
               load();
             }}
           />
+          <div className="mt-3 text-center">
+            <Link
+              to="/library/filter-urls"
+              data-testid="filter-urls-link"
+              className="text-xs text-[#6B705C] hover:text-[#2C2C2C] inline-flex items-center gap-1"
+            >
+              Have a list of fanfic URLs? <span className="underline underline-offset-2">Filter out the ones you already own</span>
+            </Link>
+          </div>
         </div>
 
         {undoActions.length > 0 && (

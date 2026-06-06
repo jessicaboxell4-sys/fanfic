@@ -865,6 +865,20 @@ def _normalize_title_for_match(title: Optional[str]) -> str:
 _URL_RE = re.compile(r"https?://[^\s,;<>\"']+", re.IGNORECASE)
 
 
+class UrlListBody(BaseModel):
+    text: str
+
+
+@api_router.post("/books/url-list/dedupe")
+async def dedupe_url_list_endpoint(body: UrlListBody, user: User = Depends(get_current_user)):
+    """Dedupe a list of URLs pasted/typed in by the user. Same logic as the
+    upload-time path but without a file in between."""
+    if not body.text or not body.text.strip():
+        raise HTTPException(status_code=400, detail="No URL text provided")
+    return await _dedupe_url_list(body.text, user.user_id)
+
+
+
 def _canonical_fanfic_url(url: str) -> Optional[str]:
     for pat in FANFIC_SOURCE_PATTERNS:
         m = re.search(pat, url, re.IGNORECASE)
