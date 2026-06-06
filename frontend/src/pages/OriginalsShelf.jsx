@@ -12,6 +12,8 @@ export default function OriginalsShelf() {
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [convertingId, setConvertingId] = useState(null);
+  const [bulkRunning, setBulkRunning] = useState(false);
+  const [skipDups, setSkipDups] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -42,6 +44,37 @@ export default function OriginalsShelf() {
       toast.error("Conversion failed — try again");
     } finally {
       setConvertingId(null);
+    }
+  };
+
+  const convertAll = async () => {
+    const candidates = skipDups
+      ? books.filter((b) => (b.cross_format_duplicate_of || []).length === 0)
+      : books;
+    if (candidates.length === 0) {
+      toast("Nothing to convert with these settings");
+      return;
+    }
+    if (!window.confirm(
+      `Convert ${candidates.length} file${candidates.length === 1 ? "" : "s"} to EPUB? Calibre will run for each — this can take a while for large batches.`,
+    )) return;
+    setBulkRunning(true);
+    try {
+      const { data } = await api.post(
+        `/library/originals/convert-all${skipDups ? "?skip_dups=true" : ""}`,
+      );
+      // Reload list to reflect the converted books (they no longer have original_only=true).
+      const fresh = await api.get("/library/originals");
+      setBooks(fresh.data?.books || []);
+      if (data?.failed?.length > 0) {
+        toast.error(`${data.converted}/${data.scanned} converted · ${data.failed.length} failed`);
+      } else {
+        toast.success(`Converted ${data.converted}/${data.scanned} file${data.scanned === 1 ? "" : "s"} to EPUB`);
+      }
+    } catch (e) {
+      toast.error("Bulk conversion failed");
+    } finally {
+      setBulkRunning(false);
     }
   };
 
@@ -81,6 +114,36 @@ export default function OriginalsShelf() {
             </div>
           )}
         </div>
+
+        {!loading && books.length > 0 && (
+          <div
+            data-testid="originals-bulk-panel"
+            className="shelf-card p-4 mb-4 flex flex-wrap items-center gap-3"
+          >
+            <span className="text-xs font-bold uppercase tracking-wide text-[#3A5A40]">Bulk convert</span>
+            <label className="flex items-center gap-2 text-sm text-[#6B705C]">
+              <input
+                type="checkbox"
+                checked={skipDups}
+                onChange={(e) => setSkipDups(e.target.checked)}
+                data-testid="bulk-skip-dups"
+                className="accent-[#E07A5F]"
+              />
+              Skip ones already in your EPUB library
+            </label>
+            <button
+              onClick={convertAll}
+              disabled={bulkRunning}
+              data-testid="bulk-convert-all"
+              className="ml-auto px-4 py-2 rounded-lg text-sm font-medium bg-[#3A5A40] text-white hover:bg-[#2c4530] disabled:opacity-60 inline-flex items-center gap-2"
+            >
+              {bulkRunning ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              Convert all{skipDups
+                ? ` (${books.filter((b) => (b.cross_format_duplicate_of || []).length === 0).length})`
+                : ` (${books.length})`}
+            </button>
+          </div>
+        )}
 
         {!loading && books.length === 0 && (
           <div className="shelf-card p-8 text-center text-[#6B705C]">

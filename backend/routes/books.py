@@ -2500,7 +2500,42 @@ async def list_originals(user: User = Depends(get_current_user)):
     }
 
 
-@api_router.post("/library/originals/{book_id}/convert")
+@api_router.post("/library/originals/convert-all")
+async def convert_all_originals(
+    skip_dups: bool = False,
+    user: User = Depends(get_current_user),
+):
+    """Bulk-convert every original-only book to EPUB. With `skip_dups=true`
+    we skip files whose `cross_format_duplicate_of` is non-empty — useful
+    when the user already has the same book as an EPUB."""
+    query: Dict[str, Any] = {"user_id": user.user_id, "original_only": True}
+    if skip_dups:
+        # Match either missing/empty array OR an empty list explicitly.
+        query["$or"] = [
+            {"cross_format_duplicate_of": {"$exists": False}},
+            {"cross_format_duplicate_of": []},
+            {"cross_format_duplicate_of": None},
+        ]
+    books = await db.books.find(query, {"_id": 0, "book_id": 1}).to_list(5000)
+    converted: List[str] = []
+    failed: List[Dict[str, str]] = []
+    for b in books:
+        try:
+            resp = await convert_original_to_epub(b["book_id"], user)
+            if resp.get("ok"):
+                converted.append(b["book_id"])
+            else:
+                failed.append({"book_id": b["book_id"], "error": resp.get("error") or "unknown"})
+        except Exception as e:
+            failed.append({"book_id": b["book_id"], "error": str(e)})
+    return {
+        "scanned": len(books),
+        "converted": len(converted),
+        "failed": failed,
+    }
+
+
+
 async def convert_original_to_epub(book_id: str, user: User = Depends(get_current_user)):
     """Promote an original-format book (PDF/MOBI/AZW/DOCX/etc.) to a full
     EPUB by running Calibre on it. On success the book moves out of the
