@@ -4443,58 +4443,62 @@ async def export_zip(
     if not books:
         raise HTTPException(status_code=404, detail="No books")
 
-    # Build the zip in a worker thread so we don't block the event loop —
-    # for libraries with hundreds of EPUBs the synchronous `zf.write(...)` loop
-    # can run 30-90s, and a blocked loop kills keepalives + can trip the
-    # ingress idle timeout (which matches the "starts downloading but then
-    # fails" symptom users have reported).
-    tmp = tempfile.NamedTemporaryFile(prefix="shelfsort_", suffix=".zip", delete=False)
-    tmp_path = Path(tmp.name)
-    tmp.close()
+    # True streaming zip: bytes start flowing to the client within ~1 second,
+    # even for libraries with thousands of books. We don't pre-build a temp
+    # file — the archive is generated and shipped on the fly via stream-zip,
+    # which means no proxy can time out waiting for the first byte.
+    from stream_zip import stream_zip, ZIP_64
+    from stat import S_IFREG
+    from datetime import datetime as _dt
 
-    def _build_zip() -> int:
-        added = 0
-        with zipfile.ZipFile(str(tmp_path), 'w', zipfile.ZIP_DEFLATED) as zf:
-            for b in books:
-                fp = STORAGE_DIR / user.user_id / f"{b['book_id']}.epub"
-                if not fp.exists():
-                    continue
-                cat = _safe_folder(b.get('category') or 'Uncategorized')
-                fnd = b.get('fandom')
-                if cat == 'Fanfiction' and fnd:
-                    folder = f"Fanfiction/{_safe_folder(fnd)}"
-                else:
-                    folder = cat
-                arcname = f"{folder}/{_templated_filename(b.get('title'), b.get('author'), b['book_id'])}"
-                zf.write(str(fp), arcname=arcname)
-                added += 1
-        return added
+    modified_at = _dt.now()
+    mode = S_IFREG | 0o600
 
-    try:
-        added = await asyncio.to_thread(_build_zip)
-        size_bytes = tmp_path.stat().st_size
-        logger.info(
-            "export-zip built: user=%s books=%d added=%d size=%d bytes",
-            user.user_id, len(books), added, size_bytes,
-        )
+    def _file_chunks(path: Path):
+        with open(path, "rb") as f:
+            while True:
+                chunk = f.read(65536)
+                if not chunk:
+                    return
+                yield chunk
 
-        zip_name = "shelfsort_library.zip"
-        if fandom:
-            zip_name = f"shelfsort_{_safe_folder(fandom)}.zip"
-        elif category:
-            zip_name = f"shelfsort_{_safe_folder(category)}.zip"
+    def _members():
+        for b in books:
+            fp = STORAGE_DIR / user.user_id / f"{b['book_id']}.epub"
+            if not fp.exists():
+                continue
+            cat = _safe_folder(b.get('category') or 'Uncategorized')
+            fnd = b.get('fandom')
+            if cat == 'Fanfiction' and fnd:
+                folder = f"Fanfiction/{_safe_folder(fnd)}"
+            else:
+                folder = cat
+            arcname = f"{folder}/{_templated_filename(b.get('title'), b.get('author'), b['book_id'])}"
+            yield (arcname, modified_at, mode, ZIP_64, _file_chunks(fp))
 
-        # FileResponse streams the file in chunks and sets Content-Length
-        # from the on-disk size, so proxies can't silently truncate.
-        return FileResponse(
-            path=str(tmp_path),
-            media_type="application/zip",
-            filename=zip_name,
-            background=BackgroundTask(lambda: tmp_path.unlink(missing_ok=True)),
-        )
-    except Exception:
-        tmp_path.unlink(missing_ok=True)
-        raise
+    zip_name = "shelfsort_library.zip"
+    if fandom:
+        zip_name = f"shelfsort_{_safe_folder(fandom)}.zip"
+    elif category:
+        zip_name = f"shelfsort_{_safe_folder(category)}.zip"
+
+    logger.info(
+        "export-zip streaming start: user=%s books=%d", user.user_id, len(books),
+    )
+    # StreamingResponse with a sync generator → Starlette runs it in a thread
+    # pool, so file I/O doesn't block the event loop. No Content-Length is set
+    # (chunked transfer); browsers handle this fine for downloads.
+    return StreamingResponse(
+        stream_zip(_members()),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{zip_name}"',
+            # Tell upstreams (nginx, cloudflare) not to buffer — we want the
+            # client to get bytes as fast as we produce them.
+            "X-Accel-Buffering": "no",
+            "Cache-Control": "no-store",
+        },
+    )
 
 
 @api_router.post("/books/detect-series-all")
