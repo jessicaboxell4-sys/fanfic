@@ -306,10 +306,10 @@ export default function DownloadZipButton({ kind = "zip" }) {
       {open && (
         <div
           data-testid={isXlsx ? "xlsx-filter-modal" : "zip-filter-modal"}
-          className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 backdrop-blur-sm p-4 pt-[3vh] overflow-y-auto"
+          className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 backdrop-blur-sm p-4 pt-[6vh] overflow-y-auto"
           onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}
         >
-          <div className="bg-[#FAF6EE] rounded-2xl shadow-2xl border border-[#E07A5F]/30 w-full max-w-xl max-h-[94vh] flex flex-col">
+          <div className="bg-[#FAF6EE] rounded-2xl shadow-2xl border border-[#E07A5F]/30 w-full max-w-3xl max-h-[min(720px,90vh)] flex flex-col">
             <div className="flex items-start gap-3 p-5 border-b border-[#E07A5F]/20 flex-shrink-0">
               <div className="w-10 h-10 rounded-lg bg-[#E07A5F]/10 text-[#E07A5F] flex items-center justify-center flex-shrink-0">
                 <FilterIcon className="w-5 h-5" />
@@ -328,7 +328,7 @@ export default function DownloadZipButton({ kind = "zip" }) {
               </button>
             </div>
 
-            <div className="p-5 space-y-5 overflow-y-auto flex-1">
+            <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4 overflow-y-auto flex-1">
               <CheckboxFilter
                 label="Fandom"
                 testId="zip-filter-fandom"
