@@ -1,10 +1,11 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { BookOpen, LogOut, Download, Link as LinkIcon, BarChart3, Filter, HelpCircle } from "lucide-react";
+import { BookOpen, LogOut, Link as LinkIcon, BarChart3, Filter, HelpCircle } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { API } from "../lib/api";
 import UpdatesBell from "./UpdatesBell";
 import StreakBadge from "./StreakBadge";
+import DownloadZipButton from "./DownloadZipButton";
 
 export default function Navbar() {
   const { user, logout } = useAuth();
@@ -53,16 +54,7 @@ export default function Navbar() {
             <LinkIcon className="w-4 h-4" />
             <span className="hidden md:inline">Library (.xlsx)</span>
           </a>
-          <a
-            data-testid="navbar-download-zip"
-            href={`${API}/books/export/zip`}
-            download="shelfsort_library.zip"
-            className="btn-secondary text-sm flex items-center gap-2"
-            title="Download organized ZIP"
-          >
-            <Download className="w-4 h-4" />
-            <span className="hidden md:inline">Download ZIP</span>
-          </a>
+          {user && <DownloadZipButton />}
           {user && (
             <>
               <Link
