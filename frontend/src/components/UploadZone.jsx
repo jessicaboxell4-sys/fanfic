@@ -85,6 +85,7 @@ export default function UploadZone({ onUploaded }) {
     setProgress({ done: 0, total: files.length });
     const duplicates = [];
     const allActions = [];
+    const allUrlLists = [];
     let resp = null;
     try {
       // Upload in batches of 3 for responsiveness
@@ -105,13 +106,21 @@ export default function UploadZone({ onUploaded }) {
           }
         }
         if (Array.isArray(data?.actions)) allActions.push(...data.actions);
+        if (Array.isArray(data?.url_lists)) {
+          allUrlLists.push(...data.url_lists);
+        }
         totalAuto += data?.auto_resolved || 0;
         if (data?.policy) lastPolicy = data.policy;
         uploaded += batch.length;
         setProgress({ done: uploaded, total: files.length });
       }
       resp = { auto_resolved: totalAuto, policy: lastPolicy, actions: allActions };
-      if (duplicates.length === 0) {
+      if (allUrlLists.length > 0 && files.length === allUrlLists.length) {
+        // Only URL list(s) — no books actually ingested
+        const totalNew = allUrlLists.reduce((acc, r) => acc + (r.new_urls?.length || 0), 0);
+        const totalOwned = allUrlLists.reduce((acc, r) => acc + (r.already_owned?.length || 0), 0);
+        toast.success(`Found ${totalNew} new URL${totalNew === 1 ? "" : "s"} · ${totalOwned} already in your library`);
+      } else if (duplicates.length === 0) {
         const autoCount = (resp && resp.auto_resolved) || 0;
         const policy = resp && resp.policy;
         if (autoCount > 0 && policy && policy !== "ask") {
@@ -125,7 +134,7 @@ export default function UploadZone({ onUploaded }) {
           `Sorted ${files.length} file${files.length > 1 ? "s" : ""} — ${duplicates.length} possible duplicate${duplicates.length > 1 ? "s" : ""} to review`,
         );
       }
-      onUploaded && onUploaded(duplicates, allActions);
+      onUploaded && onUploaded(duplicates, allActions, allUrlLists);
     } catch (e) {
       console.error(e);
       toast.error("Upload failed. Please try again.");

@@ -10,6 +10,7 @@ import StatsCard from "../components/StatsCard";
 import PoweredByFanFicFare from "../components/PoweredByFanFicFare";
 import OnboardingPrompt from "../components/OnboardingPrompt";
 import DuplicateResolutionModal from "../components/DuplicateResolutionModal";
+import UrlListDedupeModal from "../components/UrlListDedupeModal";
 import { Search, X, Plus, ArrowRight, CheckSquare, Sparkles, Loader2, RefreshCw, Library, UserCircle2, Filter, Pin, FolderOpen, ArrowUpDown, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -40,6 +41,7 @@ export default function Dashboard() {
   const [authorsList, setAuthorsList] = useState([]);
   const [pinnedShelves, setPinnedShelves] = useState([]);
   const [pendingDupes, setPendingDupes] = useState([]);
+  const [pendingUrlLists, setPendingUrlLists] = useState([]);
   const [undoActions, setUndoActions] = useState([]);  // {book_id, title, action, target_book_id, undoable}
   const [trashCount, setTrashCount] = useState(0);
   const [conversions, setConversions] = useState({ converting: 0, recent_done: 0, recent_failed: 0, visibility_hours: 4, jobs: [] });
@@ -413,8 +415,9 @@ export default function Dashboard() {
 
         <div className="mb-10">
           <UploadZone
-            onUploaded={(dupes, actions) => {
+            onUploaded={(dupes, actions, urlLists) => {
               if (dupes && dupes.length > 0) setPendingDupes(dupes);
+              if (urlLists && urlLists.length > 0) setPendingUrlLists(urlLists);
               const undoable = (actions || []).filter((a) => a.undoable);
               if (undoable.length > 0) {
                 setUndoActions(undoable);
@@ -482,6 +485,13 @@ export default function Dashboard() {
             pending={pendingDupes}
             onClose={() => setPendingDupes([])}
             onResolved={() => { setPendingDupes([]); load(); }}
+          />
+        )}
+
+        {pendingUrlLists.length > 0 && (
+          <UrlListDedupeModal
+            reports={pendingUrlLists}
+            onClose={() => setPendingUrlLists([])}
           />
         )}
 

@@ -857,6 +857,154 @@ def _normalize_title_for_match(title: Optional[str]) -> str:
     return re.sub(r"\s+", " ", (title or "").strip()).lower()
 
 
+# ---------------------------------------------------------------------------
+# URL-list dedupe — treats a .txt of fanfic URLs as a wishlist and strips out
+# URLs that already correspond to books in the user's library.
+# ---------------------------------------------------------------------------
+
+_URL_RE = re.compile(r"https?://[^\s,;<>\"']+", re.IGNORECASE)
+
+
+def _canonical_fanfic_url(url: str) -> Optional[str]:
+    for pat in FANFIC_SOURCE_PATTERNS:
+        m = re.search(pat, url, re.IGNORECASE)
+        if m:
+            return m.group(0)
+    return None
+
+
+def _looks_like_url_list(text: str) -> bool:
+    """Return True when the input is dominantly fanfic URLs.
+
+    Heuristic: at least 3 lines are URLs (or >40% of non-empty lines), AND
+    at least one URL matches a known fanfic source pattern. Stricter than
+    "contains any URL" so a manuscript with one footnote URL still gets
+    converted as a book.
+    """
+    if not text or len(text) < 10:
+        return False
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    if not lines:
+        return False
+    url_lines = [ln for ln in lines if _URL_RE.search(ln)]
+    if len(url_lines) < 3 and (len(url_lines) / max(1, len(lines))) < 0.4:
+        return False
+    return any(_canonical_fanfic_url(ln) for ln in url_lines)
+
+
+async def _dedupe_url_list(text: str, user_id: str) -> Dict[str, Any]:
+    """Walk every URL in `text`, dedupe against the user's library.
+
+    Returns `{total, already_owned, new_urls, unrecognized}`.
+    """
+    raw_urls: List[str] = []
+    seen: set = set()
+    for m in _URL_RE.finditer(text):
+        url = m.group(0).rstrip('.,);')
+        if url in seen:
+            continue
+        seen.add(url)
+        raw_urls.append(url)
+
+    # Bucket each URL: canonical fanfic permalink → check ownership; else → "unrecognized"
+    canonical_pairs: List[Dict[str, str]] = []
+    unrecognized: List[str] = []
+    for url in raw_urls:
+        canonical = _canonical_fanfic_url(url)
+        if canonical:
+            canonical_pairs.append({"url": url, "canonical": canonical})
+        else:
+            unrecognized.append(url)
+
+    canonicals = sorted({p["canonical"] for p in canonical_pairs})
+    # Look up everything in one Mongo round-trip
+    owned_map: Dict[str, Dict[str, Any]] = {}
+    if canonicals:
+        cursor = db.books.find(
+            {
+                "user_id": user_id,
+                "category": {"$ne": TRASH_SHELF},
+                "$or": [
+                    {"fanfic_urls": {"$in": canonicals}},
+                    {"source_url": {"$in": canonicals}},
+                ],
+            },
+            {"_id": 0, "book_id": 1, "title": 1, "author": 1, "fanfic_urls": 1, "source_url": 1, "category": 1, "fandom": 1},
+        )
+        async for b in cursor:
+            for u in (b.get("fanfic_urls") or []):
+                if u in canonicals and u not in owned_map:
+                    owned_map[u] = b
+            if b.get("source_url") in canonicals and b["source_url"] not in owned_map:
+                owned_map[b["source_url"]] = b
+
+    already_owned: List[Dict[str, Any]] = []
+    new_urls: List[Dict[str, str]] = []
+    for p in canonical_pairs:
+        match = owned_map.get(p["canonical"])
+        if match:
+            already_owned.append({
+                "url": p["url"],
+                "canonical": p["canonical"],
+                "book_id": match["book_id"],
+                "title": match.get("title") or "",
+                "author": match.get("author") or "",
+                "fandom": match.get("fandom") or "",
+                "category": match.get("category") or "",
+            })
+        else:
+            new_urls.append({"url": p["url"], "canonical": p["canonical"]})
+
+    return {
+        "total": len(raw_urls),
+        "already_owned": already_owned,
+        "new_urls": new_urls,
+        "unrecognized": unrecognized,
+    }
+
+
+class UrlListExportBody(BaseModel):
+    urls: List[str]
+
+
+@api_router.post("/books/url-list/export-xlsx")
+async def export_url_list_xlsx(body: UrlListExportBody, user: User = Depends(get_current_user)):
+    """Build an Excel of just the net-new URLs after a dedupe pass. The
+    frontend hands us the already-filtered list so we don't re-run dedupe."""
+    from openpyxl import Workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "New URLs"
+    ws.append(["URL", "Canonical", "Source"])
+    for u in body.urls:
+        c = _canonical_fanfic_url(u) or ""
+        source = ""
+        if "archiveofourown" in u.lower():
+            source = "AO3"
+        elif "fanfiction.net" in u.lower():
+            source = "FFnet"
+        elif "spacebattles.com" in u.lower():
+            source = "SpaceBattles"
+        elif "sufficientvelocity.com" in u.lower():
+            source = "SufficientVelocity"
+        elif "royalroad" in u.lower():
+            source = "RoyalRoad"
+        ws.append([u, c, source])
+    for col, width in (("A", 60), ("B", 60), ("C", 18)):
+        ws.column_dimensions[col].width = width
+    buf = io.BytesIO()
+    wb.save(buf)
+    payload = buf.getvalue()
+    return Response(
+        content=payload,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": 'attachment; filename="shelfsort_new_urls.xlsx"',
+            "Content-Length": str(len(payload)),
+        },
+    )
+
+
 async def find_duplicate_candidates(
     user_id: str,
     *,
@@ -1832,10 +1980,32 @@ async def upload_books(
     user_dir = STORAGE_DIR / user.user_id
     user_dir.mkdir(parents=True, exist_ok=True)
     results = []
+    url_list_reports: List[Dict[str, Any]] = []
 
     for f in files:
         lower = (f.filename or "").lower()
         ext = "." + lower.rsplit(".", 1)[-1] if "." in lower else ""
+
+        # `.txt` is a special case — it could be a plain-text manuscript
+        # (Calibre-convertible) OR a wishlist of fanfic URLs. If it's
+        # dominantly URLs we route it through the dedupe pipeline instead of
+        # converting it as a book.
+        if ext == ".txt":
+            try:
+                raw_bytes = await f.read()
+                text = raw_bytes.decode("utf-8", errors="ignore")
+            except Exception:
+                text, raw_bytes = "", b""
+            looks_like_url_list = _looks_like_url_list(text)
+            if looks_like_url_list:
+                report = await _dedupe_url_list(text, user.user_id)
+                report["filename"] = f.filename
+                url_list_reports.append(report)
+                continue
+            # Not a URL list — restore the read pointer so the standard
+            # Calibre-convert branch below picks it up. We re-write the file
+            # to disk and skip ahead.
+            await f.seek(0)
 
         # Non-EPUB but a known ebook format → auto-convert to EPUB via
         # Calibre's `ebook-convert`, then fall through to the normal EPUB
@@ -2053,7 +2223,7 @@ async def upload_books(
                         fresh["duplicate_resolved"] = applied.get("action")
                         results[i] = fresh
 
-    return {"uploaded": len(results), "books": results, "auto_resolved": auto_resolved, "policy": policy, "actions": actions}
+    return {"uploaded": len(results), "books": results, "auto_resolved": auto_resolved, "policy": policy, "actions": actions, "url_lists": url_list_reports}
 
 
 @api_router.get("/books")
