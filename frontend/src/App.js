@@ -27,6 +27,7 @@ import FindDuplicates from "@/pages/FindDuplicates";
 import Trash from "@/pages/Trash";
 import Conversions from "@/pages/Conversions";
 import FilterUrlList from "@/pages/FilterUrlList";
+import DownloadPage from "@/pages/DownloadPage";
 import Help from "@/pages/Help";
 import AuthCallback from "@/pages/AuthCallback";
 import ResetPassword from "@/pages/ResetPassword";
@@ -73,6 +74,7 @@ function AppRouter() {
       <Route path="/library/trash" element={<ProtectedRoute><Trash /></ProtectedRoute>} />
       <Route path="/library/conversions" element={<ProtectedRoute><Conversions /></ProtectedRoute>} />
       <Route path="/library/filter-urls" element={<ProtectedRoute><FilterUrlList /></ProtectedRoute>} />
+      <Route path="/library/download" element={<ProtectedRoute><DownloadPage /></ProtectedRoute>} />
       <Route path="/help" element={<ProtectedRoute><Help /></ProtectedRoute>} />
       <Route path="/book/:id" element={<ProtectedRoute><BookDetail /></ProtectedRoute>} />
       <Route path="/book/:id/compare" element={<ProtectedRoute><CompareVersions /></ProtectedRoute>} />
