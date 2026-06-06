@@ -4,6 +4,7 @@ import Navbar from "../components/Navbar";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { User as UserIcon, Mail, Lock, Loader2, Mail as MailIcon, Settings2, AlertTriangle, Layers, Plus, X as XIcon } from "lucide-react";
+import LibraryStatsCard from "../components/LibraryStatsCard";
 import { toast } from "sonner";
 
 function errMsg(d) {
@@ -379,6 +380,8 @@ export default function Account() {
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] mb-2">Account</p>
         <h1 className="font-serif text-4xl sm:text-5xl text-[#2C2C2C] mb-3" data-testid="account-title">Your shelf, your settings.</h1>
         <p className="text-[#6B705C] mb-10">Signed in as <strong className="text-[#2C2C2C]">{profile.email}</strong></p>
+
+        <LibraryStatsCard />
 
         {/* Profile info */}
         <section className="shelf-card p-6 mb-6">
