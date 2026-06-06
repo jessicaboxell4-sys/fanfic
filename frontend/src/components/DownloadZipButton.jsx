@@ -29,65 +29,71 @@ function CheckboxFilter({ label, testId, options, selected, onToggle, onBulkSet 
   };
 
   return (
-    <div data-testid={testId}>
-      <div className="flex items-center justify-between mb-1">
-        <label className="block text-xs font-bold uppercase tracking-wide text-[#3A5A40]">
-          {label}
-        </label>
+    <fieldset
+      data-testid={testId}
+      className="border border-[#900] bg-white"
+      style={{ fontFamily: "'Lucida Grande', Tahoma, Verdana, Arial, sans-serif" }}
+    >
+      <legend className="px-2 mx-2 text-xs font-bold text-[#900] uppercase tracking-wide">
+        {label}
         {selected.size > 0 && (
-          <span className="text-[10px] text-[#6B705C]">{selected.size} picked</span>
+          <span className="ml-2 text-[10px] font-normal text-[#666] normal-case tracking-normal">
+            ({selected.size} picked)
+          </span>
         )}
-      </div>
-      <div className="relative mb-1">
-        <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-[#6B705C]" />
-        <input
-          type="text"
-          placeholder="Search…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          className="w-full pl-7 pr-2 py-1.5 rounded-md border border-[#E5DDC5] bg-white text-xs focus:outline-none focus:border-[#E07A5F]/60"
-        />
-        {filtered.length > 1 && onBulkSet && (
-          <button
-            type="button"
-            onClick={handleBulk}
-            className="mt-1 text-[10px] text-[#E07A5F] hover:text-[#d06a4f] uppercase tracking-wide"
-            data-testid={`${testId}-select-all`}
-          >
-            {allVisiblePicked
-              ? `Deselect all ${filtered.length}`
-              : q
-              ? `Select all ${filtered.length} matching`
-              : `Select all ${filtered.length}`}
-          </button>
-        )}
-      </div>
-      <div className="rounded-lg border border-[#E5DDC5] bg-white max-h-64 overflow-y-auto">
-        {filtered.length === 0 && (
-          <div className="px-3 py-4 text-xs text-[#6B705C] text-center">
-            {options.length === 0 ? "Nothing here yet" : "No matches"}
-          </div>
-        )}
-        {filtered.map((o) => {
-          const isOn = selected.has(o.name);
-          return (
-            <label
-              key={o.name}
-              className={`flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer border-b border-[#E5DDC5]/40 last:border-b-0 ${isOn ? "bg-[#FDF3E1]" : "hover:bg-[#FDF3E1]/40"}`}
+      </legend>
+      <div className="px-2 pb-2 pt-1">
+        <div className="relative mb-1">
+          <Search className="w-3 h-3 absolute left-1.5 top-1/2 -translate-y-1/2 text-[#666]" />
+          <input
+            type="text"
+            placeholder="Search…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            className="w-full pl-6 pr-1.5 py-1 border border-[#999] bg-white text-xs focus:outline-none focus:border-[#900]"
+          />
+          {filtered.length > 1 && onBulkSet && (
+            <button
+              type="button"
+              onClick={handleBulk}
+              className="mt-1 text-[10px] text-[#2a6496] hover:text-[#900] underline"
+              data-testid={`${testId}-select-all`}
             >
-              <input
-                type="checkbox"
-                checked={isOn}
-                onChange={() => onToggle(o.name)}
-                className="accent-[#E07A5F]"
-              />
-              <span className="flex-1 truncate">{o.name}</span>
-              <span className="text-xs text-[#6B705C] flex-shrink-0">{o.count}</span>
-            </label>
-          );
-        })}
+              {allVisiblePicked
+                ? `Deselect all ${filtered.length}`
+                : q
+                ? `Select all ${filtered.length} matching`
+                : `Select all ${filtered.length}`}
+            </button>
+          )}
+        </div>
+        <div className="border border-[#ccc] bg-white max-h-56 overflow-y-auto">
+          {filtered.length === 0 && (
+            <div className="px-2 py-3 text-xs text-[#666] text-center italic">
+              {options.length === 0 ? "Nothing here yet" : "No matches"}
+            </div>
+          )}
+          {filtered.map((o) => {
+            const isOn = selected.has(o.name);
+            return (
+              <label
+                key={o.name}
+                className={`flex items-center gap-1.5 px-2 py-0.5 text-xs cursor-pointer border-b border-[#eee] last:border-b-0 ${isOn ? "bg-[#fdf5dc]" : "hover:bg-[#fcf8e8]"}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={isOn}
+                  onChange={() => onToggle(o.name)}
+                  className="accent-[#900]"
+                />
+                <span className="flex-1 truncate">{o.name}</span>
+                <span className="text-[10px] text-[#666] flex-shrink-0">({o.count})</span>
+              </label>
+            );
+          })}
+        </div>
       </div>
-    </div>
+    </fieldset>
   );
 }
 
@@ -337,26 +343,24 @@ export default function DownloadZipButton({ kind = "zip" }) {
           className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 backdrop-blur-sm p-4 pt-[6vh] overflow-y-auto"
           onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}
         >
-          <div className="bg-[#FAF6EE] rounded-2xl shadow-2xl border border-[#E07A5F]/30 w-full max-w-3xl max-h-[min(720px,90vh)] flex flex-col">
-            <div className="flex items-start gap-3 p-5 border-b border-[#E07A5F]/20 flex-shrink-0">
-              <div className="w-10 h-10 rounded-lg bg-[#E07A5F]/10 text-[#E07A5F] flex items-center justify-center flex-shrink-0">
-                <FilterIcon className="w-5 h-5" />
-              </div>
+          <div className="bg-[#fffaf0] shadow-2xl border-2 border-[#900] w-full max-w-3xl max-h-[min(720px,90vh)] flex flex-col" style={{ fontFamily: "'Lucida Grande', Tahoma, Verdana, Arial, sans-serif" }}>
+            <div className="flex items-center gap-3 px-5 py-3 bg-[#900] text-white flex-shrink-0">
+              <FilterIcon className="w-4 h-4 flex-shrink-0" />
               <div className="flex-1">
-                <h2 className="font-serif text-2xl text-[#2C2C2C] leading-tight">{KIND_COPY.modalTitle}</h2>
-                <p className="text-sm text-[#6B705C] mt-1">{KIND_COPY.modalSubtitle}</p>
+                <h2 className="text-base font-bold leading-tight uppercase tracking-wide">{KIND_COPY.modalTitle}</h2>
+                <p className="text-xs text-white/85 mt-0.5 normal-case font-normal">{KIND_COPY.modalSubtitle}</p>
               </div>
               <button
                 data-testid="zip-filter-close"
                 onClick={() => setOpen(false)}
-                className="text-[#6B705C] hover:text-[#2C2C2C] p-1 rounded"
+                className="text-white/85 hover:text-white p-1"
                 aria-label="Close"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4 overflow-y-auto flex-1">
+            <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 overflow-y-auto flex-1 bg-[#fffaf0]">
               <CheckboxFilter
                 label="Fandom"
                 testId="zip-filter-fandom"
@@ -404,20 +408,20 @@ export default function DownloadZipButton({ kind = "zip" }) {
               />
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-3 p-5 border-t border-[#E07A5F]/20 bg-white/40 flex-shrink-0">
+            <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t-2 border-[#900] bg-[#f5ecd5] flex-shrink-0">
               <button
                 data-testid="zip-filter-reset"
                 onClick={() => { setFandom(new Set()); setRelationship(new Set()); setAuthor(new Set()); setCategory(new Set()); }}
                 disabled={activeFilterCount === 0}
-                className="text-xs text-[#6B705C] hover:text-[#2C2C2C] disabled:opacity-40"
+                className="text-xs text-[#2a6496] hover:text-[#900] underline disabled:opacity-40 disabled:no-underline"
               >
                 Reset filters
               </button>
-              <div className="flex gap-3 ml-auto">
+              <div className="flex gap-2 ml-auto">
                 <button
                   data-testid="zip-filter-cancel"
                   onClick={() => setOpen(false)}
-                  className="px-4 py-2 rounded-lg text-sm text-[#6B705C] hover:text-[#2C2C2C]"
+                  className="px-3 py-1 text-xs border border-[#999] bg-[#eee] text-[#333] hover:bg-[#ddd]"
                 >
                   Cancel
                 </button>
@@ -425,9 +429,9 @@ export default function DownloadZipButton({ kind = "zip" }) {
                   data-testid="zip-filter-start"
                   onClick={startDownload}
                   disabled={downloading}
-                  className="px-5 py-2 rounded-lg text-sm font-medium bg-[#E07A5F] text-white hover:bg-[#d06a4f] disabled:opacity-60 inline-flex items-center gap-2"
+                  className="px-4 py-1 text-xs font-bold bg-[#900] text-white border border-[#600] hover:bg-[#700] disabled:opacity-60 inline-flex items-center gap-2 uppercase tracking-wide"
                 >
-                  <KIND_COPY.Icon className="w-4 h-4" />
+                  <KIND_COPY.Icon className="w-3.5 h-3.5" />
                   {activeFilterCount > 0 ? KIND_COPY.ctaFiltered : KIND_COPY.ctaFull}
                 </button>
               </div>
