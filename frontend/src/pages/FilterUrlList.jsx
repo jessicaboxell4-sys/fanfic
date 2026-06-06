@@ -1,8 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { api } from "../lib/api";
-import { ArrowLeft, Loader2, Download, Link as LinkIcon, CheckCircle2, AlertCircle } from "lucide-react";
+import { ArrowLeft, Loader2, Download, Link as LinkIcon, CheckCircle2, AlertCircle, FileText, Upload } from "lucide-react";
 import { toast } from "sonner";
 import HelpHint from "../components/HelpHint";
 
@@ -11,6 +11,37 @@ export default function FilterUrlList() {
   const [report, setReport] = useState(null);
   const [running, setRunning] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const [loadedFiles, setLoadedFiles] = useState([]);
+  const fileInputRef = useRef(null);
+
+  const ingestFiles = async (filesList) => {
+    const files = Array.from(filesList || []).filter((f) => {
+      const name = (f.name || "").toLowerCase();
+      const okType = !f.type || f.type.startsWith("text/") || f.type === "application/octet-stream";
+      const okExt = name.endsWith(".txt") || name.endsWith(".csv") || name.endsWith(".md") || name.endsWith(".log") || !name.includes(".");
+      return okType || okExt;
+    });
+    if (files.length === 0) {
+      toast.error("Drop .txt (or other plain-text) files");
+      return;
+    }
+    try {
+      const contents = await Promise.all(files.map((f) => f.text()));
+      const blob = contents.join("\n").trim();
+      setText((prev) => (prev.trim() ? `${prev.trim()}\n${blob}` : blob));
+      setLoadedFiles((prev) => [...prev, ...files.map((f) => ({ name: f.name, size: f.size }))]);
+      toast.success(`Loaded ${files.length} file${files.length === 1 ? "" : "s"}`);
+    } catch (e) {
+      toast.error("Couldn't read file");
+    }
+  };
+
+  const onDrop = (e) => {
+    e.preventDefault();
+    setDragging(false);
+    ingestFiles(e.dataTransfer.files);
+  };
 
   const run = async () => {
     if (!text.trim()) {
@@ -91,6 +122,45 @@ export default function FilterUrlList() {
               <HelpHint section="url-list" label="How does this work?" testId="filter-urls-help" />
             </div>
           </div>
+        </div>
+
+        <div
+          data-testid="url-list-dropzone"
+          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={onDrop}
+          onClick={() => fileInputRef.current?.click()}
+          className={`mb-4 border-2 border-dashed rounded-lg p-5 text-center cursor-pointer transition-colors ${dragging ? "border-[#E07A5F] bg-[#E07A5F]/5" : "border-[#E5DDC5] bg-white hover:border-[#E07A5F]/50"}`}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept=".txt,.csv,.md,.log,text/plain"
+            onChange={(e) => { ingestFiles(e.target.files); e.target.value = ""; }}
+            className="hidden"
+            data-testid="url-list-file-input"
+          />
+          <div className="flex flex-col items-center gap-1 text-[#6B705C]">
+            <Upload className="w-6 h-6 text-[#E07A5F]" />
+            <p className="text-sm">
+              <span className="font-medium text-[#2C2C2C]">Drop a .txt file</span> with URLs (one per line) or click to browse
+            </p>
+            <p className="text-xs">…or just paste them into the box below.</p>
+          </div>
+          {loadedFiles.length > 0 && (
+            <div className="mt-3 flex flex-wrap justify-center gap-2" data-testid="url-list-loaded-files">
+              {loadedFiles.map((f, i) => (
+                <span
+                  key={`${f.name}-${i}`}
+                  className="text-xs px-2 py-1 rounded-full bg-[#E5DDC5]/60 text-[#2C2C2C] border border-[#E5DDC5] inline-flex items-center gap-1"
+                >
+                  <FileText className="w-3 h-3" />
+                  {f.name}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         <textarea
