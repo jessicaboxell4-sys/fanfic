@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { FileText, AlertTriangle, ArrowLeft } from "lucide-react";
+import { FileText, AlertTriangle, ArrowLeft, Loader2, RefreshCw } from "lucide-react";
 import { api } from "../lib/api";
+import { toast } from "sonner";
 import Navbar from "../components/Navbar";
 
 // Books the user chose to keep in their ORIGINAL format (PDF, MOBI, AZW,
@@ -10,6 +11,7 @@ import Navbar from "../components/Navbar";
 export default function OriginalsShelf() {
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [convertingId, setConvertingId] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -22,6 +24,26 @@ export default function OriginalsShelf() {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  const convertOne = async (book) => {
+    if (!window.confirm(
+      `Convert "${book.title}" to EPUB? Calibre will run server-side — the file will move from Originals into your main library and become readable in the in-app reader.`,
+    )) return;
+    setConvertingId(book.book_id);
+    try {
+      const { data } = await api.post(`/library/originals/${book.book_id}/convert`);
+      if (data?.ok) {
+        setBooks((bs) => bs.filter((b) => b.book_id !== book.book_id));
+        toast.success(`Converted "${data.book?.title || book.title}" — now in your main library`);
+      } else {
+        toast.error(`Conversion failed: ${data?.error || "unknown error"}`);
+      }
+    } catch (e) {
+      toast.error("Conversion failed — try again");
+    } finally {
+      setConvertingId(null);
+    }
+  };
 
   const dupCount = books.filter((b) => (b.cross_format_duplicate_of || []).length > 0).length;
 
@@ -90,14 +112,26 @@ export default function OriginalsShelf() {
                     </div>
                   )}
                 </div>
-                <a
-                  href={`${process.env.REACT_APP_BACKEND_URL}/api/books/${b.book_id}/download`}
-                  download
-                  data-testid={`original-download-${b.book_id}`}
-                  className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[#E07A5F] text-white hover:bg-[#d06a4f]"
-                >
-                  Download
-                </a>
+                <div className="flex gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => convertOne(b)}
+                    disabled={convertingId === b.book_id}
+                    data-testid={`original-convert-${b.book_id}`}
+                    title="Run Calibre — move this file out of Originals and into the main library"
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[#3A5A40] text-white hover:bg-[#2c4530] disabled:opacity-60 inline-flex items-center gap-1.5"
+                  >
+                    {convertingId === b.book_id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                    Convert to EPUB
+                  </button>
+                  <a
+                    href={`${process.env.REACT_APP_BACKEND_URL}/api/books/${b.book_id}/download`}
+                    download
+                    data-testid={`original-download-${b.book_id}`}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[#E07A5F] text-white hover:bg-[#d06a4f]"
+                  >
+                    Download
+                  </a>
+                </div>
               </div>
             );
           })}

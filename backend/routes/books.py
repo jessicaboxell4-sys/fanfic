@@ -2500,6 +2500,66 @@ async def list_originals(user: User = Depends(get_current_user)):
     }
 
 
+@api_router.post("/library/originals/{book_id}/convert")
+async def convert_original_to_epub(book_id: str, user: User = Depends(get_current_user)):
+    """Promote an original-format book (PDF/MOBI/AZW/DOCX/etc.) to a full
+    EPUB by running Calibre on it. On success the book moves out of the
+    Originals shelf into the regular library (classified by the new
+    metadata) and becomes openable in the Reader.
+    """
+    book = await db.books.find_one({"book_id": book_id, "user_id": user.user_id})
+    if not book or not book.get("original_only"):
+        raise HTTPException(status_code=404, detail="Original-format book not found")
+    ext = "." + (book.get("original_format") or "")
+    user_dir = STORAGE_DIR / user.user_id
+    src_path = user_dir / f"{book_id}{ext}"
+    if not src_path.exists():
+        raise HTTPException(status_code=404, detail="Source file missing on disk")
+    epub_target = user_dir / f"{book_id}.epub"
+
+    err = await convert_to_epub(src_path, epub_target)
+    if err:
+        return {"ok": False, "error": err}
+
+    # Re-extract metadata + classify the freshly converted EPUB so it lands
+    # on the right shelf instead of staying as a stub "Originals" entry.
+    try:
+        meta = extract_epub_metadata(epub_target)
+        cls = await classify_book(meta)
+        links = extract_urls_from_epub(epub_target)
+        source_url = find_source_url(links)
+        fanfic_urls = extract_fanfic_urls(links)
+        await db.books.update_one(
+            {"book_id": book_id, "user_id": user.user_id},
+            {
+                "$set": {
+                    "title": meta.get("title") or book.get("title") or "Untitled",
+                    "author": meta.get("author") or book.get("author") or "Unknown",
+                    "description": meta.get("description") or "",
+                    "language": meta.get("language") or "",
+                    "publisher": meta.get("publisher") or "",
+                    "has_cover": bool(meta.get("cover_bytes")),
+                    "category": cls["category"],
+                    "fandom": _canonicalize_fandom(cls.get("fandom")),
+                    "confidence": cls["confidence"],
+                    "classifier": cls["classifier"],
+                    "tags": cls.get("tags") or [],
+                    "links_count": len(links),
+                    "source_url": source_url,
+                    "fanfic_urls": fanfic_urls,
+                    # Out of the Originals room — keep `original_format` as a
+                    # historical hint that it came from a non-EPUB.
+                    "original_only": False,
+                },
+            },
+        )
+    except Exception as e:
+        return {"ok": False, "error": f"Metadata extraction failed: {e}"}
+
+    updated = await db.books.find_one({"book_id": book_id, "user_id": user.user_id}, {"_id": 0})
+    return {"ok": True, "book": updated}
+
+
 
 
 @api_router.get("/books")
