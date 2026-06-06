@@ -30,22 +30,34 @@ export default function FilterUrlList() {
 
   const exportXlsx = async () => {
     const urls = (report?.new_urls || []).map((u) => u.url);
-    if (urls.length === 0) {
-      toast("Nothing new to export");
+    const owned = (report?.already_owned || []).map((m) => ({
+      url: m.url,
+      title: m.title,
+      author: m.author,
+      book_id: m.book_id,
+    }));
+    if (urls.length === 0 && owned.length === 0) {
+      toast("Nothing to export");
       return;
     }
     setExporting(true);
     try {
-      const resp = await api.post("/books/url-list/export-xlsx", { urls }, { responseType: "blob" });
+      const resp = await api.post(
+        "/books/url-list/export-xlsx",
+        { urls, owned },
+        { responseType: "blob" },
+      );
       const url = window.URL.createObjectURL(resp.data);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "shelfsort_new_urls.xlsx";
+      a.download = "shelfsort_url_list.xlsx";
       document.body.appendChild(a);
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
-      toast.success(`Exported ${urls.length} new URL${urls.length === 1 ? "" : "s"}`);
+      toast.success(
+        `Exported ${urls.length} new + ${owned.length} already-owned URL${urls.length + owned.length === 1 ? "" : "s"}`,
+      );
     } catch (e) {
       toast.error("Couldn't build Excel");
     } finally {
@@ -67,7 +79,7 @@ export default function FilterUrlList() {
           <div>
             <h1 className="font-serif text-4xl text-[#2C2C2C] leading-tight">Filter a URL list</h1>
             <p className="text-[#6B705C] mt-1">
-              Paste fanfic URLs (one per line). We'll strip out the ones you already have and hand back an Excel of the rest.
+              Paste fanfic URLs (one per line). We&apos;ll split them into &quot;already in your library&quot; vs &quot;new&quot;, and the Excel export bundles both lists in one workbook.
             </p>
             <div className="mt-2">
               <HelpHint section="url-list" label="How does this work?" testId="filter-urls-help" />
@@ -150,11 +162,11 @@ export default function FilterUrlList() {
               <button
                 data-testid="url-list-download"
                 onClick={exportXlsx}
-                disabled={exporting || report.new_urls.length === 0}
+                disabled={exporting || (report.new_urls.length === 0 && report.already_owned.length === 0)}
                 className="px-5 py-2 rounded-lg text-sm font-medium bg-[#E07A5F] text-white hover:bg-[#d06a4f] disabled:opacity-60 inline-flex items-center gap-2"
               >
                 {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                Download Excel ({report.new_urls.length})
+                Download Excel ({report.new_urls.length} new · {report.already_owned.length} owned)
               </button>
             </div>
           </div>

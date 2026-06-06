@@ -1080,34 +1080,76 @@ async def _dedupe_url_list(text: str, user_id: str) -> Dict[str, Any]:
 
 
 class UrlListExportBody(BaseModel):
-    urls: List[str]
+    urls: List[str]  # net-new URLs (not already owned)
+    # Optional: when the frontend has the already-owned list, ship it so the
+    # workbook contains BOTH sheets in one file. Each row is a {url, title?,
+    # author?, book_id?} dict so we can show metadata for owned items.
+    owned: Optional[List[Dict[str, Any]]] = None
+
+
+def _source_for(u: str) -> str:
+    u_lower = (u or "").lower()
+    if "archiveofourown" in u_lower: return "AO3"
+    if "fanfiction.net" in u_lower: return "FFnet"
+    if "spacebattles.com" in u_lower: return "SpaceBattles"
+    if "sufficientvelocity.com" in u_lower: return "SufficientVelocity"
+    if "royalroad" in u_lower: return "RoyalRoad"
+    return ""
 
 
 @api_router.post("/books/url-list/export-xlsx")
 async def export_url_list_xlsx(body: UrlListExportBody, user: User = Depends(get_current_user)):
-    """Build an Excel of just the net-new URLs after a dedupe pass. The
-    frontend hands us the already-filtered list so we don't re-run dedupe."""
+    """Build an Excel summarizing a URL-list dedupe pass.
+
+    Sheet 1 — "New URLs": the net-new fanfic URLs (not in the library)
+    Sheet 2 — "Already owned": URLs already in the library, with the matched
+              book's title / author / id so the user can review what they
+              already have without leaving the spreadsheet.
+    """
     from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
     wb = Workbook()
-    ws = wb.active
-    ws.title = "New URLs"
-    ws.append(["URL", "Canonical", "Source"])
+
+    head_font = Font(bold=True, color="FFFFFF")
+    head_fill = PatternFill("solid", fgColor="3A5A40")
+
+    # Sheet 1 — net-new
+    ws_new = wb.active
+    ws_new.title = "New URLs"
+    ws_new.append(["URL", "Canonical", "Source"])
+    for cell in ws_new[1]:
+        cell.font = head_font
+        cell.fill = head_fill
     for u in body.urls:
         c = _canonical_fanfic_url(u) or ""
-        source = ""
-        if "archiveofourown" in u.lower():
-            source = "AO3"
-        elif "fanfiction.net" in u.lower():
-            source = "FFnet"
-        elif "spacebattles.com" in u.lower():
-            source = "SpaceBattles"
-        elif "sufficientvelocity.com" in u.lower():
-            source = "SufficientVelocity"
-        elif "royalroad" in u.lower():
-            source = "RoyalRoad"
-        ws.append([u, c, source])
+        ws_new.append([u, c, _source_for(u)])
     for col, width in (("A", 60), ("B", 60), ("C", 18)):
-        ws.column_dimensions[col].width = width
+        ws_new.column_dimensions[col].width = width
+    ws_new.freeze_panes = "A2"
+    if ws_new.max_row > 1:
+        ws_new.auto_filter.ref = ws_new.dimensions
+
+    # Sheet 2 — already owned
+    ws_owned = wb.create_sheet("Already owned")
+    ws_owned.append(["URL", "Title", "Author", "Book ID", "Source"])
+    for cell in ws_owned[1]:
+        cell.font = head_font
+        cell.fill = head_fill
+    for item in (body.owned or []):
+        url = item.get("url") or ""
+        ws_owned.append([
+            url,
+            item.get("title") or "",
+            item.get("author") or "",
+            item.get("book_id") or "",
+            _source_for(url),
+        ])
+    for col, width in (("A", 60), ("B", 40), ("C", 24), ("D", 18), ("E", 18)):
+        ws_owned.column_dimensions[col].width = width
+    ws_owned.freeze_panes = "A2"
+    if ws_owned.max_row > 1:
+        ws_owned.auto_filter.ref = ws_owned.dimensions
+
     buf = io.BytesIO()
     wb.save(buf)
     payload = buf.getvalue()
@@ -1115,7 +1157,7 @@ async def export_url_list_xlsx(body: UrlListExportBody, user: User = Depends(get
         content=payload,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={
-            "Content-Disposition": 'attachment; filename="shelfsort_new_urls.xlsx"',
+            "Content-Disposition": 'attachment; filename="shelfsort_url_list.xlsx"',
             "Content-Length": str(len(payload)),
         },
     )
