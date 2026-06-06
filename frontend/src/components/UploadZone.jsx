@@ -81,6 +81,26 @@ export default function UploadZone({ onUploaded }) {
     if (skipped > 0) {
       toast(`Skipping ${skipped} unsupported file${skipped === 1 ? "" : "s"}`, { duration: 3500 });
     }
+
+    // Non-EPUBs (PDF/MOBI/AZW/DOCX/.txt URL-lists/etc.) get a confirm prompt
+    // so the user explicitly opts into Calibre conversion or URL dedupe.
+    const nonEpub = files.filter((f) => !f.name.toLowerCase().endsWith(".epub"));
+    if (nonEpub.length > 0) {
+      const formats = [...new Set(nonEpub.map((f) => "." + f.name.split(".").pop().toLowerCase()))];
+      const formatList = formats.join(", ");
+      const summary =
+        nonEpub.length === files.length
+          ? `Add ${nonEpub.length} non-EPUB file${nonEpub.length === 1 ? "" : "s"} (${formatList}) to your library?`
+          : `${files.length - nonEpub.length} EPUB(s) will be added directly.\n\nAlso add ${nonEpub.length} non-EPUB file${nonEpub.length === 1 ? "" : "s"} (${formatList}) to your library?`;
+      const ok = window.confirm(
+        `${summary}\n\nNon-EPUBs get auto-converted via Calibre. .txt files containing fanfic URLs are deduped against your library — no book is added for those.`,
+      );
+      if (!ok) {
+        toast("Upload cancelled");
+        return;
+      }
+    }
+
     setUploading(true);
     setProgress({ done: 0, total: files.length });
     const duplicates = [];
