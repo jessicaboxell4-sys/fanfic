@@ -119,24 +119,34 @@ export default function UploadZone({ onUploaded }) {
       toast(`Skipping ${skipped} unsupported file${skipped === 1 ? "" : "s"}`, { duration: 3500 });
     }
 
-    // EPUBs always upload silently — no confirmation. Non-EPUBs are routed
-    // by the user's per-format preference (Account → Non-EPUB upload prefs):
-    //   "convert" → auto-add silently (Calibre will run server-side)
-    //   "skip"    → silently drop (helpful if you import lots of .pdb you
-    //               never actually want; just set it once and forget)
-    //   "ask"     → batched into a single confirm prompt (default behavior)
+    // EPUBs always upload silently — no confirmation. For non-EPUBs we ask
+    // PER FORMAT GROUP (PDF, Kindle, Word/RTF, ...) so the user can opt-in
+    // to converting some formats while skipping others in the same drop.
+    // The user's per-format preferences (Account → Non-EPUB upload prefs)
+    // override the prompt: "convert" auto-adds silently, "skip" drops
+    // silently, "ask" triggers the per-group prompt described below.
     const epubs = files.filter((f) => f.name.toLowerCase().endsWith(".epub"));
     const nonEpub = files.filter((f) => !f.name.toLowerCase().endsWith(".epub"));
 
+    // Friendly labels for each format group so the prompt reads nicely.
+    const GROUP_LABELS = {
+      pdf: "PDF",
+      kindle: "Kindle (.mobi/.azw/.azw3/.kf8/.kfx)",
+      word: "Word / RTF (.docx/.doc/.rtf)",
+      other_ebook: "other ebook (.fb2/.lit/.lrf/.pdb)",
+      txt: "plain text (.txt — will dedupe URL lists)",
+      html: "HTML (.html/.htm)",
+    };
+
     const autoAdd = []; // pref === "convert"
     const autoSkip = []; // pref === "skip"
-    const toAsk = []; // pref === "ask" (or unknown group → safe default)
+    const askByGroup = {}; // {group: [File, ...]}
     for (const f of nonEpub) {
-      const grp = groupOf(f.name);
-      const pref = grp ? (formatPrefs[grp] || "ask") : "ask";
+      const grp = groupOf(f.name) || "other_ebook";
+      const pref = formatPrefs[grp] || "ask";
       if (pref === "convert") autoAdd.push(f);
       else if (pref === "skip") autoSkip.push(f);
-      else toAsk.push(f);
+      else { askByGroup[grp] = askByGroup[grp] || []; askByGroup[grp].push(f); }
     }
     if (autoSkip.length > 0) {
       toast(
@@ -146,25 +156,25 @@ export default function UploadZone({ onUploaded }) {
     }
 
     let toUpload = [...epubs, ...autoAdd];
-    if (toAsk.length > 0) {
-      const formats = [...new Set(toAsk.map((f) => extOf(f.name)))];
-      const formatList = formats.join(", ");
-      const knownCount = epubs.length + autoAdd.length;
-      const summary =
-        knownCount > 0
-          ? `${knownCount} file${knownCount === 1 ? "" : "s"} will be added directly.\n\nAlso add ${toAsk.length} non-EPUB file${toAsk.length === 1 ? "" : "s"} (${formatList})?`
-          : `Add ${toAsk.length} non-EPUB file${toAsk.length === 1 ? "" : "s"} (${formatList}) to your library?`;
+    const askGroups = Object.keys(askByGroup);
+    for (const grp of askGroups) {
+      const groupFiles = askByGroup[grp];
+      const label = GROUP_LABELS[grp] || grp;
+      const exts = [...new Set(groupFiles.map((f) => extOf(f.name)))].join(", ");
       const ok = window.confirm(
-        `${summary}\n\nNon-EPUBs get auto-converted via Calibre. .txt files containing fanfic URLs are deduped against your library — no book is added for those.\n\nTip: set per-format defaults in Account → "Non-EPUB upload preferences" to skip this prompt next time.`,
+        `Convert ${groupFiles.length} ${label} file${groupFiles.length === 1 ? "" : "s"} (${exts}) to EPUB and add to your library?\n\n` +
+        `Calibre will run server-side to produce the EPUB. The original is kept as the source.\n\n` +
+        `Tip: set this format's default in Account → "Non-EPUB upload preferences" to skip this question next time.`,
       );
       if (ok) {
-        toUpload = toUpload.concat(toAsk);
-      } else if (toUpload.length === 0) {
-        toast("Upload cancelled");
-        return;
+        toUpload = toUpload.concat(groupFiles);
       } else {
-        toast(`Skipping ${toAsk.length} non-EPUB file${toAsk.length === 1 ? "" : "s"} · sorting your ${toUpload.length} file${toUpload.length === 1 ? "" : "s"}`);
+        toast(`Skipping ${groupFiles.length} ${label} file${groupFiles.length === 1 ? "" : "s"}`);
       }
+    }
+    if (askGroups.length > 0 && toUpload.length === 0) {
+      toast("Upload cancelled");
+      return;
     }
     const filesToSend = toUpload;
     if (filesToSend.length === 0) {
