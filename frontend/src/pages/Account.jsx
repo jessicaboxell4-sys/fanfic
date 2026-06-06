@@ -652,6 +652,47 @@ export default function Account() {
           </div>
         </section>
 
+        {/* Canonicalize crossover fandoms — collapse "Harry Potter & Twilight"
+            and "Twilight/Harry Potter" into a single shelf so crossovers file
+            together everywhere. */}
+        <section className="shelf-card p-6 mb-6" data-testid="canonicalize-crossovers-card">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#E07A5F]/10 text-[#E07A5F] flex items-center justify-center flex-shrink-0">
+              <Layers className="w-5 h-5" />
+            </div>
+            <div className="flex-1">
+              <h2 className="font-serif text-2xl text-[#2C2C2C]">Merge crossover fandoms</h2>
+              <p className="text-sm text-[#6B705C] mt-1">
+                Books tagged "Harry Potter &amp; Twilight" and "Twilight/Harry Potter" will be unified
+                into the same canonical shelf ("Harry Potter / Twilight"). New uploads do this
+                automatically — this is for cleaning up older imports.
+              </p>
+            </div>
+            <button
+              data-testid="canonicalize-crossovers-btn"
+              onClick={async () => {
+                try {
+                  const { data } = await api.post("/fandoms/canonicalize-crossovers");
+                  if (data.updated > 0) {
+                    const examples = (data.mappings || []).slice(0, 3).map((m) => `${m.from} → ${m.to}`).join(", ");
+                    toast.success(
+                      `Merged ${data.updated} book${data.updated === 1 ? "" : "s"} across ${data.mappings.length} crossover${data.mappings.length === 1 ? "" : "s"}${examples ? `. e.g. ${examples}` : ""}`,
+                      { duration: 8000 },
+                    );
+                  } else {
+                    toast(`Scanned ${data.scanned} book${data.scanned === 1 ? "" : "s"} — nothing to merge`);
+                  }
+                } catch (e) {
+                  toast.error("Merge failed — try again");
+                }
+              }}
+              className="px-4 py-2 rounded-lg text-sm font-medium bg-[#E07A5F] text-white hover:bg-[#d06a4f] flex-shrink-0"
+            >
+              Run merge
+            </button>
+          </div>
+        </section>
+
         {/* Reset library state — selective wipe of metadata, books stay */}
         <section
           className="shelf-card p-6 mb-6"

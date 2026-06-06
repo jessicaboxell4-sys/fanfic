@@ -266,6 +266,42 @@ SERIES_TITLE_PATTERNS = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# Crossover fandoms: multi-fandom works (Harry Potter & Twilight,
+# Twilight/Lord of the Rings, etc.) should file together regardless of the
+# order/separator the EPUB happened to use. Canonical form: alphabetically
+# sorted, joined with " / ", so "Twilight & Harry Potter" and
+# "Harry Potter/Twilight" both become "Harry Potter / Twilight".
+# ---------------------------------------------------------------------------
+# Common multi-fandom separators in EPUB metadata.
+_FANDOM_SPLIT_RE = re.compile(r'\s*(?:/|&|\+|,|\s+(?:x|×|and)\s+)\s*', re.IGNORECASE)
+
+
+def _canonicalize_fandom(raw: Optional[str]) -> Optional[str]:
+    """Normalize a fandom string. Crossovers collapse to a single canonical
+    'A / B / C' form (alphabetical). Single-fandom strings are returned
+    unchanged. Returns None for empty/whitespace input."""
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if not s:
+        return None
+    parts = [p.strip() for p in _FANDOM_SPLIT_RE.split(s) if p and p.strip()]
+    if len(parts) <= 1:
+        return s
+    # Dedupe while preserving case from the first occurrence; sort by lowercased key.
+    seen: Dict[str, str] = {}
+    for p in parts:
+        key = p.lower()
+        if key not in seen:
+            seen[key] = p
+    canonical = sorted(seen.values(), key=lambda x: x.lower())
+    return " / ".join(canonical)
+
+
+
+
+
 def detect_series_from_title(title: str) -> tuple:
     """Returns (series_name, series_index) or (None, None)."""
     if not title:
@@ -2168,7 +2204,7 @@ async def upload_books(
             "publisher": meta['publisher'],
             "has_cover": bool(meta.get('cover_bytes')),
             "category": classification['category'],
-            "fandom": classification.get('fandom'),
+            "fandom": _canonicalize_fandom(classification.get('fandom')),
             "confidence": classification['confidence'],
             "classifier": classification['classifier'],
             "tags": classification.get("tags") or [],
@@ -3441,7 +3477,7 @@ async def reclassify_book(book_id: str, body: ReclassifyBody, user: User = Depen
         {"book_id": book_id},
         {"$set": {
             "category": classification['category'],
-            "fandom": classification.get('fandom'),
+            "fandom": _canonicalize_fandom(classification.get('fandom')),
             "confidence": classification['confidence'],
             "classifier": classification['classifier'],
         }},
@@ -4149,7 +4185,7 @@ async def bulk_move(body: BulkMoveBody, user: User = Depends(get_current_user)):
     if body.category is not None:
         update["category"] = body.category
     if body.fandom is not None:
-        update["fandom"] = body.fandom if body.fandom else None
+        update["fandom"] = _canonicalize_fandom(body.fandom) if body.fandom else None
     if len(update) == 2:  # only classifier+confidence — nothing to move to
         raise HTTPException(status_code=400, detail="No category or fandom provided")
     result = await db.books.update_many(
@@ -4193,7 +4229,7 @@ async def bulk_metadata(body: BulkMetadataBody, user: User = Depends(get_current
         set_common["confidence"] = 1.0
     if body.fandom is not None:
         if body.fandom.strip():
-            set_common["fandom"] = body.fandom.strip()
+            set_common["fandom"] = _canonicalize_fandom(body.fandom.strip())
         else:
             unset_common["fandom"] = ""
     if body.series_name is not None and body.series_start_index is None:
@@ -4473,6 +4509,40 @@ async def list_fandoms(user: User = Depends(get_current_user)):
     return {"fandoms": fandoms}
 
 
+@api_router.post("/fandoms/canonicalize-crossovers")
+async def canonicalize_crossover_fandoms(user: User = Depends(get_current_user)):
+    """Walk every book in the user's library and rewrite any crossover
+    fandom strings (e.g. "Twilight & Harry Potter", "Harry Potter/Twilight")
+    into the canonical alphabetical form "Harry Potter / Twilight" so they
+    file together. Returns a per-mapping report.
+    """
+    books = await db.books.find(
+        {"user_id": user.user_id, "fandom": {"$ne": None, "$exists": True}},
+        {"_id": 0, "book_id": 1, "fandom": 1},
+    ).to_list(20000)
+    mapping: Dict[str, str] = {}
+    updated = 0
+    for b in books:
+        old = b.get("fandom")
+        if not old:
+            continue
+        new = _canonicalize_fandom(old)
+        if new and new != old:
+            await db.books.update_one(
+                {"user_id": user.user_id, "book_id": b["book_id"]},
+                {"$set": {"fandom": new}},
+            )
+            mapping.setdefault(old, new)
+            updated += 1
+    return {
+        "scanned": len(books),
+        "updated": updated,
+        "mappings": [{"from": k, "to": v} for k, v in mapping.items()],
+    }
+
+
+
+
 @api_router.get("/authors/{name}")
 async def get_author(name: str, user: User = Depends(get_current_user)):
     """All books by this author, newest first."""
@@ -4492,7 +4562,7 @@ async def update_book(book_id: str, body: UpdateBookBody, user: User = Depends(g
     if body.category is not None:
         update['category'] = body.category
     if body.fandom is not None:
-        update['fandom'] = body.fandom if body.fandom else None
+        update['fandom'] = _canonicalize_fandom(body.fandom) if body.fandom else None
     await db.books.update_one({"book_id": book_id, "user_id": user.user_id}, {"$set": update})
     return {"ok": True}
 
