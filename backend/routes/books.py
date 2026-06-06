@@ -1,6 +1,6 @@
 from fastapi import (
     APIRouter, UploadFile, File, HTTPException, Request, Response,
-    Depends, Form,
+    Depends, Form, Query,
 )
 from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
 from starlette.background import BackgroundTask
@@ -3080,10 +3080,10 @@ def _templated_filename(title: Optional[str], author: Optional[str], book_id: st
 
 @api_router.get("/books/export/links")
 async def export_all_links(
-    category: Optional[str] = None,
-    fandom: Optional[str] = None,
-    relationship: Optional[str] = None,
-    author: Optional[str] = None,
+    category: Optional[List[str]] = Query(None),
+    fandom: Optional[List[str]] = Query(None),
+    relationship: Optional[List[str]] = Query(None),
+    author: Optional[List[str]] = Query(None),
     format: str = "txt",
     user: User = Depends(get_current_user),
 ):
@@ -3096,13 +3096,13 @@ async def export_all_links(
     """
     query: Dict[str, Any] = {"user_id": user.user_id}
     if category:
-        query["category"] = category
+        query["category"] = {"$in": category} if len(category) > 1 else category[0]
     if fandom:
-        query["fandom"] = fandom
+        query["fandom"] = {"$in": fandom} if len(fandom) > 1 else fandom[0]
     if relationship:
-        query["relationships"] = relationship
+        query["relationships"] = {"$in": relationship} if len(relationship) > 1 else relationship[0]
     if author:
-        query["author"] = author
+        query["author"] = {"$in": author} if len(author) > 1 else author[0]
     books = await db.books.find(query, {"_id": 0}).sort("created_at", -1).to_list(5000)
     if not books:
         raise HTTPException(status_code=404, detail="No books")
@@ -3187,10 +3187,12 @@ async def export_all_links(
         wb.save(buf)
         payload = buf.getvalue()
         xlsx_name = "shelfsort_library.xlsx"
-        if fandom:
-            xlsx_name = f"shelfsort_{_safe_folder(fandom)}.xlsx"
-        elif category:
-            xlsx_name = f"shelfsort_{_safe_folder(category)}.xlsx"
+        if fandom and len(fandom) == 1:
+            xlsx_name = f"shelfsort_{_safe_folder(fandom[0])}.xlsx"
+        elif category and len(category) == 1:
+            xlsx_name = f"shelfsort_{_safe_folder(category[0])}.xlsx"
+        elif any([fandom, category, relationship, author]):
+            xlsx_name = "shelfsort_filtered.xlsx"
         return Response(
             content=payload,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -3265,10 +3267,12 @@ async def export_all_links(
 
         payload = buf.getvalue()
         zip_name = "shelfsort_links_by_fandom.zip"
-        if fandom:
-            zip_name = f"shelfsort_{_safe_folder(fandom)}_links.zip"
-        elif category:
-            zip_name = f"shelfsort_{_safe_folder(category)}_links.zip"
+        if fandom and len(fandom) == 1:
+            zip_name = f"shelfsort_{_safe_folder(fandom[0])}_links.zip"
+        elif category and len(category) == 1:
+            zip_name = f"shelfsort_{_safe_folder(category[0])}_links.zip"
+        elif any([fandom, category, relationship, author]):
+            zip_name = "shelfsort_filtered_links.zip"
         return Response(
             content=payload,
             media_type="application/zip",
@@ -3280,10 +3284,12 @@ async def export_all_links(
 
     # TXT format — combined single file (default, backward-compatible)
     scope = "your library"
-    if fandom:
-        scope = f"the {fandom} shelf"
-    elif category:
-        scope = f"the {category} shelf"
+    if fandom and len(fandom) == 1:
+        scope = f"the {fandom[0]} shelf"
+    elif category and len(category) == 1:
+        scope = f"the {category[0]} shelf"
+    elif any([fandom, category, relationship, author]):
+        scope = "the filtered selection"
 
     lines: List[str] = []
     lines.append(f"Shelfsort — links extracted from {scope}")
@@ -3319,10 +3325,12 @@ async def export_all_links(
     body = "\n".join(lines) + "\n"
 
     fname = "shelfsort_all_links.txt"
-    if fandom:
-        fname = f"shelfsort_{_safe_folder(fandom)}_links.txt"
-    elif category:
-        fname = f"shelfsort_{_safe_folder(category)}_links.txt"
+    if fandom and len(fandom) == 1:
+        fname = f"shelfsort_{_safe_folder(fandom[0])}_links.txt"
+    elif category and len(category) == 1:
+        fname = f"shelfsort_{_safe_folder(category[0])}_links.txt"
+    elif any([fandom, category, relationship, author]):
+        fname = "shelfsort_filtered_links.txt"
     headers = {"Content-Disposition": f"attachment; filename={fname}"}
     return Response(content=body, media_type="text/plain; charset=utf-8", headers=headers)
 
@@ -4477,24 +4485,22 @@ def _safe_folder(name: str) -> str:
 @api_router.get("/books/export/zip")
 async def export_zip(
     request: Request,
-    category: Optional[str] = None,
-    fandom: Optional[str] = None,
-    relationship: Optional[str] = None,
-    author: Optional[str] = None,
+    category: Optional[List[str]] = Query(None),
+    fandom: Optional[List[str]] = Query(None),
+    relationship: Optional[List[str]] = Query(None),
+    author: Optional[List[str]] = Query(None),
     user: User = Depends(get_current_user),
 ):
     query: Dict[str, Any] = {"user_id": user.user_id}
     if category:
-        query["category"] = category
+        query["category"] = {"$in": category} if len(category) > 1 else category[0]
     if fandom:
-        query["fandom"] = fandom
+        query["fandom"] = {"$in": fandom} if len(fandom) > 1 else fandom[0]
     if relationship:
-        # `relationships` is an array on the book doc — Mongo equality on an
-        # array field tests membership, so this matches any book listing the
-        # given pairing.
-        query["relationships"] = relationship
+        # Match books listing ANY of the chosen pairings.
+        query["relationships"] = {"$in": relationship} if len(relationship) > 1 else relationship[0]
     if author:
-        query["author"] = author
+        query["author"] = {"$in": author} if len(author) > 1 else author[0]
     books = await db.books.find(query, {"_id": 0}).to_list(5000)
     if not books:
         raise HTTPException(status_code=404, detail="No books")
@@ -4563,13 +4569,13 @@ async def export_zip(
         total_books = sum(len(v) for v in buckets.values())
         scope_lines: List[str] = []
         if fandom:
-            scope_lines.append(f"Filter: fandom = {fandom}")
+            scope_lines.append(f"Filter: fandom = {', '.join(fandom)}")
         if relationship:
-            scope_lines.append(f"Filter: pairing = {relationship}")
+            scope_lines.append(f"Filter: pairing = {', '.join(relationship)}")
         if author:
-            scope_lines.append(f"Filter: author = {author}")
+            scope_lines.append(f"Filter: author = {', '.join(author)}")
         if category:
-            scope_lines.append(f"Filter: category = {category}")
+            scope_lines.append(f"Filter: category = {', '.join(category)}")
         lines: List[str] = [
             "Shelfsort library export",
             f"Generated: {now_str}",
@@ -4674,17 +4680,23 @@ async def export_zip(
                 arcname = f"{folder}/{_templated_filename(b.get('title'), b.get('author'), b['book_id'])}"
                 yield (arcname, modified_at, mode, ZIP_64, _file_chunks(fp))
 
+    # Build a friendly zip filename. For a single-value filter we use it
+    # directly; multi-value filters collapse to "filtered" to keep things short.
+    def _single(v): return v[0] if v and len(v) == 1 else None
+    sf, sr, sa, sc = _single(fandom), _single(relationship), _single(author), _single(category)
     zip_name = "shelfsort_library.zip"
-    if fandom and relationship:
-        zip_name = f"shelfsort_{_safe_folder(fandom)}_{_safe_folder(relationship)}.zip"
-    elif fandom:
-        zip_name = f"shelfsort_{_safe_folder(fandom)}.zip"
-    elif relationship:
-        zip_name = f"shelfsort_{_safe_folder(relationship)}.zip"
-    elif author:
-        zip_name = f"shelfsort_{_safe_folder(author)}.zip"
-    elif category:
-        zip_name = f"shelfsort_{_safe_folder(category)}.zip"
+    if sf and sr:
+        zip_name = f"shelfsort_{_safe_folder(sf)}_{_safe_folder(sr)}.zip"
+    elif sf:
+        zip_name = f"shelfsort_{_safe_folder(sf)}.zip"
+    elif sr:
+        zip_name = f"shelfsort_{_safe_folder(sr)}.zip"
+    elif sa:
+        zip_name = f"shelfsort_{_safe_folder(sa)}.zip"
+    elif sc:
+        zip_name = f"shelfsort_{_safe_folder(sc)}.zip"
+    elif any([fandom, relationship, author, category]):
+        zip_name = "shelfsort_filtered.zip"
 
     logger.info(
         "export-zip streaming start: user=%s books=%d", user.user_id, len(books),

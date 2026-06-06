@@ -1,7 +1,67 @@
-import React, { useEffect, useRef, useState } from "react";
-import { Download, Loader2, X, Filter as FilterIcon, Link as LinkIcon } from "lucide-react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Download, Loader2, X, Filter as FilterIcon, Link as LinkIcon, Search } from "lucide-react";
 import { API, api } from "../lib/api";
 import { toast } from "sonner";
+
+// Scrollable checkbox list with a built-in search box. Used for each of
+// the four filter dimensions (fandom / pairing / author / category) inside
+// the download modal.
+function CheckboxFilter({ label, testId, options, selected, onToggle }) {
+  const [q, setQ] = useState("");
+  const filtered = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    if (!needle) return options;
+    return options.filter((o) => (o.name || "").toLowerCase().includes(needle));
+  }, [q, options]);
+
+  return (
+    <div data-testid={testId}>
+      <div className="flex items-center justify-between mb-1">
+        <label className="block text-xs font-bold uppercase tracking-wide text-[#3A5A40]">
+          {label}
+        </label>
+        {selected.size > 0 && (
+          <span className="text-[10px] text-[#6B705C]">{selected.size} picked</span>
+        )}
+      </div>
+      <div className="relative mb-1">
+        <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-[#6B705C]" />
+        <input
+          type="text"
+          placeholder="Search…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          className="w-full pl-7 pr-2 py-1.5 rounded-md border border-[#E5DDC5] bg-white text-xs focus:outline-none focus:border-[#E07A5F]/60"
+        />
+      </div>
+      <div className="rounded-lg border border-[#E5DDC5] bg-white max-h-64 overflow-y-auto">
+        {filtered.length === 0 && (
+          <div className="px-3 py-4 text-xs text-[#6B705C] text-center">
+            {options.length === 0 ? "Nothing here yet" : "No matches"}
+          </div>
+        )}
+        {filtered.map((o) => {
+          const isOn = selected.has(o.name);
+          return (
+            <label
+              key={o.name}
+              className={`flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer border-b border-[#E5DDC5]/40 last:border-b-0 ${isOn ? "bg-[#FDF3E1]" : "hover:bg-[#FDF3E1]/40"}`}
+            >
+              <input
+                type="checkbox"
+                checked={isOn}
+                onChange={() => onToggle(o.name)}
+                className="accent-[#E07A5F]"
+              />
+              <span className="flex-1 truncate">{o.name}</span>
+              <span className="text-xs text-[#6B705C] flex-shrink-0">{o.count}</span>
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 // "Download ZIP" / "Download .xlsx" with filters. Lets the user pick a
 // fandom, a pairing, an author, and/or a category before kicking off the
@@ -47,11 +107,20 @@ export default function DownloadZipButton({ kind = "zip" }) {
   const [overview, setOverview] = useState(null);
   const [relationships, setRelationships] = useState([]);
   const [authors, setAuthors] = useState([]);
-  const [fandom, setFandom] = useState("");
-  const [relationship, setRelationship] = useState("");
-  const [author, setAuthor] = useState("");
-  const [category, setCategory] = useState("");
+  // Each filter is a Set of selected values — empty = no filter ("Any").
+  const [fandom, setFandom] = useState(() => new Set());
+  const [relationship, setRelationship] = useState(() => new Set());
+  const [author, setAuthor] = useState(() => new Set());
+  const [category, setCategory] = useState(() => new Set());
   const abortRef = useRef(null);
+
+  const toggleIn = (setter) => (value) => {
+    setter((prev) => {
+      const next = new Set(prev);
+      if (next.has(value)) next.delete(value); else next.add(value);
+      return next;
+    });
+  };
 
   // Fetch filter options when the modal opens. Three lightweight calls in
   // parallel — overview gives counts, /relationships gives the pairing-→-
@@ -77,9 +146,9 @@ export default function DownloadZipButton({ kind = "zip" }) {
     return () => { cancelled = true; };
   }, [open]);
 
-  // If user picks a fandom, narrow the pairings dropdown to that fandom.
-  const pairingsForFandom = fandom
-    ? relationships.filter((r) => (r.fandoms || []).includes(fandom))
+  // If user picks one or more fandoms, narrow the pairings list to those.
+  const pairingsForFandom = fandom.size > 0
+    ? relationships.filter((r) => (r.fandoms || []).some((f) => fandom.has(f)))
     : relationships;
 
   const fmt = (n) => {
@@ -92,17 +161,25 @@ export default function DownloadZipButton({ kind = "zip" }) {
     if (downloading) return;
     setDownloading(true);
 
+    // Build the query string by appending each selected value separately
+    // (e.g. ?fandom=Harry+Potter&fandom=Twilight) — FastAPI's List[str] Query
+    // collects all repeats into a list.
     const params = new URLSearchParams();
-    if (fandom) params.set("fandom", fandom);
-    if (relationship) params.set("relationship", relationship);
-    if (author) params.set("author", author);
-    if (category) params.set("category", category);
+    fandom.forEach((v) => params.append("fandom", v));
+    relationship.forEach((v) => params.append("relationship", v));
+    author.forEach((v) => params.append("author", v));
+    category.forEach((v) => params.append("category", v));
     const qs = params.toString();
+    const labelFor = (label, set) => {
+      if (set.size === 0) return null;
+      if (set.size === 1) return `${label}=${[...set][0]}`;
+      return `${label} (${set.size})`;
+    };
     const filterLabel = [
-      fandom && `fandom=${fandom}`,
-      relationship && `pairing=${relationship}`,
-      author && `author=${author}`,
-      category && `cat=${category}`,
+      labelFor("fandom", fandom),
+      labelFor("pairing", relationship),
+      labelFor("author", author),
+      labelFor("cat", category),
     ].filter(Boolean).join(" · ") || "full library";
 
     const toastId = `${kind}-${Date.now()}`;
@@ -158,8 +235,29 @@ export default function DownloadZipButton({ kind = "zip" }) {
       const a = document.createElement("a");
       a.href = url;
       // Derive a friendly filename from the active filters.
-      const namePieces = [fandom, relationship, author, category].filter(Boolean).map((s) => s.replace(/\s+/g, "_"));
-      a.download = `shelfsort_${namePieces.join("_") || "library"}.${KIND_COPY.ext}`;
+      const singleOrNull = (s) => (s.size === 1 ? [...s][0] : null);
+      const fSingle = singleOrNull(fandom);
+      const rSingle = singleOrNull(relationship);
+      const aSingle = singleOrNull(author);
+      const cSingle = singleOrNull(category);
+      const totalPicked = fandom.size + relationship.size + author.size + category.size;
+      let nameStem;
+      if (totalPicked === 0) {
+        nameStem = "library";
+      } else if (fSingle && rSingle && (author.size + category.size) === 0) {
+        nameStem = `${fSingle}_${rSingle}`.replace(/\s+/g, "_");
+      } else if (fSingle && totalPicked === 1) {
+        nameStem = fSingle.replace(/\s+/g, "_");
+      } else if (rSingle && totalPicked === 1) {
+        nameStem = rSingle.replace(/\s+/g, "_");
+      } else if (aSingle && totalPicked === 1) {
+        nameStem = aSingle.replace(/\s+/g, "_");
+      } else if (cSingle && totalPicked === 1) {
+        nameStem = cSingle.replace(/\s+/g, "_");
+      } else {
+        nameStem = "filtered";
+      }
+      a.download = `shelfsort_${nameStem}.${KIND_COPY.ext}`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -189,7 +287,7 @@ export default function DownloadZipButton({ kind = "zip" }) {
 
   const fandoms = (overview?.fandoms || []);
   const categories = (overview?.categories || []);
-  const activeFilterCount = [fandom, relationship, author, category].filter(Boolean).length;
+  const activeFilterCount = fandom.size + relationship.size + author.size + category.size;
 
   return (
     <>
@@ -208,10 +306,10 @@ export default function DownloadZipButton({ kind = "zip" }) {
       {open && (
         <div
           data-testid={isXlsx ? "xlsx-filter-modal" : "zip-filter-modal"}
-          className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 backdrop-blur-sm p-4 pt-[6vh] overflow-y-auto"
+          className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 backdrop-blur-sm p-4 pt-[3vh] overflow-y-auto"
           onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}
         >
-          <div className="bg-[#FAF6EE] rounded-2xl shadow-2xl border border-[#E07A5F]/30 w-full max-w-lg max-h-[88vh] flex flex-col">
+          <div className="bg-[#FAF6EE] rounded-2xl shadow-2xl border border-[#E07A5F]/30 w-full max-w-xl max-h-[94vh] flex flex-col">
             <div className="flex items-start gap-3 p-5 border-b border-[#E07A5F]/20 flex-shrink-0">
               <div className="w-10 h-10 rounded-lg bg-[#E07A5F]/10 text-[#E07A5F] flex items-center justify-center flex-shrink-0">
                 <FilterIcon className="w-5 h-5" />
@@ -230,74 +328,54 @@ export default function DownloadZipButton({ kind = "zip" }) {
               </button>
             </div>
 
-            <div className="p-5 space-y-4 overflow-y-auto flex-1">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wide text-[#3A5A40] mb-1">Fandom</label>
-                <select
-                  data-testid="zip-filter-fandom"
-                  value={fandom}
-                  onChange={(e) => { setFandom(e.target.value); setRelationship(""); }}
-                  className="w-full p-2 rounded-lg border border-[#E5DDC5] bg-white text-sm"
-                >
-                  <option value="">Any fandom</option>
-                  {fandoms.map((f) => (
-                    <option key={f.name} value={f.name}>{f.name} ({f.count})</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wide text-[#3A5A40] mb-1">
-                  Pairing {fandom && <span className="text-[#6B705C] font-normal normal-case">— filtered to {fandom}</span>}
-                </label>
-                <select
-                  data-testid="zip-filter-pairing"
-                  value={relationship}
-                  onChange={(e) => setRelationship(e.target.value)}
-                  className="w-full p-2 rounded-lg border border-[#E5DDC5] bg-white text-sm"
-                >
-                  <option value="">Any pairing</option>
-                  {pairingsForFandom.map((r) => (
-                    <option key={r.name} value={r.name}>{r.name} ({r.count})</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wide text-[#3A5A40] mb-1">Author</label>
-                <select
-                  data-testid="zip-filter-author"
-                  value={author}
-                  onChange={(e) => setAuthor(e.target.value)}
-                  className="w-full p-2 rounded-lg border border-[#E5DDC5] bg-white text-sm"
-                >
-                  <option value="">Any author</option>
-                  {authors.map((a) => (
-                    <option key={a.name} value={a.name}>{a.name} ({a.count})</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wide text-[#3A5A40] mb-1">Category</label>
-                <select
-                  data-testid="zip-filter-category"
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="w-full p-2 rounded-lg border border-[#E5DDC5] bg-white text-sm"
-                >
-                  <option value="">Any category</option>
-                  {categories.map((c) => (
-                    <option key={c.name} value={c.name}>{c.name} ({c.count})</option>
-                  ))}
-                </select>
-              </div>
+            <div className="p-5 space-y-5 overflow-y-auto flex-1">
+              <CheckboxFilter
+                label="Fandom"
+                testId="zip-filter-fandom"
+                options={fandoms}
+                selected={fandom}
+                onToggle={(v) => {
+                  toggleIn(setFandom)(v);
+                  // Clear pairings — they may no longer fit the new fandom set.
+                  setRelationship(new Set());
+                }}
+              />
+              <CheckboxFilter
+                label={
+                  <>
+                    Pairing
+                    {fandom.size > 0 && (
+                      <span className="text-[#6B705C] font-normal normal-case ml-1">
+                        — filtered to {fandom.size === 1 ? [...fandom][0] : `${fandom.size} fandoms`}
+                      </span>
+                    )}
+                  </>
+                }
+                testId="zip-filter-pairing"
+                options={pairingsForFandom}
+                selected={relationship}
+                onToggle={toggleIn(setRelationship)}
+              />
+              <CheckboxFilter
+                label="Author"
+                testId="zip-filter-author"
+                options={authors}
+                selected={author}
+                onToggle={toggleIn(setAuthor)}
+              />
+              <CheckboxFilter
+                label="Category"
+                testId="zip-filter-category"
+                options={categories}
+                selected={category}
+                onToggle={toggleIn(setCategory)}
+              />
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3 p-5 border-t border-[#E07A5F]/20 bg-white/40 flex-shrink-0">
               <button
                 data-testid="zip-filter-reset"
-                onClick={() => { setFandom(""); setRelationship(""); setAuthor(""); setCategory(""); }}
+                onClick={() => { setFandom(new Set()); setRelationship(new Set()); setAuthor(new Set()); setCategory(new Set()); }}
                 disabled={activeFilterCount === 0}
                 className="text-xs text-[#6B705C] hover:text-[#2C2C2C] disabled:opacity-40"
               >
