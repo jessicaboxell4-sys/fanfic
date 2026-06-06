@@ -156,18 +156,30 @@ export default function UploadZone({ onUploaded }) {
     }
 
     let toUpload = [...epubs, ...autoAdd];
+    const keepOriginalNames = []; // filenames the user wants kept as-is
     const askGroups = Object.keys(askByGroup);
     for (const grp of askGroups) {
       const groupFiles = askByGroup[grp];
       const label = GROUP_LABELS[grp] || grp;
       const exts = [...new Set(groupFiles.map((f) => extOf(f.name)))].join(", ");
-      const ok = window.confirm(
+      // Two-stage prompt: Convert → if no, Keep original → if no, Skip.
+      const convert = window.confirm(
         `Convert ${groupFiles.length} ${label} file${groupFiles.length === 1 ? "" : "s"} (${exts}) to EPUB and add to your library?\n\n` +
-        `Calibre will run server-side to produce the EPUB. The original is kept as the source.\n\n` +
-        `Tip: set this format's default in Account → "Non-EPUB upload preferences" to skip this question next time.`,
+        `OK = Convert (Calibre runs server-side, lands in main library)\n` +
+        `Cancel = ask about keeping the originals on a separate page`,
       );
-      if (ok) {
+      if (convert) {
         toUpload = toUpload.concat(groupFiles);
+        continue;
+      }
+      const keep = window.confirm(
+        `Keep ${groupFiles.length} ${label} file${groupFiles.length === 1 ? "" : "s"} as-is on the Originals page (no conversion)?\n\n` +
+        `OK = Upload originals, they'll appear at /library/originals\n` +
+        `Cancel = Skip these files entirely`,
+      );
+      if (keep) {
+        toUpload = toUpload.concat(groupFiles);
+        keepOriginalNames.push(...groupFiles.map((f) => f.name));
       } else {
         toast(`Skipping ${groupFiles.length} ${label} file${groupFiles.length === 1 ? "" : "s"}`);
       }
@@ -188,6 +200,7 @@ export default function UploadZone({ onUploaded }) {
     const allActions = [];
     const allUrlLists = [];
     const allSuggestions = [];
+    const allCrossDupes = [];
     let resp = null;
     try {
       // Upload in batches of 3 for responsiveness
@@ -195,10 +208,14 @@ export default function UploadZone({ onUploaded }) {
       let uploaded = 0;
       let totalAuto = 0;
       let lastPolicy = null;
+      const keepSet = new Set(keepOriginalNames);
       for (let i = 0; i < filesToSend.length; i += batchSize) {
         const batch = filesToSend.slice(i, i + batchSize);
         const form = new FormData();
-        batch.forEach((f) => form.append("files", f));
+        batch.forEach((f) => {
+          form.append("files", f);
+          if (keepSet.has(f.name)) form.append("keep_originals", f.name);
+        });
         const { data } = await api.post("/books/upload", form, {
           headers: { "Content-Type": "multipart/form-data" },
         });
@@ -213,6 +230,9 @@ export default function UploadZone({ onUploaded }) {
         }
         if (Array.isArray(data?.fandom_suggestions)) {
           allSuggestions.push(...data.fandom_suggestions);
+        }
+        if (Array.isArray(data?.cross_format_duplicates)) {
+          allCrossDupes.push(...data.cross_format_duplicates);
         }
         totalAuto += data?.auto_resolved || 0;
         if (data?.policy) lastPolicy = data.policy;
@@ -252,6 +272,16 @@ export default function UploadZone({ onUploaded }) {
         toast(
           `Possible fandom typos: ${lines.join(" · ")}${more}. Add an alias in Account → Fandom aliases to merge them.`,
           { duration: 12000 },
+        );
+      }
+      if (allCrossDupes.length > 0) {
+        const sample = allCrossDupes.slice(0, 2).map((d) =>
+          `"${d.new_filename}" matches your EPUB "${d.matched_title}" by ${d.matched_author}`
+        ).join(" · ");
+        const more = allCrossDupes.length > 2 ? ` (+${allCrossDupes.length - 2} more)` : "";
+        toast(
+          `Heads up: ${allCrossDupes.length} original${allCrossDupes.length === 1 ? "" : "s"} duplicate book${allCrossDupes.length === 1 ? "" : "s"} you already have as EPUB. ${sample}${more}. They're saved on /library/originals.`,
+          { duration: 14000 },
         );
       }
     } catch (e) {

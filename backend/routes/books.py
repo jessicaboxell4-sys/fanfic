@@ -2133,6 +2133,7 @@ async def retry_conversion(job_id: str, user: User = Depends(get_current_user)):
 async def upload_books(
     request: Request,
     files: List[UploadFile] = File(...),
+    keep_originals: List[str] = Form([]),
     user: User = Depends(get_current_user),
 ):
     user_dir = STORAGE_DIR / user.user_id
@@ -2143,9 +2144,14 @@ async def upload_books(
         {"user_id": user.user_id}, {"_id": 0, "fandom_aliases": 1}
     ) or {}
     fandom_aliases = _udoc.get("fandom_aliases") or {}
+    # Filenames the user explicitly asked to keep as the original format
+    # (no Calibre conversion). They land on /library/originals separately
+    # from the main EPUB library.
+    keep_original_set = {n for n in keep_originals if n}
     results = []
     url_list_reports: List[Dict[str, Any]] = []
     upload_suggestions: List[Dict[str, Any]] = []
+    cross_format_dupes: List[Dict[str, Any]] = []
 
     for f in files:
         lower = (f.filename or "").lower()
@@ -2184,6 +2190,74 @@ async def upload_books(
             src_target = user_dir / f"{book_id}{ext}"
             content = await f.read()
             src_target.write_bytes(content)
+
+            # Path 1 — "Keep original": user wants this file on the Originals
+            # shelf without Calibre conversion. We do a quick title/author
+            # guess from the filename (and cross-format dup check against
+            # existing EPUBs) and store an original-only doc.
+            if (f.filename or "") in keep_original_set:
+                base_name = (f.filename or "Untitled").rsplit(".", 1)[0]
+                # Title - Author pattern, common from manual exports
+                guess_title = base_name
+                guess_author = "Unknown"
+                if " - " in base_name:
+                    left, right = base_name.rsplit(" - ", 1)
+                    if len(left) > 1 and len(right) > 1:
+                        guess_title, guess_author = left.strip(), right.strip()
+                # Cross-format duplicate detection — match title+author
+                # case-insensitively against existing EPUB books.
+                dup_match = await db.books.find_one(
+                    {
+                        "user_id": user.user_id,
+                        "original_only": {"$ne": True},
+                        "title": {"$regex": f"^{re.escape(guess_title)}$", "$options": "i"},
+                        "author": {"$regex": f"^{re.escape(guess_author)}$", "$options": "i"},
+                    },
+                    {"_id": 0, "book_id": 1, "title": 1, "author": 1},
+                )
+                dup_ids = [dup_match["book_id"]] if dup_match else []
+                if dup_match:
+                    cross_format_dupes.append({
+                        "new_filename": f.filename,
+                        "new_book_id": book_id,
+                        "matched_book_id": dup_match["book_id"],
+                        "matched_title": dup_match.get("title"),
+                        "matched_author": dup_match.get("author"),
+                    })
+                now_iso = datetime.now(timezone.utc).isoformat()
+                doc = {
+                    "book_id": book_id,
+                    "user_id": user.user_id,
+                    "filename": f.filename,
+                    "title": guess_title,
+                    "author": guess_author,
+                    "description": f"Original {ext.lstrip('.').upper()} kept as-is (no Calibre conversion).",
+                    "language": "",
+                    "publisher": "",
+                    "has_cover": False,
+                    # Use a distinct shelf so these don't pollute the main library.
+                    "category": "Originals",
+                    "fandom": None,
+                    "confidence": 1.0,
+                    "classifier": "kept-original",
+                    "tags": [],
+                    "size_bytes": len(content),
+                    "links_count": 0,
+                    "source_url": None,
+                    "fanfic_urls": [],
+                    "last_refreshed_at": None,
+                    "series_name": None,
+                    "series_index": None,
+                    "original_only": True,
+                    "original_format": ext.lstrip("."),
+                    "cross_format_duplicate_of": dup_ids,
+                    "created_at": now_iso,
+                }
+                await db.books.insert_one(doc)
+                results.append({k: v for k, v in doc.items() if k != "_id"})
+                continue
+
+            # Path 2 — normal "Convert" flow (existing behavior).
             epub_target = user_dir / f"{book_id}.epub"
             job_id = uuid.uuid4().hex
             await _conversion_start(user.user_id, {
@@ -2407,7 +2481,25 @@ async def upload_books(
         "actions": actions,
         "url_lists": url_list_reports,
         "fandom_suggestions": upload_suggestions,
+        "cross_format_duplicates": cross_format_dupes,
     }
+
+
+@api_router.get("/library/originals")
+async def list_originals(user: User = Depends(get_current_user)):
+    """Books the user chose to keep as their original (non-EPUB) format —
+    PDFs, MOBI/AZW, DOCX, etc. that were NOT routed through Calibre. They
+    live on their own page so the EPUB library stays clean."""
+    books = await db.books.find(
+        {"user_id": user.user_id, "original_only": True},
+        {"_id": 0},
+    ).sort("created_at", -1).to_list(5000)
+    return {
+        "count": len(books),
+        "books": books,
+    }
+
+
 
 
 @api_router.get("/books")
@@ -2418,6 +2510,7 @@ async def list_books(
     relationship: Optional[str] = None,
     q: Optional[str] = None,
     smart: Optional[str] = None,
+    include_originals: bool = False,
     user: User = Depends(get_current_user),
 ):
     query: Dict[str, Any] = {"user_id": user.user_id}
@@ -2430,6 +2523,10 @@ async def list_books(
         query['fandom'] = fandom
     if relationship:
         query['relationships'] = relationship
+    # Originals (kept-as-is non-EPUBs) live on /library/originals — exclude
+    # them from the main library unless explicitly asked.
+    if not include_originals and not (category == "Originals"):
+        query['original_only'] = {"$ne": True}
 
     or_clauses: List[List[Dict[str, Any]]] = []
     if q:

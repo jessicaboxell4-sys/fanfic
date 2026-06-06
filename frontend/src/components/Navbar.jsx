@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { BookOpen, LogOut, BarChart3, Filter, HelpCircle } from "lucide-react";
+import { BookOpen, LogOut, BarChart3, Filter, HelpCircle, FileText } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import UpdatesBell from "./UpdatesBell";
 import StreakBadge from "./StreakBadge";
@@ -54,6 +54,14 @@ export default function Navbar() {
                 title="Help & guide"
               >
                 <HelpCircle className="w-4 h-4 text-[#6B705C]" />
+              </Link>
+              <Link
+                to="/library/originals"
+                data-testid="navbar-originals"
+                className="p-2 hover:bg-[#F5F3EC] rounded-lg"
+                title="Original-format files (PDF, MOBI, etc.)"
+              >
+                <FileText className="w-4 h-4 text-[#6B705C]" />
               </Link>
               <Link
                 to="/account"
