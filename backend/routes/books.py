@@ -1197,6 +1197,12 @@ class UrlListExportBody(BaseModel):
     # workbook contains BOTH sheets in one file. Each row is a {url, title?,
     # author?, book_id?} dict so we can show metadata for owned items.
     owned: Optional[List[Dict[str, Any]]] = None
+    # Optional: surface forms of canonical URLs that appeared more than once
+    # in the pasted text — e.g. the user pasted both
+    # `/works/12345` and `/works/12345/chapters/9`. Each row is
+    # {url, canonical}. Useful when auditing where AO3 link variants are
+    # coming from.
+    duplicates: Optional[List[Dict[str, Any]]] = None
 
 
 def _source_for(u: str) -> str:
@@ -1219,6 +1225,10 @@ async def export_url_list_xlsx(body: UrlListExportBody, user: User = Depends(get
     Sheet 2 — "Already owned": URLs already in the library, with the matched
               book's title / author / id so the user can review what they
               already have without leaving the spreadsheet.
+    Sheet 3 — "Duplicate pastes" (when present): surface forms of canonical
+              URLs that appeared more than once in the pasted text — e.g.
+              `/works/12345` and `/works/12345/chapters/9` both pointing to
+              the same AO3 work. Helps audit messy bookmark dumps.
     """
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill
@@ -1263,6 +1273,27 @@ async def export_url_list_xlsx(body: UrlListExportBody, user: User = Depends(get
     ws_owned.freeze_panes = "A2"
     if ws_owned.max_row > 1:
         ws_owned.auto_filter.ref = ws_owned.dimensions
+
+    # Sheet 3 — duplicate pastes (only emitted when present so existing
+    # workflows that don't pass `duplicates` see no change).
+    if body.duplicates:
+        ws_dups = wb.create_sheet("Duplicate pastes")
+        ws_dups.append(["URL pasted", "Canonical", "Source"])
+        for cell in ws_dups[1]:
+            cell.font = head_font
+            cell.fill = head_fill
+        for item in body.duplicates:
+            url = item.get("url") or ""
+            ws_dups.append([
+                url,
+                item.get("canonical") or "",
+                _source_for(url),
+            ])
+        for col, width in (("A", 60), ("B", 60), ("C", 18)):
+            ws_dups.column_dimensions[col].width = width
+        ws_dups.freeze_panes = "A2"
+        if ws_dups.max_row > 1:
+            ws_dups.auto_filter.ref = ws_dups.dimensions
 
     buf = io.BytesIO()
     wb.save(buf)

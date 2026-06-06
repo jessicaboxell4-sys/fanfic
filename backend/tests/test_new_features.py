@@ -2605,3 +2605,45 @@ class TestAo3UrlNormalization:
         assert len(data["duplicate_in_list"]) == 2
         assert data["by_source"]["FFnet"] == 2
         assert data["by_source"]["RoyalRoad"] == 2
+
+
+    def test_xlsx_export_includes_duplicates_sheet(self, url_user):
+        uid, tok = url_user
+        from openpyxl import load_workbook
+        import io as _io
+        # Net-new + 2 duplicate pastes of the same canonical
+        payload = {
+            "urls": ["https://archiveofourown.org/works/8001"],
+            "owned": [],
+            "duplicates": [
+                {"url": "https://www.archiveofourown.org/works/8001/chapters/1", "canonical": "https://archiveofourown.org/works/8001"},
+                {"url": "https://m.archiveofourown.org/works/8001?view_adult=true", "canonical": "https://archiveofourown.org/works/8001"},
+            ],
+        }
+        r = requests.post(f"{BASE}/api/books/url-list/export-xlsx", headers={"Authorization": f"Bearer {tok}"}, json=payload)
+        assert r.status_code == 200, r.text
+        wb = load_workbook(_io.BytesIO(r.content))
+        assert "New URLs" in wb.sheetnames
+        assert "Already owned" in wb.sheetnames
+        assert "Duplicate pastes" in wb.sheetnames
+        ws = wb["Duplicate pastes"]
+        rows = list(ws.iter_rows(values_only=True))
+        assert rows[0] == ("URL pasted", "Canonical", "Source")
+        # 2 data rows
+        assert len(rows) == 3
+        # AO3 source labelled
+        assert rows[1][2] == "AO3"
+
+    def test_xlsx_export_omits_duplicates_sheet_when_empty(self, url_user):
+        uid, tok = url_user
+        from openpyxl import load_workbook
+        import io as _io
+        payload = {
+            "urls": ["https://archiveofourown.org/works/8002"],
+            "owned": [],
+            # No `duplicates` field → 3rd sheet must not exist
+        }
+        r = requests.post(f"{BASE}/api/books/url-list/export-xlsx", headers={"Authorization": f"Bearer {tok}"}, json=payload)
+        assert r.status_code == 200, r.text
+        wb = load_workbook(_io.BytesIO(r.content))
+        assert "Duplicate pastes" not in wb.sheetnames

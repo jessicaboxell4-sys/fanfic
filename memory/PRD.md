@@ -558,3 +558,9 @@
 - **Startup migration**: idempotently renormalizes existing books' `source_url` and `fanfic_urls` so previously-stored www-prefixed / mobile / chapter URLs match newly-pasted bare permalinks. Logs the count of records touched.
 - **`FilterUrlList.jsx`**: header description now mentions AO3 variant handling; results card displays per-source breakdown chips, lists duplicate pastes, and shows a dedicated "AO3 links that aren't individual stories" section with kind badges (series / collection / user).
 - **Tests**: `TestAo3UrlNormalization` — 5 cases covering (1) 6 AO3 surface variants all dedupe to one canonical, (2) fresh paste of mixed AO3 forms normalize consistently, (3) AO3 series / collection / user URLs bucket separately + by_source breakdown, (4) legacy-stored URL still matches pasted variants, (5) FFnet + RoyalRoad normalization. **All 5 new tests pass.**
+
+### Added 2026-06-06 ("Duplicate pastes" 3rd sheet in URL Excel export)
+- **`/api/books/url-list/export-xlsx`** body now accepts an optional `duplicates: [{url, canonical}]` array.
+- When present, the workbook gains a third sheet **"Duplicate pastes"** (columns: URL pasted · Canonical · Source) listing every surface form of a canonical URL that was pasted more than once — i.e. the exact rows captured in `duplicate_in_list` from the dedupe response. Sheet is **omitted entirely** when the array is empty/missing, so existing workflows that don't pass it see zero change.
+- **`FilterUrlList.jsx`** now forwards `duplicate_in_list` on every export and the download button label shows the duplicate count (`Download Excel (3 new · 2 owned · 1 dup)`). Empty-export guard updated.
+- Tests: 2 new cases (`test_xlsx_export_includes_duplicates_sheet` verifies the sheet exists with correct headers + AO3 source tagging; `test_xlsx_export_omits_duplicates_sheet_when_empty` verifies back-compat). **7/7 in `TestAo3UrlNormalization` passing.**

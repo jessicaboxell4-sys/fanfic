@@ -36,7 +36,11 @@ export default function FilterUrlList() {
       author: m.author,
       book_id: m.book_id,
     }));
-    if (urls.length === 0 && owned.length === 0) {
+    const duplicates = (report?.duplicate_in_list || []).map((d) => ({
+      url: d.url,
+      canonical: d.canonical,
+    }));
+    if (urls.length === 0 && owned.length === 0 && duplicates.length === 0) {
       toast("Nothing to export");
       return;
     }
@@ -44,7 +48,7 @@ export default function FilterUrlList() {
     try {
       const resp = await api.post(
         "/books/url-list/export-xlsx",
-        { urls, owned },
+        { urls, owned, duplicates },
         { responseType: "blob" },
       );
       const url = window.URL.createObjectURL(resp.data);
@@ -55,9 +59,11 @@ export default function FilterUrlList() {
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
-      toast.success(
-        `Exported ${urls.length} new + ${owned.length} already-owned URL${urls.length + owned.length === 1 ? "" : "s"}`,
-      );
+      const parts = [];
+      if (urls.length) parts.push(`${urls.length} new`);
+      if (owned.length) parts.push(`${owned.length} owned`);
+      if (duplicates.length) parts.push(`${duplicates.length} duplicate paste${duplicates.length === 1 ? "" : "s"}`);
+      toast.success(`Exported ${parts.join(" + ")}`);
     } catch (e) {
       toast.error("Couldn't build Excel");
     } finally {
@@ -197,11 +203,11 @@ export default function FilterUrlList() {
               <button
                 data-testid="url-list-download"
                 onClick={exportXlsx}
-                disabled={exporting || (report.new_urls.length === 0 && report.already_owned.length === 0)}
+                disabled={exporting || (report.new_urls.length === 0 && report.already_owned.length === 0 && (report.duplicate_in_list?.length || 0) === 0)}
                 className="px-5 py-2 rounded-lg text-sm font-medium bg-[#E07A5F] text-white hover:bg-[#d06a4f] disabled:opacity-60 inline-flex items-center gap-2"
               >
                 {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                Download Excel ({report.new_urls.length} new · {report.already_owned.length} owned)
+                Download Excel ({report.new_urls.length} new · {report.already_owned.length} owned{report.duplicate_in_list?.length ? ` · ${report.duplicate_in_list.length} dup` : ""})
               </button>
             </div>
           </div>
