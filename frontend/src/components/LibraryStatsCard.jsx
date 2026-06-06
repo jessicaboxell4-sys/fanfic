@@ -10,30 +10,49 @@ export default function LibraryStatsCard() {
   const [fandomTotal, setFandomTotal] = useState(null);
   const [pairingTotal, setPairingTotal] = useState(null);
   const [trends, setTrends] = useState(null);
+  const [windowDays, setWindowDays] = useState(7);
 
+  // Load slow-changing totals once. (Per-window trends refetch separately.)
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [s, f, r, t] = await Promise.all([
+        const [s, f, r] = await Promise.all([
           api.get("/books/stats"),
           api.get("/fandoms"),
           api.get("/relationships"),
-          api.get("/library/trends?days=7"),
         ]);
         if (cancelled) return;
         setStats(s.data);
         setFandomTotal((f.data?.fandoms || []).length);
         setPairingTotal((r.data?.relationships || []).length);
-        setTrends(t.data);
       } catch { /* ignore */ }
     })();
     return () => { cancelled = true; };
   }, []);
 
+  // Trends refetch on window-size change.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get(`/library/trends?days=${windowDays}`);
+        if (!cancelled) setTrends(data);
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+  }, [windowDays]);
+
   if (!stats) return null;
 
-  const delta = (n) => (n > 0 ? `+${n} this week` : "no change this week");
+  const WINDOWS = [
+    { d: 1, label: "Day" },
+    { d: 7, label: "Week" },
+    { d: 30, label: "Month" },
+    { d: 365, label: "Year" },
+  ];
+  const windowLabel = (WINDOWS.find((w) => w.d === windowDays) || WINDOWS[1]).label.toLowerCase();
+  const delta = (n) => (n > 0 ? `+${n} this ${windowLabel}` : `no change this ${windowLabel}`);
   const items = [
     { icon: BookOpen, label: "Books", value: stats.total, trend: trends?.books, testId: "lib-stat-books" },
     { icon: Tag, label: "Fandoms", value: fandomTotal ?? "—", trend: trends?.fandoms, testId: "lib-stat-fandoms" },
@@ -52,6 +71,22 @@ export default function LibraryStatsCard() {
           <p className="text-sm text-[#6B705C] mt-1">
             What Shelfsort is currently sorting for you.
           </p>
+        </div>
+        <div className="flex gap-1 flex-shrink-0" role="radiogroup" aria-label="Trend window">
+          {WINDOWS.map((w) => (
+            <button
+              key={w.d}
+              onClick={() => setWindowDays(w.d)}
+              data-testid={`trend-window-${w.label.toLowerCase()}`}
+              className={`px-2.5 py-1 rounded-full text-xs font-medium transition ${
+                windowDays === w.d
+                  ? "bg-[#3A5A40] text-white"
+                  : "bg-[#FDF3E1] text-[#6B705C] hover:bg-[#3A5A40]/10 hover:text-[#3A5A40]"
+              }`}
+            >
+              {w.label}
+            </button>
+          ))}
         </div>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
