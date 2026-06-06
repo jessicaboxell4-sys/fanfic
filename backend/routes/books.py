@@ -623,11 +623,26 @@ def diff_chapters(old: List[Dict[str, Any]], new: List[Dict[str, Any]]) -> Dict[
 # ============================================================
 # FANFIC REFRESH — pull latest version of a fanfic from its source URL
 # ============================================================
+# All official AO3 hostnames (and subdomain variants) the user might paste.
+# Sources confirmed by the user: archiveofourown.{org,com,net,gay}, ao3.org,
+# archive.transformativeworks.org, plus the `insecure.` / `m.` / `www.`
+# subdomain variants AO3 still serves.
+_AO3_HOST_RE = (
+    r"(?:"
+        r"(?:www\.|m\.|insecure\.)?archiveofourown\.(?:org|com|net|gay)"
+        r"|ao3\.org"
+        r"|archive\.transformativeworks\.org"
+    r")"
+)
+
+
 FANFIC_SOURCE_PATTERNS = [
-    # AO3 — handles `www.` / `m.` mobile / `/collections/<name>/works/N` prefix.
-    # The collection prefix is captured as part of the pattern so the match
-    # succeeds; normalize_fanfic_url() collapses it back to the bare work URL.
-    r'https?://(?:www\.|m\.)?archiveofourown\.org/(?:collections/[^/?#]+/)?works/\d+',
+    # AO3 — accepts every official hostname (org/com/net/gay/ao3.org/
+    # archive.transformativeworks.org), plus `www.` / `m.` / `insecure.`
+    # subdomains, plus the `/collections/<name>/works/N` prefix.
+    # normalize_fanfic_url() collapses all of those into the canonical
+    # `https://archiveofourown.org/works/N` form.
+    r'https?://' + _AO3_HOST_RE + r'/(?:collections/[^/?#]+/)?works/\d+',
     r'https?://(?:www\.)?fanfiction\.net/s/\d+',
     r'https?://(?:www\.)?fictionpress\.com/s/\d+',
     r'https?://(?:www\.)?royalroad\.com/fiction/\d+',
@@ -641,7 +656,7 @@ FANFIC_SOURCE_PATTERNS = [
 # capturing group, canonical template). Matched against the substring already
 # pulled out by FANFIC_SOURCE_PATTERNS so we know we have a real fanfic URL.
 _AO3_WORK_CANON_RE = re.compile(
-    r"https?://(?:www\.|m\.)?archiveofourown\.org/(?:collections/[^/?#]+/)?works/(\d+)",
+    r"https?://" + _AO3_HOST_RE + r"/(?:collections/[^/?#]+/)?works/(\d+)",
     re.IGNORECASE,
 )
 _FFNET_CANON_RE = re.compile(r"https?://(?:www\.)?fanfiction\.net/s/(\d+)", re.IGNORECASE)
@@ -658,15 +673,21 @@ def normalize_fanfic_url(url: Optional[str]) -> Optional[str]:
     Returns None when the URL doesn't match any known fanfic permalink
     pattern. Same return value as `_canonical_fanfic_url` but always
     normalized — different surface forms of the same work (mobile host,
-    `www.` prefix, collection prefix, chapter id, query string, http vs
-    https, trailing slash) all collapse to the same string.
+    `www.` prefix, collection prefix, chapter id, fragment, query string,
+    http vs https, trailing slash, alternate AO3 hosts like ao3.org or
+    archiveofourown.gay) all collapse to the same string.
 
     Examples (all → ``https://archiveofourown.org/works/12345``):
       * https://archiveofourown.org/works/12345
       * https://www.archiveofourown.org/works/12345/
       * https://m.archiveofourown.org/works/12345?view_adult=true
       * http://archiveofourown.org/works/12345/chapters/67890
+      * https://archiveofourown.org/works/12345/chapters/67890#workskin
       * https://archiveofourown.org/collections/SomeCollection/works/12345
+      * https://ao3.org/works/12345
+      * https://archiveofourown.gay/works/12345
+      * https://insecure.archiveofourown.org/works/12345
+      * https://archive.transformativeworks.org/works/12345
     """
     if not url:
         return None
@@ -699,17 +720,34 @@ def normalize_fanfic_url(url: Optional[str]) -> Optional[str]:
 # don't dedupe these against the library; instead the frontend surfaces them
 # in a separate "AO3 (not a story link)" bucket so the user knows we saw them.
 _AO3_NON_WORK_PATTERNS = [
-    (re.compile(r"https?://(?:www\.|m\.)?archiveofourown\.org/series/(\d+)", re.IGNORECASE), "ao3_series"),
-    (re.compile(r"https?://(?:www\.|m\.)?archiveofourown\.org/collections/([^/?#]+)/?$", re.IGNORECASE), "ao3_collection"),
-    (re.compile(r"https?://(?:www\.|m\.)?archiveofourown\.org/users/([^/?#]+)(?:/(?:pseuds|works|bookmarks)?/?)?(?:[?#]|$)", re.IGNORECASE), "ao3_user"),
+    (re.compile(r"https?://" + _AO3_HOST_RE + r"/series/(\d+)", re.IGNORECASE), "ao3_series"),
+    (re.compile(r"https?://" + _AO3_HOST_RE + r"/collections/([^/?#]+)/?(?:[?#]|$)", re.IGNORECASE), "ao3_collection"),
+    (re.compile(r"https?://" + _AO3_HOST_RE + r"/users/([^/?#]+)(?:/(?:pseuds|works|bookmarks)?/?)?(?:[?#]|$)", re.IGNORECASE), "ao3_user"),
 ]
+
+
+# Hosts that should be labelled "AO3" in the by-source breakdown — covers
+# every official AO3 hostname variant the user listed.
+_AO3_HOST_SUBSTRINGS = (
+    "archiveofourown.org",
+    "archiveofourown.com",
+    "archiveofourown.net",
+    "archiveofourown.gay",
+    "ao3.org",
+    "archive.transformativeworks.org",
+)
+
+
+def _is_ao3_host(url: str) -> bool:
+    u = (url or "").lower()
+    return any(h in u for h in _AO3_HOST_SUBSTRINGS)
 
 
 def classify_ao3_non_work(url: str) -> Optional[str]:
     """If `url` is an AO3 link that isn't a story permalink, return a label
     (`ao3_series`, `ao3_collection`, `ao3_user`); else None.
     """
-    if not url or "archiveofourown.org" not in url.lower():
+    if not url or not _is_ao3_host(url):
         return None
     for pat, label in _AO3_NON_WORK_PATTERNS:
         if pat.search(url):
@@ -1275,7 +1313,7 @@ class UrlListExportBody(BaseModel):
 
 def _source_for(u: str) -> str:
     u_lower = (u or "").lower()
-    if "archiveofourown" in u_lower: return "AO3"
+    if _is_ao3_host(u_lower): return "AO3"
     if "fanfiction.net" in u_lower: return "FFnet"
     if "fictionpress.com" in u_lower: return "FictionPress"
     if "spacebattles.com" in u_lower: return "SpaceBattles"

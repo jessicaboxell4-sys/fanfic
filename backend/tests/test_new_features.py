@@ -2747,3 +2747,53 @@ class TestAo3UrlNormalization:
             db.books.delete_many({"book_id": bid})
             sidecar.unlink(missing_ok=True)
 
+
+
+    def test_ao3_alternate_hostnames_all_dedupe(self, url_user):
+        """Every official AO3 hostname variant (archiveofourown.{org,com,net,gay},
+        ao3.org, archive.transformativeworks.org, insecure.archiveofourown.org)
+        should collapse to the same canonical, along with chapter URLs and
+        URL fragments like `#workskin`."""
+        uid, tok = url_user
+        db.books.delete_many({"user_id": uid})
+        # Seed one book with the canonical for /works/84555901
+        bid = f"bk_alt_{uuid.uuid4().hex[:6]}"
+        db.books.insert_one({
+            "book_id": bid,
+            "user_id": uid,
+            "title": "Alt Host Test",
+            "author": "Auth",
+            "category": "Fanfiction",
+            "fandom": "Whatever",
+            "source_url": "https://archiveofourown.org/works/84555901",
+            "fanfic_urls": ["https://archiveofourown.org/works/84555901"],
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+        text = "\n".join([
+            "https://archiveofourown.org/works/84555901",
+            "https://archiveofourown.org/works/84555901/chapters/223096676",
+            "https://archiveofourown.org/works/84555901/chapters/223096676#workskin",
+            "https://archiveofourown.com/works/84555901",
+            "https://archiveofourown.net/works/84555901",
+            "https://archiveofourown.gay/works/84555901",
+            "https://ao3.org/works/84555901",
+            "https://archive.transformativeworks.org/works/84555901",
+            "http://insecure.archiveofourown.org/works/84555901",
+        ])
+        r = requests.post(
+            f"{BASE}/api/books/url-list/dedupe",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"text": text},
+        )
+        assert r.status_code == 200, r.text
+        data = r.json()
+        # All 9 variants point to the same seeded book → 1 owned + 8 dup-in-list
+        assert len(data["already_owned"]) == 1
+        assert data["already_owned"][0]["book_id"] == bid
+        assert data["already_owned"][0]["canonical"] == "https://archiveofourown.org/works/84555901"
+        assert len(data["duplicate_in_list"]) == 8
+        assert data["new_urls"] == []
+        assert data["unrecognized"] == []
+        # Every variant lands in the AO3 source bucket
+        assert data["by_source"]["AO3"] == 9
+        db.books.delete_many({"user_id": uid})

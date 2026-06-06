@@ -576,3 +576,17 @@
   - `test_upload_persists_source_url_and_fanfic_urls` — verifies the upload doc carries the URL fields and a follow-up paste-list dedupe finds the freshly-uploaded book.
   - `test_dedupe_backfills_legacy_books_from_sidecar` — seeds a book without `fanfic_urls`, writes a real-format sidecar, runs dedupe, asserts the match succeeds AND the field is now persisted.
 - **9/9 in `TestAo3UrlNormalization` passing.**
+
+### Added 2026-06-06 (AO3 — alternate hostnames recognized)
+- AO3 serves the archive under several official hostnames; the URL list / canonicalizer now treats all of them as the same source and dedupes them to a single canonical:
+  - `archiveofourown.org` (primary)
+  - `archiveofourown.com`
+  - `archiveofourown.net`
+  - `archiveofourown.gay`
+  - `ao3.org` (short alias)
+  - `archive.transformativeworks.org` (OTW long form)
+  - `insecure.archiveofourown.org` (HTTP fallback subdomain)
+  - Plus `www.` / `m.` mobile prefixes on any of them
+- Implementation: single `_AO3_HOST_RE` host alternation reused by `FANFIC_SOURCE_PATTERNS[0]`, `_AO3_WORK_CANON_RE`, and `_AO3_NON_WORK_PATTERNS`. `_source_for()` now routes through `_is_ao3_host()` so the by-source bucket labels every variant "AO3".
+- Chapter URLs with fragments (`/works/N/chapters/M#workskin`) already normalized correctly — confirmed in the new test.
+- Test: `test_ao3_alternate_hostnames_all_dedupe` seeds one canonical book and pastes 9 surface variants (all hosts + chapter URLs + `#workskin` fragment) → exactly 1 owned + 8 duplicate_in_list + 9 in AO3 bucket. **10/10 in `TestAo3UrlNormalization` passing.**
