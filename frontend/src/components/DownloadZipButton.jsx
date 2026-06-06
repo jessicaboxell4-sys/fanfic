@@ -208,11 +208,11 @@ export default function DownloadZipButton({ kind = "zip" }) {
       {open && (
         <div
           data-testid={isXlsx ? "xlsx-filter-modal" : "zip-filter-modal"}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 backdrop-blur-sm p-4 pt-[6vh] overflow-y-auto"
           onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}
         >
-          <div className="bg-[#FAF6EE] rounded-2xl shadow-2xl border border-[#E07A5F]/30 w-full max-w-lg flex flex-col">
-            <div className="flex items-start gap-3 p-5 border-b border-[#E07A5F]/20">
+          <div className="bg-[#FAF6EE] rounded-2xl shadow-2xl border border-[#E07A5F]/30 w-full max-w-lg max-h-[88vh] flex flex-col">
+            <div className="flex items-start gap-3 p-5 border-b border-[#E07A5F]/20 flex-shrink-0">
               <div className="w-10 h-10 rounded-lg bg-[#E07A5F]/10 text-[#E07A5F] flex items-center justify-center flex-shrink-0">
                 <FilterIcon className="w-5 h-5" />
               </div>
@@ -230,7 +230,7 @@ export default function DownloadZipButton({ kind = "zip" }) {
               </button>
             </div>
 
-            <div className="p-5 space-y-4">
+            <div className="p-5 space-y-4 overflow-y-auto flex-1">
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wide text-[#3A5A40] mb-1">Fandom</label>
                 <select
@@ -294,7 +294,7 @@ export default function DownloadZipButton({ kind = "zip" }) {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-3 p-5 border-t border-[#E07A5F]/20 bg-white/40">
+            <div className="flex flex-wrap items-center justify-between gap-3 p-5 border-t border-[#E07A5F]/20 bg-white/40 flex-shrink-0">
               <button
                 data-testid="zip-filter-reset"
                 onClick={() => { setFandom(""); setRelationship(""); setAuthor(""); setCategory(""); }}
