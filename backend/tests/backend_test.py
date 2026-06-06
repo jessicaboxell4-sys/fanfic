@@ -159,6 +159,16 @@ def test_export_zip(hp_book):
     assert r.status_code == 200
     assert r.headers.get("content-type", "").startswith("application/zip")
     assert len(r.content) > 100
+    # Verify the new folder layout: README.txt at top + Fanfiction/<Fandom>/...
+    import io as _io, zipfile as _zf
+    z = _zf.ZipFile(_io.BytesIO(r.content))
+    names = z.namelist()
+    assert "README.txt" in names, names
+    readme = z.read("README.txt").decode("utf-8")
+    assert "Shelfsort library export" in readme
+    assert "Folder layout" in readme
+    # HP fanfic should land somewhere under Fanfiction/Harry_Potter/
+    assert any(n.startswith("Fanfiction/Harry_Potter/") for n in names), names
 
 def test_categories():
     r = requests.get(f"{BASE}/api/categories", headers=H())

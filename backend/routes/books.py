@@ -4503,19 +4503,97 @@ async def export_zip(
                     return
                 yield chunk
 
+    def _bytes_chunks(data: bytes):
+        yield data
+
+    # Pre-bucket books by folder path so we can sort within each folder and
+    # emit a clean README. Fanfiction is grouped Fanfiction/<Fandom>/<Pairing>/,
+    # with books that have no pairing landing in Fanfiction/<Fandom>/_No_pairing/.
+    # Books with multiple relationships file under their FIRST one (alphabetical),
+    # which matches how the dashboard relationship chips already work.
+    def _folder_for(b: Dict[str, Any]) -> str:
+        cat = _safe_folder(b.get('category') or 'Uncategorized')
+        fnd = b.get('fandom')
+        if cat == 'Fanfiction' and fnd:
+            rels = b.get('relationships') or []
+            if rels:
+                rel = sorted([r for r in rels if r])[0]
+                return f"Fanfiction/{_safe_folder(fnd)}/{_safe_folder(rel)}"
+            return f"Fanfiction/{_safe_folder(fnd)}/_No_pairing"
+        if cat == 'Fanfiction':
+            # Fanfic with no fandom — rare but keep it visible.
+            return "Fanfiction/_Unsorted"
+        return cat
+
+    buckets: Dict[str, List[Dict[str, Any]]] = {}
+    for b in books:
+        fp = STORAGE_DIR / user.user_id / f"{b['book_id']}.epub"
+        if not fp.exists():
+            continue
+        buckets.setdefault(_folder_for(b), []).append(b)
+    # Sort each bucket alphabetically by title (case-insensitive), tiebreak
+    # on author then book_id so the ordering is deterministic.
+    for folder in buckets:
+        buckets[folder].sort(key=lambda x: (
+            (x.get('title') or '').lower(),
+            (x.get('author') or '').lower(),
+            x.get('book_id') or '',
+        ))
+
+    # Build a friendly README that explains the layout + lists every folder
+    # with a per-bucket book count. This goes in first so it's the first
+    # thing the user sees when they open the zip.
+    def _build_readme() -> bytes:
+        now_str = _dt.utcnow().strftime('%Y-%m-%d %H:%M UTC')
+        total_books = sum(len(v) for v in buckets.values())
+        scope_lines: List[str] = []
+        if fandom:
+            scope_lines.append(f"Filter: fandom = {fandom}")
+        if category:
+            scope_lines.append(f"Filter: category = {category}")
+        lines: List[str] = [
+            "Shelfsort library export",
+            f"Generated: {now_str}",
+            f"Books: {total_books}",
+            f"Folders: {len(buckets)}",
+        ]
+        if scope_lines:
+            lines.append("")
+            lines.extend(scope_lines)
+        lines.extend([
+            "",
+            "Folder layout",
+            "-------------",
+            "Fanfiction/<Fandom>/<Pairing>/Title_by_Author-<id>.epub",
+            "  — fanfic, grouped first by fandom (Harry Potter, Twilight, ...)",
+            "    then by ship/pairing (Harry-Severus, Edward-Bella, ...).",
+            "  — books with multiple pairings file under the first one (alphabetical).",
+            "  — fanfic with no pairing landing under '_No_pairing/' in that fandom.",
+            "",
+            "<Category>/Title_by_Author-<id>.epub",
+            "  — Original Fiction, Non-fiction, custom shelves, etc.",
+            "",
+            "Filenames mirror the user's preferred 'Title_by_Author-<short-id>' format.",
+            "Books are sorted alphabetically by title within each folder.",
+            "",
+            "Index",
+            "-----",
+        ])
+        for folder, items in sorted(buckets.items()):
+            lines.append(f"{folder}/  ({len(items)} book{'s' if len(items) != 1 else ''})")
+        lines.append("")
+        return ("\n".join(lines)).encode("utf-8")
+
+    readme_bytes = _build_readme()
+
     def _members():
-        for b in books:
-            fp = STORAGE_DIR / user.user_id / f"{b['book_id']}.epub"
-            if not fp.exists():
-                continue
-            cat = _safe_folder(b.get('category') or 'Uncategorized')
-            fnd = b.get('fandom')
-            if cat == 'Fanfiction' and fnd:
-                folder = f"Fanfiction/{_safe_folder(fnd)}"
-            else:
-                folder = cat
-            arcname = f"{folder}/{_templated_filename(b.get('title'), b.get('author'), b['book_id'])}"
-            yield (arcname, modified_at, mode, ZIP_64, _file_chunks(fp))
+        # README first so it's visible at the top of the archive.
+        yield ("README.txt", modified_at, mode, ZIP_64, _bytes_chunks(readme_bytes))
+        for folder in sorted(buckets.keys()):
+            for b in buckets[folder]:
+                fp = STORAGE_DIR / user.user_id / f"{b['book_id']}.epub"
+                arcname = f"{folder}/{_templated_filename(b.get('title'), b.get('author'), b['book_id'])}"
+                yield (arcname, modified_at, mode, ZIP_64, _file_chunks(fp))
 
     zip_name = "shelfsort_library.zip"
     if fandom:
