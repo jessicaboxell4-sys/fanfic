@@ -4576,6 +4576,10 @@ async def export_zip(
             "Filenames mirror the user's preferred 'Title_by_Author-<short-id>' format.",
             "Books are sorted alphabetically by title within each folder.",
             "",
+            "Also included: library_index.xlsx — one row per book with Folder,",
+            "Fandom, Pairing, Title, Author, Source URL, Words. Paste-friendly",
+            "for spreadsheets.",
+            "",
             "Index",
             "-----",
         ])
@@ -4586,9 +4590,65 @@ async def export_zip(
 
     readme_bytes = _build_readme()
 
+    # Excel index: one row per book with the columns the user asked for.
+    # Built in-memory via openpyxl. Lives at the top of the zip alongside
+    # the README so the user has a paste-friendly inventory.
+    def _build_index_xlsx() -> bytes:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment
+        from io import BytesIO as _BIO
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Library"
+        headers = ["Folder", "Fandom", "Pairing", "Title", "Author", "Source URL", "Words"]
+        ws.append(headers)
+        # Header styling — matches the existing xlsx export's look.
+        head_font = Font(bold=True, color="FFFFFF")
+        head_fill = PatternFill("solid", fgColor="3A5A40")
+        for col_idx in range(1, len(headers) + 1):
+            cell = ws.cell(row=1, column=col_idx)
+            cell.font = head_font
+            cell.fill = head_fill
+            cell.alignment = Alignment(horizontal="left", vertical="center")
+        for folder in sorted(buckets.keys()):
+            for b in buckets[folder]:
+                # Parse fandom + pairing from the folder path so the index
+                # matches the on-disk layout exactly.
+                if folder.startswith("Fanfiction/"):
+                    parts = folder.split("/")
+                    fnd_cell = parts[1].replace("_", " ") if len(parts) > 1 else ""
+                    pair_cell = parts[2].replace("_", " ") if len(parts) > 2 else ""
+                else:
+                    fnd_cell = b.get("fandom") or ""
+                    pair_cell = ""
+                rels = b.get("relationships") or []
+                if not pair_cell and rels:
+                    pair_cell = sorted([r for r in rels if r])[0]
+                ws.append([
+                    folder,
+                    fnd_cell,
+                    pair_cell,
+                    b.get("title") or "Untitled",
+                    b.get("author") or "Unknown",
+                    b.get("source_url") or "",
+                    b.get("words") or "",
+                ])
+        # Sensible column widths + freeze + autofilter
+        widths = [32, 22, 22, 38, 22, 48, 10]
+        for i, w in enumerate(widths, start=1):
+            ws.column_dimensions[chr(64 + i)].width = w
+        ws.freeze_panes = "A2"
+        ws.auto_filter.ref = ws.dimensions
+        bio = _BIO()
+        wb.save(bio)
+        return bio.getvalue()
+
+    index_xlsx_bytes = _build_index_xlsx()
+
     def _members():
-        # README first so it's visible at the top of the archive.
+        # README + Excel index first so they're visible at the top of the archive.
         yield ("README.txt", modified_at, mode, ZIP_64, _bytes_chunks(readme_bytes))
+        yield ("library_index.xlsx", modified_at, mode, ZIP_64, _bytes_chunks(index_xlsx_bytes))
         for folder in sorted(buckets.keys()):
             for b in buckets[folder]:
                 fp = STORAGE_DIR / user.user_id / f"{b['book_id']}.epub"

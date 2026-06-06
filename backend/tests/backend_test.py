@@ -164,11 +164,21 @@ def test_export_zip(hp_book):
     z = _zf.ZipFile(_io.BytesIO(r.content))
     names = z.namelist()
     assert "README.txt" in names, names
+    assert "library_index.xlsx" in names, names
     readme = z.read("README.txt").decode("utf-8")
     assert "Shelfsort library export" in readme
     assert "Folder layout" in readme
+    assert "library_index.xlsx" in readme
     # HP fanfic should land somewhere under Fanfiction/Harry_Potter/
     assert any(n.startswith("Fanfiction/Harry_Potter/") for n in names), names
+    # Excel index sanity: openable, has 1 header row + at least 1 book row
+    import openpyxl as _ox
+    from io import BytesIO as _BIO
+    wb = _ox.load_workbook(_BIO(z.read("library_index.xlsx")))
+    ws = wb.active
+    rows = list(ws.iter_rows(values_only=True))
+    assert rows[0] == ("Folder", "Fandom", "Pairing", "Title", "Author", "Source URL", "Words"), rows[0]
+    assert len(rows) >= 2, rows
 
 def test_categories():
     r = requests.get(f"{BASE}/api/categories", headers=H())
