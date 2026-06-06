@@ -123,8 +123,9 @@ export default function UploadZone({ onUploaded }) {
     // PER FORMAT GROUP (PDF, Kindle, Word/RTF, ...) so the user can opt-in
     // to converting some formats while skipping others in the same drop.
     // The user's per-format preferences (Account → Non-EPUB upload prefs)
-    // override the prompt: "convert" auto-adds silently, "skip" drops
-    // silently, "ask" triggers the per-group prompt described below.
+    // can be set to "skip" to drop a group silently. Silent auto-convert
+    // was removed 2026-06-06: every non-EPUB upload now always prompts
+    // the user — they get to decide Convert / Keep original / Skip.
     const epubs = files.filter((f) => f.name.toLowerCase().endsWith(".epub"));
     const nonEpub = files.filter((f) => !f.name.toLowerCase().endsWith(".epub"));
 
@@ -138,14 +139,12 @@ export default function UploadZone({ onUploaded }) {
       html: "HTML (.html/.htm)",
     };
 
-    const autoAdd = []; // pref === "convert"
     const autoSkip = []; // pref === "skip"
     const askByGroup = {}; // {group: [File, ...]}
     for (const f of nonEpub) {
       const grp = groupOf(f.name) || "other_ebook";
       const pref = formatPrefs[grp] || "ask";
-      if (pref === "convert") autoAdd.push(f);
-      else if (pref === "skip") autoSkip.push(f);
+      if (pref === "skip") autoSkip.push(f);
       else { askByGroup[grp] = askByGroup[grp] || []; askByGroup[grp].push(f); }
     }
     if (autoSkip.length > 0) {
@@ -155,7 +154,7 @@ export default function UploadZone({ onUploaded }) {
       );
     }
 
-    let toUpload = [...epubs, ...autoAdd];
+    let toUpload = [...epubs];
     const keepOriginalNames = []; // filenames the user wants kept as-is
     const askGroups = Object.keys(askByGroup);
     for (const grp of askGroups) {

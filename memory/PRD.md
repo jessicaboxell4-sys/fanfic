@@ -595,3 +595,12 @@
 - `/api/books/url-list/dedupe` response now includes `ao3_mirrors: {host → count}` listing every non-`.org` AO3 hostname seen in the paste (`.com`, `.net`, `.gay`, `ao3.org`, `archive.transformativeworks.org`, `insecure.archiveofourown.org`). Canonical `archiveofourown.org` host (with or without `www.` / `m.`) is excluded so the banner only triggers on actual mirrors.
 - **`FilterUrlList.jsx`**: amber heads-up banner above the source-chip row when `ao3_mirrors` is non-empty — "Heads up, you pasted from N AO3 mirror URLs · `archiveofourown.gay` (×2) · `ao3.org` — they all point to the same archive. They've been deduped to the canonical `archiveofourown.org` form." Auto-hides when only the canonical host is used.
 - Tests: 2 new (`test_ao3_mirrors_surfaced_in_response`, `test_ao3_mirrors_empty_when_only_canonical_host`). **12/12 in `TestAo3UrlNormalization` passing.**
+
+### Changed 2026-06-06 (No silent auto-convert — user always decides)
+- **Removed** the `"convert"` (auto-add) option from `FORMAT_ACTIONS`. The pref now accepts only `"ask"` (default) and `"skip"`. Every non-EPUB upload always triggers the per-format-group Convert / Keep-original / Skip prompt — no silent Calibre conversion ever happens without explicit user consent.
+- **Read-side coercion**: `_coerce_format_prefs()` rewrites any legacy stored `"convert"` value back to `"ask"` so existing users who'd set auto-add never get silently converted again.
+- **One-time startup migration**: rewrites `format_prefs.* == "convert"` → `"ask"` across all user docs. Idempotent.
+- **`PUT /api/user/format-prefs`** rejects `"convert"` with HTTP 400.
+- **Account page UI**: removed the "Auto-add" button. New copy emphasizes that Shelfsort never auto-converts; "Skip" is the only way to suppress the prompt for a format group. Added a link to the Originals shelf.
+- **UploadZone.jsx**: removed the `convert` branch from the upload pipeline — it would never be returned by the backend anyway.
+- **Tests**: 3 new in `TestNoSilentAutoConvert` (PUT rejects `convert`, accepts `ask`/`skip`, GET coerces legacy `convert` → `ask`). 15/15 across both new test classes pass.

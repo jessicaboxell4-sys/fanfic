@@ -116,6 +116,44 @@ async def on_startup():
             )
     except Exception as e:
         logger.warning("Fanfic URL renormalization migration: %s", e)
+
+    # One-time migration (2026-06-06): coerce stored `format_prefs.* == "convert"`
+    # (silent auto-convert) to "ask". Silent conversion was removed — every
+    # non-EPUB upload now always prompts the user. Idempotent: scoped to
+    # users whose format_prefs actually contains a "convert" value.
+    try:
+        r = await db.users.update_many(
+            {"format_prefs": {"$exists": True}},
+            [{
+                "$set": {
+                    "format_prefs": {
+                        "$arrayToObject": {
+                            "$map": {
+                                "input": {"$objectToArray": "$format_prefs"},
+                                "as": "p",
+                                "in": {
+                                    "k": "$$p.k",
+                                    "v": {
+                                        "$cond": [
+                                            {"$eq": ["$$p.v", "convert"]},
+                                            "ask",
+                                            "$$p.v",
+                                        ],
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            }],
+        )
+        if getattr(r, "modified_count", 0):
+            logger.info(
+                "Coerced legacy `format_prefs: convert` → `ask` on %d user records.",
+                r.modified_count,
+            )
+    except Exception as e:
+        logger.warning("Format-prefs convert-to-ask migration: %s", e)
     try:
         digest.start_digest_scheduler()
     except Exception as e:

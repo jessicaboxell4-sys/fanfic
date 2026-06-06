@@ -2837,3 +2837,65 @@ class TestAo3UrlNormalization:
         )
         assert r.status_code == 200
         assert r.json()["ao3_mirrors"] == {}
+
+
+
+# ---------------------------------------------------------------------------
+# FORMAT PREFS — `convert` (silent auto-convert) is no longer accepted
+# ---------------------------------------------------------------------------
+class TestNoSilentAutoConvert:
+    """The auto-convert format pref was removed 2026-06-06 — the user must
+    always be prompted before a non-EPUB file gets converted to EPUB. Verify
+    the backend rejects the value on PUT and coerces it to `ask` on GET."""
+
+    @pytest.fixture(scope="class")
+    def user(self):
+        uid = f"user_fpv2_{uuid.uuid4().hex[:8]}"
+        tok = f"sess_fpv2_{uuid.uuid4().hex}"
+        db.users.insert_one({"user_id": uid, "email": f"{uid}@x.com", "name": "FPV2", "picture": "", "created_at": datetime.now(timezone.utc).isoformat()})
+        db.user_sessions.insert_one({"user_id": uid, "session_token": tok, "expires_at": datetime.now(timezone.utc) + timedelta(days=7), "created_at": datetime.now(timezone.utc)})
+        yield uid, tok
+        db.users.delete_many({"user_id": uid})
+        db.user_sessions.delete_many({"user_id": uid})
+
+    def test_put_rejects_convert_value(self, user):
+        uid, tok = user
+        r = requests.put(
+            f"{BASE}/api/user/format-prefs",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"pdf": "convert"},
+        )
+        assert r.status_code == 400, r.text
+        assert "must be one of" in (r.json().get("detail") or "")
+
+    def test_put_accepts_ask_and_skip(self, user):
+        uid, tok = user
+        r = requests.put(
+            f"{BASE}/api/user/format-prefs",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"pdf": "ask", "kindle": "skip", "word": "ask"},
+        )
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert data["pdf"] == "ask"
+        assert data["kindle"] == "skip"
+        assert data["word"] == "ask"
+
+    def test_get_coerces_legacy_convert_to_ask(self, user):
+        """Existing user docs that still have `convert` stored from before
+        the change should read back as `ask` so the user is never silently
+        auto-converted on the next upload."""
+        uid, tok = user
+        db.users.update_one(
+            {"user_id": uid},
+            {"$set": {"format_prefs": {"pdf": "convert", "kindle": "convert", "word": "skip"}}},
+        )
+        r = requests.get(f"{BASE}/api/user/format-prefs", headers={"Authorization": f"Bearer {tok}"})
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert data["pdf"] == "ask"
+        assert data["kindle"] == "ask"
+        assert data["word"] == "skip"
+        # And the default (un-set) groups still default to `ask`
+        assert data["other_ebook"] == "ask"
+        assert data["html"] == "ask"

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
@@ -700,8 +700,11 @@ export default function Account() {
             <div className="flex-1">
               <h2 className="font-serif text-2xl text-[#2C2C2C]">Non-EPUB upload preferences</h2>
               <p className="text-sm text-[#6B705C] mt-1">
-                EPUBs always upload silently. For everything else, decide once whether to auto-convert,
-                skip silently, or ask each time.
+                EPUBs always upload silently. For everything else, Shelfsort
+                <strong className="font-medium"> never auto-converts</strong> — every
+                non-EPUB upload prompts you per format group (Convert to EPUB · Keep
+                original on the <Link to="/library/originals" className="underline">Originals shelf</Link> · Skip).
+                Set a group to <em>Skip</em> here if you want it dropped silently without a prompt.
               </p>
             </div>
           </div>
@@ -728,7 +731,6 @@ export default function Account() {
                   <div className="flex gap-1.5" role="radiogroup" aria-label={`${grp.label} preference`}>
                     {[
                       { val: "ask", label: "Ask" },
-                      { val: "convert", label: "Auto-add" },
                       { val: "skip", label: "Skip" },
                     ].map((opt) => (
                       <button

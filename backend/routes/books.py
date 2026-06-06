@@ -3266,11 +3266,28 @@ async def update_duplicate_policy(body: DuplicatePolicyBody, user: User = Depend
 
 
 # Per-format upload preferences for non-EPUB files. Each format group can be
-# "ask" (show the confirm prompt — current behavior), "convert" (auto-add via
-# Calibre with no prompt), or "skip" (silently drop without uploading).
+# "ask" (default — show the per-upload Convert/Keep/Skip prompt) or "skip"
+# (silently drop without uploading). We intentionally do NOT expose a
+# silent auto-convert option: the user should always decide whether to run
+# a Calibre conversion. Silent conversion was removed 2026-06-06.
 FORMAT_GROUPS = ("pdf", "kindle", "word", "other_ebook", "txt", "html")
-FORMAT_ACTIONS = ("ask", "convert", "skip")
+FORMAT_ACTIONS = ("ask", "skip")
 FORMAT_PREFS_DEFAULT = {g: "ask" for g in FORMAT_GROUPS}
+
+
+def _coerce_format_prefs(stored: Dict[str, Any]) -> Dict[str, str]:
+    """Read-side migration. Any legacy `"convert"` (auto-add) value is
+    coerced back to `"ask"` so the user is never silently auto-converted
+    even if their stored prefs still have the old value."""
+    out: Dict[str, str] = {}
+    for k, v in (stored or {}).items():
+        if k not in FORMAT_GROUPS:
+            continue
+        if v == "convert":
+            out[k] = "ask"
+        elif v in FORMAT_ACTIONS:
+            out[k] = v
+    return out
 
 
 class FormatPrefsBody(BaseModel):
@@ -3287,7 +3304,7 @@ class FormatPrefsBody(BaseModel):
 async def get_format_prefs(user: User = Depends(get_current_user)):
     user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "format_prefs": 1})
     stored = (user_doc or {}).get("format_prefs") or {}
-    return {**FORMAT_PREFS_DEFAULT, **{k: v for k, v in stored.items() if k in FORMAT_GROUPS and v in FORMAT_ACTIONS}}
+    return {**FORMAT_PREFS_DEFAULT, **_coerce_format_prefs(stored)}
 
 
 @api_router.put("/user/format-prefs")
@@ -3297,7 +3314,7 @@ async def update_format_prefs(body: FormatPrefsBody, user: User = Depends(get_cu
         if v not in FORMAT_ACTIONS:
             raise HTTPException(status_code=400, detail=f"{k} must be one of {list(FORMAT_ACTIONS)}")
     user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "format_prefs": 1})
-    stored = (user_doc or {}).get("format_prefs") or {}
+    stored = _coerce_format_prefs((user_doc or {}).get("format_prefs") or {})
     stored.update(patch)
     await db.users.update_one(
         {"user_id": user.user_id},
