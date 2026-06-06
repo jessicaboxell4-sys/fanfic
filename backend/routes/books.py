@@ -2,7 +2,8 @@ from fastapi import (
     APIRouter, UploadFile, File, HTTPException, Request, Response,
     Depends, Form,
 )
-from fastapi.responses import FileResponse, StreamingResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
+from starlette.background import BackgroundTask
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone, timedelta, date
@@ -4258,9 +4259,13 @@ async def export_zip(
     if not books:
         raise HTTPException(status_code=404, detail="No books")
 
-    def iter_zip():
-        buf = io.BytesIO()
-        with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+    # Stream via a temp file on disk so we don't hold the whole zip in RAM
+    # (large libraries × proxy buffer limits = mid-download disconnects).
+    tmp = tempfile.NamedTemporaryFile(prefix="shelfsort_", suffix=".zip", delete=False)
+    tmp_path = Path(tmp.name)
+    tmp.close()
+    try:
+        with zipfile.ZipFile(str(tmp_path), 'w', zipfile.ZIP_DEFLATED) as zf:
             for b in books:
                 fp = STORAGE_DIR / user.user_id / f"{b['book_id']}.epub"
                 if not fp.exists():
@@ -4273,21 +4278,24 @@ async def export_zip(
                     folder = cat
                 arcname = f"{folder}/{_templated_filename(b.get('title'), b.get('author'), b['book_id'])}"
                 zf.write(str(fp), arcname=arcname)
-        buf.seek(0)
-        return buf
 
-    buf = iter_zip()
-    payload = buf.getvalue()
-    zip_name = "shelfsort_library.zip"
-    if fandom:
-        zip_name = f"shelfsort_{_safe_folder(fandom)}.zip"
-    elif category:
-        zip_name = f"shelfsort_{_safe_folder(category)}.zip"
-    headers = {
-        "Content-Disposition": f'attachment; filename="{zip_name}"',
-        "Content-Length": str(len(payload)),
-    }
-    return Response(content=payload, media_type="application/zip", headers=headers)
+        zip_name = "shelfsort_library.zip"
+        if fandom:
+            zip_name = f"shelfsort_{_safe_folder(fandom)}.zip"
+        elif category:
+            zip_name = f"shelfsort_{_safe_folder(category)}.zip"
+
+        # FileResponse streams the file in chunks and sets Content-Length
+        # from the on-disk size, so proxies can't silently truncate.
+        return FileResponse(
+            path=str(tmp_path),
+            media_type="application/zip",
+            filename=zip_name,
+            background=BackgroundTask(lambda: tmp_path.unlink(missing_ok=True)),
+        )
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        raise
 
 
 @api_router.post("/books/detect-series-all")

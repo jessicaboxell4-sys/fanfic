@@ -959,6 +959,35 @@ export default function Dashboard() {
             )}
           </>
         )}
+
+        {stats.total > 0 && (
+          <div className="mt-16 mb-8 text-center" data-testid="dashboard-danger-zone">
+            <button
+              data-testid="wipe-all-btn"
+              onClick={async () => {
+                const phrase = window.prompt(
+                  "This will PERMANENTLY delete every book in your library — EPUBs, covers, reading history, smart shelves, the lot.\n\nThis cannot be undone.\n\nType DELETE EVERYTHING (in capitals, exactly) to confirm:",
+                );
+                if (phrase !== "DELETE EVERYTHING") {
+                  if (phrase !== null) toast.error("Phrase didn't match. Nothing was deleted.");
+                  return;
+                }
+                const t = toast.loading("Wiping library…");
+                try {
+                  const { data } = await api.post("/books/wipe-library", { confirm: "DELETE_EVERYTHING" }, { timeout: 600000 });
+                  toast.success(data.message || "Library wiped.", { id: t });
+                  setTimeout(() => { window.location.reload(); }, 1200);
+                } catch (e) {
+                  toast.error(e?.response?.data?.detail || "Couldn't wipe library", { id: t });
+                }
+              }}
+              className="text-xs text-red-600/70 hover:text-red-700 underline-offset-4 hover:underline transition-colors"
+              title="Permanently delete every book + all reading history. Requires typing a phrase to confirm."
+            >
+              Delete entire library
+            </button>
+          </div>
+        )}
       </main>
 
       {selectMode && (
