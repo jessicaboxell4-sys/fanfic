@@ -1,13 +1,15 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { BookOpen, LogOut, BarChart3, Filter, HelpCircle, FileText } from "lucide-react";
+import { BookOpen, LogOut, BarChart3, Filter, HelpCircle, FileText, Sun, Moon } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { useTheme } from "../context/ThemeContext";
 import UpdatesBell from "./UpdatesBell";
 import StreakBadge from "./StreakBadge";
 import DownloadZipButton from "./DownloadZipButton";
 
 export default function Navbar() {
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
   return (
@@ -19,6 +21,17 @@ export default function Navbar() {
         </Link>
 
         <div className="flex items-center gap-2 md:gap-3">
+          <button
+            data-testid="navbar-theme-toggle"
+            onClick={toggleTheme}
+            className="p-2 hover:bg-[#F5F3EC] rounded-lg"
+            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {theme === "dark"
+              ? <Sun className="w-4 h-4 text-[#6B705C]" />
+              : <Moon className="w-4 h-4 text-[#6B705C]" />}
+          </button>
           {user && <StreakBadge />}
           {user && <UpdatesBell />}
           {user && (

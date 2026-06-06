@@ -193,3 +193,88 @@
     from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: translateY(0); }
 }
+
+/* ------------------------------------------------------------------ */
+/*  DARK THEME (Tier 1)                                                */
+/*  Activated by <html data-theme="dark">. The site uses literal hex   */
+/*  utility classes (e.g. bg-[#FAF6EE]) throughout, so dark mode is    */
+/*  achieved by retargeting those exact compiled class names to dark   */
+/*  values via an attribute selector. The accent peach / green stay    */
+/*  the same in both modes — they read fine on either background.      */
+/* ------------------------------------------------------------------ */
+:root[data-theme="dark"] {
+    --bg: #1B1B1E;
+    --surface: #26262B;
+    --surface-hover: #34343A;
+    --text-primary: #E8E4D8;
+    --text-secondary: #9C9C8E;
+    --border: #3B3B41;
+    color-scheme: dark;
+}
+
+/* Page / surface backgrounds — every cream/off-white the site uses     */
+/* funnels into the same `--bg` (page) and `--surface` (card) tokens.  */
+:root[data-theme="dark"] body { background: var(--bg); color: var(--text-primary); }
+:root[data-theme="dark"] .bg-paper { background-color: var(--bg); background-image: none; }
+:root[data-theme="dark"] .bg-white,
+:root[data-theme="dark"] .bg-\[\#FFFFFF\],
+:root[data-theme="dark"] .bg-\[\#FDFBF7\],
+:root[data-theme="dark"] .bg-\[\#FBFAF6\],
+:root[data-theme="dark"] .bg-\[\#fffaf0\] { background-color: var(--surface); }
+:root[data-theme="dark"] .bg-\[\#FAF6EE\],
+:root[data-theme="dark"] .bg-\[\#FBF7EE\] { background-color: var(--bg); }
+:root[data-theme="dark"] .bg-\[\#F5F3EC\],
+:root[data-theme="dark"] .bg-\[\#FDF3E1\]\/60,
+:root[data-theme="dark"] .bg-\[\#E5DDC5\]\/60,
+:root[data-theme="dark"] .bg-\[\#E5DDC5\]\/40 { background-color: var(--surface-hover); }
+
+/* Text — primary headings + body, and the muted "sage" support text. */
+:root[data-theme="dark"] .text-\[\#2C2C2C\] { color: var(--text-primary); }
+:root[data-theme="dark"] .text-\[\#6B705C\],
+:root[data-theme="dark"] .text-\[\#6E6E6E\] { color: var(--text-secondary); }
+
+/* Borders — the cream `#E8E6E1` / `#E5DDC5` / `#D5D2CC` all converge  */
+:root[data-theme="dark"] .border-\[\#E8E6E1\],
+:root[data-theme="dark"] .border-\[\#E5DDC5\],
+:root[data-theme="dark"] .border-\[\#D5D2CC\],
+:root[data-theme="dark"] .divide-\[\#E5DDC5\] > * + * { border-color: var(--border); }
+
+/* Tinted accent surfaces — peach 10% bg, sage 10% bg, etc — stay      */
+/* tinted but on the dark surface so they still pop without burning   */
+/* the eyes.                                                          */
+:root[data-theme="dark"] .bg-\[\#E07A5F\]\/10 { background-color: rgba(224, 122, 95, 0.18); }
+:root[data-theme="dark"] .bg-\[\#E07A5F\]\/5 { background-color: rgba(224, 122, 95, 0.10); }
+:root[data-theme="dark"] .bg-\[\#3A5A40\]\/10 { background-color: rgba(115, 175, 130, 0.18); color: #B7D4BC; }
+:root[data-theme="dark"] .text-\[\#3A5A40\] { color: #B7D4BC; }
+
+/* Amber / warning chips — keep the warm hue but lift contrast.       */
+:root[data-theme="dark"] .bg-\[\#FDF4E5\],
+:root[data-theme="dark"] .bg-amber-50,
+:root[data-theme="dark"] .bg-amber-50\/60 { background-color: #3a2f1b; color: #F0D6A0; }
+:root[data-theme="dark"] .border-amber-200,
+:root[data-theme="dark"] .border-\[\#E5C97A\]\/60 { border-color: #6b4e1f; }
+:root[data-theme="dark"] .text-amber-700,
+:root[data-theme="dark"] .text-\[\#7A5C00\],
+:root[data-theme="dark"] .text-\[\#8A6800\] { color: #F0D6A0; }
+:root[data-theme="dark"] .text-\[\#B87A00\] { color: #F0B860; }
+
+/* shelf-card variant on dark theme — softer shadow, kept hover lift. */
+:root[data-theme="dark"] .shelf-card { background: var(--surface); border-color: var(--border); }
+:root[data-theme="dark"] .shelf-card:hover { box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5); border-color: rgba(224, 122, 95, 0.5); }
+
+/* Form inputs — Tailwind's bg-white inputs adopted via the override   */
+/* above, but native form controls also need a kick to look right.    */
+:root[data-theme="dark"] input[type="text"],
+:root[data-theme="dark"] input[type="email"],
+:root[data-theme="dark"] input[type="password"],
+:root[data-theme="dark"] input[type="search"],
+:root[data-theme="dark"] input[type="url"],
+:root[data-theme="dark"] textarea,
+:root[data-theme="dark"] select { background-color: var(--surface); color: var(--text-primary); }
+:root[data-theme="dark"] input::placeholder,
+:root[data-theme="dark"] textarea::placeholder { color: #6E6E6E; }
+
+/* Scrollbar — gently themed so the bright-white default doesn't yell */
+:root[data-theme="dark"] ::-webkit-scrollbar-thumb { background-color: #45454B; }
+:root[data-theme="dark"] ::-webkit-scrollbar-track { background-color: #1B1B1E; }
+

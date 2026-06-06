@@ -604,3 +604,11 @@
 - **Account page UI**: removed the "Auto-add" button. New copy emphasizes that Shelfsort never auto-converts; "Skip" is the only way to suppress the prompt for a format group. Added a link to the Originals shelf.
 - **UploadZone.jsx**: removed the `convert` branch from the upload pipeline — it would never be returned by the backend anyway.
 - **Tests**: 3 new in `TestNoSilentAutoConvert` (PUT rejects `convert`, accepts `ask`/`skip`, GET coerces legacy `convert` → `ask`). 15/15 across both new test classes pass.
+
+### Added 2026-06-06 (Theme toggle — Tier 1)
+- New `ThemeContext` (`/app/frontend/src/context/ThemeContext.jsx`) holding `theme` (`"light"` | `"dark"`), `setTheme`, `toggleTheme`. Choice persists to `localStorage["shelfsort_theme"]` and is mirrored onto `<html data-theme="...">` so CSS variables and class overrides can switch in a single repaint.
+- Navbar gains a sun/moon toggle button (`data-testid="navbar-theme-toggle"`) placed before the StreakBadge — visible to logged-in *and* logged-out users so the landing/login pages also respect the choice.
+- `index.css` dark palette (AO3 "Reversi"-inspired): `--bg #1B1B1E` (deep warm slate), `--surface #26262B`, `--text-primary #E8E4D8`, `--text-secondary #9C9C8E`, `--border #3B3B41`. Accent peach `#E07A5F` and a brightened sage `#B7D4BC` carry over both modes.
+- Tier 1 retargets the most-used compiled Tailwind hex utility classes (`.bg-[#FAF6EE]`, `.bg-white`, `.text-[#2C2C2C]`, `.text-[#6B705C]`, `.border-[#E5DDC5]`, etc.) via `:root[data-theme="dark"] .bg-\[\#FAF6EE\] { ... }` selectors — about 90% of the UI swaps without touching individual component files. Form controls, scrollbars, and the `.shelf-card` glass-card style are also themed.
+- Amber/warning chips get a dark variant (`#3a2f1b` bg with `#F0D6A0` text) so the AO3 mirror banner, "URLs found" status pills, etc. stay readable.
+- Tier 2 polish (Reader page, AO3-styled Download page maroon shift, edge-case components) deferred — flagged in backlog.
