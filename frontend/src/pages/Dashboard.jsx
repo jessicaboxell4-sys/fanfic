@@ -870,17 +870,36 @@ export default function Dashboard() {
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {stats.fandoms.map(f => (
-                    <button
-                      key={f.name}
-                      data-testid={`open-fandom-${f.name.replace(/\s+/g, '-').toLowerCase()}`}
-                      onClick={() => navigate(`/library/fandom/${encodeURIComponent(f.name)}`)}
-                      className="px-3 py-1 rounded-full text-xs font-semibold border bg-[#E5EBE6] text-[#3A5A40] border-[#3A5A40]/20 hover:bg-[#3A5A40] hover:text-white transition-colors flex items-center gap-1.5"
-                    >
-                      {f.name} · {f.count}
-                      <ArrowRight className="w-3 h-3" />
-                    </button>
-                  ))}
+                  {stats.fandoms.map(f => {
+                    // Crossover detection: canonical form uses " / " between
+                    // fandoms, so 2+ slash-separated parts → multi-fandom.
+                    const xPieces = (f.name || "").split(" / ").map(p => p.trim()).filter(Boolean);
+                    const isCrossover = xPieces.length >= 2;
+                    return (
+                      <button
+                        key={f.name}
+                        data-testid={`open-fandom-${f.name.replace(/\s+/g, '-').toLowerCase()}`}
+                        onClick={() => navigate(`/library/fandom/${encodeURIComponent(f.name)}`)}
+                        title={isCrossover ? `Crossover · ${xPieces.length} fandoms` : f.name}
+                        className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors flex items-center gap-1.5 ${
+                          isCrossover
+                            ? "bg-[#FDF3E1] text-[#900] border-[#900]/30 hover:bg-[#900] hover:text-white"
+                            : "bg-[#E5EBE6] text-[#3A5A40] border-[#3A5A40]/20 hover:bg-[#3A5A40] hover:text-white"
+                        }`}
+                      >
+                        {isCrossover && (
+                          <span
+                            data-testid={`crossover-badge-${f.name.replace(/\s+/g, '-').toLowerCase()}`}
+                            className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-[#900] text-white text-[10px] font-bold leading-none"
+                          >
+                            ×{xPieces.length}
+                          </span>
+                        )}
+                        {f.name} · {f.count}
+                        <ArrowRight className="w-3 h-3" />
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
