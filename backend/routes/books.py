@@ -4443,12 +4443,17 @@ async def export_zip(
     if not books:
         raise HTTPException(status_code=404, detail="No books")
 
-    # Stream via a temp file on disk so we don't hold the whole zip in RAM
-    # (large libraries × proxy buffer limits = mid-download disconnects).
+    # Build the zip in a worker thread so we don't block the event loop —
+    # for libraries with hundreds of EPUBs the synchronous `zf.write(...)` loop
+    # can run 30-90s, and a blocked loop kills keepalives + can trip the
+    # ingress idle timeout (which matches the "starts downloading but then
+    # fails" symptom users have reported).
     tmp = tempfile.NamedTemporaryFile(prefix="shelfsort_", suffix=".zip", delete=False)
     tmp_path = Path(tmp.name)
     tmp.close()
-    try:
+
+    def _build_zip() -> int:
+        added = 0
         with zipfile.ZipFile(str(tmp_path), 'w', zipfile.ZIP_DEFLATED) as zf:
             for b in books:
                 fp = STORAGE_DIR / user.user_id / f"{b['book_id']}.epub"
@@ -4462,6 +4467,16 @@ async def export_zip(
                     folder = cat
                 arcname = f"{folder}/{_templated_filename(b.get('title'), b.get('author'), b['book_id'])}"
                 zf.write(str(fp), arcname=arcname)
+                added += 1
+        return added
+
+    try:
+        added = await asyncio.to_thread(_build_zip)
+        size_bytes = tmp_path.stat().st_size
+        logger.info(
+            "export-zip built: user=%s books=%d added=%d size=%d bytes",
+            user.user_id, len(books), added, size_bytes,
+        )
 
         zip_name = "shelfsort_library.zip"
         if fandom:
