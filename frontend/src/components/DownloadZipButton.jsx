@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Download, Loader2 } from "lucide-react";
 import { API } from "../lib/api";
 import { toast } from "sonner";
@@ -8,9 +8,17 @@ import { toast } from "sonner";
 // The backend ships the library zip via stream-zip / chunked transfer, so
 // we can read the response body chunk-by-chunk and show MB transferred
 // live in a sonner toast — much friendlier than a silent browser progress
-// bar for a multi-minute download on a big library.
+// bar for a multi-minute download on a big library. Includes a Cancel
+// button on the toast so an accidental click on a 5 GB library is recoverable.
 export default function DownloadZipButton() {
   const [downloading, setDownloading] = useState(false);
+  const abortRef = useRef(null);
+
+  const fmt = (n) => {
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+    return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  };
 
   const start = async () => {
     if (downloading) return;
@@ -20,20 +28,22 @@ export default function DownloadZipButton() {
     const startedAt = Date.now();
     let bytesReceived = 0;
 
-    // Use the session cookie via credentials: 'include' so the protected
-    // endpoint authorizes us. The browser would have done this automatically
-    // with the old <a> tag — we have to opt in explicitly for fetch().
-    const fmt = (n) => {
-      if (n < 1024) return `${n} B`;
-      if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-      return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const cancel = () => {
+      controller.abort();
+      toast.dismiss(toastId);
     };
 
     const showProgress = () => {
       const elapsed = Math.max(1, Math.floor((Date.now() - startedAt) / 1000));
       toast.loading(
         `Streaming your library… ${fmt(bytesReceived)} so far · ${elapsed}s`,
-        { id: toastId, duration: 60000 },
+        {
+          id: toastId,
+          duration: 60000,
+          action: { label: "Cancel", onClick: cancel },
+        },
       );
     };
 
@@ -41,6 +51,7 @@ export default function DownloadZipButton() {
       showProgress();
       const resp = await fetch(`${API}/books/export/zip`, {
         credentials: "include",
+        signal: controller.signal,
       });
       if (!resp.ok) {
         const text = await resp.text().catch(() => "");
@@ -83,13 +94,22 @@ export default function DownloadZipButton() {
         { id: toastId },
       );
     } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error(e);
-      toast.error(
-        `Download failed${bytesReceived > 0 ? ` after ${fmt(bytesReceived)}` : ""} — ${e.message || "try again"}`,
-        { id: toastId },
-      );
+      if (e.name === "AbortError" || controller.signal.aborted) {
+        // User-cancelled — friendlier message, not an error.
+        toast(
+          `Download cancelled${bytesReceived > 0 ? ` after ${fmt(bytesReceived)}` : ""}`,
+          { id: toastId },
+        );
+      } else {
+        // eslint-disable-next-line no-console
+        console.error(e);
+        toast.error(
+          `Download failed${bytesReceived > 0 ? ` after ${fmt(bytesReceived)}` : ""} — ${e.message || "try again"}`,
+          { id: toastId },
+        );
+      }
     } finally {
+      abortRef.current = null;
       setDownloading(false);
     }
   };
