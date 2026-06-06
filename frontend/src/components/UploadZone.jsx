@@ -82,27 +82,36 @@ export default function UploadZone({ onUploaded }) {
       toast(`Skipping ${skipped} unsupported file${skipped === 1 ? "" : "s"}`, { duration: 3500 });
     }
 
-    // Non-EPUBs (PDF/MOBI/AZW/DOCX/.txt URL-lists/etc.) get a confirm prompt
-    // so the user explicitly opts into Calibre conversion or URL dedupe.
+    // EPUBs always upload silently — no confirmation. Non-EPUBs (PDF/MOBI/
+    // AZW/DOCX/.txt URL-lists/etc.) get a confirm prompt so the user
+    // explicitly opts into Calibre conversion or URL dedupe. Declining the
+    // prompt skips just the non-EPUBs — the EPUBs still go through.
+    const epubs = files.filter((f) => f.name.toLowerCase().endsWith(".epub"));
     const nonEpub = files.filter((f) => !f.name.toLowerCase().endsWith(".epub"));
+    let toUpload = [...epubs];
     if (nonEpub.length > 0) {
       const formats = [...new Set(nonEpub.map((f) => "." + f.name.split(".").pop().toLowerCase()))];
       const formatList = formats.join(", ");
       const summary =
-        nonEpub.length === files.length
-          ? `Add ${nonEpub.length} non-EPUB file${nonEpub.length === 1 ? "" : "s"} (${formatList}) to your library?`
-          : `${files.length - nonEpub.length} EPUB(s) will be added directly.\n\nAlso add ${nonEpub.length} non-EPUB file${nonEpub.length === 1 ? "" : "s"} (${formatList}) to your library?`;
+        epubs.length > 0
+          ? `${epubs.length} EPUB${epubs.length === 1 ? "" : "s"} will be added directly.\n\nAlso add ${nonEpub.length} non-EPUB file${nonEpub.length === 1 ? "" : "s"} (${formatList})?`
+          : `Add ${nonEpub.length} non-EPUB file${nonEpub.length === 1 ? "" : "s"} (${formatList}) to your library?`;
       const ok = window.confirm(
         `${summary}\n\nNon-EPUBs get auto-converted via Calibre. .txt files containing fanfic URLs are deduped against your library — no book is added for those.`,
       );
-      if (!ok) {
+      if (ok) {
+        toUpload = toUpload.concat(nonEpub);
+      } else if (epubs.length === 0) {
         toast("Upload cancelled");
         return;
+      } else {
+        toast(`Skipping ${nonEpub.length} non-EPUB file${nonEpub.length === 1 ? "" : "s"} · sorting your ${epubs.length} EPUB${epubs.length === 1 ? "" : "s"}`);
       }
     }
+    const filesToSend = toUpload;
 
     setUploading(true);
-    setProgress({ done: 0, total: files.length });
+    setProgress({ done: 0, total: filesToSend.length });
     const duplicates = [];
     const allActions = [];
     const allUrlLists = [];
@@ -113,8 +122,8 @@ export default function UploadZone({ onUploaded }) {
       let uploaded = 0;
       let totalAuto = 0;
       let lastPolicy = null;
-      for (let i = 0; i < files.length; i += batchSize) {
-        const batch = files.slice(i, i + batchSize);
+      for (let i = 0; i < filesToSend.length; i += batchSize) {
+        const batch = filesToSend.slice(i, i + batchSize);
         const form = new FormData();
         batch.forEach((f) => form.append("files", f));
         const { data } = await api.post("/books/upload", form, {
@@ -132,10 +141,10 @@ export default function UploadZone({ onUploaded }) {
         totalAuto += data?.auto_resolved || 0;
         if (data?.policy) lastPolicy = data.policy;
         uploaded += batch.length;
-        setProgress({ done: uploaded, total: files.length });
+        setProgress({ done: uploaded, total: filesToSend.length });
       }
       resp = { auto_resolved: totalAuto, policy: lastPolicy, actions: allActions };
-      if (allUrlLists.length > 0 && files.length === allUrlLists.length) {
+      if (allUrlLists.length > 0 && filesToSend.length === allUrlLists.length) {
         // Only URL list(s) — no books actually ingested
         const totalNew = allUrlLists.reduce((acc, r) => acc + (r.new_urls?.length || 0), 0);
         const totalOwned = allUrlLists.reduce((acc, r) => acc + (r.already_owned?.length || 0), 0);
@@ -145,13 +154,13 @@ export default function UploadZone({ onUploaded }) {
         const policy = resp && resp.policy;
         if (autoCount > 0 && policy && policy !== "ask") {
           const LABEL = { keep_both: "kept both", discard: "discarded", new_version: "replaced as new versions", historical: "linked as historical versions" };
-          toast.success(`Sorted ${files.length} file${files.length > 1 ? "s" : ""} · ${autoCount} duplicate${autoCount > 1 ? "s" : ""} ${LABEL[policy] || "auto-resolved"}`);
+          toast.success(`Sorted ${filesToSend.length} file${filesToSend.length > 1 ? "s" : ""} · ${autoCount} duplicate${autoCount > 1 ? "s" : ""} ${LABEL[policy] || "auto-resolved"}`);
         } else {
-          toast.success(`Sorted ${files.length} file${files.length > 1 ? "s" : ""} into your library`);
+          toast.success(`Sorted ${filesToSend.length} file${filesToSend.length > 1 ? "s" : ""} into your library`);
         }
       } else {
         toast.success(
-          `Sorted ${files.length} file${files.length > 1 ? "s" : ""} — ${duplicates.length} possible duplicate${duplicates.length > 1 ? "s" : ""} to review`,
+          `Sorted ${filesToSend.length} file${filesToSend.length > 1 ? "s" : ""} — ${duplicates.length} possible duplicate${duplicates.length > 1 ? "s" : ""} to review`,
         );
       }
       onUploaded && onUploaded(duplicates, allActions, allUrlLists);
