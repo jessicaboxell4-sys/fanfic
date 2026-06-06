@@ -3082,6 +3082,8 @@ def _templated_filename(title: Optional[str], author: Optional[str], book_id: st
 async def export_all_links(
     category: Optional[str] = None,
     fandom: Optional[str] = None,
+    relationship: Optional[str] = None,
+    author: Optional[str] = None,
     format: str = "txt",
     user: User = Depends(get_current_user),
 ):
@@ -3097,6 +3099,10 @@ async def export_all_links(
         query["category"] = category
     if fandom:
         query["fandom"] = fandom
+    if relationship:
+        query["relationships"] = relationship
+    if author:
+        query["author"] = author
     books = await db.books.find(query, {"_id": 0}).sort("created_at", -1).to_list(5000)
     if not books:
         raise HTTPException(status_code=404, detail="No books")

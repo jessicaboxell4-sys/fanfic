@@ -1,8 +1,7 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { BookOpen, LogOut, Link as LinkIcon, BarChart3, Filter, HelpCircle } from "lucide-react";
+import { BookOpen, LogOut, BarChart3, Filter, HelpCircle } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { API } from "../lib/api";
 import UpdatesBell from "./UpdatesBell";
 import StreakBadge from "./StreakBadge";
 import DownloadZipButton from "./DownloadZipButton";
@@ -44,16 +43,7 @@ export default function Navbar() {
               <span className="hidden md:inline">Stats</span>
             </Link>
           )}
-          <a
-            data-testid="navbar-download-links"
-            href={`${API}/books/export/links?format=xlsx`}
-            download="shelfsort_library.xlsx"
-            className="btn-secondary text-sm flex items-center gap-2"
-            title="Download an Excel workbook — one sheet per fandom with full metadata"
-          >
-            <LinkIcon className="w-4 h-4" />
-            <span className="hidden md:inline">Library (.xlsx)</span>
-          </a>
+          {user && <DownloadZipButton kind="xlsx" />}
           {user && <DownloadZipButton />}
           {user && (
             <>

@@ -1,13 +1,47 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Download, Loader2, X, Filter as FilterIcon } from "lucide-react";
+import { Download, Loader2, X, Filter as FilterIcon, Link as LinkIcon } from "lucide-react";
 import { API, api } from "../lib/api";
 import { toast } from "sonner";
 
-// "Download ZIP" with filters. Lets the user pick a fandom, a pairing, an
-// author, and/or a category before kicking off the streaming download.
-// Keeps the same live-progress toast + Cancel button as the original
-// DownloadZipButton (which this replaces).
-export default function DownloadZipButton() {
+// "Download ZIP" / "Download .xlsx" with filters. Lets the user pick a
+// fandom, a pairing, an author, and/or a category before kicking off the
+// streaming download. Live progress toast + Cancel button preserved.
+//
+// Props:
+//   kind: "zip" (default) — downloads /books/export/zip
+//         "xlsx"          — downloads /books/export/links?format=xlsx
+export default function DownloadZipButton({ kind = "zip" }) {
+  const isXlsx = kind === "xlsx";
+  const KIND_COPY = isXlsx
+    ? {
+        btnLabel: "Library (.xlsx)",
+        btnTitle: "Download an Excel workbook — optionally filter by fandom, pairing, author, or category",
+        modalTitle: "Download Library Excel",
+        modalSubtitle: 'One sheet per fandom. Leave everything as "Any" for your whole library, or narrow it down.',
+        ctaFull: "Download full library (.xlsx)",
+        ctaFiltered: "Download filtered (.xlsx)",
+        verb: "Building",
+        successVerb: "Built",
+        endpoint: "/books/export/links",
+        extraQuery: "format=xlsx",
+        ext: "xlsx",
+        Icon: LinkIcon,
+      }
+    : {
+        btnLabel: "Download ZIP",
+        btnTitle: "Download a ZIP — optionally filter by fandom, pairing, author, or category",
+        modalTitle: "Download a ZIP",
+        modalSubtitle: 'Leave everything as "Any" for your whole library, or narrow it down.',
+        ctaFull: "Download full library ZIP",
+        ctaFiltered: "Download filtered ZIP",
+        verb: "Streaming",
+        successVerb: "Downloaded",
+        endpoint: "/books/export/zip",
+        extraQuery: "",
+        ext: "zip",
+        Icon: Download,
+      };
+
   const [open, setOpen] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [overview, setOverview] = useState(null);
@@ -71,7 +105,7 @@ export default function DownloadZipButton() {
       category && `cat=${category}`,
     ].filter(Boolean).join(" · ") || "full library";
 
-    const toastId = `zip-${Date.now()}`;
+    const toastId = `${kind}-${Date.now()}`;
     const startedAt = Date.now();
     let bytesReceived = 0;
     const controller = new AbortController();
@@ -83,7 +117,7 @@ export default function DownloadZipButton() {
     const showProgress = () => {
       const elapsed = Math.max(1, Math.floor((Date.now() - startedAt) / 1000));
       toast.loading(
-        `Streaming ${filterLabel}… ${fmt(bytesReceived)} so far · ${elapsed}s`,
+        `${KIND_COPY.verb} ${filterLabel}… ${fmt(bytesReceived)} so far · ${elapsed}s`,
         { id: toastId, duration: 60000, action: { label: "Cancel", onClick: cancel } },
       );
     };
@@ -91,7 +125,8 @@ export default function DownloadZipButton() {
     try {
       setOpen(false);
       showProgress();
-      const resp = await fetch(`${API}/books/export/zip${qs ? `?${qs}` : ""}`, {
+      const fullQs = [KIND_COPY.extraQuery, qs].filter(Boolean).join("&");
+      const resp = await fetch(`${API}${KIND_COPY.endpoint}${fullQs ? `?${fullQs}` : ""}`, {
         credentials: "include",
         signal: controller.signal,
       });
@@ -118,20 +153,20 @@ export default function DownloadZipButton() {
         }
       }
 
-      const blob = new Blob(chunks, { type: "application/zip" });
+      const blob = new Blob(chunks);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
       // Derive a friendly filename from the active filters.
       const namePieces = [fandom, relationship, author, category].filter(Boolean).map((s) => s.replace(/\s+/g, "_"));
-      a.download = `shelfsort_${namePieces.join("_") || "library"}.zip`;
+      a.download = `shelfsort_${namePieces.join("_") || "library"}.${KIND_COPY.ext}`;
       document.body.appendChild(a);
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 5000);
 
       toast.success(
-        `Downloaded ${fmt(bytesReceived)} · ${Math.floor((Date.now() - startedAt) / 1000)}s`,
+        `${KIND_COPY.successVerb} ${fmt(bytesReceived)} · ${Math.floor((Date.now() - startedAt) / 1000)}s`,
         { id: toastId },
       );
     } catch (e) {
@@ -162,17 +197,17 @@ export default function DownloadZipButton() {
         type="button"
         onClick={() => setOpen(true)}
         disabled={downloading}
-        data-testid="navbar-download-zip"
+        data-testid={isXlsx ? "navbar-download-links" : "navbar-download-zip"}
         className="btn-secondary text-sm flex items-center gap-2 disabled:opacity-60"
-        title="Download a ZIP — optionally filter by fandom, pairing, author, or category"
+        title={KIND_COPY.btnTitle}
       >
-        {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-        <span className="hidden md:inline">{downloading ? "Streaming…" : "Download ZIP"}</span>
+        {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <KIND_COPY.Icon className="w-4 h-4" />}
+        <span className="hidden md:inline">{downloading ? `${KIND_COPY.verb}…` : KIND_COPY.btnLabel}</span>
       </button>
 
       {open && (
         <div
-          data-testid="zip-filter-modal"
+          data-testid={isXlsx ? "xlsx-filter-modal" : "zip-filter-modal"}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
           onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}
         >
@@ -182,10 +217,8 @@ export default function DownloadZipButton() {
                 <FilterIcon className="w-5 h-5" />
               </div>
               <div className="flex-1">
-                <h2 className="font-serif text-2xl text-[#2C2C2C] leading-tight">Download a ZIP</h2>
-                <p className="text-sm text-[#6B705C] mt-1">
-                  Leave everything as "Any" for your whole library, or narrow it down.
-                </p>
+                <h2 className="font-serif text-2xl text-[#2C2C2C] leading-tight">{KIND_COPY.modalTitle}</h2>
+                <p className="text-sm text-[#6B705C] mt-1">{KIND_COPY.modalSubtitle}</p>
               </div>
               <button
                 data-testid="zip-filter-close"
@@ -284,8 +317,8 @@ export default function DownloadZipButton() {
                   disabled={downloading}
                   className="px-5 py-2 rounded-lg text-sm font-medium bg-[#E07A5F] text-white hover:bg-[#d06a4f] disabled:opacity-60 inline-flex items-center gap-2"
                 >
-                  <Download className="w-4 h-4" />
-                  {activeFilterCount > 0 ? `Download filtered ZIP` : "Download full library ZIP"}
+                  <KIND_COPY.Icon className="w-4 h-4" />
+                  {activeFilterCount > 0 ? KIND_COPY.ctaFiltered : KIND_COPY.ctaFull}
                 </button>
               </div>
             </div>
