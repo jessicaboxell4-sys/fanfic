@@ -6,13 +6,27 @@ import { toast } from "sonner";
 // Scrollable checkbox list with a built-in search box. Used for each of
 // the four filter dimensions (fandom / pairing / author / category) inside
 // the download modal.
-function CheckboxFilter({ label, testId, options, selected, onToggle }) {
+function CheckboxFilter({ label, testId, options, selected, onToggle, onBulkSet }) {
   const [q, setQ] = useState("");
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     if (!needle) return options;
     return options.filter((o) => (o.name || "").toLowerCase().includes(needle));
   }, [q, options]);
+
+  // Bulk-toggle the visible (filtered) rows. If everything visible is
+  // already picked, this DEselects; otherwise it selects all visible.
+  const allVisiblePicked = filtered.length > 0 && filtered.every((o) => selected.has(o.name));
+  const handleBulk = () => {
+    if (!onBulkSet) return;
+    const next = new Set(selected);
+    if (allVisiblePicked) {
+      filtered.forEach((o) => next.delete(o.name));
+    } else {
+      filtered.forEach((o) => next.add(o.name));
+    }
+    onBulkSet(next);
+  };
 
   return (
     <div data-testid={testId}>
@@ -33,6 +47,20 @@ function CheckboxFilter({ label, testId, options, selected, onToggle }) {
           onChange={(e) => setQ(e.target.value)}
           className="w-full pl-7 pr-2 py-1.5 rounded-md border border-[#E5DDC5] bg-white text-xs focus:outline-none focus:border-[#E07A5F]/60"
         />
+        {filtered.length > 1 && onBulkSet && (
+          <button
+            type="button"
+            onClick={handleBulk}
+            className="mt-1 text-[10px] text-[#E07A5F] hover:text-[#d06a4f] uppercase tracking-wide"
+            data-testid={`${testId}-select-all`}
+          >
+            {allVisiblePicked
+              ? `Deselect all ${filtered.length}`
+              : q
+              ? `Select all ${filtered.length} matching`
+              : `Select all ${filtered.length}`}
+          </button>
+        )}
       </div>
       <div className="rounded-lg border border-[#E5DDC5] bg-white max-h-64 overflow-y-auto">
         {filtered.length === 0 && (
@@ -339,6 +367,7 @@ export default function DownloadZipButton({ kind = "zip" }) {
                   // Clear pairings — they may no longer fit the new fandom set.
                   setRelationship(new Set());
                 }}
+                onBulkSet={(next) => { setFandom(next); setRelationship(new Set()); }}
               />
               <CheckboxFilter
                 label={
@@ -355,6 +384,7 @@ export default function DownloadZipButton({ kind = "zip" }) {
                 options={pairingsForFandom}
                 selected={relationship}
                 onToggle={toggleIn(setRelationship)}
+                onBulkSet={setRelationship}
               />
               <CheckboxFilter
                 label="Author"
@@ -362,6 +392,7 @@ export default function DownloadZipButton({ kind = "zip" }) {
                 options={authors}
                 selected={author}
                 onToggle={toggleIn(setAuthor)}
+                onBulkSet={setAuthor}
               />
               <CheckboxFilter
                 label="Category"
@@ -369,6 +400,7 @@ export default function DownloadZipButton({ kind = "zip" }) {
                 options={categories}
                 selected={category}
                 onToggle={toggleIn(setCategory)}
+                onBulkSet={setCategory}
               />
             </div>
 
