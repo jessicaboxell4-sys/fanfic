@@ -1087,6 +1087,66 @@ def _looks_like_url_list(text: str) -> bool:
     return any(_canonical_fanfic_url(ln) for ln in url_lines)
 
 
+async def _backfill_user_fanfic_urls(user_id: str, limit: int = 2000) -> int:
+    """Repopulate `fanfic_urls` and `source_url` for any of the user's books
+    that are missing the fields, using the on-disk `.links.txt` sidecar.
+
+    Idempotent — books that already have a non-empty `fanfic_urls` are
+    skipped. Returns the count of records actually updated.
+    """
+    user_dir = STORAGE_DIR / user_id
+    if not user_dir.exists():
+        return 0
+    cursor = db.books.find(
+        {
+            "user_id": user_id,
+            "$or": [
+                {"fanfic_urls": {"$exists": False}},
+                {"fanfic_urls": []},
+                {"source_url": {"$exists": False}},
+                {"source_url": None},
+            ],
+        },
+        {"_id": 0, "book_id": 1, "fanfic_urls": 1, "source_url": 1},
+    )
+    updated = 0
+    async for b in cursor:
+        if updated >= limit:
+            break
+        sidecar = user_dir / f"{b['book_id']}.links.txt"
+        raw_urls = _parse_urls_from_sidecar(sidecar)
+        if not raw_urls:
+            # Mark with an empty list so the next sweep skips this book.
+            if b.get("fanfic_urls") is None or "fanfic_urls" not in b:
+                await db.books.update_one(
+                    {"book_id": b["book_id"], "user_id": user_id},
+                    {"$set": {"fanfic_urls": []}},
+                )
+            continue
+        canon: List[str] = []
+        seen: set = set()
+        for u in raw_urls:
+            c = normalize_fanfic_url(u)
+            if c and c not in seen:
+                seen.add(c)
+                canon.append(c)
+        patch: Dict[str, Any] = {}
+        existing = b.get("fanfic_urls") or []
+        if canon and canon != existing:
+            patch["fanfic_urls"] = canon
+        if canon and not b.get("source_url"):
+            patch["source_url"] = canon[0]
+        if "fanfic_urls" not in b and not canon:
+            patch["fanfic_urls"] = []
+        if patch:
+            await db.books.update_one(
+                {"book_id": b["book_id"], "user_id": user_id},
+                {"$set": patch},
+            )
+            updated += 1
+    return updated
+
+
 async def _dedupe_url_list(text: str, user_id: str) -> Dict[str, Any]:
     """Walk every URL in `text`, dedupe against the user's library.
 
@@ -1132,6 +1192,14 @@ async def _dedupe_url_list(text: str, user_id: str) -> Dict[str, Any]:
     # Look up everything in one Mongo round-trip
     owned_map: Dict[str, Dict[str, Any]] = {}
     if canonicals:
+        # Opportunistic backfill: many books (especially older uploads) were
+        # saved without `fanfic_urls` / `source_url` populated. Before the
+        # match query, walk the user's books that are missing the field and
+        # repopulate from the on-disk `.links.txt` sidecar so the match
+        # actually works. Capped at 2000 sidecars per request — well above
+        # any realistic library size for a single dedupe pass.
+        await _backfill_user_fanfic_urls(user_id, limit=2000)
+
         cursor = db.books.find(
             {
                 "user_id": user_id,
@@ -2539,6 +2607,14 @@ async def upload_books(
             "has_cover": bool(meta.get('cover_bytes')),
             "category": classification['category'],
             "fandom": _canonicalize_fandom(classification.get('fandom'), fandom_aliases),
+            "confidence": classification.get('confidence'),
+            "classifier": classification.get('classifier'),
+            "size_bytes": len(content),
+            "links_count": len(links),
+            "source_url": source_url,
+            "fanfic_urls": fanfic_urls,
+            "last_refreshed_at": None,
+            "series_name": series_name,
             "series_index": series_index,
             "relationships": meta.get("relationships") or [],
             "created_at": datetime.now(timezone.utc).isoformat(),
@@ -5907,18 +5983,24 @@ FIND_DUPES_BACKFILL_LIMIT = 1000  # max books to backfill in a single call
 
 
 def _parse_urls_from_sidecar(path: Path) -> List[str]:
-    """Pull URLs out of a `<book_id>.links.txt` sidecar (one URL per line, the
-    sidecar's `format_links_txt` writes each URL on its own line)."""
+    """Pull URLs out of a `<book_id>.links.txt` sidecar.
+
+    `format_links_txt` writes each URL with a leading ordinal (`1. http://...`)
+    so we use a permissive URL regex rather than `startswith("http://")`.
+    """
     if not path.exists():
         return []
     out: List[str] = []
+    seen: set = set()
     try:
-        for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
-            line = line.strip()
-            if line.startswith("http://") or line.startswith("https://"):
-                out.append(line)
+        text = path.read_text(encoding="utf-8", errors="ignore")
     except OSError:
         return []
+    for m in _URL_RE.finditer(text):
+        url = m.group(0).rstrip('.,);]>')
+        if url not in seen:
+            seen.add(url)
+            out.append(url)
     return out
 
 

@@ -2647,3 +2647,103 @@ class TestAo3UrlNormalization:
         assert r.status_code == 200, r.text
         wb = load_workbook(_io.BytesIO(r.content))
         assert "Duplicate pastes" not in wb.sheetnames
+
+    def test_upload_persists_source_url_and_fanfic_urls(self, url_user):
+        """Regression: the upload pipeline used to extract URLs but never
+        store them on the book record, so newly-uploaded books would never
+        match a pasted URL list. Verify the fields are now persisted."""
+        from ebooklib import epub as _epub
+        uid, tok = url_user
+        # Build a tiny EPUB with an AO3 URL inside it
+        b = _epub.EpubBook()
+        b.set_identifier(uuid.uuid4().hex)
+        b.set_title("URL Storage Test")
+        b.add_author("AnAuthor")
+        b.set_language("en")
+        b.add_metadata("DC", "description", "Has an AO3 link.")
+        c = _epub.EpubHtml(title="Ch1", file_name="c1.xhtml", lang="en")
+        c.content = '<p>See <a href="https://archiveofourown.org/works/9911">the original</a> for context.</p>'
+        b.add_item(c)
+        b.toc = [c]
+        b.add_item(_epub.EpubNcx())
+        b.add_item(_epub.EpubNav())
+        b.spine = ["nav", c]
+        path = f"/tmp/{uuid.uuid4().hex}.epub"
+        _epub.write_epub(path, b)
+        with open(path, "rb") as f:
+            r = requests.post(
+                f"{BASE}/api/books/upload",
+                headers={"Authorization": f"Bearer {tok}"},
+                files={"files": (os.path.basename(path), f, "application/epub+zip")},
+            )
+        assert r.status_code == 200, r.text
+        book = r.json()["books"][0]
+        # The doc returned from upload should include the URL fields and
+        # the on-disk record should have them too.
+        assert book.get("source_url") == "https://archiveofourown.org/works/9911"
+        assert "https://archiveofourown.org/works/9911" in (book.get("fanfic_urls") or [])
+        assert book.get("links_count") >= 1
+        stored = db.books.find_one({"book_id": book["book_id"], "user_id": uid})
+        assert stored["source_url"] == "https://archiveofourown.org/works/9911"
+        assert "https://archiveofourown.org/works/9911" in stored["fanfic_urls"]
+        # And a paste-list dedupe should find it
+        r2 = requests.post(
+            f"{BASE}/api/books/url-list/dedupe",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"text": "https://www.archiveofourown.org/works/9911/chapters/1"},
+        )
+        assert r2.status_code == 200
+        assert any(o["book_id"] == book["book_id"] for o in r2.json()["already_owned"])
+        db.books.delete_many({"user_id": uid})
+
+    def test_dedupe_backfills_legacy_books_from_sidecar(self, url_user):
+        """Legacy books that were uploaded BEFORE source_url/fanfic_urls
+        were persisted (i.e. fields missing on the doc) should still be
+        matchable — `_dedupe_url_list` opportunistically reads the
+        on-disk `.links.txt` sidecar to populate the field before
+        running the match."""
+        import shutil
+        from pathlib import Path
+        uid, tok = url_user
+        # Seed a book with NO source_url/fanfic_urls + write a sidecar
+        bid = f"bk_legacy_{uuid.uuid4().hex[:6]}"
+        user_dir = Path("/app/uploads") / uid
+        user_dir.mkdir(parents=True, exist_ok=True)
+        sidecar = user_dir / f"{bid}.links.txt"
+        # Use the actual sidecar format (`N. http://...`)
+        sidecar.write_text(
+            "Title:  Legacy Book\nAuthor: Old\nLinks:  2\n" + "=" * 60 + "\n\n"
+            "1. http://archiveofourown.org/works/77001\n"
+            "   ↳ The original\n"
+            "2. http://archiveofourown.org/tags/Some-Tag\n"
+            "   ↳ A tag\n",
+            encoding="utf-8",
+        )
+        db.books.insert_one({
+            "book_id": bid,
+            "user_id": uid,
+            "title": "Legacy Book",
+            "author": "Old",
+            "category": "Fanfiction",
+            "fandom": "Whatever",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            # NOTE: deliberately no fanfic_urls / source_url
+        })
+        try:
+            r = requests.post(
+                f"{BASE}/api/books/url-list/dedupe",
+                headers={"Authorization": f"Bearer {tok}"},
+                json={"text": "https://archiveofourown.org/works/77001"},
+            )
+            assert r.status_code == 200, r.text
+            data = r.json()
+            assert len(data["already_owned"]) == 1
+            assert data["already_owned"][0]["book_id"] == bid
+            # And the legacy doc should now have the backfilled fields
+            after = db.books.find_one({"book_id": bid, "user_id": uid})
+            assert after["source_url"] == "https://archiveofourown.org/works/77001"
+            assert "https://archiveofourown.org/works/77001" in after["fanfic_urls"]
+        finally:
+            db.books.delete_many({"book_id": bid})
+            sidecar.unlink(missing_ok=True)
+

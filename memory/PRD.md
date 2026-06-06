@@ -564,3 +564,15 @@
 - When present, the workbook gains a third sheet **"Duplicate pastes"** (columns: URL pasted · Canonical · Source) listing every surface form of a canonical URL that was pasted more than once — i.e. the exact rows captured in `duplicate_in_list` from the dedupe response. Sheet is **omitted entirely** when the array is empty/missing, so existing workflows that don't pass it see zero change.
 - **`FilterUrlList.jsx`** now forwards `duplicate_in_list` on every export and the download button label shows the duplicate count (`Download Excel (3 new · 2 owned · 1 dup)`). Empty-export guard updated.
 - Tests: 2 new cases (`test_xlsx_export_includes_duplicates_sheet` verifies the sheet exists with correct headers + AO3 source tagging; `test_xlsx_export_omits_duplicates_sheet_when_empty` verifies back-compat). **7/7 in `TestAo3UrlNormalization` passing.**
+
+### Fixed 2026-06-06 (URL list filter saying "not in library" when book IS there)
+- **Root cause #1**: upload pipeline was extracting `source_url` / `fanfic_urls` / `links_count` from the EPUB but **never including them in the doc dict it inserted** into Mongo. Every book uploaded via the standard path was stored without URL metadata, so URL-list dedupe could never match.
+- **Root cause #2**: `_parse_urls_from_sidecar` only accepted lines that **start** with `http://` — but `format_links_txt` writes `1. http://...`, so the function always returned an empty list. The `find_duplicates` backfill that depended on it was silently a no-op too.
+- **Fix #1**: upload pipeline now persists `source_url`, `fanfic_urls`, `links_count`, `size_bytes`, `confidence`, `classifier`, `series_name`, `last_refreshed_at` on every newly-uploaded book record (matches the field set the post-conversion path was already writing).
+- **Fix #2**: `_parse_urls_from_sidecar` now uses the same `_URL_RE` regex used for paste-list extraction — pulls every URL out of the sidecar regardless of leading ordinal.
+- **Fix #3**: `_dedupe_url_list` runs `_backfill_user_fanfic_urls(limit=2000)` before the Mongo match — for every book missing the field, it reads the on-disk sidecar, normalizes URLs, and persists `fanfic_urls` + `source_url`. Idempotent: skips books that already have the field.
+- **Verified on the live affected user's library**: 19 fanfic books that had ZERO URL metadata before are now fully populated and a paste of `http://archiveofourown.org/works/119` correctly matches "Slowly, But Exceeding Fine".
+- Tests: 2 new in `TestAo3UrlNormalization`:
+  - `test_upload_persists_source_url_and_fanfic_urls` — verifies the upload doc carries the URL fields and a follow-up paste-list dedupe finds the freshly-uploaded book.
+  - `test_dedupe_backfills_legacy_books_from_sidecar` — seeds a book without `fanfic_urls`, writes a real-format sidecar, runs dedupe, asserts the match succeeds AND the field is now persisted.
+- **9/9 in `TestAo3UrlNormalization` passing.**
