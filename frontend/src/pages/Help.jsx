@@ -1,5 +1,5 @@
-import React from "react";
-import { Link } from "react-router-dom";
+import React, { useEffect } from "react";
+import { Link, useLocation } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import {
   ArrowLeft, Upload, Sparkles, Layers, RefreshCw, BookOpen, Trash2, Download,
@@ -41,6 +41,18 @@ function Section({ id, icon: Icon, title, children }) {
 }
 
 export default function Help() {
+  const { hash } = useLocation();
+  // React Router doesn't auto-scroll to #anchor on cross-route navigation —
+  // do it manually so deep-links like /help#url-list land in the right place.
+  useEffect(() => {
+    if (!hash) return;
+    const id = hash.slice(1);
+    const el = document.getElementById(id);
+    if (el) {
+      // Defer a tick so the layout has settled (sticky navbar offset etc.)
+      requestAnimationFrame(() => el.scrollIntoView({ behavior: "smooth", block: "start" }));
+    }
+  }, [hash]);
   return (
     <div className="min-h-screen bg-[#FAF6EE]">
       <Navbar />

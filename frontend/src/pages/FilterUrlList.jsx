@@ -4,6 +4,7 @@ import Navbar from "../components/Navbar";
 import { api } from "../lib/api";
 import { ArrowLeft, Loader2, Download, Link as LinkIcon, CheckCircle2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import HelpHint from "../components/HelpHint";
 
 export default function FilterUrlList() {
   const [text, setText] = useState("");
@@ -68,6 +69,9 @@ export default function FilterUrlList() {
             <p className="text-[#6B705C] mt-1">
               Paste fanfic URLs (one per line). We'll strip out the ones you already have and hand back an Excel of the rest.
             </p>
+            <div className="mt-2">
+              <HelpHint section="url-list" label="How does this work?" testId="filter-urls-help" />
+            </div>
           </div>
         </div>
 

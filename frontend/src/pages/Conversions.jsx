@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import HelpHint from "../components/HelpHint";
 
 function timeBetween(start, finish) {
   if (!start || !finish) return null;
@@ -134,6 +135,9 @@ export default function Conversions() {
             <p className="text-[#6B705C] mt-1">
               Calibre-powered uploads from the last {data.visibility_hours} hours. Retry any that didn't make it through.
             </p>
+            <div className="mt-2">
+              <HelpHint section="uploads" label="What is this?" testId="conversions-help" />
+            </div>
           </div>
           {(data.recent_done + data.recent_failed) > 0 && (
             <div className="flex flex-wrap gap-2">
