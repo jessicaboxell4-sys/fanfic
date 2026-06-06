@@ -2485,6 +2485,57 @@ async def upload_books(
     }
 
 
+@api_router.get("/library/trends")
+async def library_trends(days: int = 7, user: User = Depends(get_current_user)):
+    """Counts of brand-new items in the user's library over the last `days`.
+
+    Returns deltas for books / fandoms / crossovers / pairings — "brand-new"
+    means the item didn't appear in any pre-window book (e.g. a fandom counts
+    only if no older book in the library was already on that fandom).
+    """
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=max(1, min(days, 365)))).isoformat()
+
+    recent_cursor = db.books.find(
+        {"user_id": user.user_id, "created_at": {"$gte": cutoff}, "original_only": {"$ne": True}},
+        {"_id": 0, "book_id": 1, "fandom": 1, "relationships": 1},
+    )
+    recent = await recent_cursor.to_list(5000)
+    older_cursor = db.books.find(
+        {"user_id": user.user_id, "created_at": {"$lt": cutoff}, "original_only": {"$ne": True}},
+        {"_id": 0, "fandom": 1, "relationships": 1},
+    )
+    older = await older_cursor.to_list(20000)
+
+    older_fandoms = {b.get("fandom") for b in older if b.get("fandom")}
+    older_pairings: set = set()
+    for b in older:
+        for r in (b.get("relationships") or []):
+            if r:
+                older_pairings.add(r)
+
+    new_fandoms = set()
+    new_crossovers = set()
+    new_pairings = set()
+    for b in recent:
+        f = b.get("fandom")
+        if f and f not in older_fandoms:
+            new_fandoms.add(f)
+            if " / " in f:
+                new_crossovers.add(f)
+        for r in (b.get("relationships") or []):
+            if r and r not in older_pairings:
+                new_pairings.add(r)
+
+    return {
+        "window_days": days,
+        "books": len(recent),
+        "fandoms": len(new_fandoms),
+        "crossovers": len(new_crossovers),
+        "pairings": len(new_pairings),
+    }
+
+
+
 @api_router.get("/library/originals")
 async def list_originals(user: User = Depends(get_current_user)):
     """Books the user chose to keep as their original (non-EPUB) format —
