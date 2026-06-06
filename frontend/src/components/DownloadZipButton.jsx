@@ -67,7 +67,7 @@ function CheckboxFilter({ label, testId, options, selected, onToggle, onBulkSet 
             </button>
           )}
         </div>
-        <div className="border border-[#ccc] bg-white max-h-56 overflow-y-auto">
+        <div className="border border-[#ccc] bg-white max-h-[42vh] overflow-y-auto">
           {filtered.length === 0 && (
             <div className="px-2 py-3 text-xs text-[#666] text-center italic">
               {options.length === 0 ? "Nothing here yet" : "No matches"}
@@ -343,7 +343,7 @@ export default function DownloadZipButton({ kind = "zip" }) {
           className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 backdrop-blur-sm p-4 pt-[6vh] overflow-y-auto"
           onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}
         >
-          <div className="bg-[#fffaf0] shadow-2xl border-2 border-[#900] w-full max-w-3xl max-h-[min(720px,90vh)] flex flex-col" style={{ fontFamily: "'Lucida Grande', Tahoma, Verdana, Arial, sans-serif" }}>
+          <div className="bg-[#fffaf0] shadow-2xl border-2 border-[#900] w-full max-w-6xl max-h-[90vh] flex flex-col" style={{ fontFamily: "'Lucida Grande', Tahoma, Verdana, Arial, sans-serif" }}>
             <div className="flex items-center gap-3 px-5 py-3 bg-[#900] text-white flex-shrink-0">
               <FilterIcon className="w-4 h-4 flex-shrink-0" />
               <div className="flex-1">
