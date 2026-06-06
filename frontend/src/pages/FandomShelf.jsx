@@ -13,6 +13,7 @@ export default function FandomShelf() {
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [related, setRelated] = useState([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -27,6 +28,22 @@ export default function FandomShelf() {
   }, [fandom, search]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Reverse-index: pull every crossover containing this single fandom so we
+  // can surface them at the bottom. Only meaningful when the page itself is
+  // a single fandom (not already a crossover).
+  useEffect(() => {
+    const xPieces = (fandom || "").split(" / ").map((p) => p.trim()).filter(Boolean);
+    if (xPieces.length >= 2) { setRelated([]); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get(`/fandoms/${encodeURIComponent(fandom)}/crossovers`);
+        if (!cancelled) setRelated(data?.crossovers || []);
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+  }, [fandom]);
 
   const downloadAsFile = async (path, fallbackName) => {
     try {
@@ -167,7 +184,7 @@ export default function FandomShelf() {
               No {fandom} books yet
             </h2>
             <p className="text-[#6B705C] mb-6">
-              Upload an EPUB and we'll route any {fandom} fanfic onto this shelf automatically.
+              Upload an EPUB and we&apos;ll route any {fandom} fanfic onto this shelf automatically.
             </p>
             <Link to="/library" className="btn-primary text-sm inline-block">
               Go upload
@@ -179,6 +196,32 @@ export default function FandomShelf() {
               <BookCard key={b.book_id} book={b} onChanged={load} />
             ))}
           </div>
+        )}
+
+        {/* Reverse-index: crossovers that include this fandom */}
+        {related.length > 0 && (
+          <section className="mt-12" data-testid="fandom-related-crossovers">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#900] mb-3">
+              Also appears in {related.length} crossover{related.length === 1 ? "" : "s"}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {related.map((r) => (
+                <button
+                  key={r.name}
+                  onClick={() => navigate(`/library/fandom/${encodeURIComponent(r.name)}`)}
+                  data-testid={`related-crossover-${r.name.replace(/\s+/g, "-").toLowerCase()}`}
+                  className="px-3 py-1.5 rounded-full text-xs font-semibold border bg-[#FDF3E1] text-[#900] border-[#900]/30 hover:bg-[#900] hover:text-white transition-colors inline-flex items-center gap-2"
+                  title={`${r.count} book${r.count === 1 ? "" : "s"} · ${(r.parts || []).join(" + ")}`}
+                >
+                  <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-[#900] text-white text-[10px] font-bold leading-none">
+                    ×{(r.parts || []).length}
+                  </span>
+                  <span>{r.name}</span>
+                  <span className="text-[10px] opacity-70">· {r.count}</span>
+                </button>
+              ))}
+            </div>
+          </section>
         )}
       </main>
     </div>

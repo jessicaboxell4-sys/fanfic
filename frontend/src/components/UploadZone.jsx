@@ -177,6 +177,7 @@ export default function UploadZone({ onUploaded }) {
     const duplicates = [];
     const allActions = [];
     const allUrlLists = [];
+    const allSuggestions = [];
     let resp = null;
     try {
       // Upload in batches of 3 for responsiveness
@@ -199,6 +200,9 @@ export default function UploadZone({ onUploaded }) {
         if (Array.isArray(data?.actions)) allActions.push(...data.actions);
         if (Array.isArray(data?.url_lists)) {
           allUrlLists.push(...data.url_lists);
+        }
+        if (Array.isArray(data?.fandom_suggestions)) {
+          allSuggestions.push(...data.fandom_suggestions);
         }
         totalAuto += data?.auto_resolved || 0;
         if (data?.policy) lastPolicy = data.policy;
@@ -226,6 +230,20 @@ export default function UploadZone({ onUploaded }) {
         );
       }
       onUploaded && onUploaded(duplicates, allActions, allUrlLists);
+
+      // Soft warning: backend flagged some uploaded fandoms as suspiciously
+      // close to existing ones — likely a typo. Surface in a sticky toast
+      // so the user can pop open Account → Fandom aliases to fix it.
+      if (allSuggestions.length > 0) {
+        const lines = allSuggestions.slice(0, 3).map((s) =>
+          `"${s.new_fandom}" looks like ${s.suggestions.slice(0, 2).map((x) => `"${x}"`).join(" or ")}`
+        );
+        const more = allSuggestions.length > 3 ? ` (+${allSuggestions.length - 3} more)` : "";
+        toast(
+          `Possible fandom typos: ${lines.join(" · ")}${more}. Add an alias in Account → Fandom aliases to merge them.`,
+          { duration: 12000 },
+        );
+      }
     } catch (e) {
       console.error(e);
       toast.error("Upload failed. Please try again.");

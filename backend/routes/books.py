@@ -277,19 +277,26 @@ SERIES_TITLE_PATTERNS = [
 _FANDOM_SPLIT_RE = re.compile(r'\s*(?:/|&|\+|,|\s+(?:x|×|and)\s+)\s*', re.IGNORECASE)
 
 
-def _canonicalize_fandom(raw: Optional[str]) -> Optional[str]:
+def _canonicalize_fandom(raw: Optional[str], aliases: Optional[Dict[str, str]] = None) -> Optional[str]:
     """Normalize a fandom string. Crossovers collapse to a single canonical
     'A / B / C' form (alphabetical). Single-fandom strings are returned
-    unchanged. Returns None for empty/whitespace input."""
+    unchanged. Returns None for empty/whitespace input.
+
+    If `aliases` (case-insensitive mapping of raw_part -> canonical_part) is
+    supplied, each part of a crossover is rewritten before sorting.
+    """
     if raw is None:
         return None
     s = str(raw).strip()
     if not s:
         return None
     parts = [p.strip() for p in _FANDOM_SPLIT_RE.split(s) if p and p.strip()]
+    if aliases:
+        # Lowercase-keyed lookup; preserve mapped value's case as authored.
+        aliases_lc = {k.strip().lower(): v.strip() for k, v in aliases.items() if k and v}
+        parts = [aliases_lc.get(p.lower(), p) for p in parts]
     if len(parts) <= 1:
-        return s
-    # Dedupe while preserving case from the first occurrence; sort by lowercased key.
+        return parts[0] if parts else s
     seen: Dict[str, str] = {}
     for p in parts:
         key = p.lower()
@@ -297,6 +304,65 @@ def _canonicalize_fandom(raw: Optional[str]) -> Optional[str]:
             seen[key] = p
     canonical = sorted(seen.values(), key=lambda x: x.lower())
     return " / ".join(canonical)
+
+
+def _suggest_fandom_merges(new_fandom: str, existing: List[str], max_distance: int = 2) -> List[str]:
+    """Return existing fandoms that look like a typo of `new_fandom`.
+
+    Uses Levenshtein on lowercased strings. Skips exact matches and very
+    short names (where 1-edit distance is meaningless). Each part of a
+    crossover is compared independently — handy when the user mistypes one
+    fandom in an otherwise-known crossover.
+    """
+    from difflib import SequenceMatcher
+    nf = (new_fandom or "").strip().lower()
+    if not nf:
+        return []
+    candidates: List[str] = []
+    # Compare each part of a crossover, plus the whole string for single-fandom case.
+    nf_parts = [p.strip().lower() for p in nf.split(" / ") if p.strip()]
+    nf_pool = set(nf_parts) | {nf}
+
+    def _edit_dist(a: str, b: str) -> int:
+        # Compact dp Levenshtein.
+        if a == b:
+            return 0
+        if len(a) < len(b):
+            a, b = b, a
+        prev = list(range(len(b) + 1))
+        for i, ca in enumerate(a, 1):
+            cur = [i] + [0] * len(b)
+            for j, cb in enumerate(b, 1):
+                cur[j] = min(cur[j - 1] + 1, prev[j] + 1, prev[j - 1] + (ca != cb))
+            prev = cur
+        return prev[-1]
+
+    for ex in existing:
+        if not ex or ex.lower() == nf:
+            continue
+        ex_parts = [p.strip() for p in ex.split(" / ") if p.strip()]
+        ex_pool = {ex.lower()} | {p.lower() for p in ex_parts}
+        # If any part is close to any new part — flag it.
+        close = False
+        for a in nf_pool:
+            if len(a) < 4:
+                continue
+            for b in ex_pool:
+                if len(b) < 4 or a == b:
+                    continue
+                # Quick reject if length difference > max_distance
+                if abs(len(a) - len(b)) > max_distance:
+                    continue
+                if _edit_dist(a, b) <= max_distance:
+                    close = True
+                    break
+            if close:
+                break
+        if close:
+            candidates.append(ex)
+        if len(candidates) >= 3:
+            break
+    return candidates
 
 
 
@@ -2029,8 +2095,15 @@ async def upload_books(
 ):
     user_dir = STORAGE_DIR / user.user_id
     user_dir.mkdir(parents=True, exist_ok=True)
+    # Load fandom aliases once for the whole batch so per-book canonicalization
+    # picks up user-defined merges (e.g. "HP" -> "Harry Potter").
+    _udoc = await db.users.find_one(
+        {"user_id": user.user_id}, {"_id": 0, "fandom_aliases": 1}
+    ) or {}
+    fandom_aliases = _udoc.get("fandom_aliases") or {}
     results = []
     url_list_reports: List[Dict[str, Any]] = []
+    upload_suggestions: List[Dict[str, Any]] = []
 
     for f in files:
         lower = (f.filename or "").lower()
@@ -2204,16 +2277,7 @@ async def upload_books(
             "publisher": meta['publisher'],
             "has_cover": bool(meta.get('cover_bytes')),
             "category": classification['category'],
-            "fandom": _canonicalize_fandom(classification.get('fandom')),
-            "confidence": classification['confidence'],
-            "classifier": classification['classifier'],
-            "tags": classification.get("tags") or [],
-            "size_bytes": len(content),
-            "links_count": len(links),
-            "source_url": source_url,
-            "fanfic_urls": fanfic_urls,
-            "last_refreshed_at": None,
-            "series_name": series_name,
+            "fandom": _canonicalize_fandom(classification.get('fandom'), fandom_aliases),
             "series_index": series_index,
             "relationships": meta.get("relationships") or [],
             "created_at": datetime.now(timezone.utc).isoformat(),
@@ -2273,7 +2337,35 @@ async def upload_books(
                         fresh["duplicate_resolved"] = applied.get("action")
                         results[i] = fresh
 
-    return {"uploaded": len(results), "books": results, "auto_resolved": auto_resolved, "policy": policy, "actions": actions, "url_lists": url_list_reports}
+    # Fuzzy match suggestions — look at every fandom that landed in this
+    # batch; if it's a brand-new fandom and close (≤2 edits) to an existing
+    # one, surface a suggestion the UI can pop as a toast.
+    batch_fandoms = {b.get("fandom") for b in results if isinstance(b, dict) and b.get("fandom")}
+    if batch_fandoms:
+        existing_rows = await db.books.aggregate([
+            {"$match": {"user_id": user.user_id, "fandom": {"$ne": None, "$exists": True}}},
+            {"$group": {"_id": "$fandom"}},
+        ]).to_list(5000)
+        existing_fandoms = [r["_id"] for r in existing_rows if r.get("_id")]
+        # Only suggest when the just-uploaded fandom is rare in the library
+        # (otherwise it's clearly already an "established" shelf).
+        counts: Dict[str, int] = {}
+        for r in existing_rows:
+            counts[r["_id"]] = counts.get(r["_id"], 0) + 1
+        for nf in batch_fandoms:
+            sug = _suggest_fandom_merges(nf, [e for e in existing_fandoms if e != nf])
+            if sug:
+                upload_suggestions.append({"new_fandom": nf, "suggestions": sug})
+
+    return {
+        "uploaded": len(results),
+        "books": results,
+        "auto_resolved": auto_resolved,
+        "policy": policy,
+        "actions": actions,
+        "url_lists": url_list_reports,
+        "fandom_suggestions": upload_suggestions,
+    }
 
 
 @api_router.get("/books")
@@ -2367,6 +2459,10 @@ async def book_stats(user: User = Depends(get_current_user)):
         "categories": [{"name": c['_id'], "count": c['count']} for c in cats],
         "fandoms": [{"name": f['_id'], "count": f['count']} for f in fandoms],
         "relationships": [{"name": r['_id'], "count": r['count']} for r in relationships],
+        "crossover_count": sum(
+            1 for f in fandoms
+            if f.get('_id') and len([p for p in str(f['_id']).split(' / ') if p.strip()]) >= 2
+        ),
     }
 
 
@@ -4493,7 +4589,9 @@ async def list_fandoms(user: User = Depends(get_current_user)):
     """Distinct fandoms in the user's library with book counts.
 
     Used by the Download page so all fandoms appear (not just the top 8 that
-    /stats/overview returns for the dashboard).
+    /stats/overview returns for the dashboard). Each row is annotated with
+    `is_crossover` + `parts` so the UI can render the crossover treatment
+    without re-parsing strings.
     """
     pipeline = [
         {"$match": {"user_id": user.user_id, "fandom": {"$ne": None, "$exists": True}}},
@@ -4501,12 +4599,85 @@ async def list_fandoms(user: User = Depends(get_current_user)):
         {"$sort": {"count": -1, "_id": 1}},
     ]
     rows = await db.books.aggregate(pipeline).to_list(5000)
-    fandoms = [
-        {"name": r["_id"], "count": r["count"]}
-        for r in rows
-        if r.get("_id") and str(r["_id"]).strip()
+    fandoms: List[Dict[str, Any]] = []
+    crossover_count = 0
+    for r in rows:
+        name = r.get("_id")
+        if not name or not str(name).strip():
+            continue
+        parts = [p.strip() for p in str(name).split(" / ") if p.strip()]
+        is_x = len(parts) >= 2
+        if is_x:
+            crossover_count += 1
+        fandoms.append({
+            "name": name,
+            "count": r["count"],
+            "is_crossover": is_x,
+            "parts": parts if is_x else [],
+        })
+    return {"fandoms": fandoms, "crossover_count": crossover_count}
+
+
+@api_router.get("/fandoms/{name}/crossovers")
+async def list_crossovers_for_fandom(name: str, user: User = Depends(get_current_user)):
+    """Every crossover fandom in the user's library that contains `name`."""
+    target = name.strip()
+    if not target:
+        raise HTTPException(status_code=400, detail="fandom name is required")
+    # Canonical form uses " / " as separator. A fandom contains `target` iff
+    # the slash-split list contains it (case-insensitive).
+    pipeline = [
+        {"$match": {
+            "user_id": user.user_id,
+            "fandom": {"$regex": r"\s/\s", "$options": "i"},
+        }},
+        {"$group": {"_id": "$fandom", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1, "_id": 1}},
     ]
-    return {"fandoms": fandoms}
+    rows = await db.books.aggregate(pipeline).to_list(5000)
+    needle = target.lower()
+    out: List[Dict[str, Any]] = []
+    for r in rows:
+        nm = r.get("_id") or ""
+        parts = [p.strip() for p in str(nm).split(" / ") if p.strip()]
+        if any(p.lower() == needle for p in parts):
+            out.append({"name": nm, "count": r["count"], "parts": parts})
+    return {"target": target, "crossovers": out}
+
+
+
+@api_router.get("/user/fandom-aliases")
+async def get_fandom_aliases(user: User = Depends(get_current_user)):
+    """Manual fandom aliases (e.g. {'HP': 'Harry Potter'}). These are applied
+    during canonicalization so books tagged with the abbreviation file
+    alongside the full name."""
+    udoc = await db.users.find_one(
+        {"user_id": user.user_id}, {"_id": 0, "fandom_aliases": 1}
+    ) or {}
+    return {"aliases": udoc.get("fandom_aliases") or {}}
+
+
+class FandomAliasBody(BaseModel):
+    aliases: Dict[str, str]
+
+
+@api_router.put("/user/fandom-aliases")
+async def update_fandom_aliases(body: FandomAliasBody, user: User = Depends(get_current_user)):
+    """Replace the user's alias map. Empty keys/values are dropped silently."""
+    cleaned: Dict[str, str] = {}
+    for k, v in (body.aliases or {}).items():
+        ks = (k or "").strip()
+        vs = (v or "").strip()
+        if not ks or not vs or ks.lower() == vs.lower():
+            continue
+        cleaned[ks] = vs
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": {"fandom_aliases": cleaned}},
+        upsert=True,
+    )
+    return {"aliases": cleaned}
+
 
 
 @api_router.post("/fandoms/canonicalize-crossovers")
@@ -4514,8 +4685,13 @@ async def canonicalize_crossover_fandoms(user: User = Depends(get_current_user))
     """Walk every book in the user's library and rewrite any crossover
     fandom strings (e.g. "Twilight & Harry Potter", "Harry Potter/Twilight")
     into the canonical alphabetical form "Harry Potter / Twilight" so they
-    file together. Returns a per-mapping report.
+    file together. Also applies the user's manual fandom aliases. Returns a
+    per-mapping report.
     """
+    udoc = await db.users.find_one(
+        {"user_id": user.user_id}, {"_id": 0, "fandom_aliases": 1}
+    ) or {}
+    aliases = udoc.get("fandom_aliases") or {}
     books = await db.books.find(
         {"user_id": user.user_id, "fandom": {"$ne": None, "$exists": True}},
         {"_id": 0, "book_id": 1, "fandom": 1},
@@ -4526,7 +4702,7 @@ async def canonicalize_crossover_fandoms(user: User = Depends(get_current_user))
         old = b.get("fandom")
         if not old:
             continue
-        new = _canonicalize_fandom(old)
+        new = _canonicalize_fandom(old, aliases)
         if new and new != old:
             await db.books.update_one(
                 {"user_id": user.user_id, "book_id": b["book_id"]},

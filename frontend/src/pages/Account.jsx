@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
-import { User as UserIcon, Mail, Lock, Loader2, Mail as MailIcon, Settings2, AlertTriangle, Layers } from "lucide-react";
+import { User as UserIcon, Mail, Lock, Loader2, Mail as MailIcon, Settings2, AlertTriangle, Layers, Plus, X as XIcon } from "lucide-react";
 import { toast } from "sonner";
 
 function errMsg(d) {
@@ -11,6 +11,152 @@ function errMsg(d) {
   if (typeof d === "string") return d;
   if (Array.isArray(d)) return d.map((e) => e?.msg || JSON.stringify(e)).join(" ");
   return String(d);
+}
+
+// Manual fandom aliases — e.g. "HP" -> "Harry Potter". Applied during
+// canonicalization so abbreviations file with the full name everywhere.
+function FandomAliasesCard() {
+  const [aliases, setAliases] = useState({});
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await api.get("/user/fandom-aliases");
+        setAliases(data?.aliases || {});
+      } catch { /* ignore */ }
+    })();
+  }, []);
+
+  const save = async (next) => {
+    setSaving(true);
+    try {
+      const { data } = await api.put("/user/fandom-aliases", { aliases: next });
+      setAliases(data?.aliases || {});
+    } catch {
+      toast.error("Couldn't save aliases");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const addAlias = async () => {
+    const f = from.trim();
+    const t = to.trim();
+    if (!f || !t || f.toLowerCase() === t.toLowerCase()) {
+      toast.error('Need "from" and "to" — and they must differ');
+      return;
+    }
+    const next = { ...aliases, [f]: t };
+    await save(next);
+    setFrom("");
+    setTo("");
+  };
+
+  const removeAlias = async (key) => {
+    const next = { ...aliases };
+    delete next[key];
+    await save(next);
+  };
+
+  const runMergeNow = async () => {
+    try {
+      const { data } = await api.post("/fandoms/canonicalize-crossovers");
+      toast.success(
+        data.updated > 0
+          ? `Re-canonicalized ${data.updated} book${data.updated === 1 ? "" : "s"} with the new aliases`
+          : "Nothing changed — aliases already applied",
+      );
+    } catch {
+      toast.error("Couldn't re-run canonicalization");
+    }
+  };
+
+  const rows = Object.entries(aliases).sort((a, b) => a[0].localeCompare(b[0]));
+
+  return (
+    <>
+      <div className="flex items-start gap-3 mb-4">
+        <div className="w-10 h-10 rounded-xl bg-[#E07A5F]/10 text-[#E07A5F] flex items-center justify-center flex-shrink-0">
+          <Layers className="w-5 h-5" />
+        </div>
+        <div className="flex-1">
+          <h2 className="font-serif text-2xl text-[#2C2C2C]">Fandom aliases</h2>
+          <p className="text-sm text-[#6B705C] mt-1">
+            Map abbreviations / nicknames to canonical fandom names. Applied automatically
+            during uploads — and clickable below to apply retroactively to your library.
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-4">
+        <input
+          type="text"
+          value={from}
+          onChange={(e) => setFrom(e.target.value)}
+          placeholder="From (e.g. HP)"
+          data-testid="alias-from"
+          className="flex-1 min-w-[140px] p-2 rounded-lg border border-[#E5DDC5] bg-white text-sm focus:outline-none focus:border-[#E07A5F]"
+        />
+        <span className="self-center text-[#6B705C] text-sm">→</span>
+        <input
+          type="text"
+          value={to}
+          onChange={(e) => setTo(e.target.value)}
+          placeholder="To (e.g. Harry Potter)"
+          data-testid="alias-to"
+          className="flex-1 min-w-[180px] p-2 rounded-lg border border-[#E5DDC5] bg-white text-sm focus:outline-none focus:border-[#E07A5F]"
+        />
+        <button
+          onClick={addAlias}
+          disabled={saving}
+          data-testid="alias-add"
+          className="px-3 py-2 rounded-lg text-sm font-medium bg-[#E07A5F] text-white hover:bg-[#d06a4f] disabled:opacity-60 inline-flex items-center gap-1"
+        >
+          <Plus className="w-4 h-4" /> Add
+        </button>
+      </div>
+
+      {rows.length === 0 ? (
+        <p className="text-xs text-[#6B705C] italic">No aliases yet. Add one above.</p>
+      ) : (
+        <ul className="space-y-1" data-testid="alias-list">
+          {rows.map(([k, v]) => (
+            <li
+              key={k}
+              className="flex items-center justify-between gap-3 p-2 rounded-lg bg-white border border-[#E5DDC5] text-sm"
+            >
+              <span className="font-mono">
+                <span className="text-[#6B705C]">{k}</span>
+                <span className="mx-2 text-[#6B705C]">→</span>
+                <span className="text-[#2C2C2C] font-semibold">{v}</span>
+              </span>
+              <button
+                onClick={() => removeAlias(k)}
+                data-testid={`alias-remove-${k.replace(/\s+/g, "-").toLowerCase()}`}
+                className="text-[#6B705C] hover:text-[#900] p-1"
+                aria-label={`Remove alias ${k}`}
+              >
+                <XIcon className="w-4 h-4" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {rows.length > 0 && (
+        <button
+          onClick={runMergeNow}
+          data-testid="alias-apply-now"
+          className="mt-4 text-xs text-[#2a6496] hover:text-[#900] underline"
+        >
+          Apply these aliases to existing books now
+        </button>
+      )}
+    </>
+  );
 }
 
 export default function Account() {
@@ -482,7 +628,7 @@ export default function Account() {
                 onClick={() => navigate("/login")}
                 className="text-[#E07A5F] underline"
               >
-                "Forgot password"
+                &ldquo;Forgot password&rdquo;
               </button>{" "}
               from the sign-in page to set one.
             </p>
@@ -663,8 +809,8 @@ export default function Account() {
             <div className="flex-1">
               <h2 className="font-serif text-2xl text-[#2C2C2C]">Merge crossover fandoms</h2>
               <p className="text-sm text-[#6B705C] mt-1">
-                Books tagged "Harry Potter &amp; Twilight" and "Twilight/Harry Potter" will be unified
-                into the same canonical shelf ("Harry Potter / Twilight"). New uploads do this
+                Books tagged &ldquo;Harry Potter &amp; Twilight&rdquo; and &ldquo;Twilight/Harry Potter&rdquo; will be unified
+                into the same canonical shelf (&ldquo;Harry Potter / Twilight&rdquo;). New uploads do this
                 automatically — this is for cleaning up older imports.
               </p>
             </div>
@@ -691,6 +837,11 @@ export default function Account() {
               Run merge
             </button>
           </div>
+        </section>
+
+        {/* Fandom aliases — manual mappings applied during canonicalization */}
+        <section className="shelf-card p-6 mb-6" data-testid="fandom-aliases-card">
+          <FandomAliasesCard />
         </section>
 
         {/* Reset library state — selective wipe of metadata, books stay */}

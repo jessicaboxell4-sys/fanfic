@@ -109,27 +109,27 @@ export default function Dashboard() {
       try {
         const rs = await api.get("/books/refresh-status");
         setRefreshStatus(rs.data);
-      } catch (e) {}
+      } catch (e) { /* ignore */ }
       try {
         const rc = await api.get("/books/recent", { params: { limit: 8 } });
         setRecentBooks(rc.data.books || []);
-      } catch (e) {}
+      } catch (e) { /* ignore */ }
       try {
         const ov = await api.get("/stats/overview");
         setOverview(ov.data);
-      } catch (e) {}
+      } catch (e) { /* ignore */ }
       try {
         const sr = await api.get("/series");
         setSeriesList(sr.data.series || []);
-      } catch (e) {}
+      } catch (e) { /* ignore */ }
       try {
         const au = await api.get("/authors");
         setAuthorsList(au.data.authors || []);
-      } catch (e) {}
+      } catch (e) { /* ignore */ }
       try {
         const sh = await api.get("/smart-shelves");
         setPinnedShelves((sh.data.shelves || []).filter((s) => s.pinned));
-      } catch (e) {}
+      } catch (e) { /* ignore */ }
       try {
         const dl = await api.get("/user/dashboard-layout");
         if (Array.isArray(dl.data.order) && dl.data.order.length === 3) {
@@ -138,11 +138,11 @@ export default function Dashboard() {
         if (Array.isArray(dl.data.hidden)) {
           setGlanceHidden(dl.data.hidden);
         }
-      } catch (e) {}
+      } catch (e) { /* ignore */ }
       try {
         const t = await api.get("/trash");
         setTrashCount(t.data?.count || 0);
-      } catch (e) {}
+      } catch (e) { /* ignore */ }
     } catch (e) {
       console.error(e);
     } finally {
@@ -157,7 +157,6 @@ export default function Dashboard() {
   useEffect(() => {
     const rel = searchParams.get("relationship");
     if (rel) setRelationship(rel);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Poll the conversion-status endpoint while uploads with heavy formats
@@ -560,7 +559,7 @@ export default function Dashboard() {
                 </p>
                 <p className="text-sm text-[#6B705C] mt-1">
                   Pull the newest chapters straight from AO3, FFnet, Royal Road and friends —
-                  we'll replace each EPUB with the latest version.
+                  we&apos;ll replace each EPUB with the latest version.
                 </p>
               </div>
             </div>
@@ -696,7 +695,7 @@ export default function Dashboard() {
                   }`}
                   title="EPUBs that couldn't be parsed — file is corrupted or not a real EPUB"
                 >
-                  ⚠ Can't open · {stats.unreadable}
+                  ⚠ Can&apos;t open · {stats.unreadable}
                 </button>
               )}
               {refreshStatus.unavailable > 0 && (
@@ -713,7 +712,7 @@ export default function Dashboard() {
                   }`}
                   title="FanFicFare couldn't find these — skipped on bulk update"
                 >
-                  🚫 Can't find online · {refreshStatus.unavailable}
+                  🚫 Can&apos;t find online · {refreshStatus.unavailable}
                 </button>
               )}
               {smart === "unavailable" && refreshStatus.unavailable > 0 && (
@@ -869,6 +868,19 @@ export default function Dashboard() {
                     Click any fandom to open its dedicated shelf
                   </p>
                 </div>
+                {stats.crossover_count > 0 && (
+                  <button
+                    onClick={() => navigate("/library/crossovers")}
+                    data-testid="dashboard-crossover-chip"
+                    className="mb-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-[#FDF3E1] text-[#900] border border-[#900]/30 hover:bg-[#900] hover:text-white transition-colors"
+                  >
+                    <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1 rounded-full bg-[#900] text-white text-[10px] font-bold leading-none">
+                      ×
+                    </span>
+                    {stats.crossover_count} crossover{stats.crossover_count === 1 ? "" : "s"} · open browser
+                    <ArrowRight className="w-3 h-3" />
+                  </button>
+                )}
                 <div className="flex flex-wrap gap-2">
                   {stats.fandoms.map(f => {
                     // Crossover detection: canonical form uses " / " between
