@@ -143,6 +143,7 @@ export default function DownloadPage() {
   const [overview, setOverview] = useState(null);
   const [relationships, setRelationships] = useState([]);
   const [authors, setAuthors] = useState([]);
+  const [fandomsAll, setFandomsAll] = useState([]);
   const [fandom, setFandom] = useState(() => new Set());
   const [relationship, setRelationship] = useState(() => new Set());
   const [author, setAuthor] = useState(() => new Set());
@@ -161,15 +162,17 @@ export default function DownloadPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [ov, rel, au] = await Promise.all([
+        const [ov, rel, au, fd] = await Promise.all([
           api.get("/stats/overview"),
           api.get("/relationships"),
           api.get("/authors"),
+          api.get("/fandoms"),
         ]);
         if (cancelled) return;
         setOverview(ov.data || {});
         setRelationships(rel.data?.relationships || []);
         setAuthors(au.data?.authors || []);
+        setFandomsAll(fd.data?.fandoms || []);
       } catch { /* silent */ }
     })();
     return () => { cancelled = true; };
@@ -288,7 +291,7 @@ export default function DownloadPage() {
     }
   };
 
-  const fandoms = (overview?.fandoms || []);
+  const fandoms = fandomsAll;
   const categories = (overview?.categories || []);
   const activeFilterCount = fandom.size + relationship.size + author.size + category.size;
 
@@ -366,6 +369,41 @@ export default function DownloadPage() {
               onBulkSet={setCategory}
             />
           </div>
+
+          {/* Active filter chips — quick at-a-glance summary, one click to remove */}
+          {activeFilterCount > 0 && (
+            <div
+              data-testid="active-filter-chips"
+              className="px-5 py-3 bg-[#fffaf0] border-t border-[#900]/30 flex flex-wrap items-center gap-2"
+            >
+              <span className="text-xs font-bold uppercase tracking-wide text-[#900]">Active:</span>
+              {[
+                { setName: "Fandom", set: fandom, setSetter: setFandom, extra: () => setRelationship(new Set()) },
+                { setName: "Pairing", set: relationship, setSetter: setRelationship },
+                { setName: "Author", set: author, setSetter: setAuthor },
+                { setName: "Category", set: category, setSetter: setCategory },
+              ].map(({ setName, set, setSetter, extra }) => (
+                [...set].map((val) => (
+                  <button
+                    key={`${setName}-${val}`}
+                    onClick={() => {
+                      const next = new Set(set);
+                      next.delete(val);
+                      setSetter(next);
+                      if (extra) extra();
+                    }}
+                    data-testid={`chip-${setName.toLowerCase()}-${val}`}
+                    title={`Remove ${setName.toLowerCase()} filter`}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-[#fdf5dc] border border-[#900] text-[#900] hover:bg-[#900] hover:text-white"
+                  >
+                    <span className="font-semibold uppercase">{setName}:</span>
+                    <span>{val}</span>
+                    <span className="ml-1 text-base leading-none">×</span>
+                  </button>
+                ))
+              ))}
+            </div>
+          )}
 
           {/* Footer with reset / cancel / download */}
           <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 border-t-2 border-[#900] bg-[#f5ecd5]">

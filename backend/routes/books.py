@@ -4452,6 +4452,27 @@ async def list_authors(user: User = Depends(get_current_user)):
     return {"authors": authors}
 
 
+@api_router.get("/fandoms")
+async def list_fandoms(user: User = Depends(get_current_user)):
+    """Distinct fandoms in the user's library with book counts.
+
+    Used by the Download page so all fandoms appear (not just the top 8 that
+    /stats/overview returns for the dashboard).
+    """
+    pipeline = [
+        {"$match": {"user_id": user.user_id, "fandom": {"$ne": None, "$exists": True}}},
+        {"$group": {"_id": "$fandom", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1, "_id": 1}},
+    ]
+    rows = await db.books.aggregate(pipeline).to_list(5000)
+    fandoms = [
+        {"name": r["_id"], "count": r["count"]}
+        for r in rows
+        if r.get("_id") and str(r["_id"]).strip()
+    ]
+    return {"fandoms": fandoms}
+
+
 @api_router.get("/authors/{name}")
 async def get_author(name: str, user: User = Depends(get_current_user)):
     """All books by this author, newest first."""
