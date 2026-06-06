@@ -98,6 +98,28 @@ export default function FandomShelf() {
             <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl text-[#2C2C2C] leading-[1.05]" data-testid="fandom-title">
               {fandom}
             </h1>
+            {(() => {
+              // If this is a crossover shelf (canonical form "A / B [/ C]"),
+              // surface each constituent fandom as a sub-chip so the user
+              // can jump to that single-fandom view.
+              const xPieces = (fandom || "").split(" / ").map((p) => p.trim()).filter(Boolean);
+              if (xPieces.length < 2) return null;
+              return (
+                <div className="mt-4 flex flex-wrap items-center gap-2" data-testid="crossover-constituents">
+                  <span className="text-xs uppercase tracking-wide text-[#900] font-bold">Crossover · drill into one:</span>
+                  {xPieces.map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => navigate(`/library/fandom/${encodeURIComponent(p)}`)}
+                      data-testid={`constituent-${p.replace(/\s+/g, "-").toLowerCase()}`}
+                      className="px-3 py-1 rounded-full text-xs font-semibold border bg-[#FDF3E1] text-[#900] border-[#900]/30 hover:bg-[#900] hover:text-white transition-colors"
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
             <p className="text-[#6B705C] mt-3">
               {loading
                 ? "Loading shelf…"
