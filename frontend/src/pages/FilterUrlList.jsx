@@ -1,12 +1,14 @@
 import React, { useState, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { api } from "../lib/api";
-import { ArrowLeft, Loader2, Download, Link as LinkIcon, CheckCircle2, AlertCircle, FileText, Upload } from "lucide-react";
+import { ArrowLeft, Loader2, Download, Link as LinkIcon, CheckCircle2, AlertCircle, FileText, Upload, BookOpen } from "lucide-react";
 import { toast } from "sonner";
 import HelpHint from "../components/HelpHint";
+import UploadZone from "../components/UploadZone";
 
 export default function FilterUrlList() {
+  const navigate = useNavigate();
   const [text, setText] = useState("");
   const [report, setReport] = useState(null);
   const [running, setRunning] = useState(false);
@@ -182,6 +184,45 @@ export default function FilterUrlList() {
             {running && <Loader2 className="w-4 h-4 animate-spin" />}
             Filter URLs
           </button>
+        </div>
+
+        {/* — visually separated EPUB upload zone — */}
+        <div className="mt-10 pt-8 border-t border-dashed border-[#E5DDC5]" data-testid="epub-upload-section">
+          <div className="flex items-start gap-3 mb-4">
+            <div className="w-10 h-10 rounded-xl bg-[#3A5A40]/10 text-[#3A5A40] flex items-center justify-center flex-shrink-0">
+              <BookOpen className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="font-serif text-2xl text-[#2C2C2C] leading-tight">Have the EPUBs already? Drop them in.</h2>
+              <p className="text-sm text-[#6B705C] mt-1">
+                Skip the URL-by-URL check — drag whole folders of <code>.epub</code> files here and Shelfsort sorts them by fandom / category automatically. Other formats (PDF / Mobi / Word) are accepted too and land on the Originals shelf for conversion.
+              </p>
+            </div>
+          </div>
+          <UploadZone
+            onUploaded={(dupes, actions, urlLists) => {
+              const total = (actions?.length || 0) + (dupes?.length || 0);
+              if (total === 0) return;
+              const parts = [];
+              if (actions?.length) parts.push(`${actions.length} sorted`);
+              if (dupes?.length) parts.push(`${dupes.length} duplicate${dupes.length === 1 ? "" : "s"} flagged`);
+              toast.success(
+                `Uploaded ${total} book${total === 1 ? "" : "s"}${parts.length ? ` (${parts.join(", ")})` : ""}`,
+                {
+                  action: {
+                    label: "Open library",
+                    onClick: () => navigate("/library"),
+                  },
+                  duration: 6000,
+                },
+              );
+              if (urlLists && urlLists.length > 0) {
+                toast.message(
+                  `Found ${urlLists.length} embedded URL list${urlLists.length === 1 ? "" : "s"} in the EPUBs — review them on the library page.`,
+                );
+              }
+            }}
+          />
         </div>
 
         {report && (
