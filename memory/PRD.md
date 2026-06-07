@@ -713,3 +713,14 @@
 - Threshold of 5 URLs intentional — past that, the Filter URLs → Pull two-step is more useful (you want the dedupe report).
 - Prompt auto-hides once Filter URLs has run (the existing report panel takes over) or after Yes-fetch resolves.
 - Success toast on Yes-fetch includes an "Open library" action button for one-click navigation.
+
+### Added 2026-06-07 (Site-wide global paste detector)
+- New `UrlPasteDetector` component mounted once inside `AuthProvider` listens for `paste` events on `document`. When 1-3 recognized fanfic URLs are detected in the pasted text — even when surrounded by other text — a Sonner toast appears:
+  - 1 URL: *"Just pasted a fanfic URL — fetch it as an EPUB?"*
+  - 2-3 URLs: *"Just pasted N fanfic URLs — fetch them as EPUBs?"*
+  - Body: brief explanation of what'll happen.
+  - Action button: `[Fetch it]` or `[Fetch all]` — calls `/api/books/url-list/pull` (same serial pipeline as the FilterUrlList Pull button) and shows a loading toast, then success/failure with an "Open library" action.
+- Toast auto-dismisses in 8 seconds if ignored. Same canonical-URL prompt is suppressed for 4 seconds to avoid re-prompting on quick undo/redo or duplicate paste events.
+- Suppressed on `/library/filter-urls` so it doesn't double up with that page's own inline prompt.
+- Logged-out users are skipped entirely (no toast on the landing/login pages).
+- No new backend work — reuses the existing `/api/books/url-list/pull` endpoint built earlier.
