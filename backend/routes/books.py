@@ -37,6 +37,15 @@ from auth_dep import get_current_user
 from emergentintegrations.llm.chat import LlmChat, UserMessage
 
 
+# Heuristic fandom detection. Keys are the canonical shelf name (AO3-style
+# canonicals where reasonable — see https://archiveofourown.org/wrangling for
+# AO3's fandom-tag convention. When adding NEW fandoms, prefer AO3's exact
+# canonical form, e.g. `Stargate SG-1`, `Stargate Atlantis`, `Stargate
+# (Movies)` rather than colloquial short names. The umbrella term
+# `Stargate - All Media Types` is intentionally NOT used as a default — we
+# bucket into the specific sub-fandom so the user can find SG-1 vs Atlantis
+# works at a glance, with a cross-listing shelf already auto-built when a
+# work spans multiple sub-fandoms.
 FANDOM_KEYWORDS = {
     "Harry Potter": ["harry potter", "hogwarts", "hermione", "voldemort", "dumbledore", "weasley", "snape", "draco malfoy", "ron weasley"],
     "Twilight": ["twilight saga", "bella swan", "edward cullen", "stephenie meyer", "forks washington", "jacob black", "cullen family"],
@@ -54,7 +63,52 @@ FANDOM_KEYWORDS = {
     "My Hero Academia": ["my hero academia", "izuku midoriya", "u.a. high", "all might", "bakugou"],
     "BTS": ["bts fanfic", "jeon jungkook", "kim taehyung", "park jimin", "min yoongi"],
     "One Direction": ["one direction", "harry styles", "louis tomlinson", "larry stylinson"],
+    # ── Stargate franchise ────────────────────────────────────────────
+    # AO3 canonical names. SG-1 keywords are intentionally narrow (cast
+    # of SG-1, Goa'uld, Cheyenne Mountain) so they don't fire on Atlantis
+    # works, and vice-versa. The bare word "stargate" alone is NOT in any
+    # list — it would trip every sub-fandom — so the AI classifier
+    # decides ambiguous works.
+    "Stargate SG-1": [
+        "stargate sg-1", "stargate sg1", "sg-1 team",
+        "jack o'neill", "jack oneill", "daniel jackson",
+        "samantha carter", "sam carter", "teal'c", "teal c",
+        "general hammond", "cheyenne mountain", "goa'uld", "goauld",
+        "asgard", "tok'ra", "tokra", "stargate program", "stargate command",
+        "sgc",
+    ],
+    "Stargate Atlantis": [
+        "stargate atlantis", "sga ",  # trailing space to avoid SGU matches
+        "atlantis expedition", "john sheppard", "rodney mckay",
+        "mckay/sheppard", "mcshep", "teyla emmagan", "ronon dex",
+        "elizabeth weir", "carson beckett", "pegasus galaxy", "wraith",
+        "puddle jumper", "ancients", "lantean",
+    ],
+    "Stargate Universe": [
+        "stargate universe", "sgu ", "stargate sgu",
+        "everett young", "nicholas rush", "eli wallace", "chloe armstrong",
+        "matthew scott", "ronald greer", "icarus base", "destiny ship",
+        "the destiny",
+    ],
+    "Stargate (Movies)": [
+        "stargate movie", "stargate (movies)", "stargate 1994",
+        "stargate film", "ra abydos", "abydonian",
+    ],
 }
+
+
+# Merge in the bundled AO3 top-fandoms seed (~100 popular fandoms across
+# all media types) without overriding any hand-tuned entries above. The
+# bundled file uses AO3-canonical names — the existing 16 short-name
+# fandoms above stay because they're the canonical form for THIS user's
+# library and renaming them would migrate every existing book's shelf.
+try:
+    from data.ao3_top_fandoms import AO3_TOP_FANDOMS  # noqa: WPS433
+    for _canon, _kws in AO3_TOP_FANDOMS.items():
+        FANDOM_KEYWORDS.setdefault(_canon, _kws)
+    del _canon, _kws  # housekeeping
+except Exception as _e:  # pragma: no cover — bundled file is always present
+    logger.warning("Could not load AO3 top-fandoms seed: %s", _e)
 
 FANFIC_SIGNALS = [
     "fanfiction", "fan fiction", "fanfic", "ao3", "archive of our own",
@@ -2111,10 +2165,13 @@ async def classify_with_ai(meta: Dict[str, Any]) -> Dict[str, Any]:
 
     system_msg = (
         "You are a librarian classifying ebooks. Given book metadata, respond with strict JSON only: "
-        '{"category": "Fanfiction|Original Fiction|Non-fiction", "fandom": "<specific fandom name like Harry Potter, Twilight, Marvel, or null if not fanfiction>", "confidence": 0.0-1.0, "tags": ["tag1","tag2","tag3"]}. '
+        '{"category": "Fanfiction|Original Fiction|Non-fiction", "fandom": "<specific fandom name, or null if not fanfiction>", "confidence": 0.0-1.0, "tags": ["tag1","tag2","tag3"]}. '
         "Use Fanfiction only when it is clearly fan-derived from another work. "
         "For original fiction novels (even popular ones like the actual Harry Potter series by Rowling), use Original Fiction, not Fanfiction. "
-        "Common fandoms: Harry Potter, Twilight, Marvel, DC Comics, Star Wars, Lord of the Rings, Sherlock Holmes, Percy Jackson, Doctor Who, Supernatural, Game of Thrones, Hunger Games, Naruto, My Hero Academia, BTS, One Direction. "
+        "Fandom names: use AO3's canonical tag form. For multi-property franchises with distinct sub-fandoms, bucket into the specific sub-fandom rather than the umbrella. "
+        "Examples: Stargate SG-1 (NOT 'Stargate'), Stargate Atlantis, Stargate Universe, Stargate (Movies). "
+        "Common fandoms: Harry Potter, Twilight, Marvel, DC Comics, Star Wars, Lord of the Rings, Sherlock Holmes, Percy Jackson, Doctor Who, Supernatural, Game of Thrones, Hunger Games, Naruto, My Hero Academia, BTS, One Direction, Stargate SG-1, Stargate Atlantis, Stargate Universe, Stargate (Movies). "
+        "If a work spans multiple sub-fandoms, return them joined with ' / ' (e.g. 'Stargate SG-1 / Stargate Atlantis') so it lands on the crossover shelf. "
         "Tags: 2-4 short lowercase descriptive labels (e.g. 'fluff', 'angst', 'au', 'wip', 'slow-burn', 'enemies-to-lovers', 'romance', 'mystery', 'historical', 'biography', 'self-help'). "
         "Return ONLY the JSON object, no markdown."
     )

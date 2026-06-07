@@ -612,3 +612,26 @@
 - Tier 1 retargets the most-used compiled Tailwind hex utility classes (`.bg-[#FAF6EE]`, `.bg-white`, `.text-[#2C2C2C]`, `.text-[#6B705C]`, `.border-[#E5DDC5]`, etc.) via `:root[data-theme="dark"] .bg-\[\#FAF6EE\] { ... }` selectors — about 90% of the UI swaps without touching individual component files. Form controls, scrollbars, and the `.shelf-card` glass-card style are also themed.
 - Amber/warning chips get a dark variant (`#3a2f1b` bg with `#F0D6A0` text) so the AO3 mirror banner, "URLs found" status pills, etc. stay readable.
 - Tier 2 polish (Reader page, AO3-styled Download page maroon shift, edge-case components) deferred — flagged in backlog.
+
+### Added 2026-06-06 (Stargate fandoms — 4 AO3-canonical sub-fandoms)
+- Added `Stargate SG-1`, `Stargate Atlantis`, `Stargate Universe`, `Stargate (Movies)` to `FANDOM_KEYWORDS` using AO3's canonical tag form (https://archiveofourown.org/wrangling). Each sub-fandom has its own narrow keyword set (cast names, hardware, locations) so SG-1 works don't bleed into Atlantis and vice-versa.
+- The bare word "stargate" is intentionally **not** in any keyword list — only specific sub-fandom markers fire. Ambiguous works fall through to the AI classifier.
+- AI prompt updated: explicit guidance to use AO3 canonicals, lists the four Stargate sub-fandoms in `Common fandoms`, and instructs the model to bucket into the specific sub-fandom rather than a generic umbrella. Multi-sub-fandom works get returned as `Stargate SG-1 / Stargate Atlantis` etc. so the existing crossover canonicalizer auto-shelves them.
+- **Convention going forward**: when adding new fandoms, prefer AO3's exact canonical tag form (e.g. `Stargate (Movies)` with the parenthetical, not "Stargate movie") so the shelf names match what fic readers already see on AO3.
+- Tests: 5 new in `TestStargateFandoms` (SG-1, Atlantis, Universe, Movies, bare-word negative case). 5/5 passing.
+
+### Added 2026-06-07 (AO3 top-fandoms seed list — 125+ canonical fandoms)
+- New bundled seed `/app/backend/data/ao3_top_fandoms.py` exports `AO3_TOP_FANDOMS: Dict[str, List[str]]` mapping ~125 popular AO3 canonical fandom names to keyword aliases covering:
+  - **Anime & manga** (20): Haikyuu!!, AoT, Demon Slayer, JJK, One Piece, Bleach, Death Note, FMA, HxH, YoI, Banana Fish, Tokyo Revengers, BSD, Sailor Moon, InuYasha, Dragon Ball, OPM, Mob Psycho 100, **MDZS** (魔道祖师), **TGCF** (天官赐福).
+  - **Books & literature** (13): ASoIaF, Witcher books, Folk of the Air, Six of Crows, Shadow & Bone, ACoTaR, ToG, Shadowhunters, Good Omens, Discworld, Dresden Files, His Dark Materials, Mistborn, Stormlight Archive.
+  - **Movies** (12): MCU, Avengers (Stucky), Cap, Iron Man, Thor, Spider-Man (Holland), Pirates, DCU, Hobbit (Bagginshield), LotR Movies, Star Wars (incl. Clone Wars + sequels), Princess Bride.
+  - **TV** (22): Merlin (Merthur), BBC Sherlock (Johnlock), Buffy, Star Trek (AOS / TOS / TNG / DS9 / Voyager), Hannibal (Hannigram), Brooklyn 99, Bridgerton, Downton, The Untamed (CQL), Schitt's Creek, Killing Eve, Stranger Things (Byler / Steddie), OFMD, Heartstopper, 9-1-1 (Buddie), Glee (Klaine), Wednesday (Wenclair), The Witcher (Netflix).
+  - **Western animation** (7): ATLA (Zukka), Korra (Korrasami), Voltron (Klance), Steven Universe, Gravity Falls, She-Ra (Catradora), Encanto.
+  - **Video games** (18): Zelda + BotW, FF7/14/15, Pokemon, Mass Effect, Dragon Age + Inquisition, **Genshin Impact**, **Honkai: Star Rail**, FE Three Houses + general FE, Skyrim, DBH, Persona 5 + series, Overwatch, Undertale, Hades, **Baldur's Gate 3**, Hollow Knight, LoL, Cyberpunk 2077, Disco Elysium.
+  - **RPF / Bands** (12): 5SOS, BTS, SEVENTEEN, Stray Kids, ATEEZ, ENHYPEN, TWICE, BLACKPINK, F1 (Lestappen), Taylor Swift, Critical Role, Dream SMP, McElroy/TAZ.
+  - **Musicals** (4): Hamilton, Six, Be More Chill, Dear Evan Hansen.
+  - **Comics** (5): Batman + Bat-fam, Young Justice, Daredevil, X-Men comicverse, DC comics.
+- **Merge rule** (in `routes/books.py`): `FANDOM_KEYWORDS.setdefault(canonical, kws)` — hand-curated entries above ALWAYS win. The original 16 short-form names (Harry Potter, Twilight, etc.) stay so existing user shelves aren't renamed.
+- Total recognized fandoms went from 16 → **145**.
+- Tests: 3 new in `TestAo3TopFandomsSeed` (merge happened, existing entries preserved, sample fandoms classify correctly across anime/books/movies/TV/games/RPF). 8/8 passing.
+

@@ -2899,3 +2899,105 @@ class TestNoSilentAutoConvert:
         # And the default (un-set) groups still default to `ask`
         assert data["other_ebook"] == "ask"
         assert data["html"] == "ask"
+
+
+
+# ---------------------------------------------------------------------------
+# STARGATE FANDOM RECOGNITION — AO3 canonical sub-fandoms
+# ---------------------------------------------------------------------------
+class TestStargateFandoms:
+    """The heuristic classifier should bucket Stargate works into the
+    specific AO3-canonical sub-fandom (SG-1 / Atlantis / Universe / movies)
+    rather than a generic umbrella. The bare word 'stargate' alone must NOT
+    fire any sub-fandom on its own."""
+
+    def _classify(self, title, author="Test", description=""):
+        from routes.books import classify_by_metadata
+        return classify_by_metadata({
+            "title": title, "author": author,
+            "description": description, "publisher": "",
+            "sample_text": "",
+        })
+
+    def test_sg1_team_classifies_as_sg1(self):
+        r = self._classify(
+            "SG-1 Off World",
+            description="Jack O'Neill leads SG-1 on a mission. Daniel Jackson and Samantha Carter feature heavily. The team faces a new Goa'uld threat at Cheyenne Mountain.",
+        )
+        assert r["category"] == "Fanfiction"
+        assert r["fandom"] == "Stargate SG-1"
+
+    def test_atlantis_classifies_as_atlantis(self):
+        r = self._classify(
+            "Pegasus Storm",
+            description="John Sheppard and Rodney McKay (McShep) lead the Atlantis expedition against the Wraith in the Pegasus galaxy.",
+        )
+        assert r["category"] == "Fanfiction"
+        assert r["fandom"] == "Stargate Atlantis"
+
+    def test_sgu_classifies_as_universe(self):
+        r = self._classify(
+            "Adrift",
+            description="Aboard the Destiny ship, Eli Wallace and Nicholas Rush struggle to survive after the Icarus Base disaster.",
+        )
+        assert r["category"] == "Fanfiction"
+        assert r["fandom"] == "Stargate Universe"
+
+    def test_movie_classifies_as_movies(self):
+        r = self._classify(
+            "Abydos Awakens",
+            description="A retelling of the 1994 Stargate movie. The Abydonian people face Ra once more.",
+        )
+        assert r["category"] == "Fanfiction"
+        assert r["fandom"] == "Stargate (Movies)"
+
+    def test_bare_stargate_word_alone_does_not_match(self):
+        """The bare word 'stargate' is intentionally NOT in any keyword
+        list — only specific sub-fandom markers fire. A description that
+        only says 'stargate' with no character names should fall through
+        to the AI classifier (here returning no heuristic match)."""
+        r = self._classify(
+            "Untitled",
+            description="A stargate appears.",
+        )
+
+
+# ---------------------------------------------------------------------------
+# AO3 TOP-FANDOMS SEED DATA — bundled list of ~120+ canonical fandoms
+# ---------------------------------------------------------------------------
+class TestAo3TopFandomsSeed:
+    """The bundled `data/ao3_top_fandoms.py` seed should auto-merge into
+    `FANDOM_KEYWORDS` at import time WITHOUT overriding hand-tuned entries."""
+
+    def test_seed_merged_and_increased_fandom_count(self):
+        from routes.books import FANDOM_KEYWORDS
+        # The original handful was 16 fandoms; even with conservative seeding
+        # we expect well over 100 entries now (4 Stargate + bundled list).
+        assert len(FANDOM_KEYWORDS) >= 100
+
+    def test_existing_short_names_preserved(self):
+        """Manually-curated keys must NOT be overwritten by the seed —
+        `"Harry Potter"` and `"Twilight"` remain the short forms this
+        user's library was built around; the seed file uses the AO3-full
+        canonical names alongside them but doesn't replace them."""
+        from routes.books import FANDOM_KEYWORDS
+        assert "Harry Potter" in FANDOM_KEYWORDS
+        assert "hogwarts" in FANDOM_KEYWORDS["Harry Potter"]
+        assert "Twilight" in FANDOM_KEYWORDS
+        assert "bella swan" in FANDOM_KEYWORDS["Twilight"]
+
+    def test_sample_seeded_fandoms_classify_correctly(self):
+        from routes.books import classify_by_metadata
+        cases = [
+            ("Haikyuu!!", "Karasuno High volleyball team. Hinata Shoyo and Kageyama Tobio practice quick attacks against Nekoma."),
+            ("Avatar: The Last Airbender", "Aang the Avatar is reunited with Katara and Sokka in the Fire Nation."),
+            ("Marvel Cinematic Universe", "Post-Endgame MCU fic. Stucky pairing. Steve/Bucky in 2024."),
+            ("陈情令 | The Untamed (TV)", "Xiao Zhan and Wang Yibo star in the live action adaptation The Untamed."),
+            ("Baldur's Gate 3", "Tav romances Astarion Ancunin in Baldurs Gate 3. The Absolute approaches."),
+        ]
+        for expected, desc in cases:
+            r = classify_by_metadata({"title": "X", "author": "A", "description": desc, "publisher": "", "sample_text": ""})
+            assert r["category"] == "Fanfiction"
+            assert r["fandom"] == expected, f"expected {expected!r}, got {r['fandom']!r} for desc={desc!r}"
+
+        assert r["fandom"] not in {"Stargate SG-1", "Stargate Atlantis", "Stargate Universe", "Stargate (Movies)"}
