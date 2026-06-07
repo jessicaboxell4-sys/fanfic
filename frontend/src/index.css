@@ -247,6 +247,21 @@
 :root[data-theme="dark"] .bg-\[\#3A5A40\]\/10 { background-color: rgba(115, 175, 130, 0.18); color: #B7D4BC; }
 :root[data-theme="dark"] .text-\[\#3A5A40\] { color: #B7D4BC; }
 
+/* Fandom shelf chips & crossover chips — solid tinted backgrounds    */
+/* that need their own dark-mode treatment so the dark text doesn't   */
+/* turn invisible on the now-pale background (and the brightened      */
+/* `text-[#3A5A40]` isn't readable on its own original pale sage      */
+/* background either). Reuse the dark surface + brightened text.      */
+:root[data-theme="dark"] .bg-\[\#E5EBE6\] { background-color: rgba(115, 175, 130, 0.22); }
+:root[data-theme="dark"] .border-\[\#3A5A40\]\/20 { border-color: rgba(183, 212, 188, 0.35); }
+:root[data-theme="dark"] .bg-\[\#FDF3E1\] { background-color: rgba(255, 165, 130, 0.18); }
+:root[data-theme="dark"] .text-\[\#900\] { color: #FF9A85; }
+:root[data-theme="dark"] .border-\[\#900\]\/30 { border-color: rgba(255, 154, 133, 0.45); }
+/* The "×N" crossover badge — `bg-[#900]` (dark maroon) stays dark in */
+/* both themes; brighten to a coral so the contrast against the      */
+/* lighter dark-mode chip still pops.                                 */
+:root[data-theme="dark"] .bg-\[\#900\] { background-color: #FF7A66; color: #1B1B1E; }
+
 /* Amber / warning chips — keep the warm hue but lift contrast.       */
 :root[data-theme="dark"] .bg-\[\#FDF4E5\],
 :root[data-theme="dark"] .bg-amber-50,

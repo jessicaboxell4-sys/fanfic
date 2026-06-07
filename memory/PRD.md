@@ -672,3 +672,13 @@
 - Header copy updates dynamically: *"…across 91 books, grouped into 5 franchises."*
 - Removed duplicate `Hannibal NBC` entry from `ao3_top_fandoms.py` (merged into `Hannibal (TV)`).
 - Tests: 3 new in `TestFandomFranchiseGrouping` (grouped endpoint returns franchise parents with correct children; rows sorted by total; `franchise_for` helper correctness). 11/11 passing.
+
+### Fixed 2026-06-07 (Dark-mode contrast on fandom shelf chips)
+- **Problem**: in dark mode, fandom shelf chips (`bg-[#E5EBE6]` pale sage + `text-[#3A5A40]` brightened to `#B7D4BC`) and crossover chips (`bg-[#FDF3E1]` pale cream + `text-[#900]` dark maroon) ended up light-on-light / dark-on-dark — illegible.
+- **Fix**: added six new dark-theme overrides in `index.css`:
+  - `.bg-[#E5EBE6]` → `rgba(115, 175, 130, 0.22)` (translucent sage on dark surface)
+  - `.border-[#3A5A40]/20` → matching translucent sage border
+  - `.bg-[#FDF3E1]` → `rgba(255, 165, 130, 0.18)` (warm coral tint)
+  - `.text-[#900]` → `#FF9A85` (bright coral, was dark maroon)
+  - `.border-[#900]/30` → translucent coral border
+  - `.bg-[#900]` (the "×N" crossover badge) → `#FF7A66` with dark text — brighter so the badge still pops against the now-lighter chip
