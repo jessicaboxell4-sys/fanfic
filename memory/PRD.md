@@ -635,3 +635,13 @@
 - Total recognized fandoms went from 16 → **145**.
 - Tests: 3 new in `TestAo3TopFandomsSeed` (merge happened, existing entries preserved, sample fandoms classify correctly across anime/books/movies/TV/games/RPF). 8/8 passing.
 
+
+### Added 2026-06-07 (Fandom distribution treemap on Account page)
+- New `/app/frontend/src/components/FandomTreemap.jsx` — recharts `Treemap` showing each fandom sized by book count.
+- Pulls from existing `/api/fandoms`, so no backend changes required.
+- **Color ramp**: peach → maroon → sage → dusty browns (16 stops) — matches AO3-inspired palette, stays readable on both themes, avoids the pastel "AI slop" cliché.
+- **Long tail handling**: top 20 fandoms (with ≥1% share) get their own cell; everything below collapses into one "Other (N fandoms)" cell with a footnote pointing to the Stats page for the full breakdown.
+- **Cell labels**: fandom name + book count rendered only when cell is large enough (>64px wide, >36px tall) so small cells stay clean.
+- **Tooltip**: hover any cell → "Fandom · N books · X.X%".
+- **Empty state**: friendly "Upload a few books and your fandom distribution will appear here" copy.
+- Mounted on Account page directly under the existing `LibraryStatsCard`. Tested with 74 books across 13 fandoms (Harry Potter, Stargate Atlantis, MCU, Avatar TLA, MDZS, Sherlock BBC, Merlin, Six of Crows, Bridgerton, Good Omens, etc.) — CJK canonical names like `魔道祖师 - 墨香铜臭` render correctly.

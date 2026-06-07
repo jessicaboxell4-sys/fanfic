@@ -5,6 +5,7 @@ import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { User as UserIcon, Mail, Lock, Loader2, Mail as MailIcon, Settings2, AlertTriangle, Layers, Plus, X as XIcon } from "lucide-react";
 import LibraryStatsCard from "../components/LibraryStatsCard";
+import FandomTreemap from "../components/FandomTreemap";
 import { toast } from "sonner";
 
 function errMsg(d) {
@@ -382,6 +383,10 @@ export default function Account() {
         <p className="text-[#6B705C] mb-10">Signed in as <strong className="text-[#2C2C2C]">{profile.email}</strong></p>
 
         <LibraryStatsCard />
+
+        <div className="mb-6" data-testid="fandom-treemap-section">
+          <FandomTreemap />
+        </div>
 
         {/* Profile info */}
         <section className="shelf-card p-6 mb-6">
