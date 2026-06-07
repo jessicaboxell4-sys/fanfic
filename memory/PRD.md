@@ -682,3 +682,7 @@
   - `.text-[#900]` → `#FF9A85` (bright coral, was dark maroon)
   - `.border-[#900]/30` → translucent coral border
   - `.bg-[#900]` (the "×N" crossover badge) → `#FF7A66` with dark text — brighter so the badge still pops against the now-lighter chip
+
+### Fixed 2026-06-07 (Dark-mode navbar toggle icon visibility)
+- **Problem**: the sticky navbar uses `bg-[#FDFBF7]/80` (translucent cream with 80% opacity) but the dark-mode override only retargeted the plain `bg-[#FDFBF7]` — so in dark mode the navbar stayed bright cream, washing out the brightened-but-still-muted toggle icons and nav buttons.
+- **Fix**: added `.bg-[#FDFBF7]/80`, `.bg-[#FBFAF6]/80`, and `.bg-white/80` to the dark-theme overrides, each mapped to `rgba(38, 38, 43, 0.82)` — translucent dark surface preserves the backdrop-blur "glass" feel while making the navbar actually dark in dark mode.
