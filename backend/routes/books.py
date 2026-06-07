@@ -1489,6 +1489,193 @@ async def export_url_list_xlsx(body: UrlListExportBody, user: User = Depends(get
     )
 
 
+class UrlListPullBody(BaseModel):
+    """Body for the `/api/books/url-list/pull` endpoint. Either pass `urls`
+    directly (post-dedupe) or `text` to re-extract URLs from a pasted blob.
+    """
+    urls: Optional[List[str]] = None
+    text: Optional[str] = None
+
+
+@api_router.post("/books/url-list/pull")
+async def pull_url_list(body: UrlListPullBody, user: User = Depends(get_current_user)):
+    """Fetch every URL in the list sequentially and add the resulting
+    EPUBs to the user's library.
+
+    Strictly one URL at a time — both the FanFicFare path and the FicHub
+    fallback path go through their own single-flight locks/sleeps, so
+    even if the user pastes 200 URLs we never blast any source site.
+    Already-owned URLs (matched against `fanfic_urls`/`source_url`) are
+    skipped without a network hit.
+    """
+    # 1) Pull the URL list. Either explicit `urls` or extract from `text`.
+    raw_urls: List[str] = []
+    seen: set = set()
+    if body.urls:
+        for u in body.urls:
+            if u and u not in seen:
+                seen.add(u)
+                raw_urls.append(u)
+    elif body.text:
+        for m in _URL_RE.finditer(body.text):
+            url = m.group(0).rstrip('.,);]>')
+            if url and url not in seen:
+                seen.add(url)
+                raw_urls.append(url)
+
+    # 2) Canonicalize each and skip anything that isn't a recognized fanfic
+    #    permalink (also drops AO3 series / collection / user pages).
+    canonicals: List[str] = []
+    canon_seen: set = set()
+    unrecognized: List[str] = []
+    for u in raw_urls:
+        c = _canonical_fanfic_url(u)
+        if c:
+            if c not in canon_seen:
+                canon_seen.add(c)
+                canonicals.append(c)
+        else:
+            unrecognized.append(u)
+
+    if not canonicals:
+        return {
+            "queued": 0,
+            "added": [],
+            "already_owned": [],
+            "failed": [],
+            "unrecognized": unrecognized,
+        }
+
+    # 3) Skip canonical URLs the user already has on a shelf (not Trash).
+    owned_cursor = db.books.find(
+        {
+            "user_id": user.user_id,
+            "category": {"$ne": TRASH_SHELF},
+            "$or": [
+                {"fanfic_urls": {"$in": canonicals}},
+                {"source_url": {"$in": canonicals}},
+            ],
+        },
+        {"_id": 0, "book_id": 1, "title": 1, "fanfic_urls": 1, "source_url": 1},
+    )
+    owned_canon: set = set()
+    already_owned: List[Dict[str, Any]] = []
+    async for b in owned_cursor:
+        matched = None
+        for c in canonicals:
+            if c == b.get("source_url") or c in (b.get("fanfic_urls") or []):
+                matched = c
+                break
+        if matched and matched not in owned_canon:
+            owned_canon.add(matched)
+            already_owned.append({
+                "canonical": matched,
+                "book_id": b["book_id"],
+                "title": b.get("title") or "",
+            })
+    to_fetch = [c for c in canonicals if c not in owned_canon]
+
+    # 4) Walk the list serially.
+    user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "fff_options": 1, "fandom_aliases": 1})
+    fff_options = (user_doc or {}).get("fff_options") or {}
+    fandom_aliases = (user_doc or {}).get("fandom_aliases") or {}
+    user_dir = STORAGE_DIR / user.user_id
+    user_dir.mkdir(parents=True, exist_ok=True)
+
+    added: List[Dict[str, Any]] = []
+    failed: List[Dict[str, Any]] = []
+    for canon in to_fetch:
+        try:
+            epub_bytes, source_meta = await fetch_fanfic_with_fallback(canon, options=fff_options)
+        except FanficNotFoundError as e:
+            failed.append({"canonical": canon, "error": str(e)})
+            await asyncio.sleep(0.5)
+            continue
+        except Exception as e:  # pragma: no cover — network errors etc.
+            logger.warning("url-list/pull unexpected error for %s: %s", canon, e)
+            failed.append({"canonical": canon, "error": str(e)})
+            await asyncio.sleep(0.5)
+            continue
+
+        # Apply the FicHub-style template if the user wants it.
+        if fff_options.get("apply_template", True):
+            try:
+                epub_bytes = await asyncio.get_event_loop().run_in_executor(
+                    None, apply_template_to_epub, epub_bytes, source_meta, canon
+                )
+            except Exception as e:
+                logger.warning("template apply failed for %s: %s", canon, e)
+
+        # Write the EPUB and create the book record using the same pipeline
+        # the upload endpoint uses.
+        book_id = f"book_{uuid.uuid4().hex[:12]}"
+        epub_path = user_dir / f"{book_id}.epub"
+        epub_path.write_bytes(epub_bytes)
+        try:
+            meta = extract_epub_metadata(epub_path)
+            links = extract_urls_from_epub(epub_path) or []
+            classification = await classify_book(meta)
+            series_name = meta.get("series_name")
+            series_index = meta.get("series_index")
+            if not series_name:
+                sn, si = detect_series_from_title(meta["title"])
+                if sn:
+                    series_name = sn
+                    series_index = si if si is not None else series_index
+            doc = {
+                "book_id": book_id,
+                "user_id": user.user_id,
+                "filename": f"{(meta.get('title') or 'untitled').strip()}.epub",
+                "title": meta["title"],
+                "author": meta["author"],
+                "description": meta["description"],
+                "language": meta["language"],
+                "publisher": meta["publisher"],
+                "has_cover": bool(meta.get("cover_bytes")),
+                "category": classification["category"],
+                "fandom": _canonicalize_fandom(classification.get("fandom"), fandom_aliases),
+                "confidence": classification.get("confidence"),
+                "classifier": classification.get("classifier"),
+                "size_bytes": len(epub_bytes),
+                "links_count": len(links),
+                "source_url": canon,
+                "fanfic_urls": extract_fanfic_urls(links),
+                "last_refreshed_at": None,
+                "series_name": series_name,
+                "series_index": series_index,
+                "relationships": meta.get("relationships") or [],
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+            if meta.get("cover_bytes"):
+                (user_dir / f"{book_id}.cover").write_bytes(meta["cover_bytes"])
+            (user_dir / f"{book_id}.links.txt").write_text(
+                format_links_txt(meta["title"], meta["author"], links),
+                encoding="utf-8",
+            )
+            await db.books.insert_one(doc)
+            added.append({
+                "canonical": canon,
+                "book_id": book_id,
+                "title": doc["title"],
+                "fandom": doc["fandom"],
+            })
+        except Exception as e:
+            logger.warning("url-list/pull post-fetch processing failed for %s: %s", canon, e)
+            try:
+                epub_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+            failed.append({"canonical": canon, "error": f"Could not process EPUB: {e}"})
+
+    return {
+        "queued": len(to_fetch),
+        "added": added,
+        "already_owned": already_owned,
+        "failed": failed,
+        "unrecognized": unrecognized,
+    }
+
+
 async def find_duplicate_candidates(
     user_id: str,
     *,
@@ -1963,6 +2150,44 @@ TRASH_SHELF = "Trash"
 TRASH_GRACE_DAYS = 30
 
 
+async def fetch_fanfic_with_fallback(
+    source_url: str,
+    options: Optional[Dict[str, Any]] = None,
+) -> tuple:
+    """Try FanFicFare first; if it fails AND the user opted into the
+    FicHub fallback, retry with FicHub. Returns the same `(epub_bytes,
+    source_meta)` tuple as `fanfic_fetch_epub`.
+
+    The fallback is serialized — even if many user requests hit this in
+    parallel, they're drained through `routes.fichub_client._FETCH_LOCK`
+    one at a time, with a 2s gap between consecutive FicHub fetches.
+    """
+    options = options or {}
+    try:
+        return await fanfic_fetch_epub(source_url, options=options)
+    except FanficNotFoundError as fff_err:
+        if not options.get("try_fichub_fallback"):
+            raise
+        from routes.fichub_client import (  # local import to avoid circular
+            fichub_fetch_epub,
+            FichubUnsupportedURL,
+            FichubError,
+        )
+        try:
+            epub_bytes, _meta = await fichub_fetch_epub(source_url)
+            logger.info("FicHub fallback succeeded for %s", source_url)
+            return epub_bytes, {"source": "fichub", "url": source_url}
+        except FichubUnsupportedURL:
+            # Re-raise the original FFF error — that's the more informative
+            # message ("Story not found", "Site not supported", etc.).
+            raise fff_err
+        except FichubError as e:
+            logger.warning(
+                "FicHub fallback also failed for %s: %s", source_url, e
+            )
+            raise fff_err
+
+
 async def apply_refresh(book: Dict[str, Any], user_id: str, source_url: str) -> Dict[str, Any]:
     """Refresh a fanfic by generating a new EPUB via FanFicFare.
 
@@ -1976,10 +2201,10 @@ async def apply_refresh(book: Dict[str, Any], user_id: str, source_url: str) -> 
       - new book .replaces -> old book_id
       - old book .replaced_by -> new book_id
     """
-    # Honor per-user FanFicFare options
+    # Honor per-user FanFicFare options (incl. opt-in FicHub fallback)
     user_doc = await db.users.find_one({"user_id": user_id}, {"_id": 0, "fff_options": 1})
     fff_options = (user_doc or {}).get("fff_options") or {}
-    epub_bytes, source_meta = await fanfic_fetch_epub(source_url, options=fff_options)
+    epub_bytes, source_meta = await fetch_fanfic_with_fallback(source_url, options=fff_options)
 
     # Apply the FicHub-style template (intro page + stylesheet) unless the
     # user has explicitly opted out. Idempotent: noop on already-templated EPUBs.
@@ -3259,6 +3484,11 @@ class FFFOptionsBody(BaseModel):
     include_images: Optional[bool] = None
     keep_chapter_links: Optional[bool] = None
     apply_template: Optional[bool] = None
+    # When True, falls back to fichub.net if FanFicFare fails for any
+    # reason on a given URL. FicHub is a hosted scraping service so it
+    # often works when our server's IP gets rate-limited by AO3/FFnet.
+    # Off by default — opt-in per user. (Added 2026-06-07.)
+    try_fichub_fallback: Optional[bool] = None
 
 
 FFF_OPTION_DEFAULTS = {
@@ -3266,6 +3496,7 @@ FFF_OPTION_DEFAULTS = {
     "include_images": True,
     "keep_chapter_links": False,
     "apply_template": True,
+    "try_fichub_fallback": False,
 }
 
 

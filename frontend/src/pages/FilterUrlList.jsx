@@ -2,7 +2,7 @@ import React, { useState, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { api } from "../lib/api";
-import { ArrowLeft, Loader2, Download, Link as LinkIcon, CheckCircle2, AlertCircle, FileText, Upload, BookOpen } from "lucide-react";
+import { ArrowLeft, Loader2, Download, Link as LinkIcon, CheckCircle2, AlertCircle, FileText, Upload, BookOpen, DownloadCloud } from "lucide-react";
 import { toast } from "sonner";
 import HelpHint from "../components/HelpHint";
 import UploadZone from "../components/UploadZone";
@@ -13,6 +13,8 @@ export default function FilterUrlList() {
   const [report, setReport] = useState(null);
   const [running, setRunning] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [pulling, setPulling] = useState(false);
+  const [pullReport, setPullReport] = useState(null);
   const [dragging, setDragging] = useState(false);
   const [loadedFiles, setLoadedFiles] = useState([]);
   const fileInputRef = useRef(null);
@@ -58,6 +60,44 @@ export default function FilterUrlList() {
       toast.error(e?.response?.data?.detail || "Couldn't process");
     } finally {
       setRunning(false);
+    }
+  };
+
+  const pullIntoLibrary = async () => {
+    const urls = (report?.new_urls || []).map((u) => u.canonical || u.url);
+    if (urls.length === 0) {
+      toast("No new URLs to pull — everything is either already owned or unrecognized.");
+      return;
+    }
+    setPulling(true);
+    setPullReport(null);
+    toast.info(
+      `Fetching ${urls.length} URL${urls.length === 1 ? "" : "s"} one at a time — hang tight…`,
+      { duration: 4000 },
+    );
+    try {
+      const resp = await api.post(
+        "/books/url-list/pull",
+        { urls },
+        { timeout: 0 },  // long-running; no client-side timeout
+      );
+      setPullReport(resp.data);
+      const added = resp.data.added?.length || 0;
+      const failed = resp.data.failed?.length || 0;
+      if (added > 0) {
+        toast.success(
+          `Pulled ${added} new book${added === 1 ? "" : "s"} into your library${failed ? ` (${failed} failed)` : ""}.`,
+          { duration: 8000 },
+        );
+      } else if (failed > 0) {
+        toast.error(`Couldn't fetch any of the ${failed} URLs. See details below.`);
+      } else {
+        toast("Nothing to add.");
+      }
+    } catch (e) {
+      toast.error("Pull failed — " + (e.response?.data?.detail || e.message || "unknown error"));
+    } finally {
+      setPulling(false);
     }
   };
 
@@ -330,7 +370,17 @@ export default function FilterUrlList() {
               </div>
             )}
 
-            <div className="flex justify-end mt-4">
+            <div className="flex justify-end gap-2 mt-4 flex-wrap">
+              <button
+                data-testid="url-list-pull"
+                onClick={pullIntoLibrary}
+                disabled={pulling || report.new_urls.length === 0}
+                className="px-5 py-2 rounded-lg text-sm font-medium bg-[#3A5A40] text-white hover:bg-[#2f4933] disabled:opacity-60 inline-flex items-center gap-2"
+                title={report.new_urls.length === 0 ? "Nothing new to pull — all URLs are already owned or unrecognized." : "Fetch every new URL into your library, one at a time"}
+              >
+                {pulling ? <Loader2 className="w-4 h-4 animate-spin" /> : <DownloadCloud className="w-4 h-4" />}
+                Pull {report.new_urls.length} new {report.new_urls.length === 1 ? "URL" : "URLs"} into library
+              </button>
               <button
                 data-testid="url-list-download"
                 onClick={exportXlsx}
@@ -341,6 +391,33 @@ export default function FilterUrlList() {
                 Download Excel ({report.new_urls.length} new · {report.already_owned.length} owned{report.duplicate_in_list?.length ? ` · ${report.duplicate_in_list.length} dup` : ""})
               </button>
             </div>
+
+            {pullReport && (
+              <div className="mt-4 p-4 rounded-lg bg-[#E5EBE6] border border-[#3A5A40]/20" data-testid="pull-result">
+                <p className="font-medium text-[#3A5A40] mb-2">
+                  Pull complete · <strong>{pullReport.added?.length || 0}</strong> added
+                  {pullReport.failed?.length ? <> · <span className="text-amber-700">{pullReport.failed.length} failed</span></> : null}
+                </p>
+                {pullReport.added?.length > 0 && (
+                  <div className="text-xs space-y-0.5 max-h-32 overflow-y-auto">
+                    {pullReport.added.map((b, idx) => (
+                      <div key={idx} className="text-[#2C2C2C] truncate">
+                        ✓ <span className="font-medium">{b.title}</span>{b.fandom ? <span className="text-[#6B705C]"> · {b.fandom}</span> : null}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {pullReport.failed?.length > 0 && (
+                  <div className="text-xs space-y-0.5 max-h-24 overflow-y-auto mt-2">
+                    {pullReport.failed.map((b, idx) => (
+                      <div key={idx} className="text-amber-800 truncate">
+                        ✗ <span className="font-mono">{b.canonical}</span> — {b.error}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </main>

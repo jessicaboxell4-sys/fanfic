@@ -492,6 +492,11 @@ export default function Account() {
                   title: "Use Shelfsort template",
                   blurb: "Add a clean intro page (title, author, source URL, chapter count) and apply the house stylesheet to every refresh.",
                 },
+                {
+                  key: "try_fichub_fallback",
+                  title: "FicHub fallback when FanFicFare fails",
+                  blurb: "If FanFicFare can't fetch a fic (often because AO3 or FFnet rate-limited our server), Shelfsort will retry the same URL via fichub.net. FicHub fetches from their own infrastructure, so it usually works when ours doesn't. Fetched strictly one at a time with a 2-second gap to be polite to their service.",
+                },
               ].map((opt) => (
                 <div
                   key={opt.key}

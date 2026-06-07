@@ -686,3 +686,19 @@
 ### Fixed 2026-06-07 (Dark-mode navbar toggle icon visibility)
 - **Problem**: the sticky navbar uses `bg-[#FDFBF7]/80` (translucent cream with 80% opacity) but the dark-mode override only retargeted the plain `bg-[#FDFBF7]` — so in dark mode the navbar stayed bright cream, washing out the brightened-but-still-muted toggle icons and nav buttons.
 - **Fix**: added `.bg-[#FDFBF7]/80`, `.bg-[#FBFAF6]/80`, and `.bg-white/80` to the dark-theme overrides, each mapped to `rgba(38, 38, 43, 0.82)` — translucent dark surface preserves the backdrop-blur "glass" feel while making the navbar actually dark in dark mode.
+
+### Added 2026-06-07 (FicHub fallback + serial "Pull into library" endpoint)
+- New `routes/fichub_client.py` — async httpx client for fichub.net's `GET /api/v0/epub?q=<URL>` endpoint. Process-wide `_FETCH_LOCK` + 2-second floor between consecutive requests ensures **strictly one in-flight FicHub call at a time**, regardless of how many user requests fire in parallel.
+- New `fetch_fanfic_with_fallback()` wrapper in `routes/books.py` — tries FanFicFare first; on `FanficNotFoundError` AND `fff_options.try_fichub_fallback=True`, retries via FicHub. Returns the original FFF error when FicHub also fails (more informative than FicHub's generic 4xx).
+- New per-user setting `fff_options.try_fichub_fallback` (default `False` — opt-in). Account UI gains a toggle with explanation copy.
+- New endpoint `POST /api/books/url-list/pull` (body: `{urls?: string[], text?: string}`) — processes the URL list serially:
+  1. Canonicalize each URL (re-use the AO3-aware normalizer)
+  2. Skip canonicals already on the user's shelves (single Mongo round-trip)
+  3. Walk the to-fetch list one URL at a time via the fallback wrapper
+  4. Apply the FicHub-style template (intro page + stylesheet) per user preference
+  5. Run AI classification → write EPUB + sidecar + book record
+  6. Return `{queued, added: [{book_id, title, fandom}], already_owned: [{canonical, book_id, title}], failed: [{canonical, error}], unrecognized: []}`
+- `apply_refresh` (existing `/books/refresh-all` and single-URL refresh paths) updated to use the wrapper too — so the FicHub fallback applies everywhere fanfic fetching happens.
+- `FilterUrlList.jsx` adds a **"Pull N new URLs into library"** green button next to the Excel download. Shows a result panel listing added books (✓ title · fandom) and failures (✗ URL · error). Long-running, no client timeout.
+- Tests: 5 new in `TestFichubFallbackAndUrlListPull` — endpoint structure (owned/queued/unrecognized counts), empty-input safety, opt-in flag persistence, and the critical safety test: **wrapper never calls FicHub when `try_fichub_fallback=False`** (proven via monkeypatched FicHub raising AssertionError).
+- No API key required (FicHub is free + open). The optional `Authorization: Bearer <api_key>` header slot exists in the client for future use.
