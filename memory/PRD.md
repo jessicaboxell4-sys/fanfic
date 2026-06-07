@@ -702,3 +702,14 @@
 - `FilterUrlList.jsx` adds a **"Pull N new URLs into library"** green button next to the Excel download. Shows a result panel listing added books (✓ title · fandom) and failures (✗ URL · error). Long-running, no client timeout.
 - Tests: 5 new in `TestFichubFallbackAndUrlListPull` — endpoint structure (owned/queued/unrecognized counts), empty-input safety, opt-in flag persistence, and the critical safety test: **wrapper never calls FicHub when `try_fichub_fallback=False`** (proven via monkeypatched FicHub raising AssertionError).
 - No API key required (FicHub is free + open). The optional `Authorization: Bearer <api_key>` header slot exists in the client for future use.
+
+### Added 2026-06-07 (Inline "want an EPUB?" nudge on URL paste)
+- `FilterUrlList.jsx` now detects fanfic URLs as the user types, using a client-side mirror of the backend's `FANFIC_SOURCE_PATTERNS` (AO3 with all alt hostnames, FFnet, FictionPress, RoyalRoad, SB/SV/QQ).
+- When 1-5 recognized fanfic URLs are present AND the user hasn't yet run "Filter URLs", a sage-tinted inline prompt appears below the textarea:
+  - Single URL: *"Looks like a fanfic URL — want an EPUB version of it?"*
+  - Multi (2-5): *"Looks like N fanfic URLs — want EPUB versions?"*
+  - Body: *"We'll fetch it/them one at a time via FanFicFare (falling back to FicHub if you've enabled that in Account) and drop the resulting EPUB(s) straight onto your shelves."*
+  - Buttons: `[Yes, fetch it/them]` (green, triggers `/api/books/url-list/pull` directly) · `[Just check status]` (runs the existing dedupe flow).
+- Threshold of 5 URLs intentional — past that, the Filter URLs → Pull two-step is more useful (you want the dedupe report).
+- Prompt auto-hides once Filter URLs has run (the existing report panel takes over) or after Yes-fetch resolves.
+- Success toast on Yes-fetch includes an "Open library" action button for one-click navigation.

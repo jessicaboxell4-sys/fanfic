@@ -1,11 +1,41 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { api } from "../lib/api";
-import { ArrowLeft, Loader2, Download, Link as LinkIcon, CheckCircle2, AlertCircle, FileText, Upload, BookOpen, DownloadCloud } from "lucide-react";
+import { ArrowLeft, Loader2, Download, Link as LinkIcon, CheckCircle2, AlertCircle, FileText, Upload, BookOpen, DownloadCloud, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import HelpHint from "../components/HelpHint";
 import UploadZone from "../components/UploadZone";
+
+// Mirror of the backend's fanfic-permalink detection. Keep narrow — these are
+// the URL forms we actually know how to fetch. Used to give a one-click
+// "fetch this as EPUB?" nudge when the user has typed exactly one URL.
+const FANFIC_PATTERNS = [
+  /https?:\/\/(?:www\.|m\.|insecure\.)?archiveofourown\.(?:org|com|net|gay)\/(?:collections\/[^/?#]+\/)?works\/\d+/i,
+  /https?:\/\/(?:www\.|m\.)?ao3\.org\/works\/\d+/i,
+  /https?:\/\/archive\.transformativeworks\.org\/works\/\d+/i,
+  /https?:\/\/(?:www\.)?fanfiction\.net\/s\/\d+/i,
+  /https?:\/\/(?:www\.)?fictionpress\.com\/s\/\d+/i,
+  /https?:\/\/(?:www\.)?royalroad\.com\/fiction\/\d+/i,
+  /https?:\/\/(?:forums?\.|www\.)?spacebattles\.com\/threads\/[\w-]+\.\d+/i,
+  /https?:\/\/(?:forums?\.|www\.)?sufficientvelocity\.com\/threads\/[\w-]+\.\d+/i,
+  /https?:\/\/(?:forums?\.|www\.)?questionablequesting\.com\/threads\/[\w-]+\.\d+/i,
+];
+
+function findFanficUrls(text) {
+  if (!text) return [];
+  const urlRe = /https?:\/\/[^\s,;<>"']+/g;
+  const out = [];
+  const seen = new Set();
+  let match;
+  while ((match = urlRe.exec(text)) !== null) {
+    const url = match[0].replace(/[.,);\]>]+$/, "");
+    if (seen.has(url)) continue;
+    seen.add(url);
+    if (FANFIC_PATTERNS.some((re) => re.test(url))) out.push(url);
+  }
+  return out;
+}
 
 export default function FilterUrlList() {
   const navigate = useNavigate();
@@ -18,6 +48,51 @@ export default function FilterUrlList() {
   const [dragging, setDragging] = useState(false);
   const [loadedFiles, setLoadedFiles] = useState([]);
   const fileInputRef = useRef(null);
+
+  // Detect when the textarea contains a small, recognizable batch of fanfic
+  // URLs (1-5) and the user hasn't yet hit "Filter URLs". Offers a one-click
+  // path that skips the dedupe/Excel detour: "looks like a fanfic URL — want
+  // me to fetch it as an EPUB?" → pull straight into the library.
+  const inlineFics = useMemo(() => findFanficUrls(text), [text]);
+  const showInlinePrompt = !report && inlineFics.length > 0 && inlineFics.length <= 5;
+
+  // One-click "fetch as EPUB" — bypasses the Filter URLs / Pull two-step.
+  const fetchAsEpub = async () => {
+    if (inlineFics.length === 0) return;
+    setPulling(true);
+    setPullReport(null);
+    toast.info(
+      inlineFics.length === 1
+        ? "Fetching the EPUB — this usually takes 5-15 seconds."
+        : `Fetching ${inlineFics.length} EPUBs one at a time — hang tight…`,
+      { duration: 4000 },
+    );
+    try {
+      const resp = await api.post(
+        "/books/url-list/pull",
+        { urls: inlineFics },
+        { timeout: 0 },
+      );
+      setPullReport(resp.data);
+      const added = resp.data.added?.length || 0;
+      const failed = resp.data.failed?.length || 0;
+      const owned = resp.data.already_owned?.length || 0;
+      if (added > 0) {
+        toast.success(
+          `Pulled ${added} new ${added === 1 ? "book" : "books"} into your library${failed ? ` (${failed} failed)` : ""}.`,
+          { duration: 8000, action: { label: "Open library", onClick: () => navigate("/library") } },
+        );
+      } else if (owned > 0 && added === 0 && failed === 0) {
+        toast(`Already in your library — nothing to add.`);
+      } else if (failed > 0) {
+        toast.error(`Couldn't fetch ${failed === inlineFics.length ? "the" : `${failed} of the`} URL${failed === 1 ? "" : "s"}. See details below.`);
+      }
+    } catch (e) {
+      toast.error("Fetch failed — " + (e.response?.data?.detail || e.message || "unknown error"));
+    } finally {
+      setPulling(false);
+    }
+  };
 
   const ingestFiles = async (filesList) => {
     const files = Array.from(filesList || []).filter((f) => {
@@ -213,6 +288,46 @@ export default function FilterUrlList() {
           rows={10}
           className="w-full font-mono text-sm p-4 rounded-lg border border-[#E5DDC5] bg-white focus:outline-none focus:border-[#E07A5F]/60"
         />
+
+        {showInlinePrompt && (
+          <div
+            className="mt-4 p-4 rounded-lg bg-[#3A5A40]/10 border border-[#3A5A40]/30 flex items-center gap-3 flex-wrap"
+            data-testid="single-url-prompt"
+          >
+            <Sparkles className="w-5 h-5 text-[#3A5A40] flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-[#2C2C2C]">
+                {inlineFics.length === 1
+                  ? "Looks like a fanfic URL — want an EPUB version of it?"
+                  : `Looks like ${inlineFics.length} fanfic URLs — want EPUB versions?`}
+              </p>
+              <p className="text-xs text-[#6B705C] mt-0.5">
+                We&apos;ll fetch {inlineFics.length === 1 ? "it" : "them one at a time"} via FanFicFare
+                {" "}(falling back to FicHub if you&apos;ve enabled that in Account) and drop the resulting EPUB
+                {inlineFics.length === 1 ? "" : "s"} straight onto your shelves.
+              </p>
+            </div>
+            <div className="flex gap-2 flex-shrink-0">
+              <button
+                data-testid="single-url-fetch"
+                onClick={fetchAsEpub}
+                disabled={pulling}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-[#3A5A40] text-white hover:bg-[#2f4933] disabled:opacity-60 inline-flex items-center gap-2"
+              >
+                {pulling ? <Loader2 className="w-4 h-4 animate-spin" /> : <DownloadCloud className="w-4 h-4" />}
+                Yes, fetch {inlineFics.length === 1 ? "it" : "them"}
+              </button>
+              <button
+                data-testid="single-url-just-check"
+                onClick={run}
+                disabled={running}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-white text-[#6B705C] border border-[#E5DDC5] hover:bg-[#F5F3EC] disabled:opacity-60"
+              >
+                Just check status
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="flex justify-end gap-3 mt-4">
           <button
