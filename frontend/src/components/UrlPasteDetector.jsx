@@ -63,6 +63,13 @@ export default function UrlPasteDetector() {
     if (SUPPRESS_ROUTES.some((r) => location.pathname.startsWith(r))) return;
 
     const handler = (e) => {
+      // Don't second-guess paste into form fields — they have their own UX.
+      // The navbar QuickAdd input, the FilterUrlList textarea, search boxes,
+      // etc. all funnel paste content into something the user is actively
+      // typing into; the global toast would just compete with that.
+      const tag = (e?.target?.tagName || "").toLowerCase();
+      if (tag === "input" || tag === "textarea" || e?.target?.isContentEditable) return;
+
       const txt = e?.clipboardData?.getData?.("text") || "";
       const urls = extractFanficUrls(txt);
       if (urls.length === 0 || urls.length > 3) return;

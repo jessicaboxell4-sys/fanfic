@@ -6,6 +6,7 @@ import { useTheme } from "../context/ThemeContext";
 import UpdatesBell from "./UpdatesBell";
 import StreakBadge from "./StreakBadge";
 import DownloadZipButton from "./DownloadZipButton";
+import NavbarQuickAdd from "./NavbarQuickAdd";
 
 export default function Navbar() {
   const { user, logout } = useAuth();
@@ -19,6 +20,8 @@ export default function Navbar() {
           <BookOpen className="w-6 h-6 text-[#E07A5F]" />
           <span className="font-serif text-2xl font-medium">Shelfsort</span>
         </Link>
+
+        {user && <NavbarQuickAdd />}
 
         <div className="flex items-center gap-2 md:gap-3">
           <button

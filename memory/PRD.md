@@ -724,3 +724,11 @@
 - Suppressed on `/library/filter-urls` so it doesn't double up with that page's own inline prompt.
 - Logged-out users are skipped entirely (no toast on the landing/login pages).
 - No new backend work — reuses the existing `/api/books/url-list/pull` endpoint built earlier.
+
+### Added 2026-06-07 (Navbar Quick-add URL slot)
+- New `NavbarQuickAdd` component lives in the Navbar between the brand and the action group, visible to all logged-in users on `md+` screens.
+- Always-on input: *"Paste a fanfic URL to add it…"* with a sparkles indicator (peach when empty/invalid → sage when a recognized fanfic URL is detected).
+- Submit via Enter key OR the cloud-download icon button (disabled until input matches a known fanfic permalink).
+- Calls `/api/books/url-list/pull` with the single URL → success toast names the book (`Added "Title" · Fandom to your library.`) with an "Open library" action button.
+- `UrlPasteDetector` now skips when the paste event target is an `input` / `textarea` / `[contenteditable]` — so pasting into the navbar slot (or any form field) lets the field handle it without a competing global toast.
+- Three consistent entry points for adding a fic by URL: (1) anywhere on the page → global paste toast, (2) navbar slot → always-visible explicit input, (3) FilterUrlList page → batch dedupe-and-pull. All three call the same serial `/books/url-list/pull` endpoint, so behavior is identical (FFF first, FicHub fallback if user opted in, polite 2s gap between fetches).
