@@ -748,3 +748,11 @@
 - Kept visible (no fetching required):
   - FilterUrlList URL dedupe flow + Excel export — these just sort URLs into "owned vs new", no source-site hits
   - Every EPUB upload, classification, shelf, treemap, theme, originals, trash, smart-shelves feature
+
+### Added 2026-06-07 (3 new fanfic source sites recognized)
+- **Adult-FanFiction.org** (AFF) — subdomain-agnostic match (`hp.`, `anime.`, `books.`, `members.`, `www.`, bare). Canonicalizes to `https://www.adult-fanfiction.org/story.php?no=N`. Source label: `AFF`.
+- **Potions and Snitches** (Snape-centric HP archive, eFiction install) — handles both `.org` and `.net` TLDs, with/without `www.`. Canonicalizes to `https://www.potionsandsnitches.org/fanfiction/viewstory.php?sid=N`. Source label: `Potions & Snitches`.
+- **Twilighted.net** (Twilight archive, eFiction install) — `www.` + bare, http/https. Canonicalizes to `https://www.twilighted.net/viewstory.php?sid=N`. Source label: `Twilighted`.
+- All three plug into the existing pipeline: URL list dedupe, Excel export Source column, AO3-aware paste detector (when fetching UI is re-enabled), `by_source` breakdown chips.
+- Backend total now recognizes **10 sources**: AO3, FFnet, FictionPress, RoyalRoad, SpaceBattles, SufficientVelocity, QQ, AFF, Potions & Snitches, Twilighted.
+- Tests: 5 new in `TestEfictionSiteRecognition` covering URL variant canonicalization for each site, source labeling, and end-to-end dedupe-endpoint integration.

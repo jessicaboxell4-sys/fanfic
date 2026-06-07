@@ -703,6 +703,14 @@ FANFIC_SOURCE_PATTERNS = [
     r'https?://(?:forums?\.|www\.)?spacebattles\.com/threads/[\w-]+\.\d+',
     r'https?://(?:forums?\.|www\.)?sufficientvelocity\.com/threads/[\w-]+\.\d+',
     r'https?://(?:forums?\.|www\.)?questionablequesting\.com/threads/[\w-]+\.\d+',
+    # Adult-FanFiction.org — eFiction-style query-string URLs. Subdomain
+    # is per-fandom (`hp.`, `anime.`, `books.`, etc.) but the story ID is
+    # globally unique, so we collapse subdomain in the canonical form.
+    r'https?://(?:[\w-]+\.)?adult-fanfiction\.org/story\.php\?no=\d+',
+    # Potions and Snitches (Snape-centric HP archive) — eFiction install.
+    r'https?://(?:www\.)?potionsandsnitches\.(?:org|net)/fanfiction/viewstory\.php\?sid=\d+',
+    # Twilighted.net (Twilight archive) — eFiction install.
+    r'https?://(?:www\.)?twilighted\.net/viewstory\.php\?sid=\d+',
 ]
 
 
@@ -719,6 +727,9 @@ _RR_CANON_RE = re.compile(r"https?://(?:www\.)?royalroad\.com/fiction/(\d+)", re
 _SB_CANON_RE = re.compile(r"https?://(?:forums?\.|www\.)?spacebattles\.com/threads/([\w-]+\.\d+)", re.IGNORECASE)
 _SV_CANON_RE = re.compile(r"https?://(?:forums?\.|www\.)?sufficientvelocity\.com/threads/([\w-]+\.\d+)", re.IGNORECASE)
 _QQ_CANON_RE = re.compile(r"https?://(?:forums?\.|www\.)?questionablequesting\.com/threads/([\w-]+\.\d+)", re.IGNORECASE)
+_AFF_CANON_RE = re.compile(r"https?://(?:[\w-]+\.)?adult-fanfiction\.org/story\.php\?no=(\d+)", re.IGNORECASE)
+_PS_CANON_RE = re.compile(r"https?://(?:www\.)?potionsandsnitches\.(?:org|net)/fanfiction/viewstory\.php\?sid=(\d+)", re.IGNORECASE)
+_TWILIGHTED_CANON_RE = re.compile(r"https?://(?:www\.)?twilighted\.net/viewstory\.php\?sid=(\d+)", re.IGNORECASE)
 
 
 def normalize_fanfic_url(url: Optional[str]) -> Optional[str]:
@@ -766,6 +777,15 @@ def normalize_fanfic_url(url: Optional[str]) -> Optional[str]:
     m = _QQ_CANON_RE.search(url)
     if m:
         return f"https://forum.questionablequesting.com/threads/{m.group(1).lower()}"
+    m = _AFF_CANON_RE.search(url)
+    if m:
+        return f"https://www.adult-fanfiction.org/story.php?no={m.group(1)}"
+    m = _PS_CANON_RE.search(url)
+    if m:
+        return f"https://www.potionsandsnitches.org/fanfiction/viewstory.php?sid={m.group(1)}"
+    m = _TWILIGHTED_CANON_RE.search(url)
+    if m:
+        return f"https://www.twilighted.net/viewstory.php?sid={m.group(1)}"
     return None
 
 
@@ -1395,6 +1415,9 @@ def _source_for(u: str) -> str:
     if "sufficientvelocity.com" in u_lower: return "SufficientVelocity"
     if "questionablequesting.com" in u_lower: return "QQ"
     if "royalroad" in u_lower: return "RoyalRoad"
+    if "adult-fanfiction.org" in u_lower: return "AFF"
+    if "potionsandsnitches" in u_lower: return "Potions & Snitches"
+    if "twilighted.net" in u_lower: return "Twilighted"
     return ""
 
 

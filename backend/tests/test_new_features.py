@@ -3242,3 +3242,94 @@ class TestFichubFallbackAndUrlListPull:
         finally:
             loop.close()
 
+
+
+# ---------------------------------------------------------------------------
+# eFiction-style fanfic sites: AFF / Potions & Snitches / Twilighted
+# ---------------------------------------------------------------------------
+class TestEfictionSiteRecognition:
+    """Adult-FanFiction.org, Potions & Snitches, and Twilighted all use
+    eFiction-style URLs with a story ID in the query string. They should
+    canonicalize to a deterministic host + sid form so different surface
+    variants (http vs https, www. vs bare, fandom subdomain on AFF) all
+    dedupe to the same canonical."""
+
+    def test_aff_variants_canonicalize(self):
+        from routes.books import normalize_fanfic_url
+        canon = "https://www.adult-fanfiction.org/story.php?no=600090000"
+        cases = [
+            "https://www.adult-fanfiction.org/story.php?no=600090000",
+            "http://www.adult-fanfiction.org/story.php?no=600090000",
+            "http://adult-fanfiction.org/story.php?no=600090000",
+            "https://hp.adult-fanfiction.org/story.php?no=600090000",
+            "https://anime.adult-fanfiction.org/story.php?no=600090000",
+            "https://members.adult-fanfiction.org/story.php?no=600090000",
+        ]
+        for url in cases:
+            assert normalize_fanfic_url(url) == canon, url
+
+    def test_potions_and_snitches_variants_canonicalize(self):
+        from routes.books import normalize_fanfic_url
+        canon = "https://www.potionsandsnitches.org/fanfiction/viewstory.php?sid=12345"
+        cases = [
+            "http://www.potionsandsnitches.org/fanfiction/viewstory.php?sid=12345",
+            "https://www.potionsandsnitches.org/fanfiction/viewstory.php?sid=12345",
+            "http://potionsandsnitches.org/fanfiction/viewstory.php?sid=12345",
+            "https://potionsandsnitches.net/fanfiction/viewstory.php?sid=12345",
+        ]
+        for url in cases:
+            assert normalize_fanfic_url(url) == canon, url
+
+    def test_twilighted_variants_canonicalize(self):
+        from routes.books import normalize_fanfic_url
+        canon = "https://www.twilighted.net/viewstory.php?sid=42"
+        cases = [
+            "http://www.twilighted.net/viewstory.php?sid=42",
+            "https://www.twilighted.net/viewstory.php?sid=42",
+            "http://twilighted.net/viewstory.php?sid=42",
+            "https://twilighted.net/viewstory.php?sid=42",
+        ]
+        for url in cases:
+            assert normalize_fanfic_url(url) == canon, url
+
+    def test_source_for_labels_new_sites(self):
+        from routes.books import _source_for
+        assert _source_for("https://www.adult-fanfiction.org/story.php?no=1") == "AFF"
+        assert _source_for("https://www.potionsandsnitches.org/x") == "Potions & Snitches"
+        assert _source_for("https://www.twilighted.net/x") == "Twilighted"
+
+    def test_dedupe_endpoint_recognizes_new_sites(self):
+        """End-to-end: dedupe should bucket these into the right per-source
+        breakdown, not the `Unrecognized` bucket."""
+        uid = f"user_eff_{uuid.uuid4().hex[:8]}"
+        tok = f"sess_eff_{uuid.uuid4().hex}"
+        db.users.insert_one({"user_id": uid, "email": f"{uid}@x.com", "name": "EFF", "picture": "", "created_at": datetime.now(timezone.utc).isoformat()})
+        db.user_sessions.insert_one({"user_id": uid, "session_token": tok, "expires_at": datetime.now(timezone.utc) + timedelta(days=7), "created_at": datetime.now(timezone.utc)})
+        try:
+            text = "\n".join([
+                "https://hp.adult-fanfiction.org/story.php?no=600090000",
+                "https://www.potionsandsnitches.org/fanfiction/viewstory.php?sid=9001",
+                "https://twilighted.net/viewstory.php?sid=42",
+            ])
+            r = requests.post(
+                f"{BASE}/api/books/url-list/dedupe",
+                headers={"Authorization": f"Bearer {tok}"},
+                json={"text": text},
+            )
+            assert r.status_code == 200, r.text
+            data = r.json()
+            assert data["unrecognized"] == []
+            assert data["by_source"].get("AFF") == 1
+            assert data["by_source"].get("Potions & Snitches") == 1
+            assert data["by_source"].get("Twilighted") == 1
+            canons = sorted(u["canonical"] for u in data["new_urls"])
+            assert canons == [
+                "https://www.adult-fanfiction.org/story.php?no=600090000",
+                "https://www.potionsandsnitches.org/fanfiction/viewstory.php?sid=9001",
+                "https://www.twilighted.net/viewstory.php?sid=42",
+            ]
+        finally:
+            db.users.delete_many({"user_id": uid})
+            db.user_sessions.delete_many({"user_id": uid})
+            db.books.delete_many({"user_id": uid})
+
