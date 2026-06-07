@@ -7,6 +7,7 @@ import UpdatesBell from "./UpdatesBell";
 import StreakBadge from "./StreakBadge";
 import DownloadZipButton from "./DownloadZipButton";
 import NavbarQuickAdd from "./NavbarQuickAdd";
+import { FETCHING_UI_ENABLED } from "../lib/featureFlags";
 
 export default function Navbar() {
   const { user, logout } = useAuth();
@@ -21,7 +22,7 @@ export default function Navbar() {
           <span className="font-serif text-2xl font-medium">Shelfsort</span>
         </Link>
 
-        {user && <NavbarQuickAdd />}
+        {user && FETCHING_UI_ENABLED && <NavbarQuickAdd />}
 
         <div className="flex items-center gap-2 md:gap-3">
           <button
@@ -36,7 +37,7 @@ export default function Navbar() {
               : <Moon className="w-4 h-4 text-[#6B705C]" />}
           </button>
           {user && <StreakBadge />}
-          {user && <UpdatesBell />}
+          {user && FETCHING_UI_ENABLED && <UpdatesBell />}
           {user && (
             <Link
               to="/library/smart-shelves"

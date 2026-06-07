@@ -14,6 +14,7 @@ import DuplicateResolutionModal from "../components/DuplicateResolutionModal";
 import UrlListDedupeModal from "../components/UrlListDedupeModal";
 import { Search, X, Plus, ArrowRight, CheckSquare, Sparkles, Loader2, RefreshCw, Library, UserCircle2, Filter, Pin, FolderOpen, ArrowUpDown, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { FETCHING_UI_ENABLED } from "../lib/featureFlags";
 
 const DEFAULT_CATEGORIES = ["All", "Fanfiction", "Original Fiction", "Non-fiction", "Unclassified", "Updated stories", "Old stories"];
 
@@ -544,7 +545,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        {refreshStatus.refreshable > 0 && (
+        {refreshStatus.refreshable > 0 && FETCHING_UI_ENABLED && (
           <div
             data-testid="refresh-all-banner"
             className="mb-8 shelf-card p-5 flex flex-wrap items-center justify-between gap-4 bg-gradient-to-r from-[#E5EBE6] to-white border-[#3A5A40]/30"
@@ -595,7 +596,7 @@ export default function Dashboard() {
             <h2 className="font-serif text-2xl text-[#2C2C2C] mb-2">No books just yet</h2>
             <p className="text-[#6B705C]">Drop a few EPUBs above to start sorting your library.</p>
             <div className="mt-6 flex justify-center">
-              <PoweredByFanFicFare />
+              {FETCHING_UI_ENABLED && <PoweredByFanFicFare />}
             </div>
           </div>
         ) : (

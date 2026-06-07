@@ -6,6 +6,7 @@ import { ArrowLeft, Loader2, Download, Link as LinkIcon, CheckCircle2, AlertCirc
 import { toast } from "sonner";
 import HelpHint from "../components/HelpHint";
 import UploadZone from "../components/UploadZone";
+import { FETCHING_UI_ENABLED } from "../lib/featureFlags";
 
 // Mirror of the backend's fanfic-permalink detection. Keep narrow — these are
 // the URL forms we actually know how to fetch. Used to give a one-click
@@ -54,7 +55,7 @@ export default function FilterUrlList() {
   // path that skips the dedupe/Excel detour: "looks like a fanfic URL — want
   // me to fetch it as an EPUB?" → pull straight into the library.
   const inlineFics = useMemo(() => findFanficUrls(text), [text]);
-  const showInlinePrompt = !report && inlineFics.length > 0 && inlineFics.length <= 5;
+  const showInlinePrompt = FETCHING_UI_ENABLED && !report && inlineFics.length > 0 && inlineFics.length <= 5;
 
   // One-click "fetch as EPUB" — bypasses the Filter URLs / Pull two-step.
   const fetchAsEpub = async () => {
@@ -486,16 +487,18 @@ export default function FilterUrlList() {
             )}
 
             <div className="flex justify-end gap-2 mt-4 flex-wrap">
-              <button
-                data-testid="url-list-pull"
-                onClick={pullIntoLibrary}
-                disabled={pulling || report.new_urls.length === 0}
-                className="px-5 py-2 rounded-lg text-sm font-medium bg-[#3A5A40] text-white hover:bg-[#2f4933] disabled:opacity-60 inline-flex items-center gap-2"
-                title={report.new_urls.length === 0 ? "Nothing new to pull — all URLs are already owned or unrecognized." : "Fetch every new URL into your library, one at a time"}
-              >
-                {pulling ? <Loader2 className="w-4 h-4 animate-spin" /> : <DownloadCloud className="w-4 h-4" />}
-                Pull {report.new_urls.length} new {report.new_urls.length === 1 ? "URL" : "URLs"} into library
-              </button>
+              {FETCHING_UI_ENABLED && (
+                <button
+                  data-testid="url-list-pull"
+                  onClick={pullIntoLibrary}
+                  disabled={pulling || report.new_urls.length === 0}
+                  className="px-5 py-2 rounded-lg text-sm font-medium bg-[#3A5A40] text-white hover:bg-[#2f4933] disabled:opacity-60 inline-flex items-center gap-2"
+                  title={report.new_urls.length === 0 ? "Nothing new to pull — all URLs are already owned or unrecognized." : "Fetch every new URL into your library, one at a time"}
+                >
+                  {pulling ? <Loader2 className="w-4 h-4 animate-spin" /> : <DownloadCloud className="w-4 h-4" />}
+                  Pull {report.new_urls.length} new {report.new_urls.length === 1 ? "URL" : "URLs"} into library
+                </button>
+              )}
               <button
                 data-testid="url-list-download"
                 onClick={exportXlsx}
@@ -507,7 +510,7 @@ export default function FilterUrlList() {
               </button>
             </div>
 
-            {pullReport && (
+            {FETCHING_UI_ENABLED && pullReport && (
               <div className="mt-4 p-4 rounded-lg bg-[#E5EBE6] border border-[#3A5A40]/20" data-testid="pull-result">
                 <p className="font-medium text-[#3A5A40] mb-2">
                   Pull complete · <strong>{pullReport.added?.length || 0}</strong> added

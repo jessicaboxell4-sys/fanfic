@@ -6,6 +6,7 @@ import { Toaster } from "sonner";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import UrlPasteDetector from "@/components/UrlPasteDetector";
+import { FETCHING_UI_ENABLED } from "@/lib/featureFlags";
 import Landing from "@/pages/Landing";
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
@@ -96,7 +97,7 @@ function App() {
       <BrowserRouter>
         <ThemeProvider>
           <AuthProvider>
-            <UrlPasteDetector />
+            {FETCHING_UI_ENABLED && <UrlPasteDetector />}
             <AppRouter />
             <Toaster position="top-center" richColors />
           </AuthProvider>

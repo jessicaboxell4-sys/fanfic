@@ -732,3 +732,19 @@
 - Calls `/api/books/url-list/pull` with the single URL → success toast names the book (`Added "Title" · Fandom to your library.`) with an "Open library" action button.
 - `UrlPasteDetector` now skips when the paste event target is an `input` / `textarea` / `[contenteditable]` — so pasting into the navbar slot (or any form field) lets the field handle it without a competing global toast.
 - Three consistent entry points for adding a fic by URL: (1) anywhere on the page → global paste toast, (2) navbar slot → always-visible explicit input, (3) FilterUrlList page → batch dedupe-and-pull. All three call the same serial `/books/url-list/pull` endpoint, so behavior is identical (FFF first, FicHub fallback if user opted in, polite 2s gap between fetches).
+
+### Hidden 2026-06-07 (URL→EPUB fetching UI gated behind feature flag)
+- New `/app/frontend/src/lib/featureFlags.js` exports a single `FETCHING_UI_ENABLED = false` constant. All URL→EPUB fetching surfaces check this flag and conditionally render. Backend code and routes are untouched — `/api/books/url-list/pull`, `/api/books/refresh-all`, `/api/books/{id}/refresh`, `fanfic_fetch_epub`, `fetch_fanfic_with_fallback`, `/api/user/fff-options`, the FicHub client, the scheduler refresh job, and every related test still work as before. Flipping the flag back to `true` re-enables everything in one line.
+- Hidden UI surfaces:
+  - Navbar **Quick-add URL slot** (`NavbarQuickAdd`)
+  - Navbar **Updates bell** (`UpdatesBell` — driven by refresh notifications)
+  - Site-wide **global paste detector** (`UrlPasteDetector`)
+  - Dashboard **"Refresh all from source" banner** with the green Update button
+  - Dashboard empty-state **"Powered by FanFicFare"** badge
+  - BookDetail **"Update from FanFicFare" / "Try FanFicFare again"** button
+  - FilterUrlList **inline "want EPUB?" prompt** (the green sage one above the Filter URLs button)
+  - FilterUrlList **"Pull N URLs into library"** button + result panel
+  - Account **"Fanfic download options"** card (full section incl. FicHub fallback toggle)
+- Kept visible (no fetching required):
+  - FilterUrlList URL dedupe flow + Excel export — these just sort URLs into "owned vs new", no source-site hits
+  - Every EPUB upload, classification, shelf, treemap, theme, originals, trash, smart-shelves feature

@@ -6,6 +6,7 @@ import { useAuth } from "../context/AuthContext";
 import { User as UserIcon, Mail, Lock, Loader2, Mail as MailIcon, Settings2, AlertTriangle, Layers, Plus, X as XIcon } from "lucide-react";
 import LibraryStatsCard from "../components/LibraryStatsCard";
 import FandomTreemap from "../components/FandomTreemap";
+import { FETCHING_UI_ENABLED } from "../lib/featureFlags";
 import { toast } from "sonner";
 
 function errMsg(d) {
@@ -452,6 +453,7 @@ export default function Account() {
         </section>
 
         {/* FanFicFare options */}
+        {FETCHING_UI_ENABLED && (
         <section className="shelf-card p-6 mb-6" data-testid="fff-options-card">
           <div className="flex items-start gap-3 mb-1">
             <div className="w-10 h-10 rounded-xl bg-[#EEF3EC] text-[#3A5A40] flex items-center justify-center flex-shrink-0">
@@ -571,6 +573,7 @@ export default function Account() {
             </div>
           )}
         </section>
+        )}
 
         {/* Password */}
         <section className="shelf-card p-6">

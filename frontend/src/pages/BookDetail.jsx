@@ -6,6 +6,7 @@ import TagInput from "../components/TagInput";
 import ReadingStatsCard from "../components/ReadingStatsCard";
 import { ArrowLeft, Download, Trash2, Sparkles, Book, Edit3, Link as LinkIcon, BookOpen, RefreshCw, Tag as TagIcon, Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
+import { FETCHING_UI_ENABLED } from "../lib/featureFlags";
 
 const DEFAULT_CATEGORIES = ["Fanfiction", "Original Fiction", "Non-fiction", "Unclassified", "Updated stories", "Old stories"];
 
@@ -495,7 +496,7 @@ export default function BookDetail() {
                   <Sparkles className="w-4 h-4" />
                   {reclassifying ? "Asking AI…" : "Reclassify with AI"}
                 </button>
-                {book.source_url && (
+                {book.source_url && FETCHING_UI_ENABLED && (
                   <button
                     data-testid="refresh-btn"
                     onClick={refreshFromSource}
