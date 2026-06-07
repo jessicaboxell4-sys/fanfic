@@ -5284,6 +5284,55 @@ async def list_crossovers_for_fandom(name: str, user: User = Depends(get_current
     return {"target": target, "crossovers": out}
 
 
+@api_router.get("/fandoms/grouped")
+async def get_fandoms_grouped(user: User = Depends(get_current_user)):
+    """Return the user's fandoms rolled up by franchise.
+
+    For each franchise that has at least one matching fandom in the user's
+    library we emit a parent row with `children: [{name, count}]`. Fandoms
+    that don't belong to any franchise group are emitted as leaf rows at
+    the top level. The frontend's "Group by franchise" treemap mode
+    renders this directly with recharts' nested layout.
+    """
+    from data.fandom_franchises import FRANCHISE_GROUPS, franchise_for  # noqa: WPS433
+
+    pipeline = [
+        {"$match": {"user_id": user.user_id, "category": {"$ne": TRASH_SHELF}}},
+        {"$group": {"_id": "$fandom", "count": {"$sum": 1}}},
+        {"$match": {"_id": {"$ne": None, "$ne": ""}}},
+    ]
+    rows = await db.books.aggregate(pipeline).to_list(5000)
+
+    # Bucket each fandom under its franchise, or keep standalone.
+    franchise_buckets: Dict[str, List[Dict[str, Any]]] = {}
+    standalone: List[Dict[str, Any]] = []
+    for r in rows:
+        nm = r["_id"]
+        parent = franchise_for(nm)
+        if parent and parent != nm:
+            franchise_buckets.setdefault(parent, []).append({"name": nm, "count": r["count"]})
+        else:
+            standalone.append({"name": nm, "count": r["count"]})
+
+    out: List[Dict[str, Any]] = []
+    for franchise, members in franchise_buckets.items():
+        # Single-member buckets aren't really "groups" — bubble the member
+        # back up to the top level so the treemap doesn't waste a parent
+        # cell on it.
+        if len(members) == 1:
+            out.append(members[0])
+            continue
+        members.sort(key=lambda m: m["count"], reverse=True)
+        out.append({
+            "name": franchise,
+            "count": sum(m["count"] for m in members),
+            "children": members,
+        })
+    out.extend(standalone)
+    out.sort(key=lambda r: r["count"], reverse=True)
+    return {"fandoms": out, "franchise_count": sum(1 for r in out if r.get("children"))}
+
+
 
 @api_router.get("/user/fandom-aliases")
 async def get_fandom_aliases(user: User = Depends(get_current_user)):

@@ -3001,3 +3001,89 @@ class TestAo3TopFandomsSeed:
             assert r["fandom"] == expected, f"expected {expected!r}, got {r['fandom']!r} for desc={desc!r}"
 
         assert r["fandom"] not in {"Stargate SG-1", "Stargate Atlantis", "Stargate Universe", "Stargate (Movies)"}
+
+
+# ---------------------------------------------------------------------------
+# FRANCHISE GROUPING — /api/fandoms/grouped
+# ---------------------------------------------------------------------------
+class TestFandomFranchiseGrouping:
+    """Sub-fandoms (Stargate SG-1/Atlantis/Universe/Movies, MCU/Cap/Iron Man,
+    etc.) should roll up under a parent franchise on `/api/fandoms/grouped`.
+    Standalone fandoms with no franchise group should pass through unchanged.
+    Single-member buckets should be flattened — no parent cell for a
+    franchise that only has one matching fandom in the user's library."""
+
+    @pytest.fixture(scope="class")
+    def franchise_user(self):
+        uid = f"user_fr_{uuid.uuid4().hex[:8]}"
+        tok = f"sess_fr_{uuid.uuid4().hex}"
+        db.users.insert_one({"user_id": uid, "email": f"{uid}@x.com", "name": "FR", "picture": "", "created_at": datetime.now(timezone.utc).isoformat()})
+        db.user_sessions.insert_one({"user_id": uid, "session_token": tok, "expires_at": datetime.now(timezone.utc) + timedelta(days=7), "created_at": datetime.now(timezone.utc)})
+        # Seed: Stargate sub-fandoms (group), MCU + Avengers (group), HP (standalone)
+        seeds = [
+            ("Stargate SG-1", 5),
+            ("Stargate Atlantis", 4),
+            ("Stargate Universe", 1),
+            ("Marvel Cinematic Universe", 8),
+            ("The Avengers (Marvel Movies)", 3),
+            ("Harry Potter", 12),
+            ("Sherlock (TV)", 2),  # solo without Sherlock Holmes seed → flatten
+        ]
+        for fandom, n in seeds:
+            for _i in range(n):
+                db.books.insert_one({
+                    "book_id": f"bk_fr_{uuid.uuid4().hex[:6]}",
+                    "user_id": uid, "title": "T", "author": "A",
+                    "category": "Fanfiction", "fandom": fandom,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                })
+        yield uid, tok
+        db.users.delete_many({"user_id": uid})
+        db.user_sessions.delete_many({"user_id": uid})
+        db.books.delete_many({"user_id": uid})
+
+    def test_grouped_endpoint_returns_franchise_parents(self, franchise_user):
+        uid, tok = franchise_user
+        r = requests.get(f"{BASE}/api/fandoms/grouped", headers={"Authorization": f"Bearer {tok}"})
+        assert r.status_code == 200, r.text
+        data = r.json()
+        rows = {row["name"]: row for row in data["fandoms"]}
+        # Stargate has 3 sub-fandoms in the seed → grouped under "Stargate"
+        assert "Stargate" in rows
+        sg = rows["Stargate"]
+        assert sg["count"] == 5 + 4 + 1
+        assert sg.get("children") is not None
+        child_names = {c["name"] for c in sg["children"]}
+        assert child_names == {"Stargate SG-1", "Stargate Atlantis", "Stargate Universe"}
+        # Marvel has 2 members → grouped under "Marvel"
+        assert "Marvel" in rows
+        marvel = rows["Marvel"]
+        assert marvel["count"] == 8 + 3
+        assert {c["name"] for c in marvel["children"]} == {"Marvel Cinematic Universe", "The Avengers (Marvel Movies)"}
+        # Sherlock (TV) is in the "Sherlock Holmes" franchise group BUT the
+        # seed didn't add the other member, so the single member is flattened
+        # — should appear standalone, not under "Sherlock Holmes".
+        assert "Sherlock (TV)" in rows
+        assert "Sherlock Holmes" not in rows
+        assert rows["Sherlock (TV)"].get("children") is None
+        # Harry Potter has no franchise group → standalone
+        assert "Harry Potter" in rows
+        assert rows["Harry Potter"]["count"] == 12
+        assert rows["Harry Potter"].get("children") is None
+        # franchise_count counts only multi-member groups
+        assert data["franchise_count"] == 2
+
+    def test_grouped_rows_sorted_by_total_count(self, franchise_user):
+        uid, tok = franchise_user
+        r = requests.get(f"{BASE}/api/fandoms/grouped", headers={"Authorization": f"Bearer {tok}"})
+        rows = r.json()["fandoms"]
+        counts = [row["count"] for row in rows]
+        assert counts == sorted(counts, reverse=True), counts
+
+    def test_franchise_for_helper(self):
+        from data.fandom_franchises import franchise_for
+        assert franchise_for("Stargate Atlantis") == "Stargate"
+        assert franchise_for("Marvel Cinematic Universe") == "Marvel"
+        assert franchise_for("Harry Potter") == "Harry Potter"  # passthrough
+        assert franchise_for("") == ""
+

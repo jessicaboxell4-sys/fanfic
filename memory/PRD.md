@@ -645,3 +645,30 @@
 - **Tooltip**: hover any cell → "Fandom · N books · X.X%".
 - **Empty state**: friendly "Upload a few books and your fandom distribution will appear here" copy.
 - Mounted on Account page directly under the existing `LibraryStatsCard`. Tested with 74 books across 13 fandoms (Harry Potter, Stargate Atlantis, MCU, Avatar TLA, MDZS, Sherlock BBC, Merlin, Six of Crows, Bridgerton, Good Omens, etc.) — CJK canonical names like `魔道祖师 - 墨香铜臭` render correctly.
+
+### Added 2026-06-07 (Treemap franchise grouping toggle)
+- New `/app/backend/data/fandom_franchises.py` defines 18 franchise groupings rolling up related sub-fandoms:
+  - **Stargate** (SG-1, Atlantis, Universe, Movies)
+  - **Marvel** (umbrella, MCU, Avengers, Cap, Iron Man, Thor, Spider-Man Holland, Daredevil, X-Men comicverse)
+  - **DC** (Comics umbrella, DCU Movies, DCU Comics, Batman, Young Justice)
+  - **Star Wars** (umbrella, All Media Types, Clone Wars, Sequel Trilogy)
+  - **Middle-earth** (LotR, LotR Movies, Hobbit)
+  - **Star Trek** (AOS, TOS, TNG, DS9, Voyager)
+  - **Avatar (Bryke)** (ATLA, Korra)
+  - **Final Fantasy** (VII, XIV, XV)
+  - **Persona** (5, series umbrella)
+  - **Fire Emblem** (Three Houses, series umbrella)
+  - **Dragon Age** (umbrella, Inquisition)
+  - **The Witcher** (Sapkowski books, Netflix TV)
+  - **Legend of Zelda** (All Media Types, BotW)
+  - **Sherlock Holmes** (canon books, BBC Sherlock TV)
+  - **Mo Xiang Tong Xiu** (MDZS, TGCF, The Untamed live action)
+  - **Sarah J. Maas** (ACoTaR, ToG)
+  - **Sanderson Cosmere** (Mistborn, Stormlight)
+  - **Honkai / miHoYo Games** (Genshin Impact, Star Rail)
+- Helper `franchise_for(fandom)` returns the franchise label or the fandom itself.
+- New endpoint `GET /api/fandoms/grouped` returns rolled-up data with nested `children: [{name, count}]` arrays. **Single-member buckets flatten back to top level** — no parent cell for a franchise with only one member in the user's library.
+- `FandomTreemap.jsx` toggle: "Franchises" (default) vs "All fandoms". Recharts nested treemap renders children inside parent cells with secondary stroke opacity.
+- Header copy updates dynamically: *"…across 91 books, grouped into 5 franchises."*
+- Removed duplicate `Hannibal NBC` entry from `ao3_top_fandoms.py` (merged into `Hannibal (TV)`).
+- Tests: 3 new in `TestFandomFranchiseGrouping` (grouped endpoint returns franchise parents with correct children; rows sorted by total; `franchise_for` helper correctness). 11/11 passing.
