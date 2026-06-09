@@ -3380,3 +3380,168 @@ class TestLinklessLibrary:
         assert "ll_d" not in ids
         assert "ll_e" not in ids
 
+
+
+# ---------------------------------------------------------------------------
+# UNREADABLE FILES — books we couldn't parse / convert at upload time
+# ---------------------------------------------------------------------------
+class TestUnreadableLibrary:
+    """`/api/library/unreadable` returns books flagged as either
+    `epub_unreadable=True` (corrupt EPUB) or `needs_conversion=True`
+    (Calibre conversion failed). Trashed books are excluded.
+
+    Also covers:
+    * `/api/books/{id}/download-original` serves the source file
+    * existing `/api/books/{id}` delete cleans up both the DB row and disk.
+    """
+
+    @pytest.fixture(scope="class")
+    def unreadable_user(self, tmp_path_factory):
+        from pathlib import Path
+        from deps import STORAGE_DIR
+
+        uid = f"user_ur_{uuid.uuid4().hex[:8]}"
+        tok = f"sess_ur_{uuid.uuid4().hex}"
+        now = datetime.now(timezone.utc).isoformat()
+        db.users.insert_one({
+            "user_id": uid, "email": f"{uid}@x.com", "name": "UR",
+            "picture": "", "created_at": now,
+        })
+        db.user_sessions.insert_one({
+            "user_id": uid, "session_token": tok,
+            "expires_at": datetime.now(timezone.utc) + timedelta(days=7),
+            "created_at": datetime.now(timezone.utc),
+        })
+
+        # Write fixture files on disk so download endpoints have something
+        # to serve. The route reads from `STORAGE_DIR/{user_id}/`.
+        user_dir = Path(STORAGE_DIR) / uid
+        user_dir.mkdir(parents=True, exist_ok=True)
+        (user_dir / "ur_a.epub").write_bytes(b"PK\x03\x04 corrupt-epub-bytes")
+        (user_dir / "ur_b.pdf").write_bytes(b"%PDF-1.4 broken-pdf-bytes")
+
+        seeds = [
+            # a) Corrupt EPUB — bytes saved as .epub, flagged unreadable.
+            {
+                "book_id": "ur_a", "title": "Broken Saga",
+                "category": "Can't Open", "epub_unreadable": True,
+                "epub_parse_error": "Bad zip header at offset 0",
+                "original_format": "epub", "size_bytes": 19,
+            },
+            # b) Failed PDF conversion — bytes saved as .pdf.
+            {
+                "book_id": "ur_b", "title": "Memoir 1923",
+                "category": "Needs conversion", "needs_conversion": True,
+                "conversion_error": "ebook-convert returned 1: not a valid PDF",
+                "original_format": "pdf", "size_bytes": 22,
+            },
+            # c) Healthy book — must NOT show up.
+            {
+                "book_id": "ur_c", "title": "Healthy",
+                "category": "Fanfiction", "original_format": "epub",
+            },
+            # d) Trashed unreadable — must NOT show up.
+            {
+                "book_id": "ur_d", "title": "Trashed broken",
+                "category": "Trash", "epub_unreadable": True,
+            },
+        ]
+        for s in seeds:
+            db.books.insert_one({**s, "user_id": uid, "author": "X", "created_at": now})
+
+        yield uid, tok
+
+        db.users.delete_many({"user_id": uid})
+        db.user_sessions.delete_many({"user_id": uid})
+        db.books.delete_many({"user_id": uid})
+        for f in user_dir.glob("*"):
+            try: f.unlink()
+            except Exception: pass
+        try: user_dir.rmdir()
+        except Exception: pass
+
+    def test_lists_corrupt_and_failed_conversion(self, unreadable_user):
+        uid, tok = unreadable_user
+        r = requests.get(f"{BASE}/api/library/unreadable",
+                         headers={"Authorization": f"Bearer {tok}"})
+        assert r.status_code == 200, r.text
+        data = r.json()
+        ids = sorted(b["book_id"] for b in data["books"])
+        assert ids == ["ur_a", "ur_b"], f"got {ids}"
+        assert data["count"] == 2
+        assert data["by_reason"] == {"corrupt_epub": 1, "failed_conversion": 1}
+
+    def test_reason_and_download_path_per_book(self, unreadable_user):
+        uid, tok = unreadable_user
+        r = requests.get(f"{BASE}/api/library/unreadable",
+                         headers={"Authorization": f"Bearer {tok}"})
+        by_id = {b["book_id"]: b for b in r.json()["books"]}
+        a = by_id["ur_a"]
+        assert a["reason"] == "corrupt_epub"
+        assert "Bad zip header" in a["error"]
+        assert a["download_path"] == "/books/ur_a/download"
+        b = by_id["ur_b"]
+        assert b["reason"] == "failed_conversion"
+        assert "not a valid PDF" in b["error"]
+        assert b["download_path"] == "/books/ur_b/download-original"
+        assert b["original_format"] == "pdf"
+
+    def test_excludes_healthy_and_trashed(self, unreadable_user):
+        uid, tok = unreadable_user
+        r = requests.get(f"{BASE}/api/library/unreadable",
+                         headers={"Authorization": f"Bearer {tok}"})
+        ids = {b["book_id"] for b in r.json()["books"]}
+        assert "ur_c" not in ids, "healthy book leaked into Unreadable shelf"
+        assert "ur_d" not in ids, "trashed book leaked into Unreadable shelf"
+
+    def test_download_original_serves_pdf_bytes(self, unreadable_user):
+        uid, tok = unreadable_user
+        r = requests.get(
+            f"{BASE}/api/books/ur_b/download-original",
+            headers={"Authorization": f"Bearer {tok}"},
+        )
+        assert r.status_code == 200, r.text
+        assert r.content.startswith(b"%PDF")
+        # Filename is built from title_by_author-<id>.<ext>
+        cd = r.headers.get("content-disposition", "")
+        assert ".pdf" in cd, cd
+
+    def test_download_original_404_when_no_file(self, unreadable_user):
+        uid, tok = unreadable_user
+        # Healthy EPUB book has no .pdf on disk → 404.
+        r = requests.get(
+            f"{BASE}/api/books/ur_c/download-original",
+            headers={"Authorization": f"Bearer {tok}"},
+        )
+        # The book exists but the source file doesn't.
+        assert r.status_code == 404
+
+    def test_delete_removes_from_unreadable_and_disk(self, unreadable_user, tmp_path_factory):
+        from pathlib import Path
+        from deps import STORAGE_DIR
+
+        uid, tok = unreadable_user
+        user_dir = Path(STORAGE_DIR) / uid
+        # Seed one more so the class-scope fixture stays clean.
+        extra_id = f"ur_del_{uuid.uuid4().hex[:6]}"
+        (user_dir / f"{extra_id}.epub").write_bytes(b"PK corrupt")
+        db.books.insert_one({
+            "book_id": extra_id, "user_id": uid, "title": "Will be deleted",
+            "author": "X", "category": "Can't Open", "epub_unreadable": True,
+            "epub_parse_error": "broken", "original_format": "epub",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+        # It should appear in the list first.
+        r1 = requests.get(f"{BASE}/api/library/unreadable",
+                          headers={"Authorization": f"Bearer {tok}"})
+        assert extra_id in {b["book_id"] for b in r1.json()["books"]}
+        # Delete it.
+        r2 = requests.delete(f"{BASE}/api/books/{extra_id}",
+                             headers={"Authorization": f"Bearer {tok}"})
+        assert r2.status_code == 200, r2.text
+        # And the file on disk is gone.
+        assert not (user_dir / f"{extra_id}.epub").exists()
+        # And it's no longer in the list.
+        r3 = requests.get(f"{BASE}/api/library/unreadable",
+                          headers={"Authorization": f"Bearer {tok}"})
+        assert extra_id not in {b["book_id"] for b in r3.json()["books"]}

@@ -25,6 +25,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ total: 0, categories: [], fandoms: [], relationships: [] });
   const [linklessCount, setLinklessCount] = useState(0);
+  const [unreadableCount, setUnreadableCount] = useState(0);
   const [category, setCategory] = useState("All");
   const [fandom, setFandom] = useState(null);
   const [relationship, setRelationship] = useState(null);
@@ -115,6 +116,10 @@ export default function Dashboard() {
       try {
         const ll = await api.get("/library/linkless");
         setLinklessCount(ll.data?.count || 0);
+      } catch (e) { /* ignore — non-blocking */ }
+      try {
+        const ur = await api.get("/library/unreadable");
+        setUnreadableCount(ur.data?.count || 0);
       } catch (e) { /* ignore — non-blocking */ }
       try {
         const rc = await api.get("/books/recent", { params: { limit: 8 } });
@@ -873,6 +878,21 @@ export default function Dashboard() {
                   title="Books with no embedded source URL"
                 >
                   {linklessCount} linkless book{linklessCount === 1 ? "" : "s"} · open browser
+                  <ArrowRight className="w-3 h-3" />
+                </button>
+              </div>
+            )}
+
+            {unreadableCount > 0 && (
+              <div className="mb-4">
+                <button
+                  onClick={() => navigate("/library/unreadable")}
+                  data-testid="dashboard-unreadable-chip"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-[#FDECE6] text-[#E07A5F] border border-[#E07A5F]/40 hover:bg-[#E07A5F] hover:text-white transition-colors"
+                  title="Files we couldn't parse at upload time"
+                >
+                  <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1 rounded-full bg-[#E07A5F] text-white text-[10px] font-bold leading-none">!</span>
+                  {unreadableCount} unreadable file{unreadableCount === 1 ? "" : "s"} · open browser
                   <ArrowRight className="w-3 h-3" />
                 </button>
               </div>

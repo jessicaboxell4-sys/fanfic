@@ -782,3 +782,13 @@
 - `utils/epub_io.py` — `extract_epub_metadata`, `extract_urls_from_epub`, `format_links_txt`, `_normalize_chapter_title`, `extract_chapters`, `diff_chapters` (~250 lines).
 - `utils/tag_utils.py` — `_normalize_tag`, `_normalize_tags`, `_normalize_title_for_match` (~40 lines).
 - After helpers are out, split the routes themselves into sub-routers: `upload.py`, `library.py`, `duplicates.py`, `export.py`, `originals.py`, `url_list.py`.
+
+### Added 2026-06-09 (Unreadable Files shelf)
+- **Feature**: When EPUBs are corrupt or PDFs/Kindle/DOCX can't be converted by Calibre at upload time, books are filed under a new **Unreadable Files** shelf. The original bytes are preserved on disk (user choice 4b) so users can download the source, inspect it locally, and either re-upload a fixed version or delete it. Detection happens only at upload time (5b) — existing books aren't re-checked.
+- **Backend**: `GET /api/library/unreadable` lists every active book where `epub_unreadable=true` OR `needs_conversion=true` (trash excluded). Returns `{books, count, by_reason}` where reason ∈ {`corrupt_epub`, `failed_conversion`}, plus the precise parser/converter error text (truncated to 240 chars) and the right `download_path` per row.
+- **Backend**: new `GET /api/books/{book_id}/download-original` endpoint that serves the user's pre-conversion source file (PDF/Kindle/DOCX bytes that never made it to EPUB). Works as a fallback for any Originals book too — scans the user's storage dir for `{book_id}.*` if `original_format` is missing.
+- **Frontend**: new `/app/frontend/src/pages/UnreadableShelf.jsx` with reason-filter chips, search by title/author/filename, per-row Download + Delete actions, and inline error text styled in the AO3 red palette. Mirror of LinklessShelf layout.
+- **Frontend**: Dashboard now displays a `dashboard-unreadable-chip` (orange/red palette to differentiate from the green linkless chip) when `unreadableCount > 0`. Lives outside the fandoms block so it shows even for users with no detected fandoms.
+- **Route**: `/library/unreadable` registered in `App.js`, protected.
+- **Tests**: 6 new tests in `TestUnreadableLibrary` cover the list endpoint (corrupt + conversion failure), reason field + download_path mapping, exclusion of healthy/trashed books, the new download-original endpoint (PDF bytes + 404 fallback), and delete propagation. **Backend test totals: 218 passing.**
+- **Known cosmetic lint warning**: `react-hooks/set-state-in-effect` on Dashboard.jsx (rule isn't in the project's installed eslint-plugin-react-hooks 5.2.0; only present in the mcp lint tool's bundled config). Build + runtime are fine.

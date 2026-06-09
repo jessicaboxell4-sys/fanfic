@@ -33,6 +33,7 @@ import FilterUrlList from "@/pages/FilterUrlList";
 import DownloadPage from "@/pages/DownloadPage";
 import CrossoverShelf from "@/pages/CrossoverShelf";
 import LinklessShelf from "@/pages/LinklessShelf";
+import UnreadableShelf from "@/pages/UnreadableShelf";
 import OriginalsShelf from "@/pages/OriginalsShelf";
 import Help from "@/pages/Help";
 import AuthCallback from "@/pages/AuthCallback";
@@ -83,6 +84,7 @@ function AppRouter() {
       <Route path="/library/download" element={<ProtectedRoute><DownloadPage /></ProtectedRoute>} />
       <Route path="/library/crossovers" element={<ProtectedRoute><CrossoverShelf /></ProtectedRoute>} />
       <Route path="/library/linkless" element={<ProtectedRoute><LinklessShelf /></ProtectedRoute>} />
+      <Route path="/library/unreadable" element={<ProtectedRoute><UnreadableShelf /></ProtectedRoute>} />
       <Route path="/library/originals" element={<ProtectedRoute><OriginalsShelf /></ProtectedRoute>} />
       <Route path="/help" element={<ProtectedRoute><Help /></ProtectedRoute>} />
       <Route path="/book/:id" element={<ProtectedRoute><BookDetail /></ProtectedRoute>} />

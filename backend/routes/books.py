@@ -5171,6 +5171,115 @@ async def get_linkless_library(user: User = Depends(get_current_user)):
     }
 
 
+@api_router.get("/library/unreadable")
+async def get_unreadable_library(user: User = Depends(get_current_user)):
+    """Return every active book that couldn't be parsed at upload time.
+
+    Two flavors land here, both already filed by the upload pipeline:
+      * `epub_unreadable=True` — EPUB zip is corrupt / can't be opened
+        by ebooklib. The bytes are still on disk at `{book_id}.epub`.
+      * `needs_conversion=True` — non-EPUB source (PDF/Kindle/DOCX/…)
+        that Calibre's `ebook-convert` couldn't process. The original
+        bytes are kept on disk at `{book_id}.{original_format}`.
+
+    Per-book the response includes the `reason` (`corrupt_epub` or
+    `failed_conversion`), the underlying parser/converter error text, and
+    the `download_path` the frontend should hit — either the standard
+    `/api/books/{id}/download` for corrupt EPUBs, or
+    `/api/books/{id}/download-original` for failed conversions.
+    """
+    query = {
+        "user_id": user.user_id,
+        "category": {"$ne": TRASH_SHELF},
+        "$or": [
+            {"epub_unreadable": True},
+            {"needs_conversion": True},
+        ],
+    }
+    cursor = db.books.find(
+        query,
+        {
+            "_id": 0, "book_id": 1, "title": 1, "author": 1, "filename": 1,
+            "category": 1, "size_bytes": 1, "created_at": 1,
+            "original_format": 1, "epub_unreadable": 1, "epub_parse_error": 1,
+            "needs_conversion": 1, "conversion_error": 1,
+        },
+    ).sort("created_at", -1)
+    raw = await cursor.to_list(5000)
+
+    books: List[Dict[str, Any]] = []
+    by_reason: Dict[str, int] = {"corrupt_epub": 0, "failed_conversion": 0}
+    for b in raw:
+        if b.get("epub_unreadable"):
+            reason = "corrupt_epub"
+            error = b.get("epub_parse_error") or "EPUB could not be opened."
+            download_path = f"/books/{b['book_id']}/download"
+        else:
+            reason = "failed_conversion"
+            error = b.get("conversion_error") or "Conversion to EPUB failed."
+            download_path = f"/books/{b['book_id']}/download-original"
+        by_reason[reason] += 1
+        books.append({
+            "book_id": b["book_id"],
+            "title": b.get("title") or b.get("filename") or "Untitled",
+            "author": b.get("author") or "Unknown",
+            "filename": b.get("filename"),
+            "original_format": b.get("original_format") or "epub",
+            "size_bytes": b.get("size_bytes") or 0,
+            "created_at": b.get("created_at"),
+            "category": b.get("category"),
+            "reason": reason,
+            "error": (error or "")[:240],
+            "download_path": download_path,
+        })
+    return {
+        "books": books,
+        "count": len(books),
+        "by_reason": by_reason,
+    }
+
+
+@api_router.get("/books/{book_id}/download-original")
+async def download_original_file(book_id: str, user: User = Depends(get_current_user)):
+    """Serve the user's original (pre-conversion) source file.
+
+    Used by the Unreadable shelf when an upload was a PDF/Kindle/DOCX that
+    Calibre couldn't convert — the EPUB target was never written, but the
+    original bytes still live at `{book_id}.{original_format}`. Falls back
+    to whichever `.{format}` file actually exists on disk so this also
+    works for an `Originals` book the user wants the source for.
+    """
+    book = await db.books.find_one(
+        {"book_id": book_id, "user_id": user.user_id},
+        {"_id": 0, "book_id": 1, "title": 1, "author": 1,
+         "original_format": 1, "filename": 1},
+    )
+    if not book:
+        raise HTTPException(status_code=404, detail="Not found")
+    ext = (book.get("original_format") or "").lstrip(".")
+    user_dir = STORAGE_DIR / user.user_id
+    candidate = user_dir / f"{book_id}.{ext}" if ext else None
+    fp = None
+    if candidate and candidate.exists():
+        fp = candidate
+    else:
+        # Last-ditch fallback: scan the user dir for any file starting with
+        # the book id. Covers the case where `original_format` was lost or
+        # stored without an extension.
+        for p in user_dir.glob(f"{book_id}.*"):
+            if p.suffix.lower() not in (".cover", ".links.txt"):
+                fp = p
+                ext = p.suffix.lstrip(".")
+                break
+    if not fp or not fp.exists():
+        raise HTTPException(status_code=404, detail="Original file missing on disk")
+    download_name = _templated_filename(
+        book.get("title"), book.get("author"), book_id, ext=f".{ext or 'bin'}",
+    )
+    return FileResponse(str(fp), filename=download_name)
+
+
+
 class ClaimSourceUrlBody(BaseModel):
     """Body for `PATCH /books/{book_id}/source-url`.
 
