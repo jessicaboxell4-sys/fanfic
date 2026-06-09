@@ -40,8 +40,10 @@ _AO3_HOST_RE = (
 # any line could be a fanfic story URL.
 FANFIC_SOURCE_PATTERNS = [
     r'https?://' + _AO3_HOST_RE + r'/(?:collections/[^/?#]+/)?works/\d+',
-    r'https?://(?:www\.)?fanfiction\.net/s/\d+',
-    r'https?://(?:www\.)?fictionpress\.com/s/\d+',
+    # FFnet — accept www, bare, AND m. (mobile) subdomain.
+    r'https?://(?:www\.|m\.)?fanfiction\.net/s/\d+',
+    # FictionPress — same family of subdomains as FFnet.
+    r'https?://(?:www\.|m\.)?fictionpress\.com/s/\d+',
     r'https?://(?:www\.)?royalroad\.com/fiction/\d+',
     r'https?://(?:forums?\.|www\.)?spacebattles\.com/threads/[\w-]+\.\d+',
     r'https?://(?:forums?\.|www\.)?sufficientvelocity\.com/threads/[\w-]+\.\d+',
@@ -57,8 +59,8 @@ _AO3_WORK_CANON_RE = re.compile(
     r"https?://" + _AO3_HOST_RE + r"/(?:collections/[^/?#]+/)?works/(\d+)",
     re.IGNORECASE,
 )
-_FFNET_CANON_RE = re.compile(r"https?://(?:www\.)?fanfiction\.net/s/(\d+)", re.IGNORECASE)
-_FP_CANON_RE = re.compile(r"https?://(?:www\.)?fictionpress\.com/s/(\d+)", re.IGNORECASE)
+_FFNET_CANON_RE = re.compile(r"https?://(?:www\.|m\.)?fanfiction\.net/s/(\d+)", re.IGNORECASE)
+_FP_CANON_RE = re.compile(r"https?://(?:www\.|m\.)?fictionpress\.com/s/(\d+)", re.IGNORECASE)
 _RR_CANON_RE = re.compile(r"https?://(?:www\.)?royalroad\.com/fiction/(\d+)", re.IGNORECASE)
 _SB_CANON_RE = re.compile(r"https?://(?:forums?\.|www\.)?spacebattles\.com/threads/([\w-]+\.\d+)", re.IGNORECASE)
 _SV_CANON_RE = re.compile(r"https?://(?:forums?\.|www\.)?sufficientvelocity\.com/threads/([\w-]+\.\d+)", re.IGNORECASE)

@@ -51,8 +51,17 @@ class TestNormalizeFanficUrl:
         # FFnet — uppercase + trailing slash
         ("https://WWW.fanfiction.net/s/9876/1/Some-Title/",
          "https://www.fanfiction.net/s/9876"),
+        # FFnet — mobile subdomain (https://m.fanfiction.net/...)
+        ("https://m.fanfiction.net/s/9876/1/",
+         "https://www.fanfiction.net/s/9876"),
+        # FFnet — bare host (no subdomain)
+        ("http://fanfiction.net/s/9876",
+         "https://www.fanfiction.net/s/9876"),
         # FictionPress
         ("https://www.fictionpress.com/s/4242/",
+         "https://www.fictionpress.com/s/4242"),
+        # FictionPress — mobile subdomain
+        ("https://m.fictionpress.com/s/4242",
          "https://www.fictionpress.com/s/4242"),
         # RoyalRoad
         ("https://www.royalroad.com/fiction/12345/some-slug",
@@ -133,7 +142,9 @@ class TestSourceFor:
         ("https://ao3.org/works/1", "AO3"),
         ("https://archive.transformativeworks.org/works/1", "AO3"),
         ("https://www.fanfiction.net/s/9876", "FFnet"),
+        ("https://m.fanfiction.net/s/9876", "FFnet"),
         ("https://www.fictionpress.com/s/1", "FictionPress"),
+        ("https://m.fictionpress.com/s/1", "FictionPress"),
         ("https://forums.spacebattles.com/threads/x.1", "SpaceBattles"),
         ("https://forums.sufficientvelocity.com/threads/x.1", "SufficientVelocity"),
         ("https://forum.questionablequesting.com/threads/x.1", "QQ"),
