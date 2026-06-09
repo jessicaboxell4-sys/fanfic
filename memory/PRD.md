@@ -766,3 +766,19 @@
   - Friendly empty state ("Every book has a source URL. Nice — your library is fully traceable.")
 - Dashboard chip "**N linkless books · open browser →**" sits next to the existing crossover chip. Sage-green to distinguish from the maroon crossover chip. Only renders when count > 0.
 - Tests: 1 new in `TestLinklessLibrary` covering all edge cases — books with `source_url` only, `fanfic_urls` only, both fields missing, trashed books, and `by_category` breakdown.
+
+### Added 2026-06-09 (Linkless chip fix + books.py refactor Phase 1)
+- **Bug fix**: Dashboard `dashboard-linkless-chip` was nested inside `{stats.fandoms.length > 0 && (...)}`, so it never appeared for users with linkless books but no detected fandoms — the exact target audience. Lifted to its own top-level conditional, gated only on `linklessCount > 0`. The crossover chip stays inside the fandoms block since `crossover_count > 0` implies fandoms exist.
+- **Refactor — books.py Phase 1**: Started breaking the 7,000-line `routes/books.py` into focused utility modules. Books.py is now ~6,600 lines (–400, ~6%). Two new pure-helper modules in `/app/backend/utils/`:
+  - `utils/url_canonical.py` (198 lines) — all URL regex constants, source patterns, canonicalization (`normalize_fanfic_url`, `_canonical_fanfic_url`), AO3 host detection (`_is_ao3_host`, `classify_ao3_non_work`, `_AO3_HOST_RE`, `_AO3_HOST_SUBSTRINGS`, `_AO3_NON_WORK_PATTERNS`), source labelling (`_source_for`), URL-list heuristic (`_looks_like_url_list`), and the prose `URL_REGEX` / `_URL_RE`.
+  - `utils/epub_template.py` (243 lines) — FicHub-style intro page builder + EPUB template applier (`SHELFSORT_TEMPLATE_CSS`, `SHELFSORT_TEMPLATE_MARKER`, `_html_escape`, `_build_intro_xhtml`, `apply_template_to_epub`).
+  - Both modules are re-exported from `routes/books.py` so existing imports (`from routes.books import normalize_fanfic_url`, etc.) and the entire test suite continue to work unchanged.
+- **Bug fix**: removed a stale duplicate `PATCH /books/{book_id}/source-url` route. There were two routes registered at the same path — the legacy `set_source_url` (body `{source_url}`) and the new Linkless-shelf `claim_source_url` (body `{url}`). Merged them: one route, accepts BOTH field names, canonicalizes the URL, writes `source_url` + `fanfic_urls`, clears `unavailable` / `last_fetch_error`. Tests on both shapes pass.
+- **New test file**: `/app/backend/tests/test_url_canonical.py` — 66 pure-unit tests (run in <50ms, no HTTP, no DB) covering every canonicalization path across all 10 supported sources, AO3 mirror variants, source labelling, URL-list heuristic boundaries, and `_clean_url` edge cases.
+- **Backend test totals**: 146 (test_new_features) + 66 (test_url_canonical) = **212 passing**, 0 failing.
+
+### Next refactor phases (queued)
+- `utils/fandom_utils.py` — `_canonicalize_relationship`, `_canonicalize_fandom`, `_suggest_fandom_merges`, `detect_series_from_title`, plus the `FANDOM_KEYWORDS` / `FANFIC_SIGNALS` / `NONFICTION_SIGNALS` constant tables (~300 lines).
+- `utils/epub_io.py` — `extract_epub_metadata`, `extract_urls_from_epub`, `format_links_txt`, `_normalize_chapter_title`, `extract_chapters`, `diff_chapters` (~250 lines).
+- `utils/tag_utils.py` — `_normalize_tag`, `_normalize_tags`, `_normalize_title_for_match` (~40 lines).
+- After helpers are out, split the routes themselves into sub-routers: `upload.py`, `library.py`, `duplicates.py`, `export.py`, `originals.py`, `url_list.py`.

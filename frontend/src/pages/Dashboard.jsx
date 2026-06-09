@@ -864,6 +864,20 @@ export default function Dashboard() {
               </div>
             )}
 
+            {linklessCount > 0 && (
+              <div className="mb-4">
+                <button
+                  onClick={() => navigate("/library/linkless")}
+                  data-testid="dashboard-linkless-chip"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-[#E5EBE6] text-[#3A5A40] border border-[#3A5A40]/30 hover:bg-[#3A5A40] hover:text-white transition-colors"
+                  title="Books with no embedded source URL"
+                >
+                  {linklessCount} linkless book{linklessCount === 1 ? "" : "s"} · open browser
+                  <ArrowRight className="w-3 h-3" />
+                </button>
+              </div>
+            )}
+
             {stats.fandoms.length > 0 && (
               <div className="mb-8">
                 <div className="flex items-center justify-between mb-3">
@@ -884,17 +898,6 @@ export default function Dashboard() {
                       ×
                     </span>
                     {stats.crossover_count} crossover{stats.crossover_count === 1 ? "" : "s"} · open browser
-                    <ArrowRight className="w-3 h-3" />
-                  </button>
-                )}
-                {linklessCount > 0 && (
-                  <button
-                    onClick={() => navigate("/library/linkless")}
-                    data-testid="dashboard-linkless-chip"
-                    className="mb-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-[#E5EBE6] text-[#3A5A40] border border-[#3A5A40]/30 hover:bg-[#3A5A40] hover:text-white transition-colors"
-                    title="Books with no embedded source URL"
-                  >
-                    {linklessCount} linkless book{linklessCount === 1 ? "" : "s"} · open browser
                     <ArrowRight className="w-3 h-3" />
                   </button>
                 )}
