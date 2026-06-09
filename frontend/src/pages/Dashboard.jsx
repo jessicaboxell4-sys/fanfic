@@ -24,6 +24,7 @@ export default function Dashboard() {
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ total: 0, categories: [], fandoms: [], relationships: [] });
+  const [linklessCount, setLinklessCount] = useState(0);
   const [category, setCategory] = useState("All");
   const [fandom, setFandom] = useState(null);
   const [relationship, setRelationship] = useState(null);
@@ -111,6 +112,10 @@ export default function Dashboard() {
         const rs = await api.get("/books/refresh-status");
         setRefreshStatus(rs.data);
       } catch (e) { /* ignore */ }
+      try {
+        const ll = await api.get("/library/linkless");
+        setLinklessCount(ll.data?.count || 0);
+      } catch (e) { /* ignore — non-blocking */ }
       try {
         const rc = await api.get("/books/recent", { params: { limit: 8 } });
         setRecentBooks(rc.data.books || []);
@@ -873,12 +878,23 @@ export default function Dashboard() {
                   <button
                     onClick={() => navigate("/library/crossovers")}
                     data-testid="dashboard-crossover-chip"
-                    className="mb-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-[#FDF3E1] text-[#900] border border-[#900]/30 hover:bg-[#900] hover:text-white transition-colors"
+                    className="mb-3 mr-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-[#FDF3E1] text-[#900] border border-[#900]/30 hover:bg-[#900] hover:text-white transition-colors"
                   >
                     <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1 rounded-full bg-[#900] text-white text-[10px] font-bold leading-none">
                       ×
                     </span>
                     {stats.crossover_count} crossover{stats.crossover_count === 1 ? "" : "s"} · open browser
+                    <ArrowRight className="w-3 h-3" />
+                  </button>
+                )}
+                {linklessCount > 0 && (
+                  <button
+                    onClick={() => navigate("/library/linkless")}
+                    data-testid="dashboard-linkless-chip"
+                    className="mb-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-[#E5EBE6] text-[#3A5A40] border border-[#3A5A40]/30 hover:bg-[#3A5A40] hover:text-white transition-colors"
+                    title="Books with no embedded source URL"
+                  >
+                    {linklessCount} linkless book{linklessCount === 1 ? "" : "s"} · open browser
                     <ArrowRight className="w-3 h-3" />
                   </button>
                 )}

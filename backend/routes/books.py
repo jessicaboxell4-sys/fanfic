@@ -5511,6 +5511,55 @@ async def list_fandoms(user: User = Depends(get_current_user)):
     return {"fandoms": fandoms, "crossover_count": crossover_count}
 
 
+@api_router.get("/library/linkless")
+async def get_linkless_library(user: User = Depends(get_current_user)):
+    """Return every active book that has NO embedded fanfic URLs.
+
+    A book counts as "linkless" when either field is empty:
+      * `source_url` is null / missing / empty string
+      * `fanfic_urls` is missing / empty array
+
+    These are books we have no source-side identity for — typically
+    scanned originals, hand-curated EPUBs, or imports from outside the
+    supported fanfic source list. Useful when the user wants to find
+    everything that wouldn't dedupe against a pasted URL list.
+    """
+    query = {
+        "user_id": user.user_id,
+        "category": {"$ne": TRASH_SHELF},
+        "$and": [
+            {"$or": [
+                {"source_url": {"$exists": False}},
+                {"source_url": None},
+                {"source_url": ""},
+            ]},
+            {"$or": [
+                {"fanfic_urls": {"$exists": False}},
+                {"fanfic_urls": []},
+            ]},
+        ],
+    }
+    cursor = db.books.find(
+        query,
+        {
+            "_id": 0, "book_id": 1, "title": 1, "author": 1, "fandom": 1,
+            "category": 1, "filename": 1, "has_cover": 1, "size_bytes": 1,
+            "created_at": 1, "tags": 1, "original_format": 1, "links_count": 1,
+        },
+    ).sort("created_at", -1)
+    books = await cursor.to_list(5000)
+    # Breakdown by category for the dashboard chip.
+    by_category: Dict[str, int] = {}
+    for b in books:
+        cat = b.get("category") or "Uncategorized"
+        by_category[cat] = by_category.get(cat, 0) + 1
+    return {
+        "books": books,
+        "count": len(books),
+        "by_category": by_category,
+    }
+
+
 @api_router.get("/fandoms/{name}/crossovers")
 async def list_crossovers_for_fandom(name: str, user: User = Depends(get_current_user)):
     """Every crossover fandom in the user's library that contains `name`."""

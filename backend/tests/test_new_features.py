@@ -3333,3 +3333,50 @@ class TestEfictionSiteRecognition:
             db.user_sessions.delete_many({"user_id": uid})
             db.books.delete_many({"user_id": uid})
 
+
+
+# ---------------------------------------------------------------------------
+# LINKLESS LIBRARY — books with no embedded source URL
+# ---------------------------------------------------------------------------
+class TestLinklessLibrary:
+    """`/api/library/linkless` returns every active book where BOTH
+    `source_url` is null/missing/empty AND `fanfic_urls` is missing/empty."""
+
+    @pytest.fixture(scope="class")
+    def linkless_user(self):
+        uid = f"user_ll_{uuid.uuid4().hex[:8]}"
+        tok = f"sess_ll_{uuid.uuid4().hex}"
+        db.users.insert_one({"user_id": uid, "email": f"{uid}@x.com", "name": "LL", "picture": "", "created_at": datetime.now(timezone.utc).isoformat()})
+        db.user_sessions.insert_one({"user_id": uid, "session_token": tok, "expires_at": datetime.now(timezone.utc) + timedelta(days=7), "created_at": datetime.now(timezone.utc)})
+        # Seed 5 books: 2 truly linkless, 1 with source_url only, 1 with
+        # fanfic_urls only, 1 in Trash (should be excluded).
+        seeds = [
+            {"book_id": "ll_a", "title": "Linkless A", "category": "Fanfiction"},
+            {"book_id": "ll_b", "title": "Linkless B", "category": "Original Fiction", "fanfic_urls": []},
+            {"book_id": "ll_c", "title": "Has source", "category": "Fanfiction", "source_url": "https://archiveofourown.org/works/1"},
+            {"book_id": "ll_d", "title": "Has fanfic urls", "category": "Fanfiction", "fanfic_urls": ["https://archiveofourown.org/works/2"]},
+            {"book_id": "ll_e", "title": "Trashed linkless", "category": "Trash"},
+        ]
+        for s in seeds:
+            db.books.insert_one({**s, "user_id": uid, "author": "X", "created_at": datetime.now(timezone.utc).isoformat()})
+        yield uid, tok
+        db.users.delete_many({"user_id": uid})
+        db.user_sessions.delete_many({"user_id": uid})
+        db.books.delete_many({"user_id": uid})
+
+    def test_linkless_returns_only_linkless_active_books(self, linkless_user):
+        uid, tok = linkless_user
+        r = requests.get(f"{BASE}/api/library/linkless", headers={"Authorization": f"Bearer {tok}"})
+        assert r.status_code == 200, r.text
+        data = r.json()
+        ids = sorted(b["book_id"] for b in data["books"])
+        assert ids == ["ll_a", "ll_b"]
+        assert data["count"] == 2
+        # by_category breakdown shows the 2 linkless books grouped
+        assert data["by_category"]["Fanfiction"] == 1
+        assert data["by_category"]["Original Fiction"] == 1
+        # Trash and books with any URL data are excluded
+        assert "ll_c" not in ids
+        assert "ll_d" not in ids
+        assert "ll_e" not in ids
+

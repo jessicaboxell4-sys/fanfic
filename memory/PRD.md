@@ -756,3 +756,13 @@
 - All three plug into the existing pipeline: URL list dedupe, Excel export Source column, AO3-aware paste detector (when fetching UI is re-enabled), `by_source` breakdown chips.
 - Backend total now recognizes **10 sources**: AO3, FFnet, FictionPress, RoyalRoad, SpaceBattles, SufficientVelocity, QQ, AFF, Potions & Snitches, Twilighted.
 - Tests: 5 new in `TestEfictionSiteRecognition` covering URL variant canonicalization for each site, source labeling, and end-to-end dedupe-endpoint integration.
+
+### Added 2026-06-09 (Linkless library — books with no embedded source URL)
+- New `GET /api/library/linkless` endpoint returns every active (non-trashed) book where BOTH `source_url` is null/missing/empty AND `fanfic_urls` is missing/empty. Response: `{books, count, by_category}`.
+- New `LinklessShelf.jsx` page at `/library/linkless`:
+  - Stats card with total count + category-filter chips
+  - Search box (title/author/fandom)
+  - Grid of book cards showing title, author, category badge, original-format badge (PDF/EPUB/etc.)
+  - Friendly empty state ("Every book has a source URL. Nice — your library is fully traceable.")
+- Dashboard chip "**N linkless books · open browser →**" sits next to the existing crossover chip. Sage-green to distinguish from the maroon crossover chip. Only renders when count > 0.
+- Tests: 1 new in `TestLinklessLibrary` covering all edge cases — books with `source_url` only, `fanfic_urls` only, both fields missing, trashed books, and `by_category` breakdown.
