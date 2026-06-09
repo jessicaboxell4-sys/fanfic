@@ -436,14 +436,10 @@ def detect_series_from_title(title: str) -> tuple:
     return None, None
 
 
-URL_REGEX = re.compile(
-    r'(?i)\b((?:https?://|www\.)[^\s<>"\')\]]+)'
+from utils.url_canonical import (  # noqa: E402  — top-of-module helpers
+    URL_REGEX,
+    _clean_url,
 )
-
-
-def _clean_url(u: str) -> str:
-    # Strip trailing punctuation common in prose
-    return u.rstrip('.,;:)>]"\'')
 
 
 def extract_urls_from_epub(filepath: Path) -> List[Dict[str, str]]:
@@ -677,156 +673,28 @@ def diff_chapters(old: List[Dict[str, Any]], new: List[Dict[str, Any]]) -> Dict[
 # ============================================================
 # FANFIC REFRESH — pull latest version of a fanfic from its source URL
 # ============================================================
-# All official AO3 hostnames (and subdomain variants) the user might paste.
-# Sources confirmed by the user: archiveofourown.{org,com,net,gay}, ao3.org,
-# archive.transformativeworks.org, plus the `insecure.` / `m.` / `www.`
-# subdomain variants AO3 still serves.
-_AO3_HOST_RE = (
-    r"(?:"
-        r"(?:www\.|m\.|insecure\.)?archiveofourown\.(?:org|com|net|gay)"
-        r"|ao3\.org"
-        r"|archive\.transformativeworks\.org"
-    r")"
+# URL canonicalization, source detection, and the per-host regex bank
+# all live in `utils/url_canonical` — this module just re-exports them
+# so existing call sites (and tests) keep working unchanged.
+from utils.url_canonical import (  # noqa: E402
+    _AO3_HOST_RE,
+    _AO3_HOST_SUBSTRINGS,
+    _AO3_NON_WORK_PATTERNS,
+    _AO3_WORK_CANON_RE,
+    _AFF_CANON_RE,
+    _FFNET_CANON_RE,
+    _FP_CANON_RE,
+    _PS_CANON_RE,
+    _QQ_CANON_RE,
+    _RR_CANON_RE,
+    _SB_CANON_RE,
+    _SV_CANON_RE,
+    _TWILIGHTED_CANON_RE,
+    FANFIC_SOURCE_PATTERNS,
+    _is_ao3_host,
+    classify_ao3_non_work,
+    normalize_fanfic_url,
 )
-
-
-FANFIC_SOURCE_PATTERNS = [
-    # AO3 — accepts every official hostname (org/com/net/gay/ao3.org/
-    # archive.transformativeworks.org), plus `www.` / `m.` / `insecure.`
-    # subdomains, plus the `/collections/<name>/works/N` prefix.
-    # normalize_fanfic_url() collapses all of those into the canonical
-    # `https://archiveofourown.org/works/N` form.
-    r'https?://' + _AO3_HOST_RE + r'/(?:collections/[^/?#]+/)?works/\d+',
-    r'https?://(?:www\.)?fanfiction\.net/s/\d+',
-    r'https?://(?:www\.)?fictionpress\.com/s/\d+',
-    r'https?://(?:www\.)?royalroad\.com/fiction/\d+',
-    r'https?://(?:forums?\.|www\.)?spacebattles\.com/threads/[\w-]+\.\d+',
-    r'https?://(?:forums?\.|www\.)?sufficientvelocity\.com/threads/[\w-]+\.\d+',
-    r'https?://(?:forums?\.|www\.)?questionablequesting\.com/threads/[\w-]+\.\d+',
-    # Adult-FanFiction.org — eFiction-style query-string URLs. Subdomain
-    # is per-fandom (`hp.`, `anime.`, `books.`, etc.) but the story ID is
-    # globally unique, so we collapse subdomain in the canonical form.
-    r'https?://(?:[\w-]+\.)?adult-fanfiction\.org/story\.php\?no=\d+',
-    # Potions and Snitches (Snape-centric HP archive) — eFiction install.
-    r'https?://(?:www\.)?potionsandsnitches\.(?:org|net)/fanfiction/viewstory\.php\?sid=\d+',
-    # Twilighted.net (Twilight archive) — eFiction install.
-    r'https?://(?:www\.)?twilighted\.net/viewstory\.php\?sid=\d+',
-]
-
-
-# Per-host canonical normalization. Each entry: (compiled regex with one
-# capturing group, canonical template). Matched against the substring already
-# pulled out by FANFIC_SOURCE_PATTERNS so we know we have a real fanfic URL.
-_AO3_WORK_CANON_RE = re.compile(
-    r"https?://" + _AO3_HOST_RE + r"/(?:collections/[^/?#]+/)?works/(\d+)",
-    re.IGNORECASE,
-)
-_FFNET_CANON_RE = re.compile(r"https?://(?:www\.)?fanfiction\.net/s/(\d+)", re.IGNORECASE)
-_FP_CANON_RE = re.compile(r"https?://(?:www\.)?fictionpress\.com/s/(\d+)", re.IGNORECASE)
-_RR_CANON_RE = re.compile(r"https?://(?:www\.)?royalroad\.com/fiction/(\d+)", re.IGNORECASE)
-_SB_CANON_RE = re.compile(r"https?://(?:forums?\.|www\.)?spacebattles\.com/threads/([\w-]+\.\d+)", re.IGNORECASE)
-_SV_CANON_RE = re.compile(r"https?://(?:forums?\.|www\.)?sufficientvelocity\.com/threads/([\w-]+\.\d+)", re.IGNORECASE)
-_QQ_CANON_RE = re.compile(r"https?://(?:forums?\.|www\.)?questionablequesting\.com/threads/([\w-]+\.\d+)", re.IGNORECASE)
-_AFF_CANON_RE = re.compile(r"https?://(?:[\w-]+\.)?adult-fanfiction\.org/story\.php\?no=(\d+)", re.IGNORECASE)
-_PS_CANON_RE = re.compile(r"https?://(?:www\.)?potionsandsnitches\.(?:org|net)/fanfiction/viewstory\.php\?sid=(\d+)", re.IGNORECASE)
-_TWILIGHTED_CANON_RE = re.compile(r"https?://(?:www\.)?twilighted\.net/viewstory\.php\?sid=(\d+)", re.IGNORECASE)
-
-
-def normalize_fanfic_url(url: Optional[str]) -> Optional[str]:
-    """Reduce a fanfic URL to a single canonical form per source site.
-
-    Returns None when the URL doesn't match any known fanfic permalink
-    pattern. Same return value as `_canonical_fanfic_url` but always
-    normalized — different surface forms of the same work (mobile host,
-    `www.` prefix, collection prefix, chapter id, fragment, query string,
-    http vs https, trailing slash, alternate AO3 hosts like ao3.org or
-    archiveofourown.gay) all collapse to the same string.
-
-    Examples (all → ``https://archiveofourown.org/works/12345``):
-      * https://archiveofourown.org/works/12345
-      * https://www.archiveofourown.org/works/12345/
-      * https://m.archiveofourown.org/works/12345?view_adult=true
-      * http://archiveofourown.org/works/12345/chapters/67890
-      * https://archiveofourown.org/works/12345/chapters/67890#workskin
-      * https://archiveofourown.org/collections/SomeCollection/works/12345
-      * https://ao3.org/works/12345
-      * https://archiveofourown.gay/works/12345
-      * https://insecure.archiveofourown.org/works/12345
-      * https://archive.transformativeworks.org/works/12345
-    """
-    if not url:
-        return None
-    m = _AO3_WORK_CANON_RE.search(url)
-    if m:
-        return f"https://archiveofourown.org/works/{m.group(1)}"
-    m = _FFNET_CANON_RE.search(url)
-    if m:
-        return f"https://www.fanfiction.net/s/{m.group(1)}"
-    m = _FP_CANON_RE.search(url)
-    if m:
-        return f"https://www.fictionpress.com/s/{m.group(1)}"
-    m = _RR_CANON_RE.search(url)
-    if m:
-        return f"https://www.royalroad.com/fiction/{m.group(1)}"
-    m = _SB_CANON_RE.search(url)
-    if m:
-        return f"https://forums.spacebattles.com/threads/{m.group(1).lower()}"
-    m = _SV_CANON_RE.search(url)
-    if m:
-        return f"https://forums.sufficientvelocity.com/threads/{m.group(1).lower()}"
-    m = _QQ_CANON_RE.search(url)
-    if m:
-        return f"https://forum.questionablequesting.com/threads/{m.group(1).lower()}"
-    m = _AFF_CANON_RE.search(url)
-    if m:
-        return f"https://www.adult-fanfiction.org/story.php?no={m.group(1)}"
-    m = _PS_CANON_RE.search(url)
-    if m:
-        return f"https://www.potionsandsnitches.org/fanfiction/viewstory.php?sid={m.group(1)}"
-    m = _TWILIGHTED_CANON_RE.search(url)
-    if m:
-        return f"https://www.twilighted.net/viewstory.php?sid={m.group(1)}"
-    return None
-
-
-# AO3-side URLs that aren't story permalinks but users frequently paste in a
-# URL list (series indexes, bookmark dumps, collection landing pages). We
-# don't dedupe these against the library; instead the frontend surfaces them
-# in a separate "AO3 (not a story link)" bucket so the user knows we saw them.
-_AO3_NON_WORK_PATTERNS = [
-    (re.compile(r"https?://" + _AO3_HOST_RE + r"/series/(\d+)", re.IGNORECASE), "ao3_series"),
-    (re.compile(r"https?://" + _AO3_HOST_RE + r"/collections/([^/?#]+)/?(?:[?#]|$)", re.IGNORECASE), "ao3_collection"),
-    (re.compile(r"https?://" + _AO3_HOST_RE + r"/users/([^/?#]+)(?:/(?:pseuds|works|bookmarks)?/?)?(?:[?#]|$)", re.IGNORECASE), "ao3_user"),
-]
-
-
-# Hosts that should be labelled "AO3" in the by-source breakdown — covers
-# every official AO3 hostname variant the user listed.
-_AO3_HOST_SUBSTRINGS = (
-    "archiveofourown.org",
-    "archiveofourown.com",
-    "archiveofourown.net",
-    "archiveofourown.gay",
-    "ao3.org",
-    "archive.transformativeworks.org",
-)
-
-
-def _is_ao3_host(url: str) -> bool:
-    u = (url or "").lower()
-    return any(h in u for h in _AO3_HOST_SUBSTRINGS)
-
-
-def classify_ao3_non_work(url: str) -> Optional[str]:
-    """If `url` is an AO3 link that isn't a story permalink, return a label
-    (`ao3_series`, `ao3_collection`, `ao3_user`); else None.
-    """
-    if not url or not _is_ao3_host(url):
-        return None
-    for pat, label in _AO3_NON_WORK_PATTERNS:
-        if pat.search(url):
-            return label
-    return None
 
 FANFICFARE_USER_AGENT = (
     "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"
@@ -835,240 +703,16 @@ FANFICFARE_USER_AGENT = (
 
 # ----------------------------------------------------------------------
 # EPUB TEMPLATE APPLIER
-# Post-processes every newly-downloaded fanfic EPUB so the structure
-# matches the FicHub-style template the user provided:
-#   * Intro page (BEFORE the TOC) with a clean info block + source URL
-#   * Verdana sans-serif stylesheet, centred <h1>, left-aligned bold <h2>
-# Idempotent: detects already-templated EPUBs and skips re-applying.
+# Implementation lives in `utils/epub_template`. Re-exported here so the
+# call sites in this module (and the test suite) keep working unchanged.
 # ----------------------------------------------------------------------
-
-SHELFSORT_TEMPLATE_CSS = """@namespace epub "http://www.idpf.org/2007/ops";
-
-body {
-    font-family: Verdana, Helvetica, Arial, sans-serif;
-}
-
-h1 {
-    text-align: center;
-}
-
-h2 {
-    text-align: left;
-    font-weight: bold;
-}
-
-ol {
-    list-style-type: none;
-    margin: 0;
-}
-
-ol > li {
-    margin-top: 0.3em;
-}
-
-ol > li > span {
-    font-weight: bold;
-}
-
-ol > li > ol {
-    margin-left: 0.5em;
-}
-
-.spoiler {
-    padding-left: 0.4em;
-    border-left: 0.2em solid #c7ccd1;
-}
-"""
-
-SHELFSORT_TEMPLATE_MARKER = "shelfsort:templated"
-
-
-def _html_escape(s: Any) -> str:
-    if s is None:
-        return ""
-    import html as _h
-    return _h.escape(str(s), quote=False)
-
-
-def _build_intro_xhtml(meta: Dict[str, Any], source_url: str) -> str:
-    """Build the FicHub-style intro page (matches the user's reference EPUB)."""
-    raw = meta.get("rawExtendedMeta") or {}
-    title = _html_escape(meta.get("title") or "Untitled")
-    author = _html_escape(meta.get("author") or "Unknown")
-    description = meta.get("description") or ""
-    if description and "<" not in description:
-        description = f"<p>{_html_escape(description)}</p>"
-
-    status = _html_escape(raw.get("status") or "")
-    published = _html_escape(raw.get("datePublished") or "")
-    updated = _html_escape(raw.get("dateUpdated") or "")
-    words_val = raw.get("words")
-    words = f"{int(words_val):,}" if isinstance(words_val, (int, float)) and words_val else ""
-    chapters = meta.get("chapters") or 0
-    rating = _html_escape(raw.get("rating") or "")
-    language = _html_escape(raw.get("language") or "English")
-    reviews = _html_escape(raw.get("reviews") or "")
-    favs = _html_escape(raw.get("favs") or "")
-    follows = _html_escape(raw.get("follows") or "")
-
-    # "Rated:" line — only show the parts we actually have, comma-separated
-    rated_parts: List[str] = []
-    if rating:
-        rated_parts.append(f"Fiction {rating}")
-    if language:
-        rated_parts.append(f"Language: {language}")
-    if reviews:
-        rated_parts.append(f"Reviews: {reviews}")
-    if favs:
-        rated_parts.append(f"Favs: {favs}")
-    if follows:
-        rated_parts.append(f"Follows: {follows}")
-    rated_line = " - ".join(rated_parts)
-
-    src_url = _html_escape(source_url)
-
-    body_chunks: List[str] = [
-        f"<h1>{title}</h1>",
-        f"<p><b>By: {author}</b></p>",
-        "<p/>",
-        description,
-    ]
-    if status:
-        body_chunks.append(f"<p>Status: {status}</p>")
-    if published:
-        body_chunks.append(f"<p>Published: {published}</p>")
-    if updated:
-        body_chunks.append(f"<p>Updated: {updated}</p>")
-    if words:
-        body_chunks.append(f"<p>Words: {words}</p>")
-    if chapters:
-        body_chunks.append(f"<p>Chapters: {chapters}</p>")
-    if rated_line:
-        body_chunks.append(f"<p>Rated: {rated_line}</p>")
-    body_chunks.append(
-        f'<p>Original source:\n\t\t<a rel="noopener noreferrer" href="{src_url}">{src_url}</a></p>'
-    )
-    body_chunks.append(
-        '<p>Exported with the assistance of\n\t\t<a href="https://github.com/JimmXinu/FanFicFare">FanFicFare</a> via Shelfsort</p>'
-    )
-    body = "\n\t".join(body_chunks)
-
-    return (
-        "<?xml version='1.0' encoding='utf-8'?>\n"
-        "<!DOCTYPE html>\n"
-        '<html xmlns="http://www.w3.org/1999/xhtml" '
-        'xmlns:epub="http://www.idpf.org/2007/ops" '
-        f'epub:prefix="z3998: http://www.daisy.org/z3998/2012/vocab/structure/#" '
-        f'lang="en" xml:lang="en" data-shelfsort="{SHELFSORT_TEMPLATE_MARKER}">\n'
-        "  <head>\n"
-        "    <title>Introduction</title>\n"
-        "  </head>\n"
-        f"  <body>{body}\n</body>\n"
-        "</html>\n"
-    )
-
-
-def apply_template_to_epub(
-    epub_bytes: bytes,
-    meta: Dict[str, Any],
-    source_url: str,
-) -> bytes:
-    """Inject a FicHub-style intro page + apply our stylesheet to a fanfic EPUB.
-
-    Idempotent: if the EPUB already carries the Shelfsort marker (a `<meta>`
-    in content.opf), returns the bytes unchanged. Errors are caught and the
-    original bytes returned, so a malformed EPUB never blocks a refresh.
-    """
-    import zipfile
-    from io import BytesIO
-
-    try:
-        src = BytesIO(epub_bytes)
-        with zipfile.ZipFile(src, "r") as zin:
-            names = zin.namelist()
-            if not any(n.endswith(".opf") for n in names):
-                return epub_bytes  # not an EPUB we can safely rewrite
-
-            opf_path = next(n for n in names if n.endswith(".opf"))
-            opf_xml = zin.read(opf_path).decode("utf-8", errors="ignore")
-            if SHELFSORT_TEMPLATE_MARKER in opf_xml:
-                return epub_bytes  # already templated — skip
-
-            opf_dir = opf_path.rsplit("/", 1)[0] if "/" in opf_path else ""
-
-            # Build the new intro page
-            intro_xhtml = _build_intro_xhtml(meta, source_url)
-            intro_filename = "shelfsort_intro.xhtml"
-            intro_path = f"{opf_dir}/{intro_filename}" if opf_dir else intro_filename
-
-            # Find or pick a stylesheet path inside the OPF dir
-            css_path = next(
-                (n for n in names if n.endswith(".css") and (opf_dir + "/") in (n + "/")),
-                None,
-            ) or (f"{opf_dir}/style/shelfsort.css" if opf_dir else "shelfsort.css")
-            css_href = css_path[len(opf_dir) + 1:] if opf_dir and css_path.startswith(opf_dir + "/") else css_path
-
-            # Mutate the OPF: inject the intro item + spine ref + a marker meta
-            import re as _re
-
-            # 1) Add marker meta inside <metadata>
-            new_opf = _re.sub(
-                r"(</metadata>)",
-                f'    <meta name="generator" content="{SHELFSORT_TEMPLATE_MARKER}"/>\n  \\1',
-                opf_xml,
-                count=1,
-            )
-
-            # 2) Add intro manifest item (if not already there)
-            if 'id="shelfsort-intro"' not in new_opf:
-                new_opf = _re.sub(
-                    r"(</manifest>)",
-                    f'    <item href="{intro_filename}" id="shelfsort-intro" media-type="application/xhtml+xml"/>\n  \\1',
-                    new_opf,
-                    count=1,
-                )
-                # Ensure css is in the manifest too
-                if css_href not in new_opf:
-                    new_opf = _re.sub(
-                        r"(</manifest>)",
-                        f'    <item href="{css_href}" id="shelfsort-css" media-type="text/css"/>\n  \\1',
-                        new_opf,
-                        count=1,
-                    )
-
-            # 3) Prepend intro to the spine
-            new_opf = _re.sub(
-                r"(<spine[^>]*>)",
-                '\\1\n    <itemref idref="shelfsort-intro"/>',
-                new_opf,
-                count=1,
-            )
-
-            # 4) Repack the EPUB
-            out = BytesIO()
-            with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zout:
-                # mimetype MUST be first + uncompressed
-                if "mimetype" in names:
-                    info = zipfile.ZipInfo("mimetype")
-                    info.compress_type = zipfile.ZIP_STORED
-                    zout.writestr(info, zin.read("mimetype"))
-                for name in names:
-                    if name == "mimetype":
-                        continue
-                    if name == opf_path:
-                        zout.writestr(name, new_opf)
-                    elif name == css_path:
-                        zout.writestr(name, SHELFSORT_TEMPLATE_CSS)
-                    else:
-                        zout.writestr(name, zin.read(name))
-                # New files
-                zout.writestr(intro_path, intro_xhtml)
-                if css_path not in names:
-                    zout.writestr(css_path, SHELFSORT_TEMPLATE_CSS)
-            return out.getvalue()
-    except Exception as e:
-        logger.warning("apply_template_to_epub failed for %s: %s", source_url, e)
-        return epub_bytes
+from utils.epub_template import (  # noqa: E402
+    SHELFSORT_TEMPLATE_CSS,
+    SHELFSORT_TEMPLATE_MARKER,
+    _html_escape,
+    _build_intro_xhtml,
+    apply_template_to_epub,
+)
 
 
 
@@ -1158,7 +802,11 @@ def _normalize_title_for_match(title: Optional[str]) -> str:
 # URLs that already correspond to books in the user's library.
 # ---------------------------------------------------------------------------
 
-_URL_RE = re.compile(r"https?://[^\s,;<>\"']+", re.IGNORECASE)
+from utils.url_canonical import (  # noqa: E402
+    _URL_RE,
+    _canonical_fanfic_url,
+    _looks_like_url_list,
+)
 
 
 class UrlListBody(BaseModel):
@@ -1172,31 +820,6 @@ async def dedupe_url_list_endpoint(body: UrlListBody, user: User = Depends(get_c
     if not body.text or not body.text.strip():
         raise HTTPException(status_code=400, detail="No URL text provided")
     return await _dedupe_url_list(body.text, user.user_id)
-
-
-
-def _canonical_fanfic_url(url: str) -> Optional[str]:
-    """Return the normalized canonical form of a fanfic URL, or None."""
-    return normalize_fanfic_url(url)
-
-
-def _looks_like_url_list(text: str) -> bool:
-    """Return True when the input is dominantly fanfic URLs.
-
-    Heuristic: at least 3 lines are URLs (or >40% of non-empty lines), AND
-    at least one URL matches a known fanfic source pattern. Stricter than
-    "contains any URL" so a manuscript with one footnote URL still gets
-    converted as a book.
-    """
-    if not text or len(text) < 10:
-        return False
-    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
-    if not lines:
-        return False
-    url_lines = [ln for ln in lines if _URL_RE.search(ln)]
-    if len(url_lines) < 3 and (len(url_lines) / max(1, len(lines))) < 0.4:
-        return False
-    return any(_canonical_fanfic_url(ln) for ln in url_lines)
 
 
 async def _backfill_user_fanfic_urls(user_id: str, limit: int = 2000) -> int:
@@ -1406,19 +1029,7 @@ class UrlListExportBody(BaseModel):
     duplicates: Optional[List[Dict[str, Any]]] = None
 
 
-def _source_for(u: str) -> str:
-    u_lower = (u or "").lower()
-    if _is_ao3_host(u_lower): return "AO3"
-    if "fanfiction.net" in u_lower: return "FFnet"
-    if "fictionpress.com" in u_lower: return "FictionPress"
-    if "spacebattles.com" in u_lower: return "SpaceBattles"
-    if "sufficientvelocity.com" in u_lower: return "SufficientVelocity"
-    if "questionablequesting.com" in u_lower: return "QQ"
-    if "royalroad" in u_lower: return "RoyalRoad"
-    if "adult-fanfiction.org" in u_lower: return "AFF"
-    if "potionsandsnitches" in u_lower: return "Potions & Snitches"
-    if "twilighted.net" in u_lower: return "Twilighted"
-    return ""
+from utils.url_canonical import _source_for  # noqa: E402
 
 
 @api_router.post("/books/url-list/export-xlsx")
@@ -5560,6 +5171,73 @@ async def get_linkless_library(user: User = Depends(get_current_user)):
     }
 
 
+class ClaimSourceUrlBody(BaseModel):
+    """Body for `PATCH /books/{book_id}/source-url`.
+
+    Accepts either field name — `url` (newer Linkless-shelf clients) or
+    `source_url` (older "manual correction" clients / tests) — so we
+    don't break either caller while we have just one endpoint.
+    """
+    url: Optional[str] = None
+    source_url: Optional[str] = None
+
+
+@api_router.patch("/books/{book_id}/source-url")
+async def claim_source_url(
+    book_id: str,
+    body: ClaimSourceUrlBody,
+    user: User = Depends(get_current_user),
+):
+    """Attach (or correct) the fanfic source URL on an existing book.
+
+    Used by:
+      * the Linkless library shelf — paste the URL the book "actually"
+        came from to drop it out of `/library/linkless`;
+      * the "Can't find online" flow — manually correct the URL after
+        FanFicFare failed to identify it.
+
+    The URL is normalized to canonical form (per source site) and
+    written to BOTH `source_url` and `fanfic_urls` so future URL-list
+    dedupe matches it. Also clears the `unavailable` / `last_fetch_error`
+    flags so the next refresh tries the new URL.
+
+    Rejects URLs that don't match any known fanfic source.
+    """
+    raw = (body.url or body.source_url or "").strip()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Source URL is empty")
+    canon = _canonical_fanfic_url(raw)
+    if not canon:
+        raise HTTPException(
+            status_code=400,
+            detail="Not a recognized fanfic source URL. We support AO3, FFnet, FictionPress, RoyalRoad, SpaceBattles, SufficientVelocity, QQ, AFF, Potions & Snitches, and Twilighted.",
+        )
+    book = await db.books.find_one(
+        {"book_id": book_id, "user_id": user.user_id},
+        {"_id": 0, "book_id": 1, "fanfic_urls": 1},
+    )
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found.")
+    existing_urls = book.get("fanfic_urls") or []
+    if canon not in existing_urls:
+        existing_urls = [canon, *existing_urls]
+    await db.books.update_one(
+        {"book_id": book_id, "user_id": user.user_id},
+        {"$set": {
+            "source_url": canon,
+            "fanfic_urls": existing_urls,
+            "unavailable": False,
+            "last_fetch_error": None,
+        }},
+    )
+    return {
+        "ok": True,
+        "book_id": book_id,
+        "source_url": canon,
+        "fanfic_urls": existing_urls,
+    }
+
+
 @api_router.get("/fandoms/{name}/crossovers")
 async def list_crossovers_for_fandom(name: str, user: User = Depends(get_current_user)):
     """Every crossover fandom in the user's library that contains `name`."""
@@ -6015,40 +5693,6 @@ class SetSourceBody(BaseModel):
 class SetSeriesBody(BaseModel):
     series_name: Optional[str] = None
     series_index: Optional[float] = None
-
-
-@api_router.patch("/books/{book_id}/source-url")
-async def set_source_url(book_id: str, body: SetSourceBody, user: User = Depends(get_current_user)):
-    """Manually correct the fanfic source URL (e.g., when FanFicFare couldn't find it).
-    Clears the unavailable flag so the next refresh will try the new URL."""
-    new_url = (body.source_url or "").strip()
-    if not new_url:
-        raise HTTPException(status_code=400, detail="Source URL is empty")
-    if not re.match(r"^https?://", new_url, re.IGNORECASE):
-        raise HTTPException(status_code=400, detail="Please paste a full http(s):// URL")
-    # Validate it's a supported fanfic source
-    matched = None
-    for pat in FANFIC_SOURCE_PATTERNS:
-        m = re.search(pat, new_url, re.IGNORECASE)
-        if m:
-            matched = m.group(0)
-            break
-    if not matched:
-        raise HTTPException(
-            status_code=400,
-            detail="That URL isn't a supported fanfic source (AO3, FFnet, Royal Road, SpaceBattles, SufficientVelocity, FictionPress).",
-        )
-    result = await db.books.update_one(
-        {"book_id": book_id, "user_id": user.user_id},
-        {"$set": {
-            "source_url": matched,
-            "unavailable": False,
-            "last_fetch_error": None,
-        }},
-    )
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Not found")
-    return {"ok": True, "source_url": matched}
 
 
 @api_router.patch("/books/{book_id}/series")

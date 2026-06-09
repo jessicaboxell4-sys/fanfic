@@ -1,0 +1,45 @@
+{
+  "summary": "Tested Linkless Shelf feature + books.py refactor (utils.url_canonical, utils.epub_template). Backend: 212/212 prior tests + 10/10 new live integration tests pass. Frontend: LinklessShelf page works (count, search, category chips, item navigation, back link). Found ONE real bug: the dashboard-linkless-chip is nested inside the 'Fandom shelves' wrapper, so it never renders when the user has no fandoms (which is the most common situation for users with linkless books).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Dashboard.jsx",
+        "issue": "dashboard-linkless-chip is rendered inside the `{stats.fandoms.length > 0 && (...)}` block at line ~867, so the chip never appears when the user has linkless books AND no detected fandoms — which is the exact target audience for the shelf (hand-curated EPUBs / scanned originals / non-fanfic imports rarely have fandom metadata). Verified by uploading 2 minimal EPUBs with no fandom metadata: GET /api/library/linkless returns count=2, /library/linkless page renders both correctly, but `document.querySelector('[data-testid=\"dashboard-linkless-chip\"]')` returns null on the dashboard.",
+        "selector": "[data-testid='dashboard-linkless-chip']",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_linkless_live.py",
+    "/app/backend/tests/test_url_canonical.py",
+    "/app/backend/tests/test_new_features.py",
+    "/app/test_reports/pytest/pytest_iter12.xml"
+  ],
+  "action_items": [
+    "Move the `dashboard-linkless-chip` button out of the `{stats.fandoms.length > 0 && (...)}` wrapper in /app/frontend/src/pages/Dashboard.jsx around lines 867-900 — either lift it to its own top-level conditional block (recommended: place it just above or below the Fandom shelves section, gated only on `linklessCount > 0`) or change the outer condition to `(stats.fandoms.length > 0 || linklessCount > 0 || stats.crossover_count > 0)`. The crossover chip has the same latent issue, but crossover_count > 0 implies fandoms exist, so it's harmless today."
+  ],
+  "critical_code_review_comments": [
+    "Refactor verified: utils.url_canonical and utils.epub_template are clean, well-documented, pure-helper modules. Re-exports from routes.books work (verified `from routes.books import apply_template_to_epub, SHELFSORT_TEMPLATE_MARKER, SHELFSORT_TEMPLATE_CSS, normalize_fanfic_url, _canonical_fanfic_url`). No behavior change in URL canonicalization across AO3 mirrors, FFnet, FictionPress, RoyalRoad, SpaceBattles, SufficientVelocity, QQ, AFF, Potions & Snitches, Twilighted (verified via 66 unit tests + live PATCH integration test).",
+    "GET /api/library/linkless correctly excludes trashed books (matches TRASH_SHELF category) and correctly handles the four shape variants of empty source_url / fanfic_urls (missing / null / empty string / empty array). Returns book_id, title, author, fandom, category, etc. without the Mongo _id (good).",
+    "PATCH /api/books/{book_id}/source-url accepts both legacy `source_url` and new `url` field names via ClaimSourceUrlBody — verified both paths return 200 and canonicalize correctly. 400 for non-fanfic URLs and 404 for unknown book_id both verified.",
+    "books.py is now 6597 lines — still WAY over the 700-line guideline. The extraction of utils/url_canonical.py and utils/epub_template.py is a good start; recommend continuing by extracting (a) trash/restore endpoints, (b) bulk operations, (c) dedupe + xlsx export, (d) refresh / refresh-status, (e) the library/* shelves into routes/library_shelves.py. Not blocking.",
+    "Frontend LinklessShelf.jsx is clean (160 lines, well-documented, proper testids, search + category filter both client-side). One nit: the `onClick` on each list item is on the entire <li>, which doesn't expose a keyboard role/tabIndex — minor a11y concern, not blocking."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_linkless_live.py (new — 10 live integration tests)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "83% (5/6 verified flows; chip-on-dashboard fails)"},
+  "test_credentials": "Ephemeral users created on demand via POST /api/auth/register (password 'hunter2pw_test', random email). Cookie session_token persists across the requests Session.",
+  "seed_data_creation": "Each test class registers a fresh user; uploads 1-2 minimal EPUBs (mimetype + container.xml + tiny OPF + 1 xhtml chapter, no links). No persistent seed data left behind that would interfere with other suites.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend regression suite at /app/backend/tests/test_linkless_live.py runs in ~5s and covers: 403 unauth, empty linkless shelf, upload→appears, PATCH 400 on non-fanfic, PATCH 404 on unknown book, PATCH accepts {source_url}, book disappears after claim, PATCH accepts {url} with FFnet canonicalization, dedupe endpoint still works (uses 'text' field — NOT 'urls'), xlsx-export still works (uses 'urls' as a LIST — NOT a newline string). Frontend test ids verified: linkless-back, linkless-summary, linkless-count, linkless-search, linkless-by-category, linkless-book-<id>. The single open bug is the chip-nesting issue on Dashboard.jsx line 890 inside line 867's wrapper.",
+  "rca of the issue": "Dashboard-linkless-chip bug: In /app/frontend/src/pages/Dashboard.jsx, the `<button data-testid='dashboard-linkless-chip'>` (lines 890-900) lives inside the `{stats.fandoms.length > 0 && (<div className='mb-8'>...`)` block that starts at line 867. Reproduction: register a fresh user, upload any EPUB whose dc:subject does NOT contain a known fandom keyword (e.g., a generic 'no-links' EPUB like the ones our test helper builds). GET /api/books/stats returns fandoms=[], the wrapper short-circuits, and the chip never renders even though GET /api/library/linkless correctly returns count >= 1. Mitigation (single-line fix): pull the linkless chip (and the crossover chip if desired) out of the Fandom-shelves <div> into its own top-level conditional rendering at the same indent level, e.g. just before the `{stats.fandoms.length > 0 && (...)}` block. Backend is correct — this is purely a frontend conditional-rendering oversight."
+}
