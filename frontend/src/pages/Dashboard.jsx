@@ -978,6 +978,15 @@ export default function Dashboard() {
                     <ArrowRight className="w-3 h-3" />
                   </button>
                 )}
+                <button
+                  onClick={() => navigate("/library/pairings")}
+                  data-testid="dashboard-pairings-chip"
+                  className="mb-3 mr-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-[#900]/10 text-[#900] border border-[#900]/30 hover:bg-[#900] hover:text-white transition-colors"
+                  title="Browse all pairings / ships across your library"
+                >
+                  Browse pairings
+                  <ArrowRight className="w-3 h-3" />
+                </button>
                 <div className="flex flex-wrap gap-2">
                   {stats.fandoms.map(f => {
                     // Crossover detection: canonical form uses " / " between
@@ -1054,9 +1063,13 @@ export default function Dashboard() {
                   <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] flex items-center gap-2">
                     <UserCircle2 className="w-3 h-3" /> Authors
                   </p>
-                  <p className="text-xs text-[#6B705C] hidden sm:block">
-                    Showing top {Math.min(authorsList.length, 12)} · click for a dedicated shelf
-                  </p>
+                  <button
+                    onClick={() => navigate("/library/authors")}
+                    data-testid="dashboard-authors-view-all"
+                    className="text-xs text-[#3A5A40] hover:text-[#2C2C2C] hover:underline"
+                  >
+                    View all →
+                  </button>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {authorsList.slice(0, 12).map(a => (

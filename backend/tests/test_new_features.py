@@ -3918,3 +3918,189 @@ class TestStatusShelves:
             json={"status": "complete"},
         )
         assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# AUTHORS / PAIRINGS DIRECTORIES + LIBRARY BACKUP
+# ---------------------------------------------------------------------------
+class TestAuthorsAndPairings:
+    """`/library/authors` lists every distinct author with counts;
+    `/library/by-author?author=...` returns the books for one. Same
+    pattern for `/library/pairings` and `/library/by-pairing`."""
+
+    @pytest.fixture
+    def ap_user(self):
+        uid = f"user_ap_{uuid.uuid4().hex[:8]}"
+        tok = f"sess_ap_{uuid.uuid4().hex}"
+        now = datetime.now(timezone.utc).isoformat()
+        db.users.insert_one({
+            "user_id": uid, "email": f"{uid}@x.com", "name": "AP",
+            "picture": "", "created_at": now,
+        })
+        db.user_sessions.insert_one({
+            "user_id": uid, "session_token": tok,
+            "expires_at": datetime.now(timezone.utc) + timedelta(days=7),
+            "created_at": datetime.now(timezone.utc),
+        })
+        seeds = [
+            {"book_id": "ap_a", "title": "Pride & Prejudice", "author": "Jane Austen",
+             "category": "Original Fiction", "relationships": []},
+            {"book_id": "ap_b", "title": "Persuasion", "author": "Jane Austen",
+             "category": "Original Fiction", "relationships": []},
+            {"book_id": "ap_c", "title": "Drarry vol.1", "author": "FanAuthor",
+             "category": "Fanfiction", "relationships": ["Draco Malfoy/Harry Potter"]},
+            {"book_id": "ap_d", "title": "Drarry vol.2", "author": "FanAuthor",
+             "category": "Fanfiction", "relationships": ["Draco Malfoy/Harry Potter"]},
+            {"book_id": "ap_e", "title": "Sterek", "author": "OtherFan",
+             "category": "Fanfiction", "relationships": ["Derek Hale/Stiles Stilinski"]},
+            # Unknown author + trashed → must NOT appear in counts.
+            {"book_id": "ap_f", "title": "Mystery", "author": "Unknown",
+             "category": "Fanfiction", "relationships": []},
+            {"book_id": "ap_g", "title": "Trashed", "author": "Jane Austen",
+             "category": "Trash", "relationships": []},
+        ]
+        for s in seeds:
+            db.books.insert_one({**s, "user_id": uid, "created_at": now})
+        yield uid, tok
+        db.users.delete_many({"user_id": uid})
+        db.user_sessions.delete_many({"user_id": uid})
+        db.books.delete_many({"user_id": uid})
+
+    def test_authors_directory(self, ap_user):
+        uid, tok = ap_user
+        r = requests.get(f"{BASE}/api/library/authors",
+                         headers={"Authorization": f"Bearer {tok}"})
+        assert r.status_code == 200, r.text
+        data = r.json()
+        # Jane Austen=2, FanAuthor=2, OtherFan=1 — "Unknown" and trashed excluded
+        by_author = {a["author"]: a["count"] for a in data["authors"]}
+        assert by_author == {"Jane Austen": 2, "FanAuthor": 2, "OtherFan": 1}
+        # Sorted by count DESC then alpha
+        names = [a["author"] for a in data["authors"]]
+        assert names == ["FanAuthor", "Jane Austen", "OtherFan"]
+
+    def test_books_by_author(self, ap_user):
+        uid, tok = ap_user
+        r = requests.get(f"{BASE}/api/library/by-author?author=Jane%20Austen",
+                         headers={"Authorization": f"Bearer {tok}"})
+        assert r.status_code == 200, r.text
+        ids = sorted(b["book_id"] for b in r.json()["books"])
+        assert ids == ["ap_a", "ap_b"]
+        assert r.json()["author"] == "Jane Austen"
+        # Trashed must NOT leak in (Jane has one in Trash).
+        assert "ap_g" not in ids
+
+    def test_books_by_author_400_when_empty(self, ap_user):
+        uid, tok = ap_user
+        r = requests.get(f"{BASE}/api/library/by-author?author=",
+                         headers={"Authorization": f"Bearer {tok}"})
+        assert r.status_code == 400
+
+    def test_pairings_directory(self, ap_user):
+        uid, tok = ap_user
+        r = requests.get(f"{BASE}/api/library/pairings",
+                         headers={"Authorization": f"Bearer {tok}"})
+        assert r.status_code == 200, r.text
+        data = r.json()
+        names = [p["pairing"] for p in data["pairings"]]
+        # Drarry has 2 books, Sterek has 1 — Drarry must rank first.
+        assert names[0] == "Draco Malfoy/Harry Potter"
+        assert "Derek Hale/Stiles Stilinski" in names
+        # Each entry has sample_titles (up to 3).
+        drarry = next(p for p in data["pairings"] if p["pairing"] == "Draco Malfoy/Harry Potter")
+        assert drarry["count"] == 2
+        assert len(drarry["sample_titles"]) <= 3
+        assert all(isinstance(t, str) for t in drarry["sample_titles"])
+
+    def test_books_by_pairing(self, ap_user):
+        uid, tok = ap_user
+        r = requests.get(
+            f"{BASE}/api/library/by-pairing?pairing=Draco%20Malfoy/Harry%20Potter",
+            headers={"Authorization": f"Bearer {tok}"},
+        )
+        assert r.status_code == 200, r.text
+        ids = sorted(b["book_id"] for b in r.json()["books"])
+        assert ids == ["ap_c", "ap_d"]
+
+
+class TestLibraryBackup:
+    """`/library/backup` streams a ZIP with `backup-manifest.json` plus
+    `epubs/<book_id>.epub` for every active book that's on disk."""
+
+    @pytest.fixture
+    def backup_user(self):
+        from pathlib import Path
+        from deps import STORAGE_DIR
+
+        uid = f"user_bk_{uuid.uuid4().hex[:8]}"
+        tok = f"sess_bk_{uuid.uuid4().hex}"
+        now = datetime.now(timezone.utc).isoformat()
+        db.users.insert_one({
+            "user_id": uid, "email": f"{uid}@x.com", "name": "BK",
+            "picture": "", "created_at": now,
+        })
+        db.user_sessions.insert_one({
+            "user_id": uid, "session_token": tok,
+            "expires_at": datetime.now(timezone.utc) + timedelta(days=7),
+            "created_at": datetime.now(timezone.utc),
+        })
+        user_dir = Path(STORAGE_DIR) / uid
+        user_dir.mkdir(parents=True, exist_ok=True)
+        # Two books with files on disk + one with NO file (must skip
+        # gracefully) + one in trash (must be excluded entirely).
+        (user_dir / "bk_a.epub").write_bytes(b"PK\x03\x04mock-epub-a")
+        (user_dir / "bk_b.epub").write_bytes(b"PK\x03\x04mock-epub-b")
+        for bid, title, cat in [
+            ("bk_a", "Backup A", "Original Fiction"),
+            ("bk_b", "Backup B", "Fanfiction"),
+            ("bk_missing", "Missing on disk", "Original Fiction"),
+            ("bk_trash", "Trashed", "Trash"),
+        ]:
+            db.books.insert_one({
+                "book_id": bid, "user_id": uid, "title": title, "author": "A",
+                "category": cat, "original_format": "epub",
+                "created_at": now,
+            })
+        yield uid, tok, user_dir
+        db.users.delete_many({"user_id": uid})
+        db.user_sessions.delete_many({"user_id": uid})
+        db.books.delete_many({"user_id": uid})
+        for f in user_dir.glob("*"):
+            try: f.unlink()
+            except Exception: pass
+        try: user_dir.rmdir()
+        except Exception: pass
+
+    def test_backup_zip_contents(self, backup_user):
+        import io, zipfile, json
+        uid, tok, _ = backup_user
+        r = requests.get(f"{BASE}/api/library/backup",
+                         headers={"Authorization": f"Bearer {tok}"},
+                         stream=True)
+        assert r.status_code == 200, r.text
+        # The response should be a streaming zip.
+        assert r.headers.get("content-type", "").startswith("application/zip")
+        cd = r.headers.get("content-disposition", "")
+        assert "shelfsort-backup-" in cd
+        assert ".zip" in cd
+
+        body = r.content
+        zf = zipfile.ZipFile(io.BytesIO(body))
+        names = zf.namelist()
+        # Manifest first + the two on-disk EPUBs. Missing one is silently
+        # skipped, trashed one is excluded from the manifest entirely.
+        assert "backup-manifest.json" in names
+        assert "epubs/bk_a.epub" in names
+        assert "epubs/bk_b.epub" in names
+        assert "epubs/bk_missing.epub" not in names
+        assert "epubs/bk_trash.epub" not in names
+
+        manifest = json.loads(zf.read("backup-manifest.json").decode("utf-8"))
+        assert manifest["schema_version"] == 1
+        assert manifest["stats"]["book_count"] == 3   # bk_a, bk_b, bk_missing (trash excluded)
+        manifest_ids = sorted(b["book_id"] for b in manifest["books"])
+        assert manifest_ids == ["bk_a", "bk_b", "bk_missing"]
+        # User doc must NOT carry a session_token or password.
+        u = manifest.get("user") or {}
+        assert "session_token" not in u
+        assert "password_hash" not in u

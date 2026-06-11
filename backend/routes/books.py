@@ -5340,6 +5340,257 @@ async def set_book_status(
     }
 
 
+# ============================================================
+# AUTHOR SHELVES — directory + per-author book listing
+# ============================================================
+@api_router.get("/library/authors")
+async def list_authors(user: User = Depends(get_current_user)):
+    """Return every distinct author in the user's library with a book
+    count, sorted by count DESC then alphabetically. Excludes trash.
+
+    Used by the Authors directory page and for autocomplete on tag/
+    bulk-edit forms in the future.
+    """
+    pipeline = [
+        {"$match": {
+            "user_id": user.user_id,
+            "category": {"$ne": TRASH_SHELF},
+            "author": {"$nin": [None, "", "Unknown"]},
+        }},
+        {"$group": {
+            "_id": "$author",
+            "count": {"$sum": 1},
+            "latest_at": {"$max": "$created_at"},
+        }},
+        {"$sort": {"count": -1, "_id": 1}},
+        {"$limit": 2000},
+    ]
+    rows = await db.books.aggregate(pipeline).to_list(2000)
+    authors = [
+        {"author": r["_id"], "count": r["count"], "latest_at": r.get("latest_at")}
+        for r in rows
+    ]
+    return {"count": len(authors), "authors": authors}
+
+
+@api_router.get("/library/by-author")
+async def list_books_by_author(
+    author: str,
+    user: User = Depends(get_current_user),
+):
+    """Return every active book by a given author. Case-sensitive exact
+    match — the listing endpoint above gives the canonical name so the
+    frontend doesn't have to guess."""
+    if not author or not author.strip():
+        raise HTTPException(status_code=400, detail="Author is required")
+    cursor = db.books.find(
+        {
+            "user_id": user.user_id,
+            "category": {"$ne": TRASH_SHELF},
+            "author": author,
+        },
+        {
+            "_id": 0, "book_id": 1, "title": 1, "author": 1, "fandom": 1,
+            "category": 1, "has_cover": 1, "created_at": 1, "series_name": 1,
+            "series_index": 1, "size_bytes": 1, "relationships": 1,
+            "status": 1, "manual_status": 1,
+        },
+    ).sort("created_at", -1)
+    books = await cursor.to_list(5000)
+    # Annotate effective status so the page can group finished/ongoing.
+    for b in books:
+        b["effective_status"] = effective_status(b)
+    by_category: Dict[str, int] = {}
+    for b in books:
+        cat = b.get("category") or "Uncategorized"
+        by_category[cat] = by_category.get(cat, 0) + 1
+    return {
+        "author": author,
+        "count": len(books),
+        "books": books,
+        "by_category": by_category,
+    }
+
+
+# ============================================================
+# PAIRINGS / SHIP BROWSER — aggregates `relationships` across books
+# ============================================================
+@api_router.get("/library/pairings")
+async def list_pairings(user: User = Depends(get_current_user)):
+    """Return every canonical relationship across the user's library with
+    a book count and 3 sample book titles, sorted by count DESC.
+
+    `relationships` is already populated at upload time by the EPUB
+    parser (line 185-265 of this file) and canonicalized via
+    `_canonicalize_relationship`, so we can aggregate directly.
+    """
+    pipeline = [
+        {"$match": {
+            "user_id": user.user_id,
+            "category": {"$ne": TRASH_SHELF},
+            "relationships": {"$exists": True, "$ne": []},
+        }},
+        {"$unwind": "$relationships"},
+        {"$group": {
+            "_id": "$relationships",
+            "count": {"$sum": 1},
+            "sample_titles": {"$push": "$title"},
+        }},
+        {"$sort": {"count": -1, "_id": 1}},
+        {"$limit": 500},
+    ]
+    rows = await db.books.aggregate(pipeline).to_list(500)
+    pairings = [
+        {
+            "pairing": r["_id"],
+            "count": r["count"],
+            # Cap samples at 3 client-side so MongoDB doesn't have to do
+            # a $slice — keeps the pipeline simple and works on any version.
+            "sample_titles": (r.get("sample_titles") or [])[:3],
+        }
+        for r in rows
+    ]
+    return {"count": len(pairings), "pairings": pairings}
+
+
+@api_router.get("/library/by-pairing")
+async def list_books_by_pairing(
+    pairing: str,
+    user: User = Depends(get_current_user),
+):
+    """Return every book whose `relationships` array contains `pairing`.
+    The pairing string must be in canonical form (the listing endpoint
+    above provides them)."""
+    if not pairing or not pairing.strip():
+        raise HTTPException(status_code=400, detail="Pairing is required")
+    cursor = db.books.find(
+        {
+            "user_id": user.user_id,
+            "category": {"$ne": TRASH_SHELF},
+            "relationships": pairing,
+        },
+        {
+            "_id": 0, "book_id": 1, "title": 1, "author": 1, "fandom": 1,
+            "category": 1, "has_cover": 1, "created_at": 1, "series_name": 1,
+            "series_index": 1, "size_bytes": 1, "relationships": 1,
+            "status": 1, "manual_status": 1,
+        },
+    ).sort("created_at", -1)
+    books = await cursor.to_list(5000)
+    for b in books:
+        b["effective_status"] = effective_status(b)
+    return {"pairing": pairing, "count": len(books), "books": books}
+
+
+# ============================================================
+# LIBRARY BACKUP — full export of EPUBs + metadata as a single ZIP
+# ============================================================
+@api_router.get("/library/backup")
+async def export_library_backup(user: User = Depends(get_current_user)):
+    """Stream a complete library backup as a single ZIP.
+
+    Archive layout:
+      backup-manifest.json   ← every book record + tags + smart shelves +
+                               user prefs as JSON. ~2KB per book.
+      epubs/<book_id>.epub   ← the actual file for every active book
+                               that's still on disk.
+
+    The streaming pattern matches `/library/download-zip` so first-byte
+    latency stays low (~1s) even for 5000+ book libraries; nothing is
+    buffered server-side. The output filename is namespaced with the
+    current ISO date so multiple backups don't overwrite each other.
+
+    Restore is intentionally NOT exposed here — it requires conflict
+    resolution (book_id collisions, missing categories, tag merges)
+    that the user should drive interactively. The manifest format is
+    documented and stable so a future restore endpoint can read it.
+    """
+    from stream_zip import stream_zip, ZIP_64
+    from stat import S_IFREG
+    from datetime import datetime as _dt
+    import json as _json
+
+    # Pull everything we need from Mongo in one pass per collection so
+    # the response can start streaming without 5 round-trips per book.
+    books = await db.books.find(
+        {"user_id": user.user_id, "category": {"$ne": TRASH_SHELF}},
+        {"_id": 0},
+    ).to_list(50000)
+    smart_shelves = await db.smart_shelves.find(
+        {"user_id": user.user_id}, {"_id": 0},
+    ).to_list(1000)
+    user_doc = await db.users.find_one(
+        {"user_id": user.user_id},
+        {"_id": 0, "session_token": 0, "password_hash": 0},
+    ) or {}
+
+    iso_today = _dt.now(timezone.utc).strftime("%Y-%m-%d")
+    manifest = {
+        "schema_version": 1,
+        "generated_at": _dt.now(timezone.utc).isoformat(),
+        "user": user_doc,
+        "books": books,
+        "smart_shelves": smart_shelves,
+        "stats": {
+            "book_count": len(books),
+            "smart_shelf_count": len(smart_shelves),
+        },
+    }
+    # `default=str` so datetime / ObjectId etc. survive serialization.
+    manifest_bytes = _json.dumps(manifest, default=str, indent=2).encode("utf-8")
+
+    modified_at = _dt.now()
+    mode = S_IFREG | 0o600
+    user_dir = STORAGE_DIR / user.user_id
+
+    def _file_chunks(path: Path):
+        with open(path, "rb") as f:
+            while True:
+                chunk = f.read(65536)
+                if not chunk:
+                    return
+                yield chunk
+
+    def _bytes_chunks(data: bytes):
+        yield data
+
+    def _members():
+        # 1) manifest first so a curl-aborted backup still has the index
+        yield (
+            "backup-manifest.json",
+            modified_at,
+            mode,
+            ZIP_64,
+            _bytes_chunks(manifest_bytes),
+        )
+        # 2) every EPUB that still exists on disk. We skip ones whose
+        #    files are missing — better partial backup than failed.
+        for b in books:
+            bid = b.get("book_id")
+            if not bid:
+                continue
+            ext = (b.get("original_format") or "epub").lstrip(".")
+            # Try the EPUB first (the canonical readable form), then fall
+            # back to the original source file for failed-conversion books.
+            for candidate in (user_dir / f"{bid}.epub", user_dir / f"{bid}.{ext}"):
+                if candidate.exists():
+                    yield (
+                        f"epubs/{candidate.name}",
+                        modified_at,
+                        mode,
+                        ZIP_64,
+                        _file_chunks(candidate),
+                    )
+                    break
+
+    download_name = f"shelfsort-backup-{iso_today}.zip"
+    return StreamingResponse(
+        stream_zip(_members()),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{download_name}"'},
+    )
+
+
 @api_router.get("/library/linkless")
 async def get_linkless_library(user: User = Depends(get_current_user)):
     """Return every active book that has NO embedded fanfic URLs.

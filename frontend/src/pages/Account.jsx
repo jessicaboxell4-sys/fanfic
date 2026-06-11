@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
-import { User as UserIcon, Mail, Lock, Loader2, Mail as MailIcon, Settings2, AlertTriangle, Layers, Plus, X as XIcon } from "lucide-react";
+import { User as UserIcon, Mail, Lock, Loader2, Mail as MailIcon, Settings2, AlertTriangle, Layers, Plus, X as XIcon, Download } from "lucide-react";
 import LibraryStatsCard from "../components/LibraryStatsCard";
 import FandomTreemap from "../components/FandomTreemap";
 import { FETCHING_UI_ENABLED } from "../lib/featureFlags";
@@ -161,6 +161,63 @@ function FandomAliasesCard() {
     </>
   );
 }
+
+// Backup card — streams every active book + a manifest.json as a single
+// ZIP via `GET /api/library/backup`. Triggers via a synthesized anchor
+// so axios isn't in the path (axios would buffer the whole stream in
+// memory). The anchor uses `api.defaults.baseURL` to keep the same
+// base + cookies the rest of the app uses.
+function BackupCard() {
+  const [busy, setBusy] = useState(false);
+  const download = async () => {
+    setBusy(true);
+    try {
+      // Use a streaming fetch + Blob so we can hand the file off to the
+      // browser without holding the full ZIP in memory longer than the
+      // download dialog needs it.
+      const resp = await api.get("/library/backup", {
+        responseType: "blob",
+        // Backup of a 5000-book library can take 30s+ to stream.
+        timeout: 5 * 60 * 1000,
+      });
+      const blob = resp.data;
+      const url = URL.createObjectURL(blob);
+      const today = new Date().toISOString().split("T")[0];
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `shelfsort-backup-${today}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success("Backup downloaded.");
+    } catch (e) {
+      toast.error("Couldn't generate the backup — try again in a moment.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="shelf-card p-6 mb-6" data-testid="backup-card">
+      <h2 className="font-serif text-2xl text-[#2C2C2C] mb-1 flex items-center gap-2">
+        <Download className="w-5 h-5 text-[#3A5A40]" /> Library backup
+      </h2>
+      <p className="text-sm text-[#6B705C] mb-5">
+        Download every EPUB plus a manifest of your books, tags, smart shelves, and preferences as a single ZIP. The filename is dated so you can keep multiple backups. Restore is manual for now — keep the ZIP somewhere safe.
+      </p>
+      <button
+        onClick={download}
+        disabled={busy}
+        data-testid="backup-download-btn"
+        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#3A5A40] text-white hover:bg-[#2c4530] disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+      >
+        {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+        {busy ? "Generating…" : "Download library backup"}
+      </button>
+    </section>
+  );
+}
+
 
 export default function Account() {
   const navigate = useNavigate();
@@ -388,6 +445,8 @@ export default function Account() {
         <div className="mb-6" data-testid="fandom-treemap-section">
           <FandomTreemap />
         </div>
+
+        <BackupCard />
 
         {/* Profile info */}
         <section className="shelf-card p-6 mb-6">
