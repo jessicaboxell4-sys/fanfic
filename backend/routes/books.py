@@ -714,6 +714,13 @@ from utils.epub_template import (  # noqa: E402
     apply_template_to_epub,
 )
 
+from utils.status_detector import (  # noqa: E402
+    detect_status,
+    effective_status,
+    COMPLETE as STATUS_COMPLETE,
+    ONGOING as STATUS_ONGOING,
+)
+
 
 
 # ---- Tag helpers -----------------------------------------------------------
@@ -2618,6 +2625,16 @@ async def upload_books(
             "series_name": series_name,
             "series_index": series_index,
             "relationships": meta.get("relationships") or [],
+            # Auto-detected completion status (complete | ongoing). User
+            # override lives at `manual_status`; effective_status() picks
+            # the override when set. Detection runs only at upload time —
+            # users said they don't want re-detection on refresh (5a).
+            "status": detect_status(
+                title=meta.get("title"),
+                description=meta.get("description"),
+                raw_meta_text=meta.get("rawExtendedMeta_text"),
+                tags=meta.get("tags") or [],
+            ),
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         if original_format:
@@ -5174,6 +5191,153 @@ async def list_fandoms(user: User = Depends(get_current_user)):
             "parts": parts if is_x else [],
         })
     return {"fandoms": fandoms, "crossover_count": crossover_count}
+
+
+# ============================================================
+# COMPLETION-STATUS SHELVES (complete / ongoing)
+# Detection runs once at upload time and persists to `books.status`.
+# User overrides land in `books.manual_status`; `effective_status()`
+# picks the override when set. Counts on the dashboard come from
+# `/library/status-counts` so the chips render before either shelf
+# is opened.
+# ============================================================
+def _status_query(user_id: str, target: str) -> Dict[str, Any]:
+    """Mongo query matching books whose EFFECTIVE status equals `target`.
+
+    "Effective" = manual_status if set, else status, else "complete"
+    (the default for unknown/old books per user choice 3b).
+    """
+    other = STATUS_COMPLETE if target == STATUS_ONGOING else STATUS_ONGOING
+    if target == STATUS_COMPLETE:
+        # Book is complete when:
+        #   manual_status == complete
+        #   OR (manual_status not set AND status != ongoing)
+        #     — the "!= ongoing" covers default-to-complete behaviour.
+        return {
+            "user_id": user_id,
+            "category": {"$ne": TRASH_SHELF},
+            "$or": [
+                {"manual_status": STATUS_COMPLETE},
+                {"$and": [
+                    {"manual_status": {"$nin": [STATUS_ONGOING]}},
+                    {"status": {"$ne": STATUS_ONGOING}},
+                ]},
+            ],
+        }
+    # target == ongoing — explicit hit on either field.
+    return {
+        "user_id": user_id,
+        "category": {"$ne": TRASH_SHELF},
+        "$or": [
+            {"manual_status": STATUS_ONGOING},
+            {"$and": [
+                {"manual_status": {"$nin": [STATUS_COMPLETE]}},
+                {"status": STATUS_ONGOING},
+            ]},
+        ],
+    }
+
+
+@api_router.get("/library/status-counts")
+async def get_status_counts(user: User = Depends(get_current_user)):
+    """Tiny endpoint the dashboard polls to size the complete/ongoing
+    chips before either shelf is opened. Trashed books are excluded."""
+    complete_n = await db.books.count_documents(_status_query(user.user_id, STATUS_COMPLETE))
+    ongoing_n = await db.books.count_documents(_status_query(user.user_id, STATUS_ONGOING))
+    return {"complete": complete_n, "ongoing": ongoing_n}
+
+
+async def _list_status_shelf(user_id: str, target: str) -> Dict[str, Any]:
+    cursor = db.books.find(
+        _status_query(user_id, target),
+        {
+            "_id": 0, "book_id": 1, "title": 1, "author": 1, "fandom": 1,
+            "category": 1, "has_cover": 1, "created_at": 1, "size_bytes": 1,
+            "relationships": 1, "tags": 1, "series_name": 1, "series_index": 1,
+            "source_url": 1, "fanfic_urls": 1, "links_count": 1,
+            "status": 1, "manual_status": 1,
+        },
+    ).sort("created_at", -1)
+    books = await cursor.to_list(5000)
+    # Annotate each row with the effective status + an `is_manual` flag so
+    # the UI can show a small "Manually set" indicator on overrides.
+    by_category: Dict[str, int] = {}
+    for b in books:
+        b["effective_status"] = effective_status(b)
+        b["is_manual_status"] = bool(b.get("manual_status"))
+        cat = b.get("category") or "Uncategorized"
+        by_category[cat] = by_category.get(cat, 0) + 1
+    return {
+        "books": books,
+        "count": len(books),
+        "by_category": by_category,
+        "status": target,
+    }
+
+
+@api_router.get("/library/complete")
+async def get_complete_library(user: User = Depends(get_current_user)):
+    """Every active book whose effective status is `complete`. Includes
+    Originals + any book without a detected ongoing signal (user chose
+    default-to-complete in scoping question 3)."""
+    return await _list_status_shelf(user.user_id, STATUS_COMPLETE)
+
+
+@api_router.get("/library/ongoing")
+async def get_ongoing_library(user: User = Depends(get_current_user)):
+    """Every active book whose effective status is `ongoing` —
+    explicitly marked WIP/in-progress/hiatus/abandoned/etc."""
+    return await _list_status_shelf(user.user_id, STATUS_ONGOING)
+
+
+class SetStatusBody(BaseModel):
+    """Body for `PATCH /books/{book_id}/status`. `status=None` clears the
+    manual override and falls back to the auto-detected value."""
+    status: Optional[str] = None
+
+
+@api_router.patch("/books/{book_id}/status")
+async def set_book_status(
+    book_id: str,
+    body: SetStatusBody,
+    user: User = Depends(get_current_user),
+):
+    """Override the auto-detected completion status for a single book.
+
+    Persists to `manual_status` so a future re-detection (or refresh)
+    can't blow the user's override away — choice 4b. Passing `status:
+    null` clears the override and reverts to the auto-detected value.
+
+    Accepts only `"complete"` / `"ongoing"` / `null`.
+    """
+    raw = (body.status or "").strip().lower()
+    if raw and raw not in (STATUS_COMPLETE, STATUS_ONGOING):
+        raise HTTPException(
+            status_code=400,
+            detail=f"status must be one of: {STATUS_COMPLETE}, {STATUS_ONGOING}, null",
+        )
+    update = (
+        {"$set": {"manual_status": raw}}
+        if raw else
+        {"$unset": {"manual_status": ""}}
+    )
+    res = await db.books.update_one(
+        {"book_id": book_id, "user_id": user.user_id},
+        update,
+    )
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Book not found")
+    book = await db.books.find_one(
+        {"book_id": book_id, "user_id": user.user_id},
+        {"_id": 0, "book_id": 1, "status": 1, "manual_status": 1},
+    )
+    return {
+        "ok": True,
+        "book_id": book_id,
+        "status": book.get("status"),
+        "manual_status": book.get("manual_status"),
+        "effective_status": effective_status(book),
+    }
 
 
 @api_router.get("/library/linkless")

@@ -3783,3 +3783,138 @@ class TestUnknownSourcesEndToEnd:
             json={"url": "not-a-url"},
         )
         assert r2.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# COMPLETE / ONGOING SHELVES — book status detection + manual override
+# ---------------------------------------------------------------------------
+class TestStatusShelves:
+    """`/library/complete`, `/library/ongoing`, and `/library/status-counts`
+    return books grouped by effective completion status (auto-detected at
+    upload time, overridable via `PATCH /books/{id}/status`)."""
+
+    @pytest.fixture
+    def status_user(self):
+        uid = f"user_st_{uuid.uuid4().hex[:8]}"
+        tok = f"sess_st_{uuid.uuid4().hex}"
+        now = datetime.now(timezone.utc).isoformat()
+        db.users.insert_one({
+            "user_id": uid, "email": f"{uid}@x.com", "name": "ST",
+            "picture": "", "created_at": now,
+        })
+        db.user_sessions.insert_one({
+            "user_id": uid, "session_token": tok,
+            "expires_at": datetime.now(timezone.utc) + timedelta(days=7),
+            "created_at": datetime.now(timezone.utc),
+        })
+        seeds = [
+            # Auto-complete (no signal → defaults to complete per choice 3b)
+            {"book_id": "st_a", "title": "Default Book",
+             "category": "Original Fiction", "status": "complete"},
+            # Auto-ongoing
+            {"book_id": "st_b", "title": "WIP Fic",
+             "category": "Fanfiction", "status": "ongoing"},
+            # Default (status field missing entirely) — must count as complete
+            {"book_id": "st_c", "title": "Old Upload",
+             "category": "Original Fiction"},
+            # Manual override flipping ongoing → complete
+            {"book_id": "st_d", "title": "Marked Done",
+             "category": "Fanfiction", "status": "ongoing", "manual_status": "complete"},
+            # Manual override flipping complete → ongoing
+            {"book_id": "st_e", "title": "Marked WIP",
+             "category": "Fanfiction", "status": "complete", "manual_status": "ongoing"},
+            # Trashed — must NEVER appear
+            {"book_id": "st_f", "title": "Trashed WIP",
+             "category": "Trash", "status": "ongoing"},
+        ]
+        for s in seeds:
+            db.books.insert_one({**s, "user_id": uid, "author": "X", "created_at": now})
+        yield uid, tok
+        db.users.delete_many({"user_id": uid})
+        db.user_sessions.delete_many({"user_id": uid})
+        db.books.delete_many({"user_id": uid})
+
+    def test_status_counts_endpoint(self, status_user):
+        uid, tok = status_user
+        r = requests.get(f"{BASE}/api/library/status-counts",
+                         headers={"Authorization": f"Bearer {tok}"})
+        assert r.status_code == 200, r.text
+        # Complete shelf: a, c (default), d (manual override) = 3
+        # Ongoing shelf: b, e (manual override) = 2 (f is trashed)
+        assert r.json() == {"complete": 3, "ongoing": 2}
+
+    def test_complete_shelf_lists_right_books(self, status_user):
+        uid, tok = status_user
+        r = requests.get(f"{BASE}/api/library/complete",
+                         headers={"Authorization": f"Bearer {tok}"})
+        assert r.status_code == 200, r.text
+        data = r.json()
+        ids = sorted(b["book_id"] for b in data["books"])
+        assert ids == ["st_a", "st_c", "st_d"]
+        # Effective status + is_manual_status are annotated
+        by_id = {b["book_id"]: b for b in data["books"]}
+        assert by_id["st_a"]["effective_status"] == "complete"
+        assert by_id["st_a"]["is_manual_status"] is False
+        assert by_id["st_d"]["effective_status"] == "complete"
+        assert by_id["st_d"]["is_manual_status"] is True
+
+    def test_ongoing_shelf_lists_right_books(self, status_user):
+        uid, tok = status_user
+        r = requests.get(f"{BASE}/api/library/ongoing",
+                         headers={"Authorization": f"Bearer {tok}"})
+        assert r.status_code == 200, r.text
+        ids = sorted(b["book_id"] for b in r.json()["books"])
+        assert ids == ["st_b", "st_e"]
+
+    def test_trashed_excluded_from_both(self, status_user):
+        uid, tok = status_user
+        for endpoint in ("complete", "ongoing"):
+            r = requests.get(f"{BASE}/api/library/{endpoint}",
+                             headers={"Authorization": f"Bearer {tok}"})
+            ids = {b["book_id"] for b in r.json()["books"]}
+            assert "st_f" not in ids, f"trashed book leaked into {endpoint}"
+
+    def test_patch_status_sets_manual_override(self, status_user):
+        uid, tok = status_user
+        # st_a is auto-complete. Override to ongoing.
+        r = requests.patch(
+            f"{BASE}/api/books/st_a/status",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"status": "ongoing"},
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["status"] == "complete"           # auto value untouched
+        assert body["manual_status"] == "ongoing"     # override stored
+        assert body["effective_status"] == "ongoing"
+        # And the shelf views now move it
+        cnt = requests.get(f"{BASE}/api/library/status-counts",
+                           headers={"Authorization": f"Bearer {tok}"}).json()
+        assert cnt == {"complete": 2, "ongoing": 3}
+        # Clearing the override (status: null) restores auto value.
+        r2 = requests.patch(
+            f"{BASE}/api/books/st_a/status",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"status": None},
+        )
+        assert r2.status_code == 200
+        assert r2.json()["manual_status"] is None
+        assert r2.json()["effective_status"] == "complete"
+
+    def test_patch_status_rejects_invalid_value(self, status_user):
+        uid, tok = status_user
+        r = requests.patch(
+            f"{BASE}/api/books/st_a/status",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"status": "halfway-done"},
+        )
+        assert r.status_code == 400
+
+    def test_patch_status_404_unknown_book(self, status_user):
+        uid, tok = status_user
+        r = requests.patch(
+            f"{BASE}/api/books/never-existed/status",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"status": "complete"},
+        )
+        assert r.status_code == 404

@@ -271,6 +271,7 @@ export default function BookDetail() {
                 {book.category}
               </span>
               {book.fandom && <span className="badge-fandom">{book.fandom}</span>}
+              <StatusBadge book={book} onChange={(next) => setBook((b) => ({ ...b, ...next }))} />
               <span className="text-xs text-[#6B705C] px-2 py-1">
                 via {book.classifier} · {Math.round(book.confidence * 100)}% confident
               </span>
@@ -657,5 +658,92 @@ function Meta({ label, value }) {
       <p className="text-xs uppercase tracking-wider text-[#6B705C] font-semibold mb-1">{label}</p>
       <p className="text-[#2C2C2C] break-words">{value}</p>
     </div>
+  );
+}
+
+
+// Status badge + inline override menu. Renders the book's effective
+// completion status (manual_status ?? status ?? "complete") and lets
+// the user flip it via `PATCH /books/{id}/status`. Clicking "Auto"
+// clears `manual_status` and reverts to the upload-time auto-detection.
+function StatusBadge({ book, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const effective = (book.manual_status || book.status || "complete").toLowerCase();
+  const isManual = !!book.manual_status;
+  const label = effective === "ongoing" ? "Ongoing" : "Finished";
+  const cls = effective === "ongoing"
+    ? "bg-[#F8E8D8] text-[#9E5A2E] border-[#9E5A2E]/30"
+    : "bg-[#EAF0EB] text-[#3A5A40] border-[#3A5A40]/30";
+
+  const apply = async (next) => {
+    setBusy(true);
+    try {
+      const { data } = await api.patch(`/books/${book.book_id}/status`, {
+        status: next,  // null clears the override
+      });
+      onChange({ status: data.status, manual_status: data.manual_status });
+      toast.success(
+        next
+          ? `Marked as ${next === "complete" ? "Finished" : "Ongoing"}.`
+          : "Cleared manual override — using auto-detected status.",
+      );
+      setOpen(false);
+    } catch (e) {
+      toast.error("Couldn't update status.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <span className="relative inline-flex" data-testid="book-status-badge-wrap">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        disabled={busy}
+        data-testid="book-status-badge"
+        className={`text-xs px-2.5 py-1 rounded-full border inline-flex items-center gap-1 ${cls} hover:opacity-90 transition-opacity disabled:opacity-50`}
+        title={isManual ? "Status set manually — click to change or revert" : "Auto-detected status — click to override"}
+      >
+        {label}
+        {isManual && <span className="text-[9px] uppercase tracking-wider opacity-80">manual</span>}
+      </button>
+      {open && (
+        <div
+          className="absolute top-full left-0 mt-1 z-10 bg-white border border-[#E5DDC5] rounded-lg shadow-lg p-1 min-w-[160px]"
+          data-testid="book-status-menu"
+        >
+          <button
+            type="button"
+            onClick={() => apply("complete")}
+            data-testid="book-status-set-complete"
+            className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-[#F5F3EC] flex items-center justify-between"
+          >
+            Finished
+            {effective === "complete" && <span className="text-[#3A5A40]">✓</span>}
+          </button>
+          <button
+            type="button"
+            onClick={() => apply("ongoing")}
+            data-testid="book-status-set-ongoing"
+            className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-[#F5F3EC] flex items-center justify-between"
+          >
+            Ongoing
+            {effective === "ongoing" && <span className="text-[#9E5A2E]">✓</span>}
+          </button>
+          {isManual && (
+            <button
+              type="button"
+              onClick={() => apply(null)}
+              data-testid="book-status-clear-manual"
+              className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-[#F5F3EC] text-[#6B705C] border-t border-[#E5DDC5] mt-1"
+            >
+              Use auto-detected ({(book.status || "complete") === "ongoing" ? "Ongoing" : "Finished"})
+            </button>
+          )}
+        </div>
+      )}
+    </span>
   );
 }

@@ -27,6 +27,7 @@ export default function Dashboard() {
   const [linklessCount, setLinklessCount] = useState(0);
   const [unreadableCount, setUnreadableCount] = useState(0);
   const [unknownSourcesCount, setUnknownSourcesCount] = useState(0);
+  const [statusCounts, setStatusCounts] = useState({ complete: 0, ongoing: 0 });
   const [category, setCategory] = useState("All");
   const [fandom, setFandom] = useState(null);
   const [relationship, setRelationship] = useState(null);
@@ -125,6 +126,13 @@ export default function Dashboard() {
       try {
         const us = await api.get("/admin/unknown-sources");
         setUnknownSourcesCount(us.data?.count || 0);
+      } catch (e) { /* ignore — non-blocking */ }
+      try {
+        const sc = await api.get("/library/status-counts");
+        setStatusCounts({
+          complete: sc.data?.complete || 0,
+          ongoing: sc.data?.ongoing || 0,
+        });
       } catch (e) { /* ignore — non-blocking */ }
       try {
         const rc = await api.get("/books/recent", { params: { limit: 8 } });
@@ -915,6 +923,35 @@ export default function Dashboard() {
                   {unknownSourcesCount} unknown source{unknownSourcesCount === 1 ? "" : "s"} · review
                   <ArrowRight className="w-3 h-3" />
                 </button>
+              </div>
+            )}
+
+            {(statusCounts.complete > 0 || statusCounts.ongoing > 0) && (
+              <div className="mb-4 flex flex-wrap gap-2" data-testid="dashboard-status-chips">
+                {statusCounts.complete > 0 && (
+                  <button
+                    onClick={() => navigate("/library/complete")}
+                    data-testid="dashboard-complete-chip"
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-[#EAF0EB] text-[#3A5A40] border border-[#3A5A40]/30 hover:bg-[#3A5A40] hover:text-white transition-colors"
+                    title="Books with a definitive ending"
+                  >
+                    <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1 rounded-full bg-[#3A5A40] text-white text-[10px] font-bold leading-none">✓</span>
+                    {statusCounts.complete} finished
+                    <ArrowRight className="w-3 h-3" />
+                  </button>
+                )}
+                {statusCounts.ongoing > 0 && (
+                  <button
+                    onClick={() => navigate("/library/ongoing")}
+                    data-testid="dashboard-ongoing-chip"
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-[#F8E8D8] text-[#9E5A2E] border border-[#9E5A2E]/30 hover:bg-[#9E5A2E] hover:text-white transition-colors"
+                    title="Works-in-progress (WIPs, hiatus, abandoned)"
+                  >
+                    <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1 rounded-full bg-[#9E5A2E] text-white text-[10px] font-bold leading-none">…</span>
+                    {statusCounts.ongoing} ongoing
+                    <ArrowRight className="w-3 h-3" />
+                  </button>
+                )}
               </div>
             )}
 

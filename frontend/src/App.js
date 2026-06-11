@@ -35,6 +35,7 @@ import CrossoverShelf from "@/pages/CrossoverShelf";
 import LinklessShelf from "@/pages/LinklessShelf";
 import UnreadableShelf from "@/pages/UnreadableShelf";
 import UnknownSourcesPage from "@/pages/UnknownSourcesPage";
+import { CompleteShelf, OngoingShelf } from "@/pages/StatusShelves";
 import OriginalsShelf from "@/pages/OriginalsShelf";
 import Help from "@/pages/Help";
 import AuthCallback from "@/pages/AuthCallback";
@@ -87,6 +88,8 @@ function AppRouter() {
       <Route path="/library/linkless" element={<ProtectedRoute><LinklessShelf /></ProtectedRoute>} />
       <Route path="/library/unreadable" element={<ProtectedRoute><UnreadableShelf /></ProtectedRoute>} />
       <Route path="/admin/unknown-sources" element={<ProtectedRoute><UnknownSourcesPage /></ProtectedRoute>} />
+      <Route path="/library/complete" element={<ProtectedRoute><CompleteShelf /></ProtectedRoute>} />
+      <Route path="/library/ongoing" element={<ProtectedRoute><OngoingShelf /></ProtectedRoute>} />
       <Route path="/library/originals" element={<ProtectedRoute><OriginalsShelf /></ProtectedRoute>} />
       <Route path="/help" element={<ProtectedRoute><Help /></ProtectedRoute>} />
       <Route path="/book/:id" element={<ProtectedRoute><BookDetail /></ProtectedRoute>} />

@@ -826,3 +826,16 @@
 - **`utils/unknown_sources.py`**: extended `record_unknown_sources` with `skip_heuristic: bool` and `note: str` parameters; `note` persists on the host doc as `last_note`. Added "manual" to the valid `context` values.
 - **Frontend**: small form (URL + optional note + Submit) above the search bar on `UnknownSourcesPage`. Toast feedback distinguishes "queued for review" from "already accepted." On success, the list reloads in place.
 - **Tests**: +3 new in `TestUnknownSourcesEndToEnd` covering: manual add queues a non-story-shaped URL, already-accepted shortcut, empty/malformed rejects. Plus the existing 35 pure-unit tests still pass. **All 45 unknown-sources tests passing.**
+
+### Added 2026-06-09 (Complete / Ongoing status shelves)
+- **Feature**: sort EPUBs by completion status. Detection runs once at upload time (choice 5a) using a 4-signal cascade (choice 2d): explicit "Status:" line in metadata → tags (`complete`, `wip`, `hiatus`, `abandoned`, etc.) → "Chapter X of Y" heuristic → "TBC / to be continued" heuristic → defaults to **Complete** (choice 3b). Users can override via a status badge on the book detail page; the override (`manual_status`) is stored separately so re-detection can't blow it away (choice 4b).
+- **Backend**:
+  - new `utils/status_detector.py` — pure, deterministic, 42 unit tests. Public API: `detect_status(title?, description?, raw_meta_text?, tags?)` returns `"complete" | "ongoing"`; `effective_status(book)` honors `manual_status`.
+  - new endpoints: `GET /api/library/complete`, `GET /api/library/ongoing`, `GET /api/library/status-counts`, `PATCH /api/books/{id}/status`. `manual_status: null` in the PATCH body clears the override.
+  - upload pipeline now writes `books.status` for every newly-uploaded book.
+- **Frontend** (choice 1d — shelves + library filter chips + dashboard chips):
+  - new `/app/frontend/src/pages/StatusShelves.jsx` exports `CompleteShelf` + `OngoingShelf` from a shared `StatusShelf` component (category filter chips, search, book list mirroring Linkless/Unreadable layout).
+  - routes `/library/complete` (green checkmark theme) and `/library/ongoing` (warm copper theme) registered in `App.js`.
+  - new dashboard chips: `dashboard-complete-chip` (green with `✓`) and `dashboard-ongoing-chip` (copper with `…`) — both gated on count > 0, rendered as a small row.
+  - new `StatusBadge` component on `BookDetail.jsx` next to the category badge — click → dropdown with Finished / Ongoing / Use auto-detected. Shows a small "MANUAL" sub-label when the user has overridden.
+- **Tests**: 42 pure-unit (`test_status_detector.py`) + 7 end-to-end (`TestStatusShelves` in `test_new_features.py`) = **49/49 passing**.
