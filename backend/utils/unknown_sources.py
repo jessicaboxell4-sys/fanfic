@@ -108,6 +108,8 @@ async def record_unknown_sources(
     book_id: Optional[str] = None,
     book_title: Optional[str] = None,
     book_author: Optional[str] = None,
+    skip_heuristic: bool = False,
+    note: Optional[str] = None,
 ) -> List[str]:
     """Upsert story-shaped URLs whose host isn't on the accepted list.
 
@@ -121,8 +123,18 @@ async def record_unknown_sources(
     returns non-None) are skipped. AO3 non-work links (series, user,
     collection pages) are also skipped — those have their own bucket on
     the dedupe screen.
+
+    `skip_heuristic=True` — bypass the `looks_like_fanfic_url` path-
+    pattern check. Used by the manual-add endpoint where the user is
+    explicitly vouching for a URL that might not look story-shaped
+    (e.g. they pasted just a homepage of a new archive they want added).
+    The accepted-list check is still enforced; we never log a host the
+    canonicalizer already knows about.
+
+    `note` — optional user-supplied comment ("friend mentioned this") that
+    persists on the host record as `last_note` for context next session.
     """
-    if context not in {"upload", "paste", "claim"}:
+    if context not in {"upload", "paste", "claim", "manual"}:
         context = "paste"
     now = datetime.now(timezone.utc)
     hosts_recorded: List[str] = []
@@ -132,7 +144,7 @@ async def record_unknown_sources(
             continue
         if normalize_fanfic_url(raw) or classify_ao3_non_work(raw):
             continue
-        if not looks_like_fanfic_url(raw):
+        if not skip_heuristic and not looks_like_fanfic_url(raw):
             continue
         host = _host_of(raw)
         if not host or host in seen_hosts:
@@ -162,6 +174,8 @@ async def record_unknown_sources(
                 update["$set"]["last_book_title"] = book_title[:200]
             if book_author:
                 update["$set"]["last_book_author"] = book_author[:200]
+        if note:
+            update["$set"]["last_note"] = note[:500]
 
         await db.unknown_sources.update_one(
             {"host": host},

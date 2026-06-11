@@ -17,6 +17,16 @@ export default function UnknownSourcesPage() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all"); // all | marked | unmarked
   const [busyHost, setBusyHost] = useState(null);
+  const [newUrl, setNewUrl] = useState("");
+  const [newNote, setNewNote] = useState("");
+  const [adding, setAdding] = useState(false);
+
+  const reload = async () => {
+    try {
+      const { data } = await api.get("/admin/unknown-sources");
+      setHosts(data?.hosts || []);
+    } catch { /* ignore */ }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -77,6 +87,33 @@ export default function UnknownSourcesPage() {
       toast.error("Couldn't dismiss that host.");
     } finally {
       setBusyHost(null);
+    }
+  };
+
+  const addManual = async (e) => {
+    e?.preventDefault?.();
+    const url = newUrl.trim();
+    if (!url) {
+      toast.error("Paste a URL first.");
+      return;
+    }
+    setAdding(true);
+    try {
+      const { data } = await api.post("/admin/unknown-sources", {
+        url, note: newNote.trim() || undefined,
+      });
+      if (data?.already_accepted) {
+        toast(`${data.host || "That host"} is already on the accepted list — no need to queue it.`, { duration: 6000 });
+      } else {
+        toast.success(`Queued ${data.host} for review — I'll look at it next session.`);
+      }
+      setNewUrl("");
+      setNewNote("");
+      await reload();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Couldn't queue that URL.");
+    } finally {
+      setAdding(false);
     }
   };
 
@@ -145,6 +182,38 @@ export default function UnknownSourcesPage() {
             </div>
           )}
         </div>
+
+        <form
+          onSubmit={addManual}
+          className="shelf-card p-4 mb-4 flex flex-col sm:flex-row gap-2"
+          data-testid="unknown-add-form"
+        >
+          <input
+            type="url"
+            value={newUrl}
+            onChange={(e) => setNewUrl(e.target.value)}
+            data-testid="unknown-add-url"
+            placeholder="Add a host manually — paste a URL (e.g. https://newarchive.com/story/1)"
+            className="flex-1 min-w-0 px-3 py-2 text-sm rounded-lg border border-[#E5DDC5] bg-white focus:outline-none focus:border-[#3A5A40]/60"
+          />
+          <input
+            type="text"
+            value={newNote}
+            onChange={(e) => setNewNote(e.target.value)}
+            data-testid="unknown-add-note"
+            placeholder="Optional note ('friend mentioned it')"
+            maxLength={500}
+            className="sm:w-64 px-3 py-2 text-sm rounded-lg border border-[#E5DDC5] bg-white focus:outline-none focus:border-[#3A5A40]/60"
+          />
+          <button
+            type="submit"
+            disabled={adding || !newUrl.trim()}
+            data-testid="unknown-add-submit"
+            className="px-4 py-2 text-sm font-medium rounded-lg bg-[#3A5A40] text-white hover:bg-[#2c4530] disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+          >
+            {adding ? "Queueing…" : "Queue for review"}
+          </button>
+        </form>
 
         <div className="relative mb-4">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B705C]" />

@@ -819,3 +819,10 @@
 - **Route**: `/admin/unknown-sources` registered in `App.js`, protected.
 - **Tests**: +2 new in `TestUnknownSourcesEndToEnd` covering the mark-accepted toggle + 404 path. **All 410-plus 42 unknown-sources-related tests passing.**
 - **Curation workflow for the agent**: at session start, fetch `/api/admin/unknown-sources?since=<last-checked>` and look for hosts where `marked_accepted=true` — those are explicit user requests to add. After adding, DELETE the host record so it leaves the queue.
+
+### Added 2026-06-09 (Manual add to unknown-sources queue)
+- **Feature**: input row at the top of `/admin/unknown-sources` to queue a host for review without an EPUB upload triggering it. Useful when a friend mentions a new fic archive — paste the URL, add an optional note, and it's queued for the next session.
+- **Backend**: new `POST /api/admin/unknown-sources` with body `{url, note?}`. Bypasses the story-shape heuristic (`skip_heuristic=True`) since the user is explicitly vouching for the URL. Already-accepted hosts short-circuit with `{ok: True, already_accepted: True, host}` — the UI shows a friendly "already on the accepted list" toast instead of silently doing nothing. Empty/malformed URLs return 400.
+- **`utils/unknown_sources.py`**: extended `record_unknown_sources` with `skip_heuristic: bool` and `note: str` parameters; `note` persists on the host doc as `last_note`. Added "manual" to the valid `context` values.
+- **Frontend**: small form (URL + optional note + Submit) above the search bar on `UnknownSourcesPage`. Toast feedback distinguishes "queued for review" from "already accepted." On success, the list reloads in place.
+- **Tests**: +3 new in `TestUnknownSourcesEndToEnd` covering: manual add queues a non-story-shaped URL, already-accepted shortcut, empty/malformed rejects. Plus the existing 35 pure-unit tests still pass. **All 45 unknown-sources tests passing.**

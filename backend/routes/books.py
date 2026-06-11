@@ -5279,6 +5279,64 @@ class MarkAcceptedBody(BaseModel):
     accepted: bool = True
 
 
+class AddUnknownSourceBody(BaseModel):
+    """Body for `POST /api/admin/unknown-sources` — manual queue add.
+
+    The user is vouching for the URL (probably saw it on a new archive a
+    friend mentioned), so we bypass the story-shape heuristic. Accepted
+    sources are still skipped — no point logging a host the canonicalizer
+    already knows about. `note` is a free-form comment that lives on the
+    host record so the dev knows why it was queued.
+    """
+    url: str
+    note: Optional[str] = None
+
+
+@api_router.post("/admin/unknown-sources")
+async def add_unknown_source_manual(
+    body: AddUnknownSourceBody,
+    user: User = Depends(get_current_user),
+):
+    """Manually queue a host for review without an EPUB upload trigger.
+
+    Returns `{ok, host, already_accepted}` — `already_accepted=True`
+    means the URL canonicalizes to a known source (no record created
+    because we already support it). When `host=None` the URL parsed but
+    we couldn't extract a hostname (e.g. user pasted just a path).
+    """
+    raw = (body.url or "").strip()
+    if not raw:
+        raise HTTPException(status_code=400, detail="URL is empty")
+
+    from utils.unknown_sources import (
+        record_unknown_sources, _host_of, normalize_fanfic_url,
+        classify_ao3_non_work,
+    )
+
+    # Already-accepted shortcut so the UI can tell the user "no need to
+    # queue, we already support this" instead of silently doing nothing.
+    if normalize_fanfic_url(raw) or classify_ao3_non_work(raw):
+        return {
+            "ok": True,
+            "already_accepted": True,
+            "host": _host_of(raw),
+        }
+
+    hosts = await record_unknown_sources(
+        db, [raw], context="manual",
+        user_id=user.user_id,
+        note=body.note,
+        skip_heuristic=True,
+    )
+    if not hosts:
+        # Either the URL was un-parseable or had no hostname.
+        raise HTTPException(
+            status_code=400,
+            detail="Couldn't extract a hostname from that URL — please paste a full http(s):// URL.",
+        )
+    return {"ok": True, "already_accepted": False, "host": hosts[0]}
+
+
 @api_router.patch("/admin/unknown-sources/{host}/mark-accepted")
 async def mark_unknown_source_accepted(
     host: str,

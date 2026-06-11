@@ -3731,3 +3731,55 @@ class TestUnknownSourcesEndToEnd:
             json={"accepted": True},
         )
         assert r.status_code == 404
+
+    def test_manual_add_queues_new_host(self, fresh_user):
+        uid, tok = fresh_user
+        # Use a clearly non-story-shaped URL (just a homepage) — manual
+        # add must bypass the heuristic and still queue it.
+        host = "newfic-homepage.com"
+        db.unknown_sources.delete_many({"host": host})
+        r = requests.post(
+            f"{BASE}/api/admin/unknown-sources",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"url": f"https://www.{host}/", "note": "Friend mentioned this"},
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body == {"ok": True, "already_accepted": False, "host": host}
+        doc = db.unknown_sources.find_one({"host": host})
+        assert doc is not None
+        assert doc["contexts"].get("manual") == 1
+        assert doc.get("last_note") == "Friend mentioned this"
+        assert doc.get("last_user_id") == uid
+        db.unknown_sources.delete_many({"host": host})
+
+    def test_manual_add_already_accepted_short_circuits(self, fresh_user):
+        uid, tok = fresh_user
+        r = requests.post(
+            f"{BASE}/api/admin/unknown-sources",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"url": "https://archiveofourown.org/works/12345"},
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["already_accepted"] is True
+        assert body["host"] == "archiveofourown.org"
+        # And no record was created.
+        assert db.unknown_sources.find_one({"host": "archiveofourown.org"}) is None
+
+    def test_manual_add_rejects_empty_or_malformed(self, fresh_user):
+        uid, tok = fresh_user
+        for url in ["", "   "]:
+            r = requests.post(
+                f"{BASE}/api/admin/unknown-sources",
+                headers={"Authorization": f"Bearer {tok}"},
+                json={"url": url},
+            )
+            assert r.status_code == 400, f"empty url {url!r} should be 400"
+        # No-host garbage
+        r2 = requests.post(
+            f"{BASE}/api/admin/unknown-sources",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"url": "not-a-url"},
+        )
+        assert r2.status_code == 400
