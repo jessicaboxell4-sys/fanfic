@@ -5275,6 +5275,44 @@ async def dismiss_unknown_source(host: str, user: User = Depends(get_current_use
     return {"ok": True, "removed": res.deleted_count}
 
 
+class MarkAcceptedBody(BaseModel):
+    accepted: bool = True
+
+
+@api_router.patch("/admin/unknown-sources/{host}/mark-accepted")
+async def mark_unknown_source_accepted(
+    host: str,
+    body: MarkAcceptedBody,
+    user: User = Depends(get_current_user),
+):
+    """Flag (or un-flag) an unknown-source host as "user wants this added to
+    the accepted-sources list." The flag is purely a signal for the next
+    Shelfsort dev session — the host stays in `unknown_sources` until it's
+    either dismissed (DELETE) or the regex is actually added to
+    `utils/url_canonical.py` and the host record explicitly dismissed.
+
+    Idempotent; returns the updated host doc.
+    """
+    host_norm = host.lower()
+    now = datetime.now(timezone.utc)
+    update = (
+        {"$set": {"marked_accepted": True, "marked_accepted_at": now,
+                  "marked_accepted_by": user.user_id}}
+        if body.accepted else
+        {"$unset": {"marked_accepted": "", "marked_accepted_at": "",
+                    "marked_accepted_by": ""}}
+    )
+    res = await db.unknown_sources.update_one({"host": host_norm}, update)
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Host not found")
+    doc = await db.unknown_sources.find_one({"host": host_norm}, {"_id": 0})
+    for k in ("first_seen", "last_seen", "marked_accepted_at"):
+        v = doc.get(k) if doc else None
+        if isinstance(v, datetime):
+            doc[k] = v.isoformat()
+    return {"ok": True, "host": doc}
+
+
 @api_router.get("/library/unreadable")
 async def get_unreadable_library(user: User = Depends(get_current_user)):
     """Return every active book that couldn't be parsed at upload time.

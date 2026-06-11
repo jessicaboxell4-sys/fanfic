@@ -3684,3 +3684,50 @@ class TestUnknownSourcesEndToEnd:
             headers={"Authorization": f"Bearer {tok}"},
         )
         assert r2.json() == {"ok": True, "removed": 0}
+
+    def test_mark_accepted_flow(self, fresh_user):
+        uid, tok = fresh_user
+        host = "mark-test.com"
+        db.unknown_sources.delete_many({"host": host})
+        db.unknown_sources.insert_one({
+            "host": host, "hit_count": 1, "contexts": {"paste": 1},
+            "samples": [f"https://{host}/story/1"],
+            "first_seen": datetime.now(timezone.utc),
+            "last_seen": datetime.now(timezone.utc),
+        })
+        # Mark as accepted
+        r = requests.patch(
+            f"{BASE}/api/admin/unknown-sources/{host}/mark-accepted",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"accepted": True},
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["ok"] is True
+        assert body["host"]["marked_accepted"] is True
+        assert body["host"]["marked_accepted_by"] == uid
+        assert "marked_accepted_at" in body["host"]
+        # Persisted on the doc
+        doc = db.unknown_sources.find_one({"host": host})
+        assert doc["marked_accepted"] is True
+        # Un-mark
+        r2 = requests.patch(
+            f"{BASE}/api/admin/unknown-sources/{host}/mark-accepted",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"accepted": False},
+        )
+        assert r2.status_code == 200
+        doc2 = db.unknown_sources.find_one({"host": host})
+        assert "marked_accepted" not in doc2
+        assert "marked_accepted_at" not in doc2
+        # Cleanup
+        db.unknown_sources.delete_many({"host": host})
+
+    def test_mark_accepted_404_unknown_host(self, fresh_user):
+        uid, tok = fresh_user
+        r = requests.patch(
+            f"{BASE}/api/admin/unknown-sources/never-seen-this.com/mark-accepted",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"accepted": True},
+        )
+        assert r.status_code == 404

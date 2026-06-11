@@ -808,3 +808,14 @@
 - **How the agent reviews**: at session start, hit `GET /api/admin/unknown-sources?since=<last-checked>` and surface the new hosts to the user. After they decide which to add, modify `FANFIC_SOURCE_PATTERNS` + canonical regex in `utils/url_canonical.py` and dismiss the host(s) via the DELETE endpoint.
 
 ### Test totals (after this feature): 410 passing (8 pre-existing failures in `test_tags_and_smart_shelves.py` are unrelated to this work and fail on main too).
+
+### Added 2026-06-09 (Unknown sources curation queue UI)
+- **Feature**: a dedicated dashboard chip + page so the user can curate the unknown-sources queue themselves between sessions.
+- **Backend**: new `PATCH /api/admin/unknown-sources/{host}/mark-accepted` (body `{accepted: true|false}`) flags or un-flags a host as "user wants this added to the accepted-sources list." The flag (`marked_accepted`, `marked_accepted_at`, `marked_accepted_by`) is a signal for the next Shelfsort dev session — host stays in the queue until either dismissed (DELETE) or the regex is added to `utils/url_canonical.py` and the host is dismissed.
+- **Frontend**:
+  - new `/app/frontend/src/pages/UnknownSourcesPage.jsx` at `/admin/unknown-sources` — list with hit counts, per-context badges (upload/paste/claim), first/last-seen relative times, last book metadata, expandable sample URLs, and per-host "Mark for adding" + "Dismiss" buttons. Search + 3 filter chips (All/Marked/Unmarked).
+  - new `dashboard-unknown-sources-chip` on Dashboard.jsx (green, with `?` badge) shown when `unknownSourcesCount > 0`. Lives next to the linkless/unreadable/crossover chips.
+  - Toast feedback after each action ("Marked novelupdates.com — I'll add it next session.")
+- **Route**: `/admin/unknown-sources` registered in `App.js`, protected.
+- **Tests**: +2 new in `TestUnknownSourcesEndToEnd` covering the mark-accepted toggle + 404 path. **All 410-plus 42 unknown-sources-related tests passing.**
+- **Curation workflow for the agent**: at session start, fetch `/api/admin/unknown-sources?since=<last-checked>` and look for hosts where `marked_accepted=true` — those are explicit user requests to add. After adding, DELETE the host record so it leaves the queue.
