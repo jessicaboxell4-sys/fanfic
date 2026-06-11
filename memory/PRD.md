@@ -854,3 +854,11 @@
   - new `POST /api/user/backup-reminder/dismiss` — idempotent 14-day silencer.
 - **Frontend**: new `/app/frontend/src/components/BackupReminderBanner.jsx` mounted at the top of Dashboard. Headline varies by trigger ("You have N books and no backup yet" / "It's been N days…" / "You've added N books…"). One click runs the same blob-download flow as the Account-page button.
 - **Tests**: 7 new in `TestBackupReminder` covering all three triggers, dismiss → 14-day silence, dismiss expiry, and "running a backup clears the reminder." **All passing.**
+
+### Added 2026-06-09 (Backup history)
+- **Feature**: chronological list of every backup the user has started, shown below the "Download library backup" button on `/account`. Useful for answering "did I back up before <bad date>?" at a glance.
+- **Backend**:
+  - new `backup_history` collection — one row per backup: `{user_id, started_at, book_count, smart_shelf_count}`. Inserted at the start of every `/api/library/backup` call. ZIPs themselves are NOT stored — only metadata, never grows unbounded (auto-trimmed to the 50 newest per user inside the same endpoint).
+  - new `GET /api/user/backup-history` returns the last 50 entries, newest first.
+- **Frontend**: `BackupCard` on `/account` now renders a "Backup history" section under the download button. Each entry shows absolute timestamp + relative "Xh ago" / "Xd ago" + book count. Empty-state copy when no backups yet. List refreshes immediately after a fresh backup.
+- **Tests**: 3 new in `TestBackupHistory` covering empty state, append-on-backup, and the 50-entry cap. **All passing.**

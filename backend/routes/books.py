@@ -5589,10 +5589,32 @@ async def export_library_backup(user: User = Depends(get_current_user)):
     # quiets down. We update BEFORE returning the StreamingResponse so
     # the "I just backed up" state persists even if the user closes the
     # tab before the stream finishes — they've at least started a backup.
+    now_iso = _dt.now(timezone.utc).isoformat()
     await db.users.update_one(
         {"user_id": user.user_id},
-        {"$set": {"last_backup_at": _dt.now(timezone.utc).isoformat()}},
+        {"$set": {"last_backup_at": now_iso}},
     )
+    # Append to the per-user backup history (capped at 50 most recent
+    # entries by a trim-on-insert below) so the user can answer "did I
+    # back up before <bad date>?" from the Account page. We only store
+    # metadata — never the ZIP itself.
+    await db.backup_history.insert_one({
+        "user_id": user.user_id,
+        "started_at": now_iso,
+        "book_count": len(books),
+        "smart_shelf_count": len(smart_shelves),
+    })
+    # Trim to the 50 most recent so this collection never grows unbounded.
+    # We keep deletions cheap by deleting by _id older than the 50th.
+    cutoff_doc = await db.backup_history.find(
+        {"user_id": user.user_id}, {"_id": 1},
+    ).sort("started_at", -1).skip(49).limit(1).to_list(1)
+    if cutoff_doc:
+        cutoff_id = cutoff_doc[0]["_id"]
+        await db.backup_history.delete_many({
+            "user_id": user.user_id,
+            "_id": {"$lt": cutoff_id},
+        })
 
     return StreamingResponse(
         stream_zip(_members()),
@@ -5704,6 +5726,19 @@ async def dismiss_backup_reminder(user: User = Depends(get_current_user)):
         {"$set": {"last_backup_dismissed_at": datetime.now(timezone.utc).isoformat()}},
     )
     return {"ok": True}
+
+
+@api_router.get("/user/backup-history")
+async def get_backup_history(user: User = Depends(get_current_user)):
+    """Return the user's last 50 backup runs (started_at + book/shelf
+    counts), newest first. Useful for answering "did I back up before
+    the great Aug 1st tag-purge incident?" without storing the ZIPs."""
+    cursor = db.backup_history.find(
+        {"user_id": user.user_id},
+        {"_id": 0, "user_id": 0},
+    ).sort("started_at", -1).limit(50)
+    rows = await cursor.to_list(50)
+    return {"count": len(rows), "entries": rows}
 
 
 @api_router.get("/library/linkless")

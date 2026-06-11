@@ -169,6 +169,19 @@ function FandomAliasesCard() {
 // base + cookies the rest of the app uses.
 function BackupCard() {
   const [busy, setBusy] = useState(false);
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+
+  const loadHistory = async () => {
+    try {
+      const { data } = await api.get("/user/backup-history");
+      setHistory(data?.entries || []);
+    } catch { /* ignore */ }
+    finally { setHistoryLoading(false); }
+  };
+
+  useEffect(() => { loadHistory(); }, []);
+
   const download = async () => {
     setBusy(true);
     try {
@@ -191,12 +204,31 @@ function BackupCard() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       toast.success("Backup downloaded.");
+      // Refresh the history so the new entry shows up immediately.
+      await loadHistory();
     } catch (e) {
       toast.error("Couldn't generate the backup — try again in a moment.");
     } finally {
       setBusy(false);
     }
   };
+
+  const formatTime = (iso) => {
+    if (!iso) return "";
+    try {
+      const d = new Date(iso);
+      const diffH = (Date.now() - d.getTime()) / 1000 / 3600;
+      if (diffH < 1) {
+        const m = Math.max(1, Math.floor(diffH * 60));
+        return `${m} min ago`;
+      }
+      if (diffH < 24) return `${Math.floor(diffH)}h ago`;
+      const diffD = diffH / 24;
+      if (diffD < 14) return `${Math.floor(diffD)}d ago`;
+      return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+    } catch { return ""; }
+  };
+
   return (
     <section className="shelf-card p-6 mb-6" data-testid="backup-card">
       <h2 className="font-serif text-2xl text-[#2C2C2C] mb-1 flex items-center gap-2">
@@ -214,6 +246,43 @@ function BackupCard() {
         {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
         {busy ? "Generating…" : "Download library backup"}
       </button>
+
+      {/* Backup history — chronological list so the user can answer
+          "did I back up before <bad date>?" at a glance. */}
+      <div className="mt-6 pt-5 border-t border-[#E5DDC5]" data-testid="backup-history">
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] mb-3">
+          Backup history
+        </p>
+        {historyLoading ? (
+          <p className="text-xs text-[#6B705C] italic">Loading…</p>
+        ) : history.length === 0 ? (
+          <p className="text-xs text-[#6B705C] italic" data-testid="backup-history-empty">
+            No backups yet — your first download will show up here.
+          </p>
+        ) : (
+          <ul className="space-y-1.5" data-testid="backup-history-list">
+            {history.map((h, i) => (
+              <li
+                key={h.started_at || i}
+                data-testid={`backup-history-entry-${i}`}
+                className="flex items-center justify-between text-xs px-2 py-1.5 rounded bg-[#F5F3EC]"
+              >
+                <span className="text-[#2C2C2C]">
+                  {new Date(h.started_at).toLocaleString(undefined, {
+                    year: "numeric", month: "short", day: "numeric",
+                    hour: "2-digit", minute: "2-digit",
+                  })}
+                  <span className="text-[#6B705C]"> · {formatTime(h.started_at)}</span>
+                </span>
+                <span className="text-[#6B705C]">
+                  {h.book_count} book{h.book_count === 1 ? "" : "s"}
+                  {h.smart_shelf_count ? <> · {h.smart_shelf_count} smart shelves</> : null}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </section>
   );
 }

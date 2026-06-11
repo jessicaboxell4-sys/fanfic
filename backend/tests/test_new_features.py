@@ -4255,3 +4255,90 @@ class TestBackupReminder:
         assert body["last_backup_at"] is not None
         assert body["days_since_backup"] == 0
         assert body["books_since_backup"] == 0
+
+
+# ---------------------------------------------------------------------------
+# BACKUP HISTORY — chronological list of past backup runs
+# ---------------------------------------------------------------------------
+class TestBackupHistory:
+    """Every `/library/backup` run inserts a row into `backup_history`.
+    `GET /user/backup-history` returns the user's last 50 entries,
+    newest first. ZIPs themselves are NOT stored — only metadata."""
+
+    @pytest.fixture
+    def hist_user(self):
+        uid = f"user_h_{uuid.uuid4().hex[:8]}"
+        tok = f"sess_h_{uuid.uuid4().hex}"
+        now = datetime.now(timezone.utc).isoformat()
+        db.users.insert_one({
+            "user_id": uid, "email": f"{uid}@x.com", "name": "H",
+            "picture": "", "created_at": now,
+        })
+        db.user_sessions.insert_one({
+            "user_id": uid, "session_token": tok,
+            "expires_at": datetime.now(timezone.utc) + timedelta(days=7),
+            "created_at": datetime.now(timezone.utc),
+        })
+        # Seed a couple of books so the count is meaningful.
+        for i in range(3):
+            db.books.insert_one({
+                "book_id": f"bh_{i}", "user_id": uid, "title": f"B{i}",
+                "author": "A", "category": "Original Fiction",
+                "original_format": "epub", "created_at": now,
+            })
+        yield uid, tok
+        db.users.delete_many({"user_id": uid})
+        db.user_sessions.delete_many({"user_id": uid})
+        db.books.delete_many({"user_id": uid})
+        db.backup_history.delete_many({"user_id": uid})
+
+    def test_empty_history_for_new_user(self, hist_user):
+        uid, tok = hist_user
+        r = requests.get(f"{BASE}/api/user/backup-history",
+                         headers={"Authorization": f"Bearer {tok}"})
+        assert r.status_code == 200
+        assert r.json() == {"count": 0, "entries": []}
+
+    def test_running_backup_appends_history_entry(self, hist_user):
+        uid, tok = hist_user
+        # Run two backups, drain the streams.
+        for _ in range(2):
+            r = requests.get(f"{BASE}/api/library/backup",
+                             headers={"Authorization": f"Bearer {tok}"}, stream=True)
+            r.content  # noqa: B018 — drain to release the connection
+        # History should have 2 entries, newest first.
+        rh = requests.get(f"{BASE}/api/user/backup-history",
+                          headers={"Authorization": f"Bearer {tok}"})
+        body = rh.json()
+        assert body["count"] == 2
+        # Each entry has started_at + book_count (3 from our seed).
+        for e in body["entries"]:
+            assert "started_at" in e
+            assert e["book_count"] == 3
+            assert "smart_shelf_count" in e
+        # Sorted newest first.
+        ts = [e["started_at"] for e in body["entries"]]
+        assert ts == sorted(ts, reverse=True)
+
+    def test_history_is_capped_at_50(self, hist_user):
+        uid, tok = hist_user
+        # Inject 60 fake entries directly so we don't have to run 60 backups.
+        base = datetime.now(timezone.utc)
+        for i in range(60):
+            db.backup_history.insert_one({
+                "user_id": uid,
+                "started_at": (base - timedelta(minutes=i)).isoformat(),
+                "book_count": 3, "smart_shelf_count": 0,
+            })
+        # Trigger a real backup — the trim step inside the endpoint should
+        # bring us back to <= 50.
+        r = requests.get(f"{BASE}/api/library/backup",
+                         headers={"Authorization": f"Bearer {tok}"}, stream=True)
+        r.content  # noqa: B018
+        assert r.status_code == 200
+        # 60 fake + 1 real = 61 candidates; trim retains the 50 most recent.
+        count = db.backup_history.count_documents({"user_id": uid})
+        assert count <= 50
+        rh = requests.get(f"{BASE}/api/user/backup-history",
+                          headers={"Authorization": f"Bearer {tok}"})
+        assert rh.json()["count"] <= 50
