@@ -12,6 +12,7 @@ import OnboardingPrompt from "../components/OnboardingPrompt";
 import HelpNudge from "../components/HelpNudge";
 import DuplicateResolutionModal from "../components/DuplicateResolutionModal";
 import UrlListDedupeModal from "../components/UrlListDedupeModal";
+import BackupReminderBanner from "../components/BackupReminderBanner";
 import { Search, X, Plus, ArrowRight, CheckSquare, Sparkles, Loader2, RefreshCw, Library, UserCircle2, Filter, Pin, FolderOpen, ArrowUpDown, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { FETCHING_UI_ENABLED } from "../lib/featureFlags";
@@ -245,6 +246,7 @@ export default function Dashboard() {
       <Navbar />
 
       <main className="max-w-7xl mx-auto px-6 md:px-8 py-8 md:py-12 fade-in">
+        <BackupReminderBanner />
         <OnboardingPrompt />
         <HelpNudge />
         <div className="mb-10">

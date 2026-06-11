@@ -4104,3 +4104,154 @@ class TestLibraryBackup:
         u = manifest.get("user") or {}
         assert "session_token" not in u
         assert "password_hash" not in u
+
+
+# ---------------------------------------------------------------------------
+# BACKUP REMINDER — gentle nudge to actually run a backup
+# ---------------------------------------------------------------------------
+class TestBackupReminder:
+    """`GET /user/backup-reminder` fires when the user hasn't backed up in
+    30+ days, OR has 100+ books and no backup ever, OR has added 100+
+    books since last backup. `POST /user/backup-reminder/dismiss` quiets
+    it for 14 days regardless of trigger."""
+
+    @pytest.fixture
+    def rem_user(self):
+        uid = f"user_rem_{uuid.uuid4().hex[:8]}"
+        tok = f"sess_rem_{uuid.uuid4().hex}"
+        now = datetime.now(timezone.utc).isoformat()
+        db.users.insert_one({
+            "user_id": uid, "email": f"{uid}@x.com", "name": "REM",
+            "picture": "", "created_at": now,
+        })
+        db.user_sessions.insert_one({
+            "user_id": uid, "session_token": tok,
+            "expires_at": datetime.now(timezone.utc) + timedelta(days=7),
+            "created_at": datetime.now(timezone.utc),
+        })
+        yield uid, tok
+        db.users.delete_many({"user_id": uid})
+        db.user_sessions.delete_many({"user_id": uid})
+        db.books.delete_many({"user_id": uid})
+
+    def _seed_books(self, uid, n, created_at=None):
+        now = created_at or datetime.now(timezone.utc).isoformat()
+        docs = [
+            {"book_id": f"r_{uuid.uuid4().hex[:6]}", "user_id": uid,
+             "title": f"Book {i}", "author": "A",
+             "category": "Original Fiction", "created_at": now}
+            for i in range(n)
+        ]
+        if docs:
+            db.books.insert_many(docs)
+
+    def test_quiet_when_few_books_and_no_backup(self, rem_user):
+        uid, tok = rem_user
+        self._seed_books(uid, 5)
+        r = requests.get(f"{BASE}/api/user/backup-reminder",
+                         headers={"Authorization": f"Bearer {tok}"})
+        assert r.status_code == 200
+        body = r.json()
+        assert body["should_show"] is False
+        assert body["reason"] is None
+        assert body["book_count"] == 5
+
+    def test_fires_when_100_plus_books_and_never_backed_up(self, rem_user):
+        uid, tok = rem_user
+        self._seed_books(uid, 100)
+        r = requests.get(f"{BASE}/api/user/backup-reminder",
+                         headers={"Authorization": f"Bearer {tok}"})
+        body = r.json()
+        assert body["should_show"] is True
+        assert body["reason"] == "never_backed_up"
+        assert body["book_count"] == 100
+
+    def test_fires_when_30_plus_days_since_backup(self, rem_user):
+        uid, tok = rem_user
+        self._seed_books(uid, 5)  # Below the never-backed-up threshold
+        # 40 days ago
+        long_ago = (datetime.now(timezone.utc) - timedelta(days=40)).isoformat()
+        db.users.update_one(
+            {"user_id": uid},
+            {"$set": {"last_backup_at": long_ago}},
+        )
+        r = requests.get(f"{BASE}/api/user/backup-reminder",
+                         headers={"Authorization": f"Bearer {tok}"})
+        body = r.json()
+        assert body["should_show"] is True
+        assert body["reason"] == "cadence"
+        assert body["days_since_backup"] >= 30
+
+    def test_fires_when_100_plus_books_added_since_backup(self, rem_user):
+        uid, tok = rem_user
+        # Backup happened recently...
+        recent = (datetime.now(timezone.utc) - timedelta(days=2)).isoformat()
+        db.users.update_one(
+            {"user_id": uid},
+            {"$set": {"last_backup_at": recent}},
+        )
+        # ...then 100 fresh books arrive AFTER it.
+        now = datetime.now(timezone.utc).isoformat()
+        self._seed_books(uid, 100, created_at=now)
+        r = requests.get(f"{BASE}/api/user/backup-reminder",
+                         headers={"Authorization": f"Bearer {tok}"})
+        body = r.json()
+        assert body["should_show"] is True
+        assert body["reason"] == "new_books"
+        assert body["books_since_backup"] == 100
+
+    def test_dismiss_silences_for_14_days(self, rem_user):
+        uid, tok = rem_user
+        self._seed_books(uid, 100)
+        # Pre-condition: banner should be firing.
+        r1 = requests.get(f"{BASE}/api/user/backup-reminder",
+                          headers={"Authorization": f"Bearer {tok}"})
+        assert r1.json()["should_show"] is True
+        # Dismiss it.
+        rd = requests.post(f"{BASE}/api/user/backup-reminder/dismiss",
+                           headers={"Authorization": f"Bearer {tok}"})
+        assert rd.status_code == 200
+        # Banner is now quiet.
+        r2 = requests.get(f"{BASE}/api/user/backup-reminder",
+                          headers={"Authorization": f"Bearer {tok}"})
+        body = r2.json()
+        assert body["should_show"] is False
+        assert body["dismiss_active_until"] is not None
+
+    def test_dismiss_expires_after_14_days(self, rem_user):
+        uid, tok = rem_user
+        self._seed_books(uid, 100)
+        # Dismiss happened 20 days ago — grace already expired.
+        old_dismiss = (datetime.now(timezone.utc) - timedelta(days=20)).isoformat()
+        db.users.update_one(
+            {"user_id": uid},
+            {"$set": {"last_backup_dismissed_at": old_dismiss}},
+        )
+        r = requests.get(f"{BASE}/api/user/backup-reminder",
+                         headers={"Authorization": f"Bearer {tok}"})
+        body = r.json()
+        assert body["should_show"] is True
+        assert body["reason"] == "never_backed_up"
+
+    def test_running_backup_clears_reminder(self, rem_user):
+        uid, tok = rem_user
+        self._seed_books(uid, 100)
+        # Pre-condition: banner is firing.
+        r1 = requests.get(f"{BASE}/api/user/backup-reminder",
+                          headers={"Authorization": f"Bearer {tok}"})
+        assert r1.json()["should_show"] is True
+        # Run a backup (the endpoint streams a zip; we don't need to read it,
+        # the server-side write to last_backup_at is what matters).
+        rb = requests.get(f"{BASE}/api/library/backup",
+                          headers={"Authorization": f"Bearer {tok}"}, stream=True)
+        # Drain the stream so the connection closes cleanly.
+        rb.content  # noqa: B018
+        assert rb.status_code == 200
+        # Banner should now be quiet (no time elapsed, no new books added).
+        r2 = requests.get(f"{BASE}/api/user/backup-reminder",
+                          headers={"Authorization": f"Bearer {tok}"})
+        body = r2.json()
+        assert body["should_show"] is False
+        assert body["last_backup_at"] is not None
+        assert body["days_since_backup"] == 0
+        assert body["books_since_backup"] == 0

@@ -5584,11 +5584,126 @@ async def export_library_backup(user: User = Depends(get_current_user)):
                     break
 
     download_name = f"shelfsort-backup-{iso_today}.zip"
+
+    # Record the successful start of the backup so the reminder banner
+    # quiets down. We update BEFORE returning the StreamingResponse so
+    # the "I just backed up" state persists even if the user closes the
+    # tab before the stream finishes — they've at least started a backup.
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": {"last_backup_at": _dt.now(timezone.utc).isoformat()}},
+    )
+
     return StreamingResponse(
         stream_zip(_members()),
         media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{download_name}"'},
     )
+
+
+# ============================================================
+# BACKUP REMINDER — gentle nudge so the backup feature actually gets used
+# ============================================================
+# Thresholds picked to be helpful without nagging — a power user who
+# uploads daily sees the banner every ~3 months on the cadence trigger,
+# or whenever they add 100+ new books between backups. The 14-day
+# dismissal grace means clicking X buys two weeks of quiet.
+_BACKUP_REMIND_AFTER_DAYS = 30
+_BACKUP_REMIND_AFTER_NEW_BOOKS = 100
+_BACKUP_DISMISS_GRACE_DAYS = 14
+
+
+def _parse_iso_to_aware(s: Optional[str]) -> Optional[datetime]:
+    """Parse an ISO-8601 string back to a tz-aware datetime; None if empty
+    or malformed (so callers don't need a try/except around every read)."""
+    if not s:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(s).replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except (ValueError, TypeError):
+        return None
+
+
+@api_router.get("/user/backup-reminder")
+async def get_backup_reminder(user: User = Depends(get_current_user)):
+    """Should we show the backup reminder banner right now?
+
+    Returns `{should_show: bool, reason: str|None, books_count, books_since_backup,
+    days_since_backup, last_backup_at, dismiss_active_until}`. Reasons:
+      * `never_backed_up` — user has 100+ active books but no recorded
+        backup. Most common trigger for fresh installs.
+      * `cadence` — 30+ days since the last backup.
+      * `new_books` — 100+ books added since the last backup.
+    Dismissal lasts 14 days regardless of trigger — same nudge won't
+    pop right back the next day.
+    """
+    user_doc = await db.users.find_one(
+        {"user_id": user.user_id},
+        {"_id": 0, "last_backup_at": 1, "last_backup_dismissed_at": 1},
+    ) or {}
+
+    now = datetime.now(timezone.utc)
+    last_backup = _parse_iso_to_aware(user_doc.get("last_backup_at"))
+    last_dismiss = _parse_iso_to_aware(user_doc.get("last_backup_dismissed_at"))
+
+    book_count = await db.books.count_documents(
+        {"user_id": user.user_id, "category": {"$ne": TRASH_SHELF}},
+    )
+
+    # Compute "books added since last backup" — only useful when there's
+    # been at least one backup; otherwise the count IS the trigger.
+    books_since_backup = book_count
+    if last_backup:
+        books_since_backup = await db.books.count_documents({
+            "user_id": user.user_id,
+            "category": {"$ne": TRASH_SHELF},
+            "created_at": {"$gt": last_backup.isoformat()},
+        })
+
+    days_since_backup = None
+    if last_backup:
+        days_since_backup = (now - last_backup).days
+
+    # Dismissal grace check — within 14 days of clicking X, stay quiet
+    # regardless of trigger.
+    dismiss_active_until = None
+    if last_dismiss:
+        grace_end = last_dismiss + timedelta(days=_BACKUP_DISMISS_GRACE_DAYS)
+        if grace_end > now:
+            dismiss_active_until = grace_end.isoformat()
+
+    should_show = False
+    reason = None
+    if dismiss_active_until is None:
+        if last_backup is None and book_count >= _BACKUP_REMIND_AFTER_NEW_BOOKS:
+            should_show, reason = True, "never_backed_up"
+        elif days_since_backup is not None and days_since_backup >= _BACKUP_REMIND_AFTER_DAYS:
+            should_show, reason = True, "cadence"
+        elif books_since_backup >= _BACKUP_REMIND_AFTER_NEW_BOOKS:
+            should_show, reason = True, "new_books"
+
+    return {
+        "should_show": should_show,
+        "reason": reason,
+        "book_count": book_count,
+        "books_since_backup": books_since_backup,
+        "days_since_backup": days_since_backup,
+        "last_backup_at": (last_backup.isoformat() if last_backup else None),
+        "dismiss_active_until": dismiss_active_until,
+    }
+
+
+@api_router.post("/user/backup-reminder/dismiss")
+async def dismiss_backup_reminder(user: User = Depends(get_current_user)):
+    """Quiet the banner for 14 days from now. Idempotent."""
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": {"last_backup_dismissed_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    return {"ok": True}
 
 
 @api_router.get("/library/linkless")
