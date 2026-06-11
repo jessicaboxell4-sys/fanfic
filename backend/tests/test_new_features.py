@@ -3545,3 +3545,142 @@ class TestUnreadableLibrary:
         r3 = requests.get(f"{BASE}/api/library/unreadable",
                           headers={"Authorization": f"Bearer {tok}"})
         assert extra_id not in {b["book_id"] for b in r3.json()["books"]}
+
+
+# ---------------------------------------------------------------------------
+# UNKNOWN SOURCES — story-shaped URLs from hosts not on the accepted list
+# ---------------------------------------------------------------------------
+class TestUnknownSourcesEndToEnd:
+    """The paste-dedupe endpoint records story-shaped URLs from unrecognized
+    hosts to the `unknown_sources` collection and echoes the new hosts back
+    in `unknown_sources_found`. The admin endpoint lists them for review.
+
+    Also covers the `claim_source_url` 400 path — pasting an unknown URL on
+    the Linkless shelf still logs the host before rejecting.
+    """
+
+    @pytest.fixture
+    def fresh_user(self):
+        uid = f"user_uk_{uuid.uuid4().hex[:8]}"
+        tok = f"sess_uk_{uuid.uuid4().hex}"
+        now = datetime.now(timezone.utc).isoformat()
+        db.users.insert_one({
+            "user_id": uid, "email": f"{uid}@x.com", "name": "UK",
+            "picture": "", "created_at": now,
+        })
+        db.user_sessions.insert_one({
+            "user_id": uid, "session_token": tok,
+            "expires_at": datetime.now(timezone.utc) + timedelta(days=7),
+            "created_at": datetime.now(timezone.utc),
+        })
+        yield uid, tok
+        db.users.delete_many({"user_id": uid})
+        db.user_sessions.delete_many({"user_id": uid})
+        db.books.delete_many({"user_id": uid})
+
+    def test_paste_dedupe_records_unknown_hosts(self, fresh_user):
+        uid, tok = fresh_user
+        # Wipe any pre-existing records for the hosts under test so the
+        # assertions aren't poisoned by other tests that ran first.
+        db.unknown_sources.delete_many({"host": {"$in": [
+            "scribblehub.com", "novelupdates.com", "wattpad-clone.com",
+        ]}})
+        text = (
+            "https://archiveofourown.org/works/1\n"          # accepted — skip
+            "https://www.scribblehub.com/series/12345/x\n"   # NEW → record
+            "https://m.novelupdates.com/series/9999/abc\n"   # NEW → record
+            "https://example.com/random-blog\n"              # not story-shaped → skip
+            "https://twitter.com/u/status/1\n"               # denylist → skip
+        )
+        r = requests.post(
+            f"{BASE}/api/books/url-list/dedupe",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"text": text},
+        )
+        assert r.status_code == 200, r.text
+        found = sorted(r.json().get("unknown_sources_found", []))
+        assert found == ["novelupdates.com", "scribblehub.com"], found
+        # And the records survive in Mongo.
+        hosts_in_db = sorted(
+            d["host"] for d in db.unknown_sources.find({"host": {"$in": ["scribblehub.com", "novelupdates.com"]}})
+        )
+        assert hosts_in_db == ["novelupdates.com", "scribblehub.com"]
+
+    def test_admin_list_returns_recorded_hosts(self, fresh_user):
+        uid, tok = fresh_user
+        # Seed one host so we know what to expect.
+        db.unknown_sources.delete_many({"host": "scribblehub.com"})
+        requests.post(
+            f"{BASE}/api/books/url-list/dedupe",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"text": "https://www.scribblehub.com/series/42/abc"},
+        )
+        r = requests.get(
+            f"{BASE}/api/admin/unknown-sources",
+            headers={"Authorization": f"Bearer {tok}"},
+        )
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert data["count"] >= 1
+        hosts = [h["host"] for h in data["hosts"]]
+        assert "scribblehub.com" in hosts
+        # Per-host doc has the expected shape.
+        sh = next(h for h in data["hosts"] if h["host"] == "scribblehub.com")
+        assert sh["hit_count"] >= 1
+        assert "samples" in sh and isinstance(sh["samples"], list)
+        assert "first_seen" in sh and "last_seen" in sh
+
+    def test_admin_since_filter(self, fresh_user):
+        uid, tok = fresh_user
+        # Far-future cutoff → nothing matches.
+        r = requests.get(
+            f"{BASE}/api/admin/unknown-sources?since=2099-01-01T00:00:00",
+            headers={"Authorization": f"Bearer {tok}"},
+        )
+        assert r.status_code == 200
+        assert r.json()["count"] == 0
+
+    def test_claim_source_url_records_unknown_host_before_400(self, fresh_user):
+        uid, tok = fresh_user
+        # Create a book so the route gets past the 404 path.
+        bid = f"book_{uuid.uuid4().hex[:8]}"
+        db.books.insert_one({
+            "book_id": bid, "user_id": uid, "title": "Test",
+            "author": "Anon", "category": "Fanfiction",
+            "fanfic_urls": [], "source_url": None,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+        db.unknown_sources.delete_many({"host": "wattpad-clone.com"})
+        r = requests.patch(
+            f"{BASE}/api/books/{bid}/source-url",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"url": "https://www.wattpad-clone.com/story/12345/chapter-1"},
+        )
+        # Must reject because the host isn't on the accepted list.
+        assert r.status_code == 400, r.text
+        # But the host MUST be logged for review.
+        doc = db.unknown_sources.find_one({"host": "wattpad-clone.com"})
+        assert doc is not None
+        assert doc["contexts"].get("claim", 0) >= 1
+
+    def test_admin_dismiss_removes_host(self, fresh_user):
+        uid, tok = fresh_user
+        db.unknown_sources.insert_one({
+            "host": "to-be-deleted.com", "hit_count": 1,
+            "contexts": {"paste": 1}, "samples": ["https://to-be-deleted.com/story/1"],
+            "first_seen": datetime.now(timezone.utc),
+            "last_seen": datetime.now(timezone.utc),
+        })
+        r = requests.delete(
+            f"{BASE}/api/admin/unknown-sources/to-be-deleted.com",
+            headers={"Authorization": f"Bearer {tok}"},
+        )
+        assert r.status_code == 200, r.text
+        assert r.json() == {"ok": True, "removed": 1}
+        assert db.unknown_sources.find_one({"host": "to-be-deleted.com"}) is None
+        # Idempotent — second delete returns removed: 0.
+        r2 = requests.delete(
+            f"{BASE}/api/admin/unknown-sources/to-be-deleted.com",
+            headers={"Authorization": f"Bearer {tok}"},
+        )
+        assert r2.json() == {"ok": True, "removed": 0}

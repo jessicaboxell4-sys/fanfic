@@ -792,3 +792,19 @@
 - **Route**: `/library/unreadable` registered in `App.js`, protected.
 - **Tests**: 6 new tests in `TestUnreadableLibrary` cover the list endpoint (corrupt + conversion failure), reason field + download_path mapping, exclusion of healthy/trashed books, the new download-original endpoint (PDF bytes + 404 fallback), and delete propagation. **Backend test totals: 218 passing.**
 - **Known cosmetic lint warning**: `react-hooks/set-state-in-effect` on Dashboard.jsx (rule isn't in the project's installed eslint-plugin-react-hooks 5.2.0; only present in the mcp lint tool's bundled config). Build + runtime are fine.
+
+### Added 2026-06-09 (Unknown-sources detector + admin queue)
+- **Feature**: When the user uploads an EPUB, pastes a URL list, or tries to claim a source URL on the Linkless shelf, Shelfsort now logs any story-shaped URL whose host isn't on the accepted-sources list. Hosts are surfaced to the user via a transient toast (choice 1a) and persisted in a new `unknown_sources` collection so the dev (the agent) can review and decide whether to extend the accepted list.
+- **User choices**: 1a (inline toast), 2c (host + samples + first/last seen + context + book metadata), 3a (agent polls `/api/admin/unknown-sources` at session start), 4a (upload/paste still succeeds — non-blocking), 5c (all entry points: upload, paste-dedupe, claim-source-url).
+- **Heuristic** (`utils/unknown_sources.py`): a URL is "story-shaped" if its path/query matches one of `/works/N`, `/s/N`, `/story/N`, `/story.php?no=…`, `/viewstory.php?sid=…`, `/fiction/N`, `/threads/slug.N`, `/chapter/N`, `/read/N`, `/fic/N`, `/novel/N`, `/series/N`. Hosts on a denylist (twitter, wikipedia, reddit, amazon, etc.) are skipped. AO3 non-work pages (series/users/collections) are also skipped — those have their own bucket on the dedupe screen.
+- **Backend**:
+  - new `GET /api/admin/unknown-sources` — global list, sorted by `last_seen` DESC, supports `?since=<iso8601>`. Returns `{host, hit_count, contexts, samples (≤5), first_seen, last_seen, last_book_title/author/id}`.
+  - new `DELETE /api/admin/unknown-sources/{host}` — idempotent dismiss (used after a host is added to `utils/url_canonical` or confirmed-not-fanfic).
+  - `/api/books/url-list/dedupe`, `/api/books/upload`, and `/api/books/{id}/source-url` all now record + echo `unknown_sources_found` in their response.
+- **Frontend**:
+  - Upload toast (UploadZone): "Heads-up: spotted N potential new fanfic sources (host1, host2, …). They've been logged so we can review adding them."
+  - Paste-dedupe toast (FilterUrlList): same shape.
+- **Tests**: 35 new pure-unit tests in `test_unknown_sources.py` (covers heuristic, host normalization, sample-cap, context dedup, accepted-list skip, denylist) + 5 new end-to-end tests in `test_new_features.py::TestUnknownSourcesEndToEnd` (paste records hosts, admin lists them, since-filter, claim-400 still records, dismiss is idempotent).
+- **How the agent reviews**: at session start, hit `GET /api/admin/unknown-sources?since=<last-checked>` and surface the new hosts to the user. After they decide which to add, modify `FANFIC_SOURCE_PATTERNS` + canonical regex in `utils/url_canonical.py` and dismiss the host(s) via the DELETE endpoint.
+
+### Test totals (after this feature): 410 passing (8 pre-existing failures in `test_tags_and_smart_shelves.py` are unrelated to this work and fail on main too).

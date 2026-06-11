@@ -200,6 +200,7 @@ export default function UploadZone({ onUploaded }) {
     const allUrlLists = [];
     const allSuggestions = [];
     const allCrossDupes = [];
+    const allUnknownHosts = new Set();
     let resp = null;
     try {
       // Upload in batches of 3 for responsiveness
@@ -232,6 +233,15 @@ export default function UploadZone({ onUploaded }) {
         }
         if (Array.isArray(data?.cross_format_duplicates)) {
           allCrossDupes.push(...data.cross_format_duplicates);
+        }
+        // Story-shaped URLs whose host isn't on the accepted-sources list.
+        // Aggregate across batches and pop a single heads-up toast at the
+        // end so the user knows we flagged a potential new fic archive.
+        if (Array.isArray(data?.unknown_sources_found)) {
+          data.unknown_sources_found.forEach((h) => allUnknownHosts.add(h));
+        }
+        for (const r of (data?.url_lists || [])) {
+          (r?.unknown_sources_found || []).forEach((h) => allUnknownHosts.add(h));
         }
         totalAuto += data?.auto_resolved || 0;
         if (data?.policy) lastPolicy = data.policy;
@@ -280,6 +290,17 @@ export default function UploadZone({ onUploaded }) {
         const more = allCrossDupes.length > 2 ? ` (+${allCrossDupes.length - 2} more)` : "";
         toast(
           `Heads up: ${allCrossDupes.length} original${allCrossDupes.length === 1 ? "" : "s"} duplicate book${allCrossDupes.length === 1 ? "" : "s"} you already have as EPUB. ${sample}${more}. They're saved on /library/originals.`,
+          { duration: 14000 },
+        );
+      }
+      // Heads-up: we found story-shaped URLs from hosts that aren't on
+      // Shelfsort's accepted-sources list yet. Logged for review — does
+      // NOT block the upload.
+      if (allUnknownHosts.size > 0) {
+        const hosts = Array.from(allUnknownHosts).slice(0, 3);
+        const more = allUnknownHosts.size > 3 ? ` (+${allUnknownHosts.size - 3} more)` : "";
+        toast(
+          `Heads-up: spotted ${allUnknownHosts.size} potential new fanfic source${allUnknownHosts.size === 1 ? "" : "s"} (${hosts.join(", ")}${more}). They've been logged so we can review adding them.`,
           { duration: 14000 },
         );
       }

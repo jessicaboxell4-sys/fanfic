@@ -1003,6 +1003,15 @@ async def _dedupe_url_list(text: str, user_id: str) -> Dict[str, Any]:
             continue
         ao3_mirror_hosts[host] = ao3_mirror_hosts.get(host, 0) + 1
 
+    # Unknown-source recorder: log unrecognized URLs that LOOK story-shaped
+    # (eFiction-style query string, forum thread, `/works/N`, `/s/N` etc.)
+    # so we can surface new fic archives the accepted-list should be
+    # extended to cover. Returns the de-duplicated list of hosts captured.
+    from utils.unknown_sources import record_unknown_sources
+    unknown_sources_found = await record_unknown_sources(
+        db, unrecognized, context="paste", user_id=user_id,
+    )
+
     return {
         "total": len(raw_urls),
         "already_owned": already_owned,
@@ -1012,6 +1021,7 @@ async def _dedupe_url_list(text: str, user_id: str) -> Dict[str, Any]:
         "duplicate_in_list": duplicate_in_list,
         "by_source": by_source,
         "ao3_mirrors": ao3_mirror_hosts,
+        "unknown_sources_found": unknown_sources_found,
     }
 
 
@@ -2340,6 +2350,11 @@ async def upload_books(
     url_list_reports: List[Dict[str, Any]] = []
     upload_suggestions: List[Dict[str, Any]] = []
     cross_format_dupes: List[Dict[str, Any]] = []
+    # Story-shaped URLs we found inside uploaded EPUBs whose host isn't on
+    # the accepted-sources list. Collected across every file in the batch
+    # and flushed to the `unknown_sources` collection just before the
+    # response so the toast can echo back the new hosts.
+    upload_unknown_urls: List[Dict[str, Any]] = []  # {url, book_id, title, author}
 
     for f in files:
         lower = (f.filename or "").lower()
@@ -2561,6 +2576,17 @@ async def upload_books(
         source_url = find_source_url(links)
         fanfic_urls = extract_fanfic_urls(links)
 
+        # Stash URLs that look story-shaped but didn't canonicalize so we
+        # can record their hosts as "potential new sources" after the
+        # batch finishes (one Mongo write per host, not per URL).
+        for _link in links or []:
+            _u = (_link.get("url") or "").strip()
+            if _u and not normalize_fanfic_url(_u):
+                upload_unknown_urls.append({
+                    "url": _u, "book_id": book_id,
+                    "title": meta.get("title"), "author": meta.get("author"),
+                })
+
         # Series detection: prefer EPUB Calibre meta, fall back to title regex
         series_name = meta.get('series_name')
         series_index = meta.get('series_index')
@@ -2669,6 +2695,33 @@ async def upload_books(
             if sug:
                 upload_suggestions.append({"new_fandom": nf, "suggestions": sug})
 
+    # Unknown-source detector: flush all story-shaped URLs that didn't
+    # canonicalize as a single Mongo upsert per distinct host. We record
+    # the most recently-seen sample per host along with the book title/
+    # author/id so the admin endpoint can show context.
+    from utils.unknown_sources import record_unknown_sources
+    unknown_hosts_recorded: List[str] = []
+    if upload_unknown_urls:
+        # Group by host so we attach the latest book context to each host.
+        from utils.unknown_sources import _host_of, looks_like_fanfic_url
+        seen_hosts: set = set()
+        for item in upload_unknown_urls:
+            u = item["url"]
+            if not looks_like_fanfic_url(u):
+                continue
+            h = _host_of(u)
+            if not h or h in seen_hosts:
+                continue
+            seen_hosts.add(h)
+            rec = await record_unknown_sources(
+                db, [u], context="upload",
+                user_id=user.user_id,
+                book_id=item.get("book_id"),
+                book_title=item.get("title"),
+                book_author=item.get("author"),
+            )
+            unknown_hosts_recorded.extend(rec)
+
     return {
         "uploaded": len(results),
         "books": results,
@@ -2678,6 +2731,7 @@ async def upload_books(
         "url_lists": url_list_reports,
         "fandom_suggestions": upload_suggestions,
         "cross_format_duplicates": cross_format_dupes,
+        "unknown_sources_found": unknown_hosts_recorded,
     }
 
 
@@ -5171,6 +5225,56 @@ async def get_linkless_library(user: User = Depends(get_current_user)):
     }
 
 
+@api_router.get("/admin/unknown-sources")
+async def list_unknown_sources(
+    since: Optional[str] = None,
+    user: User = Depends(get_current_user),
+):
+    """Return every story-shaped URL host that's NOT on the accepted-sources
+    list but has been pasted/uploaded by ANY user. Sorted by `last_seen`
+    descending so newly-spotted hosts surface first.
+
+    Used by the Shelfsort dev (the agent reviewing this codebase) to
+    decide which hosts to add to `utils/url_canonical`. Returns:
+      * `host` — the de-subdomain'd root host (e.g. `scribblehub.com`)
+      * `hit_count` — total times we saw a URL on this host
+      * `contexts` — dict of {upload|paste|claim → count}
+      * `samples` — up to 5 sample full URLs (most recent)
+      * `first_seen` / `last_seen`
+      * `last_book_title` / `last_book_author` / `last_book_id` (upload-only)
+
+    Optional `?since=<iso8601>` filters to hosts seen on/after the
+    timestamp so the agent can poll for "what's new this session".
+    Authentication is required; data is global (not per-user) because
+    the accepted-list lives at the codebase level.
+    """
+    query: Dict[str, Any] = {}
+    if since:
+        try:
+            cutoff = datetime.fromisoformat(since.replace("Z", "+00:00"))
+            query["last_seen"] = {"$gte": cutoff}
+        except ValueError:
+            pass  # silently ignore malformed cutoff
+    cursor = db.unknown_sources.find(query, {"_id": 0}).sort("last_seen", -1)
+    rows = await cursor.to_list(500)
+    # ISO-serialize datetimes so the response is JSON-safe.
+    for r in rows:
+        for k in ("first_seen", "last_seen"):
+            v = r.get(k)
+            if isinstance(v, datetime):
+                r[k] = v.isoformat()
+    return {"count": len(rows), "hosts": rows}
+
+
+@api_router.delete("/admin/unknown-sources/{host}")
+async def dismiss_unknown_source(host: str, user: User = Depends(get_current_user)):
+    """Drop a host record after it's been actioned (either added to the
+    accepted-sources list or confirmed-not-fanfic). Idempotent — returns
+    `{ok: True, removed: 0|1}`."""
+    res = await db.unknown_sources.delete_one({"host": host.lower()})
+    return {"ok": True, "removed": res.deleted_count}
+
+
 @api_router.get("/library/unreadable")
 async def get_unreadable_library(user: User = Depends(get_current_user)):
     """Return every active book that couldn't be parsed at upload time.
@@ -5317,6 +5421,15 @@ async def claim_source_url(
         raise HTTPException(status_code=400, detail="Source URL is empty")
     canon = _canonical_fanfic_url(raw)
     if not canon:
+        # User pasted something they THOUGHT was a fanfic URL but the host
+        # isn't on the accepted list. Log it for review before rejecting.
+        try:
+            from utils.unknown_sources import record_unknown_sources
+            await record_unknown_sources(
+                db, [raw], context="claim", user_id=user.user_id, book_id=book_id,
+            )
+        except Exception as _e:
+            logger.warning("unknown_sources record failed for claim_source_url: %s", _e)
         raise HTTPException(
             status_code=400,
             detail="Not a recognized fanfic source URL. We support AO3, FFnet, FictionPress, RoyalRoad, SpaceBattles, SufficientVelocity, QQ, AFF, Potions & Snitches, and Twilighted.",

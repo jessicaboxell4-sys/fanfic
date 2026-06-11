@@ -132,6 +132,17 @@ export default function FilterUrlList() {
     try {
       const { data } = await api.post("/books/url-list/dedupe", { text });
       setReport(data);
+      // Heads-up: story-shaped URLs from hosts not on the accepted list.
+      // Logged backend-side; just notify the user inline.
+      const unknownHosts = data?.unknown_sources_found || [];
+      if (unknownHosts.length > 0) {
+        const sample = unknownHosts.slice(0, 3).join(", ");
+        const more = unknownHosts.length > 3 ? ` (+${unknownHosts.length - 3} more)` : "";
+        toast(
+          `Heads-up: spotted ${unknownHosts.length} potential new fanfic source${unknownHosts.length === 1 ? "" : "s"} (${sample}${more}). Logged for review — they'll be added to the accepted list if they're real archives.`,
+          { duration: 14000 },
+        );
+      }
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Couldn't process");
     } finally {
