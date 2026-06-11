@@ -246,6 +246,13 @@ function BackupCard() {
         {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
         {busy ? "Generating…" : "Download library backup"}
       </button>
+      <a
+        href="/account/restore"
+        data-testid="backup-restore-link"
+        className="ml-3 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white border border-[#3A5A40]/30 text-[#3A5A40] hover:bg-[#3A5A40] hover:text-white transition-colors text-sm font-medium"
+      >
+        Restore from backup
+      </a>
 
       {/* Backup history — chronological list so the user can answer
           "did I back up before <bad date>?" at a glance. */}

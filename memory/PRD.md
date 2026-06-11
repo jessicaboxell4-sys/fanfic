@@ -862,3 +862,13 @@
   - new `GET /api/user/backup-history` returns the last 50 entries, newest first.
 - **Frontend**: `BackupCard` on `/account` now renders a "Backup history" section under the download button. Each entry shows absolute timestamp + relative "Xh ago" / "Xd ago" + book count. Empty-state copy when no backups yet. List refreshes immediately after a fresh backup.
 - **Tests**: 3 new in `TestBackupHistory` covering empty state, append-on-backup, and the 50-entry cap. **All passing.**
+
+### Added 2026-06-09 (Restore from backup wizard)
+- **Feature**: closes the backup loop — upload any `shelfsort-backup-*.zip`, see what's inside (books, smart shelves, collisions), pick exactly what to restore, apply.
+- **Backend**:
+  - new `POST /api/library/restore/preview` — reads the ZIP in-memory, validates `backup-manifest.json` + schema version, returns per-book metadata with a `collision: bool` flag (book_id already in user's library) and per-shelf metadata with the same flag. ZIP is NOT written to disk.
+  - new `POST /api/library/restore/apply` — accepts the same ZIP plus a JSON selection `{book_ids, shelf_names, overwrite_collisions}`. Inserts new books, optionally overwrites collisions, copies `epubs/<book_id>.epub` to the user's storage dir. Returns counts of restored/overwritten/skipped books, restored files, restored shelves.
+  - Validates: bad ZIP → 400, missing manifest → 400 with a helpful message, unsupported schema_version → 400.
+  - Files: writes EPUB only when target doesn't already exist (unless overwrite_collisions is on).
+- **Frontend**: new `/app/frontend/src/pages/RestoreBackupPage.jsx` at `/account/restore`. Three states: picker → preview (checkbox list with Select all / Select none / Only new books, an "Overwrite collisions" toggle that defaults OFF, per-book collision badges, smart-shelves section) → result summary. New "Restore from backup" outline button on the Account backup card.
+- **Tests**: 6 new in `TestRestoreBackup` covering preview (manifest + collisions), bad-input rejects (non-zip + zip-without-manifest), apply (skip-by-default, overwrite-on-flag, honor-selection). **All passing.**

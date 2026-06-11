@@ -5741,6 +5741,224 @@ async def get_backup_history(user: User = Depends(get_current_user)):
     return {"count": len(rows), "entries": rows}
 
 
+# ============================================================
+# RESTORE FROM BACKUP — preview + selective apply
+# ============================================================
+# Restore is intentionally split into preview + apply so the user can
+# tick exactly which books / smart shelves to bring back. Already-owned
+# book_ids surface as `collisions` in the preview and default to OFF
+# in the wizard — we never overwrite existing books silently.
+
+def _read_backup_manifest(file_bytes: bytes) -> Dict[str, Any]:
+    """Parse a backup ZIP. Returns the manifest dict; raises HTTPException
+    with a helpful message on every failure path."""
+    import zipfile as _zipfile, json as _json, io as _io
+    try:
+        zf = _zipfile.ZipFile(_io.BytesIO(file_bytes))
+    except _zipfile.BadZipFile:
+        raise HTTPException(status_code=400, detail="That file isn't a valid ZIP.")
+    names = zf.namelist()
+    if "backup-manifest.json" not in names:
+        raise HTTPException(
+            status_code=400,
+            detail="This ZIP doesn't look like a Shelfsort backup — `backup-manifest.json` is missing.",
+        )
+    try:
+        manifest = _json.loads(zf.read("backup-manifest.json").decode("utf-8"))
+    except (UnicodeDecodeError, _json.JSONDecodeError) as e:
+        raise HTTPException(status_code=400, detail=f"Couldn't parse the manifest: {e}")
+    if not isinstance(manifest, dict):
+        raise HTTPException(status_code=400, detail="Manifest is malformed.")
+    sv = manifest.get("schema_version")
+    if sv != 1:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Backup schema version {sv} isn't supported by this Shelfsort. Expected: 1.",
+        )
+    return manifest
+
+
+@api_router.post("/library/restore/preview")
+async def restore_preview(
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+):
+    """Inspect a backup ZIP without writing anything. Returns the books +
+    smart shelves the ZIP contains and flags any `book_id`s already in
+    the user's library so the wizard can default them to OFF."""
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="File is empty.")
+    manifest = _read_backup_manifest(content)
+
+    books = manifest.get("books") or []
+    shelves = manifest.get("smart_shelves") or []
+    # Existing book_ids → collision set.
+    existing_ids = {
+        b["book_id"]
+        async for b in db.books.find(
+            {"user_id": user.user_id}, {"_id": 0, "book_id": 1},
+        )
+        if b.get("book_id")
+    }
+    existing_shelf_names = {
+        s["name"]
+        async for s in db.smart_shelves.find(
+            {"user_id": user.user_id}, {"_id": 0, "name": 1},
+        )
+        if s.get("name")
+    }
+
+    # Trim each preview row to UI-relevant fields so the response stays
+    # small even for 5000-book backups.
+    preview_books = [
+        {
+            "book_id": b.get("book_id"),
+            "title": b.get("title") or "Untitled",
+            "author": b.get("author") or "Unknown",
+            "category": b.get("category"),
+            "fandom": b.get("fandom"),
+            "collision": b.get("book_id") in existing_ids,
+        }
+        for b in books if b.get("book_id")
+    ]
+    preview_shelves = [
+        {
+            "name": s.get("name"),
+            "filter": s.get("filter"),
+            "collision": (s.get("name") in existing_shelf_names),
+        }
+        for s in shelves if s.get("name")
+    ]
+
+    return {
+        "schema_version": manifest.get("schema_version"),
+        "generated_at": manifest.get("generated_at"),
+        "books": preview_books,
+        "smart_shelves": preview_shelves,
+        "stats": {
+            "book_count": len(preview_books),
+            "collision_count": sum(1 for b in preview_books if b["collision"]),
+            "smart_shelf_count": len(preview_shelves),
+        },
+    }
+
+
+class RestoreApplyBody(BaseModel):
+    """Body for `POST /library/restore/apply`. The wizard sends the
+    book_ids and shelf names the user explicitly chose to restore;
+    everything else stays untouched."""
+    book_ids: Optional[List[str]] = None
+    shelf_names: Optional[List[str]] = None
+    # When true, restored books with a colliding book_id overwrite the
+    # existing record. Default False — the wizard checkbox makes this
+    # an explicit opt-in per row.
+    overwrite_collisions: bool = False
+
+
+@api_router.post("/library/restore/apply")
+async def restore_apply(
+    file: UploadFile = File(...),
+    selection: str = Form("{}"),
+    user: User = Depends(get_current_user),
+):
+    """Restore selected books + shelves from a backup ZIP into the
+    current library. Files inside `epubs/` are copied to the user's
+    storage dir; existing files are NOT overwritten unless
+    `overwrite_collisions` is true on the selection."""
+    import zipfile as _zipfile, io as _io, json as _json
+    try:
+        sel = RestoreApplyBody(**_json.loads(selection))
+    except (ValueError, TypeError) as e:
+        raise HTTPException(status_code=400, detail=f"Bad selection payload: {e}")
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="File is empty.")
+    manifest = _read_backup_manifest(content)
+    zf = _zipfile.ZipFile(_io.BytesIO(content))
+    names = set(zf.namelist())
+
+    chosen_books = set(sel.book_ids or [])
+    chosen_shelves = set(sel.shelf_names or [])
+
+    # Existing IDs/names for collision handling.
+    existing_book_ids = set()
+    async for b in db.books.find({"user_id": user.user_id}, {"_id": 0, "book_id": 1}):
+        if b.get("book_id"):
+            existing_book_ids.add(b["book_id"])
+    existing_shelf_names = set()
+    async for s in db.smart_shelves.find({"user_id": user.user_id}, {"_id": 0, "name": 1}):
+        if s.get("name"):
+            existing_shelf_names.add(s["name"])
+
+    user_dir = STORAGE_DIR / user.user_id
+    user_dir.mkdir(parents=True, exist_ok=True)
+
+    restored_books = 0
+    skipped_books = 0
+    overwritten_books = 0
+    restored_files = 0
+    for b in (manifest.get("books") or []):
+        bid = b.get("book_id")
+        if not bid or bid not in chosen_books:
+            continue
+        collision = bid in existing_book_ids
+        if collision and not sel.overwrite_collisions:
+            skipped_books += 1
+            continue
+        # Strip Mongo-injected fields if any.
+        doc = {k: v for k, v in b.items() if not k.startswith("_")}
+        doc["user_id"] = user.user_id  # always re-anchor to the importing user
+        if collision:
+            await db.books.replace_one(
+                {"user_id": user.user_id, "book_id": bid}, doc,
+            )
+            overwritten_books += 1
+        else:
+            await db.books.insert_one(doc)
+            restored_books += 1
+        # Copy EPUB / original-format file if present in the zip.
+        for candidate in (f"epubs/{bid}.epub", f"epubs/{bid}.{(b.get('original_format') or 'epub').lstrip('.')}"):
+            if candidate in names:
+                target = user_dir / candidate.split("/", 1)[1]
+                if not target.exists() or sel.overwrite_collisions:
+                    with open(target, "wb") as out:
+                        out.write(zf.read(candidate))
+                    restored_files += 1
+                break
+
+    restored_shelves = 0
+    skipped_shelves = 0
+    for s in (manifest.get("smart_shelves") or []):
+        name = s.get("name")
+        if not name or name not in chosen_shelves:
+            continue
+        collision = name in existing_shelf_names
+        if collision and not sel.overwrite_collisions:
+            skipped_shelves += 1
+            continue
+        doc = {k: v for k, v in s.items() if not k.startswith("_")}
+        doc["user_id"] = user.user_id
+        if collision:
+            await db.smart_shelves.replace_one(
+                {"user_id": user.user_id, "name": name}, doc,
+            )
+        else:
+            await db.smart_shelves.insert_one(doc)
+        restored_shelves += 1
+
+    return {
+        "ok": True,
+        "restored_books": restored_books,
+        "overwritten_books": overwritten_books,
+        "skipped_books": skipped_books,
+        "restored_files": restored_files,
+        "restored_shelves": restored_shelves,
+        "skipped_shelves": skipped_shelves,
+    }
+
+
 @api_router.get("/library/linkless")
 async def get_linkless_library(user: User = Depends(get_current_user)):
     """Return every active book that has NO embedded fanfic URLs.

@@ -4342,3 +4342,174 @@ class TestBackupHistory:
         rh = requests.get(f"{BASE}/api/user/backup-history",
                           headers={"Authorization": f"Bearer {tok}"})
         assert rh.json()["count"] <= 50
+
+
+# ---------------------------------------------------------------------------
+# RESTORE FROM BACKUP — preview + selective apply
+# ---------------------------------------------------------------------------
+class TestRestoreBackup:
+    """`/library/restore/preview` reads a backup ZIP and reports what's
+    inside + collisions with the current library. `/library/restore/apply`
+    selectively imports books + shelves and (optionally) overwrites
+    collisions."""
+
+    def _make_backup_zip(self, books, smart_shelves=None, with_files=True):
+        """Build a backup ZIP in memory matching the format produced by
+        /library/backup."""
+        import io, zipfile, json as _json
+        smart_shelves = smart_shelves or []
+        manifest = {
+            "schema_version": 1,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "user": {"user_id": "irrelevant"},
+            "books": books,
+            "smart_shelves": smart_shelves,
+            "stats": {"book_count": len(books), "smart_shelf_count": len(smart_shelves)},
+        }
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("backup-manifest.json", _json.dumps(manifest))
+            if with_files:
+                for b in books:
+                    zf.writestr(f"epubs/{b['book_id']}.epub", b"PK\x03\x04mock-epub-" + b['book_id'].encode())
+        buf.seek(0)
+        return buf.read()
+
+    @pytest.fixture
+    def restore_user(self):
+        from pathlib import Path
+        from deps import STORAGE_DIR
+        uid = f"user_rb_{uuid.uuid4().hex[:8]}"
+        tok = f"sess_rb_{uuid.uuid4().hex}"
+        now = datetime.now(timezone.utc).isoformat()
+        db.users.insert_one({"user_id": uid, "email": f"{uid}@x.com", "name": "RB", "picture": "", "created_at": now})
+        db.user_sessions.insert_one({
+            "user_id": uid, "session_token": tok,
+            "expires_at": datetime.now(timezone.utc) + timedelta(days=7),
+            "created_at": datetime.now(timezone.utc),
+        })
+        user_dir = Path(STORAGE_DIR) / uid
+        user_dir.mkdir(parents=True, exist_ok=True)
+        # Seed one book so we can test collision behaviour.
+        db.books.insert_one({
+            "book_id": "rb_existing", "user_id": uid, "title": "Already here",
+            "author": "X", "category": "Original Fiction", "created_at": now,
+        })
+        yield uid, tok, user_dir
+        db.users.delete_many({"user_id": uid})
+        db.user_sessions.delete_many({"user_id": uid})
+        db.books.delete_many({"user_id": uid})
+        db.smart_shelves.delete_many({"user_id": uid})
+        for f in user_dir.glob("*"):
+            try: f.unlink()
+            except Exception: pass
+        try: user_dir.rmdir()
+        except Exception: pass
+
+    def test_preview_returns_manifest_and_collisions(self, restore_user):
+        uid, tok, _ = restore_user
+        zip_bytes = self._make_backup_zip([
+            {"book_id": "rb_existing", "title": "Updated title", "author": "X", "category": "Fanfiction"},
+            {"book_id": "rb_new1", "title": "Brand new", "author": "Y", "category": "Original Fiction"},
+        ])
+        r = requests.post(
+            f"{BASE}/api/library/restore/preview",
+            headers={"Authorization": f"Bearer {tok}"},
+            files={"file": ("b.zip", zip_bytes, "application/zip")},
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["schema_version"] == 1
+        assert body["stats"] == {"book_count": 2, "collision_count": 1, "smart_shelf_count": 0}
+        by_id = {b["book_id"]: b for b in body["books"]}
+        assert by_id["rb_existing"]["collision"] is True
+        assert by_id["rb_new1"]["collision"] is False
+
+    def test_preview_rejects_non_zip(self, restore_user):
+        uid, tok, _ = restore_user
+        r = requests.post(
+            f"{BASE}/api/library/restore/preview",
+            headers={"Authorization": f"Bearer {tok}"},
+            files={"file": ("b.zip", b"not a zip", "application/zip")},
+        )
+        assert r.status_code == 400
+
+    def test_preview_rejects_zip_without_manifest(self, restore_user):
+        import io, zipfile
+        uid, tok, _ = restore_user
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            zf.writestr("random.txt", b"hi")
+        r = requests.post(
+            f"{BASE}/api/library/restore/preview",
+            headers={"Authorization": f"Bearer {tok}"},
+            files={"file": ("b.zip", buf.getvalue(), "application/zip")},
+        )
+        assert r.status_code == 400
+        assert "backup-manifest.json" in r.json()["detail"]
+
+    def test_apply_inserts_new_books_skips_collisions_by_default(self, restore_user):
+        uid, tok, user_dir = restore_user
+        zip_bytes = self._make_backup_zip([
+            {"book_id": "rb_existing", "title": "Different title now", "author": "X", "category": "Fanfiction"},
+            {"book_id": "rb_new1", "title": "Brand new 1", "author": "Y", "category": "Original Fiction"},
+            {"book_id": "rb_new2", "title": "Brand new 2", "author": "Y", "category": "Original Fiction"},
+        ])
+        sel = {"book_ids": ["rb_existing", "rb_new1", "rb_new2"], "shelf_names": []}
+        r = requests.post(
+            f"{BASE}/api/library/restore/apply",
+            headers={"Authorization": f"Bearer {tok}"},
+            files={"file": ("b.zip", zip_bytes, "application/zip")},
+            data={"selection": __import__("json").dumps(sel)},
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["restored_books"] == 2  # rb_new1, rb_new2
+        assert body["skipped_books"] == 1   # rb_existing
+        assert body["overwritten_books"] == 0
+        # Existing book title is UNCHANGED
+        existing = db.books.find_one({"user_id": uid, "book_id": "rb_existing"})
+        assert existing["title"] == "Already here"
+        # New books are present
+        assert db.books.find_one({"user_id": uid, "book_id": "rb_new1"}) is not None
+        # EPUB files restored to disk
+        assert (user_dir / "rb_new1.epub").exists()
+        assert (user_dir / "rb_new2.epub").exists()
+
+    def test_apply_overwrite_collisions_replaces_existing(self, restore_user):
+        uid, tok, _ = restore_user
+        zip_bytes = self._make_backup_zip([
+            {"book_id": "rb_existing", "title": "Overwritten title", "author": "Z", "category": "Fanfiction"},
+        ])
+        sel = {"book_ids": ["rb_existing"], "overwrite_collisions": True}
+        r = requests.post(
+            f"{BASE}/api/library/restore/apply",
+            headers={"Authorization": f"Bearer {tok}"},
+            files={"file": ("b.zip", zip_bytes, "application/zip")},
+            data={"selection": __import__("json").dumps(sel)},
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["overwritten_books"] == 1
+        assert body["restored_books"] == 0
+        existing = db.books.find_one({"user_id": uid, "book_id": "rb_existing"})
+        assert existing["title"] == "Overwritten title"
+
+    def test_apply_honors_selection(self, restore_user):
+        """Only book_ids in the selection are restored — others ignored."""
+        uid, tok, _ = restore_user
+        zip_bytes = self._make_backup_zip([
+            {"book_id": "rb_sel_a", "title": "A", "author": "X", "category": "Original Fiction"},
+            {"book_id": "rb_sel_b", "title": "B", "author": "X", "category": "Original Fiction"},
+        ])
+        sel = {"book_ids": ["rb_sel_a"]}  # B is NOT selected
+        r = requests.post(
+            f"{BASE}/api/library/restore/apply",
+            headers={"Authorization": f"Bearer {tok}"},
+            files={"file": ("b.zip", zip_bytes, "application/zip")},
+            data={"selection": __import__("json").dumps(sel)},
+        )
+        assert r.status_code == 200
+        assert r.json()["restored_books"] == 1
+        assert db.books.find_one({"user_id": uid, "book_id": "rb_sel_a"}) is not None
+        assert db.books.find_one({"user_id": uid, "book_id": "rb_sel_b"}) is None

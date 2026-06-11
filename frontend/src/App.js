@@ -38,6 +38,7 @@ import UnknownSourcesPage from "@/pages/UnknownSourcesPage";
 import { CompleteShelf, OngoingShelf } from "@/pages/StatusShelves";
 import { AuthorsDirectory } from "@/pages/AuthorsPage";
 import { PairingsDirectory, PairingShelf } from "@/pages/PairingsPage";
+import RestoreBackupPage from "@/pages/RestoreBackupPage";
 import OriginalsShelf from "@/pages/OriginalsShelf";
 import Help from "@/pages/Help";
 import AuthCallback from "@/pages/AuthCallback";
@@ -95,6 +96,7 @@ function AppRouter() {
       <Route path="/library/authors" element={<ProtectedRoute><AuthorsDirectory /></ProtectedRoute>} />
       <Route path="/library/pairings" element={<ProtectedRoute><PairingsDirectory /></ProtectedRoute>} />
       <Route path="/library/by-pairing/:pairing" element={<ProtectedRoute><PairingShelf /></ProtectedRoute>} />
+      <Route path="/account/restore" element={<ProtectedRoute><RestoreBackupPage /></ProtectedRoute>} />
       <Route path="/library/originals" element={<ProtectedRoute><OriginalsShelf /></ProtectedRoute>} />
       <Route path="/help" element={<ProtectedRoute><Help /></ProtectedRoute>} />
       <Route path="/book/:id" element={<ProtectedRoute><BookDetail /></ProtectedRoute>} />
