@@ -910,3 +910,32 @@
 - **Tests**: 20 new in `tests/test_admin_console.py` covering auth gating across all endpoints, users promote/demote (last-admin guard, self-demote refuse, 404 unknown), maintenance banner lifecycle + public read + validation, system health shape, global aliases CRUD + dedupe, global stats shape, feature flags lifecycle + unknown-flag reject, audit log + prefix filter. **All 211 affected backend tests pass.**
 - **Parked / remind later** (from the same brainstorm): URL whitelist UI, per-user library inspector, cross-user URL takedown, failed-jobs queue, background job runner, Mongo migration runner, slow-query/error-log viewer.
 
+
+### Parked 2026-06-12 (feature brainstorm — agent-proposed, user said "remind me later")
+
+These are agent-suggested features the user hasn't picked yet. Bring them up next session when there's a lull or as candidates for the "is there anything else?" prompt.
+
+**🟢 Quick & fun (~15-30 min each)**
+- **a) "Surprise me" button** — random book at random chapter, optional mood filter (fluff/angst/anything). Dashboard button. Pure dopamine.
+- **b) Reading queue / "Up next" stack** — first-class TBR pile (ordered, draggable). Distinct from Smart Shelves which are filters; this is a hand-curated stack.
+- **c) Cover wall view** — pure visual library mode (covers-only tight grid). Tap to open. Library-as-wallpaper aesthetic.
+- **d) Per-book re-fetch changelog** — log "Chapter 47 added 2026-05-12" to a timeline on book detail page. Plugs into existing FicHub refresh pipeline.
+
+**🟡 Medium (~1 hr each)**
+- **e) Currently-reading public share** — tiny shareable page (like year-in-books) showing your current read + progress %. Reuses share-token infra.
+- **f) Reading goals + dashboard ring** — "Read 50 books this year" progress ring. Tied into existing year-in-books data.
+- **g) Highlights / quote saver in reader** — text-select → save highlight. Per-book notes panel + global "My quotes" page. JSON/CSV export.
+- **h) Mood-based smart shelves** — pre-baked "Comfort reads / Quick under 5k / Long & slow / Recently updated". One-click curate from existing tag+word-count data.
+
+**🟠 Larger (~2-3 hr each)**
+- **i) Full-text search across EPUB content** — "find that fic with the line about moonlight on the lake". Mongo text index on extracted chapter text. Biggest "wow" for 1000+ book libraries.
+- **j) OPDS catalog** — `/api/opds` endpoint. KOReader / Marvin / FBReader / Calibre can sync directly. Read on Kindle/phone.
+- **k) AI cover regeneration** — one-click "regenerate cover" for missing/ugly placeholders via Gemini Nano Banana (title + fandom + tags as prompt).
+
+**🔵 Bigger / speculative**
+- **l) Author-follow alerts** — mark author as "followed"; FicHub re-scrape checks for new works via AO3 author URL. Email digest ping.
+- **m) Fic recommendation engine** — "You liked X (4★) — here are 10 similar AO3 URLs you don't own yet." Tag-overlap algorithm; fetch via existing FicHub flow on confirm.
+- **n) Reader typography polish** — font picker (Georgia/Iowan/Garamond), line-height + margin sliders, sepia/paper/dark modes, font-size +/-.
+
+**Agent's "most bang for buck" picks**: a (Surprise me), b (Reading queue), i (Full-text search), j (OPDS catalog).
+
