@@ -939,3 +939,12 @@ These are agent-suggested features the user hasn't picked yet. Bring them up nex
 
 **Agent's "most bang for buck" picks**: a (Surprise me), b (Reading queue), i (Full-text search), j (OPDS catalog).
 
+
+### Added 2026-06-12 (NCIS franchise + Unknown-fandom detector)
+- **Seed list**: added 7 NCIS shows to `data/ao3_top_fandoms.py` — `NCIS`, `NCIS: Los Angeles`, `NCIS: New Orleans`, `NCIS: Hawai'i`, `NCIS: Sydney`, `NCIS: Origins`, `NCIS: Tony & Ziva`. Total recognized fandoms now 151.
+- **Audit done 2026-06-12**: query against 3,057 fandom-tagged books shows the only unrecognized fandom value is the literal string `"Other"` (328 books, used as the fallback bucket). All actual fandoms in the library match a keyword set.
+- **Backend**: new `utils/unknown_fandoms.py` aggregates books-collection-distinct-fandoms minus `FANDOM_KEYWORDS.keys()` minus the `dismissed_unknown_fandoms` collection. 60s in-process cache for the `/count` endpoint (navbar polls this — must be cheap). Three endpoints in `routes/admin.py`: `GET /admin/unknown-fandoms`, `GET /admin/unknown-fandoms/count`, `POST/DELETE /admin/unknown-fandoms/{fandom}/dismiss`.
+- **Frontend**: new `UnknownFandomsCard` on `/admin` (between Users and Maintenance banner) lists each unrecognized fandom with book count, sample IDs, and a Dismiss button. Navbar shield icon shows a small orange dot when count > 0; polls every 5 min. `Dismiss` writes to `dismissed_unknown_fandoms` so e.g. "Other" stays hidden forever — use undismiss endpoint to surface again.
+- **Workflow**: when a new book arrives with a fandom not in the keyword classifier (uploaded EPUB metadata, AI classification, manual edit), it shows up here automatically — no ingestion-event tracking needed since this is a passive aggregator.
+- Lint clean. End-to-end verified: count went 1 → 0 after dismissing "Other"; UI screenshot confirmed.
+

@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft, ShieldCheck, Users, Heart, AlertTriangle, Activity, Layers,
   BarChart3, ToggleLeft, ClipboardList, Loader2, Plus, X as XIcon, Trash2,
-  Check, ChevronRight, Download,
+  Check, ChevronRight, Download, AlertOctagon, RotateCcw,
 } from "lucide-react";
 
 function fmtBytes(n) {
@@ -604,6 +604,76 @@ function AuditLogCard() {
 }
 
 // ---------------------------------------------------------------------------
+// Unknown fandoms card — surfaces fandoms in books that aren't yet in the
+// keyword classifier. Dismiss to hide forever (use for "Other", originals).
+// ---------------------------------------------------------------------------
+function UnknownFandomsCard() {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(null);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const { data } = await api.get("/admin/unknown-fandoms");
+      setRows(data?.unknown || []);
+    } catch { /* ignore */ }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, []);
+
+  const dismiss = async (fandom) => {
+    setBusy(fandom);
+    try {
+      await api.post(`/admin/unknown-fandoms/${encodeURIComponent(fandom)}/dismiss`);
+      toast.success(`Dismissed "${fandom}"`);
+      await load();
+    } catch { toast.error("Couldn't dismiss"); }
+    finally { setBusy(null); }
+  };
+
+  return (
+    <Card icon={AlertOctagon} title="Unknown fandoms" subtitle="Fandoms appearing in book records that aren't in the keyword classifier yet. Dismiss to hide permanently (e.g. 'Other', 'Original Work')." testid="admin-unknown-fandoms-card">
+      {loading ? (
+        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+      ) : rows.length === 0 ? (
+        <p className="text-sm text-[#3A5A40] inline-flex items-center gap-1.5" data-testid="admin-unknown-fandoms-empty">
+          <Check className="w-4 h-4" /> All fandoms in your library are recognized.
+        </p>
+      ) : (
+        <ul className="space-y-1.5" data-testid="admin-unknown-fandoms-list">
+          {rows.map((r) => (
+            <li key={r.fandom} className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-[#FBFAF6] border border-[#E5DDC5]" data-testid={`admin-unknown-fandom-row-${r.fandom}`}>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-[#2C2C2C] truncate">
+                  {r.fandom}
+                  <span className="ml-2 text-xs text-[#6B705C] font-normal">{r.count} book{r.count === 1 ? "" : "s"}</span>
+                </p>
+                {r.sample_book_ids?.length > 0 && (
+                  <p className="text-xs text-[#6B705C] truncate">
+                    Sample IDs: <code>{r.sample_book_ids.slice(0, 3).join(", ")}</code>
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => dismiss(r.fandom)}
+                disabled={busy === r.fandom}
+                data-testid={`admin-unknown-fandom-dismiss-${r.fandom}`}
+                className="text-xs px-3 py-1.5 rounded-lg text-[#6B705C] hover:bg-[#F5F3EC] inline-flex items-center gap-1"
+              >
+                {busy === r.fandom ? <Loader2 className="w-3 h-3 animate-spin" /> : <XIcon className="w-3 h-3" />}
+                Dismiss
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 export default function AdminConsole() {
@@ -625,6 +695,7 @@ export default function AdminConsole() {
         </header>
 
         <UsersCard />
+        <UnknownFandomsCard />
         <MaintenanceBannerCard />
         <HealthCard />
         <GlobalAliasesCard />

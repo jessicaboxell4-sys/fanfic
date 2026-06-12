@@ -109,6 +109,16 @@ AO3_TOP_FANDOMS: Dict[str, List[str]] = {
     "Glee": ["glee tv", "kurt hummel", "blaine anderson", "klaine", "new directions", "william mckinley high"],
     "Wednesday (TV 2022)": ["wednesday addams series", "nevermore academy", "enid sinclair", "wednesday and enid", "wenclair"],
     "The Witcher (TV)": ["witcher netflix", "geralt of rivia netflix", "jaskier dandelion", "yennefer netflix", "cintra"],
+    # NCIS franchise — each spin-off shelved separately. Aliases lean on
+    # cast/setting that's unique to each show so e.g. an NCIS:LA fic
+    # doesn't land on the main NCIS shelf.
+    "NCIS": ["ncis fic", "leroy jethro gibbs", "anthony dinozzo", "tony dinozzo", "ziva david", "tim mcgee", "abby sciuto", "ducky mallard", "ncis dc", "tibbs", "tony/gibbs"],
+    "NCIS: Los Angeles": ["ncis los angeles", "ncis la", "g callen", "sam hanna", "marty deeks", "kensi blye", "hetty lange", "densi", "office of special projects"],
+    "NCIS: New Orleans": ["ncis new orleans", "ncis nola", "dwayne pride", "christopher lasalle", "meredith brody", "sebastian lund", "tammy gregorio"],
+    "NCIS: Hawai'i": ["ncis hawaii", "ncis hawai'i", "jane tennant", "lucy tara", "kate whistler", "jesse boone", "kaisani kai", "kacy", "pearl harbor ncis"],
+    "NCIS: Sydney": ["ncis sydney", "michelle mackey", "jd dempsey", "evie cooper", "blue james", "rosie mahoney", "afp", "australian federal police ncis"],
+    "NCIS: Origins": ["ncis origins", "young gibbs", "mike franks", "camp pendleton ncis", "leroy gibbs origins", "ncis prequel", "1991 ncis"],
+    "NCIS: Tony & Ziva": ["tony and ziva", "tony & ziva", "tali dinozzo", "tiva", "paris ncis", "ziva david europe"],
 
     # ─────────────────────────────────────────────────────────────────
     # CARTOONS / ANIMATION (Western)

@@ -357,3 +357,58 @@ async def get_audit_log(
         if isinstance(ts, datetime):
             r["ts"] = ts.isoformat()
     return {"entries": rows, "count": len(rows)}
+
+
+# ---------------------------------------------------------------------------
+# Unknown fandoms — fandoms in `books` that aren't in the keyword classifier
+# ---------------------------------------------------------------------------
+
+def _known_fandoms() -> set:
+    """Lazy import so this module doesn't pull in the giant books.py at
+    server startup time. `FANDOM_KEYWORDS` already includes the merged
+    AO3 seed list."""
+    from routes.books import FANDOM_KEYWORDS
+    return set(FANDOM_KEYWORDS.keys())
+
+
+@api_router.get("/admin/unknown-fandoms")
+async def get_unknown_fandoms(user: User = Depends(require_admin)):
+    """Return any fandom currently present in the books collection that
+    doesn't match a key in the keyword classifier. Dismissed entries are
+    hidden."""
+    from utils.unknown_fandoms import list_unknown_fandoms
+    rows = await list_unknown_fandoms(_known_fandoms())
+    return {"unknown": rows, "count": len(rows)}
+
+
+@api_router.get("/admin/unknown-fandoms/count")
+async def get_unknown_fandoms_count(user: User = Depends(require_admin)):
+    """Lightweight count for the navbar badge. Cached server-side for 60s."""
+    from utils.unknown_fandoms import count_unknown_fandoms
+    return {"count": await count_unknown_fandoms(_known_fandoms())}
+
+
+@api_router.post("/admin/unknown-fandoms/{fandom}/dismiss")
+async def dismiss_unknown_fandom(fandom: str, user: User = Depends(require_admin)):
+    """Permanently hide a fandom from the unknown list (use for "Other",
+    "Original Work", etc.). Idempotent."""
+    await db.dismissed_unknown_fandoms.update_one(
+        {"fandom": fandom},
+        {"$set": {"fandom": fandom, "dismissed_at": datetime.now(timezone.utc), "by": user.user_id}},
+        upsert=True,
+    )
+    from utils.unknown_fandoms import invalidate_count_cache
+    invalidate_count_cache()
+    await record_admin_action(user, "unknown_fandom.dismiss", target=fandom)
+    return {"ok": True, "fandom": fandom}
+
+
+@api_router.delete("/admin/unknown-fandoms/{fandom}/dismiss")
+async def undismiss_unknown_fandom(fandom: str, user: User = Depends(require_admin)):
+    """Un-dismiss — surface this fandom again in the unknown list."""
+    res = await db.dismissed_unknown_fandoms.delete_one({"fandom": fandom})
+    from utils.unknown_fandoms import invalidate_count_cache
+    invalidate_count_cache()
+    if res.deleted_count:
+        await record_admin_action(user, "unknown_fandom.undismiss", target=fandom)
+    return {"ok": True, "fandom": fandom, "removed": res.deleted_count}

@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { BookOpen, LogOut, BarChart3, Filter, HelpCircle, FileText, Sun, Moon, ShieldCheck } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
+import { api } from "../lib/api";
 import UpdatesBell from "./UpdatesBell";
 import StreakBadge from "./StreakBadge";
 import DownloadZipButton from "./DownloadZipButton";
@@ -13,6 +14,24 @@ export default function Navbar() {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
+  const [unknownFandomCount, setUnknownFandomCount] = useState(0);
+
+  // Poll the unknown-fandoms count on mount + every 5 minutes so admins
+  // notice when a new unrecognized fandom enters the library. Server-side
+  // cache means this is essentially free.
+  useEffect(() => {
+    if (!user?.is_admin) return;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const { data } = await api.get("/admin/unknown-fandoms/count");
+        if (!cancelled) setUnknownFandomCount(data?.count || 0);
+      } catch { /* ignore */ }
+    };
+    load();
+    const id = setInterval(load, 300000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [user?.is_admin]);
 
   return (
     <header className="sticky top-0 z-40 backdrop-blur-xl bg-[#FDFBF7]/80 border-b border-[#E8E6E1]">
@@ -76,10 +95,16 @@ export default function Navbar() {
                 <Link
                   to="/admin"
                   data-testid="navbar-admin"
-                  className="p-2 hover:bg-[#F5F3EC] rounded-lg"
-                  title="Admin console"
+                  className="p-2 hover:bg-[#F5F3EC] rounded-lg relative"
+                  title={unknownFandomCount > 0 ? `Admin console — ${unknownFandomCount} unknown fandom${unknownFandomCount === 1 ? "" : "s"}` : "Admin console"}
                 >
                   <ShieldCheck className="w-4 h-4 text-[#3A5A40]" />
+                  {unknownFandomCount > 0 && (
+                    <span
+                      data-testid="navbar-admin-badge"
+                      className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#E07A5F] ring-2 ring-[#FDFBF7]"
+                    />
+                  )}
                 </Link>
               )}
               <Link
