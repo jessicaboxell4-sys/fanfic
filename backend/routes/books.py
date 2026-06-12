@@ -32,6 +32,7 @@ from deps import (
 )
 from models import User, BookOut
 from auth_dep import get_current_user, require_admin
+from utils.admin_audit import record_admin_action
 
 
 from emergentintegrations.llm.chat import LlmChat, UserMessage
@@ -1229,7 +1230,9 @@ async def pull_url_list(body: UrlListPullBody, user: User = Depends(get_current_
     # 4) Walk the list serially.
     user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "fff_options": 1, "fandom_aliases": 1})
     fff_options = (user_doc or {}).get("fff_options") or {}
-    fandom_aliases = (user_doc or {}).get("fandom_aliases") or {}
+    user_aliases = (user_doc or {}).get("fandom_aliases") or {}
+    from routes.admin import get_global_fandom_aliases_dict
+    fandom_aliases = {**(await get_global_fandom_aliases_dict()), **user_aliases}
     user_dir = STORAGE_DIR / user.user_id
     user_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1813,6 +1816,10 @@ async def fetch_fanfic_with_fallback(
     parallel, they're drained through `routes.fichub_client._FETCH_LOCK`
     one at a time, with a 2s gap between consecutive FicHub fetches.
     """
+    # Feature-flag kill switch — admin can pause remote fic fetching.
+    from utils.feature_flags import is_enabled
+    if not await is_enabled("fichub_enabled"):
+        raise FanficNotFoundError("Fanfic fetching is temporarily disabled by an administrator.")
     options = options or {}
     try:
         return await fanfic_fetch_epub(source_url, options=options)
@@ -2024,6 +2031,11 @@ async def classify_with_ai(meta: Dict[str, Any]) -> Dict[str, Any]:
     if not EMERGENT_LLM_KEY:
         return {"category": "Unclassified", "fandom": None, "confidence": 0.0, "classifier": "ai"}
 
+    # Feature-flag kill switch — admin can pause Claude calls (e.g. cost control).
+    from utils.feature_flags import is_enabled
+    if not await is_enabled("ai_classify_enabled"):
+        return {"category": "Unclassified", "fandom": None, "confidence": 0.0, "classifier": "ai_disabled"}
+
     # Test hook: when set, return this canned JSON instead of calling Claude.
     canned = os.environ.get("SHELFSORT_TEST_AI_RESPONSE")
     if canned:
@@ -2134,6 +2146,10 @@ def _convert_to_epub_sync(src_path: Path, dest_path: Path) -> Optional[str]:
 
 
 async def convert_to_epub(src_path: Path, dest_path: Path) -> Optional[str]:
+    # Feature-flag kill switch — admin can pause Calibre conversions.
+    from utils.feature_flags import is_enabled
+    if not await is_enabled("calibre_convert_enabled"):
+        return "Calibre conversion is temporarily disabled by an administrator."
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, _convert_to_epub_sync, src_path, dest_path)
 
@@ -2341,14 +2357,22 @@ async def upload_books(
     keep_originals: List[str] = Form([]),
     user: User = Depends(get_current_user),
 ):
+    # Feature-flag kill switch — admin can pause uploads in maintenance.
+    from utils.feature_flags import is_enabled
+    if not await is_enabled("uploads_enabled"):
+        raise HTTPException(status_code=503, detail="Uploads are temporarily disabled by an administrator.")
     user_dir = STORAGE_DIR / user.user_id
     user_dir.mkdir(parents=True, exist_ok=True)
     # Load fandom aliases once for the whole batch so per-book canonicalization
-    # picks up user-defined merges (e.g. "HP" -> "Harry Potter").
+    # picks up user-defined merges (e.g. "HP" -> "Harry Potter"). Global
+    # admin-managed aliases are merged in; per-user overrides on conflict.
     _udoc = await db.users.find_one(
         {"user_id": user.user_id}, {"_id": 0, "fandom_aliases": 1}
     ) or {}
-    fandom_aliases = _udoc.get("fandom_aliases") or {}
+    user_aliases = _udoc.get("fandom_aliases") or {}
+    from routes.admin import get_global_fandom_aliases_dict
+    global_aliases = await get_global_fandom_aliases_dict()
+    fandom_aliases = {**global_aliases, **user_aliases}
     # Filenames the user explicitly asked to keep as the original format
     # (no Calibre conversion). They land on /library/originals separately
     # from the main EPUB library.
@@ -6055,6 +6079,8 @@ async def dismiss_unknown_source(host: str, user: User = Depends(require_admin))
     accepted-sources list or confirmed-not-fanfic). Idempotent — returns
     `{ok: True, removed: 0|1}`."""
     res = await db.unknown_sources.delete_one({"host": host.lower()})
+    if res.deleted_count:
+        await record_admin_action(user, "unknown_source.dismiss", target=host.lower())
     return {"ok": True, "removed": res.deleted_count}
 
 

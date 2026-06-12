@@ -41,8 +41,10 @@ import { PairingsDirectory, PairingShelf } from "@/pages/PairingsPage";
 import RestoreBackupPage from "@/pages/RestoreBackupPage";
 import OriginalsShelf from "@/pages/OriginalsShelf";
 import Help from "@/pages/Help";
+import AdminConsole from "@/pages/AdminConsole";
 import AuthCallback from "@/pages/AuthCallback";
 import ResetPassword from "@/pages/ResetPassword";
+import MaintenanceBanner from "@/components/MaintenanceBanner";
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -54,6 +56,20 @@ function ProtectedRoute({ children }) {
     );
   }
   if (!user) return <Navigate to="/login" replace />;
+  return children;
+}
+
+function AdminRoute({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-paper">
+        <div className="h-8 w-8 border-2 border-[#E07A5F] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+  if (!user) return <Navigate to="/login" replace />;
+  if (!user.is_admin) return <Navigate to="/library" replace />;
   return children;
 }
 
@@ -99,6 +115,7 @@ function AppRouter() {
       <Route path="/account/restore" element={<ProtectedRoute><RestoreBackupPage /></ProtectedRoute>} />
       <Route path="/library/originals" element={<ProtectedRoute><OriginalsShelf /></ProtectedRoute>} />
       <Route path="/help" element={<ProtectedRoute><Help /></ProtectedRoute>} />
+      <Route path="/admin" element={<AdminRoute><AdminConsole /></AdminRoute>} />
       <Route path="/book/:id" element={<ProtectedRoute><BookDetail /></ProtectedRoute>} />
       <Route path="/book/:id/compare" element={<ProtectedRoute><CompareVersions /></ProtectedRoute>} />
       <Route path="/read/:id" element={<ProtectedRoute><Reader /></ProtectedRoute>} />
@@ -113,6 +130,7 @@ function App() {
       <BrowserRouter>
         <ThemeProvider>
           <AuthProvider>
+            <MaintenanceBanner />
             {FETCHING_UI_ENABLED && <UrlPasteDetector />}
             <AppRouter />
             <Toaster position="top-center" richColors />

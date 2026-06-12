@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 from deps import db, api_router
 from models import User
 from auth_dep import get_current_user, require_admin
+from utils.admin_audit import record_admin_action
 
 
 class AnnouncementItem(BaseModel):
@@ -77,6 +78,7 @@ async def create_announcement(
         "created_by": user.user_id,
     }
     await db.announcements.insert_one(doc)
+    await record_admin_action(user, "announcement.publish", target=payload.version, metadata={"title": payload.title, "items": len(payload.items)})
     return _serialize(doc)
 
 
@@ -89,4 +91,5 @@ async def delete_announcement(
     result = await db.announcements.delete_one({"version": version})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Announcement not found")
+    await record_admin_action(user, "announcement.delete", target=version)
     return {"deleted": version}

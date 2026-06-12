@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { BookOpen, LogOut, BarChart3, Filter, HelpCircle, FileText, Sun, Moon } from "lucide-react";
+import { BookOpen, LogOut, BarChart3, Filter, HelpCircle, FileText, Sun, Moon, ShieldCheck } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import UpdatesBell from "./UpdatesBell";
@@ -72,6 +72,16 @@ export default function Navbar() {
               >
                 <HelpCircle className="w-4 h-4 text-[#6B705C]" />
               </Link>
+              {user.is_admin && (
+                <Link
+                  to="/admin"
+                  data-testid="navbar-admin"
+                  className="p-2 hover:bg-[#F5F3EC] rounded-lg"
+                  title="Admin console"
+                >
+                  <ShieldCheck className="w-4 h-4 text-[#3A5A40]" />
+                </Link>
+              )}
               <Link
                 to="/library/originals"
                 data-testid="navbar-originals"
