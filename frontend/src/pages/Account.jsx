@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
-import { User as UserIcon, Mail, Lock, Loader2, Mail as MailIcon, Settings2, AlertTriangle, Layers, Plus, X as XIcon, Download } from "lucide-react";
+import { User as UserIcon, Mail, Lock, Loader2, Mail as MailIcon, Settings2, AlertTriangle, Layers, Plus, X as XIcon, Download, Sparkles, Trash2 } from "lucide-react";
 import LibraryStatsCard from "../components/LibraryStatsCard";
 import FandomTreemap from "../components/FandomTreemap";
 import { FETCHING_UI_ENABLED } from "../lib/featureFlags";
@@ -293,6 +293,232 @@ function BackupCard() {
     </section>
   );
 }
+
+
+// Announcements card — publishes the "What's new" card shown on the Help
+// page. Server endpoints live in /app/backend/routes/announcements.py.
+// `version` doubles as the per-user dismissal key on the client, so any
+// new version re-shows the card for every user.
+const EMPTY_ITEM = { label: "", desc: "", to: "", link_to_2: "" };
+
+function AnnouncementsCard() {
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const [latest, setLatest] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [version, setVersion] = useState(todayIso);
+  const [title, setTitle] = useState("Fresh in Shelfsort");
+  const [items, setItems] = useState([{ ...EMPTY_ITEM }]);
+  const [publishing, setPublishing] = useState(false);
+
+  const loadLatest = async () => {
+    setLoading(true);
+    try {
+      const { data } = await api.get("/announcements/latest");
+      setLatest(data || null);
+    } catch { setLatest(null); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { loadLatest(); }, []);
+
+  const updateItem = (idx, key, val) => {
+    setItems((rows) => rows.map((r, i) => (i === idx ? { ...r, [key]: val } : r)));
+  };
+
+  const addRow = () => setItems((rows) => [...rows, { ...EMPTY_ITEM }]);
+  const removeRow = (idx) => setItems((rows) => (rows.length === 1 ? rows : rows.filter((_, i) => i !== idx)));
+
+  const publish = async () => {
+    const cleanItems = items
+      .map((r) => ({
+        label: r.label.trim(),
+        desc: r.desc.trim(),
+        to: r.to.trim(),
+        ...(r.link_to_2.trim() ? { link_to_2: r.link_to_2.trim() } : {}),
+      }))
+      .filter((r) => r.label && r.desc && r.to);
+    if (!version.trim() || !title.trim() || cleanItems.length === 0) {
+      toast.error("Need version, title, and at least one fully-filled item row.");
+      return;
+    }
+    setPublishing(true);
+    try {
+      await api.post("/announcements", { version: version.trim(), title: title.trim(), items: cleanItems });
+      toast.success("Published. Users will see the new card on their next Help visit.");
+      setItems([{ ...EMPTY_ITEM }]);
+      setVersion(new Date().toISOString().slice(0, 10));
+      await loadLatest();
+    } catch (e) {
+      const status = e?.response?.status;
+      if (status === 409) toast.error(`Version "${version}" is already published — bump it.`);
+      else toast.error("Publish failed — check the console.");
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  const deleteLatest = async () => {
+    if (!latest?.version) return;
+    if (!window.confirm(`Delete announcement "${latest.version}"?`)) return;
+    try {
+      await api.delete(`/announcements/${encodeURIComponent(latest.version)}`);
+      toast.success("Deleted.");
+      await loadLatest();
+    } catch { toast.error("Delete failed."); }
+  };
+
+  return (
+    <section className="shelf-card p-6 mb-6" data-testid="announcements-card">
+      <div className="flex items-start gap-3 mb-3">
+        <div className="w-10 h-10 rounded-xl bg-[#FCEFE6] text-[#E07A5F] flex items-center justify-center flex-shrink-0">
+          <Sparkles className="w-5 h-5" />
+        </div>
+        <div>
+          <h2 className="font-serif text-2xl text-[#2C2C2C]">Release notes</h2>
+          <p className="text-sm text-[#6B705C] mt-0.5">
+            Publish the &quot;What&apos;s new&quot; card shown at the top of the Help page. Bump the version on every push — users see the card again until they dismiss this version.
+          </p>
+        </div>
+      </div>
+
+      {/* Current published note */}
+      <div className="mt-4 mb-5 p-3 rounded-lg bg-[#FBFAF6] border border-[#E5DDC5]" data-testid="announcements-current">
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] mb-1.5">Currently live</p>
+        {loading ? (
+          <p className="text-xs text-[#6B705C] italic">Loading…</p>
+        ) : !latest ? (
+          <p className="text-xs text-[#6B705C] italic" data-testid="announcements-current-empty">
+            No server-side announcement yet — users see the bundled fallback card.
+          </p>
+        ) : (
+          <div className="flex items-start justify-between gap-3">
+            <div className="text-xs text-[#2C2C2C] flex-1 min-w-0">
+              <p className="font-semibold truncate">{latest.title}</p>
+              <p className="text-[#6B705C]">v{latest.version} · {latest.items?.length || 0} item{(latest.items?.length || 0) === 1 ? "" : "s"}</p>
+            </div>
+            <button
+              type="button"
+              onClick={deleteLatest}
+              data-testid="announcements-delete-btn"
+              className="text-xs text-[#D9534F] hover:text-[#B53C39] inline-flex items-center gap-1 flex-shrink-0"
+            >
+              <Trash2 className="w-3 h-3" /> Delete
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* New announcement form */}
+      <div className="space-y-3">
+        <div className="grid grid-cols-1 md:grid-cols-[140px,1fr] gap-3">
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-[0.15em] text-[#3A5A40] mb-1">Version</label>
+            <input
+              type="text"
+              value={version}
+              onChange={(e) => setVersion(e.target.value)}
+              placeholder="2026-06-12"
+              data-testid="announcements-version-input"
+              className="w-full px-3 py-2 rounded-lg border border-[#E5DDC5] bg-white text-sm text-[#2C2C2C] focus:outline-none focus:border-[#E07A5F]"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-[0.15em] text-[#3A5A40] mb-1">Title</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Fresh in Shelfsort"
+              data-testid="announcements-title-input"
+              className="w-full px-3 py-2 rounded-lg border border-[#E5DDC5] bg-white text-sm text-[#2C2C2C] focus:outline-none focus:border-[#E07A5F]"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs font-bold uppercase tracking-[0.15em] text-[#3A5A40] mb-1.5">Items</label>
+          <div className="space-y-2">
+            {items.map((row, idx) => (
+              <div
+                key={idx}
+                data-testid={`announcements-item-row-${idx}`}
+                className="p-3 rounded-lg border border-[#E5DDC5] bg-[#FBFAF6] space-y-2"
+              >
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    value={row.label}
+                    onChange={(e) => updateItem(idx, "label", e.target.value)}
+                    placeholder='Label (e.g. "Unreadable shelf" or "Ongoing & Finished")'
+                    data-testid={`announcements-item-label-${idx}`}
+                    className="w-full px-2 py-1.5 rounded border border-[#E5DDC5] bg-white text-xs text-[#2C2C2C] focus:outline-none focus:border-[#E07A5F]"
+                  />
+                  <input
+                    type="text"
+                    value={row.to}
+                    onChange={(e) => updateItem(idx, "to", e.target.value)}
+                    placeholder="Link (e.g. /library/unreadable)"
+                    data-testid={`announcements-item-to-${idx}`}
+                    className="w-full px-2 py-1.5 rounded border border-[#E5DDC5] bg-white text-xs text-[#2C2C2C] focus:outline-none focus:border-[#E07A5F]"
+                  />
+                </div>
+                <input
+                  type="text"
+                  value={row.desc}
+                  onChange={(e) => updateItem(idx, "desc", e.target.value)}
+                  placeholder="Description — appears after the link(s)"
+                  data-testid={`announcements-item-desc-${idx}`}
+                  className="w-full px-2 py-1.5 rounded border border-[#E5DDC5] bg-white text-xs text-[#2C2C2C] focus:outline-none focus:border-[#E07A5F]"
+                />
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={row.link_to_2}
+                    onChange={(e) => updateItem(idx, "link_to_2", e.target.value)}
+                    placeholder="Optional second link (for combo labels like 'A & B')"
+                    data-testid={`announcements-item-link2-${idx}`}
+                    className="flex-1 px-2 py-1.5 rounded border border-[#E5DDC5] bg-white text-xs text-[#2C2C2C] focus:outline-none focus:border-[#E07A5F]"
+                  />
+                  {items.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeRow(idx)}
+                      data-testid={`announcements-item-remove-${idx}`}
+                      className="p-1.5 rounded text-[#D9534F] hover:bg-[#FBE9E7]"
+                      aria-label="Remove item"
+                    >
+                      <XIcon className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={addRow}
+            data-testid="announcements-add-row"
+            className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[#3A5A40] hover:text-[#E07A5F]"
+          >
+            <Plus className="w-3.5 h-3.5" /> Add item
+          </button>
+        </div>
+
+        <button
+          type="button"
+          onClick={publish}
+          disabled={publishing}
+          data-testid="announcements-publish-btn"
+          className="mt-2 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#E07A5F] text-white hover:bg-[#d06a4f] disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+        >
+          {publishing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+          {publishing ? "Publishing…" : "Publish announcement"}
+        </button>
+      </div>
+    </section>
+  );
+}
+
 
 
 export default function Account() {
@@ -991,6 +1217,9 @@ export default function Account() {
             </button>
           </div>
         </section>
+
+        {/* Release notes — publish the "What's new" card shown on Help */}
+        <AnnouncementsCard />
 
         {/* Fandom aliases — manual mappings applied during canonicalization */}
         <section className="shelf-card p-6 mb-6" data-testid="fandom-aliases-card">
