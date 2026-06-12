@@ -53,6 +53,7 @@ def seed_user():
         "email": f"{USER_ID}@example.com",
         "name": "NewF User",
         "picture": "",
+        "is_admin": True,  # test suite exercises /admin/* curation endpoints
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
     db.user_sessions.insert_one({
@@ -3566,7 +3567,7 @@ class TestUnknownSourcesEndToEnd:
         now = datetime.now(timezone.utc).isoformat()
         db.users.insert_one({
             "user_id": uid, "email": f"{uid}@x.com", "name": "UK",
-            "picture": "", "created_at": now,
+            "picture": "", "is_admin": True, "created_at": now,
         })
         db.user_sessions.insert_one({
             "user_id": uid, "session_token": tok,

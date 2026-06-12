@@ -890,3 +890,9 @@
 - **Backend**: `POST /api/announcements` and `DELETE /api/announcements/{version}` now require `is_admin`. `GET /api/announcements/latest` stays open to any authed user (it's a read).
 - **Frontend**: new `AnnouncementsCard` in `/app/frontend/src/pages/Account.jsx` — form with version (auto today), title, repeatable `{label, to, desc, link_to_2}` rows, "Currently live" mini-card with delete. Mounted conditionally on `profile?.is_admin` so non-admins don't see it. All inputs carry `data-testid="announcements-*"`.
 - **Tests**: 2 new admin/non-admin tests in `test_announcements.py`. All 181 unit-test-suite tests still pass.
+
+
+### Changed 2026-06-12 (`/admin/unknown-sources` endpoints now actually admin-gated)
+- **Backend**: all four `/api/admin/unknown-sources*` endpoints (GET list, POST manual-add, DELETE dismiss, PATCH mark-accepted) now use `Depends(require_admin)` instead of `get_current_user`. They were named `/admin/*` from day one but never actually checked admin status — this closes that gap.
+- **Frontend**: no UI changes needed. Dashboard's `unknown-sources` chip silently swallows 403 (catch block ignores it) so non-admins see no chip and no error. The `/admin/unknown-sources` page is still routable but its API calls 403 for non-admins, so it just shows an empty state.
+- **Tests**: `test_new_features.py::TestUnknownSourcesEndToEnd` fixture seeds `is_admin: True`; same for the module-level `seed_user` fixture (some `/admin/*` calls flow through it). All 53 tests across `test_new_features.py::TestUnknownSourcesEndToEnd`, `test_announcements.py`, and `test_unknown_sources.py` pass.

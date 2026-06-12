@@ -31,7 +31,7 @@ from deps import (
     SENDER_EMAIL, FRONTEND_URL,
 )
 from models import User, BookOut
-from auth_dep import get_current_user
+from auth_dep import get_current_user, require_admin
 
 
 from emergentintegrations.llm.chat import LlmChat, UserMessage
@@ -6011,7 +6011,7 @@ async def get_linkless_library(user: User = Depends(get_current_user)):
 @api_router.get("/admin/unknown-sources")
 async def list_unknown_sources(
     since: Optional[str] = None,
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_admin),
 ):
     """Return every story-shaped URL host that's NOT on the accepted-sources
     list but has been pasted/uploaded by ANY user. Sorted by `last_seen`
@@ -6050,7 +6050,7 @@ async def list_unknown_sources(
 
 
 @api_router.delete("/admin/unknown-sources/{host}")
-async def dismiss_unknown_source(host: str, user: User = Depends(get_current_user)):
+async def dismiss_unknown_source(host: str, user: User = Depends(require_admin)):
     """Drop a host record after it's been actioned (either added to the
     accepted-sources list or confirmed-not-fanfic). Idempotent — returns
     `{ok: True, removed: 0|1}`."""
@@ -6078,7 +6078,7 @@ class AddUnknownSourceBody(BaseModel):
 @api_router.post("/admin/unknown-sources")
 async def add_unknown_source_manual(
     body: AddUnknownSourceBody,
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_admin),
 ):
     """Manually queue a host for review without an EPUB upload trigger.
 
@@ -6124,7 +6124,7 @@ async def add_unknown_source_manual(
 async def mark_unknown_source_accepted(
     host: str,
     body: MarkAcceptedBody,
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_admin),
 ):
     """Flag (or un-flag) an unknown-source host as "user wants this added to
     the accepted-sources list." The flag is purely a signal for the next
