@@ -911,8 +911,11 @@
 - **Parked / remind later** (from the same brainstorm): URL whitelist UI, per-user library inspector, cross-user URL takedown, failed-jobs queue, background job runner, Mongo migration runner, slow-query/error-log viewer.
 
 
-### Parked 2026-06-12 (feature brainstorm — agent-proposed, user said "remind me later")
+### Parked 2026-06-12 (dark-mode full-site sweep)
+After the palette picker shipped, the user noticed a dark-mode hover bug on the navbar avatar/name (cream `hover:bg-[#F5F3EC]` not remapped). Suspect other pages have the same pattern — particularly with non-default palettes (Crimson/Ocean) that hadn't been visually tested. Plan: walk through every authed page in dark mode (`Library`, `Dashboard`, `Stats`, `Year-in-Books`, `Book detail`, `Reader`, `Smart Shelves`, `Restore`, `Admin Console subpages`, etc.) and grep for any `hover:bg-[#XXX]` / `hover:text-[#XXX]` / `focus:` variants that aren't yet covered by `index.css` dark-mode overrides. ~5-10 min.
 
+
+### Parked 2026-06-12 (feature brainstorm — agent-proposed, user said "remind me later")
 These are agent-suggested features the user hasn't picked yet. Bring them up next session when there's a lull or as candidates for the "is there anything else?" prompt.
 
 **🟢 Quick & fun (~15-30 min each)**
