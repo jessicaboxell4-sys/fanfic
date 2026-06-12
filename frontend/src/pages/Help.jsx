@@ -52,10 +52,49 @@ export default function Help() {
           <ArrowLeft className="w-4 h-4" /> back to library
         </Link>
 
-        <header className="mb-10">
+        <header className="mb-8">
           <h1 className="font-serif text-5xl md:text-6xl text-[#2C2C2C] leading-tight">Help</h1>
           <p className="text-[#6B705C] mt-2">How to do everything in Shelfsort. Last updated 2026-06-09.</p>
         </header>
+
+        <aside
+          data-testid="help-whats-new"
+          className="mb-10 rounded-2xl border border-[#E07A5F]/30 bg-gradient-to-br from-[#FCEFE6] to-[#F8E3D3] p-5 md:p-6 shadow-sm"
+        >
+          <div className="flex items-start gap-3">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#E07A5F] text-white text-[10px] font-bold uppercase tracking-[0.15em] px-2.5 py-1 shrink-0">
+              <Sparkles className="w-3 h-3" /> New
+            </span>
+            <div className="flex-1">
+              <h2 className="font-serif text-xl md:text-2xl text-[#2C2C2C] mb-2">Fresh in Shelfsort</h2>
+              <ul className="text-sm text-[#2C2C2C] space-y-1.5 leading-relaxed">
+                <li>
+                  <Link to="/library/unreadable" className="text-[#E07A5F] hover:underline font-medium">Unreadable shelf</Link>
+                  {" "}— surfaces corrupt EPUBs and failed conversions so nothing silently disappears.
+                </li>
+                <li>
+                  <Link to="/library/ongoing" className="text-[#E07A5F] hover:underline font-medium">Ongoing</Link>
+                  {" & "}
+                  <Link to="/library/complete" className="text-[#E07A5F] hover:underline font-medium">Finished</Link>
+                  {" "}shelves — auto-detected WIP vs. complete status, with one-click overrides.
+                </li>
+                <li>
+                  <Link to="/library/authors" className="text-[#E07A5F] hover:underline font-medium">Authors</Link>
+                  {" & "}
+                  <Link to="/library/pairings" className="text-[#E07A5F] hover:underline font-medium">Pairings</Link>
+                  {" "}directories — browse your library by who wrote it or who&apos;s shipped.
+                </li>
+                <li>
+                  <Link to="/account/restore" className="text-[#E07A5F] hover:underline font-medium">Backup &amp; Restore</Link>
+                  {" "}— download a full library archive and restore it on any account.
+                </li>
+              </ul>
+              <a href="#shelves" className="inline-block mt-3 text-xs font-semibold uppercase tracking-[0.15em] text-[#3A5A40] hover:text-[#E07A5F]">
+                Jump to the full shelf guide →
+              </a>
+            </div>
+          </div>
+        </aside>
 
         <div className="grid md:grid-cols-[200px,1fr] gap-10">
           <nav className="md:sticky md:top-24 self-start" data-testid="help-toc">
