@@ -100,9 +100,9 @@ export default function Help() {
                 <li><strong>Fandom shelves</strong> (auto) — one per detected fandom, with crossover detection</li>
                 <li><strong><Link to="/library/crossovers">Crossovers</Link></strong> — fics belonging to 2+ fandoms</li>
                 <li><strong><Link to="/library/complete">Finished</Link></strong> <CheckCircle2 className="inline w-3 h-3" /> — books with a definitive ending (default for anything without an explicit ongoing signal)</li>
-                <li><strong><Link to="/library/ongoing">Ongoing</Link></strong> <Clock className="inline w-3 h-3" /> — WIPs, in-progress, hiatus, abandoned, or "Chapter X of Y" where X &lt; Y</li>
+                <li><strong><Link to="/library/ongoing">Ongoing</Link></strong> <Clock className="inline w-3 h-3" /> — WIPs, in-progress, hiatus, abandoned, or &quot;Chapter X of Y&quot; where X &lt; Y</li>
                 <li><strong><Link to="/library/linkless">Linkless</Link></strong> — books with no embedded source URL (originals, very old uploads, manuscripts). Lets you paste a source URL after the fact via the inline claim flow.</li>
-                <li><strong><Link to="/library/unreadable">Unreadable</Link></strong> <FileWarning className="inline w-3 h-3" /> — files that couldn't be parsed (corrupt EPUBs) or converted (Calibre rejected a PDF/Kindle/DOCX). Original bytes stay on disk so you can download a copy to inspect or delete it.</li>
+                <li><strong><Link to="/library/unreadable">Unreadable</Link></strong> <FileWarning className="inline w-3 h-3" /> — files that couldn&apos;t be parsed (corrupt EPUBs) or converted (Calibre rejected a PDF/Kindle/DOCX). Original bytes stay on disk so you can download a copy to inspect or delete it.</li>
                 <li><strong><Link to="/library/originals">Originals</Link></strong> — books you uploaded as PDF/MOBI/etc. while an EPUB version already exists</li>
                 <li><strong>Smart Shelves</strong> — saved filter combinations (fandom + tag + status + …); manage them on the Account page</li>
               </ul>
