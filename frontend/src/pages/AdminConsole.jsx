@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft, ShieldCheck, Users, Heart, AlertTriangle, Activity, Layers,
   BarChart3, ToggleLeft, ClipboardList, Loader2, Plus, X as XIcon, Trash2,
-  Check, ChevronRight,
+  Check, ChevronRight, Download,
 } from "lucide-react";
 
 function fmtBytes(n) {
@@ -201,6 +201,19 @@ function MaintenanceBannerCard() {
 // ---------------------------------------------------------------------------
 // System health card (c)
 // ---------------------------------------------------------------------------
+function HealthPill({ ok, label }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-semibold ${
+        ok ? "bg-[#EAF0EB] text-[#3A5A40]" : "bg-[#FBE9E7] text-[#9B3531]"
+      }`}
+    >
+      <span className={`w-1.5 h-1.5 rounded-full ${ok ? "bg-[#3A5A40]" : "bg-[#9B3531]"}`} />
+      {label}: {ok ? "OK" : "Down"}
+    </span>
+  );
+}
+
 function HealthCard() {
   const [health, setHealth] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -215,17 +228,6 @@ function HealthCard() {
   };
   useEffect(() => { load(); }, []);
 
-  const Pill = ({ ok, label }) => (
-    <span
-      className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-semibold ${
-        ok ? "bg-[#EAF0EB] text-[#3A5A40]" : "bg-[#FBE9E7] text-[#9B3531]"
-      }`}
-    >
-      <span className={`w-1.5 h-1.5 rounded-full ${ok ? "bg-[#3A5A40]" : "bg-[#9B3531]"}`} />
-      {label}: {ok ? "OK" : "Down"}
-    </span>
-  );
-
   if (loading || !health) {
     return (
       <Card icon={Activity} title="System health" testid="admin-health-card">
@@ -237,10 +239,10 @@ function HealthCard() {
   return (
     <Card icon={Activity} title="System health" subtitle="One-shot snapshot of external dependencies and storage." testid="admin-health-card">
       <div className="flex flex-wrap gap-2 mb-4" data-testid="admin-health-pills">
-        <Pill ok={health.calibre?.ok} label="Calibre" />
-        <Pill ok={health.resend?.configured} label="Resend (email)" />
-        <Pill ok={health.llm?.configured} label="LLM key" />
-        <Pill ok={health.digest_scheduler?.running} label="Digest scheduler" />
+        <HealthPill ok={health.calibre?.ok} label="Calibre" />
+        <HealthPill ok={health.resend?.configured} label="Resend (email)" />
+        <HealthPill ok={health.llm?.configured} label="LLM key" />
+        <HealthPill ok={health.digest_scheduler?.running} label="Digest scheduler" />
       </div>
       <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-4" data-testid="admin-health-collections">
         {Object.entries(health.collections || {}).map(([name, n]) => (
@@ -365,6 +367,15 @@ function GlobalAliasesCard() {
 // ---------------------------------------------------------------------------
 // Global stats card (h)
 // ---------------------------------------------------------------------------
+function StatTile({ label, value }) {
+  return (
+    <div className="bg-[#FBFAF6] border border-[#E5DDC5] rounded-lg p-3">
+      <p className="text-xs text-[#6B705C] uppercase tracking-[0.15em]">{label}</p>
+      <p className="text-2xl font-serif text-[#2C2C2C]">{value}</p>
+    </div>
+  );
+}
+
 function GlobalStatsCard() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -387,22 +398,15 @@ function GlobalStatsCard() {
     );
   }
 
-  const Tile = ({ label, value }) => (
-    <div className="bg-[#FBFAF6] border border-[#E5DDC5] rounded-lg p-3">
-      <p className="text-xs text-[#6B705C] uppercase tracking-[0.15em]">{label}</p>
-      <p className="text-2xl font-serif text-[#2C2C2C]">{value}</p>
-    </div>
-  );
-
   return (
     <Card icon={BarChart3} title="Global stats" subtitle="Tenant-wide rollup across every user's library." testid="admin-stats-card">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
-        <Tile label="Users" value={stats.users.toLocaleString()} />
-        <Tile label="Admins" value={stats.admins.toLocaleString()} />
-        <Tile label="Books" value={stats.books.toLocaleString()} />
-        <Tile label="Storage" value={fmtBytes(stats.total_storage_bytes)} />
-        <Tile label="Signups 7d" value={stats.signups_7d.toLocaleString()} />
-        <Tile label="Signups 30d" value={stats.signups_30d.toLocaleString()} />
+        <StatTile label="Users" value={stats.users.toLocaleString()} />
+        <StatTile label="Admins" value={stats.admins.toLocaleString()} />
+        <StatTile label="Books" value={stats.books.toLocaleString()} />
+        <StatTile label="Storage" value={fmtBytes(stats.total_storage_bytes)} />
+        <StatTile label="Signups 7d" value={stats.signups_7d.toLocaleString()} />
+        <StatTile label="Signups 30d" value={stats.signups_30d.toLocaleString()} />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
@@ -504,6 +508,7 @@ function FeatureFlagsCard() {
 function AuditLogCard() {
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -515,8 +520,43 @@ function AuditLogCard() {
   };
   useEffect(() => { load(); }, []);
 
+  // Fetch up to 500 (server cap) and dump to CSV. Quotes any field that
+  // contains comma/quote/newline; doubles inner quotes per RFC 4180.
+  const exportCsv = async () => {
+    setExporting(true);
+    try {
+      const { data } = await api.get("/admin/audit-log", { params: { limit: 500 } });
+      const rows = data?.entries || [];
+      const escape = (v) => {
+        const s = v == null ? "" : String(v);
+        return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      };
+      const header = ["ts", "action", "actor_email", "actor_id", "target", "metadata"];
+      const lines = [header.join(",")];
+      for (const e of rows) {
+        lines.push([
+          escape(e.ts),
+          escape(e.action),
+          escape(e.actor_email),
+          escape(e.actor_id),
+          escape(e.target),
+          escape(e.metadata ? JSON.stringify(e.metadata) : ""),
+        ].join(","));
+      }
+      const blob = new Blob([lines.join("\n") + "\n"], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const today = new Date().toISOString().slice(0, 10);
+      const a = document.createElement("a");
+      a.href = url; a.download = `shelfsort-audit-${today}.csv`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success(`Exported ${rows.length} entries.`);
+    } catch { toast.error("Couldn't export"); }
+    finally { setExporting(false); }
+  };
+
   return (
-    <Card icon={ClipboardList} title="Audit log" subtitle="Every admin write action across the app. Newest first, capped at the most recent 50." testid="admin-audit-card">
+    <Card icon={ClipboardList} title="Audit log" subtitle="Every admin write action across the app. Newest first, capped at the most recent 50 in this view; export pulls up to 500." testid="admin-audit-card">
       {loading ? (
         <p className="text-sm text-[#6B705C] italic">Loading…</p>
       ) : entries.length === 0 ? (
@@ -539,14 +579,26 @@ function AuditLogCard() {
           ))}
         </ul>
       )}
-      <button
-        type="button"
-        onClick={load}
-        data-testid="admin-audit-refresh"
-        className="mt-3 text-xs font-semibold text-[#3A5A40] hover:text-[#E07A5F] inline-flex items-center gap-1"
-      >
-        <ChevronRight className="w-3 h-3" /> Refresh
-      </button>
+      <div className="mt-3 flex items-center gap-4">
+        <button
+          type="button"
+          onClick={load}
+          data-testid="admin-audit-refresh"
+          className="text-xs font-semibold text-[#3A5A40] hover:text-[#E07A5F] inline-flex items-center gap-1"
+        >
+          <ChevronRight className="w-3 h-3" /> Refresh
+        </button>
+        <button
+          type="button"
+          onClick={exportCsv}
+          disabled={exporting}
+          data-testid="admin-audit-export-csv"
+          className="text-xs font-semibold text-[#3A5A40] hover:text-[#E07A5F] inline-flex items-center gap-1 disabled:opacity-50"
+        >
+          {exporting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+          {exporting ? "Exporting…" : "Export CSV"}
+        </button>
+      </div>
     </Card>
   );
 }
