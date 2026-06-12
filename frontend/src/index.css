@@ -297,6 +297,7 @@
 :root[data-theme="dark"] .bg-\[\#FAF6EE\],
 :root[data-theme="dark"] .bg-\[\#FBF7EE\] { background-color: var(--bg); }
 :root[data-theme="dark"] .bg-\[\#F5F3EC\],
+:root[data-theme="dark"] .hover\:bg-\[\#F5F3EC\]:hover,
 :root[data-theme="dark"] .bg-\[\#FDF3E1\]\/60,
 :root[data-theme="dark"] .bg-\[\#E5DDC5\]\/60,
 :root[data-theme="dark"] .bg-\[\#E5DDC5\]\/40 { background-color: var(--surface-hover); }

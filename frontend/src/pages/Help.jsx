@@ -271,6 +271,13 @@ export default function Help() {
               <ul>
                 <li><strong>Library stats card</strong> + <strong>Fandom Treemap</strong> for at-a-glance overview</li>
                 <li><strong>Library backup</strong> card (download + history + restore link)</li>
+                <li>
+                  <strong>Theme palette</strong> — pick the accent colour that runs through the whole site.
+                  Six presets (Peach, Purple, Forest, Ocean, Crimson, Charcoal) plus a <strong>Custom</strong>
+                  swatch that opens four colour pickers for Primary, Primary hover, and two pale tints. Dark-mode
+                  variants are auto-derived. Saved to this browser; works alongside the Light/Dark toggle in the
+                  Navbar (the toggle flips theme, the palette flips colour family).
+                </li>
                 <li><strong>Smart Shelves</strong> manager — create, edit, delete saved filter combinations</li>
                 <li><strong>Fandom aliases</strong> — map your custom shorthand to canonical fandom names</li>
                 <li><strong>Format prefs</strong> for the Originals shelf</li>

@@ -991,3 +991,8 @@ These are agent-suggested features the user hasn't picked yet. Bring them up nex
 - **Verified end-to-end**: selected Custom → swapped Primary to hot pink `#E91E63` via the picker → entire library page accents (Choose files, Open the guide, upload-zone border, "Updated stories" badge) recoloured live. `getComputedStyle()` confirmed `--primary` matches.
 - Lint clean. Zero JSX edits to any existing component.
 
+
+### Fixed 2026-06-12 (Navbar avatar hover + Help page docs for theme palette)
+- **Bug**: hovering the avatar / username area in the Navbar showed a bright cream `#F5F3EC` highlight rectangle in dark mode — only the non-hover `bg-[#F5F3EC]` was remapped in `index.css`. Added `.hover\:bg-\[\#F5F3EC\]:hover` to the same dark-mode override block so the hover state correctly uses `var(--surface-hover)` (`#34343A`).
+- **Help docs**: added a new bullet under "Account & preferences" describing the Theme palette card — 6 presets + Custom with 4 colour pickers, auto-derived dark variants, browser-scoped persistence, and how it pairs with the existing Light/Dark toggle.
+
