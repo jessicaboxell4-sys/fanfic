@@ -279,6 +279,44 @@
 :root[data-theme="dark"] .text-\[\#8A6800\] { color: #F0D6A0; }
 :root[data-theme="dark"] .text-\[\#B87A00\] { color: #F0B860; }
 
+/* ── Recent additions (2026-06-12) — dark mode parity ───────────────── */
+/* What's-new card peach gradient on /help — background was unchanged    */
+/* in dark mode but the body text remapped to light, leaving an          */
+/* unreadable peach-on-peach result. Lift the gradient to dark amber so  */
+/* the white-on-warm balance works either way.                           */
+:root[data-theme="dark"] .from-\[\#FCEFE6\] { --tw-gradient-from: #3a2a1f var(--tw-gradient-from-position); --tw-gradient-to: rgba(58, 42, 31, 0) var(--tw-gradient-to-position); --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to); }
+:root[data-theme="dark"] .to-\[\#F8E3D3\] { --tw-gradient-to: #4a3326 var(--tw-gradient-to-position); }
+:root[data-theme="dark"] .border-\[\#E07A5F\]\/30 { border-color: rgba(224, 122, 95, 0.45); }
+
+/* Sage 10% pale (`#EAF0EB`) — used as the icon backdrop on every Admin  */
+/* Console card and the "M" classifier chip. Darken to match other       */
+/* tinted accents.                                                       */
+:root[data-theme="dark"] .bg-\[\#EAF0EB\] { background-color: rgba(115, 175, 130, 0.18); color: #B7D4BC; }
+/* Hover variant used by the feature-flag "Enabled" pill                 */
+:root[data-theme="dark"] .hover\:bg-\[\#EAF0EB\]:hover { background-color: rgba(115, 175, 130, 0.30); }
+
+/* Red 10% pale (`#FBE9E7`) — demote button hover, classifier delete UI. */
+:root[data-theme="dark"] .bg-\[\#FBE9E7\] { background-color: rgba(217, 83, 79, 0.18); color: #FF9A85; }
+:root[data-theme="dark"] .hover\:bg-\[\#FBE9E7\]:hover { background-color: rgba(217, 83, 79, 0.30); }
+
+/* Red text shades — `#9B3531` (demote button), `#D9534F` (delete         */
+/* buttons / error toggles), `#B53C39` (red hover). Lift to coral.       */
+:root[data-theme="dark"] .text-\[\#9B3531\],
+:root[data-theme="dark"] .text-\[\#D9534F\],
+:root[data-theme="dark"] .text-\[\#B53C39\],
+:root[data-theme="dark"] .hover\:text-\[\#B53C39\]:hover { color: #FF9A85; }
+
+/* New classifier chip colors introduced for "A" (ai) and "X" (manual). */
+:root[data-theme="dark"] .bg-\[\#F0E8F5\] { background-color: rgba(150, 110, 200, 0.20); }
+:root[data-theme="dark"] .text-\[\#6B4A8C\] { color: #C9B0E8; }
+:root[data-theme="dark"] .bg-\[\#E8EEF5\] { background-color: rgba(110, 140, 200, 0.20); }
+:root[data-theme="dark"] .text-\[\#3A5A8C\] { color: #A8C0E8; }
+
+/* "Currently live" mini-card on the Announcements form — `#3A5A40` text */
+/* is already remapped but the small uppercase label was hard to read    */
+/* against the surface-hover bg; this is implicit in the existing         */
+/* `text-[#3A5A40]` override so no extra rule needed.                    */
+
 /* shelf-card variant on dark theme — softer shadow, kept hover lift. */
 :root[data-theme="dark"] .shelf-card { background: var(--surface); border-color: var(--border); }
 :root[data-theme="dark"] .shelf-card:hover { box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5); border-color: rgba(224, 122, 95, 0.5); }

@@ -955,3 +955,15 @@ These are agent-suggested features the user hasn't picked yet. Bring them up nex
 - **Live result on the operator library**: scanned 328 "Other" books, reclassified 4 — *Maybe Baby* → Stargate Atlantis, *Standing Tall* → Avatar: The Last Airbender, *Pencils down Death rays up* → Mass Effect Trilogy, *Merlin's Struggles* → Merlin (TV). All 4 originally bucketed before the AO3 seed list landed.
 - **Provenance chip** on `BookCard`: tiny single-letter pill next to category badge — **M** (metadata), **R** (metadata_rescan), **A** (ai), **X** (manual). Color-coded; `title` tooltip explains each. Admin-only (`user?.is_admin`) so regular users don't see it. Tested: 2000+ chips render in library grid; `classifier` field flows through the existing `GET /books` projection unchanged.
 
+
+### Fixed 2026-06-12 (dark-mode contrast bugs in today's additions)
+- Health check: all 211 backend tests green; all 7 admin endpoints respond 200; supervisor (backend / frontend / mongodb) RUNNING.
+- Dark-mode audit found 5 contrast issues introduced by today's additions, all from new tinted bg/text hex codes that weren't remapped in `index.css`. Single CSS patch covers all of them:
+  - "What's new" peach gradient (`from-[#FCEFE6] to-[#F8E3D3]`) → dark amber gradient in dark mode (text was being remapped to light, leaving peach-on-peach unreadable).
+  - Sage 10% pale `#EAF0EB` (admin card icons, classifier M chip, feature-flag pill) → tinted dark sage.
+  - Red 10% pale `#FBE9E7` (demote button, classifier-row delete) → tinted dark red.
+  - Red text `#9B3531`/`#D9534F`/`#B53C39` (delete buttons, demote, errors) → coral `#FF9A85`.
+  - New classifier-chip purple `#F0E8F5`/`#6B4A8C` and slate `#E8EEF5`/`#3A5A8C` (A and X chips) → dark-tinted variants.
+- Parked from this round: 🔁 **a) Surprise me button**, 🔁 **c) Books I haven't read filter**. Bring up next session.
+- Parked indefinitely: 🔁 **b) `books.py` Phase 2 refactor** — broken into Phase 2A (fandom_utils), 2B (epub_io), Phase 3 (sub-routers) so credit cost can be scoped per-phase. Cheapest first if/when revisited.
+
