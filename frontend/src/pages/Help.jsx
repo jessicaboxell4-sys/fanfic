@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import axios from "axios";
 import { Link, useLocation } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import {
@@ -11,20 +12,23 @@ import {
 // When you add a feature, drop a new <Section> here; the sticky table
 // of contents builds itself from each section's `id`.
 
-// "What's new" card. Bump WHATS_NEW.version (YYYY-MM-DD) whenever you
-// edit items — every user sees the card again until they dismiss the new
-// version. Keep items short: link + one-line description.
-const WHATS_NEW = {
+// "What's new" card. The card pulls from `GET /api/announcements/latest`
+// at runtime; if the API returns nothing (fresh install, network error)
+// we fall back to FALLBACK_WHATS_NEW below. To ship a new note WITHOUT a
+// deploy, POST to /api/announcements with a fresh `version` string.
+// `version` doubles as the per-user localStorage dismissal key.
+const FALLBACK_WHATS_NEW = {
   version: "2026-06-09",
   title: "Fresh in Shelfsort",
   items: [
     { to: "/library/unreadable", label: "Unreadable shelf", desc: "— surfaces corrupt EPUBs and failed conversions so nothing silently disappears." },
-    { to: "/library/ongoing", label: "Ongoing & Finished", linkTo2: "/library/complete", desc: "shelves — auto-detected WIP vs. complete status, with one-click overrides." },
-    { to: "/library/authors", label: "Authors & Pairings", linkTo2: "/library/pairings", desc: "directories — browse your library by who wrote it or who\u2019s shipped." },
+    { to: "/library/ongoing", label: "Ongoing & Finished", link_to_2: "/library/complete", desc: "shelves — auto-detected WIP vs. complete status, with one-click overrides." },
+    { to: "/library/authors", label: "Authors & Pairings", link_to_2: "/library/pairings", desc: "directories — browse your library by who wrote it or who\u2019s shipped." },
     { to: "/account/restore", label: "Backup & Restore", desc: "— download a full library archive and restore it on any account." },
   ],
 };
 const WHATS_NEW_KEY = "shelfsort.whatsNewDismissed";
+const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const SECTIONS = [
   { id: "getting-started", label: "Getting started" },
@@ -52,16 +56,37 @@ function Section({ id, icon: Icon, title, children }) {
 
 export default function Help() {
   const { hash } = useLocation();
+  const [whatsNew, setWhatsNew] = useState(FALLBACK_WHATS_NEW);
   const [showWhatsNew, setShowWhatsNew] = useState(() => {
     try {
-      return localStorage.getItem(WHATS_NEW_KEY) !== WHATS_NEW.version;
+      return localStorage.getItem(WHATS_NEW_KEY) !== FALLBACK_WHATS_NEW.version;
     } catch {
       return true;
     }
   });
 
+  // Fetch the latest server-side announcement on mount. If one exists and
+  // is newer than what the user has dismissed, swap it in and show the
+  // card. Network/auth errors silently keep the bundled fallback.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await axios.get(`${API}/announcements/latest`, { withCredentials: true });
+        if (cancelled || !res.data || !res.data.version) return;
+        setWhatsNew(res.data);
+        let dismissedVersion = null;
+        try { dismissedVersion = localStorage.getItem(WHATS_NEW_KEY); } catch { /* unavailable */ }
+        setShowWhatsNew(dismissedVersion !== res.data.version);
+      } catch {
+        /* fallback stays */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   const dismissWhatsNew = () => {
-    try { localStorage.setItem(WHATS_NEW_KEY, WHATS_NEW.version); } catch { /* localStorage unavailable */ }
+    try { localStorage.setItem(WHATS_NEW_KEY, whatsNew.version); } catch { /* localStorage unavailable */ }
     setShowWhatsNew(false);
   };
 
@@ -104,17 +129,17 @@ export default function Help() {
               <Sparkles className="w-3 h-3" /> New
             </span>
             <div className="flex-1">
-              <h2 className="font-serif text-xl md:text-2xl text-[#2C2C2C] mb-2">{WHATS_NEW.title}</h2>
+              <h2 className="font-serif text-xl md:text-2xl text-[#2C2C2C] mb-2">{whatsNew.title}</h2>
               <ul className="text-sm text-[#2C2C2C] space-y-1.5 leading-relaxed">
-                {WHATS_NEW.items.map((item) => {
+                {whatsNew.items.map((item) => {
                   const [primary, secondary] = item.label.split(" & ");
                   return (
                     <li key={item.to}>
                       <Link to={item.to} className="text-[#E07A5F] hover:underline font-medium">{primary}</Link>
-                      {item.linkTo2 && (
+                      {item.link_to_2 && (
                         <>
                           {" & "}
-                          <Link to={item.linkTo2} className="text-[#E07A5F] hover:underline font-medium">{secondary}</Link>
+                          <Link to={item.link_to_2} className="text-[#E07A5F] hover:underline font-medium">{secondary}</Link>
                         </>
                       )}
                       {" "}{item.desc}
