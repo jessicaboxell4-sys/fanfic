@@ -3,6 +3,7 @@ import { Book, Check, CheckCircle2, Circle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
 import { toast } from "sonner";
+import { useAuth } from "../context/AuthContext";
 
 const categoryBadgeClass = (category) => {
   if (category === "Fanfiction") return "badge-fandom";
@@ -11,7 +12,37 @@ const categoryBadgeClass = (category) => {
   return "badge-unclassified";
 };
 
+// Tiny single-letter chip showing how a book got its current
+// category/fandom. Admin-only — surfaces classifier provenance without
+// cluttering the card for regular users.
+//
+//   M  metadata        — keyword classifier on EPUB metadata at upload
+//   R  metadata_rescan — rescued from "Other" via admin rescan
+//   A  ai              — Claude classified (heuristic fell through)
+//   X  manual          — user picked the fandom by hand
+const CLASSIFIER_CHIPS = {
+  metadata:        { letter: "M", title: "Classified by keyword metadata match",  cls: "bg-[#EAF0EB] text-[#3A5A40]" },
+  metadata_rescan: { letter: "R", title: "Rescued from 'Other' by admin rescan",  cls: "bg-[#FDF3E1] text-[#8C5C00]" },
+  ai:              { letter: "A", title: "Classified by AI (Claude)",             cls: "bg-[#F0E8F5] text-[#6B4A8C]" },
+  manual:          { letter: "X", title: "Classified manually",                   cls: "bg-[#E8EEF5] text-[#3A5A8C]" },
+};
+
+function ClassifierChip({ classifier }) {
+  const cfg = CLASSIFIER_CHIPS[classifier];
+  if (!cfg) return null;
+  return (
+    <span
+      data-testid={`book-classifier-chip-${classifier}`}
+      title={cfg.title}
+      className={`inline-flex items-center justify-center w-4 h-4 text-[9px] font-bold rounded ${cfg.cls}`}
+    >
+      {cfg.letter}
+    </span>
+  );
+}
+
 export default function BookCard({ book, selectMode, selected, onToggleSelect, onChanged }) {
+  const { user } = useAuth();
   const [marking, setMarking] = useState(false);
   const coverUrl = book.has_cover
     ? `${process.env.REACT_APP_BACKEND_URL}/api/books/${book.book_id}/cover`
@@ -103,9 +134,12 @@ export default function BookCard({ book, selectMode, selected, onToggleSelect, o
         )}
       </div>
       <div className="p-3">
-        <span className={categoryBadgeClass(book.category)} data-testid={`book-badge-${book.book_id}`}>
-          {label}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className={categoryBadgeClass(book.category)} data-testid={`book-badge-${book.book_id}`}>
+            {label}
+          </span>
+          {user?.is_admin && <ClassifierChip classifier={book.classifier} />}
+        </div>
         <h3 className="font-serif text-lg mt-2 text-[#2C2C2C] line-clamp-2 leading-tight">
           {book.title}
         </h3>

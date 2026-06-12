@@ -948,3 +948,10 @@ These are agent-suggested features the user hasn't picked yet. Bring them up nex
 - **Workflow**: when a new book arrives with a fandom not in the keyword classifier (uploaded EPUB metadata, AI classification, manual edit), it shows up here automatically — no ingestion-event tracking needed since this is a passive aggregator.
 - Lint clean. End-to-end verified: count went 1 → 0 after dismissing "Other"; UI screenshot confirmed.
 
+
+### Added 2026-06-12 (Bulk-rescue rescan + classifier provenance chip)
+- **Backend**: `POST /api/admin/unknown-fandoms/{fandom}/rescan` with `{dry_run: bool}` body. Re-runs `classify_by_metadata` against existing book metadata (no EPUB re-parse, no AI). Updates `fandom` + tags `classifier: "metadata_rescan"`. Audited. Extended `GET /api/admin/unknown-fandoms` to also return `dismissed` rows so dismissed fandoms remain scannable.
+- **Frontend**: "Rescan" button (green, rotate icon) on every Unknown Fandoms card row — both active and dismissed entries. Dismissed entries collapsible under `<details>` "Dismissed (N) — still scannable". Confirmation modal before write. Toast shows `Scanned N · reclassified M`. Refactored row to module-level `UnknownFandomRow` (fixed nested-component lint).
+- **Live result on the operator library**: scanned 328 "Other" books, reclassified 4 — *Maybe Baby* → Stargate Atlantis, *Standing Tall* → Avatar: The Last Airbender, *Pencils down Death rays up* → Mass Effect Trilogy, *Merlin's Struggles* → Merlin (TV). All 4 originally bucketed before the AO3 seed list landed.
+- **Provenance chip** on `BookCard`: tiny single-letter pill next to category badge — **M** (metadata), **R** (metadata_rescan), **A** (ai), **X** (manual). Color-coded; `title` tooltip explains each. Admin-only (`user?.is_admin`) so regular users don't see it. Tested: 2000+ chips render in library grid; `classifier` field flows through the existing `GET /books` projection unchanged.
+
