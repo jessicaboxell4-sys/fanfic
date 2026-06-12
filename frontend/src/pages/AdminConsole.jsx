@@ -607,8 +607,69 @@ function AuditLogCard() {
 // Unknown fandoms card — surfaces fandoms in books that aren't yet in the
 // keyword classifier. Dismiss to hide forever (use for "Other", originals).
 // ---------------------------------------------------------------------------
+// Single row in the Unknown Fandoms card. Kept at module scope so React
+// doesn't re-create the component type on every parent render.
+function UnknownFandomRow({ r, isDismissed, busy, onRescan, onDismiss, onUndismiss }) {
+  return (
+    <li
+      className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-[#FBFAF6] border border-[#E5DDC5]"
+      data-testid={`admin-unknown-fandom-row-${r.fandom}`}
+    >
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-[#2C2C2C] truncate">
+          {r.fandom}
+          <span className="ml-2 text-xs text-[#6B705C] font-normal">{r.count} book{r.count === 1 ? "" : "s"}</span>
+          {isDismissed && <span className="ml-2 text-[10px] uppercase tracking-[0.15em] text-[#6B705C] font-bold">DISMISSED</span>}
+        </p>
+        {r.sample_book_ids?.length > 0 && (
+          <p className="text-xs text-[#6B705C] truncate">
+            Sample IDs: <code>{r.sample_book_ids.slice(0, 3).join(", ")}</code>
+          </p>
+        )}
+      </div>
+      <div className="flex items-center gap-1 flex-shrink-0">
+        <button
+          type="button"
+          onClick={() => onRescan(r.fandom, r.count)}
+          disabled={busy === `rescan:${r.fandom}`}
+          data-testid={`admin-unknown-fandom-rescan-${r.fandom}`}
+          className="text-xs px-3 py-1.5 rounded-lg text-[#3A5A40] hover:bg-[#EAF0EB] inline-flex items-center gap-1 font-semibold"
+          title="Re-run keyword classifier on these books"
+        >
+          {busy === `rescan:${r.fandom}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
+          Rescan
+        </button>
+        {isDismissed ? (
+          <button
+            type="button"
+            onClick={() => onUndismiss(r.fandom)}
+            disabled={busy === `undismiss:${r.fandom}`}
+            data-testid={`admin-unknown-fandom-undismiss-${r.fandom}`}
+            className="text-xs px-3 py-1.5 rounded-lg text-[#6B705C] hover:bg-[#F5F3EC] inline-flex items-center gap-1"
+          >
+            {busy === `undismiss:${r.fandom}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <ChevronRight className="w-3 h-3" />}
+            Restore
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onDismiss(r.fandom)}
+            disabled={busy === `dismiss:${r.fandom}`}
+            data-testid={`admin-unknown-fandom-dismiss-${r.fandom}`}
+            className="text-xs px-3 py-1.5 rounded-lg text-[#6B705C] hover:bg-[#F5F3EC] inline-flex items-center gap-1"
+          >
+            {busy === `dismiss:${r.fandom}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <XIcon className="w-3 h-3" />}
+            Dismiss
+          </button>
+        )}
+      </div>
+    </li>
+  );
+}
+
 function UnknownFandomsCard() {
   const [rows, setRows] = useState([]);
+  const [dismissedRows, setDismissedRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(null);
 
@@ -617,13 +678,14 @@ function UnknownFandomsCard() {
     try {
       const { data } = await api.get("/admin/unknown-fandoms");
       setRows(data?.unknown || []);
+      setDismissedRows(data?.dismissed || []);
     } catch { /* ignore */ }
     finally { setLoading(false); }
   };
   useEffect(() => { load(); }, []);
 
   const dismiss = async (fandom) => {
-    setBusy(fandom);
+    setBusy(`dismiss:${fandom}`);
     try {
       await api.post(`/admin/unknown-fandoms/${encodeURIComponent(fandom)}/dismiss`);
       toast.success(`Dismissed "${fandom}"`);
@@ -632,42 +694,78 @@ function UnknownFandomsCard() {
     finally { setBusy(null); }
   };
 
+  const undismiss = async (fandom) => {
+    setBusy(`undismiss:${fandom}`);
+    try {
+      await api.delete(`/admin/unknown-fandoms/${encodeURIComponent(fandom)}/dismiss`);
+      toast.success(`Restored "${fandom}"`);
+      await load();
+    } catch { toast.error("Couldn't restore"); }
+    finally { setBusy(null); }
+  };
+
+  const rescan = async (fandom, count) => {
+    if (!window.confirm(
+      `Re-scan ${count} book${count === 1 ? "" : "s"} tagged "${fandom}" against the current ${151} keyword sets?\n\nBooks whose title/author/description now matches a known fandom will be reassigned. No EPUB re-parse, no AI call.`
+    )) return;
+    setBusy(`rescan:${fandom}`);
+    try {
+      const { data } = await api.post(
+        `/admin/unknown-fandoms/${encodeURIComponent(fandom)}/rescan`,
+        { dry_run: false },
+      );
+      toast.success(`Scanned ${data.scanned} · reclassified ${data.reclassified}`, { duration: 8000 });
+      await load();
+    } catch { toast.error("Rescan failed"); }
+    finally { setBusy(null); }
+  };
+
   return (
-    <Card icon={AlertOctagon} title="Unknown fandoms" subtitle="Fandoms appearing in book records that aren't in the keyword classifier yet. Dismiss to hide permanently (e.g. 'Other', 'Original Work')." testid="admin-unknown-fandoms-card">
+    <Card icon={AlertOctagon} title="Unknown fandoms" subtitle="Fandoms appearing in book records that aren't in the keyword classifier yet. Rescan re-runs the classifier on existing books (no AI, no re-parse). Dismiss to hide permanently." testid="admin-unknown-fandoms-card">
       {loading ? (
         <p className="text-sm text-[#6B705C] italic">Loading…</p>
-      ) : rows.length === 0 ? (
-        <p className="text-sm text-[#3A5A40] inline-flex items-center gap-1.5" data-testid="admin-unknown-fandoms-empty">
-          <Check className="w-4 h-4" /> All fandoms in your library are recognized.
-        </p>
       ) : (
-        <ul className="space-y-1.5" data-testid="admin-unknown-fandoms-list">
-          {rows.map((r) => (
-            <li key={r.fandom} className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-[#FBFAF6] border border-[#E5DDC5]" data-testid={`admin-unknown-fandom-row-${r.fandom}`}>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-[#2C2C2C] truncate">
-                  {r.fandom}
-                  <span className="ml-2 text-xs text-[#6B705C] font-normal">{r.count} book{r.count === 1 ? "" : "s"}</span>
-                </p>
-                {r.sample_book_ids?.length > 0 && (
-                  <p className="text-xs text-[#6B705C] truncate">
-                    Sample IDs: <code>{r.sample_book_ids.slice(0, 3).join(", ")}</code>
-                  </p>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => dismiss(r.fandom)}
-                disabled={busy === r.fandom}
-                data-testid={`admin-unknown-fandom-dismiss-${r.fandom}`}
-                className="text-xs px-3 py-1.5 rounded-lg text-[#6B705C] hover:bg-[#F5F3EC] inline-flex items-center gap-1"
-              >
-                {busy === r.fandom ? <Loader2 className="w-3 h-3 animate-spin" /> : <XIcon className="w-3 h-3" />}
-                Dismiss
-              </button>
-            </li>
-          ))}
-        </ul>
+        <>
+          {rows.length === 0 ? (
+            <p className="text-sm text-[#3A5A40] inline-flex items-center gap-1.5" data-testid="admin-unknown-fandoms-empty">
+              <Check className="w-4 h-4" /> All fandoms in your library are recognized.
+            </p>
+          ) : (
+            <ul className="space-y-1.5" data-testid="admin-unknown-fandoms-list">
+              {rows.map((r) => (
+                <UnknownFandomRow
+                  key={r.fandom}
+                  r={r}
+                  isDismissed={false}
+                  busy={busy}
+                  onRescan={rescan}
+                  onDismiss={dismiss}
+                  onUndismiss={undismiss}
+                />
+              ))}
+            </ul>
+          )}
+          {dismissedRows.length > 0 && (
+            <details className="mt-4" data-testid="admin-unknown-fandoms-dismissed-details">
+              <summary className="text-xs font-semibold text-[#6B705C] cursor-pointer hover:text-[#2C2C2C]">
+                Dismissed ({dismissedRows.length}) — still scannable
+              </summary>
+              <ul className="mt-2 space-y-1.5" data-testid="admin-unknown-fandoms-dismissed-list">
+                {dismissedRows.map((r) => (
+                  <UnknownFandomRow
+                    key={r.fandom}
+                    r={r}
+                    isDismissed={true}
+                    busy={busy}
+                    onRescan={rescan}
+                    onDismiss={dismiss}
+                    onUndismiss={undismiss}
+                  />
+                ))}
+              </ul>
+            </details>
+          )}
+        </>
       )}
     </Card>
   );

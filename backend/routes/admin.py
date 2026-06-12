@@ -375,10 +375,28 @@ def _known_fandoms() -> set:
 async def get_unknown_fandoms(user: User = Depends(require_admin)):
     """Return any fandom currently present in the books collection that
     doesn't match a key in the keyword classifier. Dismissed entries are
-    hidden."""
+    returned in a separate `dismissed` array so the UI can still offer
+    "Rescan" / "Un-dismiss" actions on them."""
     from utils.unknown_fandoms import list_unknown_fandoms
     rows = await list_unknown_fandoms(_known_fandoms())
-    return {"unknown": rows, "count": len(rows)}
+    # Also pull dismissed entries (with their current book counts) so the
+    # admin can re-run rescan on previously-dismissed fandoms.
+    dismissed_docs = await db.dismissed_unknown_fandoms.find({}, {"_id": 0}).to_list(length=200)
+    dismissed_names = [d["fandom"] for d in dismissed_docs]
+    dismissed_rows: List[Dict[str, Any]] = []
+    if dismissed_names:
+        pipeline = [
+            {"$match": {"fandom": {"$in": dismissed_names}}},
+            {"$group": {"_id": "$fandom", "n": {"$sum": 1}, "samples": {"$push": "$book_id"}}},
+            {"$sort": {"n": -1}},
+        ]
+        async for r in db.books.aggregate(pipeline):
+            dismissed_rows.append({
+                "fandom": r["_id"],
+                "count": r["n"],
+                "sample_book_ids": (r.get("samples") or [])[:5],
+            })
+    return {"unknown": rows, "count": len(rows), "dismissed": dismissed_rows}
 
 
 @api_router.get("/admin/unknown-fandoms/count")
@@ -412,3 +430,80 @@ async def undismiss_unknown_fandom(fandom: str, user: User = Depends(require_adm
     if res.deleted_count:
         await record_admin_action(user, "unknown_fandom.undismiss", target=fandom)
     return {"ok": True, "fandom": fandom, "removed": res.deleted_count}
+
+
+class RescanBody(BaseModel):
+    dry_run: bool = False
+
+
+@api_router.post("/admin/unknown-fandoms/{fandom}/rescan")
+async def rescan_unknown_fandom(
+    fandom: str,
+    body: RescanBody,
+    user: User = Depends(require_admin),
+):
+    """Re-run `classify_by_metadata` against every book currently tagged
+    with `fandom`. If the classifier now matches a real fandom (because
+    the keyword set grew, or aliases improved), update the book. Uses
+    only stored metadata — no EPUB re-parse, no AI call.
+
+    Returns a summary + up to 10 sample reclassifications. `dry_run=true`
+    skips the writes so the operator can preview impact first.
+    """
+    from routes.books import classify_by_metadata, FANDOM_KEYWORDS
+
+    cursor = db.books.find(
+        {"fandom": fandom},
+        {"_id": 0, "book_id": 1, "title": 1, "author": 1, "description": 1, "publisher": 1, "category": 1, "user_id": 1},
+    )
+    scanned = 0
+    reclassified = 0
+    samples: List[Dict[str, Any]] = []
+    async for book in cursor:
+        scanned += 1
+        meta = {
+            "title": book.get("title", "") or "",
+            "author": book.get("author", "") or "",
+            "description": book.get("description", "") or "",
+            "publisher": book.get("publisher", "") or "",
+            "sample_text": "",
+        }
+        result = classify_by_metadata(meta)
+        new_fandom = result.get("fandom")
+        # Only act if the new fandom is real (in the keyword set) AND
+        # different from the current one. Skip "Other" → "Other", or
+        # "Other" → None which would just clear the tag.
+        if not new_fandom or new_fandom == fandom or new_fandom not in FANDOM_KEYWORDS:
+            continue
+        reclassified += 1
+        if len(samples) < 10:
+            samples.append({
+                "book_id": book["book_id"],
+                "title": book.get("title", ""),
+                "old_fandom": fandom,
+                "new_fandom": new_fandom,
+            })
+        if not body.dry_run:
+            await db.books.update_one(
+                {"book_id": book["book_id"]},
+                {"$set": {
+                    "fandom": new_fandom,
+                    "category": result.get("category") or book.get("category"),
+                    "classifier": "metadata_rescan",
+                }},
+            )
+    if not body.dry_run:
+        from utils.unknown_fandoms import invalidate_count_cache
+        invalidate_count_cache()
+        await record_admin_action(
+            user,
+            "unknown_fandom.rescan",
+            target=fandom,
+            metadata={"scanned": scanned, "reclassified": reclassified},
+        )
+    return {
+        "scanned": scanned,
+        "reclassified": reclassified,
+        "samples": samples,
+        "dry_run": body.dry_run,
+    }
