@@ -8,8 +8,15 @@
     --surface-hover: #F5F3EC;
     --text-primary: #2C2C2C;
     --text-secondary: #6B705C;
-    --primary: #E07A5F;
-    --primary-hover: #D1684D;
+    /* Brand accent (purple). Swap these four lines to recolor the whole  */
+    /* site — every accent in JSX uses `text-[var(--primary)]` / `bg-     */
+    /* [var(--accent-pale-1)]` etc. so there are no hex hardcodes to     */
+    /* hunt for. Dark mode brightens `--primary` for legibility on        */
+    /* `--bg #1B1B1E` and inverts the pale tints (see below).             */
+    --primary: #8B5CF6;
+    --primary-hover: #7C3AED;
+    --accent-pale-1: #F3EDFF;
+    --accent-pale-2: #E5D3FF;
     --accent-green: #3A5A40;
     --accent-green-muted: #E5EBE6;
     --border: #E8E6E1;
@@ -168,7 +175,7 @@
 
 .book-spine {
     aspect-ratio: 2 / 3;
-    background: linear-gradient(135deg, #E07A5F 0%, #3A5A40 100%);
+    background: linear-gradient(135deg, var(--primary) 0%, var(--accent-green) 100%);
     border-radius: 0.5rem;
     display: flex;
     align-items: center;
@@ -194,13 +201,66 @@
     to { opacity: 1; transform: translateY(0); }
 }
 
+/* ─── Brand-accent theme bridge ────────────────────────────────────── */
+/* The JSX still uses literal-hex utility classes like                  */
+/* `text-[#E07A5F]` and `bg-[#E07A5F]/20` (44 component / page files,   */
+/* ~200 occurrences). Rather than rewrite all of them, we hijack each   */
+/* compiled Tailwind class here and point it at `var(--primary)`.      */
+/* Result: changing the four CSS variables at the top of this file     */
+/* recolors the entire site (both light + dark modes). To re-theme,    */
+/* edit `--primary`, `--primary-hover`, `--accent-pale-1`,             */
+/* `--accent-pale-2` in `:root` (and the dark-mode overrides) — done.  */
+/* `color-mix(in srgb, var(--primary) N%, transparent)` gives correct  */
+/* alpha behaviour with CSS variables; supported in all modern         */
+/* evergreen browsers (Chrome 111+, Safari 16.2+, Firefox 113+).        */
+
+/* Solid colour utilities ------------------------------------------- */
+.text-\[\#E07A5F\],
+.hover\:text-\[\#E07A5F\]:hover { color: var(--primary); }
+.bg-\[\#E07A5F\],
+.hover\:bg-\[\#E07A5F\]:hover { background-color: var(--primary); }
+.bg-\[\#d06a4f\],
+.hover\:bg-\[\#d06a4f\]:hover { background-color: var(--primary-hover); }
+.border-\[\#E07A5F\],
+.focus\:border-\[\#E07A5F\]:focus,
+.hover\:border-\[\#E07A5F\]:hover { border-color: var(--primary); }
+.ring-\[\#E07A5F\] { --tw-ring-color: var(--primary); }
+
+/* Alpha variants (background, border, ring) ------------------------- */
+.bg-\[\#E07A5F\]\/5,  .hover\:bg-\[\#E07A5F\]\/5:hover  { background-color: color-mix(in srgb, var(--primary)  5%, transparent); }
+.bg-\[\#E07A5F\]\/10, .hover\:bg-\[\#E07A5F\]\/10:hover { background-color: color-mix(in srgb, var(--primary) 10%, transparent); }
+.bg-\[\#E07A5F\]\/15  { background-color: color-mix(in srgb, var(--primary) 15%, transparent); }
+.bg-\[\#E07A5F\]\/20, .hover\:bg-\[\#E07A5F\]\/20:hover { background-color: color-mix(in srgb, var(--primary) 20%, transparent); }
+.bg-\[\#E07A5F\]\/30  { background-color: color-mix(in srgb, var(--primary) 30%, transparent); }
+.bg-\[\#E07A5F\]\/40  { background-color: color-mix(in srgb, var(--primary) 40%, transparent); }
+.bg-\[\#E07A5F\]\/50  { background-color: color-mix(in srgb, var(--primary) 50%, transparent); }
+.bg-\[\#E07A5F\]\/60  { background-color: color-mix(in srgb, var(--primary) 60%, transparent); }
+
+.border-\[\#E07A5F\]\/20, .focus\:border-\[\#E07A5F\]\/20:focus { border-color: color-mix(in srgb, var(--primary) 20%, transparent); }
+.border-\[\#E07A5F\]\/30, .focus\:border-\[\#E07A5F\]\/30:focus { border-color: color-mix(in srgb, var(--primary) 30%, transparent); }
+.border-\[\#E07A5F\]\/40, .focus\:border-\[\#E07A5F\]\/40:focus { border-color: color-mix(in srgb, var(--primary) 40%, transparent); }
+.border-\[\#E07A5F\]\/50, .hover\:border-\[\#E07A5F\]\/50:hover { border-color: color-mix(in srgb, var(--primary) 50%, transparent); }
+.border-\[\#E07A5F\]\/60, .focus\:border-\[\#E07A5F\]\/60:focus { border-color: color-mix(in srgb, var(--primary) 60%, transparent); }
+
+.ring-\[\#E07A5F\]\/20, .focus\:ring-\[\#E07A5F\]\/20:focus { --tw-ring-color: color-mix(in srgb, var(--primary) 20%, transparent); }
+
+/* Pale tints — used by the Help "What's new" card gradient + a couple */
+/* of solid backgrounds. Auto-switches between light/dark per theme.   */
+.bg-\[\#FCEFE6\] { background-color: var(--accent-pale-1); }
+.from-\[\#FCEFE6\] { --tw-gradient-from: var(--accent-pale-1) var(--tw-gradient-from-position); --tw-gradient-to: color-mix(in srgb, var(--accent-pale-1) 0%, transparent) var(--tw-gradient-to-position); --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to); }
+.to-\[\#F8E3D3\] { --tw-gradient-to: var(--accent-pale-2) var(--tw-gradient-to-position); }
+
+/* The site's brand gradient (used inside `.logo-gradient`)             */
+.logo-gradient-brand { background: linear-gradient(135deg, var(--primary) 0%, var(--accent-green) 100%); }
+
 /* ------------------------------------------------------------------ */
 /*  DARK THEME (Tier 1)                                                */
 /*  Activated by <html data-theme="dark">. The site uses literal hex   */
 /*  utility classes (e.g. bg-[#FAF6EE]) throughout, so dark mode is    */
 /*  achieved by retargeting those exact compiled class names to dark   */
-/*  values via an attribute selector. The accent peach / green stay    */
-/*  the same in both modes — they read fine on either background.      */
+/*  values via an attribute selector. The accent purple is brightened  */
+/*  in dark mode via `--primary` override (see :root[data-theme=dark]) */
+/*  so we do NOT need separate per-class dark rules for it.            */
 /* ------------------------------------------------------------------ */
 :root[data-theme="dark"] {
     --bg: #1B1B1E;
@@ -209,6 +269,13 @@
     --text-primary: #E8E4D8;
     --text-secondary: #9C9C8E;
     --border: #3B3B41;
+    /* Brighten the accent on dark — same hue, higher luminosity so it     */
+    /* still reads against `--bg`. Pale tints invert to deep-purple so    */
+    /* gradient cards stop being white-on-white in dark mode.             */
+    --primary: #A78BFA;
+    --primary-hover: #C4B5FD;
+    --accent-pale-1: #2A1F3A;
+    --accent-pale-2: #3A2A4F;
     color-scheme: dark;
 }
 
@@ -245,11 +312,9 @@
 :root[data-theme="dark"] .border-\[\#D5D2CC\],
 :root[data-theme="dark"] .divide-\[\#E5DDC5\] > * + * { border-color: var(--border); }
 
-/* Tinted accent surfaces — peach 10% bg, sage 10% bg, etc — stay      */
-/* tinted but on the dark surface so they still pop without burning   */
-/* the eyes.                                                          */
-:root[data-theme="dark"] .bg-\[\#E07A5F\]\/10 { background-color: rgba(224, 122, 95, 0.18); }
-:root[data-theme="dark"] .bg-\[\#E07A5F\]\/5 { background-color: rgba(224, 122, 95, 0.10); }
+/* Tinted accent surfaces — sage 10% bg etc. stay tinted but on the     */
+/* dark surface so they still pop without burning the eyes. Peach (now  */
+/* purple) accents are handled by the variable bridge above.            */
 :root[data-theme="dark"] .bg-\[\#3A5A40\]\/10 { background-color: rgba(115, 175, 130, 0.18); color: #B7D4BC; }
 :root[data-theme="dark"] .text-\[\#3A5A40\] { color: #B7D4BC; }
 
@@ -280,14 +345,6 @@
 :root[data-theme="dark"] .text-\[\#B87A00\] { color: #F0B860; }
 
 /* ── Recent additions (2026-06-12) — dark mode parity ───────────────── */
-/* What's-new card peach gradient on /help — background was unchanged    */
-/* in dark mode but the body text remapped to light, leaving an          */
-/* unreadable peach-on-peach result. Lift the gradient to dark amber so  */
-/* the white-on-warm balance works either way.                           */
-:root[data-theme="dark"] .from-\[\#FCEFE6\] { --tw-gradient-from: #3a2a1f var(--tw-gradient-from-position); --tw-gradient-to: rgba(58, 42, 31, 0) var(--tw-gradient-to-position); --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to); }
-:root[data-theme="dark"] .to-\[\#F8E3D3\] { --tw-gradient-to: #4a3326 var(--tw-gradient-to-position); }
-:root[data-theme="dark"] .border-\[\#E07A5F\]\/30 { border-color: rgba(224, 122, 95, 0.45); }
-
 /* Sage 10% pale (`#EAF0EB`) — used as the icon backdrop on every Admin  */
 /* Console card and the "M" classifier chip. Darken to match other       */
 /* tinted accents.                                                       */

@@ -967,3 +967,10 @@ These are agent-suggested features the user hasn't picked yet. Bring them up nex
 - Parked from this round: 🔁 **a) Surprise me button**, 🔁 **c) Books I haven't read filter**. Bring up next session.
 - Parked indefinitely: 🔁 **b) `books.py` Phase 2 refactor** — broken into Phase 2A (fandom_utils), 2B (epub_io), Phase 3 (sub-routers) so credit cost can be scoped per-phase. Cheapest first if/when revisited.
 
+
+### Changed 2026-06-12 (Site re-theme: peach → purple, via CSS variable bridge)
+- **Approach**: kept all `text-[#E07A5F]` / `bg-[#E07A5F]/20` Tailwind classes literal in JSX. Added a CSS override block in `index.css` that hijacks every compiled peach class and points it at `var(--primary)` etc. via `color-mix(in srgb, var(--primary) N%, transparent)` for opacity variants. Result: zero JSX files touched, future re-themes = edit 4 lines in `:root`.
+- **Variables**: `--primary` `#8B5CF6` (light) / `#A78BFA` (dark); `--primary-hover` `#7C3AED` / `#C4B5FD`; `--accent-pale-1` `#F3EDFF` / `#2A1F3A`; `--accent-pale-2` `#E5D3FF` / `#3A2A4F`. Brand book-spine gradient also lifted to `var(--primary) → var(--accent-green)`.
+- **Verified visually**: Library + Help in both light and dark. All accents (NEW pill, "Choose files" button, links, gradient cards, badges, focus rings, hover states) use purple now. No regression on text contrast.
+- To pick another colour later: edit just `--primary` / `--primary-hover` / `--accent-pale-1` / `--accent-pale-2` in `/app/frontend/src/index.css` (light) plus the matching block inside `:root[data-theme="dark"]` (dark) — done.
+
