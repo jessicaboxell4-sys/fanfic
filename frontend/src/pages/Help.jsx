@@ -1,15 +1,30 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import {
   ArrowLeft, Upload, Sparkles, Layers, RefreshCw, BookOpen, Trash2,
   Filter, Heart, AlertTriangle, Settings, GitCompare, Bell, LineChart,
-  Globe, Shield, CheckCircle2, Clock, FileWarning, User as UserIcon,
+  Globe, Shield, CheckCircle2, Clock, FileWarning, User as UserIcon, X,
 } from "lucide-react";
 
 // Help guide — kept current with the app. Last updated: 2026-06-09.
 // When you add a feature, drop a new <Section> here; the sticky table
 // of contents builds itself from each section's `id`.
+
+// "What's new" card. Bump WHATS_NEW.version (YYYY-MM-DD) whenever you
+// edit items — every user sees the card again until they dismiss the new
+// version. Keep items short: link + one-line description.
+const WHATS_NEW = {
+  version: "2026-06-09",
+  title: "Fresh in Shelfsort",
+  items: [
+    { to: "/library/unreadable", label: "Unreadable shelf", desc: "— surfaces corrupt EPUBs and failed conversions so nothing silently disappears." },
+    { to: "/library/ongoing", label: "Ongoing & Finished", linkTo2: "/library/complete", desc: "shelves — auto-detected WIP vs. complete status, with one-click overrides." },
+    { to: "/library/authors", label: "Authors & Pairings", linkTo2: "/library/pairings", desc: "directories — browse your library by who wrote it or who\u2019s shipped." },
+    { to: "/account/restore", label: "Backup & Restore", desc: "— download a full library archive and restore it on any account." },
+  ],
+};
+const WHATS_NEW_KEY = "shelfsort.whatsNewDismissed";
 
 const SECTIONS = [
   { id: "getting-started", label: "Getting started" },
@@ -37,6 +52,19 @@ function Section({ id, icon: Icon, title, children }) {
 
 export default function Help() {
   const { hash } = useLocation();
+  const [showWhatsNew, setShowWhatsNew] = useState(() => {
+    try {
+      return localStorage.getItem(WHATS_NEW_KEY) !== WHATS_NEW.version;
+    } catch {
+      return true;
+    }
+  });
+
+  const dismissWhatsNew = () => {
+    try { localStorage.setItem(WHATS_NEW_KEY, WHATS_NEW.version); } catch { /* localStorage unavailable */ }
+    setShowWhatsNew(false);
+  };
+
   useEffect(() => {
     if (!hash) return;
     const id = hash.slice(1);
@@ -59,35 +87,40 @@ export default function Help() {
 
         <aside
           data-testid="help-whats-new"
-          className="mb-10 rounded-2xl border border-[#E07A5F]/30 bg-gradient-to-br from-[#FCEFE6] to-[#F8E3D3] p-5 md:p-6 shadow-sm"
+          hidden={!showWhatsNew}
+          className="mb-10 rounded-2xl border border-[#E07A5F]/30 bg-gradient-to-br from-[#FCEFE6] to-[#F8E3D3] p-5 md:p-6 shadow-sm relative"
         >
-          <div className="flex items-start gap-3">
+          <button
+            type="button"
+            onClick={dismissWhatsNew}
+            data-testid="help-whats-new-dismiss"
+            aria-label="Dismiss what's new"
+            className="absolute top-3 right-3 p-1.5 rounded-full text-[#6B705C] hover:text-[#2C2C2C] hover:bg-white/60 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+          <div className="flex items-start gap-3 pr-6">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-[#E07A5F] text-white text-[10px] font-bold uppercase tracking-[0.15em] px-2.5 py-1 shrink-0">
               <Sparkles className="w-3 h-3" /> New
             </span>
             <div className="flex-1">
-              <h2 className="font-serif text-xl md:text-2xl text-[#2C2C2C] mb-2">Fresh in Shelfsort</h2>
+              <h2 className="font-serif text-xl md:text-2xl text-[#2C2C2C] mb-2">{WHATS_NEW.title}</h2>
               <ul className="text-sm text-[#2C2C2C] space-y-1.5 leading-relaxed">
-                <li>
-                  <Link to="/library/unreadable" className="text-[#E07A5F] hover:underline font-medium">Unreadable shelf</Link>
-                  {" "}— surfaces corrupt EPUBs and failed conversions so nothing silently disappears.
-                </li>
-                <li>
-                  <Link to="/library/ongoing" className="text-[#E07A5F] hover:underline font-medium">Ongoing</Link>
-                  {" & "}
-                  <Link to="/library/complete" className="text-[#E07A5F] hover:underline font-medium">Finished</Link>
-                  {" "}shelves — auto-detected WIP vs. complete status, with one-click overrides.
-                </li>
-                <li>
-                  <Link to="/library/authors" className="text-[#E07A5F] hover:underline font-medium">Authors</Link>
-                  {" & "}
-                  <Link to="/library/pairings" className="text-[#E07A5F] hover:underline font-medium">Pairings</Link>
-                  {" "}directories — browse your library by who wrote it or who&apos;s shipped.
-                </li>
-                <li>
-                  <Link to="/account/restore" className="text-[#E07A5F] hover:underline font-medium">Backup &amp; Restore</Link>
-                  {" "}— download a full library archive and restore it on any account.
-                </li>
+                {WHATS_NEW.items.map((item) => {
+                  const [primary, secondary] = item.label.split(" & ");
+                  return (
+                    <li key={item.to}>
+                      <Link to={item.to} className="text-[#E07A5F] hover:underline font-medium">{primary}</Link>
+                      {item.linkTo2 && (
+                        <>
+                          {" & "}
+                          <Link to={item.linkTo2} className="text-[#E07A5F] hover:underline font-medium">{secondary}</Link>
+                        </>
+                      )}
+                      {" "}{item.desc}
+                    </li>
+                  );
+                })}
               </ul>
               <a href="#shelves" className="inline-block mt-3 text-xs font-semibold uppercase tracking-[0.15em] text-[#3A5A40] hover:text-[#E07A5F]">
                 Jump to the full shelf guide →
