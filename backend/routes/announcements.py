@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 
 from deps import db, api_router
 from models import User
-from auth_dep import get_current_user
+from auth_dep import get_current_user, require_admin
 
 
 class AnnouncementItem(BaseModel):
@@ -60,11 +60,11 @@ async def get_latest_announcement(user: User = Depends(get_current_user)):
 @api_router.post("/announcements")
 async def create_announcement(
     payload: AnnouncementIn,
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_admin),
 ):
     """Insert a new announcement. `version` must be unique — pushing the
     same version twice is a 409, push a fresh version (YYYY-MM-DD-X) to
-    force a re-show on every user.
+    force a re-show on every user. Admin-only.
     """
     existing = await db.announcements.find_one({"version": payload.version}, {"_id": 1})
     if existing:
@@ -83,9 +83,9 @@ async def create_announcement(
 @api_router.delete("/announcements/{version}")
 async def delete_announcement(
     version: str,
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_admin),
 ):
-    """Remove an announcement by version. Useful for undo / typo fixes."""
+    """Remove an announcement by version. Useful for undo / typo fixes. Admin-only."""
     result = await db.announcements.delete_one({"version": version})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Announcement not found")

@@ -33,3 +33,17 @@ async def get_current_user(request: Request) -> User:
     if not user_doc:
         raise HTTPException(status_code=401, detail="User not found")
     return User(**user_doc)
+
+
+async def require_admin(request: Request) -> User:
+    """Like `get_current_user`, but 403s if the user isn't flagged `is_admin`.
+
+    Use for write/destructive endpoints that should be operator-only (e.g.
+    publishing release-note announcements). A startup migration in
+    `server.py` promotes the oldest existing user to admin so the operator
+    of a freshly upgraded install isn't locked out.
+    """
+    user = await get_current_user(request)
+    if not user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin only")
+    return user

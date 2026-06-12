@@ -100,7 +100,7 @@ async def auth_google(request: Request, response: Response):
 
 @api_router.get("/auth/me")
 async def auth_me(user: User = Depends(get_current_user)):
-    return {"user_id": user.user_id, "email": user.email, "name": user.name, "picture": user.picture}
+    return {"user_id": user.user_id, "email": user.email, "name": user.name, "picture": user.picture, "is_admin": user.is_admin}
 
 
 @api_router.post("/auth/logout")
@@ -302,6 +302,7 @@ async def get_profile(user: User = Depends(get_current_user)):
         "name": record.get("name", ""),
         "picture": record.get("picture", ""),
         "has_password": bool(record.get("password_hash")),
+        "is_admin": bool(record.get("is_admin", False)),
         "created_at": record.get("created_at"),
     }
 

@@ -11,6 +11,7 @@ class User(BaseModel):
     email: str
     name: str
     picture: Optional[str] = None
+    is_admin: bool = False
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 

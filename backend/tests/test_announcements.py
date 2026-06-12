@@ -15,10 +15,16 @@ db = mc[DB_NAME]
 
 USER_ID = f"user_ann_{uuid.uuid4().hex[:8]}"
 TOKEN = f"sess_ann_{uuid.uuid4().hex}"
+NON_ADMIN_USER_ID = f"user_nonadm_{uuid.uuid4().hex[:8]}"
+NON_ADMIN_TOKEN = f"sess_nonadm_{uuid.uuid4().hex}"
 
 
 def H():
     return {"Authorization": f"Bearer {TOKEN}"}
+
+
+def H_NONADMIN():
+    return {"Authorization": f"Bearer {NON_ADMIN_TOKEN}"}
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -26,8 +32,9 @@ def seed_user():
     db.users.insert_one({
         "user_id": USER_ID,
         "email": f"{USER_ID}@example.com",
-        "name": "Ann User",
+        "name": "Ann Admin",
         "picture": "",
+        "is_admin": True,
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
     db.user_sessions.insert_one({
@@ -36,12 +43,26 @@ def seed_user():
         "expires_at": datetime.now(timezone.utc) + timedelta(days=7),
         "created_at": datetime.now(timezone.utc),
     })
+    db.users.insert_one({
+        "user_id": NON_ADMIN_USER_ID,
+        "email": f"{NON_ADMIN_USER_ID}@example.com",
+        "name": "Ann NonAdmin",
+        "picture": "",
+        "is_admin": False,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    db.user_sessions.insert_one({
+        "user_id": NON_ADMIN_USER_ID,
+        "session_token": NON_ADMIN_TOKEN,
+        "expires_at": datetime.now(timezone.utc) + timedelta(days=7),
+        "created_at": datetime.now(timezone.utc),
+    })
     # Drop any leftover announcements from previous test runs so we get a
     # deterministic "empty" baseline.
     db.announcements.delete_many({"version": {"$regex": "^test_"}})
     yield
-    db.users.delete_many({"user_id": USER_ID})
-    db.user_sessions.delete_many({"user_id": USER_ID})
+    db.users.delete_many({"user_id": {"$in": [USER_ID, NON_ADMIN_USER_ID]}})
+    db.user_sessions.delete_many({"user_id": {"$in": [USER_ID, NON_ADMIN_USER_ID]}})
     db.announcements.delete_many({"version": {"$regex": "^test_"}})
 
 
@@ -109,3 +130,26 @@ def test_validation_rejects_empty_items():
         "version": f"test_empty_{uuid.uuid4().hex[:6]}", "title": "x", "items": [],
     }, headers=H())
     assert r.status_code == 422
+
+
+def test_non_admin_cannot_post():
+    """Authenticated but non-admin user gets 403 on write endpoints."""
+    payload = {"version": f"test_nonadm_{uuid.uuid4().hex[:6]}", "title": "x", "items": [{"label": "a", "desc": "b", "to": "/c"}]}
+    r = requests.post(f"{BASE}/api/announcements", json=payload, headers=H_NONADMIN())
+    assert r.status_code == 403
+    # But GET still works for non-admin (it's a read).
+    r2 = requests.get(f"{BASE}/api/announcements/latest", headers=H_NONADMIN())
+    assert r2.status_code == 200
+
+
+def test_non_admin_cannot_delete():
+    v = f"test_admindel_{uuid.uuid4().hex[:6]}"
+    payload = {"version": v, "title": "Adm only delete", "items": [{"label": "a", "desc": "b", "to": "/c"}]}
+    # Admin creates it.
+    r = requests.post(f"{BASE}/api/announcements", json=payload, headers=H())
+    assert r.status_code == 200
+    # Non-admin can't delete.
+    r2 = requests.delete(f"{BASE}/api/announcements/{v}", headers=H_NONADMIN())
+    assert r2.status_code == 403
+    # Admin cleans up.
+    requests.delete(f"{BASE}/api/announcements/{v}", headers=H())

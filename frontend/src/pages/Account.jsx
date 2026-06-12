@@ -1218,8 +1218,9 @@ export default function Account() {
           </div>
         </section>
 
-        {/* Release notes — publish the "What's new" card shown on Help */}
-        <AnnouncementsCard />
+        {/* Release notes — publish the "What's new" card shown on Help.
+            Admin-only; non-admin users don't see this section at all. */}
+        {profile?.is_admin && <AnnouncementsCard />}
 
         {/* Fandom aliases — manual mappings applied during canonicalization */}
         <section className="shelf-card p-6 mb-6" data-testid="fandom-aliases-card">

@@ -159,6 +159,32 @@ async def on_startup():
     except Exception as e:
         logger.warning(f"Digest scheduler failed to start: {e}")
 
+    # One-time bootstrap (2026-06): if no user is flagged is_admin yet,
+    # promote the oldest existing account so the operator of a freshly
+    # upgraded install can publish release-note announcements. Subsequent
+    # admins must be promoted manually (Mongo update). Idempotent: noop
+    # after the first run.
+    try:
+        admin_count = await db.users.count_documents({"is_admin": True})
+        if admin_count == 0:
+            oldest = await db.users.find_one(
+                {},
+                {"user_id": 1, "email": 1},
+                sort=[("created_at", 1)],
+            )
+            if oldest:
+                await db.users.update_one(
+                    {"user_id": oldest["user_id"]},
+                    {"$set": {"is_admin": True}},
+                )
+                logger.info(
+                    "Bootstrapped first admin: %s (%s)",
+                    oldest.get("email"),
+                    oldest["user_id"],
+                )
+    except Exception as e:
+        logger.warning("Admin-bootstrap migration: %s", e)
+
     # Calibre self-heal — the pod environment occasionally recycles apt packages.
     # If `ebook-convert` isn't on PATH, fire a background `apt-get install` so
     # PDF/MOBI/AZW uploads keep auto-converting without manual intervention.

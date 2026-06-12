@@ -872,3 +872,21 @@
   - Files: writes EPUB only when target doesn't already exist (unless overwrite_collisions is on).
 - **Frontend**: new `/app/frontend/src/pages/RestoreBackupPage.jsx` at `/account/restore`. Three states: picker → preview (checkbox list with Select all / Select none / Only new books, an "Overwrite collisions" toggle that defaults OFF, per-book collision badges, smart-shelves section) → result summary. New "Restore from backup" outline button on the Account backup card.
 - **Tests**: 6 new in `TestRestoreBackup` covering preview (manifest + collisions), bad-input rejects (non-zip + zip-without-manifest), apply (skip-by-default, overwrite-on-flag, honor-selection). **All passing.**
+
+
+### Added 2026-06-12 (Help "What's new" card)
+- **Feature**: dismissible highlight card at the top of `/help` listing the newest features. Stores dismissal per-user in `localStorage` (`shelfsort.whatsNewDismissed`) keyed by `version` — bumping the version re-shows the card for every user.
+- **Frontend**: `/app/frontend/src/pages/Help.jsx`. Lazy `useState` init reads localStorage on mount (avoids `react-hooks/set-state-in-effect`). `data-testid="help-whats-new"` + `help-whats-new-dismiss`.
+
+### Added 2026-06-12 (Server-side announcements API)
+- **Backend**: new `/app/backend/routes/announcements.py` with `GET /api/announcements/latest`, `POST /api/announcements`, `DELETE /api/announcements/{version}`. Mongo collection `announcements`. Schema: `{version, title, items: [{label, desc, to, link_to_2?}], created_at, created_by}`. Duplicate-version POST → 409. Wired in `server.py`.
+- **Frontend**: `Help.jsx` now fetches the latest announcement on mount (axios with `withCredentials`) and falls back to bundled `FALLBACK_WHATS_NEW` on null/error. Dismissal tracks the live `version`.
+- **Tests**: `/app/backend/tests/test_announcements.py` — 8 tests covering auth gating, create/fetch, dup version, delete, validation, admin-only writes. All passing.
+
+### Added 2026-06-12 (Admin role + announcements UI)
+- **Model**: `is_admin: bool = False` field on `User` (`/app/backend/models.py`).
+- **Auth**: new `require_admin` dependency in `/app/backend/auth_dep.py` — 403s if `user.is_admin` is false. `GET /api/auth/me` and `GET /api/auth/profile` now expose `is_admin`.
+- **Migration**: startup auto-promotes the oldest existing user to admin if no admin exists yet (`/app/backend/server.py`). Idempotent.
+- **Backend**: `POST /api/announcements` and `DELETE /api/announcements/{version}` now require `is_admin`. `GET /api/announcements/latest` stays open to any authed user (it's a read).
+- **Frontend**: new `AnnouncementsCard` in `/app/frontend/src/pages/Account.jsx` — form with version (auto today), title, repeatable `{label, to, desc, link_to_2}` rows, "Currently live" mini-card with delete. Mounted conditionally on `profile?.is_admin` so non-admins don't see it. All inputs carry `data-testid="announcements-*"`.
+- **Tests**: 2 new admin/non-admin tests in `test_announcements.py`. All 181 unit-test-suite tests still pass.
