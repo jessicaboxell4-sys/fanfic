@@ -974,3 +974,11 @@ These are agent-suggested features the user hasn't picked yet. Bring them up nex
 - **Verified visually**: Library + Help in both light and dark. All accents (NEW pill, "Choose files" button, links, gradient cards, badges, focus rings, hover states) use purple now. No regression on text contrast.
 - To pick another colour later: edit just `--primary` / `--primary-hover` / `--accent-pale-1` / `--accent-pale-2` in `/app/frontend/src/index.css` (light) plus the matching block inside `:root[data-theme="dark"]` (dark) — done.
 
+
+### Added 2026-06-12 (Theme palette picker on Account)
+- **6 preset palettes**: Peach (original), Purple (current default), Forest, Ocean, Crimson, Charcoal. Each defines `primary` + `primaryHover` + `pale1` + `pale2` for both light and dark modes — dark variants brighten the primary for legibility against `#1B1B1E` and invert the pale tints to deep hues of the same family. Add new palettes by editing `/app/frontend/src/lib/palettes.js` only.
+- **Wiring**: new `PaletteProvider` context wraps the app inside `<ThemeProvider>` (so palette changes co-exist with light/dark toggle). Provider injects a `<style id="shelfsort-palette">` tag into `<head>` containing both `:root { ... }` and `:root[data-theme="dark"] { ... }` blocks. Cascade beats `index.css` `:root` because the tag appears later. localStorage key `shelfsort_palette` persists across reloads.
+- **UI**: `PalettePickerCard` mounted on `/account` between Backup and Profile. Each swatch shows two dots (primary + pale tint) so users see the actual colour before committing. Selected palette gets a green check; "Currently using **X**" footer with hint at the `palettes.js` file path for power users.
+- **Verified end-to-end**: clicking Forest swapped the entire library page's accents; switching to dark mode + Crimson applied the dark-tuned coral primary (`#FF7878`) across all hijacked Tailwind classes (Save button, Profile input border, palette card border). `--primary` matches the palette JS values on `getComputedStyle()`.
+- Zero JSX edits to existing components. The CSS-variable bridge added earlier in the day handles the rest.
+

@@ -5,6 +5,7 @@ import { Toaster } from "sonner";
 
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { ThemeProvider } from "@/context/ThemeContext";
+import { PaletteProvider } from "@/context/PaletteContext";
 import UrlPasteDetector from "@/components/UrlPasteDetector";
 import { FETCHING_UI_ENABLED } from "@/lib/featureFlags";
 import Landing from "@/pages/Landing";
@@ -129,12 +130,14 @@ function App() {
     <div className="App">
       <BrowserRouter>
         <ThemeProvider>
-          <AuthProvider>
-            <MaintenanceBanner />
-            {FETCHING_UI_ENABLED && <UrlPasteDetector />}
-            <AppRouter />
-            <Toaster position="top-center" richColors />
-          </AuthProvider>
+          <PaletteProvider>
+            <AuthProvider>
+              <MaintenanceBanner />
+              {FETCHING_UI_ENABLED && <UrlPasteDetector />}
+              <AppRouter />
+              <Toaster position="top-center" richColors />
+            </AuthProvider>
+          </PaletteProvider>
         </ThemeProvider>
       </BrowserRouter>
     </div>
