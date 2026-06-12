@@ -58,6 +58,71 @@ export const PALETTES = [
   },
 ];
 
+export const CUSTOM_PALETTE_ID = "custom";
+export const CUSTOM_PALETTE_KEY = "shelfsort_palette_custom";
+
+// Default custom palette starting point — same hexes as Purple so the
+// picker opens on a known-good state instead of black/transparent.
+export const DEFAULT_CUSTOM_LIGHT = {
+  primary: "#8B5CF6", primaryHover: "#7C3AED", pale1: "#F3EDFF", pale2: "#E5D3FF",
+};
+
+// HSL helpers --------------------------------------------------------------
+function hexToHsl(hex) {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!m) return { h: 0, s: 0, l: 50 };
+  const r = parseInt(m[1], 16) / 255;
+  const g = parseInt(m[2], 16) / 255;
+  const b = parseInt(m[3], 16) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0, s = 0;
+  const l = (max + min) / 2;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      default: h = (r - g) / d + 4; break;
+    }
+    h *= 60;
+  }
+  return { h, s: s * 100, l: l * 100 };
+}
+
+function hslToHex({ h, s, l }) {
+  s /= 100; l /= 100;
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+  let r = 0, g = 0, b = 0;
+  if (h < 60)       { r = c; g = x; }
+  else if (h < 120) { r = x; g = c; }
+  else if (h < 180) { g = c; b = x; }
+  else if (h < 240) { g = x; b = c; }
+  else if (h < 300) { r = x; b = c; }
+  else              { r = c; b = x; }
+  const to = (v) => Math.round((v + m) * 255).toString(16).padStart(2, "0");
+  return `#${to(r)}${to(g)}${to(b)}`;
+}
+
+// Derive dark-mode variants from a light-mode palette. Brightens the
+// primaries (higher luminance, slight saturation lift) and replaces the
+// pale tints with deep-luminance versions of the same hue so gradient
+// cards stay on-brand in dark mode.
+export function deriveDarkPalette(light) {
+  const p = hexToHsl(light.primary);
+  const ph = hexToHsl(light.primaryHover);
+  const t1 = hexToHsl(light.pale1);
+  const t2 = hexToHsl(light.pale2);
+  return {
+    primary:      hslToHex({ h: p.h,  s: Math.max(p.s,  60),  l: Math.max(p.l,  60) }),
+    primaryHover: hslToHex({ h: ph.h, s: Math.max(ph.s, 50),  l: Math.max(ph.l, 75) }),
+    pale1:        hslToHex({ h: t1.h, s: Math.max(t1.s, 25),  l: 14 }),
+    pale2:        hslToHex({ h: t2.h, s: Math.max(t2.s, 25),  l: 20 }),
+  };
+}
+
 export const DEFAULT_PALETTE_ID = "purple";
 export const PALETTE_STORAGE_KEY = "shelfsort_palette";
 

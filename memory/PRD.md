@@ -982,3 +982,12 @@ These are agent-suggested features the user hasn't picked yet. Bring them up nex
 - **Verified end-to-end**: clicking Forest swapped the entire library page's accents; switching to dark mode + Crimson applied the dark-tuned coral primary (`#FF7878`) across all hijacked Tailwind classes (Save button, Profile input border, palette card border). `--primary` matches the palette JS values on `getComputedStyle()`.
 - Zero JSX edits to existing components. The CSS-variable bridge added earlier in the day handles the rest.
 
+
+### Added 2026-06-12 (Custom palette option — 7th swatch with colour pickers)
+- **7th palette `id: "custom"`** added to the picker card with a dashed-border swatch + Sliders icon. Selecting it expands a 4-row panel of native HTML5 `<input type="color">` pickers (one per slot: Primary, Primary hover, Pale tint 1, Pale tint 2).
+- **Live preview**: changing any picker updates the CSS variable instantly via the same `<style id="shelfsort-palette">` injection used by presets. No save button needed.
+- **Auto-derived dark variants**: a new `deriveDarkPalette(light)` helper in `palettes.js` converts each light hex to HSL, brightens primaries (`l ≥ 60` / `l ≥ 75`), and inverts the pale tints to deep luminances of the same hue (`l = 14` / `l = 20`). User picks 4 light hexes; dark mode "just works".
+- **Storage**: light hexes persist to `shelfsort_palette_custom` (separate key from the active-id `shelfsort_palette`) so flipping back to a preset doesn't lose the custom palette.
+- **Verified end-to-end**: selected Custom → swapped Primary to hot pink `#E91E63` via the picker → entire library page accents (Choose files, Open the guide, upload-zone border, "Updated stories" badge) recoloured live. `getComputedStyle()` confirmed `--primary` matches.
+- Lint clean. Zero JSX edits to any existing component.
+
