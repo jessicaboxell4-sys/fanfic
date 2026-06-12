@@ -2,30 +2,25 @@ import React, { useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import {
-  ArrowLeft, Upload, Sparkles, Layers, RefreshCw, BookOpen, Trash2, Download,
-  Filter, Heart, AlertTriangle, Pin, Settings, GitCompare, Bell, LineChart,
+  ArrowLeft, Upload, Sparkles, Layers, RefreshCw, BookOpen, Trash2,
+  Filter, Heart, AlertTriangle, Settings, GitCompare, Bell, LineChart,
+  Globe, Shield, CheckCircle2, Clock, FileWarning, User as UserIcon,
 } from "lucide-react";
 
-// Help guide — kept current with the app. Last updated: 2026-05-31.
-// When you add a feature, drop a new <Section> here; the table of contents
-// builds itself from each section's `id`.
+// Help guide — kept current with the app. Last updated: 2026-06-09.
+// When you add a feature, drop a new <Section> here; the sticky table
+// of contents builds itself from each section's `id`.
 
 const SECTIONS = [
   { id: "getting-started", label: "Getting started" },
   { id: "uploads", label: "Uploading books" },
-  { id: "url-list", label: "Filtering URL lists" },
-  { id: "shelves", label: "Shelves & classification" },
-  { id: "smart-shelves", label: "Smart shelves" },
-  { id: "relationships", label: "Pairings & relationships" },
-  { id: "reading", label: "The Reader" },
-  { id: "stats", label: "Reading stats & streaks" },
-  { id: "refresh", label: "Refreshing fanfics" },
-  { id: "versions", label: "Version history" },
-  { id: "duplicates", label: "Duplicate handling" },
-  { id: "trash", label: "Trash & undo" },
-  { id: "exports", label: "Exports (.zip / .xlsx)" },
-  { id: "layout", label: "Customizing the dashboard" },
-  { id: "account", label: "Account & danger zone" },
+  { id: "shelves", label: "Shelves & filters" },
+  { id: "discovery", label: "Browsing & discovery" },
+  { id: "sources", label: "Sources we recognize" },
+  { id: "detection", label: "Detection & overrides" },
+  { id: "data-safety", label: "Backup & restore" },
+  { id: "reading", label: "Reader & stats" },
+  { id: "account", label: "Account & preferences" },
 ];
 
 function Section({ id, icon: Icon, title, children }) {
@@ -42,17 +37,13 @@ function Section({ id, icon: Icon, title, children }) {
 
 export default function Help() {
   const { hash } = useLocation();
-  // React Router doesn't auto-scroll to #anchor on cross-route navigation —
-  // do it manually so deep-links like /help#url-list land in the right place.
   useEffect(() => {
     if (!hash) return;
     const id = hash.slice(1);
     const el = document.getElementById(id);
-    if (el) {
-      // Defer a tick so the layout has settled (sticky navbar offset etc.)
-      requestAnimationFrame(() => el.scrollIntoView({ behavior: "smooth", block: "start" }));
-    }
+    if (el) requestAnimationFrame(() => el.scrollIntoView({ behavior: "smooth", block: "start" }));
   }, [hash]);
+
   return (
     <div className="min-h-screen bg-[#FAF6EE]">
       <Navbar />
@@ -63,11 +54,10 @@ export default function Help() {
 
         <header className="mb-10">
           <h1 className="font-serif text-5xl md:text-6xl text-[#2C2C2C] leading-tight">Help</h1>
-          <p className="text-[#6B705C] mt-2">How to do everything in Shelfsort. Last updated 2026-05-31.</p>
+          <p className="text-[#6B705C] mt-2">How to do everything in Shelfsort. Last updated 2026-06-09.</p>
         </header>
 
         <div className="grid md:grid-cols-[200px,1fr] gap-10">
-          {/* Sticky table of contents */}
           <nav className="md:sticky md:top-24 self-start" data-testid="help-toc">
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] mb-3">Sections</p>
             <ul className="space-y-1.5 text-sm">
@@ -81,142 +71,117 @@ export default function Help() {
 
           <article>
             <Section id="getting-started" icon={Sparkles} title="Getting started">
-              <p>Shelfsort organizes your EPUB library by fandom, author, pairing, and reading progress — designed especially for fanfiction readers but works for any ebook collection.</p>
+              <p>Shelfsort organizes your EPUB library by fandom, author, pairing, completion status, and reading progress — built for fanfiction readers but works for any ebook collection.</p>
               <ol>
-                <li>Sign up with email + password (or use Google OAuth)</li>
+                <li>Sign in with email + password (or Google OAuth)</li>
                 <li>Drop an EPUB onto the upload zone on the main library page</li>
-                <li>Watch it get auto-classified onto the right shelf</li>
+                <li>Watch it get auto-classified onto the right shelf, with status and pairings extracted</li>
                 <li>Click the cover to read it in-browser</li>
               </ol>
+              <p>Everything is auto-detected at upload time — you only step in when you want to override.</p>
             </Section>
 
             <Section id="uploads" icon={Upload} title="Uploading books">
-              <p>The upload zone on the main library page accepts <strong>files and folders</strong>. Drag-and-drop or click <em>Choose files</em> / <em>Pick a folder</em>.</p>
+              <p>The upload zone accepts <strong>files and folders</strong>. Drag-and-drop or click <em>Choose files</em> / <em>Pick a folder</em>.</p>
               <p><strong>Supported formats:</strong></p>
               <ul>
                 <li><code>.epub</code> — added silently, full pipeline (metadata + classification + cover + chapters + Reader)</li>
-                <li><code>.pdf .mobi .azw .azw3 .kfx .docx .doc .rtf .fb2 .lit .lrf .pdb .html .htm</code> — confirmation prompt, then auto-converted to EPUB via Calibre, then full pipeline</li>
+                <li><code>.pdf .mobi .azw .azw3 .kfx .docx .doc .rtf .fb2 .lit .lrf .pdb .html .htm</code> — confirmation prompt, then auto-converted to EPUB via Calibre</li>
                 <li><code>.txt</code> with prose — confirm + convert</li>
-                <li><code>.txt</code> with fanfic URLs — see "Filtering URL lists" below</li>
+                <li><code>.txt</code> with fanfic URLs (≥3 URL lines or ≥40% of lines) — treated as a URL list, dedupe-and-skip flow</li>
               </ul>
-              <p>Folders are walked recursively. Unsupported files are skipped with a count toast.</p>
-              <p><strong>Conversions take ~5–30 seconds per book.</strong> Progress shows on the dashboard chip and the dedicated <code>/library/conversions</code> page (with Retry for any that failed).</p>
+              <p><strong>What happens during upload:</strong> metadata is extracted, the book is classified onto a category (Fanfiction / Original Fiction / Non-fiction / etc.), the fandom is detected from 145 canonical AO3 fandoms, relationships/pairings are extracted, completion status is detected (see &ldquo;Detection &amp; overrides&rdquo;), and any embedded source URLs are saved for future dedupe + the Linkless filter.</p>
+              <p><strong>Duplicates</strong> are caught two ways: by source URL (exact match → skipped) and by title-and-author similarity (you choose: keep both / replace older / skip). Cross-format duplicates (same book uploaded as PDF after the EPUB) are filed under <Link to="/library/originals">Originals</Link>.</p>
             </Section>
 
-            <Section id="url-list" icon={Filter} title="Filtering URL lists">
-              <p>Have a long list of fanfic URLs (an old bookmarks dump, a reclist from a friend, etc.)? Two ways to dedupe it against your library and grab an Excel of the net-new ones:</p>
+            <Section id="shelves" icon={Layers} title="Shelves & filters">
+              <p>Every book lives on multiple shelves at once. Click any chip on the dashboard or use the URLs below directly.</p>
+              <ul>
+                <li><strong>Fandom shelves</strong> (auto) — one per detected fandom, with crossover detection</li>
+                <li><strong><Link to="/library/crossovers">Crossovers</Link></strong> — fics belonging to 2+ fandoms</li>
+                <li><strong><Link to="/library/complete">Finished</Link></strong> <CheckCircle2 className="inline w-3 h-3" /> — books with a definitive ending (default for anything without an explicit ongoing signal)</li>
+                <li><strong><Link to="/library/ongoing">Ongoing</Link></strong> <Clock className="inline w-3 h-3" /> — WIPs, in-progress, hiatus, abandoned, or "Chapter X of Y" where X &lt; Y</li>
+                <li><strong><Link to="/library/linkless">Linkless</Link></strong> — books with no embedded source URL (originals, very old uploads, manuscripts). Lets you paste a source URL after the fact via the inline claim flow.</li>
+                <li><strong><Link to="/library/unreadable">Unreadable</Link></strong> <FileWarning className="inline w-3 h-3" /> — files that couldn't be parsed (corrupt EPUBs) or converted (Calibre rejected a PDF/Kindle/DOCX). Original bytes stay on disk so you can download a copy to inspect or delete it.</li>
+                <li><strong><Link to="/library/originals">Originals</Link></strong> — books you uploaded as PDF/MOBI/etc. while an EPUB version already exists</li>
+                <li><strong>Smart Shelves</strong> — saved filter combinations (fandom + tag + status + …); manage them on the Account page</li>
+              </ul>
+              <p>The Dashboard surfaces a count chip for any non-empty special shelf so you can see what needs attention.</p>
+            </Section>
+
+            <Section id="discovery" icon={UserIcon} title="Browsing & discovery">
+              <p>Shelfsort indexes your library by who wrote what and who is shipped with whom.</p>
+              <ul>
+                <li><strong><Link to="/library/authors">Authors directory</Link></strong> — every author in your library with book counts, sorted by count. Click a name to see all their books with status badges. Reachable from the dashboard&apos;s Authors section via &ldquo;View all →&rdquo;.</li>
+                <li><strong><Link to="/library/pairings">Pairings browser</Link></strong> — every ship/relationship across your library with counts and sample titles. Click a pairing to see the books featuring it. Pairings are extracted from EPUB metadata at upload time and canonicalized (alphabetical order, slash delimiter) so identical ships from different sources group correctly.</li>
+                <li><strong>Smart Shelves</strong> — combine filters into a saved view (Drarry-Complete-only, Sterek-WIPs, etc.).</li>
+                <li><strong>Fandom Treemap</strong> on the Account page — visual overview of how your library splits by franchise.</li>
+              </ul>
+            </Section>
+
+            <Section id="sources" icon={Globe} title="Sources we recognize">
+              <p>Shelfsort recognizes fanfic URLs from 10 archives. All variants of the same story (mobile/www/mirrors/chapter IDs/query strings/http vs https) collapse to a single canonical URL so URL-list dedupe, source labels, and the Linkless claim-URL flow all work consistently.</p>
+              <ul>
+                <li><strong>AO3</strong> — every official mirror (.org / .com / .net / .gay / ao3.org / archive.transformativeworks.org) with www / m / insecure subdomains and /collections/&lt;name&gt;/works/N prefix</li>
+                <li><strong>FanFiction.net</strong> — www, bare, and <code>m.fanfiction.net</code> (mobile)</li>
+                <li><strong>FictionPress</strong> — www, bare, and <code>m.fictionpress.com</code> (mobile)</li>
+                <li><strong>Royal Road</strong></li>
+                <li><strong>SpaceBattles</strong>, <strong>SufficientVelocity</strong>, <strong>QuestionableQuesting</strong> (forum threads)</li>
+                <li><strong>Adult-FanFiction.org</strong> (all per-fandom subdomains)</li>
+                <li><strong>Potions &amp; Snitches</strong>, <strong>Twilighted</strong> (eFiction archives)</li>
+              </ul>
+              <p><strong>Spotted a URL from a site we don&apos;t recognize?</strong> Shelfsort flags any story-shaped URL (eFiction-style query, forum thread, <code>/works/N</code>, <code>/s/N</code>, etc.) from a new host and queues it on the <strong><Link to="/admin/unknown-sources">Unknown sources</Link></strong> page. You can:</p>
+              <ul>
+                <li><strong>Mark for adding</strong> — flags the host for the next agent session to canonicalize</li>
+                <li><strong>Dismiss</strong> — not a real fic archive, drop it from the queue</li>
+                <li><strong>Add manually</strong> — paste a URL + optional note even without an EPUB upload triggering it</li>
+              </ul>
+              <p>Toasts on upload + URL paste tell you when new hosts are spotted so you don&apos;t need to monitor the queue.</p>
+            </Section>
+
+            <Section id="detection" icon={Settings} title="Detection & overrides">
+              <p>Most things auto-detect at upload time. When the auto value isn&apos;t right, the override survives re-detection forever.</p>
+              <p><strong>Completion status</strong> is detected via a 4-signal cascade:</p>
               <ol>
-                <li><strong>Paste</strong>: small link under the upload zone → opens <code>/library/filter-urls</code> → paste URLs one per line → Filter URLs → Download Excel</li>
-                <li><strong>Drop a .txt file</strong> of URLs: detection is automatic. A modal pops with already-owned (stripped) vs new (kept) breakdown</li>
+                <li><em>Status line</em> in EPUB metadata: Status: Complete, Status: In-Progress, Status: Updated, Status: Hiatus, etc.</li>
+                <li><em>Tags</em>: <code>complete</code>, <code>wip</code>, <code>ongoing</code>, <code>in-progress</code>, <code>abandoned</code>, <code>discontinued</code>, <code>hiatus</code></li>
+                <li><em>Chapter X of Y</em> heuristic — X &lt; Y means ongoing</li>
+                <li><em>To-be-continued / TBC</em> marker in the description</li>
               </ol>
-              <p>Recognized sources: AO3, FanFiction.net, RoyalRoad, SpaceBattles, SufficientVelocity, and any URL matching our fanfic-permalink patterns.</p>
+              <p>If none match → defaults to <strong>Finished</strong> (sensible for original novels). Override on any book&apos;s detail page via the status badge dropdown — your override lives in <code>manual_status</code> separate from the auto value.</p>
+              <p><strong>Category &amp; fandom</strong> are auto-classified using EPUB metadata + a 145-fandom canonical list + a Claude AI fallback for ambiguous cases. Confidence is shown on the book detail page; correct it manually any time.</p>
+              <p><strong>Pairings/relationships</strong> are extracted directly from EPUB metadata, canonicalized (alphabetical order, slash delimiter) so Harry/Draco and Draco/Harry group together.</p>
             </Section>
 
-            <Section id="shelves" icon={BookOpen} title="Shelves & classification">
-              <p>Every book lands on a category shelf:</p>
+            <Section id="data-safety" icon={Shield} title="Backup &amp; restore">
+              <p>The data-safety loop is end-to-end:</p>
               <ul>
-                <li><strong>Fanfiction</strong> — with a fandom sub-shelf (Harry Potter, Twilight, etc.)</li>
-                <li><strong>Fiction / Non-fiction / Children's books / Manga & comics</strong> — keyword + AI fallback</li>
-                <li><strong>Needs conversion</strong> — when Calibre conversion fails</li>
-                <li><strong>Old stories</strong> — automatically-archived earlier versions (see Version history)</li>
-                <li><strong>Updated stories YYYY-MM-DD</strong> — auto-created on refresh / re-upload</li>
-                <li><strong>Trash</strong> — soft-deleted books with a 30-day grace window</li>
-              </ul>
-              <p>You can also create custom categories from the sidebar's <em>+</em> button, then drag-or-edit books onto them.</p>
-            </Section>
-
-            <Section id="smart-shelves" icon={Filter} title="Smart shelves">
-              <p>Smart shelves are saved filter sets — like "All HP fic by Author X with progress &gt; 50%". Visit <code>/library/smart-shelves</code> to create one with any combo of fandom, author, tag, progress range, last-read date, etc.</p>
-              <p>Pin your favorites and they appear in the "At a glance" folder on the dashboard.</p>
-            </Section>
-
-            <Section id="relationships" icon={Heart} title="Pairings & relationships">
-              <p>Relationships are extracted at upload from EPUB <code>dc:subject</code> tags (AO3) and description "Pairings:" lines (FFnet/SpaceBattles). They're canonicalized so <em>"Hermione/Ron"</em> and <em>"Ron/Hermione"</em> live on the same shelf.</p>
-              <p>Browse them via the pink chip row on the dashboard sidebar or click any pairing chip on a book's detail page. The <em>Backfill</em> button in Account re-extracts relationships from legacy books.</p>
-            </Section>
-
-            <Section id="reading" icon={BookOpen} title="The Reader">
-              <p>Click any book cover to open the in-browser Reader (powered by epub.js). Features:</p>
-              <ul>
-                <li>Adjustable font size, line height, theme (sepia / dark / light)</li>
-                <li>Bookmarks + per-chapter navigation</li>
-                <li>Auto-saved reading position (last_opened_at + progress_percent)</li>
-                <li>Reading heartbeat — every minute spent reading adds to your streak</li>
-                <li>"Re-read changes" jumps to the first changed chapter when a fic updates</li>
+                <li><strong>Download backup</strong> (Account page) — every EPUB + a JSON manifest of all books, tags, smart shelves, and prefs in a single ZIP. The filename is dated so you can keep multiple. Restore is manual; keep the ZIP somewhere safe.</li>
+                <li><strong>Reminder banner</strong> on the dashboard fires when (a) you have 100+ books and no backup yet, (b) it&apos;s been 30+ days since the last backup, or (c) 100+ books have been added since the last backup. X button silences it for 14 days; running a backup auto-clears it.</li>
+                <li><strong>Backup history</strong> on the Account page shows every backup you&apos;ve run with timestamps + book counts. ZIPs themselves aren&apos;t stored — only metadata. Capped at 50 entries per user.</li>
+                <li><strong><Link to="/account/restore">Restore from backup</Link></strong> — upload a backup ZIP, preview what&apos;s inside, tick exactly which books and smart shelves to bring back, and apply. Books with IDs already in your library are flagged as <em>collisions</em> and default to OFF; tick the Overwrite-collisions toggle to opt in.</li>
               </ul>
             </Section>
 
-            <Section id="stats" icon={LineChart} title="Reading stats & streaks">
-              <p>The dashboard "At a glance" folder shows your reading-streak day count, total books finished, pages read this week, and a gradient sparkline of the last 30 days. Click <em>View more</em> for the full <code>/library/stats</code> page with a heatmap-style breakdown by fandom + time.</p>
+            <Section id="reading" icon={BookOpen} title="Reader & stats">
+              <p>Click any book cover to open the in-browser EPUB Reader. Your reading position is saved per-book; come back to where you left off automatically.</p>
+              <p>The <Link to="/stats">Reading stats</Link> page covers your library shape, most-read fandoms, and pairing distribution. (Reading streaks + word-count + per-month stats are on the upcoming list.)</p>
+              <p><strong>Refresh fanfics</strong>: the URL-fetching feature (FanFicFare + FicHub) is intentionally hidden from the UI but the code is preserved for a future re-enable. No FAQ entry until then.</p>
             </Section>
 
-            <Section id="refresh" icon={RefreshCw} title="Refreshing fanfics">
-              <p>For any book with a source URL (AO3, FFnet, RoyalRoad, SpaceBattles…) click <em>Refresh</em> on the book detail page. We use <strong>FanFicFare</strong> to re-fetch the latest chapters.</p>
-              <p>If the fic has new chapters, the old copy moves to <em>Old stories</em>, the new copy lands on a dated <em>Updated stories YYYY-MM-DD</em> shelf, and the navbar 🔔 bell badges to show what changed.</p>
-              <p><strong>FanFiction.net blocks?</strong> If FFnet returns a Cloudflare 403, the UI offers a manual "Upload new version" flow — fetch the EPUB yourself and drop it in.</p>
-            </Section>
-
-            <Section id="versions" icon={GitCompare} title="Version history">
-              <p>Every refresh creates a versioned chain via <code>replaces</code> / <code>replaced_by</code> pointers. The book detail page shows a "Compare versions" link that opens a per-chapter diff view — added chapters in green, modified in amber, removed in red.</p>
-              <p>You can also <strong>link a manual upload as a historical version</strong> of an existing book through the duplicate-resolution modal (useful for old 2020 FFnet exports).</p>
-            </Section>
-
-            <Section id="duplicates" icon={Layers} title="Duplicate handling">
-              <p>Every upload is checked against your library by (a) normalized title, (b) source URL, and (c) any shared fanfic permalink. When a match is found, a modal pops with four actions per upload:</p>
+            <Section id="account" icon={Settings} title="Account & preferences">
+              <p>Your Account page is the control center:</p>
               <ul>
-                <li><strong>Keep both</strong> — leave both copies on the shelves</li>
-                <li><strong>Send to Trash</strong> — soft-delete the upload (30-day window)</li>
-                <li><strong>Replace as new version</strong> — archive the existing book, dated-shelf the upload</li>
-                <li><strong>Link as historical version</strong> — archive the upload under the existing book (for old snapshots)</li>
+                <li><strong>Library stats card</strong> + <strong>Fandom Treemap</strong> for at-a-glance overview</li>
+                <li><strong>Library backup</strong> card (download + history + restore link)</li>
+                <li><strong>Smart Shelves</strong> manager — create, edit, delete saved filter combinations</li>
+                <li><strong>Fandom aliases</strong> — map your custom shorthand to canonical fandom names</li>
+                <li><strong>Format prefs</strong> for the Originals shelf</li>
+                <li><strong>Theme toggle</strong> (Navbar) — AO3-inspired Light / Dark</li>
+                <li><strong>Danger zone</strong> — delete account (purges all your data; ZIP backup is your only way to recover)</li>
               </ul>
-              <p>Set a <strong>default policy</strong> in Account → Duplicate handling if you don't want to be asked every time. Auto-resolved actions show an "Undo" strip on the dashboard for 30 seconds.</p>
-              <p>Visit Account → <em>Find duplicates</em> for a retroactive scan across your whole library.</p>
+              <p>Found a bug or want a feature? The agent listens — just ask in chat.</p>
             </Section>
-
-            <Section id="trash" icon={Trash2} title="Trash & undo">
-              <p>Bulk-deletes from the dashboard selection bar and discarded duplicates go to the <strong>Trash</strong> shelf at <code>/library/trash</code>. Each book has a 30-day grace window before an hourly background sweep hard-deletes it.</p>
-              <p>From the Trash page: <em>Restore</em> per book, <em>Restore all</em>, or <em>Empty trash</em> for immediate hard deletion.</p>
-              <p>Single-book delete from the BookDetail page is <strong>not</strong> reversible — it's an explicit click on the book's own page.</p>
-            </Section>
-
-            <Section id="exports" icon={Download} title="Exports (.zip / .xlsx)">
-              <p>Top-nav download buttons:</p>
-              <ul>
-                <li><strong>Download ZIP</strong> — every book in your library as <em>Fandom / Author - Title.epub</em>, ready to side-load onto a Kindle or Kobo</li>
-                <li><strong>Library (.xlsx)</strong> — Excel workbook, one sheet per fandom, columns: Filename · Title · Author · Fandom · Source URL</li>
-              </ul>
-              <p>From a fandom shelf, the same buttons scope to that fandom only.</p>
-            </Section>
-
-            <Section id="layout" icon={Pin} title="Customizing the dashboard">
-              <p>The "At a glance" folder at the top of the dashboard groups Continue-reading, Reading stats, and Pinned smart shelves. Click <em>Organize</em> to:</p>
-              <ul>
-                <li>Re-order sections with ↑/↓ chips</li>
-                <li>Show/hide any section with the eye icon</li>
-                <li>Click <em>Reset</em> to restore defaults</li>
-              </ul>
-              <p>Changes save automatically per click.</p>
-            </Section>
-
-            <Section id="account" icon={Settings} title="Account & danger zone">
-              <p>The Account page (top-right avatar) holds:</p>
-              <ul>
-                <li>Profile (name, email, password change)</li>
-                <li>Duplicate handling default policy</li>
-                <li>Find duplicates scanner</li>
-                <li>FanFicFare config options (User-Agent, login cookies, etc.)</li>
-                <li>Email preferences (weekly digest, fic-update emails, year-recap)</li>
-                <li>Reset library state — opt-in checkboxes for reading progress / tags / smart shelves / version history</li>
-                <li><strong>Delete entire library</strong> — also surfaced at the bottom of the main library page. Requires typing <code>DELETE EVERYTHING</code> to confirm.</li>
-              </ul>
-            </Section>
-
-            <div className="mt-10 p-4 rounded-lg bg-amber-50 border border-amber-200 flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-amber-700 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-[#2C2C2C]">
-                <strong>Missing something?</strong> If a feature isn't in this guide, it might be brand-new — ping the dev. The guide is updated whenever a feature ships.
-              </p>
-            </div>
           </article>
         </div>
       </main>
