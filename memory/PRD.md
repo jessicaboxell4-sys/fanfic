@@ -1581,3 +1581,10 @@ Both upload sites (the regular EPUB upload pipeline + the URL-fetch path) now pe
 - Both cards in a 2-col grid above the footer quick-actions, dark-mode contrast verified.
 - Help page refreshed with 5 new sections: `Dashboard tour`, `AO3 filter chips & Save-as-shelf`, `Smart shelves`, `Reading queue (Up next)`, `Filter URLs you already own`. TOC updated; "Last updated" bumped to 2026-06-13.
 
+
+
+### Added 2026-06-13 (Admin Console — long-list condensing)
+- `GlobalStatsCard` (Global stats) now renders ranked "Top fandoms" and "Categories" lists through a new reusable `CondensedRankList` component. Lists with more than 8 items show the top 8 by default with a "+ N more" hint and a "Show all N · Hide N" toggle in the section header (with ChevronRight rotation). When expanded past 12 items, the list becomes a max-h-72 scroll pane so the admin page never stretches indefinitely on tenants with hundreds of fandoms.
+- `UnknownFandomsCard` dismissed list is wrapped in a `<details data-testid="admin-unknown-fandoms-dismissed-details">` so the (often dozens-long) dismissed pile collapses by default and only reveals when an admin opts in — keeping the live "needs attention" list scannable.
+- Toggle test-ids exposed: `admin-stats-top-fandoms-toggle`, `admin-stats-categories-toggle`, `admin-stats-top-fandoms-overflow-hint`, `admin-stats-categories-overflow-hint` for future automation.
+- Verified on a 5,302-book / 172-user tenant: Top fandoms (10) shows all with a "Hide 2" affordance; Categories (16) collapses to 8 with "+ 8 more" hint and "Show all 16" toggle — both clickable, both round-trip cleanly.
