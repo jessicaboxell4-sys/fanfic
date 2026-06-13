@@ -1,0 +1,8 @@
+Title:  Different Title Entirely
+Author: Author B
+Links:  1
+============================================================
+
+1. https://archiveofourown.org/works/12345678
+   ↳ https://archiveofourown.org/works/12345678
+

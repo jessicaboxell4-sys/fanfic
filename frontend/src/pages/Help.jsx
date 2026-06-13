@@ -6,7 +6,7 @@ import {
   ArrowLeft, Upload, Sparkles, Layers, RefreshCw, BookOpen, Trash2,
   Filter, Heart, AlertTriangle, Settings, GitCompare, Bell, LineChart,
   Globe, Shield, CheckCircle2, Clock, FileWarning, User as UserIcon, X,
-  MessageSquare,
+  MessageSquare, Search,
 } from "lucide-react";
 
 // Help guide — kept current with the app. Last updated: 2026-06-09.
@@ -40,6 +40,7 @@ const SECTIONS = [
   { id: "detection", label: "Detection & overrides" },
   { id: "data-safety", label: "Backup & restore" },
   { id: "reading", label: "Reader & stats" },
+  { id: "messages", label: "Messages & friends" },
   { id: "account", label: "Account & preferences" },
 ];
 
@@ -65,6 +66,34 @@ export default function Help() {
       return true;
     }
   });
+  // Live filter: hides whole <Section>s + TOC entries that don't contain
+  // the typed text. Single-state, no debounce — list is small enough.
+  const [query, setQuery] = useState("");
+  const [matchingSectionIds, setMatchingSectionIds] = useState(SECTIONS.map((s) => s.id));
+
+  // After the article renders, recompute matches whenever query changes.
+  // Reads DOM text directly, so it must run after layout.
+  useEffect(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) {
+      setMatchingSectionIds(SECTIONS.map((s) => s.id));
+      SECTIONS.forEach((s) => {
+        const el = document.getElementById(s.id);
+        if (el) el.style.display = "";
+      });
+      return;
+    }
+    const matches = [];
+    SECTIONS.forEach((s) => {
+      const el = document.getElementById(s.id);
+      if (!el) return;
+      const text = (el.innerText || el.textContent || "").toLowerCase();
+      const hit = text.includes(q);
+      el.style.display = hit ? "" : "none";
+      if (hit) matches.push(s.id);
+    });
+    setMatchingSectionIds(matches);
+  }, [query]);
 
   // Fetch the latest server-side announcement on mount. If one exists and
   // is newer than what the user has dismissed, swap it in and show the
@@ -108,7 +137,39 @@ export default function Help() {
 
         <header className="mb-8">
           <h1 className="font-serif text-5xl md:text-6xl text-[#2C2C2C] leading-tight">Help</h1>
-          <p className="text-[#6B705C] mt-2">How to do everything in Shelfsort. Last updated 2026-06-09.</p>
+          <p className="text-[#6B705C] mt-2">How to do everything in Shelfsort. Last updated 2026-06-13.</p>
+          <div className="mt-5 relative max-w-md" data-testid="help-search-wrapper">
+            <Search className="w-4 h-4 text-[#6B705C] absolute top-1/2 -translate-y-1/2 left-3 pointer-events-none" />
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search the docs… (e.g. palette, friends, EPUB)"
+              data-testid="help-search-input"
+              className="w-full pl-9 pr-9 py-2.5 text-sm rounded-full border border-[#E5DDC5] bg-white focus:outline-none focus:ring-2 focus:ring-[#3A5A40]/30"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                data-testid="help-search-clear"
+                className="absolute top-1/2 -translate-y-1/2 right-2 p-1 rounded-full text-[#6B705C] hover:bg-[#FBFAF6]"
+                aria-label="Clear search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          {query.trim() && (
+            <p
+              data-testid="help-search-summary"
+              className={`text-xs mt-2 ${matchingSectionIds.length === 0 ? "text-[#B43F26]" : "text-[#6B705C]"}`}
+            >
+              {matchingSectionIds.length === 0
+                ? `No sections match "${query}". Try a broader term.`
+                : `${matchingSectionIds.length} section${matchingSectionIds.length === 1 ? "" : "s"} match`}
+            </p>
+          )}
         </header>
 
         <aside
@@ -159,11 +220,14 @@ export default function Help() {
           <nav className="md:sticky md:top-24 self-start" data-testid="help-toc">
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] mb-3">Sections</p>
             <ul className="space-y-1.5 text-sm">
-              {SECTIONS.map((s) => (
+              {SECTIONS.filter((s) => matchingSectionIds.includes(s.id)).map((s) => (
                 <li key={s.id}>
                   <a href={`#${s.id}`} className="text-[#6B705C] hover:text-[#E07A5F]">{s.label}</a>
                 </li>
               ))}
+              {SECTIONS.length > 0 && matchingSectionIds.length === 0 && (
+                <li className="text-[10px] italic text-[#6B705C]">no matches — clear search to see all</li>
+              )}
             </ul>
           </nav>
 
@@ -274,31 +338,31 @@ export default function Help() {
               <ul>
                 <li><strong>Admin-curated group rooms</strong> — an admin creates the room and picks members. Members chat freely inside.</li>
                 <li><strong>1-on-1 DMs between friends</strong> — once you and another user are friends, either side can open a DM that lives forever in your sidebar.</li>
-                <li><strong>1-on-1 DMs from anyone</strong> — if a user has opened up their privacy to "anyone", you can DM them without being friends first.</li>
+                <li><strong>1-on-1 DMs from anyone</strong> — if a user has opened up their privacy to &ldquo;anyone&rdquo;, you can DM them without being friends first.</li>
               </ul>
-              <p>Three kinds of messages: text (Enter to send, Shift+Enter for newline), attached <strong>book</strong> (search your library, recipient gets a card linking to it), and attached <strong>palette token</strong> (one-click Apply on the recipient's side using the share-palette work).</p>
+              <p>Three kinds of messages: text (Enter to send, Shift+Enter for newline), attached <strong>book</strong> (search your library, recipient gets a card linking to it), and attached <strong>palette token</strong> (one-click Apply on the recipient&rsquo;s side using the share-palette work).</p>
               <p>
                 <strong>Friends</strong> live at <Link to="/friends">/friends</Link>: search by name or email (min 2 chars), send a request, the other side accepts or declines.
                 If both sides happen to send requests at the same time, they auto-pair into accepted. From the Friends page you can also <strong>remove a friend</strong> (wipes the DM room),
-                <strong> block someone</strong> (silent, they vanish from your search and can't message you), or <strong>unblock</strong> later.
+                <strong> block someone</strong> (silent, they vanish from your search and can&rsquo;t message you), or <strong>unblock</strong> later.
                 <strong> Invite by email</strong> sends a Resend invite to anyone not yet on Shelfsort — they click the one-time link, sign up, and become your friend automatically. Pending invites expire after 30 days and can be cancelled from the same panel.
               </p>
               <p>
                 <strong>Privacy</strong> lives on your <Link to="/account#privacy">Account page</Link>:
               </p>
               <ul>
-                <li><strong>Who can DM me</strong> — <em>Friends only</em> (default) blocks DMs from strangers; <em>Anyone</em> opens it up. When you have pending requests sitting around, a small "Switch to open DM mode" link appears on the Friends page so you don't have to dig.</li>
-                <li><strong>Hide me from user search</strong> — toggle on to keep your name/email out of other users' search results. Existing friends still see you.</li>
+                <li><strong>Who can DM me</strong> — <em>Friends only</em> (default) blocks DMs from strangers; <em>Anyone</em> opens it up. When you have pending requests sitting around, a small &ldquo;Switch to open DM mode&rdquo; link appears on the Friends page so you don&rsquo;t have to dig.</li>
+                <li><strong>Hide me from user search</strong> — toggle on to keep your name/email out of other users&rsquo; search results. Existing friends still see you.</li>
                 <li><strong>Share my library with friends</strong> — opt-in (off by default). When on, your accepted friends see a Library button on your row in their Friends page. They can browse your books (title + author + fandom), see which ones they already own, and click <em>Want this</em> to politely DM you about anything they want. No EPUB files are ever auto-sent — you decide how to share each one.</li>
               </ul>
               <p>
-                On the Friends page, each accepted friend's row also shows a <strong>🤝 mutual count</strong> — the number of books that appear in both of your libraries (matched on lowercase title + author, ignoring "the/a/an" prefixes).
+                On the Friends page, each accepted friend&rsquo;s row also shows a <strong>🤝 mutual count</strong> — the number of books that appear in both of your libraries (matched on lowercase title + author, ignoring &ldquo;the/a/an&rdquo; prefixes).
               </p>
               <p>
                 <strong>Notifications</strong>: the chat-bubble icon in the Navbar shows one combined badge — unread messages + pending friend requests added together. Hover for the breakdown.
               </p>
               <p className="text-xs text-[#6B705C] italic">
-                Phase 1c (one-click "switch to open" banner) and websockets for instant delivery are parked. Current 15-second poll is plenty for casual chat.
+                Phase 1c (one-click &ldquo;switch to open&rdquo; banner) and websockets for instant delivery are parked. Current 15-second poll is plenty for casual chat.
               </p>
             </Section>
 

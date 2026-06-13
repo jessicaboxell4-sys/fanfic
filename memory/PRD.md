@@ -1147,3 +1147,15 @@ These are agent-suggested features the user hasn't picked yet. Bring them up nex
   - **Account → Privacy & messaging card** gained a third toggle: **Share my library with friends** (Shadcn-style switch). Defaults off for privacy-first behaviour.
 - **Tests**: 12 new pytest cases in `tests/test_friend_library.py` covering mutual count math (incl. "the Hobbit" vs "Hobbit"), non-friend 403s, opt-in gating, search filter, book-request creates the right `kind: "book_request"` chat message with attachment, unknown-book 404, non-friend block, visibility toggle CRUD. **All 12 pass.** Full social stack: **81/81 across friend_library + friends + invites + chat.**
 - **Help docs**: rewrote the Privacy section to cover the library toggle + added a paragraph about the mutual badge math.
+
+
+### Verified 2026-06-13 (Integration health check)
+- **Backend test suite**: 379 pass, 3 skipped, 8 pre-existing failures (all in `test_tags_and_smart_shelves.py` — verified by git-stash baseline run, unrelated to any work in this session). Every new module I shipped today is fully green: digest (33), admin_console (26), announcements (8), chat (23), friends (32), invites (14), friend_library (12).
+- **Frontend**: all files lint-clean. Dev server compiles without errors.
+
+### Added 2026-06-13 (Help page live search bar)
+- New search input above the article on `/help`: pill-shaped, magnifying-glass icon, clear-X button when text is present. Placeholder hints at common queries: "Search the docs… (e.g. palette, friends, EPUB)".
+- **Live filter**: typing query → `useEffect` reads each section's `innerText`, hides non-matching `<Section>` via `el.style.display = "none"`, and filters the sticky TOC to only show matching anchors. Summary line shows "N sections match" (red when zero, with "Try a broader term" hint).
+- **Missing TOC entry fixed**: added `messages` to the `SECTIONS` array (the Messages & Friends section was rendered but unreachable from the TOC).
+- **Pre-existing unescaped-entity warnings cleaned up**: 13 React lint errors in the recently-added Messages section copy (quotes + apostrophes) replaced with `&ldquo;`/`&rdquo;`/`&rsquo;`/`&apos;` HTML entities.
+- Verified via Playwright: typing `palette` → "2 sections match" + TOC shrinks to Messages & Account; `invite` → 1 section match; clear button restores everything.
