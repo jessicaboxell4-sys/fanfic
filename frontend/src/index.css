@@ -373,10 +373,13 @@
 :root[data-theme="dark"] .text-\[\#B87A00\] { color: #F0B860; }
 
 /* ── Recent additions (2026-06-12) — dark mode parity ───────────────── */
-/* Sage 10% pale (`#EEE9FB`) — used as the icon backdrop on every Admin  */
-/* Console card and the "M" classifier chip. Darken to match other       */
-/* tinted accents.                                                       */
-:root[data-theme="dark"] .bg-\[\#EEE9FB\] { background-color: rgba(167, 139, 250, 0.18); color: #C4B5FD; }
+/* Lavender 10% pale (`#EEE9FB`) — used as the icon backdrop on every    */
+/* Admin Console card, the "M" classifier chip, and the DownloadPage     */
+/* selected-row highlight. The `color:` override was removed (2026-06-13)*/
+/* because it washed out generic container text — elements that needed   */
+/* the purple-accent text already use `text-[#6B46C1]` explicitly, which */
+/* has its own override.                                                  */
+:root[data-theme="dark"] .bg-\[\#EEE9FB\] { background-color: rgba(167, 139, 250, 0.18); }
 /* Hover variant used by the feature-flag "Enabled" pill                 */
 :root[data-theme="dark"] .hover\:bg-\[\#EEE9FB\]:hover { background-color: rgba(167, 139, 250, 0.30); }
 
@@ -448,10 +451,17 @@
 /* Neutral cream surfaces — MessagesPage thread row, AdminConsole route   */
 /* row, ReadingStatsCard tiles, DownloadPage divider. Converge on the      */
 /* generic dark surface so they blend with the surrounding cards.          */
+/* Case-sensitive: CSS class names preserve the exact case used in JSX, so */
+/* both `#EEE` (DownloadPage divider) and `#eee` (DownloadPage Cancel btn) */
+/* need their own selector.                                                */
 :root[data-theme="dark"] .bg-\[\#F4EFE5\],
 :root[data-theme="dark"] .bg-\[\#F4EFE4\],
 :root[data-theme="dark"] .bg-\[\#F1EFE8\],
-:root[data-theme="dark"] .bg-\[\#EEE\] { background-color: var(--surface); }
+:root[data-theme="dark"] .bg-\[\#EEE\],
+:root[data-theme="dark"] .bg-\[\#eee\],
+:root[data-theme="dark"] .hover\:bg-\[\#ddd\]:hover { background-color: var(--surface); }
+:root[data-theme="dark"] .border-\[\#eee\],
+:root[data-theme="dark"] .border-\[\#EEE\] { border-color: var(--border); }
 
 /* Pink-red pale — CompareVersions "removed" highlight. Match the existing */
 /* `#FBE9E7` red-pale treatment.                                            */
@@ -505,7 +515,7 @@
 :root[data-theme="dark"] .text-\[\#9a9580\] { color: #8a8675; }
 
 /* ── Light-border overrides (2026-06-13) ──────────────────────────────── */
-/* Light `border-[#hex]` would draw a glaring line against the dark        */
-/* surface. Converge on the softened `--border`.                           */
-:root[data-theme="dark"] .border-\[\#EEE\] { border-color: var(--border); }
+/* The `border-[#eee]` / `border-[#EEE]` cases are handled above alongside */
+/* their matching bg overrides. This section is reserved for any future    */
+/* light-border hexes the regression test surfaces.                        */
 

@@ -1711,5 +1711,12 @@ Both upload sites (the regular EPUB upload pipeline + the URL-fetch path) now pe
 
 - Hit surfaces:
   - `AuthorsPage.jsx` — every directory row prefixed with the `User` lucide icon in purple. Count pill also switched from neutral cream `bg-[#E5DDC5]/60` to the unified `bg-[#6B46C1]/10 text-[#6B46C1]` lavender so all three index pages (Pairings, Authors, …) share visual rhythm.
+
+### Fixed 2026-06-13 (DownloadPage — dark-mode follow-ups)
+- **Bug 1 — selected-row text invisible**: the `:root[data-theme="dark"] .bg-\[\#EEE9FB\]` rule in `index.css` was forcing `color: #C4B5FD` (light lavender) on every container with that class. On the DownloadPage's selected author/fandom rows, the author name then sat as light-lavender text on a light-lavender background → unreadable. Removed the `color:` half of the rule (purple-accent text was already being applied via the separate `text-[#6B46C1]` override on elements that needed it). Selected rows now render with near-white text on the tinted lavender — computed `color: rgb(232, 228, 216)`.
+- **Bug 2 — Cancel button stayed cream in dark mode**: the JSX used lowercase `bg-[#eee] hover:bg-[#ddd]`; my prior dark override targeted uppercase `.bg-\[\#EEE\]` only. CSS class selectors are case-sensitive, so the override never matched. Added lowercase variants: `.bg-\[\#eee\]`, `.hover\:bg-\[\#ddd\]:hover`, and `.border-\[\#eee\]`. Cancel button now renders `bg: rgb(38, 38, 43)` (dark surface) with light text.
+- Caveat noted in the CSS comment block: future arbitrary-value Tailwind classes must use a consistent case across JSX + CSS overrides. A follow-up enhancement to `test_dark_mode_overrides.py` could add case-sensitive matching to catch this whole bug family at the regression level.
+- Verified visually on the live tenant — selected rows, Cancel button, and Reset-filters link all legible. All 3 dark-mode tests still pass.
+
   - `AllBooksPage.jsx` Authors rail — the existing inline `UserCircle2` icon kept, but the chip palette flipped from black-on-white (`bg-white text-[#2C2C2C] border-[#E8E6E1]`) to the unified `bg-[#EDE7FB] text-[#6B46C1] border-[#6B46C1]/20` lavender to match every other chip rail on the page.
 - Net effect verified on Jessica's library: scanning the dashboard rails, you can instantly distinguish fandoms vs. crossovers vs. ships vs. authors without reading a single name. Dark-mode regression suite (3/3) still green.
