@@ -315,7 +315,14 @@
 :root[data-theme="dark"] .hover\:bg-\[\#F5F3EC\]:hover,
 :root[data-theme="dark"] .bg-\[\#FDF3E1\]\/60,
 :root[data-theme="dark"] .bg-\[\#E5DDC5\]\/60,
-:root[data-theme="dark"] .bg-\[\#E5DDC5\]\/40 { background-color: var(--surface-hover); }
+:root[data-theme="dark"] .bg-\[\#E5DDC5\]\/40,
+:root[data-theme="dark"] .bg-\[\#F7F4EE\],
+:root[data-theme="dark"] .hover\:bg-\[\#F7F4EE\]:hover { background-color: var(--surface-hover); }
+
+/* `bg-[#FAF7F0]` is another cream sibling — converge it on `--bg` so   */
+/* fixed cream panels (Help fandom grid, Ao3FilterChips panel) stay     */
+/* readable when the user flips to dark.                                */
+:root[data-theme="dark"] .bg-\[\#FAF7F0\] { background-color: var(--bg); }
 
 /* Text — primary headings + body, and the muted "sage" support text. */
 :root[data-theme="dark"] .text-\[\#2C2C2C\] { color: var(--text-primary); }
@@ -324,6 +331,7 @@
 
 /* Borders — the cream `#E8E6E1` / `#E5DDC5` / `#D5D2CC` all converge  */
 :root[data-theme="dark"] .border-\[\#E8E6E1\],
+:root[data-theme="dark"] .border-\[\#E8E2D4\],
 :root[data-theme="dark"] .border-\[\#E5DDC5\],
 :root[data-theme="dark"] .border-\[\#D5D2CC\],
 :root[data-theme="dark"] .divide-\[\#E5DDC5\] > * + * { border-color: var(--border); }

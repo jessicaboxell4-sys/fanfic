@@ -287,7 +287,7 @@ export default function Help() {
                 <li><code>.txt</code> with prose — confirm + convert</li>
                 <li><code>.txt</code> with fanfic URLs (≥3 URL lines or ≥40% of lines) — treated as a URL list, dedupe-and-skip flow</li>
               </ul>
-              <p><strong>What happens during upload:</strong> metadata is extracted, the book is classified onto a category (Fanfiction / Original Fiction / Non-fiction / etc.), the fandom is detected from 145 canonical AO3 fandoms, relationships/pairings are extracted, completion status is detected (see &ldquo;Detection &amp; overrides&rdquo;), and any embedded source URLs are saved for future dedupe + the Linkless filter.</p>
+              <p><strong>What happens during upload:</strong> metadata is extracted, the book is classified onto a category (Fanfiction / Original Fiction / Non-fiction / etc.), the fandom is detected from <strong>{knownFandoms.length || "150+"}</strong> canonical fandoms, relationships/pairings are extracted, completion status is detected (see &ldquo;Detection &amp; overrides&rdquo;), and any embedded source URLs are saved for future dedupe + the Linkless filter.</p>
               <p><strong>Duplicates</strong> are caught three ways: (1) by exact source-URL or shared canonical fanfic URL (so all AO3 / FFN / RoyalRoad mirrors of the same work collapse together), (2) by <strong>title + author</strong> match (case-insensitive, dots stripped from author so &lsquo;J. K. Rowling&rsquo; and &lsquo;JK Rowling&rsquo; still pair), and (3) by title alone <em>only when one side has no author on file</em>. Two books with the same generic title (e.g. &ldquo;Crossroads&rdquo;) but different authors and different URLs are correctly kept as separate books. When a dupe is flagged you choose: keep both / replace older / skip. Cross-format duplicates (same book uploaded as PDF after the EPUB) are filed under <Link to="/library/originals">Originals</Link>.</p>
             </Section>
 
@@ -330,7 +330,7 @@ export default function Help() {
             <Section id="fandoms" icon={BookOpen} title="Fandoms we sort into">
               <p>Shelfsort recognizes <strong>{knownFandoms.length || "…"}</strong> fandoms out of the box and routes a book to one of them automatically when the title, description, or sample text matches enough of that fandom&apos;s keywords. Anything that doesn&apos;t match well enough falls into <em>Original Fiction</em> or <em>Non-fiction</em> — and the admin&apos;s unknown-fandoms queue surfaces popular suggestions for promotion.</p>
               <p>The full sorted list:</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-1 text-sm bg-[#FAF7F0] border border-[#E8E2D4] rounded-lg p-4 font-mono" data-testid="help-fandoms-list">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-1 text-sm bg-[#FAF6EE] border border-[#E8E6E1] rounded-lg p-4 font-mono text-[#2C2C2C]" data-testid="help-fandoms-list">
                 {knownFandoms.length === 0 ? (
                   <span className="text-[#6B705C] italic col-span-full">Loading the list…</span>
                 ) : knownFandoms.map((f) => (
@@ -370,7 +370,7 @@ export default function Help() {
                 <li><em>To-be-continued / TBC</em> marker in the description</li>
               </ol>
               <p>If none match → defaults to <strong>Finished</strong> (sensible for original novels). Override on any book&apos;s detail page via the status badge dropdown — your override lives in <code>manual_status</code> separate from the auto value.</p>
-              <p><strong>Category &amp; fandom</strong> are auto-classified using EPUB metadata + a 145-fandom canonical list + a Claude AI fallback for ambiguous cases. Confidence is shown on the book detail page; correct it manually any time.</p>
+              <p><strong>Category &amp; fandom</strong> are auto-classified using EPUB metadata + a {knownFandoms.length || "150+"}-fandom canonical list + a Claude AI fallback for ambiguous cases. Confidence is shown on the book detail page; correct it manually any time.</p>
               <p><strong>Pairings/relationships</strong> are extracted directly from EPUB metadata, canonicalized (alphabetical order, slash delimiter) so Harry/Draco and Draco/Harry group together.</p>
             </Section>
 

@@ -257,8 +257,16 @@ async def since_last_login(user: User = Depends(get_current_user)):
 async def list_known_fandoms():
     """Return every fandom the EPUB-upload classifier currently routes
     a book into. Pure data, no auth required (the list is not sensitive
-    and the Help page renders it for anonymous-curious visitors too)."""
-    from data.ao3_top_fandoms import AO3_TOP_FANDOMS
-    fandoms = sorted(AO3_TOP_FANDOMS.keys(), key=lambda s: s.lower())
+    and the Help page renders it for anonymous-curious visitors too).
+
+    Source of truth is ``routes.books.FANDOM_KEYWORDS`` — the merged dict
+    of the 20 hand-tuned shelf fandoms (Harry Potter, Twilight, Marvel,
+    Stargate sub-fandoms, …) PLUS the bundled AO3 top-fandoms seed.
+    Returning anything narrower would lie to users on the Help page.
+    """
+    # Late import to dodge the circular-at-module-load between
+    # books.py (this file's router host) and library_discovery.py.
+    from routes.books import FANDOM_KEYWORDS  # noqa: WPS433
+    fandoms = sorted(FANDOM_KEYWORDS.keys(), key=lambda s: s.lower())
     return {"count": len(fandoms), "fandoms": fandoms}
 
