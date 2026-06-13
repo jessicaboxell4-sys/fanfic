@@ -330,11 +330,11 @@ export default function Help() {
             <Section id="fandoms" icon={BookOpen} title="Fandoms we sort into">
               <p>Shelfsort recognizes <strong>{knownFandoms.length || "…"}</strong> fandoms out of the box and routes a book to one of them automatically when the title, description, or sample text matches enough of that fandom&apos;s keywords. Anything that doesn&apos;t match well enough falls into <em>Original Fiction</em> or <em>Non-fiction</em> — and the admin&apos;s unknown-fandoms queue surfaces popular suggestions for promotion.</p>
               <p>The full sorted list:</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-1 text-sm bg-[#FAF6EE] border border-[#E8E6E1] rounded-lg p-4 font-mono text-[#2C2C2C]" data-testid="help-fandoms-list">
+              <div className="columns-1 sm:columns-2 md:columns-3 gap-x-6 text-sm bg-[#FAF6EE] border border-[#E8E6E1] rounded-lg p-4 font-mono text-[#2C2C2C]" data-testid="help-fandoms-list">
                 {knownFandoms.length === 0 ? (
-                  <span className="text-[#6B705C] italic col-span-full">Loading the list…</span>
+                  <span className="text-[#6B705C] italic">Loading the list…</span>
                 ) : knownFandoms.map((f) => (
-                  <span key={f}>{f}</span>
+                  <div key={f} className="break-inside-avoid leading-6">{f}</div>
                 ))}
               </div>
               <p className="mt-3"><em>Don&apos;t see your fandom?</em> Drop it on the <Link to="/suggestions">Suggestions page</Link> with a couple of distinctive title/description keywords and we&apos;ll get it added.</p>
