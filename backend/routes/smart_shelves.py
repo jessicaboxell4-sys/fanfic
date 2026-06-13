@@ -22,9 +22,18 @@ from auth_dep import get_current_user
 #       {"field": "author", "value": "Ada"},
 #       {"field": "status", "value": "reading" | "finished" | "unread"},
 #       {"field": "words", "min": 10000, "max": 50000},
+#       {"field": "rating", "value": "Explicit"},
+#       {"field": "ao3_category", "value": "M/M"},
+#       {"field": "warning", "value": "Graphic Depictions Of Violence"},
+#       {"field": "exclude_warning", "value": "Major Character Death"},
 #   ]
 # }
-ALLOWED_FIELDS = {"tags_all", "tags_any", "tags_none", "category", "fandom", "author", "status", "words"}
+ALLOWED_FIELDS = {
+    "tags_all", "tags_any", "tags_none",
+    "category", "fandom", "author", "status", "words",
+    # AO3 metadata (added 2026-06-13 alongside Ao3FilterChips "save as shelf")
+    "rating", "ao3_category", "warning", "exclude_warning",
+}
 
 
 def _rule_to_mongo(rule: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -45,6 +54,21 @@ def _rule_to_mongo(rule: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         if not v:
             return None
         return {field: v}
+    if field == "rating":
+        v = rule.get("value")
+        return {"rating": v} if v else None
+    if field == "ao3_category":
+        # Stored on the book document as ``categories`` (AO3 calls it
+        # "Category"; we keep the AO3 plural to avoid clashing with the
+        # higher-level Shelfsort `category`).
+        v = rule.get("value")
+        return {"categories": v} if v else None
+    if field == "warning":
+        v = rule.get("value")
+        return {"warnings": v} if v else None
+    if field == "exclude_warning":
+        v = rule.get("value")
+        return {"warnings": {"$ne": v}} if v else None
     if field == "status":
         v = rule.get("value")
         if v == "reading":

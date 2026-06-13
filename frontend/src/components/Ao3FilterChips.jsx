@@ -13,7 +13,9 @@
  * unobtrusive for users who don't care.
  */
 import React, { useState } from "react";
-import { ChevronDown, ChevronUp, X as XIcon, ShieldAlert } from "lucide-react";
+import { ChevronDown, ChevronUp, X as XIcon, ShieldAlert, BookmarkPlus, Loader2 } from "lucide-react";
+import { api } from "../lib/api";
+import { toast } from "sonner";
 
 const RATINGS = [
   { v: "General Audiences", label: "G", title: "General Audiences" },
@@ -34,14 +36,47 @@ const WARNINGS = [
   "Choose Not To Use Archive Warnings",
 ];
 
-export default function Ao3FilterChips({ value, onChange }) {
+export default function Ao3FilterChips({ value, onChange, onShelfSaved }) {
   const [expanded, setExpanded] = useState(false);
+  const [saving, setSaving] = useState(false);
   const v = value || {};
   const anyActive = !!(v.rating || v.ao3_category || v.warning || v.exclude_warning);
 
   const patch = (k, val) => onChange({ ...v, [k]: val });
   const clear = (k) => onChange({ ...v, [k]: null });
   const clearAll = () => onChange({ rating: null, ao3_category: null, warning: null, exclude_warning: null });
+
+  const saveAsShelf = async () => {
+    if (!anyActive) return;
+    // Build a human-readable default name so the prompt is one Enter away.
+    const parts = [];
+    if (v.rating) parts.push(v.rating);
+    if (v.ao3_category) parts.push(v.ao3_category);
+    if (v.warning) parts.push(`+ ${v.warning}`);
+    if (v.exclude_warning) parts.push(`no ${v.exclude_warning}`);
+    const suggested = parts.join(" · ").slice(0, 64);
+    const name = window.prompt("Name this shelf", suggested);
+    if (!name || !name.trim()) return;
+    const rules = [];
+    if (v.rating) rules.push({ field: "rating", value: v.rating });
+    if (v.ao3_category) rules.push({ field: "ao3_category", value: v.ao3_category });
+    if (v.warning) rules.push({ field: "warning", value: v.warning });
+    if (v.exclude_warning) rules.push({ field: "exclude_warning", value: v.exclude_warning });
+    setSaving(true);
+    try {
+      await api.post("/smart-shelves", {
+        name: name.trim().slice(0, 64),
+        query: { combinator: "AND", rules },
+        pinned: false,
+      });
+      toast.success(`Saved as shelf "${name.trim().slice(0, 32)}". Pin it from Shelves to surface it on the dashboard.`);
+      if (typeof onShelfSaved === "function") onShelfSaved();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't save shelf");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="border border-[#E8E2D4] rounded-xl bg-white p-3 mb-4" data-testid="ao3-filter-chips">
@@ -168,14 +203,27 @@ export default function Ao3FilterChips({ value, onChange }) {
           </div>
 
           {anyActive && (
-            <button
-              type="button"
-              onClick={clearAll}
-              className="text-xs text-[#6B705C] hover:text-[#3A5A40] underline inline-flex items-center gap-1"
-              data-testid="ao3-filter-clear-all"
-            >
-              <XIcon className="w-3 h-3" /> clear all AO3 filters
-            </button>
+            <div className="flex flex-wrap items-center gap-3 pt-1">
+              <button
+                type="button"
+                onClick={saveAsShelf}
+                disabled={saving}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-[#3A5A40] text-white hover:bg-[#2C4730] disabled:opacity-60 disabled:cursor-not-allowed"
+                data-testid="ao3-filter-save-shelf"
+                title="Save this filter as a Smart Shelf"
+              >
+                {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <BookmarkPlus className="w-3 h-3" />}
+                {saving ? "Saving…" : "Save as shelf"}
+              </button>
+              <button
+                type="button"
+                onClick={clearAll}
+                className="text-xs text-[#6B705C] hover:text-[#3A5A40] underline inline-flex items-center gap-1"
+                data-testid="ao3-filter-clear-all"
+              >
+                <XIcon className="w-3 h-3" /> clear all AO3 filters
+              </button>
+            </div>
           )}
         </div>
       )}

@@ -1508,4 +1508,16 @@ Both upload sites (the regular EPUB upload pipeline + the URL-fetch path) now pe
 - Smoke-tested in browser: filter toggles, ratings selection updates query, books grid refreshes, "1 active" badge appears, "clear all AO3 filters" works.
 
 **This closes the in-progress P0 task carried over from the previous handoff.** Books.py refactor Phase 3 + Phase 4 remain P1 backlog.
+### Added 2026-06-13 (Save AO3 filters as a Smart Shelf)
+- New "Save as shelf" button on the `Ao3FilterChips` panel (only visible while at least one filter is active). Prompts for a name (pre-fills a human-readable one like `Explicit · M/M · no Major Character Death`), then POSTs to `/api/smart-shelves` with `combinator: AND` and rules that mirror the active filters.
+- Backend Smart-Shelf engine extended with 4 new rule types:
+  - `rating` → exact-match on `books.rating`
+  - `ao3_category` → exact-match on `books.categories` (AO3's "Category", stored under the plural to avoid colliding with Shelfsort's higher-level `category`)
+  - `warning` → exact-match on `books.warnings`
+  - `exclude_warning` → `$ne` on `books.warnings`
+- These compose cleanly with the existing `category`, `fandom`, `author`, `tags_*`, `status`, `words` rules via the combinator, so users can build queries like "Harry Potter ∧ Explicit ∧ no MCD" without leaving the panel.
+- New test suite `tests/test_ao3_smart_shelves.py` (9 cases, all pass) verifies each new rule type filters correctly, combines with `fandom`, returns the right `count` on list, and works through the `/smart-shelves/preview` endpoint.
+- Dashboard wires `onShelfSaved={load}` so the sidebar pinned shelves refresh immediately if the user pins from `/library/smart-shelves`.
+
+
 

@@ -1107,7 +1107,7 @@ export default function Dashboard() {
                 </button>
               </div>
             )}
-            <Ao3FilterChips value={ao3Filters} onChange={setAo3Filters} />
+            <Ao3FilterChips value={ao3Filters} onChange={setAo3Filters} onShelfSaved={load} />
             {loading ? (
               <p className="text-[#6B705C] py-12 text-center">Loading…</p>
             ) : books.length === 0 ? (
