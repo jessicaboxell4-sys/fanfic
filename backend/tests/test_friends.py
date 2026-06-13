@@ -61,6 +61,8 @@ def seed():
     db.user_sessions.delete_many({"user_id": {"$in": uid_list}})
     db.friendships.delete_many({"$or": [{"user_a": {"$in": uid_list}}, {"user_b": {"$in": uid_list}}]})
     db.chat_rooms.delete_many({"member_user_ids": {"$in": uid_list}})
+    db.books.delete_many({"user_id": {"$in": uid_list}})
+    db.notifications.delete_many({"user_id": {"$in": uid_list}})
 
 
 # ---------- Friend request lifecycle ----------
@@ -181,6 +183,142 @@ class TestFriendNotifications:
         assert "friend_accepted" in kinds
         # cleanup
         requests.delete(f"{BASE}/api/friends/{USERS['bob']['user_id']}", headers=H("carol"))
+
+
+class TestFriendUploadFandomNotifications:
+    """When you upload fanfic, friends who already collect that fandom get pinged."""
+
+    @classmethod
+    def setup_class(cls):
+        import sys, asyncio, pathlib
+        backend_dir = str(pathlib.Path(__file__).resolve().parent.parent)
+        if backend_dir not in sys.path:
+            sys.path.insert(0, backend_dir)
+        # Reuse one event loop so Motor's pool stays attached to a single loop
+        # across every test in this class.
+        cls._loop = asyncio.new_event_loop()
+
+    @classmethod
+    def teardown_class(cls):
+        try:
+            cls._loop.close()
+        except Exception:
+            pass
+
+    def _run(self, coro):
+        return self.__class__._loop.run_until_complete(coro)
+
+    def _seed_friendship(self, u1: str, u2: str):
+        a, b = sorted([u1, u2])
+        db.friendships.delete_many({"user_a": a, "user_b": b})
+        db.friendships.insert_one({
+            "friendship_id": f"fr_{uuid.uuid4().hex[:12]}",
+            "user_a": a, "user_b": b,
+            "status": "accepted",
+            "requested_by": u1, "blocked_by": None,
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
+        })
+
+    def _seed_book(self, user_id: str, title: str, fandom):
+        db.books.insert_one({
+            "book_id": f"book_{uuid.uuid4().hex[:12]}",
+            "user_id": user_id,
+            "title": title,
+            "author": "Some Author",
+            "category": "Fanfiction" if fandom else "Original Fiction",
+            "fandom": fandom,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+
+    def test_friend_with_shared_fandom_is_notified(self):
+        import asyncio
+        from routes.books import _notify_friends_of_shared_fandom_uploads
+        # Alice ↔ Bob friends. Bob already collects Harry Potter.
+        self._seed_friendship(USERS["alice"]["user_id"], USERS["bob"]["user_id"])
+        self._seed_book(USERS["bob"]["user_id"], "Old HP Fic", "Harry Potter")
+        db.notifications.delete_many({"user_id": USERS["bob"]["user_id"]})
+        # Pretend Alice just uploaded a HP fic.
+        uploaded = [{
+            "book_id": f"book_{uuid.uuid4().hex[:8]}",
+            "title": "Alice's new HP fic",
+            "category": "Fanfiction",
+            "fandom": "Harry Potter",
+        }]
+        self._run(_notify_friends_of_shared_fandom_uploads(
+                USERS["alice"]["user_id"], "Alice", uploaded,
+            )
+        )
+        notifs = list(db.notifications.find({"user_id": USERS["bob"]["user_id"]}, {"_id": 0}))
+        kinds = [n["kind"] for n in notifs]
+        assert "friend_new_book" in kinds
+        # Title must mention the fandom for context.
+        hp_notif = next(n for n in notifs if n["kind"] == "friend_new_book")
+        assert "Harry Potter" in hp_notif["title"]
+        assert hp_notif["link"] == "/friends"
+
+    def test_no_notification_when_fandom_does_not_overlap(self):
+        import asyncio
+        from routes.books import _notify_friends_of_shared_fandom_uploads
+        self._seed_friendship(USERS["alice"]["user_id"], USERS["bob"]["user_id"])
+        # Bob has HP — Alice uploads Twilight. No match → no ping.
+        self._seed_book(USERS["bob"]["user_id"], "Bob's HP", "Harry Potter")
+        db.notifications.delete_many({"user_id": USERS["bob"]["user_id"]})
+        uploaded = [{"book_id": "b1", "title": "Twi fic", "category": "Fanfiction", "fandom": "Twilight"}]
+        self._run(_notify_friends_of_shared_fandom_uploads(USERS["alice"]["user_id"], "Alice", uploaded)
+        )
+        kinds = [n["kind"] for n in db.notifications.find({"user_id": USERS["bob"]["user_id"]}, {"_id": 0})]
+        assert "friend_new_book" not in kinds
+
+    def test_no_fandom_no_notification(self):
+        import asyncio
+        from routes.books import _notify_friends_of_shared_fandom_uploads
+        self._seed_friendship(USERS["alice"]["user_id"], USERS["bob"]["user_id"])
+        db.notifications.delete_many({"user_id": USERS["bob"]["user_id"]})
+        # Original Fiction upload (no fandom) — never pings.
+        uploaded = [{"book_id": "b1", "title": "Original Novel", "category": "Original Fiction", "fandom": None}]
+        self._run(_notify_friends_of_shared_fandom_uploads(USERS["alice"]["user_id"], "Alice", uploaded)
+        )
+        kinds = [n["kind"] for n in db.notifications.find({"user_id": USERS["bob"]["user_id"]}, {"_id": 0})]
+        assert "friend_new_book" not in kinds
+
+    def test_non_friend_not_notified(self):
+        import asyncio
+        from routes.books import _notify_friends_of_shared_fandom_uploads
+        # Dave is NOT friends with Alice. Dave has HP. Alice uploads HP. Dave should NOT be pinged.
+        db.friendships.delete_many({
+            "$or": [
+                {"user_a": USERS["alice"]["user_id"], "user_b": USERS["dave"]["user_id"]},
+                {"user_a": USERS["dave"]["user_id"], "user_b": USERS["alice"]["user_id"]},
+            ]
+        })
+        self._seed_book(USERS["dave"]["user_id"], "Dave's HP", "Harry Potter")
+        db.notifications.delete_many({"user_id": USERS["dave"]["user_id"]})
+        uploaded = [{"book_id": "b1", "title": "HP", "category": "Fanfiction", "fandom": "Harry Potter"}]
+        self._run(_notify_friends_of_shared_fandom_uploads(USERS["alice"]["user_id"], "Alice", uploaded)
+        )
+        kinds = [n["kind"] for n in db.notifications.find({"user_id": USERS["dave"]["user_id"]}, {"_id": 0})]
+        assert "friend_new_book" not in kinds
+
+    def test_dedupes_per_friend_per_fandom_within_one_batch(self):
+        """If Alice uploads 5 HP fics in one batch, Bob gets exactly ONE notification, not 5."""
+        import asyncio
+        from routes.books import _notify_friends_of_shared_fandom_uploads
+        self._seed_friendship(USERS["alice"]["user_id"], USERS["bob"]["user_id"])
+        self._seed_book(USERS["bob"]["user_id"], "Bob's HP", "Harry Potter")
+        db.notifications.delete_many({"user_id": USERS["bob"]["user_id"], "kind": "friend_new_book"})
+        uploaded = [
+            {"book_id": f"b{i}", "title": f"HP {i}", "category": "Fanfiction", "fandom": "Harry Potter"}
+            for i in range(5)
+        ]
+        self._run(_notify_friends_of_shared_fandom_uploads(USERS["alice"]["user_id"], "Alice", uploaded)
+        )
+        cnt = db.notifications.count_documents({
+            "user_id": USERS["bob"]["user_id"],
+            "kind": "friend_new_book",
+            "title": {"$regex": "Harry Potter"},
+        })
+        assert cnt == 1, f"Expected 1 dedup'd notification, got {cnt}"
 
 
 class TestMutualAutoAccept:

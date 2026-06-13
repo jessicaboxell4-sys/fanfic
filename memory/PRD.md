@@ -1231,3 +1231,18 @@ These are agent-suggested features the user hasn't picked yet. Bring them up nex
 - **Root cause**: `routes/books.py::add_book_tags` used `find_one({...}, {"_id": 0, "tags": 1})` followed by `if not book:`. Motor returns an **empty dict `{}`** when the doc exists but has no `tags` field — and `bool({}) is False`, so the handler incorrectly raised `404 Not Found` for any book that hadn't been tagged yet. This cascaded into every downstream test (remove, rename, merge, delete-everywhere, all four smart-shelf tests that depend on books having tags).
 - **Fix**: changed the guard to `if book is None:` (single-line patch). Audited the rest of `routes/books.py` and all other route modules with the same regex pattern — no other endpoint had a strict single-inclusion projection paired with `if not <var>:`; everything else either uses `{"_id": 0}` (returns all fields) or projects a field that is guaranteed to exist.
 - **Result**: `test_tags_and_smart_shelves.py` — was 8 failing / 6 passing / 3 skipped → now **14/14 pass, 3 skipped (AI)**. Full backend suite: **634 passed, 14 skipped, 0 failed.**
+
+
+### Added 2026-06-13 (Friend "new book in your fandom" notifications)
+- **New helper** `_notify_friends_of_shared_fandom_uploads(uploader_id, uploader_display, results)` in `routes/books.py`. Invoked from `POST /api/books/upload` immediately before the response is built.
+- **Logic**: collect distinct fandoms in the just-uploaded batch (skipping `removed: True` auto-discards and books with no `fandom`); for each accepted friend, find which of those fandoms they already collect; drop one in-app notification per (friend, fandom) per batch. Hard cap of 50 notifications per upload so a massive batch can't carpet-bomb someone's bell.
+- **Notification format**: `kind="friend_new_book"`, title `"<name> just added a new <Fandom> fic"`, body `"Peek their shelf to see what's new."`, link `/friends` (where the user can click the friend's "View Library" button — the friend library is a modal on that page, not a standalone route).
+- **Safety**: wrapped in a defensive try/except so a Mongo hiccup or notification glitch can never 500 an upload. Errors logged at `WARNING`.
+- **Tests** (`tests/test_friends.py::TestFriendUploadFandomNotifications` — 5 cases):
+  - friend with shared fandom gets pinged ✓
+  - friend without shared fandom does NOT get pinged ✓
+  - upload with no fandom (Original Fiction) never pings anyone ✓
+  - non-friend never gets pinged ✓
+  - 5 fics in same fandom → exactly 1 notification (per-batch dedup) ✓
+- **E2E verified**: scripted an Alice→Bob friendship with Bob holding an existing HP book; Alice uploaded an EPUB titled "Harry Potter and the New Adventure"; the classifier tagged it `fandom="Harry Potter"`, and Bob received exactly **1** `friend_new_book` notification with the correct title and `/friends` link.
+- Full backend suite (test_friends + test_suggestions + test_tags_and_smart_shelves): **71 passed, 3 skipped, 0 failed.**

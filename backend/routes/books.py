@@ -2827,6 +2827,14 @@ async def upload_books(
             )
             unknown_hosts_recorded.extend(rec)
 
+    # Best-effort: notify friends who already collect any of the same
+    # fandoms in this batch. Never raises — see helper for rules.
+    await _notify_friends_of_shared_fandom_uploads(
+        user.user_id,
+        (user.name or user.email or "A friend"),
+        results,
+    )
+
     return {
         "uploaded": len(results),
         "books": results,
@@ -2838,6 +2846,79 @@ async def upload_books(
         "cross_format_duplicates": cross_format_dupes,
         "unknown_sources_found": unknown_hosts_recorded,
     }
+
+
+async def _notify_friends_of_shared_fandom_uploads(
+    uploader_id: str,
+    uploader_display: str,
+    uploaded_results: List[Dict[str, Any]],
+) -> None:
+    """When a user uploads fanfic in fandoms their friends also collect,
+    drop one in-app notification per (friend, fandom) so the friend can
+    peek at the new arrival. Best-effort only — failures are logged and
+    swallowed so an upload never 500s on a notification hiccup.
+
+    Rules:
+      • Only books with a `fandom` value count (skips non-fic / original fic).
+      • Books that were removed by an auto-resolve "discard" policy are
+        skipped (`removed: True`).
+      • One notification per (friend, fandom) per batch — not per book.
+      • Hard cap of 50 notifications per upload to prevent runaway spam.
+    """
+    from routes.notifications import create_notification
+    try:
+        # 1) Distinct fandoms in this batch that we'd want to ping about.
+        batch_fandoms: set = set()
+        for b in uploaded_results or []:
+            if not isinstance(b, dict):
+                continue
+            if b.get("removed"):
+                continue
+            fd = b.get("fandom")
+            if fd and isinstance(fd, str) and fd.strip():
+                batch_fandoms.add(fd.strip())
+        if not batch_fandoms:
+            return
+
+        # 2) Accepted friends only.
+        friend_rows = await db.friendships.find(
+            {
+                "status": "accepted",
+                "$or": [{"user_a": uploader_id}, {"user_b": uploader_id}],
+            },
+            {"_id": 0, "user_a": 1, "user_b": 1},
+        ).to_list(length=2000)
+        friend_ids = [
+            (r["user_b"] if r["user_a"] == uploader_id else r["user_a"])
+            for r in friend_rows
+        ]
+        if not friend_ids:
+            return
+
+        # 3) For each friend, find which of the batch fandoms they also have.
+        emitted = 0
+        cap = 50
+        for fid in friend_ids:
+            if emitted >= cap:
+                break
+            rows = await db.books.find(
+                {"user_id": fid, "fandom": {"$in": list(batch_fandoms)}},
+                {"_id": 0, "fandom": 1},
+            ).to_list(length=500)
+            shared = sorted({r["fandom"] for r in rows if r.get("fandom")})
+            for fandom in shared:
+                if emitted >= cap:
+                    break
+                await create_notification(
+                    fid,
+                    kind="friend_new_book",
+                    title=f"{uploader_display} just added a new {fandom} fic",
+                    body="Peek their shelf to see what's new.",
+                    link="/friends",
+                )
+                emitted += 1
+    except Exception as e:  # pragma: no cover — defensive
+        logger.warning(f"friend-fandom notifications skipped: {e}")
 
 
 @api_router.get("/library/trends")
