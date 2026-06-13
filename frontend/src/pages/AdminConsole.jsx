@@ -381,6 +381,11 @@ function StatTile({ label, value }) {
 function GlobalStatsCard() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  // Per-section "show all" toggles so the card stays scannable on big
+  // tenants. Each long list is collapsed to the top 8 by default with a
+  // "Show all N · Hide" affordance that toggles into a scrollable view.
+  const [showAllFandoms, setShowAllFandoms] = useState(false);
+  const [showAllCategories, setShowAllCategories] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -411,30 +416,71 @@ function GlobalStatsCard() {
         <StatTile label="Signups 30d" value={stats.signups_30d.toLocaleString()} />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B46C1] mb-1.5">Top fandoms</p>
-          <ul className="space-y-1 text-xs" data-testid="admin-stats-top-fandoms">
-            {stats.top_fandoms?.map((f) => (
-              <li key={f.fandom} className="flex justify-between bg-[#FBFAF6] border border-[#E5DDC5] rounded px-2 py-1">
-                <span className="truncate">{f.fandom}</span>
-                <strong className="ml-2">{f.count.toLocaleString()}</strong>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B46C1] mb-1.5">Categories</p>
-          <ul className="space-y-1 text-xs" data-testid="admin-stats-categories">
-            {Object.entries(stats.categories || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => (
-              <li key={k} className="flex justify-between bg-[#FBFAF6] border border-[#E5DDC5] rounded px-2 py-1">
-                <span className="truncate">{k}</span>
-                <strong className="ml-2">{v.toLocaleString()}</strong>
-              </li>
-            ))}
-          </ul>
-        </div>
+        <CondensedRankList
+          title="Top fandoms"
+          items={(stats.top_fandoms || []).map((f) => ({ key: f.fandom, label: f.fandom, value: f.count }))}
+          showAll={showAllFandoms}
+          onToggle={() => setShowAllFandoms((v) => !v)}
+          testid="admin-stats-top-fandoms"
+        />
+        <CondensedRankList
+          title="Categories"
+          items={Object.entries(stats.categories || {})
+            .sort((a, b) => b[1] - a[1])
+            .map(([k, v]) => ({ key: k, label: k, value: v }))}
+          showAll={showAllCategories}
+          onToggle={() => setShowAllCategories((v) => !v)}
+          testid="admin-stats-categories"
+        />
       </div>
     </Card>
+  );
+}
+
+// Reusable: a ranked list with an inline "Show all N · Hide" toggle.
+// Collapsed view shows the top 8; expanded view scrolls past 12 so the
+// page doesn't stretch indefinitely on libraries with hundreds of
+// fandoms / categories.
+function CondensedRankList({ title, items, showAll, onToggle, testid }) {
+  const COLLAPSED_LIMIT = 8;
+  const visible = showAll ? items : items.slice(0, COLLAPSED_LIMIT);
+  const overflow = items.length - COLLAPSED_LIMIT;
+  return (
+    <div>
+      <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B46C1] mb-1.5 flex items-center justify-between">
+        <span>{title} <span className="text-[#6B705C] font-normal lowercase tracking-normal">({items.length})</span></span>
+        {overflow > 0 && (
+          <button
+            type="button"
+            onClick={onToggle}
+            data-testid={`${testid}-toggle`}
+            className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#6B46C1] hover:text-[#553397] inline-flex items-center gap-1"
+          >
+            {showAll ? `Hide ${overflow}` : `Show all ${items.length}`}
+            <ChevronRight className={`w-3 h-3 transition-transform ${showAll ? "rotate-90" : ""}`} />
+          </button>
+        )}
+      </p>
+      <ul
+        className={`space-y-1 text-xs ${showAll && items.length > 12 ? "max-h-72 overflow-y-auto pr-1" : ""}`}
+        data-testid={testid}
+      >
+        {visible.map((it) => (
+          <li key={it.key} className="flex justify-between bg-[#FBFAF6] border border-[#E5DDC5] rounded px-2 py-1">
+            <span className="truncate">{it.label}</span>
+            <strong className="ml-2">{it.value.toLocaleString()}</strong>
+          </li>
+        ))}
+        {!showAll && overflow > 0 && (
+          <li
+            className="text-[11px] italic text-[#6B705C] text-center pt-1"
+            data-testid={`${testid}-overflow-hint`}
+          >
+            + {overflow} more
+          </li>
+        )}
+      </ul>
+    </div>
   );
 }
 
