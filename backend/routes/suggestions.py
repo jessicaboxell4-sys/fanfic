@@ -200,14 +200,14 @@ async def admin_update(sid: str, body: SuggestionUpdate, user: User = Depends(re
                     "subject": f"Shelfsort: your suggestion is {new_status_label.lower()}",
                     "html": f"""
                     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px; background: #FBF7EE; border-radius: 12px;">
-                      <div style="display:inline-flex;align-items:center;gap:8px;padding:6px 12px;background:#EEF3EC;border:1px solid rgba(58,90,64,0.3);border-radius:999px;margin-bottom:16px;font-size:12px;font-weight:600;color:#3A5A40;letter-spacing:0.5px;">💡 SUGGESTION UPDATE</div>
+                      <div style="display:inline-flex;align-items:center;gap:8px;padding:6px 12px;background:#EDE7FB;border:1px solid rgba(58,90,64,0.3);border-radius:999px;margin-bottom:16px;font-size:12px;font-weight:600;color:#6B46C1;letter-spacing:0.5px;">💡 SUGGESTION UPDATE</div>
                       <h1 style="color:#2C2C2C;margin:0 0 12px;font-size:20px;font-family:Georgia,serif;">Your suggestion is now {new_status_label}</h1>
                       <p style="color:#4A4A4A;line-height:1.6;font-size:15px;margin:0 0 12px;">
                         <strong>"{doc['title']}"</strong>
                       </p>
-                      {('<p style="margin:16px 0;padding:12px 16px;background:#EEF3EC;border-left:3px solid #3A5A40;border-radius:6px;font-size:14px;color:#4A4A4A;"><strong>Admin note:</strong> ' + body.admin_note.strip() + '</p>') if body.admin_note else ''}
+                      {('<p style="margin:16px 0;padding:12px 16px;background:#EDE7FB;border-left:3px solid #6B46C1;border-radius:6px;font-size:14px;color:#4A4A4A;"><strong>Admin note:</strong> ' + body.admin_note.strip() + '</p>') if body.admin_note else ''}
                       <p style="margin:24px 0;text-align:center;">
-                        <a href="{FRONTEND_URL.rstrip('/')}/suggestions" style="display:inline-block;padding:10px 20px;background:#3A5A40;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;">View on Shelfsort →</a>
+                        <a href="{FRONTEND_URL.rstrip('/')}/suggestions" style="display:inline-block;padding:10px 20px;background:#6B46C1;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;">View on Shelfsort →</a>
                       </p>
                       <p style="color:#6B705C;font-size:11px;margin:0;">Thanks for helping make Shelfsort better.</p>
                     </div>

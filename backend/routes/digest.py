@@ -202,7 +202,7 @@ async def _build_digest_payload(user_doc: Dict[str, Any]) -> Dict[str, Any]:
       <tr><td align="center">
         <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #E8E6E1;border-radius:16px;padding:32px;">
           <tr><td>
-            <p style="margin:0 0 8px 0;font-size:11px;letter-spacing:3px;color:#3A5A40;font-weight:bold;text-transform:uppercase;font-family:Helvetica,Arial,sans-serif;">Shelfsort · weekly digest</p>
+            <p style="margin:0 0 8px 0;font-size:11px;letter-spacing:3px;color:#6B46C1;font-weight:bold;text-transform:uppercase;font-family:Helvetica,Arial,sans-serif;">Shelfsort · weekly digest</p>
             <h1 style="margin:0 0 8px 0;color:#2C2C2C;font-size:30px;line-height:1.15;">Hi {name},</h1>
             <p style="margin:0 0 24px 0;color:#6B705C;font-size:15px;line-height:1.6;">
               Here's how your reading week ({week_start.strftime('%b %d')} – {today.strftime('%b %d')}) went.
@@ -215,7 +215,7 @@ async def _build_digest_payload(user_doc: Dict[str, Any]) -> Dict[str, Any]:
                   <p style="margin:4px 0 0 0;font-size:11px;color:#6B705C;text-transform:uppercase;letter-spacing:1.5px;">Books opened</p>
                 </td>
                 <td width="33%" style="text-align:center;padding:12px;">
-                  <p style="margin:0;font-size:32px;color:#3A5A40;font-family:Georgia,serif;line-height:1;">{active_days}<span style="font-size:18px;color:#6B705C;">/7</span></p>
+                  <p style="margin:0;font-size:32px;color:#6B46C1;font-family:Georgia,serif;line-height:1;">{active_days}<span style="font-size:18px;color:#6B705C;">/7</span></p>
                   <p style="margin:4px 0 0 0;font-size:11px;color:#6B705C;text-transform:uppercase;letter-spacing:1.5px;">Active days</p>
                 </td>
                 <td width="33%" style="text-align:center;padding:12px;">
@@ -228,11 +228,11 @@ async def _build_digest_payload(user_doc: Dict[str, Any]) -> Dict[str, Any]:
             {nudges_block_html}
             <p style="margin:32px 0 0 0;text-align:center;font-family:Helvetica,Arial,sans-serif;">
               <a href="{library_url}" style="display:inline-block;background:#E07A5F;color:#ffffff;text-decoration:none;padding:13px 22px;border-radius:10px;font-weight:600;font-size:14px;">Open your library</a>
-              <a href="{stats_url}" style="display:inline-block;margin-left:8px;background:#FFFFFF;color:#3A5A40;text-decoration:none;padding:13px 22px;border:1px solid #3A5A40;border-radius:10px;font-weight:600;font-size:14px;">See full stats</a>
+              <a href="{stats_url}" style="display:inline-block;margin-left:8px;background:#FFFFFF;color:#6B46C1;text-decoration:none;padding:13px 22px;border:1px solid #6B46C1;border-radius:10px;font-weight:600;font-size:14px;">See full stats</a>
             </p>
             <p style="margin:28px 0 0 0;color:#6B705C;font-size:11px;text-align:center;font-family:Helvetica,Arial,sans-serif;">
               You're receiving this because you turned on the weekly digest in Shelfsort.
-              Change your settings any time in <a href="{base}/account" style="color:#3A5A40;">your account</a>.
+              Change your settings any time in <a href="{base}/account" style="color:#6B46C1;">your account</a>.
             </p>
           </td></tr>
         </table>
@@ -557,7 +557,7 @@ async def _build_update_digest_payload(
         pill_parts: List[str] = []
         if added > 0:
             pill_parts.append(
-                f'<span style="display:inline-block;padding:3px 9px;border-radius:999px;background:#EEF3EC;color:#3A5A40;font-size:11px;font-weight:600;margin-right:6px;">+{added} new</span>'
+                f'<span style="display:inline-block;padding:3px 9px;border-radius:999px;background:#EDE7FB;color:#6B46C1;font-size:11px;font-weight:600;margin-right:6px;">+{added} new</span>'
             )
         if changed > 0:
             pill_parts.append(
@@ -573,7 +573,7 @@ async def _build_update_digest_payload(
               <p style="margin:0 0 4px 0;font-family:Georgia,serif;font-size:16px;color:#2C2C2C;">{b.get("title","")}</p>
               <p style="margin:0 0 8px 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#6B705C;">{b.get("author","")}{fandom_html}</p>
               <p style="margin:0 0 8px 0;">{"".join(pill_parts)}</p>
-              <a href="{compare_url}" style="font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#3A5A40;text-decoration:underline;font-weight:600;">See what changed →</a>
+              <a href="{compare_url}" style="font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6B46C1;text-decoration:underline;font-weight:600;">See what changed →</a>
             </td></tr>
         """)
     rows_html_str = "".join(rows_html)
@@ -587,18 +587,18 @@ async def _build_update_digest_payload(
       <tr><td align="center">
         <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #E8E6E1;border-radius:16px;padding:32px;">
           <tr><td>
-            <p style="margin:0 0 8px 0;font-size:11px;letter-spacing:3px;color:#3A5A40;font-weight:bold;text-transform:uppercase;">Shelfsort · fic updates</p>
+            <p style="margin:0 0 8px 0;font-size:11px;letter-spacing:3px;color:#6B46C1;font-weight:bold;text-transform:uppercase;">Shelfsort · fic updates</p>
             <h1 style="margin:0 0 8px 0;color:#2C2C2C;font-size:28px;line-height:1.2;font-family:Georgia,serif;">Hi {name}, your fics just updated</h1>
             <p style="margin:0 0 24px 0;color:#6B705C;font-size:15px;line-height:1.6;">
               {headline}. Jump straight to what's new — your reading progress on the old version stays intact.
             </p>
             <table width="100%" cellpadding="0" cellspacing="0">{rows_html_str}</table>
             <p style="margin:32px 0 0 0;text-align:center;">
-              <a href="{library_url}" style="display:inline-block;background:#3A5A40;color:#ffffff;text-decoration:none;padding:13px 22px;border-radius:10px;font-weight:600;font-size:14px;">Open your library</a>
+              <a href="{library_url}" style="display:inline-block;background:#6B46C1;color:#ffffff;text-decoration:none;padding:13px 22px;border-radius:10px;font-weight:600;font-size:14px;">Open your library</a>
             </p>
             <p style="margin:28px 0 0 0;color:#6B705C;font-size:11px;text-align:center;">
               You're receiving this because you turned on fic-update emails.
-              Change your settings any time in <a href="{base}/account" style="color:#3A5A40;">your account</a>.
+              Change your settings any time in <a href="{base}/account" style="color:#6B46C1;">your account</a>.
             </p>
           </td></tr>
         </table>

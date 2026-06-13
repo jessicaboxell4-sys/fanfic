@@ -358,7 +358,7 @@ async def _send_password_reset_email(to_email: str, reset_link: str):
       <tr><td align="center">
         <table width="520" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #E8E6E1;border-radius:16px;padding:32px;">
           <tr><td>
-            <p style="margin:0 0 8px 0;font-size:11px;letter-spacing:3px;color:#3A5A40;font-weight:bold;text-transform:uppercase;">Shelfsort</p>
+            <p style="margin:0 0 8px 0;font-size:11px;letter-spacing:3px;color:#6B46C1;font-weight:bold;text-transform:uppercase;">Shelfsort</p>
             <h1 style="margin:0 0 16px 0;font-family:Georgia,serif;color:#2C2C2C;font-size:28px;">Reset your password</h1>
             <p style="margin:0 0 24px 0;color:#6B705C;line-height:1.6;font-size:15px;">
               Someone (hopefully you) asked to reset the password on your Shelfsort account.

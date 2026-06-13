@@ -201,7 +201,7 @@ async def _build_year_payload(user_doc: Dict[str, Any], year: int) -> Dict[str, 
             f'</tr></table></td></tr>'
         )
     top_fandoms_html = (
-        f'<div style="margin-top:24px;"><p style="margin:0 0 8px 0;font-size:11px;letter-spacing:2px;color:#3A5A40;font-weight:bold;text-transform:uppercase;font-family:Helvetica,Arial,sans-serif;">Top fandoms</p>'
+        f'<div style="margin-top:24px;"><p style="margin:0 0 8px 0;font-size:11px;letter-spacing:2px;color:#6B46C1;font-weight:bold;text-transform:uppercase;font-family:Helvetica,Arial,sans-serif;">Top fandoms</p>'
         f'<table width="100%" cellpadding="0" cellspacing="0">{top_fandom_rows}</table></div>'
         if top_fandoms else ""
     )
@@ -217,17 +217,17 @@ async def _build_year_payload(user_doc: Dict[str, Any], year: int) -> Dict[str, 
                 f'<table width="100%" cellpadding="0" cellspacing="0"><tr>'
                 f'<td width="50%" style="font-size:13px;color:#2C2C2C;">{a["name"]}</td>'
                 f'<td width="40%"><div style="background:#F5F3EC;border-radius:4px;height:8px;">'
-                f'<div style="background:#3A5A40;height:8px;border-radius:4px;width:{pct}%;"></div></div></td>'
+                f'<div style="background:#6B46C1;height:8px;border-radius:4px;width:{pct}%;"></div></div></td>'
                 f'<td width="10%" style="text-align:right;font-size:13px;color:#6B705C;font-weight:600;">{a["count"]}</td>'
                 f'</tr></table></td></tr>'
             )
         top_authors_html = (
-            f'<div style="margin-top:24px;"><p style="margin:0 0 8px 0;font-size:11px;letter-spacing:2px;color:#3A5A40;font-weight:bold;text-transform:uppercase;font-family:Helvetica,Arial,sans-serif;">Most-read authors</p>'
+            f'<div style="margin-top:24px;"><p style="margin:0 0 8px 0;font-size:11px;letter-spacing:2px;color:#6B46C1;font-weight:bold;text-transform:uppercase;font-family:Helvetica,Arial,sans-serif;">Most-read authors</p>'
             f'<table width="100%" cellpadding="0" cellspacing="0">{rows}</table></div>'
         )
 
     best_month_html = (
-        f'<p style="margin:6px 0 0 0;font-size:14px;color:#6B705C;">Your best month was <strong style="color:#3A5A40;">{best_month["name"]}</strong> with {best_month["opens"]} book opens.</p>'
+        f'<p style="margin:6px 0 0 0;font-size:14px;color:#6B705C;">Your best month was <strong style="color:#6B46C1;">{best_month["name"]}</strong> with {best_month["opens"]} book opens.</p>'
         if best_month else ""
     )
 
@@ -259,7 +259,7 @@ async def _build_year_payload(user_doc: Dict[str, Any], year: int) -> Dict[str, 
           <tr><td>
             <p style="margin:0 0 8px 0;font-size:11px;letter-spacing:3px;color:#E07A5F;font-weight:bold;text-transform:uppercase;font-family:Helvetica,Arial,sans-serif;">Shelfsort · year in books</p>
             <h1 style="margin:0 0 8px 0;color:#2C2C2C;font-size:38px;line-height:1.1;font-family:Georgia,serif;">Hi {name},</h1>
-            <h2 style="margin:0 0 24px 0;color:#3A5A40;font-size:22px;font-family:Georgia,serif;font-style:italic;font-weight:normal;">Here's your {year} in books.</h2>
+            <h2 style="margin:0 0 24px 0;color:#6B46C1;font-size:22px;font-family:Georgia,serif;font-style:italic;font-weight:normal;">Here's your {year} in books.</h2>
             <table width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0;font-family:Helvetica,Arial,sans-serif;">
               <tr>
                 <td width="33%" style="text-align:center;padding:14px;">
@@ -267,7 +267,7 @@ async def _build_year_payload(user_doc: Dict[str, Any], year: int) -> Dict[str, 
                   <p style="margin:6px 0 0 0;font-size:11px;color:#6B705C;text-transform:uppercase;letter-spacing:1.5px;">Books opened</p>
                 </td>
                 <td width="33%" style="text-align:center;padding:14px;">
-                  <p style="margin:0;font-size:38px;color:#3A5A40;font-family:Georgia,serif;line-height:1;">{len(finished_books)}</p>
+                  <p style="margin:0;font-size:38px;color:#6B46C1;font-family:Georgia,serif;line-height:1;">{len(finished_books)}</p>
                   <p style="margin:6px 0 0 0;font-size:11px;color:#6B705C;text-transform:uppercase;letter-spacing:1.5px;">Finished</p>
                 </td>
                 <td width="33%" style="text-align:center;padding:14px;">

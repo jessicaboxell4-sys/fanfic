@@ -1104,10 +1104,19 @@ class TestLinksExportByFolder:
         # Both fandoms get their own sheet
         assert "XLSXFandomA" in wb.sheetnames
         assert "XLSXFandomB" in wb.sheetnames
-        # Header row + data row layout — exactly four columns in this order
+        # Header row + data row layout. AO3 columns (Rating, Warnings,
+        # Categories, Characters, Relationships) were added 2026-06-13;
+        # we now assert the columns are PRESENT in the expected order
+        # without pinning the exact tail (forwards-compatible if more
+        # AO3 fields land later).
         ws = wb["XLSXFandomA"]
         headers = [c.value for c in ws[1]]
-        assert headers == ["Filename", "Title", "Author", "Fandom", "Source URL"]
+        leading = ["Filename", "Title", "Author", "Fandom"]
+        trailing = ["Source URL"]
+        assert headers[: len(leading)] == leading
+        assert headers[-len(trailing):] == trailing
+        for c in ("Rating", "Archive Warnings", "Categories", "Relationships"):
+            assert c in headers, f"AO3 column {c!r} missing from xlsx export header"
         # First data row contains our seeded values
         row2 = {h: ws.cell(row=2, column=i + 1).value for i, h in enumerate(headers)}
         assert row2["Fandom"] == "XLSXFandomA"
@@ -4145,7 +4154,11 @@ class TestLibraryBackup:
         assert "epubs/bk_trash.epub" not in names
 
         manifest = json.loads(zf.read("backup-manifest.json").decode("utf-8"))
-        assert manifest["schema_version"] == 1
+        # schema_version bumped to 2 on 2026-06-13 when AO3 metadata
+        # (rating/warnings/categories/characters/relationships) was added
+        # to each book entry. Older v1 backups remain importable via the
+        # restore preview/apply endpoints.
+        assert manifest["schema_version"] == 2
         assert manifest["stats"]["book_count"] == 3   # bk_a, bk_b, bk_missing (trash excluded)
         manifest_ids = sorted(b["book_id"] for b in manifest["books"])
         assert manifest_ids == ["bk_a", "bk_b", "bk_missing"]

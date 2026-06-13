@@ -162,7 +162,7 @@ async def invite_by_email(body: InviteBody, user: User = Depends(get_current_use
                   </p>
                   {note_html}
                   <p style="margin:24px 0;text-align:center;">
-                    <a href="{invite_url}" style="display:inline-block;padding:12px 24px;background:#3A5A40;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:15px;">Accept your invite →</a>
+                    <a href="{invite_url}" style="display:inline-block;padding:12px 24px;background:#6B46C1;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:15px;">Accept your invite →</a>
                   </p>
                   <p style="color:#6B705C;font-size:12px;margin:0;">
                     Or copy this link: <code style="font-size:11px;">{invite_url}</code><br/>
