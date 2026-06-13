@@ -13,6 +13,7 @@ import HelpNudge from "../components/HelpNudge";
 import DuplicateResolutionModal from "../components/DuplicateResolutionModal";
 import UrlListDedupeModal from "../components/UrlListDedupeModal";
 import BackupReminderBanner from "../components/BackupReminderBanner";
+import LibraryActivityWidgets from "../components/LibraryActivityWidgets";
 import { Search, X, Plus, ArrowRight, CheckSquare, Sparkles, Loader2, RefreshCw, Library, UserCircle2, Filter, Pin, FolderOpen, ArrowUpDown, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { FETCHING_UI_ENABLED } from "../lib/featureFlags";
@@ -270,6 +271,9 @@ export default function Dashboard() {
               <Trash2 className="w-3 h-3" /> Trash · {trashCount}
             </Link>
           )}
+          <div className="mt-5">
+            <LibraryActivityWidgets />
+          </div>
           {conversions.converting > 0 ? (
             <Link
               to="/library/conversions"

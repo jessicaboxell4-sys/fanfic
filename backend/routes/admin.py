@@ -28,6 +28,7 @@ from deps import db, api_router, logger, RESEND_API_KEY, SENDER_EMAIL, EMERGENT_
 from models import User
 from auth_dep import require_admin
 from utils.admin_audit import record_admin_action
+from utils.email_log import log_email_send
 from utils.feature_flags import KNOWN_FLAGS, get_flags, set_flag
 
 
@@ -616,6 +617,7 @@ async def admin_email_test(
             "text": text,
         }
         result = await asyncio.to_thread(resend.Emails.send, params)
+        await log_email_send("admin_test", target_email, "ok", resend_id=result.get("id"))
         await record_admin_action(
             user, "email.test",
             target=target_user_id or target_email,
@@ -624,6 +626,7 @@ async def admin_email_test(
         return {"delivered": True, "id": result.get("id"), "to": target_email}
     except Exception as e:  # noqa: BLE001
         logger.error("Admin email-test Resend send failed for %s: %s", target_email, e)
+        await log_email_send("admin_test", target_email, "error", error=str(e))
         await record_admin_action(
             user, "email.test",
             target=target_user_id or target_email,
@@ -872,4 +875,88 @@ async def list_registered_routes(
         "stale_total": stale_total,
         "stale_days": stale_days,
         "modules": sorted_groups,
+    }
+
+
+
+# ---------------------------------------------------------------------------
+# A2 — GET /api/admin/email-stats  (Resend deliveries this week stat card)
+# ---------------------------------------------------------------------------
+
+@api_router.get("/admin/email-stats")
+async def get_email_stats(user: User = Depends(require_admin)):
+    """Resend deliveries telemetry for the admin dashboard card.
+
+    Pulls from ``db.email_logs`` (populated by ``utils.email_log.log_email_send``).
+    Returns:
+      • ``total_7d`` / ``ok_7d`` / ``error_7d`` — rolling 7-day counters.
+      • ``error_rate_7d`` — ratio 0..1.
+      • ``by_kind`` — per-template breakdown for the last 7 days.
+      • ``recent_failures`` — last 10 failures with kind + to + error.
+      • ``last_send_at`` — most recent send (any status).
+    """
+    from datetime import timedelta as _td
+    now = datetime.now(timezone.utc)
+    window_start = now - _td(days=7)
+
+    total_7d = await db.email_logs.count_documents({"sent_at": {"$gte": window_start}})
+    ok_7d = await db.email_logs.count_documents(
+        {"sent_at": {"$gte": window_start}, "status": "ok"}
+    )
+    error_7d = await db.email_logs.count_documents(
+        {"sent_at": {"$gte": window_start}, "status": "error"}
+    )
+
+    # Group by kind for the per-template breakdown.
+    by_kind_pipeline = [
+        {"$match": {"sent_at": {"$gte": window_start}}},
+        {"$group": {
+            "_id": "$kind",
+            "total": {"$sum": 1},
+            "ok": {"$sum": {"$cond": [{"$eq": ["$status", "ok"]}, 1, 0]}},
+            "error": {"$sum": {"$cond": [{"$eq": ["$status", "error"]}, 1, 0]}},
+        }},
+        {"$sort": {"total": -1}},
+    ]
+    by_kind_rows = await db.email_logs.aggregate(by_kind_pipeline).to_list(50)
+    by_kind = [
+        {"kind": r["_id"] or "?", "total": r["total"], "ok": r["ok"], "error": r["error"]}
+        for r in by_kind_rows
+    ]
+
+    # Last 10 failures for debugging.
+    fail_cursor = (
+        db.email_logs.find(
+            {"status": "error"},
+            {"_id": 0, "sent_at": 1, "kind": 1, "to": 1, "error": 1},
+        )
+        .sort("sent_at", -1)
+        .limit(10)
+    )
+    recent_failures = []
+    async for r in fail_cursor:
+        ts = r.get("sent_at")
+        if ts and ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        recent_failures.append({
+            "sent_at": ts.isoformat() if ts else None,
+            "kind": r.get("kind"),
+            "to": r.get("to"),
+            "error": (r.get("error") or "")[:200],
+        })
+
+    last = await db.email_logs.find_one({}, sort=[("sent_at", -1)])
+    last_ts = (last or {}).get("sent_at")
+    if last_ts and last_ts.tzinfo is None:
+        last_ts = last_ts.replace(tzinfo=timezone.utc)
+
+    return {
+        "window_days": 7,
+        "total_7d": total_7d,
+        "ok_7d": ok_7d,
+        "error_7d": error_7d,
+        "error_rate_7d": round(error_7d / total_7d, 3) if total_7d else 0.0,
+        "by_kind": by_kind,
+        "recent_failures": recent_failures,
+        "last_send_at": last_ts.isoformat() if last_ts else None,
     }

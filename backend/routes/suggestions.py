@@ -25,6 +25,7 @@ from pydantic import BaseModel, Field
 from deps import db, api_router, logger, RESEND_API_KEY, SENDER_EMAIL, FRONTEND_URL
 from models import User
 from auth_dep import get_current_user, require_admin
+from utils.email_log import log_email_send
 from utils.admin_audit import record_admin_action
 from routes.notifications import create_notification
 
@@ -215,9 +216,11 @@ async def admin_update(sid: str, body: SuggestionUpdate, user: User = Depends(re
                             + (f"Admin note: {body.admin_note.strip()}\n\n" if body.admin_note else "")
                             + f"View at: {FRONTEND_URL.rstrip('/')}/suggestions",
                 }
-                await asyncio.to_thread(resend.Emails.send, params)
+                result = await asyncio.to_thread(resend.Emails.send, params)
+                await log_email_send("suggestion_status", submitter_email, "ok", resend_id=(result or {}).get("id"))
             except Exception as e:  # noqa: BLE001
                 logger.error("Suggestion status email failed: %s", e)
+                await log_email_send("suggestion_status", submitter_email, "error", error=str(e))
 
     refreshed = await db.suggestions.find_one({"suggestion_id": sid}, {"_id": 0})
     return _serialize(refreshed, user.user_id)

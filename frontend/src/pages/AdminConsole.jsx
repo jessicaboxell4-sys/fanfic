@@ -8,6 +8,7 @@ import {
   BarChart3, ToggleLeft, ClipboardList, Loader2, Plus, X as XIcon, Trash2,
   Check, ChevronRight, Download, AlertOctagon, RotateCcw, Send, Mail,
   MessageSquare, Clock, CircleAlert, Route as RouteIcon, Search,
+  Inbox,
 } from "lucide-react";
 
 function fmtBytes(n) {
@@ -1476,6 +1477,86 @@ function RouteCatalogueCard() {
 }
 
 
+// ---------------------------------------------------------------------------
+// A2 — Email-stats card. Rolling 7-day Resend telemetry pulled from db.email_logs.
+// ---------------------------------------------------------------------------
+function EmailStatsCard() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const load = async () => {
+    setLoading(true); setError(null);
+    try {
+      const { data } = await api.get("/admin/email-stats");
+      setData(data);
+    } catch (e) {
+      setError(e?.response?.data?.detail || e.message);
+    } finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, []);
+
+  return (
+    <Card icon={Inbox} title="Resend deliveries · this week" subtitle="Send volume, error rate, and recent failures." testid="email-stats-card">
+      {loading && !data && <p className="text-sm text-[#6B705C]">Loading…</p>}
+      {error && <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3" data-testid="email-stats-error">{error}</div>}
+      {data && (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <div className="bg-white border border-[#E8E2D4] rounded-lg p-3" data-testid="email-stats-total">
+              <p className="text-xs text-[#6B705C]">Total (7d)</p>
+              <p className="text-2xl font-medium text-[#2C2C2C]">{data.total_7d}</p>
+            </div>
+            <div className="bg-[#EAF0EB] border border-[#3A5A40]/30 rounded-lg p-3" data-testid="email-stats-ok">
+              <p className="text-xs text-[#3A5A40]">Delivered</p>
+              <p className="text-2xl font-medium text-[#3A5A40]">{data.ok_7d}</p>
+            </div>
+            <div className={`${data.error_7d > 0 ? "bg-red-50 border-red-200" : "bg-white border-[#E8E2D4]"} border rounded-lg p-3`} data-testid="email-stats-error-count">
+              <p className="text-xs text-red-700">Errors</p>
+              <p className={`text-2xl font-medium ${data.error_7d > 0 ? "text-red-700" : "text-[#2C2C2C]"}`}>{data.error_7d}</p>
+            </div>
+            <div className="bg-white border border-[#E8E2D4] rounded-lg p-3" data-testid="email-stats-rate">
+              <p className="text-xs text-[#6B705C]">Error rate</p>
+              <p className="text-2xl font-medium text-[#2C2C2C]">{(data.error_rate_7d * 100).toFixed(1)}%</p>
+            </div>
+          </div>
+          {data.by_kind.length > 0 && (
+            <div className="mb-4" data-testid="email-stats-by-kind">
+              <p className="text-xs font-medium text-[#2C2C2C] mb-2">Per template (7d)</p>
+              <ul className="space-y-1 text-sm font-mono">
+                {data.by_kind.map((k) => (
+                  <li key={k.kind} className="flex items-center gap-3 text-[#2C2C2C]" data-testid={`email-stats-kind-${k.kind}`}>
+                    <span className="flex-1">{k.kind}</span>
+                    <span className="text-[#3A5A40]">{k.ok} ok</span>
+                    {k.error > 0 && <span className="text-red-700">{k.error} err</span>}
+                    <span className="text-[#6B705C]">{k.total} total</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {data.recent_failures.length > 0 && (
+            <div data-testid="email-stats-failures">
+              <p className="text-xs font-medium text-red-700 mb-2">Recent failures</p>
+              <ul className="space-y-1 text-xs font-mono">
+                {data.recent_failures.map((f, i) => (
+                  <li key={i} className="text-red-700 break-all" data-testid={`email-stats-failure-${i}`}>
+                    [{f.kind}] {f.to} — {f.error}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <button type="button" onClick={load} className="text-xs text-[#3A5A40] hover:underline mt-3 inline-flex items-center gap-1" data-testid="email-stats-refresh">
+            <RotateCcw className="w-3 h-3" /> refresh
+          </button>
+        </>
+      )}
+    </Card>
+  );
+}
+
+
+
 export default function AdminConsole() {
   return (
     <div className="min-h-screen bg-[#FAF6EE]">
@@ -1501,6 +1582,7 @@ export default function AdminConsole() {
         <HealthCard />
         <CronHealthCard />
         <RouteCatalogueCard />
+        <EmailStatsCard />
         <EmailDiagnosticCard />
         <GlobalAliasesCard />
         <GlobalStatsCard />

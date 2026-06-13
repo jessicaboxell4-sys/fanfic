@@ -27,6 +27,7 @@ from pydantic import BaseModel, EmailStr, Field
 from deps import db, api_router, logger, RESEND_API_KEY, SENDER_EMAIL, FRONTEND_URL
 from models import User
 from auth_dep import get_current_user
+from utils.email_log import log_email_send
 
 
 INVITE_TTL_DAYS = 30
@@ -175,9 +176,11 @@ async def invite_by_email(body: InviteBody, user: User = Depends(get_current_use
                     + f"Accept at: {invite_url}\n\n(The link expires in {INVITE_TTL_DAYS} days.)"
                 ),
             }
-            await asyncio.to_thread(resend.Emails.send, params)
+            result = await asyncio.to_thread(resend.Emails.send, params)
+            await log_email_send("invite", target_email, "ok", resend_id=(result or {}).get("id"))
         except Exception as e:  # noqa: BLE001
             logger.error("Invite Resend send failed for %s: %s", target_email, e)
+            await log_email_send("invite", target_email, "error", error=str(e))
             # Don't raise — the invite is still valid via direct URL.
             return {"path": "invite_created_email_failed", **_serialize(invite), "url": invite_url}
 

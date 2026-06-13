@@ -31,6 +31,7 @@ from deps import (
 )
 from models import User, BookOut
 from auth_dep import get_current_user
+from utils.email_log import log_email_send
 from routes.year import _send_year_email
 from routes.books import _probe_fanfic_now, _sweep_user_unavailable, _fanfic_status_cache
 from routes.trash import sweep_expired_trash
@@ -280,9 +281,11 @@ async def _send_digest_email(user_doc: Dict[str, Any]) -> Dict[str, Any]:
             "text": payload["text"],
         }
         result = await asyncio.to_thread(resend.Emails.send, params)
+        await log_email_send("digest", to_email, "ok", resend_id=result.get("id"))
         return {"delivered": True, "id": result.get("id"), "summary": payload["summary"]}
     except Exception as e:
         logger.error("Digest Resend send failed for %s: %s", to_email, e)
+        await log_email_send("digest", to_email, "error", error=str(e))
         return {"delivered": False, "error": str(e), "summary": payload["summary"]}
 
 
@@ -391,9 +394,11 @@ async def send_email_test(user: User = Depends(get_current_user)):
             "text": text,
         }
         result = await asyncio.to_thread(resend.Emails.send, params)
+        await log_email_send("test_email", to_email, "ok", resend_id=result.get("id"))
         return {"delivered": True, "id": result.get("id"), "to": to_email}
     except Exception as e:
         logger.error("Test email Resend send failed for %s: %s", to_email, e)
+        await log_email_send("test_email", to_email, "error", error=str(e))
         raise HTTPException(status_code=502, detail=f"Resend rejected the send: {e}")
 
 
@@ -647,9 +652,11 @@ async def _send_update_digest_email(
             "text": payload["text"],
         }
         result = await asyncio.to_thread(resend.Emails.send, params)
+        await log_email_send("update_digest", to_email, "ok", resend_id=result.get("id"))
         return {"delivered": True, "id": result.get("id"), "summary": payload["summary"]}
     except Exception as e:
         logger.error("Update-digest Resend send failed for %s: %s", to_email, e)
+        await log_email_send("update_digest", to_email, "error", error=str(e))
         return {"delivered": False, "error": str(e), "summary": payload["summary"]}
 
 
@@ -709,9 +716,11 @@ async def _send_grace_reminder_email(user_doc: Dict[str, Any]) -> Dict[str, Any]
             "text": text,
         }
         result = await asyncio.to_thread(resend.Emails.send, params)
+        await log_email_send("grace_reminder", to_email, "ok", resend_id=result.get("id"))
         return {"delivered": True, "id": result.get("id")}
     except Exception as e:
         logger.error("Grace-reminder Resend send failed for %s: %s", to_email, e)
+        await log_email_send("grace_reminder", to_email, "error", error=str(e))
         return {"delivered": False, "error": str(e)}
 
 

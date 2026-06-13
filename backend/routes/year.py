@@ -31,6 +31,7 @@ from deps import (
 )
 from models import User, BookOut
 from auth_dep import get_current_user
+from utils.email_log import log_email_send
 
 
 async def _build_year_payload(user_doc: Dict[str, Any], year: int) -> Dict[str, Any]:
@@ -340,9 +341,11 @@ async def _send_year_email(user_doc: Dict[str, Any], year: int) -> Dict[str, Any
             "text": payload["text"],
         }
         result = await asyncio.to_thread(resend.Emails.send, params)
+        await log_email_send("year_in_books", to_email, "ok", resend_id=result.get("id"))
         return {"delivered": True, "id": result.get("id"), "summary": payload["summary"], "has_data": payload["has_data"]}
     except Exception as e:
         logger.error("Year-in-books Resend send failed for %s: %s", to_email, e)
+        await log_email_send("year_in_books", to_email, "error", error=str(e))
         return {"delivered": False, "error": str(e), "summary": payload["summary"], "has_data": payload["has_data"]}
 
 

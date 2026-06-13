@@ -32,6 +32,7 @@ from deps import (
 )
 from models import User, BookOut
 from auth_dep import get_current_user
+from utils.email_log import log_email_send
 
 
 # ============================================================
@@ -85,6 +86,19 @@ async def auth_google(request: Request, response: Response):
         "expires_at": expires_at,
         "created_at": datetime.now(timezone.utc),
     })
+
+    # Track previous + current login timestamps so the "Activity since
+    # last login" widget can ask "what's new since I was last here?".
+    now_iso = datetime.now(timezone.utc).isoformat()
+    existing = await db.users.find_one({"user_id": user_id}, {"_id": 0, "last_login_at": 1})
+    prev_login = (existing or {}).get("last_login_at")
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": {
+            "previous_login_at": prev_login or now_iso,
+            "last_login_at": now_iso,
+        }},
+    )
 
     response.set_cookie(
         key="session_token",
@@ -147,6 +161,17 @@ async def _issue_session(user_id: str, response: Response) -> str:
         "expires_at": expires_at,
         "created_at": datetime.now(timezone.utc),
     })
+    # Track previous + current login timestamps for the "since last login" widget.
+    now_iso = datetime.now(timezone.utc).isoformat()
+    existing = await db.users.find_one({"user_id": user_id}, {"_id": 0, "last_login_at": 1})
+    prev_login = (existing or {}).get("last_login_at")
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": {
+            "previous_login_at": prev_login or now_iso,
+            "last_login_at": now_iso,
+        }},
+    )
     response.set_cookie(
         key="session_token",
         value=token,
@@ -368,11 +393,13 @@ async def _send_password_reset_email(to_email: str, reset_link: str):
             "text": text,
         }
         result = await asyncio.to_thread(resend.Emails.send, params)
+        await log_email_send("password_reset", to_email, "ok", resend_id=result.get("id"))
         return {"delivered": True, "id": result.get("id")}
     except Exception as e:
         logger.error("Resend send failed: %s", e)
         # Still log the link so the user can recover via support
         logger.warning("Reset link for %s (Resend failed): %s", to_email, reset_link)
+        await log_email_send("password_reset", to_email, "error", error=str(e))
         return {"delivered": False, "error": str(e)}
 
 

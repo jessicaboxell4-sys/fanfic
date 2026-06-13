@@ -1385,3 +1385,50 @@ These are agent-suggested features the user hasn't picked yet. Bring them up nex
 ### Parked idea 2026-06-13 ("Mongo collections inspector" admin widget — P2)
 - Concept: a third "ops" admin card alongside Cron Health + Route Catalogue. `GET /api/admin/db-collections` (admin-only) iterates `db.list_collection_names()`, runs `collStats` for each (`count`, `size`, `avgObjSize`, indexes), plus a cheap `find_one(..., sort=[(_id,-1)])` to get the last-write `_id` ObjectId timestamp. Frontend card: sortable table by collection name / doc count / size / last-write age. Bundles into the "ops surface" so admins can inspect the live DB without ever opening the Mongo shell.
 - Priority: P2 (parked by user 2026-06-13 with "remind later").
+
+
+
+### Done 2026-06-13 (P2 batch 1 — 5 features shipped)
+
+The user asked "do all of P2". This is the first batch of 5 quick-win features. Backend + tests + frontend integration shipped together; remaining batches will follow.
+
+**W1 — "Surprise me" random unread book**
+- `GET /api/library/random-unread` uses `$sample: 1` on books where `last_opened_at` is null/missing and category is not Trash. 404 when everything is read.
+- Frontend: `SurpriseMeButton` on Dashboard navigates to `/read/{book_id}`. Friendly alert when the library is empty of unread.
+
+**W2 — Books I haven't read filter**
+- `GET /api/library/unread?limit=N` lists unread books, newest upload first, excluding Trash.
+- Frontend: chip in the new activity strip → dedicated `/library/unread` page (`UnreadLibraryPage.jsx`) rendering with the existing `BookCard` grid.
+
+**W3 — Reading queue ("Up next" stack)**
+- 4 endpoints under `/api/library/queue/*`: `GET`, `add` (idempotent + position-aware), `remove`, `reorder` (drops unowned ids). Data lives in new `db.reading_queues` collection (one doc per user with `book_ids: List[str]`).
+- Frontend: `ReadingQueueWidget` shows the top 5 with click-to-read + hover-to-remove.
+
+**S4 — Activity since last login**
+- New `previous_login_at` + `last_login_at` fields on the user doc, updated atomically by `_issue_session` and the password-login path in `auth.py`. First-login users get `previous_login_at = now` (semantically: "nothing new since now").
+- `GET /api/dashboard/since-last-login` returns `new_books`, `friend_requests`, `new_messages`, `unread_notifications` counted since the previous session opened.
+- Frontend: `SinceLastLogin` strip that hides itself when there's nothing to show.
+
+**S1 — Friends recently added carousel**
+- No new endpoint — reuses existing `GET /api/notifications` and filters client-side by `kind=friend_new_book`. The notification was already wired in the previous session.
+- Frontend: `FriendsRecentCarousel` horizontal scroller on the Dashboard.
+
+**A2 — Resend deliveries this week stat card**
+- New `db.email_logs` collection with rows from `utils.email_log.log_email_send(kind, to, status, error, resend_id)`. Lazy 90-day retention.
+- Wrapped **9 Resend send sites** (`auth.py`, `digest.py` x3, `year.py`, `invites.py`, `suggestions.py`, `admin.py`) so every send is tracked starting now.
+- `GET /api/admin/email-stats` (admin-only) returns rolling 7-day `total/ok/error/error_rate`, per-template `by_kind` breakdown, and last 10 failures with error text.
+- Frontend: `EmailStatsCard` on Admin page with 4-up KPI tiles, per-template table, and a red recent-failures list with the raw error.
+
+**Bundling**
+- All four library-side widgets bundled into `components/LibraryActivityWidgets.jsx` and mounted on Dashboard above the library grid. Strip auto-hides when empty.
+
+**Tests** — `tests/test_p2_batch1.py` 10 cases, all passing.
+**Health** — full backend suite **666 passed, 14 skipped, 0 failed** (pre-existing flaky test `test_groups_books_by_title_and_url` was unrelated, passes alone).
+
+---
+
+**Remaining P2 batches** (parked for the next session)
+
+🟢 **Batch 2 — medium**: S3 friend-recommendations widget · A3 linkless URL dedup edge cases · A4 palette screenshot share · OPS-2 cron-failure email alert · OPS-3 Mongo collections inspector widget
+
+🟢 **Batch 3 — large**: S2 reading-along book-club rooms (full feature: room, members, shared progress, chat) · W4 full-text search across EPUB content · W5 OPDS catalog endpoint
