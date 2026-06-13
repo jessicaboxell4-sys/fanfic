@@ -700,9 +700,29 @@ def start_digest_scheduler():
         return
     sched = AsyncIOScheduler(timezone="UTC")
     sched.add_job(_digest_tick, "cron", minute=0, id="weekly_digest_tick", replace_existing=True)
+    # Account grace-period sweep — runs daily at 03:17 UTC (off-peak) and
+    # hard-deletes any user whose `scheduled_deletion_at` is in the past.
+    # Logic lives in `routes.auth._hard_delete_user`; the trigger lives
+    # here so it shares the same AsyncIOScheduler instance.
+    from routes.auth import _hard_delete_user
+
+    async def _account_grace_tick():
+        cutoff = datetime.now(timezone.utc)
+        cursor = db.users.find(
+            {"scheduled_deletion_at": {"$lte": cutoff}},
+            {"_id": 0, "user_id": 1, "email": 1},
+        )
+        async for u in cursor:
+            try:
+                await _hard_delete_user(u["user_id"])
+                logger.info("Grace-tick hard-deleted account %s (%s)", u["user_id"], u.get("email"))
+            except Exception as e:
+                logger.exception("Grace-tick failed for %s: %s", u["user_id"], e)
+
+    sched.add_job(_account_grace_tick, "cron", hour=3, minute=17, id="account_grace_tick", replace_existing=True)
     sched.start()
     _scheduler = sched
-    logger.info("Weekly digest scheduler started (UTC, every hour at :00).")
+    logger.info("Schedulers started (weekly digest + daily account grace tick).")
 
 
 # ============================================================

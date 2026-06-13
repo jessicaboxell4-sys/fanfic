@@ -46,6 +46,7 @@ import AdminConsole from "@/pages/AdminConsole";
 import AuthCallback from "@/pages/AuthCallback";
 import ResetPassword from "@/pages/ResetPassword";
 import MaintenanceBanner from "@/components/MaintenanceBanner";
+import PendingDeletionBanner from "@/components/PendingDeletionBanner";
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -132,6 +133,7 @@ function App() {
         <ThemeProvider>
           <PaletteProvider>
             <AuthProvider>
+              <PendingDeletionBanner />
               <MaintenanceBanner />
               {FETCHING_UI_ENABLED && <UrlPasteDetector />}
               <AppRouter />

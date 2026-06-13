@@ -1008,3 +1008,13 @@ These are agent-suggested features the user hasn't picked yet. Bring them up nex
 - **Help docs rewritten** in the Account & preferences section to describe both options accurately: library wipe (account survives) vs. account delete (full nuke, can't even log back in).
 - Verified: 401 unauthed, 400 on wrong email, button disabled while input empty, both cards render on /account.
 
+
+### Changed 2026-06-12 (Account deletion is now a 30-day soft-delete with cancel-anytime)
+- **Soft-delete semantics**: `POST /api/account/delete` no longer purges immediately. Sets `scheduled_deletion_at = now + 30 days` on the user record, clears all sessions, drops the response cookie (force-logout). Books / files / shelves stay intact during the grace window.
+- **Cancel anytime**: signing back in during the 30-day window flags the user with `scheduled_deletion_at` on `/auth/me` → new global `PendingDeletionBanner` (red-tinted, top of every page) shows the deletion date + days remaining + a one-click "Cancel deletion" button that hits `POST /api/account/cancel-deletion`.
+- **Hard purge**: new daily APScheduler cron at 03:17 UTC (`account_grace_tick` in `routes/digest.py`) sweeps users whose `scheduled_deletion_at` is in the past and calls the new `_hard_delete_user()` helper — purges files, books, reading_activity, smart_shelves, categories, sessions, password_reset_tokens, and the users row itself. Also exposed manually via `POST /api/account/grace-tick` for testing.
+- **Frontend nag**: typing your email into the confirmation field on the Delete Account card surfaces a `delete-account-backup-nag` amber callout urging "Download a library backup first — after day 30 the ZIP is your only recovery". One-click anchor jumps to the backup card.
+- **Help docs updated** to describe the 30-day grace, the cancel-on-relogin banner, and the backup-first nag.
+- **Model**: added `scheduled_deletion_at: Optional[datetime]` to `User`.
+- Verified end-to-end via curl: schedule → cookie cleared → re-login → `/auth/me` shows scheduled date → cancel → field nulls back out. UI banner screenshot confirms visual.
+

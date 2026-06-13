@@ -289,11 +289,14 @@ export default function Help() {
                   for a fresh start without losing your settings. No undo; a ZIP backup is your only recovery.
                 </li>
                 <li>
-                  <strong>Danger zone — Delete account permanently</strong>: the full nuke. Removes your user
-                  record, password hash, all active sessions, password reset tokens, plus everything the
-                  library wipe touches. You&apos;re signed out immediately. Requires typing your email into the
-                  confirmation field. <em>Truly</em> no undo — and unlike the library wipe, you can&apos;t even
-                  log back in to start over without registering a new account.
+                  <strong>Danger zone — Delete account permanently</strong>: schedules your account for deletion
+                  in <strong>30 days</strong>. You&apos;re signed out immediately, but books and files stay
+                  intact during the grace window — sign back in any time during those 30 days and a banner
+                  appears with a one-click <strong>Cancel deletion</strong> button. When you type your email
+                  into the confirmation field, a backup-first reminder appears so you can grab a ZIP before
+                  committing. Requires the typed email to match. After day 30 a daily scheduler hard-purges
+                  the user record, password hash, sessions, library, files, and reading history — that&apos;s
+                  the point of no return; a previously-downloaded ZIP is your only recovery.
                 </li>
               </ul>
               <p>Found a bug or want a feature? The agent listens — just ask in chat.</p>

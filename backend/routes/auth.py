@@ -5,7 +5,7 @@ from fastapi import (
 from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
-from datetime import datetime, timezone, timedelta, date
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 import os
 import io
@@ -100,7 +100,14 @@ async def auth_google(request: Request, response: Response):
 
 @api_router.get("/auth/me")
 async def auth_me(user: User = Depends(get_current_user)):
-    return {"user_id": user.user_id, "email": user.email, "name": user.name, "picture": user.picture, "is_admin": user.is_admin}
+    return {
+        "user_id": user.user_id,
+        "email": user.email,
+        "name": user.name,
+        "picture": user.picture,
+        "is_admin": user.is_admin,
+        "scheduled_deletion_at": user.scheduled_deletion_at.isoformat() if user.scheduled_deletion_at else None,
+    }
 
 
 @api_router.post("/auth/logout")
@@ -472,17 +479,16 @@ async def delete_account(
     response: Response,
     user: User = Depends(get_current_user),
 ):
-    """Permanently delete the user — record, sessions, password reset tokens,
-    library, files, reading history, smart shelves, custom categories. This
-    is the **full wipe**: after a successful call the account no longer
-    exists. Distinct from `POST /api/books/wipe-library`, which only
-    removes books but keeps the account intact.
+    """**Soft-delete** the account with a 30-day grace period. Sets
+    `scheduled_deletion_at` on the user record, force-logs-out (clears all
+    sessions + the response cookie), but leaves books / files / shelves
+    intact until the daily scheduler (`account_grace_tick`) finds the row
+    past its grace window and runs the hard purge. Logging in during the
+    grace period flags the user with `pending_deletion` on `/auth/me` so
+    the frontend can show a "Cancel deletion" banner.
 
-    Refuses unless `body.confirm_email` (case-insensitive) matches the
-    signed-in user's stored email — guards against accidental UI clicks.
-
-    Clears the `session_token` cookie on the response so the browser is
-    logged out immediately.
+    Distinct from `POST /api/books/wipe-library`, which is per-book and
+    keeps the account active.
     """
     if (body.confirm_email or "").strip().lower() != (user.email or "").strip().lower():
         raise HTTPException(
@@ -490,8 +496,42 @@ async def delete_account(
             detail="Confirmation email does not match your account email.",
         )
 
-    # 1) On-disk files
-    user_dir = STORAGE_DIR / user.user_id
+    scheduled_for = datetime.now(timezone.utc) + timedelta(days=30)
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": {"scheduled_deletion_at": scheduled_for}},
+    )
+
+    # Force-logout every device. User can still log back in during the
+    # grace window to cancel — that re-issues a fresh session.
+    await db.user_sessions.delete_many({"user_id": user.user_id})
+    response.delete_cookie("session_token", path="/")
+
+    return {
+        "ok": True,
+        "scheduled_deletion_at": scheduled_for.isoformat(),
+        "grace_days": 30,
+        "message": "Account scheduled for deletion in 30 days. Sign in any time before then to cancel.",
+    }
+
+
+@api_router.post("/account/cancel-deletion")
+async def cancel_account_deletion(user: User = Depends(get_current_user)):
+    """Unschedule a pending account deletion. Idempotent — returns ok=True
+    even if nothing was scheduled."""
+    res = await db.users.update_one(
+        {"user_id": user.user_id, "scheduled_deletion_at": {"$exists": True}},
+        {"$unset": {"scheduled_deletion_at": ""}},
+    )
+    return {"ok": True, "was_scheduled": res.modified_count > 0}
+
+
+async def _hard_delete_user(user_id: str) -> Dict[str, int]:
+    """Internal: irreversibly purge a user. Called by the daily scheduler
+    once `scheduled_deletion_at` is in the past. Mirrors the inline logic
+    that used to live in `delete_account`."""
+    user_doc = await db.users.find_one({"user_id": user_id}, {"_id": 0, "email": 1})
+    user_dir = STORAGE_DIR / user_id
     files_removed = 0
     if user_dir.exists():
         for p in user_dir.iterdir():
@@ -500,34 +540,41 @@ async def delete_account(
                     p.unlink()
                     files_removed += 1
             except Exception as e:
-                logger.warning("delete_account: couldn't unlink %s: %s", p, e)
+                logger.warning("hard_delete: couldn't unlink %s: %s", p, e)
         try:
             user_dir.rmdir()
         except Exception as e:
-            logger.warning("delete_account: couldn't rmdir %s: %s", user_dir, e)
-
-    # 2) Per-user collections
+            logger.warning("hard_delete: couldn't rmdir %s: %s", user_dir, e)
     purged = {
-        "books": (await db.books.delete_many({"user_id": user.user_id})).deleted_count,
-        "reading_activity": (await db.reading_activity.delete_many({"user_id": user.user_id})).deleted_count,
-        "smart_shelves": (await db.smart_shelves.delete_many({"user_id": user.user_id})).deleted_count,
-        "categories": (await db.categories.delete_many({"user_id": user.user_id})).deleted_count,
-        "user_sessions": (await db.user_sessions.delete_many({"user_id": user.user_id})).deleted_count,
-        "password_reset_tokens": (await db.password_reset_tokens.delete_many({"user_id": user.user_id})).deleted_count,
-    }
-
-    # 3) The user record itself
-    purged["users"] = (await db.users.delete_one({"user_id": user.user_id})).deleted_count
-
-    # 4) Drop the session cookie so the browser is logged out immediately
-    response.delete_cookie("session_token", path="/")
-
-    return {
-        "ok": True,
+        "books": (await db.books.delete_many({"user_id": user_id})).deleted_count,
+        "reading_activity": (await db.reading_activity.delete_many({"user_id": user_id})).deleted_count,
+        "smart_shelves": (await db.smart_shelves.delete_many({"user_id": user_id})).deleted_count,
+        "categories": (await db.categories.delete_many({"user_id": user_id})).deleted_count,
+        "user_sessions": (await db.user_sessions.delete_many({"user_id": user_id})).deleted_count,
+        "password_reset_tokens": (await db.password_reset_tokens.delete_many({"user_id": user_id})).deleted_count,
+        "users": (await db.users.delete_one({"user_id": user_id})).deleted_count,
         "files_removed": files_removed,
-        **purged,
-        "message": "Account permanently deleted.",
     }
+    logger.info("Hard-deleted account %s (%s): %s", user_id, (user_doc or {}).get("email"), purged)
+    return purged
+
+
+@api_router.post("/account/grace-tick")
+async def grace_tick_manual(user: User = Depends(get_current_user)):
+    """Manual tick endpoint for testing — runs the same purge the daily
+    scheduler does. Returns a list of accounts that were hard-deleted in
+    this pass. Any authed user can call this (cheap, idempotent: only
+    rows past their grace window are touched)."""
+    cutoff = datetime.now(timezone.utc)
+    cursor = db.users.find(
+        {"scheduled_deletion_at": {"$lte": cutoff}},
+        {"_id": 0, "user_id": 1, "email": 1},
+    )
+    purged = []
+    async for u in cursor:
+        result = await _hard_delete_user(u["user_id"])
+        purged.append({"user_id": u["user_id"], "email": u.get("email"), **result})
+    return {"deleted": len(purged), "details": purged}
 
 
 # ============================================================

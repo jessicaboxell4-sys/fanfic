@@ -231,7 +231,7 @@ function BackupCard() {
   };
 
   return (
-    <section className="shelf-card p-6 mb-6" data-testid="backup-card">
+    <section className="shelf-card p-6 mb-6" data-testid="backup-card" id="backup-card">
       <h2 className="font-serif text-2xl text-[#2C2C2C] mb-1 flex items-center gap-2">
         <Download className="w-5 h-5 text-[#3A5A40]" /> Library backup
       </h2>
@@ -665,16 +665,17 @@ export default function Account() {
       return;
     }
     if (!window.confirm(
-      "FINAL WARNING: This permanently deletes your account, every book, and every file. There is no undo.\n\nClick OK to proceed."
+      "Your account will be SCHEDULED for deletion in 30 days. You'll be signed out now; sign back in any time during the next 30 days to cancel.\n\nBooks and files are NOT touched until day 30.\n\nClick OK to schedule."
     )) return;
     setDeletingAccount(true);
-    const t = toast.loading("Deleting account…");
+    const t = toast.loading("Scheduling deletion…");
     try {
-      await api.post("/account/delete", { confirm_email: confirmEmailInput.trim() }, { timeout: 600000 });
-      toast.success("Account deleted. Signing you out…", { id: t });
-      setTimeout(() => { window.location.href = "/login"; }, 1500);
+      const { data } = await api.post("/account/delete", { confirm_email: confirmEmailInput.trim() });
+      const when = data?.scheduled_deletion_at ? new Date(data.scheduled_deletion_at).toLocaleString(undefined, { dateStyle: "long" }) : "in 30 days";
+      toast.success(`Account scheduled for deletion on ${when}. Signing you out…`, { id: t, duration: 6000 });
+      setTimeout(() => { window.location.href = "/login"; }, 2000);
     } catch (e) {
-      toast.error(e?.response?.data?.detail || "Couldn't delete account", { id: t });
+      toast.error(e?.response?.data?.detail || "Couldn't schedule deletion", { id: t });
       setDeletingAccount(false);
     }
   };
@@ -1357,10 +1358,22 @@ export default function Account() {
             <div>
               <h2 className="font-serif text-2xl text-[#2C2C2C]">Delete account permanently</h2>
               <p className="text-sm text-[#6B705C] mt-0.5">
-                Removes your account entirely — login credentials, profile, library, files, reading history, smart shelves, custom categories, active sessions, password reset tokens. You will be signed out immediately and cannot recover anything except via a previously downloaded ZIP backup. <strong>This is the full nuke. No undo.</strong>
+                Schedules your account for deletion in <strong>30 days</strong>. You&apos;ll be signed out immediately, but books and files are kept untouched during the grace window — sign back in any time during those 30 days to cancel. After day 30, everything is purged: login credentials, profile, library, files, reading history, smart shelves, custom categories, sessions. <strong>No undo after day 30.</strong>
               </p>
             </div>
           </div>
+          {confirmEmailInput.trim() && (
+            <div
+              data-testid="delete-account-backup-nag"
+              className="mb-3 p-3 rounded-lg bg-[#FDF3E1] border border-[#B87A00]/40 text-xs text-[#8C5C00] flex items-start gap-2"
+            >
+              <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <p>
+                <strong>Heads up</strong> — download a library backup first if you might ever want this data back.
+                After day 30 the ZIP is your only recovery. <a href="#backup-card" onClick={(e) => { e.preventDefault(); document.getElementById("backup-card")?.scrollIntoView({ behavior: "smooth", block: "center" }); }} className="underline font-semibold">Jump to backup card →</a>
+              </p>
+            </div>
+          )}
           <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#D9534F] mb-1.5">Type your email to confirm</p>
           <input
             type="email"
@@ -1379,7 +1392,7 @@ export default function Account() {
               className="px-4 py-2 rounded-xl bg-[#D9534F] hover:bg-[#B53C39] text-white text-sm font-semibold flex items-center gap-2 disabled:opacity-60 transition-colors"
             >
               {deletingAccount ? <Loader2 className="w-4 h-4 animate-spin" /> : <AlertTriangle className="w-4 h-4" />}
-              {deletingAccount ? "Deleting…" : "Delete my account forever"}
+              {deletingAccount ? "Scheduling…" : "Schedule deletion (30-day grace)"}
             </button>
           </div>
         </section>

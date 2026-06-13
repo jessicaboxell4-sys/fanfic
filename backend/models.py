@@ -12,6 +12,7 @@ class User(BaseModel):
     name: str
     picture: Optional[str] = None
     is_admin: bool = False
+    scheduled_deletion_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
