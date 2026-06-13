@@ -1090,3 +1090,8 @@ These are agent-suggested features the user hasn't picked yet. Bring them up nex
 - **Tests**: 23 new pytest cases in `tests/test_chat.py` covering admin auth gating, room CRUD validation (unknown members, empty members, 404 paths), user-side list/post/mark-read flow, attachment ownership guard (book), palette validation, unread counting (including "your own posts don't count"), audit-log trail, and delete-cascades-to-messages. **All 23 pass.**
 - Verified e2e via Playwright: navbar badge shows `1`, room list shows the seeded "Test Room — Jessica + friends" with `AO3, BIG` member pills, thread renders incoming (white) and outgoing (purple, palette-aware) messages, composer sends successfully, message count goes 1 → 3 (2 hydrated + 1 sent).
 - **Parked future phases** (per user choice): 1a (open user-to-user messaging), 1b (friend-request gated), websockets for instant delivery (current 15s poll is fine for casual chat).
+
+
+### Parked idea 2026-06-13 (Reading-along rooms / mini book-club)
+- Concept: a chat room can pin one specific fic; members see each other's reading-progress on that fic update in real time ("Maya is on chapter 12"). Optional spoiler-tag system per-chapter. Turns Shelfsort from a personal library into a tiny book-club platform — unique angle no AO3 / KOReader / calibre clone has.
+- Priority: P2. Depends on the chat system (already built) and the existing reading-progress data (already tracked per book).
