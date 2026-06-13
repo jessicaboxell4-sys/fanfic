@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { api } from "../lib/api";
@@ -6,10 +6,19 @@ import { toast } from "sonner";
 import {
   ArrowLeft, ShieldCheck, Users, Heart, AlertTriangle, Activity, Layers,
   BarChart3, ToggleLeft, ClipboardList, Loader2, Plus, X as XIcon, Trash2,
-  Check, ChevronRight, Download, AlertOctagon, RotateCcw, Send, Mail,
-  MessageSquare, Clock, CircleAlert, Route as RouteIcon, Search,
+  Check, ChevronRight, ChevronDown, Download, AlertOctagon, RotateCcw, Send,
+  Mail, MessageSquare, Clock, CircleAlert, Route as RouteIcon, Search,
   Inbox,
 } from "lucide-react";
+
+// ---------------------------------------------------------------------------
+// Page-level "Expand all / Collapse all" broadcast
+// ---------------------------------------------------------------------------
+// Every Card on this page is collapsed by default — admins click the section
+// header (or the chevron) to reveal that one section. The toolbar at the top
+// can bulk-open or bulk-close via these tick counters: each Card listens and
+// flips its local `open` state when a tick increments.
+const AdminCardsContext = React.createContext({ openTick: 0, closeTick: 0 });
 
 function fmtBytes(n) {
   if (!Number.isFinite(n) || n <= 0) return "0 B";
@@ -31,18 +40,39 @@ function fmtTime(iso) {
 // Card wrapper
 // ---------------------------------------------------------------------------
 function Card({ icon: Icon, title, subtitle, children, testid }) {
+  // Every admin section starts collapsed so the page is just a tidy
+  // index of category headers. Click the header (or chevron) to reveal.
+  const [open, setOpen] = useState(false);
+  const { openTick, closeTick } = useContext(AdminCardsContext);
+  useEffect(() => { if (openTick > 0) setOpen(true); }, [openTick]);
+  useEffect(() => { if (closeTick > 0) setOpen(false); }, [closeTick]);
+
   return (
-    <section className="shelf-card p-6 mb-6" data-testid={testid}>
-      <div className="flex items-start gap-3 mb-4">
+    <section
+      className="shelf-card p-6 mb-6"
+      data-testid={testid}
+      data-collapsed={open ? "false" : "true"}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        data-testid={testid ? `${testid}-toggle` : undefined}
+        className={`w-full flex items-start gap-3 text-left ${open ? "mb-4" : "mb-0"}`}
+      >
         <div className="w-10 h-10 rounded-xl bg-[#EEE9FB] text-[#6B46C1] flex items-center justify-center flex-shrink-0">
           <Icon className="w-5 h-5" />
         </div>
-        <div>
+        <div className="flex-1 min-w-0">
           <h2 className="font-serif text-2xl text-[#2C2C2C]">{title}</h2>
           {subtitle && <p className="text-sm text-[#6B705C] mt-0.5">{subtitle}</p>}
         </div>
-      </div>
-      {children}
+        <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-[0.15em] text-[#6B46C1] flex-shrink-0 pt-1.5">
+          {open ? "Hide" : "Show"}
+          <ChevronDown className={`w-4 h-4 transition-transform ${open ? "rotate-180" : ""}`} />
+        </span>
+      </button>
+      {open && <div data-testid={testid ? `${testid}-body` : undefined}>{children}</div>}
     </section>
   );
 }
@@ -1604,6 +1634,8 @@ function EmailStatsCard() {
 
 
 export default function AdminConsole() {
+  const [openTick, setOpenTick] = useState(0);
+  const [closeTick, setCloseTick] = useState(0);
   return (
     <div className="min-h-screen bg-[#FAF6EE]">
       <Navbar />
@@ -1611,29 +1643,54 @@ export default function AdminConsole() {
         <Link to="/library" className="inline-flex items-center gap-1 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-4">
           <ArrowLeft className="w-4 h-4" /> back to library
         </Link>
-        <header className="mb-8 flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-[#6B46C1] text-white flex items-center justify-center">
-            <ShieldCheck className="w-6 h-6" />
+        <header className="mb-6 flex items-start justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-[#6B46C1] text-white flex items-center justify-center">
+              <ShieldCheck className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1]">Operator</p>
+              <h1 className="font-serif text-4xl md:text-5xl text-[#2C2C2C] leading-tight">Admin console</h1>
+            </div>
           </div>
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1]">Operator</p>
-            <h1 className="font-serif text-4xl md:text-5xl text-[#2C2C2C] leading-tight">Admin console</h1>
+          <div className="flex items-center gap-2" data-testid="admin-bulk-toggles">
+            <button
+              type="button"
+              onClick={() => setOpenTick((v) => v + 1)}
+              data-testid="admin-expand-all"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#6B46C1] text-white text-xs font-bold uppercase tracking-[0.15em] hover:bg-[#553397] transition-colors"
+            >
+              <ChevronDown className="w-3.5 h-3.5" /> Expand all
+            </button>
+            <button
+              type="button"
+              onClick={() => setCloseTick((v) => v + 1)}
+              data-testid="admin-collapse-all"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#6B46C1] text-[#6B46C1] text-xs font-bold uppercase tracking-[0.15em] hover:bg-[#EEE9FB] transition-colors"
+            >
+              <ChevronRight className="w-3.5 h-3.5 rotate-90" /> Collapse all
+            </button>
           </div>
         </header>
+        <p className="text-xs text-[#6B705C] italic mb-6" data-testid="admin-collapsed-hint">
+          Sections are collapsed by default — click a category to reveal its contents.
+        </p>
 
-        <UsersCard />
-        <ChatRoomsCard />
-        <UnknownFandomsCard />
-        <MaintenanceBannerCard />
-        <HealthCard />
-        <CronHealthCard />
-        <RouteCatalogueCard />
-        <EmailStatsCard />
-        <EmailDiagnosticCard />
-        <GlobalAliasesCard />
-        <GlobalStatsCard />
-        <FeatureFlagsCard />
-        <AuditLogCard />
+        <AdminCardsContext.Provider value={{ openTick, closeTick }}>
+          <UsersCard />
+          <ChatRoomsCard />
+          <UnknownFandomsCard />
+          <MaintenanceBannerCard />
+          <HealthCard />
+          <CronHealthCard />
+          <RouteCatalogueCard />
+          <EmailStatsCard />
+          <EmailDiagnosticCard />
+          <GlobalAliasesCard />
+          <GlobalStatsCard />
+          <FeatureFlagsCard />
+          <AuditLogCard />
+        </AdminCardsContext.Provider>
       </main>
     </div>
   );
