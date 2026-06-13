@@ -1619,3 +1619,8 @@ Both upload sites (the regular EPUB upload pipeline + the URL-fetch path) now pe
 - New test-ids: `fandom-finder`, `fandom-finder-input`, `fandom-finder-clear`, `fandom-finder-suggest-{slug}`, `fandom-finder-count`, `fandom-chips-grid`, `fandom-finder-empty`, `fandom-finder-empty-clear`.
 - Verified end-to-end on Jessica's 1,436-book / 33-fandom real account: default → click "Harry Potter" suggestion (1 of 33 fandoms) → garbage query (empty state) → "Show all fandoms" → all 33 chips return. All Playwright assertions passed.
 
+
+
+### Fixed 2026-06-13 (Library — "Since you were last here" dark-mode contrast)
+- The `SinceLastLogin` activity banner in `LibraryActivityWidgets.jsx` was unreadable in dark mode because `bg-[#EEF3EC]` (pale sage) had no dark-mode override in `index.css`, while `text-[#2C2C2C]` IS remapped to near-white — result: near-white text on cream background → invisible.
+- Added a one-line CSS override at `:root[data-theme="dark"] .bg-\[\#EEF3EC\]` → `rgba(167, 139, 250, 0.14)` (same tinted-purple surface used by other accented panels). Verified computed styles: `bg: rgba(167, 139, 250, 0.14)`, `color: rgb(232, 228, 216)` — fully legible.

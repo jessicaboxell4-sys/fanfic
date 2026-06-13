@@ -324,6 +324,12 @@
 /* readable when the user flips to dark.                                */
 :root[data-theme="dark"] .bg-\[\#FAF7F0\] { background-color: var(--bg); }
 
+/* `bg-[#EEF3EC]` — pale sage used by the "Since you were last here"    */
+/* activity banner on the Library page. The remapped near-white text   */
+/* was invisible against the un-remapped cream background; converge it */
+/* on the same tinted purple surface used by other accented panels.    */
+:root[data-theme="dark"] .bg-\[\#EEF3EC\] { background-color: rgba(167, 139, 250, 0.14); }
+
 /* Text — primary headings + body, and the muted "sage" support text. */
 :root[data-theme="dark"] .text-\[\#2C2C2C\] { color: var(--text-primary); }
 :root[data-theme="dark"] .text-\[\#6B705C\],
