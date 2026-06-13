@@ -44,6 +44,30 @@ FRANCHISE_GROUPS: Dict[str, List[str]] = {
         "The Kane Chronicles",
         "Daughter of the Deep",
     ],
+    "Shadowhunters (Cassandra Clare)": [
+        "Shadowhunter Chronicles - Cassandra Clare",
+        "The Mortal Instruments",
+        "The Infernal Devices",
+        "The Dark Artifices",
+        "The Last Hours",
+        "The Eldest Curses",
+        "Tales from the Shadowhunter Academy",
+        "Shadowhunters (TV)",
+    ],
+    "Cosmere (Brandon Sanderson)": [
+        "Mistborn Series - Brandon Sanderson",
+        "The Stormlight Archive - Brandon Sanderson",
+        "Warbreaker",
+        "Elantris",
+        "Tress of the Emerald Sea",
+        "Yumi and the Nightmare Painter",
+        "The Sunlit Man",
+    ],
+    "Sarah J. Maas": [
+        "A Court of Thorns and Roses - Sarah J. Maas",
+        "Throne of Glass - Sarah J. Maas",
+        "Crescent City",
+    ],
     "Marvel": [
         "Marvel",
         "Marvel Cinematic Universe",
@@ -118,14 +142,11 @@ FRANCHISE_GROUPS: Dict[str, List[str]] = {
         "天官赐福 - 墨香铜臭 | Tiān Guān Cì Fú - Mòxiāng Tóngxiù",
         "陈情令 | The Untamed (TV)",
     ],
-    "Sarah J. Maas": [
-        "A Court of Thorns and Roses - Sarah J. Maas",
-        "Throne of Glass - Sarah J. Maas",
-    ],
-    "Sanderson Cosmere": [
-        "Mistborn Series - Brandon Sanderson",
-        "The Stormlight Archive - Brandon Sanderson",
-    ],
+    # Sarah J. Maas + Sanderson Cosmere franchises now live in the
+    # consolidated block near the top of this dict (lines ~57-72) which
+    # bundles Crescent City and the rest of the Cosmere alongside the
+    # original AO3-seed entries — removed from here 2026-06-13 to fix a
+    # dict-key collision that was hiding the new sub-fandoms.
     "Honkai / miHoYo Games": [
         "原神 | Genshin Impact (Video Game)",
         "崩坏：星穹铁道 | Honkai: Star Rail (Video Game)",

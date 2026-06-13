@@ -101,6 +101,66 @@ FANDOM_KEYWORDS = {
         "daughter of the deep", "ana dakkar", "house of nemo",
         "harding-pencroft academy",
     ],
+    # ----- Cassandra Clare's Shadowhunters universe sub-series.
+    # The umbrella "Shadowhunter Chronicles - Cassandra Clare" already
+    # exists in the AO3 seed; we add the canonical sub-series so books
+    # from each get filed under the correct shelf instead of falling
+    # back to the umbrella.
+    "The Mortal Instruments": [
+        "mortal instruments", "city of bones", "city of ashes",
+        "city of glass", "city of fallen angels", "city of lost souls",
+        "city of heavenly fire", "clary fray", "jace wayland",
+        "jace herondale", "alec lightwood", "magnus bane",
+    ],
+    "The Infernal Devices": [
+        "infernal devices", "clockwork angel", "clockwork prince",
+        "clockwork princess", "tessa gray", "will herondale",
+        "jem carstairs",
+    ],
+    "The Dark Artifices": [
+        "dark artifices", "lady midnight", "lord of shadows",
+        "queen of air and darkness", "emma carstairs", "julian blackthorn",
+    ],
+    "The Last Hours": [
+        "the last hours", "chain of gold", "chain of iron",
+        "chain of thorns", "james herondale", "cordelia carstairs",
+    ],
+    "The Eldest Curses": [
+        "eldest curses", "red scrolls of magic", "lost book of the white",
+    ],
+    "Tales from the Shadowhunter Academy": [
+        "tales from the shadowhunter academy", "shadowhunter academy",
+        "simon lewis", "ghosts of the shadow market",
+    ],
+    "Shadowhunters (TV)": [
+        "shadowhunters the mortal instruments", "shadowhunters tv",
+        "freeform shadowhunters",
+    ],
+    # ----- Brandon Sanderson Cosmere additions. Mistborn + Stormlight
+    # already exist in the AO3 seed; we add the rest.
+    "Warbreaker": [
+        "warbreaker", "vasher", "vivenna", "siri", "lightsong", "nightblood",
+    ],
+    "Elantris": [
+        "elantris", "raoden", "sarene", "hrathen",
+    ],
+    "Tress of the Emerald Sea": [
+        "tress of the emerald sea", "secret projects sanderson",
+        "tress and the emerald sea",
+    ],
+    "Yumi and the Nightmare Painter": [
+        "yumi and the nightmare painter", "nightmare painter",
+    ],
+    "The Sunlit Man": [
+        "the sunlit man", "nomad sanderson",
+    ],
+    # ----- Sarah J. Maas — ACOTAR + Throne of Glass are already in the
+    # AO3 seed; add Crescent City to round out the franchise.
+    "Crescent City": [
+        "crescent city", "house of earth and blood",
+        "house of sky and breath", "house of flame and shadow",
+        "bryce quinlan", "hunt athalar", "danika fendyr",
+    ],
     "Doctor Who": ["doctor who", "tardis", "the doctor", "gallifrey"],
     "Supernatural": ["supernatural fic", "dean winchester", "sam winchester", "castiel"],
     "Game of Thrones": ["game of thrones", "westeros", "jon snow", "daenerys", "targaryen", "stark family"],
