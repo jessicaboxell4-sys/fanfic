@@ -6,6 +6,7 @@ import {
   ArrowLeft, Upload, Sparkles, Layers, RefreshCw, BookOpen, Trash2,
   Filter, Heart, AlertTriangle, Settings, GitCompare, Bell, LineChart,
   Globe, Shield, CheckCircle2, Clock, FileWarning, User as UserIcon, X,
+  MessageSquare,
 } from "lucide-react";
 
 // Help guide — kept current with the app. Last updated: 2026-06-09.
@@ -264,6 +265,32 @@ export default function Help() {
               <p>Click any book cover to open the in-browser EPUB Reader. Your reading position is saved per-book; come back to where you left off automatically.</p>
               <p>The <Link to="/stats">Reading stats</Link> page covers your library shape, most-read fandoms, and pairing distribution. (Reading streaks + word-count + per-month stats are on the upcoming list.)</p>
               <p><strong>Refresh fanfics</strong>: the URL-fetching feature (FanFicFare + FicHub) is intentionally hidden from the UI but the code is preserved for a future re-enable. No FAQ entry until then.</p>
+            </Section>
+
+            <Section id="messages" icon={MessageSquare} title="Messages">
+              <p>
+                Shelfsort has a built-in direct-messaging system at <Link to="/messages">/messages</Link>.
+                Rooms are <strong>admin-curated</strong> for now — an admin creates a room and picks who's
+                in it. Once you're in, everyone in the room can chat freely. A new chat bubble icon sits
+                in the Navbar; it polls every 15 seconds and shows a numeric badge whenever you have
+                unread messages.
+              </p>
+              <p>You can send three kinds of messages:</p>
+              <ul>
+                <li><strong>Text</strong> — plain message body (Enter to send, Shift+Enter for newline).</li>
+                <li><strong>Attach a book</strong> — click the book icon in the composer, search your library, pick one. The recipient sees a clickable card with the title + author that links straight to the book in their own copy of Shelfsort (only useful if they have it).</li>
+                <li><strong>Attach your current palette</strong> — click the palette icon to bundle whatever colour scheme you're currently running. The recipient sees a card with an <strong>Apply</strong> button that instantly switches their accent to match. Pairs neatly with the share-palette tokens on the Appearance page.</li>
+              </ul>
+              <p>
+                Messages are stored per-room with a per-user read marker. Rooms with new messages
+                surface a count badge both on the navbar icon and in the sidebar of the Messages page.
+                Opening a room auto-marks it read.
+              </p>
+              <p className="text-xs text-[#6B705C] italic">
+                Future phases (parked): open user-to-user messaging without admin curation, friend-request
+                gated chat, and websockets for instant delivery (right now it's a 15-second poll which is
+                plenty for casual chat).
+              </p>
             </Section>
 
             <Section id="account" icon={Settings} title="Account & preferences">

@@ -8,6 +8,7 @@ import StreakBadge from "./StreakBadge";
 import DownloadZipButton from "./DownloadZipButton";
 import NavbarQuickAdd from "./NavbarQuickAdd";
 import AppearancePopover from "./AppearancePopover";
+import ChatInboxIcon from "./ChatInboxIcon";
 import { FETCHING_UI_ENABLED } from "../lib/featureFlags";
 
 export default function Navbar() {
@@ -44,6 +45,7 @@ export default function Navbar() {
 
         <div className="flex items-center gap-2 md:gap-3">
           <AppearancePopover />
+          {user && <ChatInboxIcon />}
           {user && <StreakBadge />}
           {user && FETCHING_UI_ENABLED && <UpdatesBell />}
           {user && (
