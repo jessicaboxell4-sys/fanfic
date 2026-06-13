@@ -201,6 +201,21 @@
     to { opacity: 1; transform: translateY(0); }
 }
 
+/* One-shot attention pulse for the new navbar appearance icon.
+   Fires three soft rings, then stops. Used to surface the merged
+   theme/palette popover to users who haven't discovered it yet.
+   The component flips a localStorage flag after first fire so it
+   never plays again on this browser. */
+@keyframes appearancePulse {
+    0%   { box-shadow: 0 0 0 0   color-mix(in srgb, var(--primary) 70%, transparent); }
+    70%  { box-shadow: 0 0 0 10px color-mix(in srgb, var(--primary) 0%,  transparent); }
+    100% { box-shadow: 0 0 0 0   color-mix(in srgb, var(--primary) 0%,  transparent); }
+}
+.appearance-pulse {
+    animation: appearancePulse 1.4s ease-out 3;
+    border-radius: 0.5rem;
+}
+
 /* ─── Brand-accent theme bridge ────────────────────────────────────── */
 /* The JSX still uses literal-hex utility classes like                  */
 /* `text-[#E07A5F]` and `bg-[#E07A5F]/20` (44 component / page files,   */

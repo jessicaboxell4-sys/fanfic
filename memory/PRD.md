@@ -1055,3 +1055,9 @@ These are agent-suggested features the user hasn't picked yet. Bring them up nex
 - **Hover-name caption** in the navbar popover: small live label below the swatch grid that reads `Preview: <Hovered>` while hovering or `Current: <Active>` otherwise. Replaces browser-native `title=` tooltips (which had a 1.5s delay). Captures `onMouseEnter/Leave` + `onFocus/Blur` for keyboard parity. Each swatch also got a proper `aria-label="<Name> palette"` for screen readers.
 - **Sharper theme toggle label**: "Switch to Light →" / "Switch to Dark →" instead of vague "switch →". Tells the user exactly what tapping it will do.
 - **Reset to defaults** link at the bottom of `/account/appearance`: two-click confirmation (first click arms a red "Click again to confirm reset" label + a cancel link, second click restores the default palette (`purple`) and the default custom hex set, then toasts). Shows "(currently at defaults)" when already there.
+
+
+### Added 2026-06-13 (Appearance discovery — pulse + announcement)
+- **One-shot pulse**: new `@keyframes appearancePulse` in `index.css` (three soft rings using `box-shadow` + `color-mix` so the ring colour respects the active palette). Applied via `.appearance-pulse` class on the navbar sun/moon button when `localStorage.shelfsort_appearance_seen` is missing. Cleared on first click of the icon (popover open) — so power users dismiss it instantly and the flag persists forever in that browser.
+- **"What's new?" announcement** published via `POST /api/announcements` with version `2026-06-13-appearance`, title "Appearance, all in one place", two items: the popover entry + the dedicated Appearance page (with deep-links to `/library` and `/account/appearance`). Surfaces in the existing `UpdatesBell` until the user dismisses it.
+- Verified via Playwright: `Has pulse class: True` on first load; `localStorage.shelfsort_appearance_seen = "1"` after click; announcement visible (purple dot on the bell).

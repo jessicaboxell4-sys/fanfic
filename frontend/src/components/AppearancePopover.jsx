@@ -13,7 +13,19 @@ export default function AppearancePopover() {
   const { palette, paletteId, setPaletteId, palettes, customLight } = usePalette();
   const [open, setOpen] = useState(false);
   const [hoverName, setHoverName] = useState(null);
+  // One-shot attention pulse — fires on first mount per browser, then
+  // localStorage flag suppresses it forever. Cleared the moment the user
+  // opens the popover (so power users who already know don't see it).
+  const [pulse, setPulse] = useState(() => {
+    try { return !localStorage.getItem("shelfsort_appearance_seen"); }
+    catch { return false; }
+  });
   const rootRef = useRef(null);
+
+  const markSeen = () => {
+    setPulse(false);
+    try { localStorage.setItem("shelfsort_appearance_seen", "1"); } catch { /* ignore */ }
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -35,8 +47,8 @@ export default function AppearancePopover() {
     <div className="relative" ref={rootRef}>
       <button
         data-testid="navbar-theme-toggle"
-        onClick={() => setOpen((v) => !v)}
-        className="p-2 hover:bg-[#F5F3EC] rounded-lg"
+        onClick={() => { setOpen((v) => !v); if (pulse) markSeen(); }}
+        className={`p-2 hover:bg-[#F5F3EC] rounded-lg ${pulse ? "appearance-pulse" : ""}`}
         title="Appearance — theme & colour"
         aria-label="Appearance"
         aria-expanded={open}
