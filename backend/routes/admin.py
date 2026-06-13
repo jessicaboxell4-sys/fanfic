@@ -747,3 +747,57 @@ async def get_cron_health(user: User = Depends(require_admin)):
             "recent": recent,
         })
     return {"jobs": out, "checked_at": now.isoformat()}
+
+
+
+# ---------------------------------------------------------------------------
+# Route catalogue — lists every registered API route grouped by source
+# module. Useful for "where does this URL live?" audits, especially
+# while books.py is mid-refactor across many new modules.
+# ---------------------------------------------------------------------------
+
+
+@api_router.get("/admin/routes")
+async def list_registered_routes(user: User = Depends(require_admin)):
+    """Return every registered ``/api/*`` route grouped by source file.
+
+    For each route we expose: path, HTTP methods, endpoint function name,
+    docstring summary (first line only), and the module it lives in.
+    The frontend widget renders this as a collapsible per-module list so
+    you can answer "where the heck does this URL live?" in one click.
+    """
+    from fastapi.routing import APIRoute
+    from deps import app  # FastAPI singleton
+
+    groups: Dict[str, List[Dict[str, Any]]] = {}
+    total = 0
+    for r in app.routes:
+        if not isinstance(r, APIRoute):
+            continue
+        # Skip non-API routes (FastAPI's docs/openapi).
+        if not r.path.startswith("/api"):
+            continue
+        ep = r.endpoint
+        mod = getattr(ep, "__module__", "?")
+        # Trim docstring to its first non-empty line so the listing
+        # stays scannable.
+        doc = (ep.__doc__ or "").strip()
+        first_line = doc.splitlines()[0].strip() if doc else ""
+        groups.setdefault(mod, []).append({
+            "path": r.path,
+            "methods": sorted(m for m in (r.methods or []) if m != "HEAD"),
+            "name": ep.__name__,
+            "doc": first_line[:140],
+        })
+        total += 1
+
+    # Sort each group by path; sort the group keys themselves.
+    sorted_groups = []
+    for mod in sorted(groups):
+        rows = sorted(groups[mod], key=lambda x: x["path"])
+        sorted_groups.append({
+            "module": mod,
+            "count": len(rows),
+            "routes": rows,
+        })
+    return {"total": total, "modules": sorted_groups}

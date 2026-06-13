@@ -7,7 +7,7 @@ import {
   ArrowLeft, ShieldCheck, Users, Heart, AlertTriangle, Activity, Layers,
   BarChart3, ToggleLeft, ClipboardList, Loader2, Plus, X as XIcon, Trash2,
   Check, ChevronRight, Download, AlertOctagon, RotateCcw, Send, Mail,
-  MessageSquare, Clock, CircleAlert,
+  MessageSquare, Clock, CircleAlert, Route as RouteIcon, Search,
 } from "lucide-react";
 
 function fmtBytes(n) {
@@ -1314,6 +1314,125 @@ function CronHealthCard() {
 
 
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Route Catalogue — every registered /api/* endpoint grouped by source file.
+// Surfaces the new module layout (routes/tags.py, routes/authors.py, etc.)
+// from the books.py refactor, plus answers "where does this URL live?" fast.
+// ---------------------------------------------------------------------------
+function RouteCatalogueCard() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [q, setQ] = useState("");
+  const [openModules, setOpenModules] = useState({});
+
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data } = await api.get("/admin/routes");
+      setData(data);
+    } catch (e) {
+      setError(e?.response?.data?.detail || e.message || "Failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => { load(); }, []);
+
+  const ql = q.trim().toLowerCase();
+  const filtered = (data?.modules || []).map((g) => {
+    const matchedRoutes = ql
+      ? g.routes.filter((r) =>
+          r.path.toLowerCase().includes(ql) ||
+          r.name.toLowerCase().includes(ql) ||
+          (r.doc || "").toLowerCase().includes(ql)
+        )
+      : g.routes;
+    return { ...g, routes: matchedRoutes };
+  }).filter((g) =>
+    !ql || g.routes.length > 0 || g.module.toLowerCase().includes(ql)
+  );
+
+  return (
+    <Card icon={RouteIcon} title="Route catalogue" subtitle="Every /api/* endpoint, grouped by source file." testid="route-catalogue-card">
+      <div className="flex flex-wrap items-center gap-3 mb-3">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#6B705C]" />
+          <input
+            type="text"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="filter by path, function name, or docstring…"
+            className="w-full pl-8 pr-3 py-1.5 text-sm border border-[#E8E2D4] rounded-lg focus:outline-none focus:border-[#3A5A40]"
+            data-testid="route-catalogue-filter"
+          />
+        </div>
+        <p className="text-xs text-[#6B705C]">{data ? `${data.total} routes / ${data.modules.length} modules` : ""}</p>
+        <button
+          type="button"
+          onClick={load}
+          disabled={loading}
+          className="text-xs text-[#3A5A40] hover:underline disabled:opacity-50 inline-flex items-center gap-1"
+          data-testid="route-catalogue-refresh"
+        >
+          {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
+          refresh
+        </button>
+      </div>
+      {error && <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3 mb-3">{error}</div>}
+      {loading && !data && <p className="text-sm text-[#6B705C]">Loading…</p>}
+      <div className="space-y-2" data-testid="route-catalogue-list">
+        {filtered.map((g) => {
+          const isOpen = openModules[g.module] ?? !!ql;
+          return (
+            <div key={g.module} className="border border-[#E8E2D4] rounded-lg" data-testid={`route-mod-${g.module}`}>
+              <button
+                type="button"
+                className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-[#F7F4EE]"
+                onClick={() => setOpenModules((prev) => ({ ...prev, [g.module]: !isOpen }))}
+                data-testid={`route-mod-toggle-${g.module}`}
+              >
+                <span className="font-mono text-sm text-[#2C2C2C]">{g.module}</span>
+                <span className="text-xs text-[#6B705C]">
+                  {g.routes.length} route{g.routes.length === 1 ? "" : "s"}
+                  <ChevronRight className={`w-3 h-3 inline ml-1 transition-transform ${isOpen ? "rotate-90" : ""}`} />
+                </span>
+              </button>
+              {isOpen && (
+                <ul className="border-t border-[#E8E2D4] px-3 py-2 space-y-1 text-xs font-mono">
+                  {g.routes.map((r) => (
+                    <li key={`${r.path}-${r.methods.join(",")}`} className="flex items-start gap-2">
+                      <span className="flex-shrink-0 inline-flex gap-1">
+                        {r.methods.map((m) => (
+                          <span key={m} className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                            m === "GET" ? "bg-blue-100 text-blue-800" :
+                            m === "POST" ? "bg-green-100 text-green-800" :
+                            m === "PUT" ? "bg-amber-100 text-amber-800" :
+                            m === "DELETE" ? "bg-red-100 text-red-800" :
+                            "bg-gray-100 text-gray-800"
+                          }`}>{m}</span>
+                        ))}
+                      </span>
+                      <span className="text-[#2C2C2C] break-all">{r.path}</span>
+                      {r.doc && <span className="text-[#6B705C] italic font-sans">— {r.doc}</span>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          );
+        })}
+        {filtered.length === 0 && !loading && (
+          <p className="text-sm text-[#6B705C]" data-testid="route-catalogue-empty">No routes match your filter.</p>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+
 export default function AdminConsole() {
   return (
     <div className="min-h-screen bg-[#FAF6EE]">
@@ -1338,6 +1457,7 @@ export default function AdminConsole() {
         <MaintenanceBannerCard />
         <HealthCard />
         <CronHealthCard />
+        <RouteCatalogueCard />
         <EmailDiagnosticCard />
         <GlobalAliasesCard />
         <GlobalStatsCard />

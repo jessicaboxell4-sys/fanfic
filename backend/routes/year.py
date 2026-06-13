@@ -25,7 +25,7 @@ from ebooklib import epub
 from bs4 import BeautifulSoup
 
 from deps import (
-    db, app, api_router, logger, ROOT_DIR, STORAGE_DIR,
+    db, api_router, logger, ROOT_DIR, STORAGE_DIR,
     EMERGENT_LLM_KEY, RESET_TOKEN_TTL_HOURS, RESEND_API_KEY,
     SENDER_EMAIL, FRONTEND_URL,
 )
@@ -467,7 +467,4 @@ async def get_public_year(token: str):
         "display_name": display_name,
         "year": int(doc["year"]),
     }
-
-
-app.include_router(api_router)
 

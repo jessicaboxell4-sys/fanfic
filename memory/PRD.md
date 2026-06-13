@@ -1336,3 +1336,27 @@ These are agent-suggested features the user hasn't picked yet. Bring them up nex
 **Phase 4 candidates (parked)**:
 - `routes/fanfic_refresh.py` — `/books/{id}/refresh`, `/library/refresh-stale`, `/fanfic/source-url/preview`, status cache. Highest coupling with the upload pipeline — saved for last on purpose.
 - Duplicate-resolution endpoints (`/books/{id}/resolve-duplicate`, `/books/resolve-group`).
+
+
+### Added 2026-06-13 (Route catalogue admin widget + latent bug fix)
+
+**Why**: with Phase-2 of the books.py refactor done, routes are now spread across 20 source modules. Needed a "where does this URL live?" lookup to keep audits + deprecation + onboarding sane.
+
+**Backend**
+- `routes/admin.py::GET /api/admin/routes` — walks `app.routes`, returns every `APIRoute` under `/api/*` grouped by `endpoint.__module__`. Each entry: `path`, `methods`, `name`, `doc` (first line, 140-char capped). Admin-only.
+
+**Frontend**
+- `AdminConsole.jsx::RouteCatalogueCard` — new card with a text filter (matches path / function name / docstring), per-module collapsible groups, colored HTTP-method pills (GET=blue, POST=green, PUT=amber, DELETE=red). Data-test-ids on all interactive elements.
+
+**🔴 Latent bug found + fixed while building this**
+- `routes/year.py` had a stray `app.include_router(api_router)` at the bottom of the file. Combined with the canonical one in `server.py`, every route was being registered TWICE into the FastAPI app. `app.routes` had **352 entries** vs the actual 216 unique routes — almost 2× the expected count. Removed the duplicate include + the unused `app` import.
+- Side effect of the fix: the route catalogue now shows the truthful 216 / 20 modules, and FastAPI's internal routing table is half the size.
+- Tests: `test_year_in_books.py` + `test_year_share.py` (50 cases) all still pass — the duplicate registration was redundant, not load-bearing.
+
+**Tests**
+- `tests/test_admin_routes.py` — 4 cases: grouped shape contract, the Phase-2 extracted modules (`routes.tags`, `routes.authors`, `routes.pairings`, `routes.trash`) all show up with their correct paths, admin-only enforcement, anonymous rejection.
+
+**Health**
+- Full suite: **656 passed, 14 skipped, 0 failed** (+4 new tests).
+- Lint: 0 blocking.
+- E2E verified via screenshot: filtered the catalogue by "trash" → exactly the 1 `routes.books` bulk-delete endpoint + the 4 `routes.trash` endpoints appear, each route shown once.
