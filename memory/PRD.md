@@ -1159,3 +1159,8 @@ These are agent-suggested features the user hasn't picked yet. Bring them up nex
 - **Missing TOC entry fixed**: added `messages` to the `SECTIONS` array (the Messages & Friends section was rendered but unreachable from the TOC).
 - **Pre-existing unescaped-entity warnings cleaned up**: 13 React lint errors in the recently-added Messages section copy (quotes + apostrophes) replaced with `&ldquo;`/`&rdquo;`/`&rsquo;`/`&apos;` HTML entities.
 - Verified via Playwright: typing `palette` → "2 sections match" + TOC shrinks to Messages & Account; `invite` → 1 section match; clear button restores everything.
+
+### Added 2026-06-13 (Help search suggestion chips)
+- Row of six clickable chips below the Help search input shown only when the query is empty: `palette`, `friends`, `EPUB`, `shelves`, `backup`, `dark mode`. Click pre-fills the search → instant filter, no typing.
+- Verified via Playwright: 6 chips render, clicking `friends` → search input filled → "1 section match" + TOC narrows to Messages & friends.
+

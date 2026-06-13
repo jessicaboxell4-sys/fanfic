@@ -170,6 +170,22 @@ export default function Help() {
                 : `${matchingSectionIds.length} section${matchingSectionIds.length === 1 ? "" : "s"} match`}
             </p>
           )}
+          {!query.trim() && (
+            <div className="flex flex-wrap items-center gap-1.5 mt-3" data-testid="help-search-chips">
+              <span className="text-[10px] uppercase tracking-wider text-[#6B705C] font-semibold mr-1">Try:</span>
+              {["palette", "friends", "EPUB", "shelves", "backup", "dark mode"].map((chip) => (
+                <button
+                  key={chip}
+                  type="button"
+                  onClick={() => setQuery(chip)}
+                  data-testid={`help-search-chip-${chip.replace(/\s+/g, "-")}`}
+                  className="text-[11px] px-2.5 py-1 rounded-full border border-[#E5DDC5] bg-white text-[#6B705C] hover:border-[var(--primary)] hover:text-[var(--primary)] transition-colors"
+                >
+                  {chip}
+                </button>
+              ))}
+            </div>
+          )}
         </header>
 
         <aside
