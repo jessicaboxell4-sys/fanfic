@@ -8,8 +8,9 @@ import {
   BarChart3, ToggleLeft, ClipboardList, Loader2, Plus, X as XIcon, Trash2,
   Check, ChevronRight, ChevronDown, Download, AlertOctagon, RotateCcw, Send,
   Mail, MessageSquare, Clock, CircleAlert, Route as RouteIcon, Search,
-  Inbox,
+  Inbox, Database,
 } from "lucide-react";
+import MongoInspectorCard from "../components/MongoInspectorCard";
 
 // ---------------------------------------------------------------------------
 // Page-level "Expand all / Collapse all" broadcast
@@ -46,6 +47,7 @@ const ADMIN_CARD_MANIFEST = [
   { testid: "admin-stats-card", title: "Global stats", subtitle: "Tenant-wide rollup.", keywords: "stats global rollup books users storage signups categories fandoms" },
   { testid: "admin-flags-card", title: "Feature flags", subtitle: "Runtime kill switches.", keywords: "feature flags toggles kill switch runtime config" },
   { testid: "admin-audit-card", title: "Audit log", subtitle: "Every admin write action.", keywords: "audit log history admin actions write changes" },
+  { testid: "admin-mongo-inspector-card", title: "Mongo inspector", subtitle: "Read-only browse of every collection.", keywords: "mongo db database collections docs raw browse inspect" },
 ];
 
 function cardMatchesQuery(card, q) {
@@ -1684,6 +1686,23 @@ function EmailStatsCard() {
   );
 }
 
+// Wrap the read-only Mongo inspector in a Card so it shares the
+// collapse/expand machinery + section-search filtering with the rest
+// of the admin console.
+function MongoInspectorCardWrap() {
+  return (
+    <Card
+      icon={Database}
+      title="Mongo inspector"
+      subtitle="Read-only browse of every collection."
+      testid="admin-mongo-inspector-card"
+    >
+      <MongoInspectorCard />
+    </Card>
+  );
+}
+
+
 
 
 export default function AdminConsole() {
@@ -1853,6 +1872,7 @@ export default function AdminConsole() {
               <GlobalStatsCard />
               <FeatureFlagsCard />
               <AuditLogCard />
+              <MongoInspectorCardWrap />
             </>
           )}
         </AdminCardsContext.Provider>

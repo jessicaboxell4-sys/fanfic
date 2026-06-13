@@ -1727,3 +1727,13 @@ Both upload sites (the regular EPUB upload pipeline + the URL-fetch path) now pe
 - Immediately surfaced **8 latent text-colour bugs** (`text-[#B85C7C]`, `text-[#9A9580]`, `text-[#4A4A4A]`, `text-[#3A3A3A]`, `text-[#B43F26]`, `text-[#9E5A2E]`, `text-[#9D2A2A]`, `text-[#8C5C00]`) where JSX used uppercase but overrides only listed lowercase → invisible text on dark surface.
 - All 8 fixed by extending the existing CSS rules to include both casings. Helpful comment added in `index.css` explaining the case-sensitivity gotcha.
 - Suite now: 4 tests, ~0.1s, blocks the entire family of "I changed a Tailwind colour case and the dark override silently broke" bugs.
+
+
+### Added 2026-06-13 (P2: Mongo collections inspector for admins)
+- New `routes/admin_db.py` with two read-only endpoints, both `Depends(require_admin)`:
+  - `GET /api/admin/db/collections` — manifest sorted by size_mb desc, with doc count + `last_doc_at` from each newest `_id`'s generation_time. `user_sessions` is filtered out of the manifest entirely so it's not discoverable.
+  - `GET /api/admin/db/collection/{name}?skip&limit&q` — paginated docs (newest first by `_id`, hard-capped at limit=50), with optional case-insensitive search across `_id` / `email` / `name` / `user_id` / `title`. Sensitive collections → 404. Document responses run through `_redact_value` which strips `password_hash`, `session_token`, `api_key`, `access_token`, `refresh_token`, truncates string fields > 10 KB, and caps arrays at 100 items.
+- New `frontend/src/components/MongoInspectorCard.jsx`: left rail of collections with size + recency badges, right pane with search box (Enter or button to submit), pagination (`← Prev` · `page X / Y` · `Next →`), each row shows `_id` + a 3-field summary and an inline `Show JSON` toggle that reveals the full redacted document.
+- Wired into `AdminConsole.jsx` as the 14th section (`admin-mongo-inspector-card`), registered in the section-search manifest (keywords: `mongo db database collections docs raw browse inspect`).
+- Test coverage: 7 new pytests in `backend/tests/test_admin_db_inspector.py` — anonymous/non-admin rejection, manifest hides `user_sessions`, password-hash redaction visible in a search result, sensitive collection → 404, search narrows results, limit > 50 → 422. All pass; existing 4 dark-mode regression tests still green.
+- Verified E2E on Jessica's 5,210-book tenant: 28 collections render, search "jessicab" returns exactly 1 user, JSON expand shows correctly redacted document.
