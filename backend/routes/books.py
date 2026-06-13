@@ -329,6 +329,112 @@ FANDOM_KEYWORDS = {
     "Nausicaä of the Valley of the Wind": [
         "nausicaa of the valley of the wind", "nausicaä", "kaze no tani no nausicaa",
     ],
+    # ----- Bridgerton companion / Buffyverse / Angel.
+    "Queen Charlotte: A Bridgerton Story": [
+        "queen charlotte bridgerton", "queen charlotte (tv)",
+        "young queen charlotte", "king george iii bridgerton",
+    ],
+    "Angel: the Series": [
+        "angel the series", "angel buffy spinoff", "angel investigations",
+        "wolfram and hart", "fred burkle", "wesley wyndam-pryce",
+    ],
+    # ----- Procedurals & long-runners not in the seed.
+    "House M.D.": [
+        "house md", "house m.d.", "gregory house", "james wilson",
+        "hugh laurie house", "princeton-plainsboro",
+    ],
+    # ----- Arrowverse (CW DC shows). They share crossovers so they're
+    # almost always tagged together — group them so the Help page
+    # shelves them as a single franchise.
+    "Arrow (TV)": [
+        "arrow tv", "oliver queen arrow", "felicity smoak", "green arrow tv",
+    ],
+    "The Flash (TV 2014)": [
+        "the flash (tv)", "barry allen tv", "cw flash", "iris west tv",
+    ],
+    "Supergirl (TV 2015)": [
+        "supergirl cw", "kara danvers", "supergirl tv", "alex danvers",
+    ],
+    "Legends of Tomorrow (TV)": [
+        "legends of tomorrow", "sara lance", "ava sharpe", "waverider",
+    ],
+    "Batwoman (TV)": [
+        "batwoman cw", "kate kane tv", "ryan wilder",
+    ],
+    "Black Lightning (TV)": [
+        "black lightning", "jefferson pierce", "thunder lightning",
+    ],
+    "Stargirl (TV)": [
+        "stargirl cw", "courtney whitmore", "jsa stargirl",
+    ],
+    "Titans (TV)": [
+        "titans tv", "dc titans", "raven dick grayson titans",
+    ],
+    # ----- League of Legends + Arcane.
+    "League of Legends": [
+        "league of legends", "lol video game", "summoner's rift",
+        "riot games lol",
+    ],
+    "Arcane: League of Legends (Cartoon)": [
+        "arcane league of legends", "arcane netflix", "vi arcane",
+        "jinx arcane", "caitlyn arcane", "piltover", "zaun arcane",
+    ],
+    # ----- Castlevania (Netflix).
+    "Castlevania (Cartoon)": [
+        "castlevania netflix", "trevor belmont", "alucard castlevania",
+        "sypha belnades", "dracula castlevania",
+    ],
+    "Castlevania: Nocturne (Cartoon)": [
+        "castlevania nocturne", "richter belmont nocturne",
+        "annette nocturne", "maria renard",
+    ],
+    # ----- Wheel of Time.
+    "The Wheel of Time - Robert Jordan": [
+        "wheel of time", "robert jordan wot", "rand al'thor",
+        "mat cauthon", "perrin aybara", "egwene al'vere", "nynaeve al'meara",
+    ],
+    "The Wheel of Time (TV)": [
+        "wheel of time amazon", "wheel of time tv", "wot prime video",
+    ],
+    # ----- Good Omens novel.
+    "Good Omens - Pratchett & Gaiman": [
+        "good omens novel", "terry pratchett neil gaiman good omens",
+        "aziraphale crowley book",
+    ],
+    # ----- Dragon Ball spin-offs (umbrella is in the seed).
+    "Dragon Ball Z": [
+        "dragon ball z", "dbz", "saiyan saga", "namek saga",
+        "android saga", "buu saga",
+    ],
+    "Dragon Ball Super": [
+        "dragon ball super", "dbs", "tournament of power", "moro arc",
+        "granolah arc",
+    ],
+    "Dragon Ball GT": [
+        "dragon ball gt", "dbgt",
+    ],
+    # ----- Newer K-pop groups (the older ones — BTS, ENHYPEN, TWICE,
+    # SEVENTEEN, Stray Kids, ATEEZ, BLACKPINK — are in the seed).
+    "TXT (Band)": [
+        "tomorrow x together", "txt band", "moa fandom",
+        "yeonjun soobin beomgyu taehyun huening kai",
+    ],
+    "aespa (Band)": [
+        "aespa", "karina aespa", "winter aespa", "ningning aespa",
+        "giselle aespa", "my ae",
+    ],
+    "NewJeans (Band)": [
+        "newjeans", "njz", "minji hanni danielle haerin hyein",
+    ],
+    "LE SSERAFIM (Band)": [
+        "le sserafim", "lesserafim", "sakura chaewon yunjin kazuha eunchae",
+    ],
+    "ITZY (Band)": [
+        "itzy", "midzy fandom", "yeji lia ryujin chaeryeong yuna",
+    ],
+    "IVE (Band)": [
+        "ive band", "dive fandom", "yujin gaeul rei wonyoung liz leeseo",
+    ],
     "Doctor Who": ["doctor who", "tardis", "the doctor", "gallifrey"],
     "Supernatural": ["supernatural fic", "dean winchester", "sam winchester", "castiel"],
     "Game of Thrones": ["game of thrones", "westeros", "jon snow", "daenerys", "targaryen", "stark family"],

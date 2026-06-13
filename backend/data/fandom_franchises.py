@@ -172,6 +172,42 @@ FRANCHISE_GROUPS: Dict[str, List[str]] = {
         "The Wind Rises",
         "Nausicaä of the Valley of the Wind",
     ],
+    "Bridgerton-verse": [
+        "Bridgerton (TV)",
+        "Queen Charlotte: A Bridgerton Story",
+    ],
+    "Buffyverse": [
+        "Buffy the Vampire Slayer",
+        "Angel: the Series",
+    ],
+    "Arrowverse": [
+        "Arrow (TV)",
+        "The Flash (TV 2014)",
+        "Supergirl (TV 2015)",
+        "Legends of Tomorrow (TV)",
+        "Batwoman (TV)",
+        "Black Lightning (TV)",
+        "Stargirl (TV)",
+        "Titans (TV)",
+    ],
+    "League of Legends": [
+        "League of Legends",
+        "Arcane: League of Legends (Cartoon)",
+    ],
+    "Castlevania": [
+        "Castlevania (Cartoon)",
+        "Castlevania: Nocturne (Cartoon)",
+    ],
+    "Wheel of Time": [
+        "The Wheel of Time - Robert Jordan",
+        "The Wheel of Time (TV)",
+    ],
+    "Dragon Ball": [
+        "ドラゴンボール | Dragon Ball - All Media Types",
+        "Dragon Ball Z",
+        "Dragon Ball Super",
+        "Dragon Ball GT",
+    ],
     "Avatar (Bryke)": [
         "Avatar: The Last Airbender",
         "The Legend of Korra",
