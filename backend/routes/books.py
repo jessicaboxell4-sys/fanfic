@@ -721,47 +721,19 @@ from utils.status_detector import (  # noqa: E402
     COMPLETE as STATUS_COMPLETE,
     ONGOING as STATUS_ONGOING,
 )
+from utils.constants import TRASH_SHELF, TRASH_GRACE_DAYS  # noqa: E402
 
 
 
-# ---- Tag helpers -----------------------------------------------------------
-TAG_MAX_LENGTH = 32
-TAG_MAX_PER_BOOK = 20
-
-
-def _normalize_tag(tag: Any) -> Optional[str]:
-    """Lowercase, hyphenated, stripped. Returns None for empty/invalid input."""
-    if not tag:
-        return None
-    s = str(tag).strip().lower()
-    if not s:
-        return None
-    # Collapse whitespace -> hyphen; remove disallowed punctuation
-    s = re.sub(r"\s+", "-", s)
-    s = re.sub(r"[^a-z0-9\-_]", "", s)
-    s = s.strip("-_")
-    if not s:
-        return None
-    return s[:TAG_MAX_LENGTH]
-
-
-def _normalize_tags(raw: Any) -> List[str]:
-    """Take a list-like and return a clean, de-duped, capped list of tag slugs."""
-    if not raw:
-        return []
-    if isinstance(raw, str):
-        # Allow comma-separated strings too
-        raw = [p for p in re.split(r"[,;]", raw) if p.strip()]
-    out: List[str] = []
-    seen: set = set()
-    for t in raw:
-        n = _normalize_tag(t)
-        if n and n not in seen:
-            seen.add(n)
-            out.append(n)
-            if len(out) >= TAG_MAX_PER_BOOK:
-                break
-    return out
+# ---- Tag helpers (moved to utils.tags as part of books.py refactor Phase 2)
+# We still re-export the underscore-prefixed names here so any pending
+# callers in this file (the upload + bulk-edit pipelines) keep working.
+from utils.tags import (  # noqa: E402
+    TAG_MAX_LENGTH,  # noqa: F401
+    TAG_MAX_PER_BOOK,  # noqa: F401
+    _normalize_tag,  # noqa: F401
+    _normalize_tags,
+)
 
 
 class FanficNotFoundError(Exception):
@@ -1861,8 +1833,9 @@ def _updated_shelf_name(now: Optional[datetime] = None) -> str:
 
 
 OLD_STORIES_SHELF = "Old stories"
-TRASH_SHELF = "Trash"
-TRASH_GRACE_DAYS = 30
+# NOTE: ``TRASH_SHELF`` and ``TRASH_GRACE_DAYS`` are imported from
+# ``utils.constants`` at the top of this module — kept centralized so
+# ``routes/trash.py`` and ``routes/authors.py`` share the canonical values.
 
 
 async def fetch_fanfic_with_fallback(
@@ -5139,192 +5112,18 @@ async def bulk_metadata(body: BulkMetadataBody, user: User = Depends(get_current
 
 
 # ============================================================
-# TAGS ROUTES
+# TAGS ROUTES — extracted to routes/tags.py in books.py Phase 2 refactor.
+# See ``backend/routes/tags.py`` for the 7 endpoints under /api/tags/* and
+# /api/books/{book_id}/tags*. They still register on the same shared
+# api_router so URLs are unchanged.
 # ============================================================
-@api_router.get("/tags")
-async def list_tags(user: User = Depends(get_current_user)):
-    """Distinct tags across the user's library with counts."""
-    pipeline = [
-        {"$match": {"user_id": user.user_id, "tags": {"$exists": True, "$ne": []}}},
-        {"$unwind": "$tags"},
-        {"$group": {"_id": "$tags", "count": {"$sum": 1}}},
-        {"$sort": {"count": -1, "_id": 1}},
-    ]
-    rows = await db.books.aggregate(pipeline).to_list(2000)
-    return {
-        "tags": [
-            {"name": r["_id"], "count": r["count"]}
-            for r in rows if r.get("_id")
-        ]
-    }
-
-
-class TagAddBody(BaseModel):
-    tags: List[str]
-
-
-@api_router.post("/books/{book_id}/tags")
-async def add_book_tags(book_id: str, body: TagAddBody, user: User = Depends(get_current_user)):
-    """Add one or more tags to a book (idempotent)."""
-    new_tags = _normalize_tags(body.tags)
-    if not new_tags:
-        raise HTTPException(status_code=400, detail="No valid tags provided")
-    book = await db.books.find_one({"book_id": book_id, "user_id": user.user_id}, {"_id": 0, "tags": 1})
-    if book is None:
-        raise HTTPException(status_code=404, detail="Not found")
-    current = list(book.get("tags") or [])
-    # Enforce per-book cap
-    remaining = max(0, TAG_MAX_PER_BOOK - len(current))
-    if remaining == 0:
-        raise HTTPException(status_code=400, detail=f"This book already has the maximum of {TAG_MAX_PER_BOOK} tags")
-    to_add = [t for t in new_tags if t not in current][:remaining]
-    if not to_add:
-        return {"tags": current}
-    await db.books.update_one(
-        {"book_id": book_id, "user_id": user.user_id},
-        {"$addToSet": {"tags": {"$each": to_add}}},
-    )
-    return {"tags": current + to_add}
-
-
-@api_router.delete("/books/{book_id}/tags/{tag}")
-async def remove_book_tag(book_id: str, tag: str, user: User = Depends(get_current_user)):
-    tag = _normalize_tag(tag)
-    if not tag:
-        raise HTTPException(status_code=400, detail="Invalid tag")
-    result = await db.books.update_one(
-        {"book_id": book_id, "user_id": user.user_id},
-        {"$pull": {"tags": tag}},
-    )
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Not found")
-    return {"ok": True}
-
-
-class TagRenameBody(BaseModel):
-    new_name: str
-
-
-@api_router.put("/tags/{old_name}")
-async def rename_tag(old_name: str, body: TagRenameBody, user: User = Depends(get_current_user)):
-    """Rename a tag across all of the user's books."""
-    old = _normalize_tag(old_name)
-    new = _normalize_tag(body.new_name)
-    if not old or not new:
-        raise HTTPException(status_code=400, detail="Invalid tag name")
-    if old == new:
-        return {"updated": 0}
-    # Books that have `old` but NOT yet `new` → safely swap via the positional $ operator
-    r1 = await db.books.update_many(
-        {
-            "user_id": user.user_id,
-            "$and": [{"tags": old}, {"tags": {"$nin": [new]}}],
-        },
-        {"$set": {"tags.$": new}},
-    )
-    # Books that already had BOTH `old` and `new` → just remove `old`
-    r2 = await db.books.update_many(
-        {"user_id": user.user_id, "tags": old},
-        {"$pull": {"tags": old}},
-    )
-    return {"updated": (r1.modified_count or 0) + (r2.modified_count or 0)}
-
-
-class TagMergeBody(BaseModel):
-    sources: List[str]
-    target: str
-
-
-@api_router.post("/tags/merge")
-async def merge_tags(body: TagMergeBody, user: User = Depends(get_current_user)):
-    """Merge multiple tags into a single target tag across the user's books."""
-    target = _normalize_tag(body.target)
-    sources = _normalize_tags(body.sources)
-    if not target or not sources:
-        raise HTTPException(status_code=400, detail="Provide non-empty sources and target")
-    sources = [s for s in sources if s != target]
-    if not sources:
-        return {"updated": 0}
-    # Books that match any source: add target, then pull all sources.
-    match = {"user_id": user.user_id, "tags": {"$in": sources}}
-    r1 = await db.books.update_many(match, {"$addToSet": {"tags": target}})
-    r2 = await db.books.update_many(match, {"$pull": {"tags": {"$in": sources}}})
-    return {"updated": (r1.modified_count or 0) + (r2.modified_count or 0)}
-
-
-@api_router.delete("/tags/{name}")
-async def delete_tag(name: str, user: User = Depends(get_current_user)):
-    """Remove a tag from every book in the user's library."""
-    tag = _normalize_tag(name)
-    if not tag:
-        raise HTTPException(status_code=400, detail="Invalid tag")
-    result = await db.books.update_many(
-        {"user_id": user.user_id, "tags": tag},
-        {"$pull": {"tags": tag}},
-    )
-    return {"updated": result.modified_count}
-
-
-@api_router.post("/books/{book_id}/suggest-tags")
-async def suggest_book_tags(book_id: str, user: User = Depends(get_current_user)):
-    """Use the AI classifier to suggest tags for an existing book.
-
-    Excludes tags the book already has; returns up to 5 suggestions.
-    """
-    book = await db.books.find_one(
-        {"book_id": book_id, "user_id": user.user_id}, {"_id": 0}
-    )
-    if not book:
-        raise HTTPException(status_code=404, detail="Not found")
-
-    # Try to grab a sample of body text if the EPUB is still on disk
-    sample_text = ""
-    try:
-        epub_path = STORAGE_DIR / book["user_id"] / f"{book_id}.epub"
-        if epub_path.exists():
-            meta = extract_epub_metadata(epub_path)
-            sample_text = (meta or {}).get("sample_text", "") if isinstance(meta, dict) else ""
-    except Exception as e:
-        logger.warning("suggest-tags: epub read failed: %s", e)
-
-    meta_for_ai = {
-        "title": book.get("title", ""),
-        "author": book.get("author", ""),
-        "publisher": book.get("publisher", ""),
-        "description": book.get("description", ""),
-        "sample_text": sample_text,
-    }
-    ai = await classify_with_ai(meta_for_ai)
-    suggested = _normalize_tags(ai.get("tags") or [])
-    existing = set(book.get("tags") or [])
-    filtered = [t for t in suggested if t not in existing][:5]
-    return {
-        "suggested": filtered,
-        "all": suggested,
-        "ai_used": bool(EMERGENT_LLM_KEY) or bool(os.environ.get("SHELFSORT_TEST_AI_RESPONSE")),
-    }
 
 
 # ============================================================
-# AUTHOR ROUTES
+# AUTHOR ROUTES — extracted to routes/authors.py in Phase 2 refactor.
+# See ``backend/routes/authors.py`` for /authors, /library/authors,
+# and /library/by-author.
 # ============================================================
-@api_router.get("/authors")
-async def list_authors(user: User = Depends(get_current_user)):
-    """Distinct authors in the user's library with book counts."""
-    pipeline = [
-        {"$match": {"user_id": user.user_id, "author": {"$ne": None, "$exists": True}}},
-        {"$group": {"_id": "$author", "count": {"$sum": 1}}},
-        {"$sort": {"count": -1, "_id": 1}},
-    ]
-    rows = await db.books.aggregate(pipeline).to_list(2000)
-    authors = [
-        {"name": r["_id"], "count": r["count"]}
-        for r in rows
-        if r.get("_id") and r["_id"].strip() and r["_id"].strip().lower() != "unknown"
-    ]
-    return {"authors": authors}
-
-
 @api_router.get("/fandoms")
 async def list_fandoms(user: User = Depends(get_current_user)):
     """Distinct fandoms in the user's library with book counts.
@@ -5506,145 +5305,15 @@ async def set_book_status(
 
 
 # ============================================================
-# AUTHOR SHELVES — directory + per-author book listing
+# AUTHOR SHELVES — extracted to routes/authors.py in Phase 2 refactor.
+# See ``backend/routes/authors.py`` for /library/authors + /library/by-author.
 # ============================================================
-@api_router.get("/library/authors")
-async def list_authors_directory(user: User = Depends(get_current_user)):
-    """Return every distinct author in the user's library with a book
-    count, sorted by count DESC then alphabetically. Excludes trash.
-
-    Used by the Authors directory page and for autocomplete on tag/
-    bulk-edit forms in the future.
-    """
-    pipeline = [
-        {"$match": {
-            "user_id": user.user_id,
-            "category": {"$ne": TRASH_SHELF},
-            "author": {"$nin": [None, "", "Unknown"]},
-        }},
-        {"$group": {
-            "_id": "$author",
-            "count": {"$sum": 1},
-            "latest_at": {"$max": "$created_at"},
-        }},
-        {"$sort": {"count": -1, "_id": 1}},
-        {"$limit": 2000},
-    ]
-    rows = await db.books.aggregate(pipeline).to_list(2000)
-    authors = [
-        {"author": r["_id"], "count": r["count"], "latest_at": r.get("latest_at")}
-        for r in rows
-    ]
-    return {"count": len(authors), "authors": authors}
-
-
-@api_router.get("/library/by-author")
-async def list_books_by_author(
-    author: str,
-    user: User = Depends(get_current_user),
-):
-    """Return every active book by a given author. Case-sensitive exact
-    match — the listing endpoint above gives the canonical name so the
-    frontend doesn't have to guess."""
-    if not author or not author.strip():
-        raise HTTPException(status_code=400, detail="Author is required")
-    cursor = db.books.find(
-        {
-            "user_id": user.user_id,
-            "category": {"$ne": TRASH_SHELF},
-            "author": author,
-        },
-        {
-            "_id": 0, "book_id": 1, "title": 1, "author": 1, "fandom": 1,
-            "category": 1, "has_cover": 1, "created_at": 1, "series_name": 1,
-            "series_index": 1, "size_bytes": 1, "relationships": 1,
-            "status": 1, "manual_status": 1,
-        },
-    ).sort("created_at", -1)
-    books = await cursor.to_list(5000)
-    # Annotate effective status so the page can group finished/ongoing.
-    for b in books:
-        b["effective_status"] = effective_status(b)
-    by_category: Dict[str, int] = {}
-    for b in books:
-        cat = b.get("category") or "Uncategorized"
-        by_category[cat] = by_category.get(cat, 0) + 1
-    return {
-        "author": author,
-        "count": len(books),
-        "books": books,
-        "by_category": by_category,
-    }
 
 
 # ============================================================
-# PAIRINGS / SHIP BROWSER — aggregates `relationships` across books
+# PAIRINGS / SHIP BROWSER — extracted to routes/pairings.py in Phase 2.
+# See ``backend/routes/pairings.py`` for /library/pairings + /library/by-pairing.
 # ============================================================
-@api_router.get("/library/pairings")
-async def list_pairings(user: User = Depends(get_current_user)):
-    """Return every canonical relationship across the user's library with
-    a book count and 3 sample book titles, sorted by count DESC.
-
-    `relationships` is already populated at upload time by the EPUB
-    parser (line 185-265 of this file) and canonicalized via
-    `_canonicalize_relationship`, so we can aggregate directly.
-    """
-    pipeline = [
-        {"$match": {
-            "user_id": user.user_id,
-            "category": {"$ne": TRASH_SHELF},
-            "relationships": {"$exists": True, "$ne": []},
-        }},
-        {"$unwind": "$relationships"},
-        {"$group": {
-            "_id": "$relationships",
-            "count": {"$sum": 1},
-            "sample_titles": {"$push": "$title"},
-        }},
-        {"$sort": {"count": -1, "_id": 1}},
-        {"$limit": 500},
-    ]
-    rows = await db.books.aggregate(pipeline).to_list(500)
-    pairings = [
-        {
-            "pairing": r["_id"],
-            "count": r["count"],
-            # Cap samples at 3 client-side so MongoDB doesn't have to do
-            # a $slice — keeps the pipeline simple and works on any version.
-            "sample_titles": (r.get("sample_titles") or [])[:3],
-        }
-        for r in rows
-    ]
-    return {"count": len(pairings), "pairings": pairings}
-
-
-@api_router.get("/library/by-pairing")
-async def list_books_by_pairing(
-    pairing: str,
-    user: User = Depends(get_current_user),
-):
-    """Return every book whose `relationships` array contains `pairing`.
-    The pairing string must be in canonical form (the listing endpoint
-    above provides them)."""
-    if not pairing or not pairing.strip():
-        raise HTTPException(status_code=400, detail="Pairing is required")
-    cursor = db.books.find(
-        {
-            "user_id": user.user_id,
-            "category": {"$ne": TRASH_SHELF},
-            "relationships": pairing,
-        },
-        {
-            "_id": 0, "book_id": 1, "title": 1, "author": 1, "fandom": 1,
-            "category": 1, "has_cover": 1, "created_at": 1, "series_name": 1,
-            "series_index": 1, "size_bytes": 1, "relationships": 1,
-            "status": 1, "manual_status": 1,
-        },
-    ).sort("created_at", -1)
-    books = await cursor.to_list(5000)
-    for b in books:
-        b["effective_status"] = effective_status(b)
-    return {"pairing": pairing, "count": len(books), "books": books}
 
 
 # ============================================================
@@ -7702,112 +7371,11 @@ async def resolve_group(body: ResolveGroupBody, user: User = Depends(get_current
 
 
 # ----------------------------------------------------------------------
-# TRASH SHELF — 30-day grace window before hard deletion
+# TRASH SHELF — extracted to routes/trash.py in Phase 2 refactor.
+# See ``backend/routes/trash.py`` for /trash, /trash/restore/*,
+# /trash/restore-all, /trash/empty, and the ``sweep_expired_trash``
+# background helper (now imported by digest.py from routes.trash).
 # ----------------------------------------------------------------------
-
-@api_router.get("/trash")
-async def list_trash(user: User = Depends(get_current_user)):
-    """List every book currently sitting in Trash for the user."""
-    cursor = db.books.find(
-        {"user_id": user.user_id, "category": TRASH_SHELF},
-        {"_id": 0, "book_id": 1, "title": 1, "author": 1, "trash_expires_at": 1, "dupe_action_meta": 1},
-    ).sort("trash_expires_at", 1)
-    books = [b async for b in cursor]
-    return {"books": books, "count": len(books), "grace_days": TRASH_GRACE_DAYS}
-
-
-@api_router.post("/trash/restore/{book_id}")
-async def restore_from_trash(book_id: str, user: User = Depends(get_current_user)):
-    """Restore a book from Trash to its previous category."""
-    book = await db.books.find_one({"book_id": book_id, "user_id": user.user_id})
-    if not book:
-        raise HTTPException(status_code=404, detail="Book not found")
-    if book.get("category") != TRASH_SHELF:
-        raise HTTPException(status_code=400, detail="Book is not in Trash")
-    prev_cat = (book.get("dupe_action_meta") or {}).get("prev_category_new") or "Unclassified"
-    await db.books.update_one(
-        {"book_id": book_id, "user_id": user.user_id},
-        {
-            "$set": {"category": prev_cat},
-            "$unset": {"trash_expires_at": "", "dupe_action_meta": ""},
-        },
-    )
-    return {"ok": True, "book_id": book_id, "restored_to": prev_cat}
-
-
-@api_router.post("/trash/restore-all")
-async def restore_all_trash(user: User = Depends(get_current_user)):
-    """Restore every book in the user's Trash to its previous category."""
-    cursor = db.books.find(
-        {"user_id": user.user_id, "category": TRASH_SHELF},
-        {"_id": 0, "book_id": 1, "dupe_action_meta": 1},
-    )
-    restored = 0
-    async for b in cursor:
-        prev_cat = (b.get("dupe_action_meta") or {}).get("prev_category_new") or "Unclassified"
-        await db.books.update_one(
-            {"book_id": b["book_id"], "user_id": user.user_id},
-            {
-                "$set": {"category": prev_cat},
-                "$unset": {"trash_expires_at": "", "dupe_action_meta": ""},
-            },
-        )
-        restored += 1
-    return {"restored": restored}
-
-
-@api_router.post("/trash/empty")
-async def empty_trash(user: User = Depends(get_current_user)):
-    """Hard-delete every book currently in Trash for the user."""
-    user_dir = STORAGE_DIR / user.user_id
-    cursor = db.books.find(
-        {"user_id": user.user_id, "category": TRASH_SHELF},
-        {"_id": 0, "book_id": 1},
-    )
-    book_ids = [b["book_id"] async for b in cursor]
-    for bid in book_ids:
-        for ext in (".epub", ".cover", ".links.txt"):
-            p = user_dir / f"{bid}{ext}"
-            if p.exists():
-                try:
-                    p.unlink()
-                except OSError:
-                    pass
-    result = await db.books.delete_many(
-        {"user_id": user.user_id, "category": TRASH_SHELF},
-    )
-    return {"deleted": result.deleted_count}
-
-
-async def sweep_expired_trash() -> int:
-    """Background sweep — hard-delete books whose Trash grace window expired.
-
-    Returns the total number of books removed. Walks every user's storage dir
-    to also drop the EPUB/cover/links sidecar.
-    """
-    now_iso = datetime.now(timezone.utc).isoformat()
-    cursor = db.books.find(
-        {"category": TRASH_SHELF, "trash_expires_at": {"$lt": now_iso}},
-        {"_id": 0, "book_id": 1, "user_id": 1},
-    )
-    to_delete = [b async for b in cursor]
-    removed = 0
-    for b in to_delete:
-        uid = b.get("user_id")
-        bid = b.get("book_id")
-        if not uid or not bid:
-            continue
-        user_dir = STORAGE_DIR / uid
-        for ext in (".epub", ".cover", ".links.txt"):
-            p = user_dir / f"{bid}{ext}"
-            if p.exists():
-                try:
-                    p.unlink()
-                except OSError:
-                    pass
-        res = await db.books.delete_one({"book_id": bid, "user_id": uid})
-        removed += res.deleted_count
-    return removed
 
 
 

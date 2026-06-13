@@ -32,7 +32,8 @@ from deps import (
 from models import User, BookOut
 from auth_dep import get_current_user
 from routes.year import _send_year_email
-from routes.books import _probe_fanfic_now, _sweep_user_unavailable, _fanfic_status_cache, sweep_expired_trash
+from routes.books import _probe_fanfic_now, _sweep_user_unavailable, _fanfic_status_cache
+from routes.trash import sweep_expired_trash
 
 
 # ============================================================

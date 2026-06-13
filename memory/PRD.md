@@ -1303,3 +1303,36 @@ These are agent-suggested features the user hasn't picked yet. Bring them up nex
 ### Parked idea 2026-06-13 ("Cron failure alert" email to admins — P2)
 - Concept: when a wrapped cron job transitions `ok → error` (i.e. the previous run was `ok` and the current one failed), automatically email every `is_admin: True` user once with the job id + exception text + a deep link to `/admin#cron-health-card`. Use the existing Resend mailer. Suppress duplicate alerts during a sustained outage by checking whether the *previous* run already errored. Hooks in cleanly inside `utils/cron_health.py::_record_run` right after the run is persisted.
 - Priority: P2 (parked by user 2026-06-13 with "remind later").
+
+
+### Done 2026-06-13 (books.py refactor — Phase 2)
+
+**Goal**: shrink the 7,868-line `routes/books.py` by extracting the cleanest, lowest-risk sections into focused modules. Pattern: each new module imports `api_router` + `db` from `deps.py`, so URLs and HTTP behavior stay identical.
+
+**Extractions (3 commits' worth, all green between each)**:
+
+| New file | Endpoints | Why this grouping |
+|---|---|---|
+| `routes/tags.py` (238 lines) | `GET /tags`, `POST /books/{id}/tags`, `DELETE /books/{id}/tags/{tag}`, `PUT /tags/{old}`, `POST /tags/merge`, `DELETE /tags/{name}`, `POST /books/{id}/suggest-tags` | All 7 tag-management endpoints + shared with the upload pipeline's `_normalize_tags` |
+| `routes/authors.py` (126 lines) | `GET /authors`, `GET /library/authors`, `GET /library/by-author` | Pure read-only aggregations against `db.books` |
+| `routes/pairings.py` (88 lines) | `GET /library/pairings`, `GET /library/by-pairing` | Same shape as authors, isolated to `relationships` field |
+| `routes/trash.py` (144 lines) | `GET /trash`, `POST /trash/restore/{id}`, `POST /trash/restore-all`, `POST /trash/empty` + `sweep_expired_trash()` background helper | All 4 trash endpoints + the daily sweep coroutine (`digest.py` now imports it from here) |
+
+**Shared utility modules created**:
+- `utils/tags.py` (77 lines) — `normalize_tag`, `normalize_tags`, `TAG_MAX_LENGTH`, `TAG_MAX_PER_BOOK`. Underscore aliases (`_normalize_tag`, `_normalize_tags`) kept so the upload + bulk-edit code in `books.py` is a one-line import change.
+- `utils/constants.py` (15 lines) — `TRASH_SHELF`, `TRASH_GRACE_DAYS`. Centralizes constants that need to stay in sync across modules.
+
+**Results**:
+- `routes/books.py`: **7,868 → 7,436 lines (-432 lines, -5.5%)**
+- 14 endpoints + 1 background helper + 4 helper functions extracted across 4 new route modules + 2 new util modules.
+- Every URL unchanged (verified with `curl` 401 checks on extracted paths).
+- Full backend suite: **652 passed, 14 skipped, 0 failed** — zero regressions.
+
+**Phase 3 candidates (parked for next session)**:
+- `routes/library_backup.py` — `/library/export-zip`, `/library/restore/preview`, `/library/restore/apply` (~400 lines, medium risk: shares the unzip helper with the upload pipeline)
+- `routes/conversions.py` — `/conversions/*` status + retry endpoints (~150 lines)
+- `routes/user_prefs.py` — FFF options, format prefs, dashboard layout (~200 lines, 8 endpoints)
+
+**Phase 4 candidates (parked)**:
+- `routes/fanfic_refresh.py` — `/books/{id}/refresh`, `/library/refresh-stale`, `/fanfic/source-url/preview`, status cache. Highest coupling with the upload pipeline — saved for last on purpose.
+- Duplicate-resolution endpoints (`/books/{id}/resolve-duplicate`, `/books/resolve-group`).
