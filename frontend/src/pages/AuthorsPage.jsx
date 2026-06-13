@@ -91,8 +91,11 @@ export function AuthorsDirectory() {
                   data-testid={`authors-row-${a.author}`}
                   className="shelf-card p-3 w-full text-left flex items-center justify-between hover:bg-[#F5F3EC] transition-colors"
                 >
-                  <span className="font-medium text-[#2C2C2C]">{a.author}</span>
-                  <span className="text-xs px-2 py-1 rounded-full bg-[#E5DDC5]/60 text-[#2C2C2C]">
+                  <span className="flex items-center gap-2 font-medium text-[#2C2C2C]">
+                    <User className="w-4 h-4 text-[#6B46C1] flex-shrink-0" aria-hidden="true" />
+                    {a.author}
+                  </span>
+                  <span className="text-xs px-2 py-1 rounded-full bg-[#6B46C1]/10 text-[#6B46C1]">
                     {a.count} book{a.count === 1 ? "" : "s"}
                   </span>
                 </button>

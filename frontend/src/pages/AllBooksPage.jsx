@@ -1093,9 +1093,9 @@ export default function AllBooksPage() {
                       key={a.name}
                       data-testid={`open-author-${a.name.replace(/\s+/g, '-').toLowerCase()}`}
                       onClick={() => navigate(`/library/author/${encodeURIComponent(a.name)}`)}
-                      className="px-3 py-1 rounded-full text-xs font-semibold border bg-white text-[#2C2C2C] border-[#E8E6E1] hover:bg-[#2C2C2C] hover:text-white hover:border-[#2C2C2C] transition-colors flex items-center gap-1.5"
+                      className="px-3 py-1 rounded-full text-xs font-semibold border bg-[#EDE7FB] text-[#6B46C1] border-[#6B46C1]/20 hover:bg-[#6B46C1] hover:text-white hover:border-[#6B46C1] transition-colors flex items-center gap-1.5"
                     >
-                      <UserCircle2 className="w-3 h-3" />
+                      <UserCircle2 className="w-3 h-3 flex-shrink-0" aria-hidden="true" />
                       {a.name} · {a.count}
                     </button>
                   ))}

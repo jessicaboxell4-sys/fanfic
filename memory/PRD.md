@@ -1688,3 +1688,11 @@ Both upload sites (the regular EPUB upload pipeline + the URL-fetch path) now pe
   - `BookDetail.jsx` Pairings meta-list — each pairing pill gains the heart prefix and the purple palette.
 - Zero remaining `pink-*` Tailwind classes anywhere in `frontend/src/` after this change.
 - Dark-mode regression suite still passes (3/3).
+
+
+### Added 2026-06-13 (Author semantic-icon — completes the chip-icon trio)
+- Final piece of the recognisable-chip-glyph trio (fandoms: no icon · crossovers: ⇄ · pairings: ♡ · **authors: 👤**). Every chip type in the library now has a unique at-a-glance marker.
+- Hit surfaces:
+  - `AuthorsPage.jsx` — every directory row prefixed with the `User` lucide icon in purple. Count pill also switched from neutral cream `bg-[#E5DDC5]/60` to the unified `bg-[#6B46C1]/10 text-[#6B46C1]` lavender so all three index pages (Pairings, Authors, …) share visual rhythm.
+  - `AllBooksPage.jsx` Authors rail — the existing inline `UserCircle2` icon kept, but the chip palette flipped from black-on-white (`bg-white text-[#2C2C2C] border-[#E8E6E1]`) to the unified `bg-[#EDE7FB] text-[#6B46C1] border-[#6B46C1]/20` lavender to match every other chip rail on the page.
+- Net effect verified on Jessica's library: scanning the dashboard rails, you can instantly distinguish fandoms vs. crossovers vs. ships vs. authors without reading a single name. Dark-mode regression suite (3/3) still green.
