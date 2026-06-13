@@ -177,12 +177,27 @@ def extract_epub_metadata(filepath: Path) -> Dict[str, Any]:
     except Exception:
         pass
 
-    # --- Relationships / pairings ---------------------------------------
-    # AO3 export EPUBs put each relationship tag in its own <dc:subject>
-    # element (alongside fandom + freeform tags). We pick up everything that
-    # looks like a pairing — i.e. contains "/" or " & " — and canonicalize.
-    # FFnet/SpaceBattles tend to embed pairings in the description instead
-    # ("Pairings: Harry/Hermione, Ron/Lavender") so we also scan there.
+    # --- Relationships / pairings + AO3 metadata (rating/warnings/categories/tags) ----
+    # AO3 export EPUBs lump everything into <dc:subject>: rating, warnings,
+    # categories, fandom, relationships, characters, and freeform tags all
+    # arrive undifferentiated. utils.ao3_metadata.classify_subjects sorts
+    # each entry into the right bucket using canonical AO3 alias tables.
+    from utils.ao3_metadata import classify_subjects as _classify_subjects
+
+    all_subjects: List[str] = []
+    try:
+        for value, _attrs in (book.get_metadata('DC', 'subject') or []):
+            if value:
+                all_subjects.append(value.strip())
+    except Exception:
+        pass
+
+    classified = _classify_subjects(all_subjects)
+    rating = classified["rating"]
+    warnings = classified["warnings"]
+    categories = classified["categories"]
+    ao3_freeform_tags = classified["tags"]
+
     relationships: List[str] = []
     seen_rel: set = set()
 
@@ -192,16 +207,8 @@ def extract_epub_metadata(filepath: Path) -> Dict[str, Any]:
             seen_rel.add(canonical)
             relationships.append(canonical)
 
-    try:
-        for value, _attrs in (book.get_metadata('DC', 'subject') or []):
-            if not value:
-                continue
-            s = value.strip()
-            # Only treat the subject tag as a relationship if it looks like one
-            if '/' in s or ' & ' in s:
-                _add_rel(s)
-    except Exception:
-        pass
+    for s in classified["relationships"]:
+        _add_rel(s)
 
     # Fallback: parse "Pairings:" / "Relationship(s):" lines from the description
     if description:
@@ -264,6 +271,11 @@ def extract_epub_metadata(filepath: Path) -> Dict[str, Any]:
         "series_name": series_name,
         "series_index": series_index,
         "relationships": relationships,
+        # AO3 / FF.net canonical metadata extracted from <dc:subject> tags.
+        "rating": rating,
+        "warnings": warnings,
+        "categories": categories,
+        "ao3_freeform_tags": ao3_freeform_tags,
         "parse_failed": False,
     }
 
@@ -1319,6 +1331,10 @@ async def pull_url_list(body: UrlListPullBody, user: User = Depends(get_current_
                 "series_name": series_name,
                 "series_index": series_index,
                 "relationships": meta.get("relationships") or [],
+                "rating": meta.get("rating"),
+                "warnings": meta.get("warnings") or [],
+                "categories": meta.get("categories") or [],
+                "ao3_freeform_tags": meta.get("ao3_freeform_tags") or [],
                 "created_at": datetime.now(timezone.utc).isoformat(),
             }
             if meta.get("cover_bytes"):
@@ -2682,6 +2698,10 @@ async def upload_books(
             "series_name": series_name,
             "series_index": series_index,
             "relationships": meta.get("relationships") or [],
+            "rating": meta.get("rating"),
+            "warnings": meta.get("warnings") or [],
+            "categories": meta.get("categories") or [],
+            "ao3_freeform_tags": meta.get("ao3_freeform_tags") or [],
             # Auto-detected completion status (complete | ongoing). User
             # override lives at `manual_status`; effective_status() picks
             # the override when set. Detection runs only at upload time —

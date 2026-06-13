@@ -37,6 +37,8 @@ const SECTIONS = [
   { id: "uploads", label: "Uploading books" },
   { id: "shelves", label: "Shelves & filters" },
   { id: "discovery", label: "Browsing & discovery" },
+  { id: "ao3-metadata", label: "AO3 metadata: ratings, warnings, tags" },
+  { id: "fandoms", label: "Fandoms we sort into" },
   { id: "sources", label: "Sources we recognize" },
   { id: "detection", label: "Detection & overrides" },
   { id: "data-safety", label: "Backup & restore" },
@@ -60,6 +62,7 @@ function Section({ id, icon: Icon, title, children }) {
 export default function Help() {
   const { hash } = useLocation();
   const [whatsNew, setWhatsNew] = useState(FALLBACK_WHATS_NEW);
+  const [knownFandoms, setKnownFandoms] = useState([]);
   const [showWhatsNew, setShowWhatsNew] = useState(() => {
     try {
       return localStorage.getItem(WHATS_NEW_KEY) !== FALLBACK_WHATS_NEW.version;
@@ -120,6 +123,18 @@ export default function Help() {
     try { localStorage.setItem(WHATS_NEW_KEY, whatsNew.version); } catch { /* localStorage unavailable */ }
     setShowWhatsNew(false);
   };
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await axios.get(`${API}/fandoms/known`, { withCredentials: true });
+        if (cancelled || !res.data?.fandoms) return;
+        setKnownFandoms(res.data.fandoms);
+      } catch { /* keep empty — the Section just shows nothing */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     if (!hash) return;
@@ -299,6 +314,30 @@ export default function Help() {
                 <li><strong>Smart Shelves</strong> — combine filters into a saved view (Drarry-Complete-only, Sterek-WIPs, etc.).</li>
                 <li><strong>Fandom Treemap</strong> on the Account page — visual overview of how your library splits by franchise.</li>
               </ul>
+            </Section>
+
+            <Section id="ao3-metadata" icon={Layers} title="AO3-style metadata: ratings, warnings, categories, tags">
+              <p>Shelfsort reads AO3 / FF.net export EPUBs and pulls out the canonical metadata fields fanfic readers care about, then stores each on its own field on the book so you can filter and browse by them.</p>
+              <p><strong>Rating</strong> (one of 5): <em>General Audiences</em>, <em>Teen And Up Audiences</em>, <em>Mature</em>, <em>Explicit</em>, <em>Not Rated</em>. FF.net&apos;s K, K+, T, M, MA labels are accepted as aliases and normalized to the AO3 equivalent. Stored as <code>rating</code>.</p>
+              <p><strong>Archive Warnings</strong> (one or more of 6): <em>Graphic Depictions Of Violence</em>, <em>Major Character Death</em>, <em>Rape/Non-Con</em>, <em>Underage</em>, <em>No Archive Warnings Apply</em>, <em>Choose Not To Use Archive Warnings</em>. Stored as <code>warnings: []</code>.</p>
+              <p><strong>Categories</strong> (one or more of 6): <em>F/F</em>, <em>F/M</em>, <em>Gen</em>, <em>M/M</em>, <em>Multi</em>, <em>Other</em>. AO3 short forms like <em>Femslash</em>, <em>Slash</em>, <em>Het</em> are also accepted and canonicalized. Stored as <code>categories: []</code>.</p>
+              <p><strong>Relationships</strong> — any <code>&lt;dc:subject&gt;</code> entry containing <code>/</code> (romantic) or <code> &amp; </code> (platonic) is treated as a ship and canonicalized alphabetically so &quot;Hermione/Harry&quot; and &quot;Harry/Hermione&quot; collapse into one. Browse them on the <Link to="/library/pairings">Pairings page</Link>.</p>
+              <p><strong>Freeform tags</strong> — everything else from <code>&lt;dc:subject&gt;</code> (Slow Burn, Coffee Shop AU, etc.) lands in <code>ao3_freeform_tags</code>. Distinct from your personal <em>tags</em> field, which is what you add manually via the bulk-edit and tag panels.</p>
+              <p><strong>How it works</strong>: a single classifier walks every <code>&lt;dc:subject&gt;</code> element in the EPUB&apos;s OPF metadata. It matches against canonical alias tables (case-insensitive), assigns the subject to a bucket, and dedupes. Anything new is preserved verbatim. The full taxonomy + alias tables live in <code>backend/utils/ao3_metadata.py</code>.</p>
+              <p><em>Heads up</em>: the AO3 metadata fields are read at upload time. Books uploaded before this feature shipped won&apos;t have them populated — you can refresh from source (if linked) or re-upload to get the fields filled.</p>
+            </Section>
+
+            <Section id="fandoms" icon={BookOpen} title="Fandoms we sort into">
+              <p>Shelfsort recognizes <strong>{knownFandoms.length || "…"}</strong> fandoms out of the box and routes a book to one of them automatically when the title, description, or sample text matches enough of that fandom&apos;s keywords. Anything that doesn&apos;t match well enough falls into <em>Original Fiction</em> or <em>Non-fiction</em> — and the admin&apos;s unknown-fandoms queue surfaces popular suggestions for promotion.</p>
+              <p>The full sorted list:</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-1 text-sm bg-[#FAF7F0] border border-[#E8E2D4] rounded-lg p-4 font-mono" data-testid="help-fandoms-list">
+                {knownFandoms.length === 0 ? (
+                  <span className="text-[#6B705C] italic col-span-full">Loading the list…</span>
+                ) : knownFandoms.map((f) => (
+                  <span key={f}>{f}</span>
+                ))}
+              </div>
+              <p className="mt-3"><em>Don&apos;t see your fandom?</em> Drop it on the <Link to="/suggestions">Suggestions page</Link> with a couple of distinctive title/description keywords and we&apos;ll get it added.</p>
             </Section>
 
             <Section id="sources" icon={Globe} title="Sources we recognize">

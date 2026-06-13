@@ -12,6 +12,7 @@ Each was shipped as part of the P2 batch on 2026-06-13:
 ``POST /api/library/queue/remove``             W3 — Remove a book from the queue.
 ``POST /api/library/queue/reorder``            W3 — Reorder the queue.
 ``GET /api/dashboard/since-last-login``        S4 — Counts of new things since last login.
+``GET /api/fandoms/known``                     Public list of fandoms the classifier knows.
 ============================================  =====================================
 """
 from __future__ import annotations
@@ -245,3 +246,19 @@ async def since_last_login(user: User = Depends(get_current_user)):
         "new_messages": new_messages,
         "unread_notifications": unread_notifications,
     }
+
+
+# ===========================================================================
+# GET /fandoms/known — list of fandoms the heuristic classifier knows.
+# Surfaced on the Help page so users can see what auto-sorts and what
+# would land in Original Fiction / unknown until added.
+# ===========================================================================
+@api_router.get("/fandoms/known")
+async def list_known_fandoms():
+    """Return every fandom the EPUB-upload classifier currently routes
+    a book into. Pure data, no auth required (the list is not sensitive
+    and the Help page renders it for anonymous-curious visitors too)."""
+    from data.ao3_top_fandoms import AO3_TOP_FANDOMS
+    fandoms = sorted(AO3_TOP_FANDOMS.keys(), key=lambda s: s.lower())
+    return {"count": len(fandoms), "fandoms": fandoms}
+

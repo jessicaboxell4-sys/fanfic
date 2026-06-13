@@ -1462,3 +1462,40 @@ The user asked "do all of P2". This is the first batch of 5 quick-win features. 
 - Concept: when a friend bookmarks a passage in a book the user also has in their library, surface it as "Alice highlighted Chapter 7 in Six of Crows" on the friend library / friend profile view. Opt-in via a new `share_bookmarks_with_friends` boolean on the user privacy settings (defaults to off). Pulls from `db.bookmarks` filtered to friends + intersecting books. Could also feed into the existing notification system as a low-volume `friend_bookmarked` kind.
 - Priority: P2 (parked by user 2026-06-13 with "remind later").
 
+
+### Added 2026-06-13 (AO3 / FF.net metadata fields + Help page updates)
+
+User asked for AO3-style metadata extraction: ratings, archive warnings, categories — plus an obvious place in Help to discover the 131 fandoms the classifier knows.
+
+**Backend** — new `utils/ao3_metadata.py`:
+- Canonical taxonomies for all three enums plus alias tables (case-insensitive).
+  - **Ratings (5)**: General Audiences, Teen And Up Audiences, Mature, Explicit, Not Rated. FF.net K/K+/T/M/MA accepted as aliases and normalized to AO3 equivalents.
+  - **Archive Warnings (6)**: Graphic Depictions Of Violence, Major Character Death, Rape/Non-Con, Underage, No Archive Warnings Apply, Choose Not To Use Archive Warnings.
+  - **Categories (6)**: F/F, F/M, Gen, M/M, Multi, Other. Aliases like Femslash/Slash/Het canonicalized.
+- `classify_subject(raw) -> (kind, canonical)` — single subject string → bucket.
+- `classify_subjects(raws) -> dict` — bulk classifier returning `{rating, warnings[], categories[], relationships[], tags[]}` with per-bucket dedup.
+- AO3 export EPUBs lump everything into `<dc:subject>` without differentiation — this classifier sorts it all out in one pass.
+
+**EPUB extractor** — `routes/books.py::extract_epub_metadata` now runs every `<dc:subject>` entry through `classify_subjects()`. The result populates four new fields on the upload-time book document:
+- `rating` (str or None)
+- `warnings: List[str]`
+- `categories: List[str]`
+- `ao3_freeform_tags: List[str]` — distinct from the user-managed `tags` field
+- Relationships continue to be detected via `/` or ` & ` patterns and canonicalized (this part was already in place).
+
+Both upload sites (the regular EPUB upload pipeline + the URL-fetch path) now persist these fields.
+
+**Help page** — two brand-new TOC sections:
+- **"AO3-style metadata: ratings, warnings, categories, tags"** — documents every field, the canonical values, the FF.net alias mapping, the storage field names, and the heads-up that pre-feature uploads need re-upload to populate. Cross-links to the Pairings page for relationships browsing.
+- **"Fandoms we sort into"** — fetches the full sorted list from `GET /api/fandoms/known` (new public endpoint backed by `data/ao3_top_fandoms.AO3_TOP_FANDOMS`) and renders all **131 fandoms** in a 3-column monospaced grid. Includes a CTA to suggest missing fandoms via the Suggestions page.
+- Updated the TOC sidebar to include both new sections.
+
+**Tests** — `tests/test_ao3_metadata.py` (9 cases, all pass):
+- Every canonical rating + every alias maps correctly (incl. FF.net K/K+/T/M).
+- Warnings + categories canonicalize from short forms (Slash → M/M, etc.).
+- Relationship vs. tag disambiguation via `/` and ` & `.
+- Empty/whitespace inputs are safe.
+- Full AO3-export-style subject pile classifies into the right buckets with proper dedup.
+
+**Health** — 48 passed across AO3 + bookmarks + p2_batch1 + books_comprehensive suites. New public endpoint smoke-tested via curl returning `count=131`.
+
