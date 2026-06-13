@@ -34,6 +34,14 @@ FRANCHISE_GROUPS: Dict[str, List[str]] = {
         "NCIS: Sydney",
         "NCIS: Tony & Ziva",
     ],
+    "Riordanverse": [
+        "Percy Jackson and the Olympians",
+        "Percy Jackson and the Olympians (TV)",
+        "Heroes of Olympus",
+        "Trials of Apollo",
+        "Magnus Chase and the Gods of Asgard",
+        "The Kane Chronicles",
+    ],
     "Marvel": [
         "Marvel",
         "Marvel Cinematic Universe",

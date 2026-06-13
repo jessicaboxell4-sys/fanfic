@@ -55,7 +55,35 @@ FANDOM_KEYWORDS = {
     "Star Wars": ["star wars", "jedi", "sith", "skywalker", "darth vader", "obi-wan", "the force"],
     "Lord of the Rings": ["lord of the rings", "frodo", "gandalf", "middle-earth", "middle earth", "hobbit", "tolkien"],
     "Sherlock Holmes": ["sherlock holmes", "221b baker", "john watson", "moriarty"],
-    "Percy Jackson": ["percy jackson", "camp half-blood", "rick riordan"],
+    "Percy Jackson and the Olympians": [
+        "percy jackson", "camp half-blood", "rick riordan",
+        "annabeth chase", "olympians", "lightning thief", "pjo",
+        "percy jackson and the olympians", "son of poseidon",
+        "grover underwood", "luke castellan",
+    ],
+    "Percy Jackson and the Olympians (TV)": [
+        "percy jackson and the olympians tv", "pjo tv", "disney+ percy jackson",
+        "walker scobell",
+    ],
+    "Heroes of Olympus": [
+        "heroes of olympus", "lost hero", "son of neptune",
+        "mark of athena", "house of hades", "blood of olympus",
+        "jason grace", "piper mclean", "leo valdez", "frank zhang",
+        "hazel levesque", "nico di angelo",
+    ],
+    "Trials of Apollo": [
+        "trials of apollo", "lester papadopoulos", "the hidden oracle",
+        "dark prophecy", "the burning maze", "tyrant's tomb",
+        "tower of nero",
+    ],
+    "Magnus Chase and the Gods of Asgard": [
+        "magnus chase", "gods of asgard", "sword of summer",
+        "hammer of thor", "ship of the dead",
+    ],
+    "The Kane Chronicles": [
+        "kane chronicles", "carter kane", "sadie kane",
+        "red pyramid", "throne of fire", "serpent's shadow",
+    ],
     "Doctor Who": ["doctor who", "tardis", "the doctor", "gallifrey"],
     "Supernatural": ["supernatural fic", "dean winchester", "sam winchester", "castiel"],
     "Game of Thrones": ["game of thrones", "westeros", "jon snow", "daenerys", "targaryen", "stark family"],
@@ -2108,7 +2136,7 @@ async def classify_with_ai(meta: Dict[str, Any]) -> Dict[str, Any]:
         "For original fiction novels (even popular ones like the actual Harry Potter series by Rowling), use Original Fiction, not Fanfiction. "
         "Fandom names: use AO3's canonical tag form. For multi-property franchises with distinct sub-fandoms, bucket into the specific sub-fandom rather than the umbrella. "
         "Examples: Stargate SG-1 (NOT 'Stargate'), Stargate Atlantis, Stargate Universe, Stargate (Movies). "
-        "Common fandoms: Harry Potter, Twilight, Marvel, DC Comics, Star Wars, Lord of the Rings, Sherlock Holmes, Percy Jackson, Doctor Who, Supernatural, Game of Thrones, Hunger Games, Naruto, My Hero Academia, BTS, One Direction, Stargate SG-1, Stargate Atlantis, Stargate Universe, Stargate (Movies). "
+        "Common fandoms: Harry Potter, Twilight, Marvel, DC Comics, Star Wars, Lord of the Rings, Sherlock Holmes, Percy Jackson and the Olympians, Heroes of Olympus, Trials of Apollo, Magnus Chase, The Kane Chronicles, Doctor Who, Supernatural, Game of Thrones, Hunger Games, Naruto, My Hero Academia, BTS, One Direction, Stargate SG-1, Stargate Atlantis, Stargate Universe, Stargate (Movies). "
         "If a work spans multiple sub-fandoms, return them joined with ' / ' (e.g. 'Stargate SG-1 / Stargate Atlantis') so it lands on the crossover shelf. "
         "Tags: 2-4 short lowercase descriptive labels (e.g. 'fluff', 'angst', 'au', 'wip', 'slow-burn', 'enemies-to-lovers', 'romance', 'mystery', 'historical', 'biography', 'self-help'). "
         "Return ONLY the JSON object, no markdown."
