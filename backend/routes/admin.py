@@ -758,31 +758,84 @@ async def get_cron_health(user: User = Depends(require_admin)):
 
 
 @api_router.get("/admin/routes")
-async def list_registered_routes(user: User = Depends(require_admin)):
+async def list_registered_routes(
+    user: User = Depends(require_admin),
+    stale_days: int = 90,
+):
     """Return every registered ``/api/*`` route grouped by source file.
 
     For each route we expose: path, HTTP methods, endpoint function name,
-    docstring summary (first line only), and the module it lives in.
+    docstring summary (first line only), the module it lives in, and the
+    timestamp of the module file's last `git` commit. Routes whose source
+    module hasn't been touched in ``stale_days`` are flagged ``is_stale``
+    so admins can spot forgotten dead code in one glance.
+
     The frontend widget renders this as a collapsible per-module list so
     you can answer "where the heck does this URL live?" in one click.
     """
     from fastapi.routing import APIRoute
     from deps import app  # FastAPI singleton
+    from datetime import datetime, timezone, timedelta
+    import asyncio
+    import os.path
+    import subprocess
+
+    # Resolve repo root once. Walks up from this file until a ``.git`` dir
+    # is found (or hits the filesystem root).
+    repo_root = os.path.dirname(os.path.abspath(__file__))
+    while repo_root != "/" and not os.path.isdir(os.path.join(repo_root, ".git")):
+        repo_root = os.path.dirname(repo_root)
+
+    # Cache: module file -> last-commit unix timestamp (or None if not in git).
+    git_cache: Dict[str, Optional[int]] = {}
+
+    def _module_file(mod_name: str) -> Optional[str]:
+        try:
+            mod = __import__(mod_name, fromlist=["_"])
+            return getattr(mod, "__file__", None)
+        except Exception:
+            return None
+
+    async def _last_commit_ts(file_path: str) -> Optional[int]:
+        if file_path in git_cache:
+            return git_cache[file_path]
+        if not os.path.isdir(os.path.join(repo_root, ".git")):
+            git_cache[file_path] = None
+            return None
+        try:
+            # ``%ct`` = committer date, unix epoch. -1 = newest commit only.
+            proc = await asyncio.to_thread(
+                subprocess.run,
+                ["git", "log", "-1", "--format=%ct", "--", file_path],
+                cwd=repo_root,
+                capture_output=True,
+                text=True,
+                timeout=2,
+            )
+            out = (proc.stdout or "").strip()
+            ts = int(out) if out.isdigit() else None
+        except Exception:
+            ts = None
+        git_cache[file_path] = ts
+        return ts
+
+    now = datetime.now(timezone.utc)
+    stale_cutoff = now - timedelta(days=stale_days)
 
     groups: Dict[str, List[Dict[str, Any]]] = {}
+    module_files: Dict[str, Optional[str]] = {}
     total = 0
     for r in app.routes:
         if not isinstance(r, APIRoute):
             continue
-        # Skip non-API routes (FastAPI's docs/openapi).
         if not r.path.startswith("/api"):
             continue
         ep = r.endpoint
         mod = getattr(ep, "__module__", "?")
-        # Trim docstring to its first non-empty line so the listing
-        # stays scannable.
         doc = (ep.__doc__ or "").strip()
         first_line = doc.splitlines()[0].strip() if doc else ""
+        if mod not in module_files:
+            module_files[mod] = _module_file(mod)
         groups.setdefault(mod, []).append({
             "path": r.path,
             "methods": sorted(m for m in (r.methods or []) if m != "HEAD"),
@@ -791,13 +844,32 @@ async def list_registered_routes(user: User = Depends(require_admin)):
         })
         total += 1
 
-    # Sort each group by path; sort the group keys themselves.
+    # Resolve last-commit timestamps for the small number of unique modules.
+    last_ts_per_mod: Dict[str, Optional[int]] = {}
+    for mod, mf in module_files.items():
+        last_ts_per_mod[mod] = await _last_commit_ts(mf) if mf else None
+
     sorted_groups = []
+    stale_total = 0
     for mod in sorted(groups):
+        ts = last_ts_per_mod.get(mod)
+        last_modified_iso = (
+            datetime.fromtimestamp(ts, tz=timezone.utc).isoformat() if ts else None
+        )
+        is_stale = bool(ts and ts < stale_cutoff.timestamp())
+        if is_stale:
+            stale_total += len(groups[mod])
         rows = sorted(groups[mod], key=lambda x: x["path"])
         sorted_groups.append({
             "module": mod,
             "count": len(rows),
             "routes": rows,
+            "last_modified": last_modified_iso,
+            "is_stale": is_stale,
         })
-    return {"total": total, "modules": sorted_groups}
+    return {
+        "total": total,
+        "stale_total": stale_total,
+        "stale_days": stale_days,
+        "modules": sorted_groups,
+    }

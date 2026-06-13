@@ -116,6 +116,35 @@ def test_extracted_routes_show_up_under_new_modules(admin_session):
     assert "/api/trash/empty" in trash_paths
 
 
+def test_stale_detection_with_short_window_flags_everything(admin_session):
+    """A 0-day stale window should flag every module whose source file
+    is tracked in git — the catalogue's own self-test of the timestamp
+    machinery."""
+    r = requests.get(
+        f"{BASE}/api/admin/routes?stale_days=0",
+        headers={"Authorization": f"Bearer {admin_session['token']}"},
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["stale_days"] == 0
+    assert data["stale_total"] > 0, "expected modules with git timestamps to be flagged stale at 0d"
+    # At least one module should expose last_modified.
+    with_ts = [g for g in data["modules"] if g.get("last_modified")]
+    assert with_ts, "no modules carry last_modified — git lookup may be broken"
+
+
+def test_stale_detection_with_huge_window_flags_none(admin_session):
+    """A 10-year window must flag zero modules — sanity check that the
+    cutoff comparison is the right way around."""
+    r = requests.get(
+        f"{BASE}/api/admin/routes?stale_days=3650",
+        headers={"Authorization": f"Bearer {admin_session['token']}"},
+    )
+    data = r.json()
+    assert data["stale_total"] == 0
+    assert all(g["is_stale"] is False for g in data["modules"])
+
+
 def test_routes_endpoint_rejects_non_admin(normal_session):
     r = requests.get(
         f"{BASE}/api/admin/routes",

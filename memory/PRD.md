@@ -1360,3 +1360,22 @@ These are agent-suggested features the user hasn't picked yet. Bring them up nex
 - Full suite: **656 passed, 14 skipped, 0 failed** (+4 new tests).
 - Lint: 0 blocking.
 - E2E verified via screenshot: filtered the catalogue by "trash" → exactly the 1 `routes.books` bulk-delete endpoint + the 4 `routes.trash` endpoints appear, each route shown once.
+
+
+### Added 2026-06-13 (Route catalogue — stale module detection)
+
+**Why**: extends the route catalogue from "where does this URL live?" to "which routes have been forgotten?" via `git log` timestamps on each source file.
+
+**Backend**
+- `routes/admin.py::GET /api/admin/routes` now accepts a `stale_days` query param (default 90). For each unique module file it shells out to `git log -1 --format=%ct -- <file>` (cached per request, async via `to_thread`, 2-second timeout). Returns `last_modified` (ISO string) + `is_stale` per module, plus a `stale_total` summary count and the `stale_days` echo.
+- Walks up from `routes/admin.py` to find the repo root so the `git log` works whether the test runs from `/app` or `/app/backend`. Falls back gracefully when no `.git` directory is present (e.g. in some test rigs) — returns `last_modified: null`, `is_stale: false`.
+
+**Frontend**
+- `RouteCatalogueCard` now has a "stale only" checkbox + a numeric stale-days input (default 90). The card re-fetches when the threshold changes. Stale modules render with an amber border + a `STALE` pill in the header + the "Xd ago" label. Empty state message switches based on whether the user is filtering by stale-only.
+
+**Tests** (`tests/test_admin_routes.py` — now 6 cases)
+- New: `test_stale_detection_with_short_window_flags_everything` — `?stale_days=0` must flag every module that has a git timestamp.
+- New: `test_stale_detection_with_huge_window_flags_none` — `?stale_days=3650` must flag zero modules.
+- All 6 pass; full suite still **656 → 658 passed** (+2 new).
+
+**E2E verified**: screenshotted the page with stale-days=3 and stale-only=true → exactly the 4 modules that haven't been touched in ≥3 days appear, with the amber STALE pill + "15d ago" / "14d ago" labels. Filtered count shows "16 stale" out of 216 total.

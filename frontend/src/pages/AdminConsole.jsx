@@ -1325,13 +1325,15 @@ function RouteCatalogueCard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [q, setQ] = useState("");
+  const [staleOnly, setStaleOnly] = useState(false);
+  const [staleDays, setStaleDays] = useState(90);
   const [openModules, setOpenModules] = useState({});
 
   const load = async () => {
     setLoading(true);
     setError(null);
     try {
-      const { data } = await api.get("/admin/routes");
+      const { data } = await api.get(`/admin/routes?stale_days=${staleDays}`);
       setData(data);
     } catch (e) {
       setError(e?.response?.data?.detail || e.message || "Failed");
@@ -1339,7 +1341,8 @@ function RouteCatalogueCard() {
       setLoading(false);
     }
   };
-  useEffect(() => { load(); }, []);
+  // Refetch whenever staleDays changes so the stale flag uses the user's window.
+  useEffect(() => { load(); }, [staleDays]);
 
   const ql = q.trim().toLowerCase();
   const filtered = (data?.modules || []).map((g) => {
@@ -1351,14 +1354,15 @@ function RouteCatalogueCard() {
         )
       : g.routes;
     return { ...g, routes: matchedRoutes };
-  }).filter((g) =>
-    !ql || g.routes.length > 0 || g.module.toLowerCase().includes(ql)
-  );
+  }).filter((g) => {
+    if (staleOnly && !g.is_stale) return false;
+    return !ql || g.routes.length > 0 || g.module.toLowerCase().includes(ql);
+  });
 
   return (
     <Card icon={RouteIcon} title="Route catalogue" subtitle="Every /api/* endpoint, grouped by source file." testid="route-catalogue-card">
       <div className="flex flex-wrap items-center gap-3 mb-3">
-        <div className="relative flex-1 min-w-[200px]">
+        <div className="relative flex-1 min-w-[180px]">
           <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#6B705C]" />
           <input
             type="text"
@@ -1369,7 +1373,36 @@ function RouteCatalogueCard() {
             data-testid="route-catalogue-filter"
           />
         </div>
-        <p className="text-xs text-[#6B705C]">{data ? `${data.total} routes / ${data.modules.length} modules` : ""}</p>
+        <label className="text-xs text-[#2C2C2C] inline-flex items-center gap-1.5" data-testid="route-catalogue-stale-toggle-label">
+          <input
+            type="checkbox"
+            checked={staleOnly}
+            onChange={(e) => setStaleOnly(e.target.checked)}
+            data-testid="route-catalogue-stale-toggle"
+          />
+          stale only
+        </label>
+        <label className="text-xs text-[#2C2C2C] inline-flex items-center gap-1.5">
+          stale ≥
+          <input
+            type="number"
+            min={1}
+            max={3650}
+            value={staleDays}
+            onChange={(e) => setStaleDays(Math.max(1, parseInt(e.target.value, 10) || 1))}
+            className="w-16 px-1.5 py-0.5 border border-[#E8E2D4] rounded text-xs"
+            data-testid="route-catalogue-stale-days"
+          />
+          d
+        </label>
+        <p className="text-xs text-[#6B705C]">
+          {data ? `${data.total} routes / ${data.modules.length} modules` : ""}
+          {data && data.stale_total > 0 && (
+            <span className="ml-2 text-amber-700" data-testid="route-catalogue-stale-summary">
+              · {data.stale_total} stale
+            </span>
+          )}
+        </p>
         <button
           type="button"
           onClick={load}
@@ -1385,18 +1418,26 @@ function RouteCatalogueCard() {
       {loading && !data && <p className="text-sm text-[#6B705C]">Loading…</p>}
       <div className="space-y-2" data-testid="route-catalogue-list">
         {filtered.map((g) => {
-          const isOpen = openModules[g.module] ?? !!ql;
+          const isOpen = openModules[g.module] ?? (!!ql || staleOnly);
           return (
-            <div key={g.module} className="border border-[#E8E2D4] rounded-lg" data-testid={`route-mod-${g.module}`}>
+            <div key={g.module} className={`border rounded-lg ${g.is_stale ? "border-amber-300 bg-amber-50/40" : "border-[#E8E2D4]"}`} data-testid={`route-mod-${g.module}`}>
               <button
                 type="button"
                 className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-[#F7F4EE]"
                 onClick={() => setOpenModules((prev) => ({ ...prev, [g.module]: !isOpen }))}
                 data-testid={`route-mod-toggle-${g.module}`}
               >
-                <span className="font-mono text-sm text-[#2C2C2C]">{g.module}</span>
+                <span className="font-mono text-sm text-[#2C2C2C] flex items-center gap-2">
+                  {g.module}
+                  {g.is_stale && (
+                    <span className="text-[10px] font-bold text-amber-800 bg-amber-200 px-1.5 py-0.5 rounded" data-testid={`route-mod-stale-${g.module}`}>
+                      STALE
+                    </span>
+                  )}
+                </span>
                 <span className="text-xs text-[#6B705C]">
                   {g.routes.length} route{g.routes.length === 1 ? "" : "s"}
+                  {g.last_modified && <span className="ml-2">· {fmtAgo(g.last_modified)}</span>}
                   <ChevronRight className={`w-3 h-3 inline ml-1 transition-transform ${isOpen ? "rotate-90" : ""}`} />
                 </span>
               </button>
@@ -1425,7 +1466,9 @@ function RouteCatalogueCard() {
           );
         })}
         {filtered.length === 0 && !loading && (
-          <p className="text-sm text-[#6B705C]" data-testid="route-catalogue-empty">No routes match your filter.</p>
+          <p className="text-sm text-[#6B705C]" data-testid="route-catalogue-empty">
+            {staleOnly ? `No modules stale (≥ ${staleDays} days).` : "No routes match your filter."}
+          </p>
         )}
       </div>
     </Card>
