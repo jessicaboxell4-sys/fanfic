@@ -5092,7 +5092,7 @@ async def add_book_tags(book_id: str, body: TagAddBody, user: User = Depends(get
     if not new_tags:
         raise HTTPException(status_code=400, detail="No valid tags provided")
     book = await db.books.find_one({"book_id": book_id, "user_id": user.user_id}, {"_id": 0, "tags": 1})
-    if not book:
+    if book is None:
         raise HTTPException(status_code=404, detail="Not found")
     current = list(book.get("tags") or [])
     # Enforce per-book cap

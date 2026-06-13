@@ -1216,3 +1216,18 @@ These are agent-suggested features the user hasn't picked yet. Bring them up nex
 - **New `NotificationsBell` component** sits in the navbar between the appearance popover and the chat bubble. Shows a palette-coloured numeric badge (15s polling), opens a 320px dropdown with the 20 most recent notifications. Unread rows have a subtle highlight + purple dot. Click a row → marks read + follows the link. "Mark all read" link in the header.
 - **Tests**: extended `tests/test_suggestions.py` with `test_status_change_creates_notification` covering both notification creation and the mark-all-read flow. **18/18 pass.**
 - Verified e2e: bell visible in navbar, popover opens with "Nothing new" empty state when admin == submitter (correct: no self-notification spam).
+
+
+
+### Added 2026-06-13 (Friend Request notifications)
+- **`routes/friends.py`** now calls `create_notification` from `routes/notifications.py` at three points:
+  - On new outgoing friend request → notifies the target user with `kind="friend_request"` and a CTA link to `/friends`.
+  - On mutual-request auto-accept (both users requested each other) → notifies the original requester with `kind="friend_accepted"`.
+  - On explicit accept (`POST /api/friends/{other_user_id}/accept`) → notifies the original requester with `kind="friend_accepted"`.
+- **Tests** (`tests/test_friends.py::TestFriendNotifications`): two cases, `test_request_notifies_target` + `test_accept_notifies_requester`. Both pass alongside the existing 33 friend tests → 34/34 green.
+
+
+### Fixed 2026-06-13 (Tags & Smart Shelves — 8 previously failing tests)
+- **Root cause**: `routes/books.py::add_book_tags` used `find_one({...}, {"_id": 0, "tags": 1})` followed by `if not book:`. Motor returns an **empty dict `{}`** when the doc exists but has no `tags` field — and `bool({}) is False`, so the handler incorrectly raised `404 Not Found` for any book that hadn't been tagged yet. This cascaded into every downstream test (remove, rename, merge, delete-everywhere, all four smart-shelf tests that depend on books having tags).
+- **Fix**: changed the guard to `if book is None:` (single-line patch). Audited the rest of `routes/books.py` and all other route modules with the same regex pattern — no other endpoint had a strict single-inclusion projection paired with `if not <var>:`; everything else either uses `{"_id": 0}` (returns all fields) or projects a field that is guaranteed to exist.
+- **Result**: `test_tags_and_smart_shelves.py` — was 8 failing / 6 passing / 3 skipped → now **14/14 pass, 3 skipped (AI)**. Full backend suite: **634 passed, 14 skipped, 0 failed.**

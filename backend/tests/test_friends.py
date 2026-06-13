@@ -160,6 +160,28 @@ class TestFriendNotifications:
         # cleanup
         requests.post(f"{BASE}/api/friends/{USERS['carol']['user_id']}/decline", headers=H("bob"))
 
+    def test_accept_notifies_requester(self):
+        # Carol → Bob, then Bob accepts — Carol should get a "friend_accepted" notification.
+        a, b = sorted([USERS["carol"]["user_id"], USERS["bob"]["user_id"]])
+        db.friendships.delete_many({"user_a": a, "user_b": b})
+        db.notifications.delete_many({"user_id": USERS["carol"]["user_id"]})
+        r1 = requests.post(
+            f"{BASE}/api/friends/request",
+            json={"target_user_id": USERS["bob"]["user_id"]},
+            headers=H("carol"),
+        )
+        assert r1.status_code == 200
+        r2 = requests.post(
+            f"{BASE}/api/friends/{USERS['carol']['user_id']}/accept",
+            headers=H("bob"),
+        )
+        assert r2.status_code == 200
+        nr = requests.get(f"{BASE}/api/notifications", headers=H("carol"))
+        kinds = [n["kind"] for n in nr.json()["notifications"]]
+        assert "friend_accepted" in kinds
+        # cleanup
+        requests.delete(f"{BASE}/api/friends/{USERS['bob']['user_id']}", headers=H("carol"))
+
 
 class TestMutualAutoAccept:
     def test_simultaneous_requests_auto_accept(self):
