@@ -129,7 +129,34 @@ export default function BookDetail() {
       setNewSourceUrl("");
       await load();
     } catch (err) {
-      toast.error(err?.response?.data?.detail || "Couldn't save URL");
+      const detail = err?.response?.data?.detail;
+      // 409 with structured body — another book in this library already owns
+      // the URL. Show a friendly toast with a "Open the other book →" action
+      // so the user can decide whether to merge / dedupe rather than silently
+      // creating a duplicate.
+      if (
+        err?.response?.status === 409 &&
+        detail &&
+        typeof detail === "object" &&
+        detail.code === "url_already_claimed" &&
+        detail.conflict_book?.book_id
+      ) {
+        const c = detail.conflict_book;
+        toast.error(
+          `Another book in your library already has this URL: "${c.title}" by ${c.author}.`,
+          {
+            duration: 10000,
+            action: {
+              label: "Open it",
+              onClick: () => navigate(`/book/${c.book_id}`),
+            },
+          },
+        );
+        return;
+      }
+      toast.error(
+        typeof detail === "string" ? detail : (detail?.message || "Couldn't save URL"),
+      );
     }
   };
 

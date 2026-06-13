@@ -5652,6 +5652,39 @@ async def claim_source_url(
     )
     if not book:
         raise HTTPException(status_code=404, detail="Book not found.")
+    # Edge case: another book in the user's library already owns this URL.
+    # If we silently overwrite we end up with two books bearing the same
+    # source_url and future URL-list dedupe collapses into a coin-toss. Surface
+    # the collision via 409 so the frontend can offer "open the other book
+    # instead" rather than leaving the user with a hidden duplicate. The trash
+    # shelf is excluded from the collision check — restoring a trashed book
+    # via its source URL is a legitimate workflow.
+    conflict = await db.books.find_one(
+        {
+            "user_id": user.user_id,
+            "book_id": {"$ne": book_id},
+            "category": {"$ne": TRASH_SHELF},
+            "$or": [
+                {"source_url": canon},
+                {"fanfic_urls": canon},
+            ],
+        },
+        {"_id": 0, "book_id": 1, "title": 1, "author": 1, "fandom": 1},
+    )
+    if conflict:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "url_already_claimed",
+                "message": "Another book in your library already has this URL.",
+                "conflict_book": {
+                    "book_id": conflict.get("book_id"),
+                    "title": conflict.get("title") or "Untitled",
+                    "author": conflict.get("author") or "Unknown author",
+                    "fandom": conflict.get("fandom"),
+                },
+            },
+        )
     existing_urls = book.get("fanfic_urls") or []
     if canon not in existing_urls:
         existing_urls = [canon, *existing_urls]
