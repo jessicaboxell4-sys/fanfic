@@ -142,6 +142,25 @@ class TestFriendRequest:
             assert len(data["pending_out"]) == 0
 
 
+class TestFriendNotifications:
+    def test_request_notifies_target(self):
+        # Carol sends a fresh request to Bob — Bob should get a notification.
+        a, b = sorted([USERS["carol"]["user_id"], USERS["bob"]["user_id"]])
+        db.friendships.delete_many({"user_a": a, "user_b": b})
+        db.notifications.delete_many({"user_id": USERS["bob"]["user_id"]})
+        r = requests.post(
+            f"{BASE}/api/friends/request",
+            json={"target_user_id": USERS["bob"]["user_id"]},
+            headers=H("carol"),
+        )
+        assert r.status_code == 200
+        nr = requests.get(f"{BASE}/api/notifications", headers=H("bob"))
+        kinds = [n["kind"] for n in nr.json()["notifications"]]
+        assert "friend_request" in kinds
+        # cleanup
+        requests.post(f"{BASE}/api/friends/{USERS['carol']['user_id']}/decline", headers=H("bob"))
+
+
 class TestMutualAutoAccept:
     def test_simultaneous_requests_auto_accept(self):
         # Alice → Carol

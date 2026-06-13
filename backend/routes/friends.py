@@ -25,6 +25,7 @@ from pydantic import BaseModel, Field
 from deps import db, api_router, logger
 from models import User
 from auth_dep import get_current_user
+from routes.notifications import create_notification
 
 
 def _pair(a: str, b: str) -> Tuple[str, str]:
@@ -160,6 +161,12 @@ async def send_friend_request(body: FriendRequestBody, user: User = Depends(get_
                 {"user_a": a, "user_b": b},
                 {"$set": {"status": "accepted", "updated_at": now}},
             )
+            await create_notification(
+                target["user_id"], kind="friend_accepted",
+                title=f"{user.name or user.email} accepted your friend request",
+                body="You can now DM each other and share books.",
+                link="/friends",
+            )
             return {"status": "accepted", "other_user_id": target["user_id"]}
 
     fid = f"fr_{uuid.uuid4().hex[:12]}"
@@ -173,6 +180,12 @@ async def send_friend_request(body: FriendRequestBody, user: User = Depends(get_
         "created_at": now,
         "updated_at": now,
     })
+    await create_notification(
+        target["user_id"], kind="friend_request",
+        title=f"{user.name or user.email} wants to be friends",
+        body="Open Friends to accept or decline.",
+        link="/friends",
+    )
     return {"status": "pending", "other_user_id": target["user_id"], "friendship_id": fid}
 
 
@@ -198,6 +211,13 @@ async def accept_friend(other_user_id: str, user: User = Depends(get_current_use
     await db.friendships.update_one(
         {"friendship_id": rel["friendship_id"]},
         {"$set": {"status": "accepted", "updated_at": now}},
+    )
+    # Notify the original requester that their friend request was accepted.
+    await create_notification(
+        rel["requested_by"], kind="friend_accepted",
+        title=f"{user.name or user.email} accepted your friend request",
+        body="You can now DM each other and share books.",
+        link="/friends",
     )
     return {"status": "accepted"}
 
