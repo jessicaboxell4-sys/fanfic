@@ -23,6 +23,59 @@ def test_endpoint_returns_count_and_list():
     assert isinstance(body.get("fandoms"), list)
     assert body["count"] == len(body["fandoms"])
     assert body["count"] > 0
+    # New (2026-06-13): grouped/sorted shape for the Help page renderer.
+    assert isinstance(body.get("groups"), list)
+    assert body["groups"], "groups must be non-empty when fandoms exist"
+    g0 = body["groups"][0]
+    assert {"name", "total", "fandoms"} <= set(g0.keys())
+    # Every member of every group must be one of the canonical fandoms.
+    flat = set(body["fandoms"])
+    for g in body["groups"]:
+        for m in g["fandoms"]:
+            assert {"name", "count"} <= set(m.keys())
+            assert m["name"] in flat
+
+
+def test_groups_are_sorted_most_used_first():
+    body = _fetch()
+    totals = [g["total"] for g in body["groups"]]
+    # Non-increasing on the primary key (total). Ties may reorder by
+    # secondary keys (member-count, alphabetical), so we don't enforce
+    # strict equality beyond the monotonic-decreasing total.
+    assert totals == sorted(totals, reverse=True), \
+        f"Group totals not sorted descending: first 8 = {totals[:8]}"
+
+
+def test_franchise_grouping_keeps_related_fandoms_together():
+    body = _fetch()
+    by_name = {g["name"]: g for g in body["groups"]}
+    # Stargate franchise collapsed into one card with all 4 sub-fandoms.
+    sg = by_name.get("Stargate")
+    assert sg is not None, "Stargate franchise must be its own group"
+    sg_members = {m["name"] for m in sg["fandoms"]}
+    assert sg_members == {
+        "Stargate SG-1", "Stargate Atlantis",
+        "Stargate Universe", "Stargate (Movies)",
+    }
+    # NCIS franchise (added 2026-06-13) groups all NCIS spin-offs.
+    nc = by_name.get("NCIS")
+    assert nc is not None, "NCIS franchise must be its own group"
+    nc_members = {m["name"] for m in nc["fandoms"]}
+    assert "NCIS" in nc_members
+    assert "NCIS: Hawai'i" in nc_members
+    assert "NCIS: Los Angeles" in nc_members
+
+
+def test_within_group_members_sorted_by_count_then_alpha():
+    body = _fetch()
+    for g in body["groups"]:
+        if len(g["fandoms"]) < 2:
+            continue
+        sorted_expected = sorted(
+            g["fandoms"], key=lambda m: (-m["count"], m["name"].lower()),
+        )
+        assert g["fandoms"] == sorted_expected, \
+            f"Group '{g['name']}' members not sorted by count desc + alpha"
 
 
 def test_endpoint_returns_hand_tuned_shelf_fandoms():

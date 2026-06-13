@@ -63,6 +63,7 @@ export default function Help() {
   const { hash } = useLocation();
   const [whatsNew, setWhatsNew] = useState(FALLBACK_WHATS_NEW);
   const [knownFandoms, setKnownFandoms] = useState([]);
+  const [fandomGroups, setFandomGroups] = useState([]);
   const [showWhatsNew, setShowWhatsNew] = useState(() => {
     try {
       return localStorage.getItem(WHATS_NEW_KEY) !== FALLBACK_WHATS_NEW.version;
@@ -131,6 +132,7 @@ export default function Help() {
         const res = await axios.get(`${API}/fandoms/known`, { withCredentials: true });
         if (cancelled || !res.data?.fandoms) return;
         setKnownFandoms(res.data.fandoms);
+        if (Array.isArray(res.data.groups)) setFandomGroups(res.data.groups);
       } catch { /* keep empty — the Section just shows nothing */ }
     })();
     return () => { cancelled = true; };
@@ -329,12 +331,31 @@ export default function Help() {
 
             <Section id="fandoms" icon={BookOpen} title="Fandoms we sort into">
               <p>Shelfsort recognizes <strong>{knownFandoms.length || "…"}</strong> fandoms out of the box and routes a book to one of them automatically when the title, description, or sample text matches enough of that fandom&apos;s keywords. Anything that doesn&apos;t match well enough falls into <em>Original Fiction</em> or <em>Non-fiction</em> — and the admin&apos;s unknown-fandoms queue surfaces popular suggestions for promotion.</p>
-              <p>The full sorted list:</p>
-              <div className="columns-1 sm:columns-2 md:columns-3 gap-x-6 text-sm bg-[#FAF6EE] border border-[#E8E6E1] rounded-lg p-4 font-mono text-[#2C2C2C]" data-testid="help-fandoms-list">
-                {knownFandoms.length === 0 ? (
+              <p>Sorted by community-wide popularity (most-used first) and grouped by franchise so related sub-fandoms (NCIS spin-offs, all Stargate series, Marvel + MCU + Avengers, …) stay together. Counts reflect everyone&apos;s libraries on this instance, anonymized.</p>
+              <div className="columns-1 sm:columns-2 lg:columns-3 gap-x-6 text-sm bg-[#FAF6EE] border border-[#E8E6E1] rounded-lg p-4 text-[#2C2C2C]" data-testid="help-fandoms-list">
+                {fandomGroups.length === 0 ? (
                   <span className="text-[#6B705C] italic">Loading the list…</span>
-                ) : knownFandoms.map((f) => (
-                  <div key={f} className="break-inside-avoid leading-6">{f}</div>
+                ) : fandomGroups.map((g) => (
+                  <div key={g.name} className="break-inside-avoid mb-4" data-testid={`fandom-group-${g.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`}>
+                    <div className="flex items-baseline justify-between gap-2 mb-1">
+                      <span className="font-semibold text-[#3A5A40]">{g.name}</span>
+                      {g.total > 0 && (
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-[#3A5A40]/10 text-[#3A5A40]" title={`${g.total} book${g.total === 1 ? "" : "s"} across the community`}>
+                          {g.total}
+                        </span>
+                      )}
+                    </div>
+                    <ul className="font-mono text-xs space-y-0.5 pl-2 border-l border-[#E8E6E1]">
+                      {g.fandoms.map((f) => (
+                        <li key={f.name} className="flex items-center gap-2">
+                          <span className="truncate">{f.name}</span>
+                          {f.count > 0 && (
+                            <span className="ml-auto text-[10px] text-[#6B705C] tabular-nums shrink-0">{f.count}</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 ))}
               </div>
               <p className="mt-3"><em>Don&apos;t see your fandom?</em> Drop it on the <Link to="/suggestions">Suggestions page</Link> with a couple of distinctive title/description keywords and we&apos;ll get it added.</p>

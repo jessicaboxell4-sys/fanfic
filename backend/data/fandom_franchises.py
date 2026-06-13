@@ -25,6 +25,15 @@ FRANCHISE_GROUPS: Dict[str, List[str]] = {
         "Stargate Universe",
         "Stargate (Movies)",
     ],
+    "NCIS": [
+        "NCIS",
+        "NCIS: Hawai'i",
+        "NCIS: Los Angeles",
+        "NCIS: New Orleans",
+        "NCIS: Origins",
+        "NCIS: Sydney",
+        "NCIS: Tony & Ziva",
+    ],
     "Marvel": [
         "Marvel",
         "Marvel Cinematic Universe",

@@ -19,13 +19,13 @@ from __future__ import annotations
 
 import random
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Dict, Any
 
 from fastapi import Depends, HTTPException
 from pydantic import BaseModel
 
 from auth_dep import get_current_user
-from deps import api_router, db
+from deps import api_router, db, logger
 from models import User
 from utils.constants import TRASH_SHELF
 
@@ -256,17 +256,84 @@ async def since_last_login(user: User = Depends(get_current_user)):
 @api_router.get("/fandoms/known")
 async def list_known_fandoms():
     """Return every fandom the EPUB-upload classifier currently routes
-    a book into. Pure data, no auth required (the list is not sensitive
-    and the Help page renders it for anonymous-curious visitors too).
+    a book into, grouped by franchise and sorted by community-wide
+    popularity (most-used first).
 
-    Source of truth is ``routes.books.FANDOM_KEYWORDS`` — the merged dict
-    of the 20 hand-tuned shelf fandoms (Harry Potter, Twilight, Marvel,
-    Stargate sub-fandoms, …) PLUS the bundled AO3 top-fandoms seed.
-    Returning anything narrower would lie to users on the Help page.
+    Response shape:
+      {
+        "count": int,
+        "fandoms": [name, …],          # flat alphabetical (back-compat)
+        "groups": [
+          {
+            "name": "Stargate",
+            "total": 12,               # sum of counts across members
+            "fandoms": [{"name": ..., "count": int}, ...]
+          }, ...
+        ]
+      }
+
+    Counts are aggregated across the entire ``books`` collection (every
+    user) — anonymous totals only, no per-user data is exposed. Authed
+    callers and anonymous-curious Help-page visitors see the same
+    numbers. When the corpus is small or empty, groups fall back to
+    alphabetical order with multi-member franchises first.
     """
     # Late import to dodge the circular-at-module-load between
     # books.py (this file's router host) and library_discovery.py.
     from routes.books import FANDOM_KEYWORDS  # noqa: WPS433
-    fandoms = sorted(FANDOM_KEYWORDS.keys(), key=lambda s: s.lower())
-    return {"count": len(fandoms), "fandoms": fandoms}
+    from data.fandom_franchises import franchise_for  # noqa: WPS433
+
+    canonical = list(FANDOM_KEYWORDS.keys())
+    flat_sorted = sorted(canonical, key=lambda s: s.lower())
+
+    # Aggregate community-wide usage counts. Single $group, indexed on
+    # ``fandom`` already (see books.py startup) so this is cheap even
+    # on large libraries.
+    counts: Dict[str, int] = {}
+    try:
+        async for row in db.books.aggregate([
+            {"$match": {"fandom": {"$nin": [None, ""]}}},
+            {"$group": {"_id": "$fandom", "count": {"$sum": 1}}},
+        ]):
+            fid = row.get("_id")
+            if isinstance(fid, str) and fid:
+                counts[fid] = int(row.get("count") or 0)
+    except Exception as e:  # pragma: no cover — Mongo hiccup, not blocking
+        logger.warning("fandoms/known count aggregation failed: %s", e)
+
+    # Bucket each known fandom under its franchise (or itself if standalone).
+    groups_map: Dict[str, List[str]] = {}
+    for f in canonical:
+        groups_map.setdefault(franchise_for(f), []).append(f)
+
+    out_groups: List[Dict[str, Any]] = []
+    for group_name, members in groups_map.items():
+        # Within a group: most-used member first, then alphabetical
+        # for ties (incl. the all-zero case on a brand-new instance).
+        members_sorted = sorted(
+            members,
+            key=lambda m: (-counts.get(m, 0), m.lower()),
+        )
+        total = sum(counts.get(m, 0) for m in members)
+        out_groups.append({
+            "name": group_name,
+            "total": total,
+            "fandoms": [
+                {"name": m, "count": counts.get(m, 0)} for m in members_sorted
+            ],
+        })
+
+    # Order groups: highest total first, multi-member franchises next
+    # (bigger umbrellas tend to be more interesting), alphabetical last.
+    out_groups.sort(key=lambda g: (
+        -g["total"],
+        -len(g["fandoms"]),
+        g["name"].lower(),
+    ))
+
+    return {
+        "count": len(flat_sorted),
+        "fandoms": flat_sorted,
+        "groups": out_groups,
+    }
 
