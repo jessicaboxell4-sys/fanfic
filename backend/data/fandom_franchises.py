@@ -129,6 +129,23 @@ FRANCHISE_GROUPS: Dict[str, List[str]] = {
         "Star Trek: The Next Generation",
         "Star Trek: Deep Space Nine",
         "Star Trek: Voyager",
+        "Star Trek: Strange New Worlds",
+        "Star Trek: Lower Decks",
+        "Star Trek: Picard",
+        "Star Trek: Discovery",
+        "Star Trek: Enterprise",
+        "Star Trek: Prodigy",
+    ],
+    "Pokémon": [
+        "Pokemon - All Media Types",
+        "Pokémon Adventures / Pokémon Special (Manga)",
+        "Detective Pikachu",
+        "Pokémon GO",
+    ],
+    "Honkai / miHoYo Games": [
+        "原神 | Genshin Impact (Video Game)",
+        "崩坏：星穹铁道 | Honkai: Star Rail (Video Game)",
+        "Honkai Impact 3rd",
     ],
     "Avatar (Bryke)": [
         "Avatar: The Last Airbender",
@@ -173,10 +190,10 @@ FRANCHISE_GROUPS: Dict[str, List[str]] = {
     # bundles Crescent City and the rest of the Cosmere alongside the
     # original AO3-seed entries — removed from here 2026-06-13 to fix a
     # dict-key collision that was hiding the new sub-fandoms.
-    "Honkai / miHoYo Games": [
-        "原神 | Genshin Impact (Video Game)",
-        "崩坏：星穹铁道 | Honkai: Star Rail (Video Game)",
-    ],
+    # ``Honkai / miHoYo Games`` was likewise consolidated upstream (now
+    # also includes ``Honkai Impact 3rd``); see definition near the top
+    # of this dict. No stub is needed here — dict-key collisions silently
+    # overwrite.
 }
 
 

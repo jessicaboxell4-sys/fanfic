@@ -223,6 +223,51 @@ FANDOM_KEYWORDS = {
         "my hero academia vigilantes", "vigilantes mha",
         "knuckleduster", "koichi haimawari", "pop step",
     ],
+    # ----- Spy x Family (anime/manga).
+    "Spy x Family": [
+        "spy x family", "spy×family", "loid forger", "yor forger",
+        "anya forger", "bond forger", "tatsuya endo",
+    ],
+    # ----- Star Trek spin-offs not in the AO3 seed. The 5 original
+    # series + AOS already exist; we add the modern Paramount+ era.
+    "Star Trek: Strange New Worlds": [
+        "strange new worlds", "snw star trek", "captain pike",
+        "la'an noonien-singh", "una chin-riley",
+    ],
+    "Star Trek: Lower Decks": [
+        "lower decks star trek", "uss cerritos",
+        "beckett mariner", "brad boimler", "tendi", "rutherford",
+    ],
+    "Star Trek: Picard": [
+        "star trek picard", "jean-luc picard series", "raffi musiker",
+        "soji asha", "rios picard",
+    ],
+    "Star Trek: Discovery": [
+        "star trek discovery", "uss discovery", "michael burnham",
+        "sylvia tilly", "saru discovery",
+    ],
+    "Star Trek: Enterprise": [
+        "star trek enterprise", "jonathan archer", "uss nx-01",
+        "trip tucker", "t'pol",
+    ],
+    "Star Trek: Prodigy": [
+        "star trek prodigy", "uss protostar", "dal r'el", "gwyn",
+        "kid star trek",
+    ],
+    # ----- Pokemon spin-offs beyond the umbrella "All Media Types".
+    "Pokémon Adventures / Pokémon Special (Manga)": [
+        "pokemon adventures", "pokemon special manga",
+        "pokespe", "pokémon adventures", "red green blue manga",
+    ],
+    "Detective Pikachu": [
+        "detective pikachu", "pikachu detective", "tim goodman",
+    ],
+    "Pokémon GO": [
+        "pokemon go", "pokémon go", "niantic pokemon",
+    ],
+    "Honkai Impact 3rd": [
+        "honkai impact 3rd", "honkai impact", "houkai impact",
+    ],
     "Doctor Who": ["doctor who", "tardis", "the doctor", "gallifrey"],
     "Supernatural": ["supernatural fic", "dean winchester", "sam winchester", "castiel"],
     "Game of Thrones": ["game of thrones", "westeros", "jon snow", "daenerys", "targaryen", "stark family"],
