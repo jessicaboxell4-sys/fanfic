@@ -18,7 +18,12 @@ import {
 // header (or the chevron) to reveal that one section. The toolbar at the top
 // can bulk-open or bulk-close via these tick counters: each Card listens and
 // flips its local `open` state when a tick increments.
-const AdminCardsContext = React.createContext({ openTick: 0, closeTick: 0 });
+// `remember` lets the user opt in to persisting each card's open/closed state
+// to localStorage across page loads — off by default so the page is always
+// tidy on first visit.
+const AdminCardsContext = React.createContext({ openTick: 0, closeTick: 0, remember: false });
+const REMEMBER_PREF_KEY = "shelfsort.admin.remember-open";
+const CARD_STATE_PREFIX = "shelfsort.admin.card.";
 
 function fmtBytes(n) {
   if (!Number.isFinite(n) || n <= 0) return "0 B";
@@ -42,10 +47,20 @@ function fmtTime(iso) {
 function Card({ icon: Icon, title, subtitle, children, testid }) {
   // Every admin section starts collapsed so the page is just a tidy
   // index of category headers. Click the header (or chevron) to reveal.
-  const [open, setOpen] = useState(false);
-  const { openTick, closeTick } = useContext(AdminCardsContext);
+  // If the user opted into "remember open sections", we hydrate the
+  // initial value from localStorage and persist on every change.
+  const { openTick, closeTick, remember } = useContext(AdminCardsContext);
+  const storageKey = testid ? `${CARD_STATE_PREFIX}${testid}` : null;
+  const [open, setOpen] = useState(() => {
+    if (!remember || !storageKey) return false;
+    try { return localStorage.getItem(storageKey) === "1"; } catch { return false; }
+  });
   useEffect(() => { if (openTick > 0) setOpen(true); }, [openTick]);
   useEffect(() => { if (closeTick > 0) setOpen(false); }, [closeTick]);
+  useEffect(() => {
+    if (!remember || !storageKey) return;
+    try { localStorage.setItem(storageKey, open ? "1" : "0"); } catch { /* ignore */ }
+  }, [open, remember, storageKey]);
 
   return (
     <section
@@ -1636,6 +1651,26 @@ function EmailStatsCard() {
 export default function AdminConsole() {
   const [openTick, setOpenTick] = useState(0);
   const [closeTick, setCloseTick] = useState(0);
+  const [remember, setRemember] = useState(() => {
+    try { return localStorage.getItem(REMEMBER_PREF_KEY) === "1"; } catch { return false; }
+  });
+  const toggleRemember = () => {
+    setRemember((v) => {
+      const next = !v;
+      try {
+        localStorage.setItem(REMEMBER_PREF_KEY, next ? "1" : "0");
+        if (!next) {
+          // Turning OFF — wipe any persisted per-card state so the next
+          // load is a clean collapsed page, no stale flags lingering.
+          Object.keys(localStorage)
+            .filter((k) => k.startsWith(CARD_STATE_PREFIX))
+            .forEach((k) => localStorage.removeItem(k));
+        }
+      } catch { /* ignore */ }
+      toast.success(next ? "Will remember which sections you leave open" : "Sections will reset on every visit");
+      return next;
+    });
+  };
   return (
     <div className="min-h-screen bg-[#FAF6EE]">
       <Navbar />
@@ -1653,7 +1688,7 @@ export default function AdminConsole() {
               <h1 className="font-serif text-4xl md:text-5xl text-[#2C2C2C] leading-tight">Admin console</h1>
             </div>
           </div>
-          <div className="flex items-center gap-2" data-testid="admin-bulk-toggles">
+          <div className="flex items-center gap-2 flex-wrap" data-testid="admin-bulk-toggles">
             <button
               type="button"
               onClick={() => setOpenTick((v) => v + 1)}
@@ -1670,13 +1705,28 @@ export default function AdminConsole() {
             >
               <ChevronRight className="w-3.5 h-3.5 rotate-90" /> Collapse all
             </button>
+            <button
+              type="button"
+              onClick={toggleRemember}
+              data-testid="admin-remember-open-toggle"
+              aria-pressed={remember}
+              title={remember ? "Sections you leave open will stay open next time you visit. Click to turn off." : "Each visit starts with everything collapsed. Click to remember which sections you leave open."}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-[0.15em] transition-colors ${remember ? "bg-[#EEE9FB] text-[#6B46C1] border border-[#6B46C1]" : "bg-[#F4EFE4] text-[#6B705C] border border-[#E5DDC5] hover:bg-[#EEE9FB] hover:text-[#6B46C1] hover:border-[#6B46C1]"}`}
+            >
+              <span
+                className={`inline-block w-3 h-3 rounded-full ${remember ? "bg-[#6B46C1]" : "bg-[#C8C2A8]"}`}
+                aria-hidden="true"
+              />
+              Remember: {remember ? "On" : "Off"}
+            </button>
           </div>
         </header>
         <p className="text-xs text-[#6B705C] italic mb-6" data-testid="admin-collapsed-hint">
           Sections are collapsed by default — click a category to reveal its contents.
+          {remember ? " Your open sections will be remembered on your next visit." : ""}
         </p>
 
-        <AdminCardsContext.Provider value={{ openTick, closeTick }}>
+        <AdminCardsContext.Provider value={{ openTick, closeTick, remember }}>
           <UsersCard />
           <ChatRoomsCard />
           <UnknownFandomsCard />

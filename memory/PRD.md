@@ -1595,3 +1595,10 @@ Both upload sites (the regular EPUB upload pipeline + the URL-fetch path) now pe
 - Page header gained an `Expand all` (filled purple pill) and `Collapse all` (outline purple pill) toolbar plus a small italic hint: *"Sections are collapsed by default — click a category to reveal its contents."*
 - New test-ids: `admin-bulk-toggles`, `admin-expand-all`, `admin-collapse-all`, `admin-collapsed-hint`, and on each section header `{card-testid}-toggle` + body `{card-testid}-body`.
 - Verified on the 5,302-book tenant: page now fits all 13 admin sections (Users, Chat rooms, Unknown fandoms, Maintenance banner, Health, Cron health, Route catalogue, Email stats, Email diagnostic, Global aliases, Global stats, Feature flags, Audit log) in roughly one viewport. Single-section expand, manual collapse, and both bulk toggles round-trip cleanly.
+
+### Added 2026-06-13 (Admin Console — "Remember open sections" opt-in)
+- Added a third pill button on the admin toolbar: `Remember: On/Off` (testid `admin-remember-open-toggle`). Off by default (greyed pill); on → purple pill with filled dot.
+- Preference stored at `localStorage["shelfsort.admin.remember-open"]`. When ON, every card writes its open/closed state to `localStorage["shelfsort.admin.card.{testid}"]` on toggle, and reads it back when it mounts → reload now restores whichever sections the admin left open.
+- Toggling OFF wipes every `shelfsort.admin.card.*` key so the next visit starts clean — no stale flags lingering after an opt-out.
+- Toast confirms each state change ("Will remember which sections you leave open" / "Sections will reset on every visit"). The italic hint line under the header dynamically appends "Your open sections will be remembered on your next visit." when Remember is on.
+- Verified end-to-end via Playwright: default Off → toggle On → expand Users → reload → Users still open + Remember still On → toggle Off → localStorage card keys cleared.
