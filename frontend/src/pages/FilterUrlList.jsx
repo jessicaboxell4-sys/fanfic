@@ -40,7 +40,19 @@ function findFanficUrls(text) {
 
 export default function FilterUrlList() {
   const navigate = useNavigate();
-  const [text, setText] = useState("");
+  const [text, setText] = useState(() => {
+    // Honour any prefill stashed by the dashboard's UrlPasteCard so the
+    // user lands here with their list already in the textarea. Read +
+    // clear in a single useState initializer to avoid set-state-in-effect.
+    if (typeof window === "undefined") return "";
+    try {
+      const v = sessionStorage.getItem("urlFilterPrefill");
+      if (v) sessionStorage.removeItem("urlFilterPrefill");
+      return v || "";
+    } catch {
+      return "";
+    }
+  });
   const [report, setReport] = useState(null);
   const [running, setRunning] = useState(false);
   const [exporting, setExporting] = useState(false);

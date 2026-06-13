@@ -1556,3 +1556,12 @@ Both upload sites (the regular EPUB upload pipeline + the URL-fetch path) now pe
 - Updated `ruleSummary()` in `pages/SmartShelfPage.jsx` with human-friendly labels: `rating: Mature`, `category (AO3): M/M`, `warning: …`, `not warned for: …`.
 - **Closes the editing loop** opened yesterday: shelves saved from the AO3 quick-filter are now fully editable on `/library/smart/:id` → "Edit rules" — users can tweak rules, add more AO3 conditions, change combinator, save. Verified end-to-end via screenshot: 3-rule AND query (rating + ao3_category + exclude_warning) round-trips through the UI and persists in Mongo with the correct shape.
 
+
+### Added 2026-06-13 (Dashboard split into welcome page + dedicated All Books page)
+- New lean `Dashboard.jsx` at `/library` matching the user's design target: "YOUR LIBRARY" eyebrow + serif "{N} books on the shelves." headline + top-4 fandoms inline + `LibraryActivityWidgets` ribbon + big `UploadZone` + new spotlighted `UrlPasteCard` + prominent "Browse all books" CTA + pinned shelves rail + footer quick-actions.
+- New `UrlPasteCard.jsx` component: always-visible 5-row textarea, live "N fanfic URLs detected" counter, purple-gradient card. Submits via `sessionStorage["urlFilterPrefill"]` → navigates to `/library/filter-urls`, which now reads + clears the prefill on mount (replacing the old one-line link).
+- Old Dashboard's books grid + all filter chips + AO3 panel + fandom/author/series rails + at-a-glance folder moved into new `AllBooksPage.jsx` at `/library/all` with a "Back to your library" link and "Browse your {N} books" header.
+- App.js route added: `/library/all → AllBooksPage`. All other deep links unchanged.
+- Persistent ribbons (BackupReminder, OnboardingPrompt for "Polish your library", HelpNudge) kept on the welcome dashboard, matching the user's brief.
+- Verified end-to-end via screenshot in light AND dark mode with a seeded 93-book library.
+
