@@ -90,7 +90,7 @@ jobs:
 
       - name: Comment coverage summary on PR
         if: github.event_name == 'pull_request' && always()
-        uses: orgoro/coverage@v3.2
+        uses: orgoro/coverage@v3.3
         with:
           coverageFile: backend/test_reports/pytest/coverage.xml
           token: ${{ secrets.GITHUB_TOKEN }}
