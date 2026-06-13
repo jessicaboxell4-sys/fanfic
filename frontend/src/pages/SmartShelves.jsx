@@ -8,6 +8,7 @@ import {
   ArrowLeft, Plus, Trash2, Edit3, Pin, PinOff, X, Save, Filter,
   Sparkles, Tag as TagIcon, ArrowRight, Loader2,
 } from "lucide-react";
+import { RATINGS, CATEGORIES as AO3_CATEGORIES, WARNINGS } from "../components/Ao3FilterChips";
 
 const DEFAULT_QUERY = { combinator: "AND", rules: [] };
 
@@ -20,6 +21,13 @@ const RULE_FIELDS = [
   { value: "author", label: "Author is" },
   { value: "status", label: "Status is" },
   { value: "words", label: "Word count" },
+  // AO3 metadata — surface here so any shelf saved from the AO3 filter
+  // chips is editable in the same builder. Mirrors the four backend
+  // rule types added 2026-06-13.
+  { value: "rating", label: "AO3 rating is" },
+  { value: "ao3_category", label: "AO3 category is" },
+  { value: "warning", label: "Has archive warning" },
+  { value: "exclude_warning", label: "Hide archive warning" },
 ];
 
 const STATUS_OPTIONS = [
@@ -118,6 +126,42 @@ function RuleEditor({ rule, onChange, onRemove, tagSuggestions, fandomList, auth
         >
           <option value="">— pick —</option>
           {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+        </select>
+      )}
+
+      {field === "rating" && (
+        <select
+          data-testid={`rule-value-${rule._id}`}
+          value={rule.value || ""}
+          onChange={(e) => set({ value: e.target.value })}
+          className="bg-white border border-[#E8E6E1] rounded-lg px-2.5 py-1.5 text-sm"
+        >
+          <option value="">— pick —</option>
+          {RATINGS.map((r) => <option key={r.v} value={r.v}>{r.title}</option>)}
+        </select>
+      )}
+
+      {field === "ao3_category" && (
+        <select
+          data-testid={`rule-value-${rule._id}`}
+          value={rule.value || ""}
+          onChange={(e) => set({ value: e.target.value })}
+          className="bg-white border border-[#E8E6E1] rounded-lg px-2.5 py-1.5 text-sm"
+        >
+          <option value="">— pick —</option>
+          {AO3_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+      )}
+
+      {(field === "warning" || field === "exclude_warning") && (
+        <select
+          data-testid={`rule-value-${rule._id}`}
+          value={rule.value || ""}
+          onChange={(e) => set({ value: e.target.value })}
+          className="flex-1 min-w-[200px] bg-white border border-[#E8E6E1] rounded-lg px-2.5 py-1.5 text-sm"
+        >
+          <option value="">— pick —</option>
+          {WARNINGS.map((w) => <option key={w} value={w}>{w}</option>)}
         </select>
       )}
 

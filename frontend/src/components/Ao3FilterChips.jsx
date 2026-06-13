@@ -108,7 +108,7 @@ function SaveAsShelfModal({ open, name, setName, pinned, setPinned, onCancel, on
   );
 }
 
-const RATINGS = [
+export const RATINGS = [
   { v: "General Audiences", label: "G", title: "General Audiences" },
   { v: "Teen And Up Audiences", label: "T", title: "Teen And Up" },
   { v: "Mature", label: "M", title: "Mature" },
@@ -116,9 +116,9 @@ const RATINGS = [
   { v: "Not Rated", label: "NR", title: "Not Rated" },
 ];
 
-const CATEGORIES = ["F/F", "F/M", "Gen", "M/M", "Multi", "Other"];
+export const CATEGORIES = ["F/F", "F/M", "Gen", "M/M", "Multi", "Other"];
 
-const WARNINGS = [
+export const WARNINGS = [
   "Graphic Depictions Of Violence",
   "Major Character Death",
   "Rape/Non-Con",

@@ -1549,3 +1549,10 @@ Both upload sites (the regular EPUB upload pipeline + the URL-fetch path) now pe
 - `Ao3FilterChips.jsx` got a "Save as shelf" button that builds rules from the active filters and POSTs to `/api/smart-shelves`. Initial flow used `window.prompt`; replaced by the proper modal above.
 
 
+
+### Added 2026-06-13 (AO3 rule types editable in Smart Shelf builder)
+- Extended `SmartShelfBuilder` in `pages/SmartShelves.jsx` with 4 new editable field types: `rating`, `ao3_category`, `warning`, `exclude_warning`. Each gets a proper `<select>` value picker (canonical AO3 values only).
+- Exported `RATINGS`, `CATEGORIES`, `WARNINGS` from `Ao3FilterChips.jsx` so both the AO3 quick-filter panel and the shelf builder share one source of truth.
+- Updated `ruleSummary()` in `pages/SmartShelfPage.jsx` with human-friendly labels: `rating: Mature`, `category (AO3): M/M`, `warning: …`, `not warned for: …`.
+- **Closes the editing loop** opened yesterday: shelves saved from the AO3 quick-filter are now fully editable on `/library/smart/:id` → "Edit rules" — users can tweak rules, add more AO3 conditions, change combinator, save. Verified end-to-end via screenshot: 3-rule AND query (rating + ao3_category + exclude_warning) round-trips through the UI and persists in Mongo with the correct shape.
+

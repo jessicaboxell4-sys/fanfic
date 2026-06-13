@@ -25,6 +25,11 @@ function ruleSummary(r) {
     if (r.max) parts.push(`<${r.max}`);
     return `words ${parts.join(" & ") || "any"}`;
   }
+  // AO3 metadata rule types (added 2026-06-13)
+  if (r.field === "rating") return `rating: ${r.value}`;
+  if (r.field === "ao3_category") return `category (AO3): ${r.value}`;
+  if (r.field === "warning") return `warning: ${r.value}`;
+  if (r.field === "exclude_warning") return `not warned for: ${r.value}`;
   return `${r.field}: ${r.value}`;
 }
 
