@@ -1033,3 +1033,11 @@ These are agent-suggested features the user hasn't picked yet. Bring them up nex
 - **Why**: removes the need to either wait for the weekly cron or seed a refreshed book just to verify the Resend pipeline is alive. Useful any time the user changes Resend keys, swaps sender domains, or toggles email channels.
 - **Tests**: 2 new pytest cases in `tests/test_digest.py::TestEmailTest` (auth gate + happy path tolerating sandbox restriction). Two existing tests (`test_preview_returns_summary`, `test_preview_with_refreshed_book`) loosened to accept Resend sandbox rejections as a valid non-delivered state.
 - Verified end-to-end via curl with real Resend send (message ID `c6a23bce-1e90-458d-b768-f169ecd71eb0`). All 33 digest tests + 78 in surrounding suites passing.
+
+
+### Added 2026-06-13 (Operator email diagnostic on Admin Console)
+- **New endpoint**: `POST /api/admin/email-test` in `routes/admin.py`. Admin-gated. Accepts `{target_user_id?, target_email?, note?}` — falls back to the calling admin's email if neither is provided. 404 when target_user_id doesn't exist. Sends a distinctive "operator diagnostic" email (red ★ OPERATOR DIAGNOSTIC pill) with optional admin note rendered as a styled callout (HTML-escaped).
+- **Audit-logged**: every send writes an `email.test` row via `record_admin_action` with metadata `{to, delivered, id?, error?, logged?}` so abuse / debugging history is traceable.
+- **New UI card** on `/admin` (`EmailDiagnosticCard` between System Health and Global Aliases): three recipient modes (radios) — Self · Pick registered user (select populated from `/admin/users`) · Custom email. Optional 200-char note with live counter. Send button shows inline success pill ("Delivered to <email> #<id>") or red error pill.
+- **Tests**: 6 new pytest cases in `tests/test_admin_console.py` — auth gating, self-default, pick-by-id, unknown-user-404, custom email, audit-log write. **All 26 admin_console tests pass.**
+- Verified end-to-end via curl with real Resend send (message ID `5c9deb6e-856c-4c71-9502-a7b999ca52bd`). UI screenshot confirms layout.

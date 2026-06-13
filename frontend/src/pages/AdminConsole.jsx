@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft, ShieldCheck, Users, Heart, AlertTriangle, Activity, Layers,
   BarChart3, ToggleLeft, ClipboardList, Loader2, Plus, X as XIcon, Trash2,
-  Check, ChevronRight, Download, AlertOctagon, RotateCcw,
+  Check, ChevronRight, Download, AlertOctagon, RotateCcw, Send, Mail,
 } from "lucide-react";
 
 function fmtBytes(n) {
@@ -772,6 +772,177 @@ function UnknownFandomsCard() {
 }
 
 // ---------------------------------------------------------------------------
+// Email diagnostic card (operator one-shot send)
+// ---------------------------------------------------------------------------
+function EmailDiagnosticCard() {
+  const [users, setUsers] = useState([]);
+  const [mode, setMode] = useState("self"); // self | pick | custom
+  const [pickedUserId, setPickedUserId] = useState("");
+  const [customEmail, setCustomEmail] = useState("");
+  const [note, setNote] = useState("");
+  const [sending, setSending] = useState(false);
+  const [lastResult, setLastResult] = useState(null);
+
+  useEffect(() => {
+    api.get("/admin/users").then(({ data }) => setUsers(data?.users || [])).catch(() => {});
+  }, []);
+
+  const send = async () => {
+    const body = { note: note.trim() || undefined };
+    if (mode === "pick") {
+      if (!pickedUserId) {
+        toast.error("Pick a user from the list");
+        return;
+      }
+      body.target_user_id = pickedUserId;
+    } else if (mode === "custom") {
+      const e = customEmail.trim().toLowerCase();
+      if (!e || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) {
+        toast.error("Enter a valid email address");
+        return;
+      }
+      body.target_email = e;
+    }
+    setSending(true);
+    setLastResult(null);
+    try {
+      const { data } = await api.post("/admin/email-test", body);
+      setLastResult({ ok: true, ...data });
+      if (data.delivered) {
+        toast.success(`Sent to ${data.to}`);
+      } else if (data.logged) {
+        toast.warning("Email sending isn't configured — logged only.");
+      }
+    } catch (e) {
+      const detail = e?.response?.data?.detail || "Send failed";
+      setLastResult({ ok: false, error: detail });
+      toast.error(detail);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <Card
+      icon={Mail}
+      title="Email diagnostic"
+      subtitle="Fire a one-shot diagnostic email to confirm Resend delivery for any user. Useful when someone reports a missing digest. Every send is audit-logged."
+      testid="admin-email-diagnostic-card"
+    >
+      <div className="space-y-4">
+        <fieldset className="space-y-2">
+          <legend className="text-xs font-semibold uppercase tracking-wider text-[#6B705C] mb-1">Recipient</legend>
+          <label className="flex items-center gap-2 text-sm text-[#2C2C2C]">
+            <input
+              type="radio"
+              name="email-diag-mode"
+              checked={mode === "self"}
+              onChange={() => setMode("self")}
+              data-testid="admin-email-diag-mode-self"
+            />
+            Send to me (the signed-in admin)
+          </label>
+          <label className="flex items-center gap-2 text-sm text-[#2C2C2C]">
+            <input
+              type="radio"
+              name="email-diag-mode"
+              checked={mode === "pick"}
+              onChange={() => setMode("pick")}
+              data-testid="admin-email-diag-mode-pick"
+            />
+            Pick a registered user
+          </label>
+          {mode === "pick" && (
+            <select
+              value={pickedUserId}
+              onChange={(e) => setPickedUserId(e.target.value)}
+              data-testid="admin-email-diag-user-select"
+              className="ml-6 w-full max-w-md text-sm rounded-lg border border-[#E8E6E1] bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#3A5A40]/30"
+            >
+              <option value="">— Choose a user —</option>
+              {users.map((u) => (
+                <option key={u.user_id} value={u.user_id}>
+                  {u.email} {u.name ? `(${u.name})` : ""}
+                </option>
+              ))}
+            </select>
+          )}
+          <label className="flex items-center gap-2 text-sm text-[#2C2C2C]">
+            <input
+              type="radio"
+              name="email-diag-mode"
+              checked={mode === "custom"}
+              onChange={() => setMode("custom")}
+              data-testid="admin-email-diag-mode-custom"
+            />
+            Custom email address
+          </label>
+          {mode === "custom" && (
+            <input
+              type="email"
+              value={customEmail}
+              onChange={(e) => setCustomEmail(e.target.value)}
+              placeholder="ops@example.com"
+              data-testid="admin-email-diag-custom-input"
+              className="ml-6 w-full max-w-md text-sm rounded-lg border border-[#E8E6E1] bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#3A5A40]/30"
+            />
+          )}
+        </fieldset>
+
+        <div>
+          <label className="text-xs font-semibold uppercase tracking-wider text-[#6B705C] mb-1 block">
+            Optional note (shown in the email body)
+          </label>
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value.slice(0, 200))}
+            placeholder="e.g. Checking that you can receive digests after your domain change"
+            data-testid="admin-email-diag-note-input"
+            className="w-full text-sm rounded-lg border border-[#E8E6E1] bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#3A5A40]/30"
+            rows={2}
+          />
+          <p className="text-xs text-[#6B705C] mt-1">{note.length}/200</p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 pt-2">
+          <button
+            type="button"
+            onClick={send}
+            disabled={sending}
+            data-testid="admin-email-diag-send-btn"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#3A5A40] text-white text-sm font-semibold hover:bg-[#2D4632] transition-colors disabled:opacity-60"
+          >
+            {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            Send diagnostic
+          </button>
+          {lastResult && lastResult.ok && lastResult.delivered && (
+            <span
+              data-testid="admin-email-diag-last-success"
+              className="inline-flex items-center gap-1.5 text-xs text-[#3A5A40] font-semibold"
+            >
+              <Check className="w-3.5 h-3.5" />
+              Delivered to {lastResult.to}
+              {lastResult.id && (
+                <code className="ml-1 text-[10px] text-[#6B705C] font-mono">#{lastResult.id.slice(0, 8)}</code>
+              )}
+            </span>
+          )}
+          {lastResult && !lastResult.ok && (
+            <span
+              data-testid="admin-email-diag-last-error"
+              className="inline-flex items-center gap-1.5 text-xs text-[#B43F26] font-semibold"
+            >
+              <AlertTriangle className="w-3.5 h-3.5" />
+              {lastResult.error}
+            </span>
+          )}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 export default function AdminConsole() {
@@ -796,6 +967,7 @@ export default function AdminConsole() {
         <UnknownFandomsCard />
         <MaintenanceBannerCard />
         <HealthCard />
+        <EmailDiagnosticCard />
         <GlobalAliasesCard />
         <GlobalStatsCard />
         <FeatureFlagsCard />

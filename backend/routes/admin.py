@@ -21,8 +21,10 @@ from typing import Optional, Dict, Any
 from datetime import datetime, timezone, timedelta
 import shutil
 import os
+import asyncio
+import resend
 
-from deps import db, api_router, logger, RESEND_API_KEY, EMERGENT_LLM_KEY, STORAGE_DIR
+from deps import db, api_router, logger, RESEND_API_KEY, SENDER_EMAIL, EMERGENT_LLM_KEY, STORAGE_DIR
 from models import User
 from auth_dep import require_admin
 from utils.admin_audit import record_admin_action
@@ -507,3 +509,124 @@ async def rescan_unknown_fandom(
         "samples": samples,
         "dry_run": body.dry_run,
     }
+
+
+# ---------------------------------------------------------------------------
+# Operator email diagnostic
+# ---------------------------------------------------------------------------
+
+class AdminEmailTestBody(BaseModel):
+    target_user_id: Optional[str] = None
+    target_email: Optional[str] = None
+    note: Optional[str] = Field(default=None, max_length=200)
+
+
+@api_router.post("/admin/email-test")
+async def admin_email_test(
+    body: AdminEmailTestBody,
+    user: User = Depends(require_admin),
+):
+    """Operator-only: send a diagnostic email to a chosen user / arbitrary address.
+
+    Resolution order:
+      1. If `target_user_id` given → look up that user, send to their email.
+      2. Else if `target_email` given → send directly to that address.
+      3. Else → send to the calling admin.
+
+    Note: while Resend is in sandbox mode (no verified domain), Resend will
+    reject any recipient that is not the account-registered address. That
+    rejection bubbles back as 502 so the operator sees exactly why delivery
+    didn't happen.
+    """
+    target_email: str = ""
+    target_user_id: Optional[str] = None
+    target_name = ""
+
+    if body.target_user_id:
+        target = await db.users.find_one(
+            {"user_id": body.target_user_id},
+            {"_id": 0, "user_id": 1, "email": 1, "name": 1},
+        )
+        if not target:
+            raise HTTPException(status_code=404, detail="Target user not found")
+        target_email = target.get("email", "")
+        target_user_id = target.get("user_id")
+        target_name = target.get("name") or target_email.split("@")[0]
+    elif body.target_email:
+        target_email = body.target_email.strip().lower()
+        target_name = target_email.split("@")[0]
+    else:
+        target_email = user.email
+        target_user_id = user.user_id
+        target_name = user.name or target_email.split("@")[0]
+
+    if not target_email:
+        raise HTTPException(status_code=400, detail="No target email resolved")
+
+    if not RESEND_API_KEY:
+        logger.warning("Admin email-test: RESEND_API_KEY unset — would have sent to %s", target_email)
+        await record_admin_action(
+            user, "email.test",
+            target=target_user_id or target_email,
+            metadata={"to": target_email, "delivered": False, "logged": True},
+        )
+        return {"delivered": False, "logged": True, "to": target_email}
+
+    note_html = ""
+    if body.note:
+        safe = body.note.replace("<", "&lt;").replace(">", "&gt;")
+        note_html = (
+            '<p style="color:#4A4A4A;line-height:1.6;font-size:14px;'
+            'margin:20px 0 0;padding:14px 16px;background:#FDF3E1;'
+            'border-left:3px solid #B87A00;border-radius:6px;">'
+            f'<strong>Note from operator:</strong> {safe}</p>'
+        )
+
+    subject = "Shelfsort — operator diagnostic email"
+    html = f"""
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px; background: #FBF7EE; border-radius: 12px;">
+      <div style="display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; background: #FBE8E0; border: 1px solid rgba(208,90,60,0.4); border-radius: 999px; margin-bottom: 16px; font-size: 12px; font-weight: 600; color: #B43F26; letter-spacing: 0.5px;">
+        ★ OPERATOR DIAGNOSTIC
+      </div>
+      <h1 style="color: #2C2C2C; margin: 0 0 12px; font-size: 22px; font-family: Georgia, serif;">Hi {target_name},</h1>
+      <p style="color: #4A4A4A; line-height: 1.6; font-size: 15px; margin: 0;">
+        A Shelfsort operator sent this diagnostic message to confirm that email
+        delivery to <strong>{target_email}</strong> is working. If you weren't
+        expecting it, you can safely ignore it — no action is needed.
+      </p>
+      {note_html}
+      <p style="color: #6B705C; font-size: 12px; margin: 28px 0 0; padding-top: 16px; border-top: 1px solid #E8E6E1;">
+        Sent by an admin from the Shelfsort Admin Console.
+      </p>
+    </div>
+    """
+    text = (
+        f"Hi {target_name},\n\nThis is an operator diagnostic email confirming that "
+        f"Shelfsort can deliver mail to {target_email}. No action needed.\n"
+        f"{('Note: ' + body.note) if body.note else ''}\n\n— Shelfsort Admin Console"
+    )
+
+    try:
+        resend.api_key = RESEND_API_KEY
+        params = {
+            "from": SENDER_EMAIL,
+            "to": [target_email],
+            "subject": subject,
+            "html": html,
+            "text": text,
+        }
+        result = await asyncio.to_thread(resend.Emails.send, params)
+        await record_admin_action(
+            user, "email.test",
+            target=target_user_id or target_email,
+            metadata={"to": target_email, "delivered": True, "id": result.get("id")},
+        )
+        return {"delivered": True, "id": result.get("id"), "to": target_email}
+    except Exception as e:  # noqa: BLE001
+        logger.error("Admin email-test Resend send failed for %s: %s", target_email, e)
+        await record_admin_action(
+            user, "email.test",
+            target=target_user_id or target_email,
+            metadata={"to": target_email, "delivered": False, "error": str(e)[:300]},
+        )
+        raise HTTPException(status_code=502, detail=f"Resend rejected the send: {e}")

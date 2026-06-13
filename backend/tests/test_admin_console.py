@@ -269,3 +269,72 @@ def test_audit_log_action_prefix_filter():
     assert r.status_code == 200
     for e in r.json()["entries"]:
         assert e["action"].startswith("user.")
+
+
+
+# ---------- Email diagnostic --------------------------------------------
+
+def test_email_test_requires_admin():
+    # Unauthed
+    r = requests.post(f"{BASE}/api/admin/email-test", json={})
+    assert r.status_code == 401
+    # Non-admin
+    r2 = requests.post(f"{BASE}/api/admin/email-test", json={}, headers=H_NONADMIN())
+    assert r2.status_code == 403
+
+
+def test_email_test_defaults_to_caller():
+    # No target → uses the admin's own email
+    r = requests.post(f"{BASE}/api/admin/email-test", json={}, headers=H_ADMIN())
+    # In sandbox with @example.com it gets 502; without key it returns 200 logged.
+    assert r.status_code in (200, 502), r.text
+    if r.status_code == 200:
+        data = r.json()
+        assert data.get("to") == f"{ADMIN_ID}@example.com"
+
+
+def test_email_test_picks_user_by_id():
+    r = requests.post(
+        f"{BASE}/api/admin/email-test",
+        json={"target_user_id": NON_ADMIN_ID, "note": "ping"},
+        headers=H_ADMIN(),
+    )
+    assert r.status_code in (200, 502), r.text
+    if r.status_code == 200:
+        assert r.json().get("to") == f"{NON_ADMIN_ID}@example.com"
+
+
+def test_email_test_unknown_user_404():
+    r = requests.post(
+        f"{BASE}/api/admin/email-test",
+        json={"target_user_id": "user_does_not_exist"},
+        headers=H_ADMIN(),
+    )
+    assert r.status_code == 404
+
+
+def test_email_test_custom_email():
+    r = requests.post(
+        f"{BASE}/api/admin/email-test",
+        json={"target_email": "ops@example.com"},
+        headers=H_ADMIN(),
+    )
+    assert r.status_code in (200, 502), r.text
+    if r.status_code == 200:
+        assert r.json().get("to") == "ops@example.com"
+
+
+def test_email_test_writes_audit_entry():
+    requests.post(
+        f"{BASE}/api/admin/email-test",
+        json={"target_user_id": NON_ADMIN_ID, "note": "audit check"},
+        headers=H_ADMIN(),
+    )
+    r = requests.get(
+        f"{BASE}/api/admin/audit-log",
+        headers=H_ADMIN(),
+        params={"action_prefix": "email.", "limit": 20},
+    )
+    assert r.status_code == 200
+    entries = r.json()["entries"]
+    assert any(e["action"] == "email.test" for e in entries)
