@@ -56,6 +56,7 @@ FRANCHISE_GROUPS: Dict[str, List[str]] = {
     ],
     "Cosmere (Brandon Sanderson)": [
         "Mistborn Series - Brandon Sanderson",
+        "Mistborn: Wax & Wayne (Era 2)",
         "The Stormlight Archive - Brandon Sanderson",
         "Warbreaker",
         "Elantris",
@@ -240,6 +241,35 @@ FRANCHISE_GROUPS: Dict[str, List[str]] = {
     "The Sandman": [
         "The Sandman - Neil Gaiman",
         "The Sandman (TV)",
+    ],
+    "Stephen King multiverse": [
+        "It - Stephen King",
+        "The Dark Tower - Stephen King",
+        "The Shining - Stephen King",
+        "Carrie - Stephen King",
+        "Misery - Stephen King",
+        "Salem's Lot - Stephen King",
+    ],
+    "Resident Evil": [
+        "Resident Evil (Video Games)",
+        "Resident Evil (Movies)",
+    ],
+    "Hunger Games (Suzanne Collins)": [
+        "Hunger Games",
+        "The Ballad of Songbirds and Snakes",
+    ],
+    "Holly Black (Faerie books)": [
+        "The Folk of the Air Series - Holly Black",
+        "The Spiderwick Chronicles",
+        "The Stolen Heir Duology - Holly Black",
+    ],
+    "Discworld - Terry Pratchett": [
+        "Discworld - Terry Pratchett",
+        "Discworld: City Watch",
+        "Discworld: Witches",
+        "Discworld: Death",
+        "Discworld: Rincewind",
+        "Discworld: Tiffany Aching",
     ],
     "Avatar (Bryke)": [
         "Avatar: The Last Airbender",

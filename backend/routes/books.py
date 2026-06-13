@@ -532,6 +532,110 @@ FANDOM_KEYWORDS = {
         "avatar james cameron", "pandora avatar", "na'vi", "jake sully",
         "neytiri", "avatar the way of water", "avatar 2", "avatar 3",
     ],
+    # ----- More anime/manga.
+    "Frieren: Beyond Journey's End": [
+        "frieren beyond journey's end", "sousou no frieren",
+        "frieren elf", "fern frieren", "stark frieren",
+    ],
+    "Vinland Saga": [
+        "vinland saga", "thorfinn karlsefni", "askeladd vinland",
+        "canute vinland", "makoto yukimura",
+    ],
+    "Spy Classroom": [
+        "spy classroom", "spy kyoushitsu", "lily spy classroom", "klaus spy classroom",
+    ],
+    # ----- Stephen King multiverse.
+    "It - Stephen King": [
+        "it stephen king", "pennywise", "losers' club",
+        "derry maine king", "it 2017", "it chapter two",
+    ],
+    "The Dark Tower - Stephen King": [
+        "the dark tower", "roland deschain", "ka-tet",
+        "gunslinger stephen king",
+    ],
+    "The Shining - Stephen King": [
+        "the shining", "jack torrance", "danny torrance",
+        "overlook hotel", "doctor sleep",
+    ],
+    "Carrie - Stephen King": [
+        "carrie white", "carrie stephen king",
+    ],
+    "Misery - Stephen King": [
+        "misery stephen king", "annie wilkes",
+    ],
+    "Salem's Lot - Stephen King": [
+        "salem's lot", "salems lot", "ben mears king",
+    ],
+    # ----- Horror video-game franchises.
+    "Silent Hill": [
+        "silent hill", "konami silent hill", "pyramid head",
+        "silent hill 2", "silent hill 3", "james sunderland",
+    ],
+    "Resident Evil (Video Games)": [
+        "resident evil games", "biohazard", "leon kennedy",
+        "chris redfield", "jill valentine", "claire redfield",
+        "ada wong", "umbrella corporation",
+    ],
+    "Resident Evil (Movies)": [
+        "resident evil movies", "milla jovovich alice",
+        "resident evil welcome to raccoon city",
+    ],
+    # ----- More YA dystopia / continuations.
+    "Divergent Trilogy - Veronica Roth": [
+        "divergent", "veronica roth", "tris prior", "tobias eaton",
+        "insurgent", "allegiant",
+    ],
+    "The Maze Runner - James Dashner": [
+        "the maze runner", "james dashner", "thomas maze runner",
+        "newt maze runner", "minho maze runner", "wckd",
+        "the scorch trials", "death cure",
+    ],
+    "The Ballad of Songbirds and Snakes": [
+        "ballad of songbirds and snakes", "coriolanus snow prequel",
+        "lucy gray baird",
+    ],
+    # ----- Holly Black Spiderwick + Stolen Heir.
+    "The Spiderwick Chronicles": [
+        "spiderwick chronicles", "tony diterlizzi holly black",
+        "jared grace", "simon grace", "mallory grace",
+    ],
+    "The Stolen Heir Duology - Holly Black": [
+        "stolen heir", "black heart holly black", "wren stolen heir",
+        "oak greenbriar",
+    ],
+    # ----- Discworld sub-series. The umbrella is in the seed; readers
+    # often want to file books by sub-thread (Watch, Witches, Death,
+    # Rincewind, Tiffany Aching) so each lands on its own shelf.
+    "Discworld: City Watch": [
+        "city watch", "sam vimes", "carrot ironfoundersson", "ankh-morpork city watch",
+        "fred colon", "nobby nobbs",
+    ],
+    "Discworld: Witches": [
+        "discworld witches", "granny weatherwax", "nanny ogg",
+        "magrat garlick", "agnes nitt",
+    ],
+    "Discworld: Death": [
+        "discworld death", "mort discworld", "susan sto helit",
+        "death and bills", "soul music pratchett",
+    ],
+    "Discworld: Rincewind": [
+        "rincewind", "the colour of magic", "light fantastic",
+        "interesting times", "the last continent",
+    ],
+    "Discworld: Tiffany Aching": [
+        "tiffany aching", "wee free men", "nac mac feegle",
+        "hat full of sky", "wintersmith pratchett", "i shall wear midnight",
+    ],
+    # ----- Mistborn Era 2 (Wax & Wayne).
+    "Mistborn: Wax & Wayne (Era 2)": [
+        "wax and wayne", "alloy of law", "shadows of self",
+        "bands of mourning", "lost metal", "waxillium ladrian",
+    ],
+    # ----- Elden Ring.
+    "Elden Ring (Video Game)": [
+        "elden ring", "tarnished", "the lands between",
+        "marika", "radagon", "ranni the witch", "malenia blade of miquella",
+    ],
     "Doctor Who": ["doctor who", "tardis", "the doctor", "gallifrey"],
     "Supernatural": ["supernatural fic", "dean winchester", "sam winchester", "castiel"],
     "Game of Thrones": ["game of thrones", "westeros", "jon snow", "daenerys", "targaryen", "stark family"],
