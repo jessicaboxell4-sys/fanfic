@@ -1,33 +1,28 @@
 """
-Static-analysis guard against the "invisible text on cream background" class
-of dark-mode bugs.
+Static-analysis guard against three classes of dark-mode bugs:
 
-Background
-----------
-Shelfsort supports a global dark theme via `:root[data-theme="dark"]` CSS
-overrides on Tailwind arbitrary-value classes. The pattern (see
-`frontend/src/index.css`) is:
+1. **Invisible-text-on-cream** — light `bg-[#hex]` Tailwind classes whose
+   surface stays cream in dark mode while the remapped `text-[#2C2C2C]` flips
+   to near-white, leaving an unreadable wash. (e.g. the original #EEF3EC bug)
+2. **Invisible-dark-text** — dark `text-[#hex]` Tailwind classes that render
+   directly on the dark surface in dark mode. Without a brightened override,
+   they vanish into the background.
+3. **Glaring borders** — very light `border-[#hex]` classes that draw a stark
+   bright line on the dark surface in dark mode. The existing
+   `border-[#E5DDC5]` family is already overridden; this guard catches any
+   new addition that misses the same treatment.
 
-    :root[data-theme="dark"] .bg-\[\#EEE9FB\] { background-color: …; }
+How it works
+------------
+Each test scans every `.jsx/.js/.tsx/.ts` file under `frontend/src/` for the
+relevant Tailwind arbitrary-value class, computes WCAG relative luminance,
+filters to the danger zone (light bgs / dark text / light borders), and
+fails if `frontend/src/index.css` doesn't already remap that hex under
+`:root[data-theme="dark"]`. The failure message lists every file:line so
+the dev fixes the right component on the first try.
 
-Every light arbitrary `bg-[#hex]` class needs a matching dark-mode override —
-otherwise the page renders a cream box on the dark surface while the text
-colors (already remapped to near-white via the `text-[#2C2C2C]` override) turn
-invisible.
-
-What this test does
--------------------
-1. Scans every `.jsx/.js/.tsx/.ts` file under `frontend/src/` for
-   `bg-[#hex]` Tailwind classes.
-2. Computes WCAG relative luminance for each unique hex.
-3. Skips dark colors (luminance ≤ LIGHT_THRESHOLD) — they don't need overrides.
-4. Parses `frontend/src/index.css` for `:root[data-theme="dark"] .bg-\[\#hex\]`
-   override rules.
-5. Fails if any light hex is used without a matching override, with file:line
-   locations so the dev can fix the right component.
-
-The test is intentionally a single assertion with a structured failure message
-so the dev sees every offender at once instead of an iterative whack-a-mole.
+The thresholds and explicit whitelists live at the top so they can be tuned
+without touching the scanning logic.
 """
 import re
 from pathlib import Path
@@ -35,16 +30,22 @@ from pathlib import Path
 FRONTEND_SRC = Path(__file__).resolve().parents[2] / "frontend" / "src"
 CSS_FILE = FRONTEND_SRC / "index.css"
 
-# WCAG-ish luminance threshold. 0.80 catches every cream / pale-peach
-# background we've shipped (the #EEF3EC bug measured 0.88). Lower the
-# threshold here only if you find a genuinely dark color triggering a
-# false positive.
-LIGHT_THRESHOLD = 0.80
+# WCAG-ish relative luminance. The thresholds below were tuned empirically
+# against the codebase's existing overrides:
+#   • Light bg threshold 0.80 catches the original #EEF3EC bug (L≈0.88).
+#   • Dark text threshold 0.30 covers every #2C2C2C / #6B705C / coloured
+#     "deep" accent we've shipped without firing on already-light text.
+#   • Light border threshold 0.80 matches the cream `border-[#E5DDC5]` family.
+LIGHT_BG_THRESHOLD = 0.80
+DARK_TEXT_THRESHOLD = 0.30
+LIGHT_BORDER_THRESHOLD = 0.80
 
-# Hexes that are intentionally exempt. Keep this list small and document
-# the reason — most arbitrary bgs that need an exemption are colors used
-# only inside an already-dark surface where no override is needed.
-WHITELIST: set[str] = set()
+# Hexes intentionally exempt. Keep small and document the reason. Use these
+# only for colours that genuinely don't need a dark-mode override (e.g. used
+# exclusively inside an already-themed container).
+BG_WHITELIST: set[str] = set()
+TEXT_WHITELIST: set[str] = set()
+BORDER_WHITELIST: set[str] = set()
 
 
 def hex_to_luminance(hex_str: str) -> float | None:
@@ -65,13 +66,12 @@ def hex_to_luminance(hex_str: str) -> float | None:
     return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
 
-def _collect_arbitrary_bgs() -> dict[str, list[tuple[str, int]]]:
-    pattern = re.compile(r"bg-\[#([0-9A-Fa-f]{3,6})\]")
+def _collect_arbitrary_uses(prop: str) -> dict[str, list[tuple[str, int]]]:
+    """Returns: { hex_lowercase: [(file, line_num), ...] } for `{prop}-[#hex]`."""
+    pattern = re.compile(rf"{prop}-\[#([0-9A-Fa-f]{{3,6}})\]")
     out: dict[str, list[tuple[str, int]]] = {}
     for ext in ("*.jsx", "*.js", "*.tsx", "*.ts"):
         for path in FRONTEND_SRC.rglob(ext):
-            # Skip node_modules / build output (shouldn't be reachable via
-            # src/, but defensive).
             if "node_modules" in path.parts:
                 continue
             try:
@@ -80,67 +80,119 @@ def _collect_arbitrary_bgs() -> dict[str, list[tuple[str, int]]]:
                 continue
             for i, line in enumerate(lines, 1):
                 for m in pattern.finditer(line):
-                    key = m.group(1).lower()
-                    out.setdefault(key, []).append(
+                    out.setdefault(m.group(1).lower(), []).append(
                         (str(path.relative_to(FRONTEND_SRC)), i)
                     )
     return out
 
 
-def _collect_dark_overrides() -> set[str]:
-    """Returns the set of hex strings (lowercase) that already have a dark-mode
-    `bg-[#hex]` override in index.css. Handles both 3- and 6-digit hexes and
-    both escape styles seen in the file."""
+def _collect_dark_overrides(prop: str) -> set[str]:
+    """Returns the set of hex strings already overridden for `:root[data-theme="dark"] .{prop}-[#hex]`."""
     text = CSS_FILE.read_text(encoding="utf-8")
-    # Pattern catches both `\[\#…\]` and `\[#…\]` to be permissive.
     pattern = re.compile(
-        r':root\[data-theme="dark"\][^{}]*?\.bg-\\?\[\\?#([0-9A-Fa-f]{3,6})\\?\]',
+        rf':root\[data-theme="dark"\][^{{}}]*?\.{prop}-\\?\[\\?#([0-9A-Fa-f]{{3,6}})\\?\]',
         re.IGNORECASE,
     )
     return {m.group(1).lower() for m in pattern.finditer(text)}
 
 
-def test_every_light_arbitrary_bg_has_a_dark_mode_override():
-    """Light `bg-[#hex]` Tailwind classes must have a matching dark-mode
-    override in index.css. See module docstring for the why."""
-    bgs = _collect_arbitrary_bgs()
-    overrides = _collect_dark_overrides()
-
-    offenders = []
-    for hex_str, locations in bgs.items():
-        if hex_str in WHITELIST:
-            continue
-        lum = hex_to_luminance(hex_str)
-        if lum is None or lum <= LIGHT_THRESHOLD:
-            continue
-        if hex_str in overrides:
-            continue
-        offenders.append((hex_str, lum, locations))
-
-    if not offenders:
-        return  # pass
-
-    offenders.sort(key=lambda x: -x[1])  # darkest "light" last
-    msg_lines = [
-        f"Found {len(offenders)} light `bg-[#hex]` Tailwind class(es) without a "
-        f"matching `:root[data-theme=\"dark\"] .bg-\\[\\#hex\\]` override in "
+def _build_failure_message(prop: str, danger_zone: str, offenders: list, example_fix: str) -> str:
+    msg = [
+        f"Found {len(offenders)} `{prop}-[#hex]` Tailwind class(es) in the "
+        f"{danger_zone} danger zone without a matching "
+        f"`:root[data-theme=\"dark\"] .{prop}-\\[\\#hex\\]` override in "
         f"frontend/src/index.css.",
         "",
-        "Each one risks the same bug as #EEF3EC: cream box in dark mode + "
-        "remapped near-white text == invisible.",
-        "",
-        "Offenders (sorted brightest first):",
+        "Offenders (sorted worst-first):",
     ]
     for hex_str, lum, locations in offenders:
-        msg_lines.append(f"  #{hex_str}  (luminance={lum:.3f}, {len(locations)} usage(s))")
+        msg.append(f"  #{hex_str}  (luminance={lum:.3f}, {len(locations)} usage(s))")
         for f, ln in locations[:5]:
-            msg_lines.append(f"      {f}:{ln}")
+            msg.append(f"      {f}:{ln}")
         if len(locations) > 5:
-            msg_lines.append(f"      … and {len(locations) - 5} more")
-    msg_lines.append("")
-    msg_lines.append(
-        "Fix: append a one-liner to index.css, e.g.\n"
-        '    :root[data-theme="dark"] .bg-\\[\\#EEF3EC\\] '
-        "{ background-color: rgba(167, 139, 250, 0.14); }"
+            msg.append(f"      … and {len(locations) - 5} more")
+    msg.append("")
+    msg.append(f"Fix example:\n    {example_fix}")
+    return "\n".join(msg)
+
+
+def test_every_light_arbitrary_bg_has_a_dark_mode_override():
+    """Light `bg-[#hex]` classes must have a dark-mode override — else the
+    remapped near-white text turns invisible on the un-remapped cream."""
+    uses = _collect_arbitrary_uses("bg")
+    overrides = _collect_dark_overrides("bg")
+    offenders = []
+    for hex_str, locations in uses.items():
+        if hex_str in BG_WHITELIST or hex_str in overrides:
+            continue
+        lum = hex_to_luminance(hex_str)
+        if lum is None or lum <= LIGHT_BG_THRESHOLD:
+            continue
+        offenders.append((hex_str, lum, locations))
+    if not offenders:
+        return
+    offenders.sort(key=lambda x: -x[1])
+    raise AssertionError(
+        _build_failure_message(
+            "bg",
+            "light-background",
+            offenders,
+            ':root[data-theme="dark"] .bg-\\[\\#EEF3EC\\] '
+            "{ background-color: rgba(167, 139, 250, 0.14); }",
+        )
     )
-    raise AssertionError("\n".join(msg_lines))
+
+
+def test_every_dark_arbitrary_text_has_a_dark_mode_override():
+    """Dark `text-[#hex]` classes must have a dark-mode override — else they
+    render as near-black on the dark surface and become invisible."""
+    uses = _collect_arbitrary_uses("text")
+    overrides = _collect_dark_overrides("text")
+    offenders = []
+    for hex_str, locations in uses.items():
+        if hex_str in TEXT_WHITELIST or hex_str in overrides:
+            continue
+        lum = hex_to_luminance(hex_str)
+        if lum is None or lum >= DARK_TEXT_THRESHOLD:
+            continue
+        offenders.append((hex_str, lum, locations))
+    if not offenders:
+        return
+    offenders.sort(key=lambda x: x[1])
+    raise AssertionError(
+        _build_failure_message(
+            "text",
+            "dark-text",
+            offenders,
+            ':root[data-theme="dark"] .text-\\[\\#333\\] '
+            "{ color: var(--text-primary); }",
+        )
+    )
+
+
+def test_every_light_arbitrary_border_has_a_dark_mode_override():
+    """Light `border-[#hex]` classes must have a dark-mode override — else
+    they draw a too-bright line on the dark surface, clashing with the
+    softened `--border` used elsewhere."""
+    uses = _collect_arbitrary_uses("border")
+    overrides = _collect_dark_overrides("border")
+    offenders = []
+    for hex_str, locations in uses.items():
+        if hex_str in BORDER_WHITELIST or hex_str in overrides:
+            continue
+        lum = hex_to_luminance(hex_str)
+        if lum is None or lum <= LIGHT_BORDER_THRESHOLD:
+            continue
+        offenders.append((hex_str, lum, locations))
+    if not offenders:
+        return
+    offenders.sort(key=lambda x: -x[1])
+    raise AssertionError(
+        _build_failure_message(
+            "border",
+            "light-border",
+            offenders,
+            ':root[data-theme="dark"] .border-\\[\\#EEE\\] '
+            "{ border-color: var(--border); }",
+        )
+    )

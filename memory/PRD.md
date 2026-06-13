@@ -1632,3 +1632,14 @@ Both upload sites (the regular EPUB upload pipeline + the URL-fetch path) now pe
 - All 14 fixed in one CSS block at the bottom of `index.css`, grouped by hue: warm-peach pales → `rgba(255, 165, 130, 0.16)`, warm-yellow/amber → `#3a2f1b` + `#F0D6A0` text, neutral cream → `var(--surface)`, pink-red → `rgba(217, 83, 79, 0.18)`. Total dark overrides now 34 (was 19).
 - Sanity-verified on the Account page in dark mode — all sections render with consistent dark surfaces, no washed-out cream panels.
 - Threshold (`LIGHT_THRESHOLD = 0.80`) and explicit `WHITELIST: set[str]` exposed at the top of the test for future tuning.
+
+
+### Extended 2026-06-13 (Dark-mode regression guard — text + border)
+- `/app/backend/tests/test_dark_mode_overrides.py` extended to 3 sibling tests with shared scanning helpers:
+  1. **`test_every_light_arbitrary_bg_has_a_dark_mode_override`** — original `bg-[#hex]` luminance > 0.80 check.
+  2. **`test_every_dark_arbitrary_text_has_a_dark_mode_override`** — flags `text-[#hex]` colours with luminance < 0.30 that would vanish into the dark surface.
+  3. **`test_every_light_arbitrary_border_has_a_dark_mode_override`** — flags `border-[#hex]` colours with luminance > 0.80 that would draw a glaring line on the dark surface.
+- The extension surfaced **15 dark-text bugs** (greys `#333`/`#3a3a3a`/`#4a4a4a`/`#666`, deep purple `#553397`, red/orange-red family `#9d2a2a`/`#a83a36`/`#b43f26`/`#a8532f`/`#9e5a2e`, dark amber `#8c5c00`/`#a76900`, dark blue `#2a6496`, dark pink `#b85c7c`, muted placeholder `#9a9580`) and **1 light-border bug** (`#eee` on DownloadPage).
+- All 16 fixed in one consolidated CSS block at the bottom of `index.css`, grouped by hue (greys → `--text-primary` / `--text-secondary`, purples → `#C4B5FD`, reds → `#FF9A85`, ambers → `#F0B860`, blue → `#A8C0E8`, pink → `#FFB0CC`, placeholder → `#8a8675`, border → `--border`).
+- Sanity-verified on the Help page in dark mode — `Crossovers`, `Finished`, `Ongoing`, `Linkless`, `Unreadable` labels (previously invisible) now render as legible light coral.
+- All 3 tests run in < 0.1s combined and are now part of the regression suite — any future PR that adds a light bg / dark text / light border arbitrary-value class without a matching dark override will fail immediately.
