@@ -10,8 +10,9 @@ import { CUSTOM_PALETTE_ID } from "../lib/palettes";
 // Escape. Replaces the bare theme-toggle icon button.
 export default function AppearancePopover() {
   const { theme, toggleTheme } = useTheme();
-  const { paletteId, setPaletteId, palettes, customLight } = usePalette();
+  const { palette, paletteId, setPaletteId, palettes, customLight } = usePalette();
   const [open, setOpen] = useState(false);
+  const [hoverName, setHoverName] = useState(null);
   const rootRef = useRef(null);
 
   useEffect(() => {
@@ -69,7 +70,9 @@ export default function AppearancePopover() {
                   : <Sun className="w-4 h-4 text-[#6B705C]" />}
                 {theme === "dark" ? "Dark mode" : "Light mode"}
               </span>
-              <span className="text-xs text-[#6B705C]">switch →</span>
+              <span className="text-xs text-[#6B705C] font-semibold">
+                Switch to {theme === "dark" ? "Light" : "Dark"} →
+              </span>
             </button>
           </div>
 
@@ -86,9 +89,13 @@ export default function AppearancePopover() {
                     key={p.id}
                     type="button"
                     onClick={() => setPaletteId(p.id)}
+                    onMouseEnter={() => setHoverName(p.name)}
+                    onMouseLeave={() => setHoverName(null)}
+                    onFocus={() => setHoverName(p.name)}
+                    onBlur={() => setHoverName(null)}
                     data-testid={`appearance-popover-palette-${p.id}`}
                     aria-pressed={selected}
-                    title={p.name}
+                    aria-label={`${p.name} palette`}
                     className={`relative h-10 rounded-lg border transition-all ${
                       selected
                         ? "border-[#3A5A40] ring-2 ring-[#3A5A40]/30"
@@ -110,9 +117,13 @@ export default function AppearancePopover() {
               <button
                 type="button"
                 onClick={() => setPaletteId(CUSTOM_PALETTE_ID)}
+                onMouseEnter={() => setHoverName("Custom")}
+                onMouseLeave={() => setHoverName(null)}
+                onFocus={() => setHoverName("Custom")}
+                onBlur={() => setHoverName(null)}
                 data-testid={`appearance-popover-palette-${CUSTOM_PALETTE_ID}`}
                 aria-pressed={isCustom}
-                title="Custom palette"
+                aria-label="Custom palette"
                 className={`relative h-10 rounded-lg border-2 border-dashed transition-all flex items-center justify-center ${
                   isCustom
                     ? "border-[#3A5A40] ring-2 ring-[#3A5A40]/30"
@@ -127,8 +138,15 @@ export default function AppearancePopover() {
                 <Sliders className={`w-3.5 h-3.5 ${isCustom ? "text-white drop-shadow" : "text-[#6B705C]"}`} />
               </button>
             </div>
-            <p className="text-[10px] text-[#6B705C] mt-2 px-1">
-              Click a swatch to switch site-wide colour.
+            <p
+              data-testid="appearance-popover-palette-caption"
+              className="text-[10px] text-[#6B705C] mt-2 px-1 min-h-[14px]"
+            >
+              {hoverName ? (
+                <>Preview: <strong className="text-[#2C2C2C]">{hoverName}</strong></>
+              ) : (
+                <>Current: <strong className="text-[#2C2C2C]">{palette.name}</strong></>
+              )}
             </p>
           </div>
 

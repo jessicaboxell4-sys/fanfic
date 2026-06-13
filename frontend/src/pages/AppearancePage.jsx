@@ -1,9 +1,12 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Sun, Moon, Palette } from "lucide-react";
+import { ArrowLeft, Sun, Moon, Palette, RotateCcw } from "lucide-react";
+import { toast } from "sonner";
 import Navbar from "../components/Navbar";
 import PalettePickerCard from "../components/PalettePickerCard";
 import { useTheme } from "../context/ThemeContext";
+import { usePalette } from "../context/PaletteContext";
+import { DEFAULT_PALETTE_ID, DEFAULT_CUSTOM_LIGHT } from "../lib/palettes";
 
 // /account/appearance — full theme & colour controls.
 // Reached from the Navbar appearance popover ("More appearance options →")
@@ -11,6 +14,20 @@ import { useTheme } from "../context/ThemeContext";
 // (formerly on /account), and a live preview.
 export default function AppearancePage() {
   const { theme, toggleTheme } = useTheme();
+  const { paletteId, setPaletteId, setCustomLight } = usePalette();
+  const [confirmReset, setConfirmReset] = useState(false);
+
+  const resetDefaults = () => {
+    if (!confirmReset) {
+      setConfirmReset(true);
+      return;
+    }
+    setPaletteId(DEFAULT_PALETTE_ID);
+    setCustomLight(DEFAULT_CUSTOM_LIGHT);
+    setConfirmReset(false);
+    toast.success("Appearance reset to defaults");
+  };
+  const isAtDefaults = paletteId === DEFAULT_PALETTE_ID;
 
   return (
     <div className="min-h-screen bg-[#FBF7EE]">
@@ -122,6 +139,37 @@ export default function AppearancePage() {
         <p className="text-xs text-[#6B705C] text-center">
           Both settings are stored in this browser only. Sign in on another device to set them there too.
         </p>
+
+        <div className="mt-4 flex items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={resetDefaults}
+            data-testid="appearance-reset-btn"
+            className={`inline-flex items-center gap-1.5 text-xs font-semibold transition-colors ${
+              confirmReset
+                ? "text-[#B43F26]"
+                : "text-[#6B705C] hover:text-[#2C2C2C]"
+            }`}
+          >
+            <RotateCcw className="w-3 h-3" />
+            {confirmReset ? "Click again to confirm reset" : "Reset to defaults"}
+          </button>
+          {confirmReset && (
+            <button
+              type="button"
+              onClick={() => setConfirmReset(false)}
+              data-testid="appearance-reset-cancel-btn"
+              className="text-xs text-[#6B705C] hover:text-[#2C2C2C]"
+            >
+              cancel
+            </button>
+          )}
+          {!confirmReset && isAtDefaults && (
+            <span className="text-[10px] text-[#6B705C] italic">
+              (currently at defaults)
+            </span>
+          )}
+        </div>
       </main>
     </div>
   );

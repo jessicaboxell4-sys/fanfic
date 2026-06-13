@@ -1049,3 +1049,9 @@ These are agent-suggested features the user hasn't picked yet. Bring them up nex
 - **Removed**: `PalettePickerCard` no longer renders on `/account`. The only ways to reach palette controls are the navbar popover (quick switch) or "More appearance options →" → `/account/appearance` (full controls).
 - **Help docs updated**: rewrote the Appearance bullet on `/help` Account section to describe the popover-first flow, the seven swatches, the Custom hex picker, and the dedicated page link.
 - All six touched files lint-clean. UI screenshots confirm popover + page render correctly.
+
+
+### Polish 2026-06-13 (Appearance UX — three small wins)
+- **Hover-name caption** in the navbar popover: small live label below the swatch grid that reads `Preview: <Hovered>` while hovering or `Current: <Active>` otherwise. Replaces browser-native `title=` tooltips (which had a 1.5s delay). Captures `onMouseEnter/Leave` + `onFocus/Blur` for keyboard parity. Each swatch also got a proper `aria-label="<Name> palette"` for screen readers.
+- **Sharper theme toggle label**: "Switch to Light →" / "Switch to Dark →" instead of vague "switch →". Tells the user exactly what tapping it will do.
+- **Reset to defaults** link at the bottom of `/account/appearance`: two-click confirmation (first click arms a red "Click again to confirm reset" label + a cancel link, second click restores the default palette (`purple`) and the default custom hex set, then toasts). Shows "(currently at defaults)" when already there.
