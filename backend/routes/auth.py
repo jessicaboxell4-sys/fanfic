@@ -457,6 +457,80 @@ async def auth_reset_password(body: ResetPasswordBody, response: Response):
 
 
 # ============================================================
+# ACCOUNT DELETION (permanent)
+# ============================================================
+class DeleteAccountBody(BaseModel):
+    confirm_email: str
+    """Must equal the signed-in user's own email (case-insensitive). Acts
+    as the second factor against an accidental POST. The frontend asks
+    the user to type it explicitly into a text field."""
+
+
+@api_router.post("/account/delete")
+async def delete_account(
+    body: DeleteAccountBody,
+    response: Response,
+    user: User = Depends(get_current_user),
+):
+    """Permanently delete the user — record, sessions, password reset tokens,
+    library, files, reading history, smart shelves, custom categories. This
+    is the **full wipe**: after a successful call the account no longer
+    exists. Distinct from `POST /api/books/wipe-library`, which only
+    removes books but keeps the account intact.
+
+    Refuses unless `body.confirm_email` (case-insensitive) matches the
+    signed-in user's stored email — guards against accidental UI clicks.
+
+    Clears the `session_token` cookie on the response so the browser is
+    logged out immediately.
+    """
+    if (body.confirm_email or "").strip().lower() != (user.email or "").strip().lower():
+        raise HTTPException(
+            status_code=400,
+            detail="Confirmation email does not match your account email.",
+        )
+
+    # 1) On-disk files
+    user_dir = STORAGE_DIR / user.user_id
+    files_removed = 0
+    if user_dir.exists():
+        for p in user_dir.iterdir():
+            try:
+                if p.is_file():
+                    p.unlink()
+                    files_removed += 1
+            except Exception as e:
+                logger.warning("delete_account: couldn't unlink %s: %s", p, e)
+        try:
+            user_dir.rmdir()
+        except Exception as e:
+            logger.warning("delete_account: couldn't rmdir %s: %s", user_dir, e)
+
+    # 2) Per-user collections
+    purged = {
+        "books": (await db.books.delete_many({"user_id": user.user_id})).deleted_count,
+        "reading_activity": (await db.reading_activity.delete_many({"user_id": user.user_id})).deleted_count,
+        "smart_shelves": (await db.smart_shelves.delete_many({"user_id": user.user_id})).deleted_count,
+        "categories": (await db.categories.delete_many({"user_id": user.user_id})).deleted_count,
+        "user_sessions": (await db.user_sessions.delete_many({"user_id": user.user_id})).deleted_count,
+        "password_reset_tokens": (await db.password_reset_tokens.delete_many({"user_id": user.user_id})).deleted_count,
+    }
+
+    # 3) The user record itself
+    purged["users"] = (await db.users.delete_one({"user_id": user.user_id})).deleted_count
+
+    # 4) Drop the session cookie so the browser is logged out immediately
+    response.delete_cookie("session_token", path="/")
+
+    return {
+        "ok": True,
+        "files_removed": files_removed,
+        **purged,
+        "message": "Account permanently deleted.",
+    }
+
+
+# ============================================================
 # EPUB PARSING & CLASSIFICATION
 # ============================================================
 

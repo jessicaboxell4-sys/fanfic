@@ -542,6 +542,8 @@ export default function Account() {
   const [applyingTpl, setApplyingTpl] = useState(false);
   const [tidyingNames, setTidyingNames] = useState(false);
   const [wiping, setWiping] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [confirmEmailInput, setConfirmEmailInput] = useState("");
   const [resetting, setResetting] = useState(false);
   const [resetOpts, setResetOpts] = useState({
     reset_progress: false,
@@ -647,6 +649,33 @@ export default function Account() {
       toast.error(e?.response?.data?.detail || "Couldn't wipe library", { id: t });
     } finally {
       setWiping(false);
+    }
+  };
+
+  // Full account deletion — separate from wipeLibrary. Requires the user
+  // to type their own email into the confirmation field; backend re-checks
+  // that match server-side so a tampered frontend can't bypass.
+  const deleteAccount = async () => {
+    if (!confirmEmailInput.trim()) {
+      toast.error("Type your email to confirm.");
+      return;
+    }
+    if (confirmEmailInput.trim().toLowerCase() !== (profile?.email || "").trim().toLowerCase()) {
+      toast.error("That doesn't match your account email.");
+      return;
+    }
+    if (!window.confirm(
+      "FINAL WARNING: This permanently deletes your account, every book, and every file. There is no undo.\n\nClick OK to proceed."
+    )) return;
+    setDeletingAccount(true);
+    const t = toast.loading("Deleting account…");
+    try {
+      await api.post("/account/delete", { confirm_email: confirmEmailInput.trim() }, { timeout: 600000 });
+      toast.success("Account deleted. Signing you out…", { id: t });
+      setTimeout(() => { window.location.href = "/login"; }, 1500);
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't delete account", { id: t });
+      setDeletingAccount(false);
     }
   };
 
@@ -1312,6 +1341,47 @@ export default function Account() {
             {wiping ? <Loader2 className="w-4 h-4 animate-spin" /> : <AlertTriangle className="w-4 h-4" />}
             {wiping ? "Wiping…" : "Delete entire library"}
           </button>
+        </section>
+
+        {/* Account deletion — completely separate from library wipe.       */}
+        {/* Removes the user record, sessions, password tokens, and every  */}
+        {/* book/file. Requires the user to type their email to confirm.  */}
+        <section
+          className="shelf-card p-6 mb-6 border-2 border-[#D9534F]/60"
+          data-testid="delete-account-card"
+        >
+          <div className="flex items-start gap-3 mb-3">
+            <div className="w-10 h-10 rounded-xl bg-[#FBE9E7] text-[#D9534F] flex items-center justify-center flex-shrink-0">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="font-serif text-2xl text-[#2C2C2C]">Delete account permanently</h2>
+              <p className="text-sm text-[#6B705C] mt-0.5">
+                Removes your account entirely — login credentials, profile, library, files, reading history, smart shelves, custom categories, active sessions, password reset tokens. You will be signed out immediately and cannot recover anything except via a previously downloaded ZIP backup. <strong>This is the full nuke. No undo.</strong>
+              </p>
+            </div>
+          </div>
+          <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#D9534F] mb-1.5">Type your email to confirm</p>
+          <input
+            type="email"
+            value={confirmEmailInput}
+            onChange={(e) => setConfirmEmailInput(e.target.value)}
+            placeholder={profile?.email || "you@example.com"}
+            data-testid="delete-account-email-input"
+            className="w-full md:w-96 px-3 py-2 rounded-lg border border-[#D9534F]/40 bg-white text-sm text-[#2C2C2C] focus:outline-none focus:border-[#D9534F] mb-3"
+          />
+          <div>
+            <button
+              type="button"
+              onClick={deleteAccount}
+              disabled={deletingAccount || !confirmEmailInput.trim()}
+              data-testid="delete-account-btn"
+              className="px-4 py-2 rounded-xl bg-[#D9534F] hover:bg-[#B53C39] text-white text-sm font-semibold flex items-center gap-2 disabled:opacity-60 transition-colors"
+            >
+              {deletingAccount ? <Loader2 className="w-4 h-4 animate-spin" /> : <AlertTriangle className="w-4 h-4" />}
+              {deletingAccount ? "Deleting…" : "Delete my account forever"}
+            </button>
+          </div>
         </section>
       </main>
     </div>

@@ -282,7 +282,19 @@ export default function Help() {
                 <li><strong>Fandom aliases</strong> — map your custom shorthand to canonical fandom names</li>
                 <li><strong>Format prefs</strong> for the Originals shelf</li>
                 <li><strong>Theme toggle</strong> (Navbar) — AO3-inspired Light / Dark</li>
-                <li><strong>Danger zone</strong> — delete account (purges all your data; ZIP backup is your only way to recover)</li>
+                <li>
+                  <strong>Danger zone — Delete entire library</strong>: wipes every book, EPUB file, reading
+                  history entry, smart shelf, and custom category. <em>Your account stays</em> — your login,
+                  profile settings, fandom aliases, format prefs, and theme palette are all preserved. Useful
+                  for a fresh start without losing your settings. No undo; a ZIP backup is your only recovery.
+                </li>
+                <li>
+                  <strong>Danger zone — Delete account permanently</strong>: the full nuke. Removes your user
+                  record, password hash, all active sessions, password reset tokens, plus everything the
+                  library wipe touches. You&apos;re signed out immediately. Requires typing your email into the
+                  confirmation field. <em>Truly</em> no undo — and unlike the library wipe, you can&apos;t even
+                  log back in to start over without registering a new account.
+                </li>
               </ul>
               <p>Found a bug or want a feature? The agent listens — just ask in chat.</p>
             </Section>

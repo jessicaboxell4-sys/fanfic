@@ -999,3 +999,12 @@ These are agent-suggested features the user hasn't picked yet. Bring them up nex
 - **Bug**: hovering the avatar / username area in the Navbar showed a bright cream `#F5F3EC` highlight rectangle in dark mode — only the non-hover `bg-[#F5F3EC]` was remapped in `index.css`. Added `.hover\:bg-\[\#F5F3EC\]:hover` to the same dark-mode override block so the hover state correctly uses `var(--surface-hover)` (`#34343A`).
 - **Help docs**: added a new bullet under "Account & preferences" describing the Theme palette card — 6 presets + Custom with 4 colour pickers, auto-derived dark variants, browser-scoped persistence, and how it pairs with the existing Light/Dark toggle.
 
+
+### Added 2026-06-12 (Real account deletion — kept separate from library wipe)
+- **Truth audit**: the pre-existing "Delete entire library" button in Account's Danger Zone wipes books/files/reading_activity/smart_shelves/categories ONLY — the `users` row, sessions, password tokens, fandom aliases, format prefs, and other settings all survived. Help docs falsely advertised this as "delete account".
+- **Backend**: new `POST /api/account/delete` in `/app/backend/routes/auth.py`. Body `{confirm_email: str}` must match the signed-in user's email (case-insensitive) — guards against accidental UI clicks. Performs full purge: on-disk files in `/app/uploads/<user_id>/`, `books`, `reading_activity`, `smart_shelves`, `categories`, `user_sessions`, `password_reset_tokens`, and the `users` row itself. Clears the `session_token` cookie on the response so the browser is signed out immediately.
+- **Frontend**: new `delete-account-card` section at the very bottom of `/account`, visually distinct (double red border, separate header "Delete account permanently"). Includes a `delete-account-email-input` text field; the `delete-account-btn` stays disabled until the field is non-empty, then frontend re-checks the typed value matches `profile.email` before calling the API. Browser confirm dialog as a final guard. On success → toast + redirect to `/login`.
+- **The existing "Delete entire library" card stays exactly where it was** with no behavior changes. The two cards are now completely independent on Account page.
+- **Help docs rewritten** in the Account & preferences section to describe both options accurately: library wipe (account survives) vs. account delete (full nuke, can't even log back in).
+- Verified: 401 unauthed, 400 on wrong email, button disabled while input empty, both cards render on /account.
+
