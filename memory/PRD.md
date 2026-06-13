@@ -1691,6 +1691,16 @@ Both upload sites (the regular EPUB upload pipeline + the URL-fetch path) now pe
 
 
 ### Added 2026-06-13 (Author semantic-icon — completes the chip-icon trio)
+
+### Added 2026-06-13 (Help page — chip-icon legend)
+- Added a tidy "Chip key" cheatsheet pill right under the Help page's intro description (testid `help-chip-legend`). One horizontal row, four entries:
+  - `Aa` (lavender mini-pill) — fandom
+  - `⇄ 2` (purple solid badge) — crossover, with example count
+  - `♡` (purple heart) — pairing
+  - `👤` (purple user icon) — author
+- Reuses the exact same Tailwind classes as the real chips so the visual identity is one-to-one. Newcomers learn the entire chip-icon vocabulary in ~2 seconds without scrolling.
+- Verified visually in both light and dark mode — pill background converges on `var(--surface)` automatically thanks to the existing `bg-white` dark override, so no new CSS rules needed. Dark-mode regression suite (3/3) still green.
+
 - Final piece of the recognisable-chip-glyph trio (fandoms: no icon · crossovers: ⇄ · pairings: ♡ · **authors: 👤**). Every chip type in the library now has a unique at-a-glance marker.
 - Hit surfaces:
   - `AuthorsPage.jsx` — every directory row prefixed with the `User` lucide icon in purple. Count pill also switched from neutral cream `bg-[#E5DDC5]/60` to the unified `bg-[#6B46C1]/10 text-[#6B46C1]` lavender so all three index pages (Pairings, Authors, …) share visual rhythm.

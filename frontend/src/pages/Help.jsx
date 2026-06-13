@@ -3,7 +3,7 @@ import axios from "axios";
 import { Link, useLocation } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import {
-  ArrowLeft, Upload, Sparkles, Layers, RefreshCw, BookOpen, Trash2,
+  ArrowLeft, ArrowLeftRight, Upload, Sparkles, Layers, RefreshCw, BookOpen, Trash2,
   Filter, Heart, AlertTriangle, Settings, GitCompare, Bell, LineChart,
   Globe, Shield, CheckCircle2, Clock, FileWarning, User as UserIcon, X,
   MessageSquare, Search, ListChecks,
@@ -164,6 +164,36 @@ export default function Help() {
           <p className="text-sm text-[#6B705C] mt-3">
             Don&rsquo;t see what you&rsquo;re looking for? <Link to="/suggestions" className="text-[var(--primary)] font-semibold underline">Drop a suggestion →</Link> — bugs, tweaks, brand new ideas all welcome.
           </p>
+
+          {/* Chip-icon legend — teaches the visual shorthand used across the
+              library rails so newcomers can read a chip's "type" at a glance. */}
+          <div
+            data-testid="help-chip-legend"
+            className="mt-5 inline-flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-2 rounded-2xl border border-[#E5DDC5] bg-white text-xs text-[#6B705C]"
+          >
+            <span className="font-bold uppercase tracking-[0.15em] text-[#6B46C1]">Chip key</span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-[#EDE7FB] text-[#6B46C1] text-[10px] font-semibold leading-none">
+                Aa
+              </span>
+              fandom
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="inline-flex items-center justify-center gap-0.5 min-w-[26px] h-[18px] px-1.5 rounded-full bg-[#6B46C1] text-white text-[10px] font-bold leading-none">
+                <ArrowLeftRight className="w-2.5 h-2.5" aria-hidden="true" />2
+              </span>
+              crossover
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <Heart className="w-3.5 h-3.5 text-[#6B46C1]" aria-hidden="true" />
+              pairing
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <UserIcon className="w-3.5 h-3.5 text-[#6B46C1]" aria-hidden="true" />
+              author
+            </span>
+          </div>
+
           <div className="mt-5 relative max-w-md" data-testid="help-search-wrapper">
             <Search className="w-4 h-4 text-[#6B705C] absolute top-1/2 -translate-y-1/2 left-3 pointer-events-none" />
             <input
