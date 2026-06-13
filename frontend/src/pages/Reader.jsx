@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { ReactReader } from "react-reader";
-import { ArrowLeft, BookOpen, Minus, Plus, BookText, AlignLeft } from "lucide-react";
+import { ArrowLeft, BookOpen, Minus, Plus, BookText, AlignLeft, Bookmark, BookmarkPlus, X as XIcon } from "lucide-react";
 import { api } from "../lib/api";
 import { toast } from "sonner";
 
@@ -21,6 +21,8 @@ export default function Reader() {
     return Number.isFinite(v) ? v : 100;
   });
   const [error, setError] = useState(null);
+  const [bookmarks, setBookmarks] = useState([]);
+  const [showBookmarkPanel, setShowBookmarkPanel] = useState(false);
   const renditionRef = useRef(null);
   const savedLocationRef = useRef(null);
   const progressTimerRef = useRef(null);
@@ -47,6 +49,76 @@ export default function Reader() {
       const saved = window.localStorage.getItem(`shelfsort-loc-${id}`);
       if (saved) savedLocationRef.current = saved;
     } catch (e) {}
+  }, [id]);
+
+  // Load this book's bookmarks once the book is open.
+  const loadBookmarks = useCallback(async () => {
+    try {
+      const { data } = await api.get(`/books/${id}/bookmarks`);
+      setBookmarks(data.bookmarks || []);
+    } catch (e) { /* silent — bookmarks are non-critical */ }
+  }, [id]);
+  useEffect(() => { loadBookmarks(); }, [loadBookmarks]);
+
+  // Save the current page as a bookmark.
+  const addBookmark = useCallback(async () => {
+    if (!location) {
+      toast.error("Couldn't grab your current position");
+      return;
+    }
+    // Best-effort: compute reading % + chapter label so the bookmark
+    // entry is informative without requiring the user to type anything.
+    let percent = null;
+    let chapter_label = "";
+    try {
+      const book = renditionRef.current?.book;
+      if (book?.locations?.length && book.locations.length() > 0) {
+        percent = book.locations.percentageFromCfi(location);
+      }
+      // Walk the TOC to find the chapter containing this CFI.
+      try {
+        const loc = renditionRef.current?.currentLocation?.();
+        const href = loc?.start?.href;
+        const toc = book?.navigation?.toc || [];
+        const flat = [];
+        const walk = (items) => items.forEach((it) => { flat.push(it); if (it.subitems) walk(it.subitems); });
+        walk(toc);
+        const match = flat.find((it) => it.href && href && (it.href === href || href.startsWith(it.href.split("#")[0])));
+        if (match?.label) chapter_label = match.label;
+      } catch (e) {}
+    } catch (e) {}
+    try {
+      const { data } = await api.post(`/books/${id}/bookmarks`, {
+        cfi: location,
+        percent,
+        chapter_label,
+        note: "",
+      });
+      toast.success("Bookmark added");
+      // Optimistic + refetch for canonical order.
+      setBookmarks((prev) => {
+        const without = prev.filter((b) => b.cfi !== location);
+        return [...without, data.bookmark].sort((a, b) => (a.percent ?? 1) - (b.percent ?? 1));
+      });
+    } catch (e) {
+      toast.error("Couldn't save bookmark");
+    }
+  }, [id, location]);
+
+  // Jump the reader to a bookmark's CFI.
+  const jumpToBookmark = useCallback((cfi) => {
+    try {
+      renditionRef.current?.display(cfi);
+      setShowBookmarkPanel(false);
+    } catch (e) { toast.error("Couldn't jump to that bookmark"); }
+  }, []);
+
+  // Delete a bookmark from the panel.
+  const removeBookmark = useCallback(async (bookmark_id) => {
+    try {
+      await api.delete(`/books/${id}/bookmarks/${bookmark_id}`);
+      setBookmarks((prev) => prev.filter((b) => b.bookmark_id !== bookmark_id));
+    } catch (e) { toast.error("Couldn't remove bookmark"); }
   }, [id]);
 
   // Reading-time heartbeat: every 60s, if the tab is visible AND user is
@@ -278,6 +350,29 @@ export default function Reader() {
             )}
           </div>
           <div className="flex items-center gap-2">
+            {/* Bookmark button */}
+            <button
+              data-testid="bookmark-add-btn"
+              onClick={addBookmark}
+              disabled={!location}
+              className="hidden sm:flex items-center gap-1.5 text-xs font-medium bg-white border border-[#E8E6E1] rounded-full px-3 py-1.5 hover:bg-[#F5F3EC] disabled:opacity-50"
+              title="Bookmark this page"
+            >
+              <BookmarkPlus className="w-3.5 h-3.5" />
+              <span>Bookmark</span>
+            </button>
+
+            {/* Bookmark panel toggle */}
+            <button
+              data-testid="bookmark-list-toggle"
+              onClick={() => setShowBookmarkPanel((v) => !v)}
+              className="flex items-center gap-1.5 text-xs font-medium bg-white border border-[#E8E6E1] rounded-full px-3 py-1.5 hover:bg-[#F5F3EC]"
+              title={`${bookmarks.length} bookmark${bookmarks.length === 1 ? "" : "s"}`}
+            >
+              <Bookmark className="w-3.5 h-3.5" />
+              <span data-testid="bookmark-count">{bookmarks.length}</span>
+            </button>
+
             {/* Flow toggle */}
             <button
               data-testid="flow-toggle"
@@ -331,6 +426,71 @@ export default function Reader() {
             <div className="text-center">
               <div className="inline-block h-8 w-8 border-2 border-[#E07A5F] border-t-transparent rounded-full animate-spin" />
               <p className="mt-4 text-[#6B705C] font-serif text-lg">Opening your book…</p>
+            </div>
+          </div>
+        )}
+
+        {/* Bookmarks panel — slides in from the right */}
+        {showBookmarkPanel && (
+          <div
+            className="absolute top-0 right-0 bottom-0 w-80 bg-[#FDFBF7] border-l border-[#E8E6E1] shadow-xl z-40 overflow-y-auto"
+            data-testid="bookmark-panel"
+          >
+            <div className="sticky top-0 bg-[#FDFBF7] border-b border-[#E8E6E1] p-4 flex items-center justify-between">
+              <h3 className="font-serif text-lg text-[#2C2C2C]">Bookmarks</h3>
+              <button
+                onClick={() => setShowBookmarkPanel(false)}
+                className="text-[#6B705C] hover:text-[#2C2C2C]"
+                data-testid="bookmark-panel-close"
+              >
+                <XIcon className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-4">
+              {bookmarks.length === 0 ? (
+                <p className="text-sm text-[#6B705C] italic" data-testid="bookmark-panel-empty">
+                  No bookmarks yet. Tap the Bookmark button while reading to save your spot.
+                </p>
+              ) : (
+                <ul className="space-y-2">
+                  {bookmarks.map((bm) => (
+                    <li
+                      key={bm.bookmark_id}
+                      className="border border-[#E8E6E1] rounded-lg p-3 hover:bg-white group"
+                      data-testid={`bookmark-row-${bm.bookmark_id}`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => jumpToBookmark(bm.cfi)}
+                        className="w-full text-left"
+                      >
+                        {bm.chapter_label && (
+                          <p className="text-sm font-medium text-[#2C2C2C]">{bm.chapter_label}</p>
+                        )}
+                        {bm.percent != null && (
+                          <p className="text-xs text-[#6B705C]">
+                            {Math.round(bm.percent * 100)}% through
+                          </p>
+                        )}
+                        {bm.note && (
+                          <p className="text-sm text-[#3A5A40] mt-1 italic">&ldquo;{bm.note}&rdquo;</p>
+                        )}
+                        <p className="text-xs text-[#9B9B8C] mt-1">
+                          {new Date(bm.created_at).toLocaleDateString()}
+                        </p>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); removeBookmark(bm.bookmark_id); }}
+                        className="opacity-0 group-hover:opacity-100 text-xs text-red-600 hover:underline mt-2"
+                        data-testid={`bookmark-remove-${bm.bookmark_id}`}
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         )}

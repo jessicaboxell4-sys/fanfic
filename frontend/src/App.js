@@ -35,6 +35,7 @@ import EmailPreferences from "@/pages/EmailPreferences";
 import FindDuplicates from "@/pages/FindDuplicates";
 import Trash from "@/pages/Trash";
 import UnreadLibraryPage from "@/pages/UnreadLibraryPage";
+import BookmarksPage from "@/pages/BookmarksPage";
 import Conversions from "@/pages/Conversions";
 import FilterUrlList from "@/pages/FilterUrlList";
 import DownloadPage from "@/pages/DownloadPage";
@@ -105,6 +106,7 @@ function AppRouter() {
       <Route path="/library/tag/:name" element={<ProtectedRoute><TagShelfPage /></ProtectedRoute>} />
       <Route path="/library/cant-find-online" element={<ProtectedRoute><CantFindOnline /></ProtectedRoute>} />
       <Route path="/library/unread" element={<ProtectedRoute><UnreadLibraryPage /></ProtectedRoute>} />
+      <Route path="/bookmarks" element={<ProtectedRoute><BookmarksPage /></ProtectedRoute>} />
       <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
       <Route path="/account/appearance" element={<ProtectedRoute><AppearancePage /></ProtectedRoute>} />
       <Route path="/messages" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />

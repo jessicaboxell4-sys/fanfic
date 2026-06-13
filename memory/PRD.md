@@ -1432,3 +1432,27 @@ The user asked "do all of P2". This is the first batch of 5 quick-win features. 
 🟢 **Batch 2 — medium**: S3 friend-recommendations widget · A3 linkless URL dedup edge cases · A4 palette screenshot share · OPS-2 cron-failure email alert · OPS-3 Mongo collections inspector widget
 
 🟢 **Batch 3 — large**: S2 reading-along book-club rooms (full feature: room, members, shared progress, chat) · W4 full-text search across EPUB content · W5 OPDS catalog endpoint
+
+### Added 2026-06-13 (Reader bookmarks + Help page update)
+
+**Backend** — new `routes/bookmarks.py` (4 endpoints under `/api/books/{id}/bookmarks` + cross-library `GET /api/bookmarks`):
+- New `db.bookmarks` collection: `{bookmark_id, user_id, book_id, cfi, percent, chapter_label, note, created_at}`.
+- POST is **idempotent on (user, book, cfi)** — re-bookmarking the same CFI updates the note rather than duplicating. Note capped at 280 chars; chapter label at 120.
+- Cross-library `GET /api/bookmarks` hydrates each row with the book's title/author/fandom/has_cover in a single batch (no N+1).
+
+**Reader UI (`pages/Reader.jsx`)** — two new header buttons:
+- **Bookmark** — saves the current CFI. Best-effort enrichment: walks `book.locations.percentageFromCfi(cfi)` for the % and the TOC for the chapter label, so the bookmark card shows "Chapter 7 · 61% through" without the user typing anything. Toast-acknowledged.
+- **Bookmark panel** (icon + count) — slides in from the right with every bookmark for the open book, sorted by reading progress. Click jumps via `rendition.display(cfi)`. Hover reveals a Remove button. Test-ids: `bookmark-add-btn`, `bookmark-list-toggle`, `bookmark-count`, `bookmark-panel`, `bookmark-panel-close`, `bookmark-panel-empty`, `bookmark-row-{id}`, `bookmark-remove-{id}`.
+
+**Cross-library bookmarks page (`pages/BookmarksPage.jsx`)** at `/bookmarks`:
+- Lists every bookmark across every book, newest first. Each card shows book title + author, chapter label, italicized note, % through, and date. Click → opens the book in the reader (which restores last-known position; future iteration: deep-link to the bookmarked CFI). Hover-to-Remove.
+
+**Help page update (`pages/Help.jsx`)**:
+- Rewrote the **Reader & stats** section to document bookmarks (save, panel, jump, all-bookmarks page) plus the P2 batch-1 features (Surprise me, Books I haven't read, Up next queue).
+- Replaced the "Fresh in Shelfsort" fallback panel with 2026-06-13 entries: reader bookmarks, unread shelf, Surprise me, reading queue, friend uploads pings.
+
+**Tests** — `tests/test_bookmarks.py` (6 cases, all pass):
+- add → list → delete round-trip, idempotency on duplicate CFI (note updated), 404 on POST when book isn't owned, cross-library listing hydrates metadata, 280-char note cap, other-user isolation (lookup returns empty count, not the data).
+
+**Health** — bookmarks + p2_batch1 suites together: **16 passed, 0 failed.** Smoke screenshots confirm both the cross-library bookmarks page and the updated Help reading section render correctly.
+

@@ -19,13 +19,14 @@ import {
 // deploy, POST to /api/announcements with a fresh `version` string.
 // `version` doubles as the per-user localStorage dismissal key.
 const FALLBACK_WHATS_NEW = {
-  version: "2026-06-09",
+  version: "2026-06-13",
   title: "Fresh in Shelfsort",
   items: [
-    { to: "/library/unreadable", label: "Unreadable shelf", desc: "— surfaces corrupt EPUBs and failed conversions so nothing silently disappears." },
-    { to: "/library/ongoing", label: "Ongoing & Finished", link_to_2: "/library/complete", desc: "shelves — auto-detected WIP vs. complete status, with one-click overrides." },
-    { to: "/library/authors", label: "Authors & Pairings", link_to_2: "/library/pairings", desc: "directories — browse your library by who wrote it or who\u2019s shipped." },
-    { to: "/account/restore", label: "Backup & Restore", desc: "— download a full library archive and restore it on any account." },
+    { to: "/library/unread", label: "Reader bookmarks", desc: "— save any page in the Reader, jump back from the bookmark panel, and see all your bookmarks across the library." },
+    { to: "/library/unread", label: "Books I haven't read shelf", desc: "— a one-click filter for everything in your library you haven't opened yet." },
+    { to: "/", label: "\u201CSurprise me\u201D random book", desc: "— Dashboard button that opens a random unread book." },
+    { to: "/", label: "Reading queue", desc: "— stack your next reads as an \u201CUp next\u201D list that follows you across devices." },
+    { to: "/friends", label: "Friend uploads pings", desc: "— get notified when friends add a book in a fandom you also collect." },
   ],
 };
 const WHATS_NEW_KEY = "shelfsort.whatsNewDismissed";
@@ -346,6 +347,11 @@ export default function Help() {
 
             <Section id="reading" icon={BookOpen} title="Reader & stats">
               <p>Click any book cover to open the in-browser EPUB Reader. Your reading position is saved per-book; come back to where you left off automatically.</p>
+              <p><strong>Bookmarks</strong>: while reading, tap the <em>Bookmark</em> button in the reader header to save your current page. Open the <em>Bookmark</em> panel (the icon next to it with the count) to see every saved spot for this book, jump to any of them, or remove one. Each bookmark stores the chapter title, your reading-progress percentage, and the date you saved it. Bookmarks sync to your account so they follow you across devices.</p>
+              <p>You can also see every bookmark across your whole library on the <Link to="/bookmarks">All bookmarks</Link> page.</p>
+              <p><strong>Surprise me</strong>: on the Dashboard, the &ldquo;Surprise me&rdquo; button picks a random book you haven&apos;t opened yet and drops you straight into it — useful when decision fatigue strikes.</p>
+              <p><strong>Books I haven&apos;t read</strong>: the dedicated <Link to="/library/unread">unread shelf</Link> lists every book you&apos;ve never opened, newest upload first.</p>
+              <p><strong>Up next queue</strong>: build a personal reading order with the <em>Up next</em> widget on the Dashboard. Books in the queue persist across devices.</p>
               <p>The <Link to="/stats">Reading stats</Link> page covers your library shape, most-read fandoms, and pairing distribution. (Reading streaks + word-count + per-month stats are on the upcoming list.)</p>
               <p><strong>Refresh fanfics</strong>: the URL-fetching feature (FanFicFare + FicHub) is intentionally hidden from the UI but the code is preserved for a future re-enable. No FAQ entry until then.</p>
             </Section>

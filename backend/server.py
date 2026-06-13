@@ -12,7 +12,7 @@ import os
 from deps import app, api_router, db, logger, client
 
 # Import each routes module so its @api_router decorators register.
-from routes import root, auth, books, tags, authors, pairings, trash, library_discovery, stats, series_categories, digest, year, smart_shelves, announcements, admin, chat, friends, invites, friend_library, suggestions, notifications  # noqa: F401
+from routes import root, auth, books, tags, authors, pairings, trash, bookmarks, library_discovery, stats, series_categories, digest, year, smart_shelves, announcements, admin, chat, friends, invites, friend_library, suggestions, notifications  # noqa: F401
 
 # Mount the router and middleware.
 app.include_router(api_router)
