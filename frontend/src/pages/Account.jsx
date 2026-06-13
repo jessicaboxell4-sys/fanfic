@@ -6,7 +6,7 @@ import { useAuth } from "../context/AuthContext";
 import { User as UserIcon, Mail, Lock, Loader2, Mail as MailIcon, Settings2, AlertTriangle, Layers, Plus, X as XIcon, Download, Sparkles, Trash2 } from "lucide-react";
 import LibraryStatsCard from "../components/LibraryStatsCard";
 import FandomTreemap from "../components/FandomTreemap";
-import PalettePickerCard from "../components/PalettePickerCard";
+// PalettePickerCard moved to /account/appearance (linked from the navbar appearance popover)
 import { FETCHING_UI_ENABLED } from "../lib/featureFlags";
 import { toast } from "sonner";
 
@@ -780,8 +780,6 @@ export default function Account() {
         </div>
 
         <BackupCard />
-
-        <PalettePickerCard />
 
         {/* Profile info */}
         <section className="shelf-card p-6 mb-6">

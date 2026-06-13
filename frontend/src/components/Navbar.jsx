@@ -1,18 +1,17 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { BookOpen, LogOut, BarChart3, Filter, HelpCircle, FileText, Sun, Moon, ShieldCheck } from "lucide-react";
+import { BookOpen, LogOut, BarChart3, Filter, HelpCircle, FileText, ShieldCheck } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { useTheme } from "../context/ThemeContext";
 import { api } from "../lib/api";
 import UpdatesBell from "./UpdatesBell";
 import StreakBadge from "./StreakBadge";
 import DownloadZipButton from "./DownloadZipButton";
 import NavbarQuickAdd from "./NavbarQuickAdd";
+import AppearancePopover from "./AppearancePopover";
 import { FETCHING_UI_ENABLED } from "../lib/featureFlags";
 
 export default function Navbar() {
   const { user, logout } = useAuth();
-  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const [unknownFandomCount, setUnknownFandomCount] = useState(0);
 
@@ -44,17 +43,7 @@ export default function Navbar() {
         {user && FETCHING_UI_ENABLED && <NavbarQuickAdd />}
 
         <div className="flex items-center gap-2 md:gap-3">
-          <button
-            data-testid="navbar-theme-toggle"
-            onClick={toggleTheme}
-            className="p-2 hover:bg-[#F5F3EC] rounded-lg"
-            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-          >
-            {theme === "dark"
-              ? <Sun className="w-4 h-4 text-[#6B705C]" />
-              : <Moon className="w-4 h-4 text-[#6B705C]" />}
-          </button>
+          <AppearancePopover />
           {user && <StreakBadge />}
           {user && FETCHING_UI_ENABLED && <UpdatesBell />}
           {user && (

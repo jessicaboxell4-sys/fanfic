@@ -271,17 +271,20 @@ export default function Help() {
               <ul>
                 <li><strong>Library stats card</strong> + <strong>Fandom Treemap</strong> for at-a-glance overview</li>
                 <li><strong>Library backup</strong> card (download + history + restore link)</li>
-                <li>
-                  <strong>Theme palette</strong> — pick the accent colour that runs through the whole site.
-                  Six presets (Peach, Purple, Forest, Ocean, Crimson, Charcoal) plus a <strong>Custom</strong>
-                  swatch that opens four colour pickers for Primary, Primary hover, and two pale tints. Dark-mode
-                  variants are auto-derived. Saved to this browser; works alongside the Light/Dark toggle in the
-                  Navbar (the toggle flips theme, the palette flips colour family).
-                </li>
                 <li><strong>Smart Shelves</strong> manager — create, edit, delete saved filter combinations</li>
                 <li><strong>Fandom aliases</strong> — map your custom shorthand to canonical fandom names</li>
                 <li><strong>Format prefs</strong> for the Originals shelf</li>
-                <li><strong>Theme toggle</strong> (Navbar) — AO3-inspired Light / Dark</li>
+                <li>
+                  <strong>Appearance</strong> (theme + colour) — click the sun/moon icon in the Navbar.
+                  A small popover drops down with the Light/Dark toggle and the seven palette swatches
+                  (Peach, Purple, Forest, Ocean, Crimson, Charcoal, and Custom). Click a swatch to flip
+                  the accent colour site-wide instantly. For the full controls (live preview + the
+                  four-slot Custom hex picker for Primary, Primary hover, and the two pale tints) tap{" "}
+                  <strong>More appearance options</strong> at the bottom of the popover &mdash; that
+                  opens the dedicated <Link to="/account/appearance">Appearance page</Link>. Dark-mode
+                  variants are auto-derived from the light hexes, so one set of pickers covers both
+                  modes. Saved to this browser only.
+                </li>
                 <li>
                   <strong>Danger zone — Delete entire library</strong>: wipes every book, EPUB file, reading
                   history entry, smart shelf, and custom category. <em>Your account stays</em> — your login,

@@ -1041,3 +1041,11 @@ These are agent-suggested features the user hasn't picked yet. Bring them up nex
 - **New UI card** on `/admin` (`EmailDiagnosticCard` between System Health and Global Aliases): three recipient modes (radios) — Self · Pick registered user (select populated from `/admin/users`) · Custom email. Optional 200-char note with live counter. Send button shows inline success pill ("Delivered to <email> #<id>") or red error pill.
 - **Tests**: 6 new pytest cases in `tests/test_admin_console.py` — auth gating, self-default, pick-by-id, unknown-user-404, custom email, audit-log write. **All 26 admin_console tests pass.**
 - Verified end-to-end via curl with real Resend send (message ID `5c9deb6e-856c-4c71-9502-a7b999ca52bd`). UI screenshot confirms layout.
+
+
+### Added 2026-06-13 (Unified appearance UX — popover + dedicated /account/appearance page)
+- **Navbar popover**: replaced the bare sun/moon icon button with `AppearancePopover` (`components/AppearancePopover.jsx`). Clicking the icon opens a 288px floating panel: Light/Dark toggle row + 4×2 swatch grid (6 presets + Custom dashed slot) + "More appearance options →" link. Closes on outside click / Escape. `navbar-theme-toggle` testid preserved.
+- **Dedicated page**: new `/account/appearance` route (`pages/AppearancePage.jsx`). Full controls — large Light/Dark cards (radio-style), the existing `PalettePickerCard` (with Custom hex pickers), and a Live Preview card showing the active palette on a primary button, secondary button, NEW pill, and a pale-gradient sample card with link.
+- **Removed**: `PalettePickerCard` no longer renders on `/account`. The only ways to reach palette controls are the navbar popover (quick switch) or "More appearance options →" → `/account/appearance` (full controls).
+- **Help docs updated**: rewrote the Appearance bullet on `/help` Account section to describe the popover-first flow, the seven swatches, the Custom hex picker, and the dedicated page link.
+- All six touched files lint-clean. UI screenshots confirm popover + page render correctly.
