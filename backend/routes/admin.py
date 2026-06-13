@@ -62,7 +62,7 @@ async def list_users(user: User = Depends(require_admin)):
 async def promote_user(target_user_id: str, user: User = Depends(require_admin)):
     """Flag the target user as admin. Idempotent."""
     target = await db.users.find_one({"user_id": target_user_id}, {"_id": 0, "email": 1, "is_admin": 1})
-    if not target:
+    if target is None:
         raise HTTPException(status_code=404, detail="User not found")
     await db.users.update_one({"user_id": target_user_id}, {"$set": {"is_admin": True}})
     await record_admin_action(user, "user.promote", target=target_user_id, metadata={"email": target.get("email")})
@@ -80,7 +80,7 @@ async def demote_user(target_user_id: str, user: User = Depends(require_admin)):
     if admin_count <= 1:
         raise HTTPException(status_code=400, detail="Refusing to demote the last admin")
     target = await db.users.find_one({"user_id": target_user_id}, {"_id": 0, "email": 1, "is_admin": 1})
-    if not target:
+    if target is None:
         raise HTTPException(status_code=404, detail="User not found")
     if not target.get("is_admin"):
         return {"ok": True, "user_id": target_user_id, "is_admin": False}  # idempotent
