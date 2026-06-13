@@ -1456,3 +1456,9 @@ The user asked "do all of P2". This is the first batch of 5 quick-win features. 
 
 **Health** — bookmarks + p2_batch1 suites together: **16 passed, 0 failed.** Smoke screenshots confirm both the cross-library bookmarks page and the updated Help reading section render correctly.
 
+
+
+### Parked idea 2026-06-13 ("Friend bookmark highlights" social signal — P2)
+- Concept: when a friend bookmarks a passage in a book the user also has in their library, surface it as "Alice highlighted Chapter 7 in Six of Crows" on the friend library / friend profile view. Opt-in via a new `share_bookmarks_with_friends` boolean on the user privacy settings (defaults to off). Pulls from `db.bookmarks` filtered to friends + intersecting books. Could also feed into the existing notification system as a low-volume `friend_bookmarked` kind.
+- Priority: P2 (parked by user 2026-06-13 with "remind later").
+
