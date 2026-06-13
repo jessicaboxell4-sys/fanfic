@@ -208,6 +208,39 @@ FRANCHISE_GROUPS: Dict[str, List[str]] = {
         "Dragon Ball Super",
         "Dragon Ball GT",
     ],
+    "The Locked Tomb": [
+        "The Locked Tomb - Tamsyn Muir",
+        "Gideon the Ninth",
+        "Harrow the Ninth",
+        "Nona the Ninth",
+    ],
+    "Grishaverse": [
+        "Shadow and Bone Trilogy - Leigh Bardugo",
+        "Six of Crows Series - Leigh Bardugo",
+        "King of Scars Duology - Leigh Bardugo",
+    ],
+    "The Expanse": [
+        "The Expanse - James S. A. Corey",
+        "The Expanse (TV)",
+    ],
+    "Foundation": [
+        "Foundation - Isaac Asimov",
+        "Foundation (TV)",
+    ],
+    "Dune": [
+        "Dune - Frank Herbert",
+        "Dune (2021)",
+        "Dune: Part Two (2024)",
+    ],
+    "ASOIAF / GoT / HotD": [
+        "A Song of Ice and Fire - George R. R. Martin",
+        "Game of Thrones",
+        "House of the Dragon (TV)",
+    ],
+    "The Sandman": [
+        "The Sandman - Neil Gaiman",
+        "The Sandman (TV)",
+    ],
     "Avatar (Bryke)": [
         "Avatar: The Last Airbender",
         "The Legend of Korra",

@@ -435,6 +435,103 @@ FANDOM_KEYWORDS = {
     "IVE (Band)": [
         "ive band", "dive fandom", "yujin gaeul rei wonyoung liz leeseo",
     ],
+    # ----- Sci-fi novels / horror.
+    "The Locked Tomb - Tamsyn Muir": [
+        "the locked tomb", "tamsyn muir", "ninth house tamsyn",
+    ],
+    "Gideon the Ninth": [
+        "gideon the ninth", "gideon nav", "harrowhark nonagesimus first book",
+    ],
+    "Harrow the Ninth": [
+        "harrow the ninth", "harrowhark second book",
+    ],
+    "Nona the Ninth": [
+        "nona the ninth", "nona's life",
+    ],
+    "The Murderbot Diaries - Martha Wells": [
+        "murderbot", "martha wells secunit",
+        "all systems red", "artificial condition",
+        "rogue protocol", "exit strategy", "network effect",
+        "fugitive telemetry", "system collapse murderbot",
+    ],
+    "Wings of Fire - Tui T. Sutherland": [
+        "wings of fire", "tui sutherland", "dragonet prophecy",
+        "clay wof", "tsunami wof", "glory rainwing", "starflight wof",
+        "sunny sandwing", "moon wof",
+    ],
+    "The Inheritance Cycle - Christopher Paolini": [
+        "inheritance cycle", "eragon paolini", "saphira eragon",
+        "alagaesia", "eldest paolini", "brisingr", "inheritance paolini",
+    ],
+    "Mortal Engines - Philip Reeve": [
+        "mortal engines", "philip reeve", "hester shaw",
+        "tom natsworthy", "predator cities quartet",
+    ],
+    "King of Scars Duology - Leigh Bardugo": [
+        "king of scars", "rule of wolves", "nikolai lantsov king",
+        "zoya nazyalensky",
+    ],
+    "The Lunar Chronicles - Marissa Meyer": [
+        "lunar chronicles", "marissa meyer cinder", "scarlet meyer",
+        "cress meyer", "winter meyer", "linh cinder",
+    ],
+    "Red Rising - Pierce Brown": [
+        "red rising", "pierce brown", "darrow of lykos",
+        "golden son brown", "morning star brown", "iron gold",
+        "dark age brown", "light bringer brown",
+    ],
+    "The Expanse - James S. A. Corey": [
+        "the expanse novels", "james s.a. corey", "leviathan wakes",
+        "rocinante expanse", "naomi nagata book", "amos burton book",
+    ],
+    "The Expanse (TV)": [
+        "the expanse tv", "syfy expanse", "amazon expanse",
+        "thomas jane miller", "steven strait holden",
+    ],
+    "Foundation - Isaac Asimov": [
+        "foundation asimov", "hari seldon", "psychohistory",
+        "second foundation", "foundation and empire",
+    ],
+    "Foundation (TV)": [
+        "foundation apple tv", "lee pace foundation", "jared harris seldon",
+    ],
+    # ----- Dune (novels + Villeneuve film duology).
+    "Dune - Frank Herbert": [
+        "dune novels", "frank herbert dune", "paul atreides book",
+        "leto atreides ii", "god emperor dune", "children of dune",
+        "dune messiah", "heretics of dune", "chapterhouse dune",
+    ],
+    "Dune (2021)": [
+        "dune 2021", "denis villeneuve dune", "timothee chalamet paul",
+        "rebecca ferguson jessica dune",
+    ],
+    "Dune: Part Two (2024)": [
+        "dune part two", "dune part 2", "feyd-rautha villeneuve",
+        "zendaya chani dune",
+    ],
+    # ----- A Song of Ice and Fire universe.
+    "A Song of Ice and Fire - George R. R. Martin": [
+        "a song of ice and fire", "asoiaf", "george r.r. martin",
+        "westeros novels", "dance with dragons", "storm of swords",
+        "feast for crows", "winds of winter",
+    ],
+    "House of the Dragon (TV)": [
+        "house of the dragon", "hotd", "rhaenyra targaryen tv",
+        "alicent hightower tv", "daemon targaryen tv", "dance of dragons tv",
+    ],
+    # ----- Sandman (Neil Gaiman) — comics + Netflix.
+    "The Sandman - Neil Gaiman": [
+        "the sandman comics", "neil gaiman sandman", "dream of the endless",
+        "morpheus sandman", "death endless", "delirium endless",
+    ],
+    "The Sandman (TV)": [
+        "the sandman netflix", "tom sturridge dream",
+    ],
+    # ----- Avatar (James Cameron movies/Pandora).
+    "Avatar (Pandora - James Cameron)": [
+        "avatar james cameron", "pandora avatar", "na'vi", "jake sully",
+        "neytiri", "avatar the way of water", "avatar 2", "avatar 3",
+    ],
     "Doctor Who": ["doctor who", "tardis", "the doctor", "gallifrey"],
     "Supernatural": ["supernatural fic", "dean winchester", "sam winchester", "castiel"],
     "Game of Thrones": ["game of thrones", "westeros", "jon snow", "daenerys", "targaryen", "stark family"],
