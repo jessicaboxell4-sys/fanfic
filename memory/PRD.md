@@ -1610,3 +1610,12 @@ Both upload sites (the regular EPUB upload pipeline + the URL-fetch path) now pe
 - When a query is active, a right-aligned count label shows `N of 13 sections`. When nothing matches, the cards collapse into a friendly empty-state card with a magnifier icon, the offending query echoed back, and a "Clear search" CTA (testid `admin-section-search-empty-clear`).
 - Cards self-hide in their own render via `query` from `AdminCardsContext` — no wrapper component needed, no DOM nodes left behind.
 - Verified end-to-end: clicking `email` chip → 2 of 13 sections, only `email-stats-card` + `admin-email-diagnostic-card` rendered; typing "xyzqqqzz" → empty state; clear → all 13 return; typing "outage" → only `admin-banner-card` surfaces via keywords.
+
+### Added 2026-06-13 (Library — Fandom shelves finder)
+- Ported the section-search pattern to the Library "Fandom shelves" rail in `AllBooksPage.jsx` via a new `/app/frontend/src/components/FandomFinder.jsx` component.
+- Only renders when the user has > 10 fandoms (small libraries stay clutter-free). Top 5 fandoms by count become one-click `Try:` suggestion chips so a real reader doesn't have to scroll past hundreds of chips to find "Harry Potter".
+- Live `fandomQuery` state in `AllBooksPage` filters the chip grid in-place. Right-aligned `N of M fandoms` counter when active; friendly empty-state card with magnifier icon + "Show all fandoms" CTA when nothing matches.
+- Heading gained the total count: `Fandom shelves (33)` so users see at a glance how many shelves exist before filtering.
+- New test-ids: `fandom-finder`, `fandom-finder-input`, `fandom-finder-clear`, `fandom-finder-suggest-{slug}`, `fandom-finder-count`, `fandom-chips-grid`, `fandom-finder-empty`, `fandom-finder-empty-clear`.
+- Verified end-to-end on Jessica's 1,436-book / 33-fandom real account: default → click "Harry Potter" suggestion (1 of 33 fandoms) → garbage query (empty state) → "Show all fandoms" → all 33 chips return. All Playwright assertions passed.
+

@@ -15,6 +15,7 @@ import UrlListDedupeModal from "../components/UrlListDedupeModal";
 import BackupReminderBanner from "../components/BackupReminderBanner";
 import LibraryActivityWidgets from "../components/LibraryActivityWidgets";
 import Ao3FilterChips from "../components/Ao3FilterChips";
+import FandomFinder from "../components/FandomFinder";
 import { Search, X, Plus, ArrowRight, CheckSquare, Sparkles, Loader2, RefreshCw, Library, UserCircle2, Filter, Pin, FolderOpen, ArrowUpDown, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { FETCHING_UI_ENABLED } from "../lib/featureFlags";
@@ -48,6 +49,7 @@ export default function AllBooksPage() {
   const [smart, setSmart] = useState(null); // null | "reading" | "finished"
   const [overview, setOverview] = useState(null);
   const [seriesList, setSeriesList] = useState([]);
+  const [fandomQuery, setFandomQuery] = useState("");
   const [authorsList, setAuthorsList] = useState([]);
   const [pinnedShelves, setPinnedShelves] = useState([]);
   const reloadPinnedShelves = useCallback(async () => {
@@ -934,12 +936,19 @@ export default function AllBooksPage() {
               <div className="mb-8">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1]">
-                    Fandom shelves
+                    Fandom shelves <span className="text-[#6B705C] font-normal lowercase tracking-normal ml-1">({stats.fandoms.length})</span>
                   </p>
                   <p className="text-xs text-[#6B705C] hidden sm:block">
                     Click any fandom to open its dedicated shelf
                   </p>
                 </div>
+                {stats.fandoms.length > 10 && (
+                  <FandomFinder
+                    fandoms={stats.fandoms}
+                    query={fandomQuery}
+                    onChange={setFandomQuery}
+                  />
+                )}
                 {stats.crossover_count > 0 && (
                   <button
                     onClick={() => navigate("/library/crossovers")}
@@ -962,38 +971,67 @@ export default function AllBooksPage() {
                   Browse pairings
                   <ArrowRight className="w-3 h-3" />
                 </button>
-                <div className="flex flex-wrap gap-2">
-                  {stats.fandoms.map(f => {
-                    // Crossover detection: canonical form uses " / " between
-                    // fandoms, so 2+ slash-separated parts → multi-fandom.
-                    const xPieces = (f.name || "").split(" / ").map(p => p.trim()).filter(Boolean);
-                    const isCrossover = xPieces.length >= 2;
+                {(() => {
+                  const q = fandomQuery.trim().toLowerCase();
+                  const visibleFandoms = q
+                    ? stats.fandoms.filter((f) => (f.name || "").toLowerCase().includes(q))
+                    : stats.fandoms;
+                  if (q && visibleFandoms.length === 0) {
                     return (
-                      <button
-                        key={f.name}
-                        data-testid={`open-fandom-${f.name.replace(/\s+/g, '-').toLowerCase()}`}
-                        onClick={() => navigate(`/library/fandom/${encodeURIComponent(f.name)}`)}
-                        title={isCrossover ? `Crossover · ${xPieces.length} fandoms` : f.name}
-                        className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors flex items-center gap-1.5 ${
-                          isCrossover
-                            ? "bg-[#FDF3E1] text-[#900] border-[#900]/30 hover:bg-[#900] hover:text-white"
-                            : "bg-[#EDE7FB] text-[#6B46C1] border-[#6B46C1]/20 hover:bg-[#6B46C1] hover:text-white"
-                        }`}
+                      <div
+                        className="rounded-xl border border-dashed border-[#E5DDC5] bg-[#FBFAF6] p-6 text-center"
+                        data-testid="fandom-finder-empty"
                       >
-                        {isCrossover && (
-                          <span
-                            data-testid={`crossover-badge-${f.name.replace(/\s+/g, '-').toLowerCase()}`}
-                            className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-[#900] text-white text-[10px] font-bold leading-none"
-                          >
-                            ×{xPieces.length}
-                          </span>
-                        )}
-                        {f.name} · {f.count}
-                        <ArrowRight className="w-3 h-3" />
-                      </button>
+                        <Search className="w-6 h-6 text-[#6B705C] mx-auto mb-1.5" aria-hidden="true" />
+                        <p className="text-sm text-[#2C2C2C] mb-2">
+                          No fandom matches "{fandomQuery}" in your library.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setFandomQuery("")}
+                          data-testid="fandom-finder-empty-clear"
+                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#6B46C1] text-white text-xs font-bold uppercase tracking-[0.15em] hover:bg-[#553397] transition-colors"
+                        >
+                          Show all fandoms
+                        </button>
+                      </div>
                     );
-                  })}
-                </div>
+                  }
+                  return (
+                    <div className="flex flex-wrap gap-2" data-testid="fandom-chips-grid">
+                      {visibleFandoms.map(f => {
+                        // Crossover detection: canonical form uses " / " between
+                        // fandoms, so 2+ slash-separated parts → multi-fandom.
+                        const xPieces = (f.name || "").split(" / ").map(p => p.trim()).filter(Boolean);
+                        const isCrossover = xPieces.length >= 2;
+                        return (
+                          <button
+                            key={f.name}
+                            data-testid={`open-fandom-${f.name.replace(/\s+/g, '-').toLowerCase()}`}
+                            onClick={() => navigate(`/library/fandom/${encodeURIComponent(f.name)}`)}
+                            title={isCrossover ? `Crossover · ${xPieces.length} fandoms` : f.name}
+                            className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors flex items-center gap-1.5 ${
+                              isCrossover
+                                ? "bg-[#FDF3E1] text-[#900] border-[#900]/30 hover:bg-[#900] hover:text-white"
+                                : "bg-[#EDE7FB] text-[#6B46C1] border-[#6B46C1]/20 hover:bg-[#6B46C1] hover:text-white"
+                            }`}
+                          >
+                            {isCrossover && (
+                              <span
+                                data-testid={`crossover-badge-${f.name.replace(/\s+/g, '-').toLowerCase()}`}
+                                className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-[#900] text-white text-[10px] font-bold leading-none"
+                              >
+                                ×{xPieces.length}
+                              </span>
+                            )}
+                            {f.name} · {f.count}
+                            <ArrowRight className="w-3 h-3" />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
             )}
 
