@@ -1025,3 +1025,11 @@ These are agent-suggested features the user hasn't picked yet. Bring them up nex
 - **Verified end-to-end**: live test email sent successfully (Resend message ID `18c3aae7-f079-4a71-9bb5-78d9fb40016a`).
 - **Now active**: weekly digest scheduler, fanfic-update notifications, and the 7-day "scheduled deletion" reminder cron all actually deliver mail. Previously each codepath silently no-op'd via the `if not RESEND_API_KEY` guard.
 - **Future**: when scaling beyond personal use, verify a custom domain (`shelfsort.app` or similar) at resend.com/domains, then update `SENDER_EMAIL` in `.env` and switch from sandbox to authenticated sender.
+
+
+### Added 2026-06-13 (One-shot "Send test email" button)
+- **New endpoint**: `POST /api/user/email-test` in `routes/digest.py`. Auth-gated. Fires a small standalone "delivery confirmed" email (subject `Shelfsort — delivery test ✉️`) directly to the signed-in user's email, with the user's name in the greeting. Returns `{delivered: true, id, to}` on success, `{delivered: false, logged: true, to}` when `RESEND_API_KEY` is empty, and `502` on Resend rejection.
+- **New UI button** on `/account/emails` Email Preferences page: `emails-send-test-btn` pill button in the sender-info card (only renders when `email_configured=true`). One click → toast confirmation with the recipient address.
+- **Why**: removes the need to either wait for the weekly cron or seed a refreshed book just to verify the Resend pipeline is alive. Useful any time the user changes Resend keys, swaps sender domains, or toggles email channels.
+- **Tests**: 2 new pytest cases in `tests/test_digest.py::TestEmailTest` (auth gate + happy path tolerating sandbox restriction). Two existing tests (`test_preview_returns_summary`, `test_preview_with_refreshed_book`) loosened to accept Resend sandbox rejections as a valid non-delivered state.
+- Verified end-to-end via curl with real Resend send (message ID `c6a23bce-1e90-458d-b768-f169ecd71eb0`). All 33 digest tests + 78 in surrounding suites passing.

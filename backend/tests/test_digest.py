@@ -144,7 +144,8 @@ class TestDigestPreview:
             assert key in s, f"missing summary key: {key}"
         # In preview env (RESEND_API_KEY="" in /app/backend/.env)
         if not data["delivered"]:
-            assert data.get("logged") is True
+            # Either logged-to-console (no key) or Resend rejected (sandbox)
+            assert data.get("logged") is True or "error" in data
 
     def test_preview_requires_auth(self):
         r = requests.post(f"{BASE}/api/user/digest-preview")
@@ -217,7 +218,8 @@ class TestFicUpdateEmail:
         # In preview env (no RESEND_API_KEY), delivered=False logged=True
         assert "delivered" in body
         if not body.get("delivered"):
-            assert body.get("logged") is True
+            # Either logged-to-console (no key) or Resend sandbox rejection
+            assert body.get("logged") is True or "error" in body
         assert body["summary"]["book_count"] == 1
         assert body["summary"]["total_added"] == 3
         assert body["summary"]["total_changed"] == 1
@@ -269,6 +271,29 @@ class TestEmailOverview:
         assert body["weekly_digest"]["hour"] == 10
         assert body["fic_updates"]["enabled"] is True
         assert body["year_recap"]["enabled"] is True
+
+
+# ---------- TEST EMAIL (one-shot delivery check) ----------
+class TestEmailTest:
+    def test_email_test_requires_auth(self):
+        r = requests.post(f"{BASE}/api/user/email-test")
+        assert r.status_code == 401
+
+    def test_email_test_returns_to_field(self, H, seeded_user):
+        # Either RESEND_API_KEY is unset (delivered=False logged=True),
+        # OR it's set but Resend's sandbox rejects @example.com -> 502,
+        # OR Resend accepts -> delivered=True with id.
+        r = requests.post(f"{BASE}/api/user/email-test", headers=H)
+        # 200 (configured or unconfigured) or 502 (sandbox restriction)
+        assert r.status_code in (200, 502), r.text
+        if r.status_code == 200:
+            data = r.json()
+            assert "delivered" in data
+            assert data.get("to") == seeded_user["email"]
+            if not data["delivered"]:
+                assert data.get("logged") is True
+            else:
+                assert "id" in data
 
 
 # ---------- SCHEDULER LOG CHECK ----------

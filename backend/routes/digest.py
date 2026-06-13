@@ -334,6 +334,68 @@ async def send_digest_preview(user: User = Depends(get_current_user)):
     return result
 
 
+@api_router.post("/user/email-test")
+async def send_email_test(user: User = Depends(get_current_user)):
+    """Sends a tiny "delivery is working" email. Useful for confirming the
+    Resend pipeline without having to wait for a digest cron or have any
+    refreshed books on file."""
+    user_doc = await db.users.find_one({"user_id": user.user_id})
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="User not found")
+    to_email = user_doc.get("email", "")
+    if not to_email:
+        raise HTTPException(status_code=400, detail="Your account has no email on file")
+
+    if not RESEND_API_KEY:
+        logger.warning("RESEND_API_KEY not set — would have sent test email to %s", to_email)
+        return {"delivered": False, "logged": True, "to": to_email}
+
+    display_name = user_doc.get("name") or to_email.split("@")[0]
+    subject = "Shelfsort — delivery test ✉️"
+    html = f"""
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px; background: #FBF7EE; border-radius: 12px;">
+      <div style="display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; background: #FDF3E1; border: 1px solid rgba(184,122,0,0.3); border-radius: 999px; margin-bottom: 16px; font-size: 12px; font-weight: 600; color: #B87A00; letter-spacing: 0.5px;">
+        ✓ DELIVERY TEST
+      </div>
+      <h1 style="color: #2C2C2C; margin: 0 0 12px; font-size: 22px; font-family: Georgia, serif;">Hi {display_name},</h1>
+      <p style="color: #4A4A4A; line-height: 1.6; font-size: 15px; margin: 0 0 16px;">
+        This is a one-shot test email from Shelfsort. If you are reading this, your Resend
+        delivery pipeline is configured correctly and the following channels will now reach
+        your inbox at <strong>{to_email}</strong>:
+      </p>
+      <ul style="color: #4A4A4A; line-height: 1.9; font-size: 14px; padding-left: 18px;">
+        <li><strong>Weekly digest</strong> &mdash; opens, top fandom, current bookmark</li>
+        <li><strong>Fanfic updates</strong> &mdash; new chapters on watched stories</li>
+        <li><strong>Account deletion reminders</strong> &mdash; 7 days before final purge</li>
+      </ul>
+      <p style="color: #6B705C; font-size: 12px; margin: 28px 0 0; padding-top: 16px; border-top: 1px solid #E8E6E1;">
+        You triggered this from Account &rarr; Email preferences. No further action needed.
+      </p>
+    </div>
+    """
+    text = (
+        f"Hi {display_name},\n\n"
+        f"This is a test email from Shelfsort. If you're reading this, delivery to {to_email} "
+        f"is working. Weekly digests, fanfic updates, and account-deletion reminders will all "
+        f"arrive here from now on.\n\n— Shelfsort"
+    )
+
+    try:
+        resend.api_key = RESEND_API_KEY
+        params = {
+            "from": SENDER_EMAIL,
+            "to": [to_email],
+            "subject": subject,
+            "html": html,
+            "text": text,
+        }
+        result = await asyncio.to_thread(resend.Emails.send, params)
+        return {"delivered": True, "id": result.get("id"), "to": to_email}
+    except Exception as e:
+        logger.error("Test email Resend send failed for %s: %s", to_email, e)
+        raise HTTPException(status_code=502, detail=f"Resend rejected the send: {e}")
+
+
 # ---- Scheduler tick ----
 _scheduler: Optional[AsyncIOScheduler] = None
 

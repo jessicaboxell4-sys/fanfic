@@ -125,6 +125,7 @@ export default function EmailPreferences() {
   const [savingUpdate, setSavingUpdate] = useState(false);
   const [sendingDigestPreview, setSendingDigestPreview] = useState(false);
   const [sendingUpdatePreview, setSendingUpdatePreview] = useState(false);
+  const [sendingTest, setSendingTest] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -195,9 +196,26 @@ export default function EmailPreferences() {
     }
   };
 
-  const sendFicPreview = async () => {
-    setSendingUpdatePreview(true);
+  const sendTestEmail = async () => {
+    setSendingTest(true);
     try {
+      const { data } = await api.post("/user/email-test");
+      if (data.delivered) {
+        toast.success(`Test email sent to ${data.to}`);
+      } else if (data.logged) {
+        toast.warning("Email sending isn't configured — test logged to console.");
+      } else {
+        toast.error("Couldn't send test email");
+      }
+    } catch (e) {
+      toast.error(errMsg(e?.response?.data?.detail));
+    } finally {
+      setSendingTest(false);
+    }
+  };
+
+  const sendFicPreview = async () => {
+    setSendingUpdatePreview(true);    try {
       const { data } = await api.post("/user/update-email-preview");
       if (data.delivered) {
         toast.success(`Preview sent to ${overview.email}`);
@@ -275,7 +293,24 @@ export default function EmailPreferences() {
               Sent from <span className="font-mono">{sender_email}</span>
             </p>
           </div>
-          <div className="flex-shrink-0">
+          <div className="flex-shrink-0 flex items-center gap-2">
+            {email_configured && (
+              <button
+                type="button"
+                onClick={sendTestEmail}
+                disabled={sendingTest}
+                data-testid="emails-send-test-btn"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-[#3A5A40] text-[#3A5A40] text-xs font-semibold hover:bg-[#EEF3EC] transition-colors disabled:opacity-60"
+                title="Send a one-shot test email to confirm delivery"
+              >
+                {sendingTest ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Send className="h-3.5 w-3.5" />
+                )}
+                Send test email
+              </button>
+            )}
             {email_configured ? (
               <span
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#EEF3EC] text-[#3A5A40] text-xs font-semibold"
