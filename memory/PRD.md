@@ -1297,3 +1297,9 @@ These are agent-suggested features the user hasn't picked yet. Bring them up nex
 **Health**
 - Full suite: **652 passed, 14 skipped, 0 failed** (+8 new tests).
 - Lint: 0 blocking.
+
+
+
+### Parked idea 2026-06-13 ("Cron failure alert" email to admins — P2)
+- Concept: when a wrapped cron job transitions `ok → error` (i.e. the previous run was `ok` and the current one failed), automatically email every `is_admin: True` user once with the job id + exception text + a deep link to `/admin#cron-health-card`. Use the existing Resend mailer. Suppress duplicate alerts during a sustained outage by checking whether the *previous* run already errored. Hooks in cleanly inside `utils/cron_health.py::_record_run` right after the run is persisted.
+- Priority: P2 (parked by user 2026-06-13 with "remind later").
