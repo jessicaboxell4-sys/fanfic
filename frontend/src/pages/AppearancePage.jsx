@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Sun, Moon, Palette, RotateCcw, Share2, Copy, Check, ArrowDownToLine } from "lucide-react";
+import { ArrowLeft, Sun, Moon, Palette, RotateCcw, Share2, Copy, Check, ArrowDownToLine, FileText, Image as ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 import Navbar from "../components/Navbar";
 import PalettePickerCard from "../components/PalettePickerCard";
@@ -45,6 +45,111 @@ export default function AppearancePage() {
     } catch {
       toast.error("Couldn't access the clipboard — copy the text manually");
     }
+  };
+
+  // The four hex codes that define the visible palette in the current
+  // theme (light/dark) — used by both the Markdown and PNG exports.
+  const swatches = (() => {
+    const src = theme === "dark" ? palette.dark : palette.light;
+    return [
+      { label: "Accent",       hex: src.primary },
+      { label: "Accent hover", hex: src.primaryHover },
+      { label: "Pale 1",       hex: src.pale1 },
+      { label: "Pale 2",       hex: src.pale2 },
+    ];
+  })();
+
+  const copyAsMarkdown = async () => {
+    // A copy-pasteable block that renders cleanly on Discord, GitHub,
+    // Notion, anywhere. Token at the bottom so a friend can import it
+    // in one tap from /account/appearance.
+    const md = [
+      `**${palette.name}** — Shelfsort palette (${theme} theme)`,
+      "",
+      "| Role | Hex |",
+      "| --- | --- |",
+      ...swatches.map((s) => `| ${s.label} | \`${s.hex}\` |`),
+      "",
+      `Apply: paste \`${currentToken}\` at /account/appearance`,
+    ].join("\n");
+    try {
+      await navigator.clipboard.writeText(md);
+      toast.success("Palette copied as Markdown");
+    } catch {
+      toast.error("Couldn't access the clipboard");
+    }
+  };
+
+  const downloadPng = () => {
+    // Generate the screenshot entirely client-side via Canvas API —
+    // no html2canvas dependency, no network round-trip. 800×420 px so
+    // the file looks crisp on social / Discord without being huge.
+    const W = 800;
+    const H = 420;
+    const canvas = document.createElement("canvas");
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      toast.error("Canvas not supported in this browser");
+      return;
+    }
+    // Backdrop — match the chosen theme's surface so the image reads
+    // correctly when shared standalone.
+    const bg = theme === "dark" ? "#1B1B1E" : "#FAF6EE";
+    const ink = theme === "dark" ? "#E8E4D8" : "#2C2C2C";
+    const muted = theme === "dark" ? "#A8A6A0" : "#6B705C";
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+    // Title
+    ctx.fillStyle = ink;
+    ctx.font = "bold 38px serif";
+    ctx.fillText(palette.name, 48, 80);
+    ctx.fillStyle = muted;
+    ctx.font = "16px sans-serif";
+    ctx.fillText(`Shelfsort palette · ${theme} theme`, 48, 110);
+    // Swatches
+    const swatchW = 160;
+    const swatchH = 160;
+    const gap = 20;
+    const startX = 48;
+    const startY = 150;
+    swatches.forEach((s, i) => {
+      const x = startX + i * (swatchW + gap);
+      ctx.fillStyle = s.hex;
+      ctx.fillRect(x, startY, swatchW, swatchH);
+      // 1-px stroke so very light swatches don't disappear on bg
+      ctx.strokeStyle = muted;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x + 0.5, startY + 0.5, swatchW - 1, swatchH - 1);
+      // Label + hex below
+      ctx.fillStyle = ink;
+      ctx.font = "bold 13px sans-serif";
+      ctx.fillText(s.label, x, startY + swatchH + 22);
+      ctx.fillStyle = muted;
+      ctx.font = "12px monospace";
+      ctx.fillText(s.hex, x, startY + swatchH + 40);
+    });
+    // Footer token
+    ctx.fillStyle = muted;
+    ctx.font = "12px monospace";
+    ctx.fillText(`Import: ${currentToken}`, 48, H - 24);
+    // Trigger download
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        toast.error("Couldn't render the image");
+        return;
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `shelfsort-palette-${paletteId}-${theme}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast.success("Palette PNG downloaded");
+    }, "image/png");
   };
 
   const applyImport = () => {
@@ -244,6 +349,26 @@ export default function AppearancePage() {
                 >
                   {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                   {copied ? "Copied" : "Copy"}
+                </button>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={copyAsMarkdown}
+                  data-testid="appearance-share-markdown-btn"
+                  title="Copy a Markdown block with hex codes — paste into Discord/GitHub/Notion"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-[0.15em] bg-white border border-[#6B46C1] text-[#6B46C1] hover:bg-[#EEE9FB] transition-colors"
+                >
+                  <FileText className="w-3.5 h-3.5" /> Copy as Markdown
+                </button>
+                <button
+                  type="button"
+                  onClick={downloadPng}
+                  data-testid="appearance-share-png-btn"
+                  title="Download a PNG screenshot of this palette"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-[0.15em] bg-white border border-[#6B46C1] text-[#6B46C1] hover:bg-[#EEE9FB] transition-colors"
+                >
+                  <ImageIcon className="w-3.5 h-3.5" /> Download PNG
                 </button>
               </div>
             </div>
