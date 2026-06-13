@@ -255,7 +255,7 @@ def extract_epub_metadata(filepath: Path) -> Dict[str, Any]:
 
     return {
         "title": title.strip(),
-        "author": creator.strip(),
+        "author": _clean_author_string(creator),
         "description": description[:2000],
         "language": language,
         "publisher": publisher,
@@ -799,6 +799,39 @@ def extract_fanfic_urls(links: List[Dict[str, str]]) -> List[str]:
             seen.add(canon)
             out.append(canon)
     return out
+
+
+def _clean_author_string(raw: Optional[str]) -> str:
+    """Tidy up messy author fields before storing.
+
+    Handles common EPUB metadata patterns that make dedup + display worse:
+      - 'by John Smith' → 'John Smith'
+      - 'Smith, John & Doe, Jane' → 'Smith, John & Doe, Jane' (preserved,
+        but trailing/leading separators stripped)
+      - 'John Smith (a.k.a. Pseudonym)' → 'John Smith' (drop parenthetical)
+      - 'Pseudonym [pen name]' → 'Pseudonym' (drop bracketed annotation)
+      - 'anonymous', 'unknown author', '' → 'Unknown'
+      - Collapse internal whitespace.
+
+    We deliberately do NOT lowercase or reformat the case — only the
+    matching helper does that, so display stays human-friendly.
+    """
+    s = (raw or "").strip()
+    if not s:
+        return "Unknown"
+    # Drop parenthetical and bracketed annotations like "(pen name)" or "[a.k.a. X]"
+    s = re.sub(r"\s*[\(\[][^)\]]*[\)\]]", "", s).strip()
+    # Strip leading "by " (case-insensitive)
+    s = re.sub(r"^(?:by|written by|author[:\s])\s+", "", s, flags=re.IGNORECASE).strip()
+    # Trim stray separators ("John Smith, " or "& Jane")
+    s = s.strip(" ,&;|/")
+    # Collapse whitespace
+    s = re.sub(r"\s+", " ", s)
+    # Canonicalize common "unknown" sentinels
+    low = s.lower()
+    if low in ("anonymous", "anon", "anon.", "unknown", "unknown author", "n/a", "na", "various", "various authors"):
+        return {"various": "Various", "various authors": "Various"}.get(low, "Unknown")
+    return s
 
 
 def _normalize_title_for_match(title: Optional[str]) -> str:
@@ -1802,7 +1835,7 @@ async def fanfic_fetch_epub(source_url: str, options: Optional[Dict[str, Any]] =
                 "category": story.getMetadata("category"),
             },
             "title": story.getMetadata("title"),
-            "author": story.getMetadata("author"),
+            "author": _clean_author_string(story.getMetadata("author")),
             "description": story.getMetadata("description"),
             "source_url": source_url,
             "site": host,

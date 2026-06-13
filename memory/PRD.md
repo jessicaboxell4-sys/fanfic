@@ -1180,3 +1180,16 @@ These are agent-suggested features the user hasn't picked yet. Bring them up nex
   - Added `test_author_normalization_strips_dots` — verifies "J. K. Rowling" + "JK Rowling" still pair.
   - All 11 `TestDuplicateDetection` tests pass; full `test_new_features.py` (194 tests) all green.
 - **Help docs** rewritten on `/help` to describe the new three-tier detection (URL → title+author → title fallback) and explicitly mention the "Crossroads" example users were tripping over.
+
+
+### Added 2026-06-13 (Author cleanup pass on upload)
+- **New helper** `_clean_author_string()` in `routes/books.py`:
+  - Drops parenthetical/bracketed annotations (`Real Name (Pen Name)` → `Real Name`)
+  - Strips `by ` / `Written by ` / `Author:` prefixes
+  - Trims trailing/leading separators (`& Jane Doe` → `Jane Doe`)
+  - Collapses internal whitespace
+  - Canonicalizes empty/None/`anonymous`/`anon`/`unknown` → `Unknown`, and `Various`/`various authors` → `Various`
+  - Multi-author separators (`Smith, John & Doe, Jane`) are preserved
+- **Wired** into both the EPUB metadata extractor (line 258) and the FicHub/FanFicFare fetch path (line 1838) so every author landing in Mongo goes through normalization.
+- **Tests**: 33 parametrized cases in `tests/test_author_cleanup.py` covering every cleanup pattern + a round-trip of the matching helper (`_normalize_author_for_match`) on the cleaned outputs.
+- Combined dedup + cleanup test count: **44/44 pass.** Improves both the dedup signal (cleaner inputs to the comparator) AND the library display.
