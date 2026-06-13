@@ -268,6 +268,67 @@ FANDOM_KEYWORDS = {
     "Honkai Impact 3rd": [
         "honkai impact 3rd", "honkai impact", "houkai impact",
     ],
+    # ----- Vivziepop animated shows.
+    "Hazbin Hotel": [
+        "hazbin hotel", "charlie morningstar", "alastor radio demon",
+        "angel dust", "lucifer morningstar", "vivziepop",
+    ],
+    "Helluva Boss": [
+        "helluva boss", "blitzo", "stolas goetia", "moxxie",
+        "millie helluva", "imp city",
+    ],
+    # ----- The Owl House (Dana Terrace, Disney).
+    "The Owl House": [
+        "the owl house", "luz noceda", "amity blight", "eda clawthorne",
+        "king owl house", "lumity", "boiling isles",
+    ],
+    # ----- The Boys (Amazon TV series + Garth Ennis comics).
+    "The Boys (TV)": [
+        "the boys amazon", "the boys (tv)", "homelander", "billy butcher",
+        "starlight the boys", "hughie campbell", "soldier boy",
+    ],
+    "The Boys (Comics)": [
+        "the boys comics", "garth ennis the boys", "dynamite the boys",
+    ],
+    "Gen V (TV)": [
+        "gen v", "godolkin university", "marie moreau",
+    ],
+    # ----- Steven Universe: Future spinoff (the original SU is in the seed).
+    "Steven Universe: Future": [
+        "steven universe future", "su future",
+    ],
+    # ----- Studio Ghibli filmography.
+    "Spirited Away": [
+        "spirited away", "sen to chihiro", "no-face", "haku spirited",
+    ],
+    "Howl's Moving Castle": [
+        "howl's moving castle", "howls moving castle", "sophie hatter",
+        "calcifer", "diana wynne jones howl",
+    ],
+    "Princess Mononoke": [
+        "princess mononoke", "mononoke hime", "san mononoke", "ashitaka",
+    ],
+    "My Neighbor Totoro": [
+        "my neighbor totoro", "tonari no totoro", "totoro studio ghibli",
+    ],
+    "Castle in the Sky": [
+        "castle in the sky", "laputa castle in the sky", "tenku no shiro laputa",
+    ],
+    "Kiki's Delivery Service": [
+        "kiki's delivery service", "kikis delivery service", "majo no takkyubin",
+    ],
+    "Ponyo": [
+        "ponyo on the cliff", "gake no ue no ponyo",
+    ],
+    "The Tale of the Princess Kaguya": [
+        "tale of the princess kaguya", "kaguya hime no monogatari",
+    ],
+    "The Wind Rises": [
+        "the wind rises", "kaze tachinu", "jiro horikoshi",
+    ],
+    "Nausicaä of the Valley of the Wind": [
+        "nausicaa of the valley of the wind", "nausicaä", "kaze no tani no nausicaa",
+    ],
     "Doctor Who": ["doctor who", "tardis", "the doctor", "gallifrey"],
     "Supernatural": ["supernatural fic", "dean winchester", "sam winchester", "castiel"],
     "Game of Thrones": ["game of thrones", "westeros", "jon snow", "daenerys", "targaryen", "stark family"],

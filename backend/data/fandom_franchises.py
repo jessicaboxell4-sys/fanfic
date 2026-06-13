@@ -147,6 +147,31 @@ FRANCHISE_GROUPS: Dict[str, List[str]] = {
         "崩坏：星穹铁道 | Honkai: Star Rail (Video Game)",
         "Honkai Impact 3rd",
     ],
+    "Vivziepop": [
+        "Hazbin Hotel",
+        "Helluva Boss",
+    ],
+    "The Boys": [
+        "The Boys (TV)",
+        "The Boys (Comics)",
+        "Gen V (TV)",
+    ],
+    "Steven Universe": [
+        "Steven Universe",
+        "Steven Universe: Future",
+    ],
+    "Studio Ghibli": [
+        "Spirited Away",
+        "Howl's Moving Castle",
+        "Princess Mononoke",
+        "My Neighbor Totoro",
+        "Castle in the Sky",
+        "Kiki's Delivery Service",
+        "Ponyo",
+        "The Tale of the Princess Kaguya",
+        "The Wind Rises",
+        "Nausicaä of the Valley of the Wind",
+    ],
     "Avatar (Bryke)": [
         "Avatar: The Last Airbender",
         "The Legend of Korra",
