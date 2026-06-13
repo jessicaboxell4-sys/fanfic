@@ -289,7 +289,11 @@ export default function Help() {
               <ul>
                 <li><strong>Who can DM me</strong> — <em>Friends only</em> (default) blocks DMs from strangers; <em>Anyone</em> opens it up. When you have pending requests sitting around, a small "Switch to open DM mode" link appears on the Friends page so you don't have to dig.</li>
                 <li><strong>Hide me from user search</strong> — toggle on to keep your name/email out of other users' search results. Existing friends still see you.</li>
+                <li><strong>Share my library with friends</strong> — opt-in (off by default). When on, your accepted friends see a Library button on your row in their Friends page. They can browse your books (title + author + fandom), see which ones they already own, and click <em>Want this</em> to politely DM you about anything they want. No EPUB files are ever auto-sent — you decide how to share each one.</li>
               </ul>
+              <p>
+                On the Friends page, each accepted friend's row also shows a <strong>🤝 mutual count</strong> — the number of books that appear in both of your libraries (matched on lowercase title + author, ignoring "the/a/an" prefixes).
+              </p>
               <p>
                 <strong>Notifications</strong>: the chat-bubble icon in the Navbar shows one combined badge — unread messages + pending friend requests added together. Hover for the breakdown.
               </p>

@@ -3,9 +3,10 @@ import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import {
   ArrowLeft, Users, Search, UserPlus, Check, X as XIcon, MessageSquare,
-  Ban, ShieldOff, Loader2, Mail, Send,
+  Ban, ShieldOff, Loader2, Mail, Send, Library,
 } from "lucide-react";
 import Navbar from "../components/Navbar";
+import FriendLibraryModal from "../components/FriendLibraryModal";
 import { api } from "../lib/api";
 
 function PersonRow({ row, children, testid }) {
@@ -42,12 +43,22 @@ export default function FriendsPage() {
   const [inviteNote, setInviteNote] = useState("");
   const [inviting, setInviting] = useState(false);
   const [myInvites, setMyInvites] = useState([]);
+  // Per-friend mutual counts and the active library-viewer target
+  const [mutualByFriend, setMutualByFriend] = useState({});
+  const [libraryFriend, setLibraryFriend] = useState(null);
 
   const load = async () => {
     setLoading(true);
     try {
       const { data } = await api.get("/friends");
       setData(data);
+      // Fire-and-forget per-friend mutual counts; harmless if one fails.
+      (data.accepted || []).forEach(async (f) => {
+        try {
+          const { data: m } = await api.get(`/friends/${f.other_user_id}/mutual`);
+          setMutualByFriend((prev) => ({ ...prev, [f.other_user_id]: m }));
+        } catch { /* ignore */ }
+      });
     } catch { toast.error("Couldn't load friends"); }
     finally { setLoading(false); }
     try {
@@ -351,19 +362,40 @@ export default function FriendsPage() {
                 <p className="text-xs text-[#6B705C] italic">No friends yet. Use the search above to find people.</p>
               ) : (
                 <ul className="rounded-lg border border-[#E8E6E1]">
-                  {data.accepted.map((r) => (
-                    <PersonRow key={r.friendship_id} row={r} testid={`friends-accepted-row-${r.other_user_id}`}>
-                      <button type="button" onClick={() => openDM(r.other_user_id)} data-testid={`friends-message-btn-${r.other_user_id}`} className="text-[11px] px-2 py-1 rounded border border-[#3A5A40] text-[#3A5A40] inline-flex items-center gap-1">
-                        <MessageSquare className="w-3 h-3" /> Message
-                      </button>
-                      <button type="button" onClick={() => block(r.other_user_id)} className="text-[11px] px-2 py-1 rounded text-[#B43F26]" title="Block">
-                        <Ban className="w-3 h-3" />
-                      </button>
-                      <button type="button" onClick={() => remove(r.other_user_id)} data-testid={`friends-remove-btn-${r.other_user_id}`} className="text-[11px] px-2 py-1 rounded text-[#6B705C]" title="Remove">
-                        <XIcon className="w-3 h-3" />
-                      </button>
-                    </PersonRow>
-                  ))}
+                  {data.accepted.map((r) => {
+                    const m = mutualByFriend[r.other_user_id];
+                    return (
+                      <PersonRow key={r.friendship_id} row={r} testid={`friends-accepted-row-${r.other_user_id}`}>
+                        {m && m.count > 0 && (
+                          <span
+                            data-testid={`friends-mutual-badge-${r.other_user_id}`}
+                            title={`${m.count} of their ${m.their_total} books are in your library`}
+                            className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-[#FBFAF6] border border-[#E5DDC5] text-[#6B705C] font-semibold"
+                          >
+                            🤝 {m.count}
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setLibraryFriend(r)}
+                          data-testid={`friends-view-library-btn-${r.other_user_id}`}
+                          className="text-[11px] px-2 py-1 rounded border border-[#E5DDC5] text-[#6B705C] hover:bg-[#FBFAF6] inline-flex items-center gap-1"
+                          title="Browse their library"
+                        >
+                          <Library className="w-3 h-3" /> Library
+                        </button>
+                        <button type="button" onClick={() => openDM(r.other_user_id)} data-testid={`friends-message-btn-${r.other_user_id}`} className="text-[11px] px-2 py-1 rounded border border-[#3A5A40] text-[#3A5A40] inline-flex items-center gap-1">
+                          <MessageSquare className="w-3 h-3" /> Message
+                        </button>
+                        <button type="button" onClick={() => block(r.other_user_id)} className="text-[11px] px-2 py-1 rounded text-[#B43F26]" title="Block">
+                          <Ban className="w-3 h-3" />
+                        </button>
+                        <button type="button" onClick={() => remove(r.other_user_id)} data-testid={`friends-remove-btn-${r.other_user_id}`} className="text-[11px] px-2 py-1 rounded text-[#6B705C]" title="Remove">
+                          <XIcon className="w-3 h-3" />
+                        </button>
+                      </PersonRow>
+                    );
+                  })}
                 </ul>
               )}
             </section>
@@ -400,6 +432,9 @@ export default function FriendsPage() {
               )}
             </section>
           </>
+        )}
+        {libraryFriend && (
+          <FriendLibraryModal friend={libraryFriend} onClose={() => setLibraryFriend(null)} />
         )}
       </main>
     </div>

@@ -22,6 +22,7 @@ function errMsg(d) {
 // the Friends page. Anchored at id="privacy" so banners can scroll here.
 function PrivacyMessagingCard({ navigate }) {
   const [privacy, setPrivacy] = useState({ message_privacy: "friends_only", hidden_from_search: false });
+  const [libraryVisible, setLibraryVisible] = useState(false);
   const [pendingIn, setPendingIn] = useState(0);
   const [saving, setSaving] = useState(false);
 
@@ -29,6 +30,10 @@ function PrivacyMessagingCard({ navigate }) {
     try {
       const { data } = await api.get("/account/privacy");
       setPrivacy(data);
+    } catch { /* ignore */ }
+    try {
+      const { data } = await api.get("/account/library-visibility");
+      setLibraryVisible(!!data?.library_visible_to_friends);
     } catch { /* ignore */ }
     try {
       const { data } = await api.get("/friends/pending-count");
@@ -42,6 +47,16 @@ function PrivacyMessagingCard({ navigate }) {
     try {
       const { data } = await api.put("/account/privacy", patch);
       setPrivacy(data);
+      toast.success("Saved");
+    } catch (e) { toast.error(errMsg(e?.response?.data?.detail)); }
+    finally { setSaving(false); }
+  };
+
+  const toggleLibrary = async () => {
+    setSaving(true);
+    try {
+      const { data } = await api.put("/account/library-visibility", { library_visible_to_friends: !libraryVisible });
+      setLibraryVisible(!!data?.library_visible_to_friends);
       toast.success("Saved");
     } catch (e) { toast.error(errMsg(e?.response?.data?.detail)); }
     finally { setSaving(false); }
@@ -114,6 +129,26 @@ function PrivacyMessagingCard({ navigate }) {
             }`}
           >
             <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${privacy.hidden_from_search ? "translate-x-6" : "translate-x-1"}`} />
+          </button>
+        </div>
+
+        <div className="flex items-start justify-between gap-3 p-3 rounded-lg border border-[#E5DDC5] bg-[#FBFAF6]">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-[#2C2C2C]">Share my library with friends</p>
+            <p className="text-xs text-[#6B705C]">
+              When on, accepted friends can browse a read-only list of your books and click "Want this" to politely DM you about ones they don&apos;t have. Files are never auto-shared — you decide what to send.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={toggleLibrary}
+            disabled={saving}
+            data-testid="privacy-library-toggle"
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ${
+              libraryVisible ? "bg-[#3A5A40]" : "bg-[#E8E6E1]"
+            }`}
+          >
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${libraryVisible ? "translate-x-6" : "translate-x-1"}`} />
           </button>
         </div>
 

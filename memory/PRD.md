@@ -1133,3 +1133,17 @@ These are agent-suggested features the user hasn't picked yet. Bring them up nex
 - **Help docs**: Friends section paragraph extended to describe the invite flow, the 30-day expiry, and the cancel-from-pending-list affordance.
 - **Tests**: 14 new pytest cases in `tests/test_invites.py` (use a module-level `invite_token` fixture for cross-test state) covering: unauth blocked, can't invite self, existing-user-falls-through, brand-new-email creates invite, duplicate returns same, public preview, unknown-token 404, accept-without-auth 401, inviter-can't-accept-own, joiner-accepts-creates-friendship (both sides), double-accept 400, expired invite 410, list-mine, cancel-pending. **All 14 pass.**
 - Verified e2e via Playwright: Friends page now shows three cards (Find someone · Invite by email · lists), Send-invite button greys out when email field is empty, layout polished.
+
+
+### Added 2026-06-13 (Friend library — mutual badge + browse + "Want this")
+- **New backend module** `routes/friend_library.py` (~180 lines):
+  - `GET /api/friends/{uid}/mutual` — returns `{count, sample[5], my_total, their_total}` for accepted friends. Matches books by lowercase `title|author` with leading "the/a/an" prefix stripped, so "The Hobbit" / "Hobbit" pair correctly.
+  - `GET /api/friends/{uid}/library?q=&limit=` — paginated, searchable view of a friend's library. Gated by the friend's `library_visible_to_friends` toggle (default off). Each book annotated with `i_have_it` so the UI can hide the "Want this" button for duplicates.
+  - `POST /api/friends/{uid}/book-request {book_id, note?}` — sends a `kind: "book_request"` chat message into the existing (or auto-created) DM room between the two users. No file transfer through Shelfsort — copyright-safe by design; sender writes a note, friend decides whether/how to share.
+  - `GET/PUT /api/account/library-visibility` — opt-in toggle.
+- **Frontend**:
+  - **`/friends` page**: every accepted friend row now shows a **🤝 N** mutual-count badge (only when > 0) with a hover tooltip ("N of their X books are in your library") + a **Library** button that opens the new modal.
+  - **`FriendLibraryModal`** component: full-screen modal with searchable book list. Each row shows title + author + fandom badge. Books the caller already owns show a green "You have" pill; books they don't have show a primary-coloured **Want this** button that fires the book-request DM with a toast.
+  - **Account → Privacy & messaging card** gained a third toggle: **Share my library with friends** (Shadcn-style switch). Defaults off for privacy-first behaviour.
+- **Tests**: 12 new pytest cases in `tests/test_friend_library.py` covering mutual count math (incl. "the Hobbit" vs "Hobbit"), non-friend 403s, opt-in gating, search filter, book-request creates the right `kind: "book_request"` chat message with attachment, unknown-book 404, non-friend block, visibility toggle CRUD. **All 12 pass.** Full social stack: **81/81 across friend_library + friends + invites + chat.**
+- **Help docs**: rewrote the Privacy section to cover the library toggle + added a paragraph about the mutual badge math.
