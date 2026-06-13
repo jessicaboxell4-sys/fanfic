@@ -459,6 +459,13 @@
 /* `#FBE9E7` red-pale treatment.                                            */
 :root[data-theme="dark"] .bg-\[\#F8ECEC\] { background-color: rgba(217, 83, 79, 0.18); }
 
+/* Lavender pales — DownloadPage's themed surfaces (filter pane background,  */
+/* active-filter chip strip, hover-row highlight). Sit on the same purple    */
+/* family as the existing `#EEE9FB`/`#EDE7FB` overrides above.               */
+:root[data-theme="dark"] .bg-\[\#FBFAFE\] { background-color: rgba(167, 139, 250, 0.10); }
+:root[data-theme="dark"] .bg-\[\#F4EFF9\] { background-color: rgba(167, 139, 250, 0.16); }
+
+
 
 /* ── Dark-text overrides (2026-06-13) ──────────────────────────────────── */
 /* Caught by `test_dark_mode_overrides.py` — dark `text-[#hex]` colours    */

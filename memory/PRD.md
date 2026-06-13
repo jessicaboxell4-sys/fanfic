@@ -1650,3 +1650,15 @@ Both upload sites (the regular EPUB upload pipeline + the URL-fetch path) now pe
 - The quick-toggle's icon updates in place (Moon → Sun) and the `title`/`aria-label` flip dynamically ("Switch to dark mode" / "Switch to light mode") so screen readers stay accurate.
 - Also fixed a popover positioning regression introduced by the new flex wrapper — added `top-full` so the popover anchors below the button group instead of rendering above the navbar.
 - Verified end-to-end via Playwright: initial light → 1 click → dark → 1 click → light → palette button opens popover with Theme + Accent Colour sections both visible → inside-popover theme toggle still flips correctly. All assertions pass. Dark-mode regression suite still green.
+
+
+### Fixed 2026-06-13 (DownloadPage — purple theme parity)
+- The `/library/download` and `/library/download?kind=xlsx` page was still styled in the original "AO3-maroon" aesthetic (dark red `#900` borders/headers, cream backgrounds, blue links) — a deliberate fanfic-archive nod that clashed badly with the rest of the now-purple Shelfsort UI, especially in dark mode where the bright coral banner stood out as a sore thumb.
+- Bulk-swapped every hex in `/app/frontend/src/pages/DownloadPage.jsx` to the purple family:
+  - Primary `#900` → `#6B46C1`, darker `#600` → `#553397`, hover `#700` → `#5d3aaa`
+  - Cream surfaces `#fffaf0` → `#FBFAFE`, `#fdf5dc` → `#EEE9FB`, `#fcf8e8` → `#F4EFF9`, `#f5ecd5` → `#EDE7FB`
+  - Border `#d0c8b0` → `#E5DDC5`
+  - Blue link `#2a6496` → primary purple `#6B46C1`
+- Updated the in-file `ao3-scrollbar` CSS to track + thumb in purple.
+- Added the two new lavender pales (`#FBFAFE`, `#F4EFF9`) to `index.css` dark-mode overrides so the page reads cleanly in dark mode — caught by the regression test on the first try, all 3 dark-mode tests now pass.
+- Visually verified light + dark mode end-to-end: header banner, filter legends, scrollbar, checkbox accents, active-filter chips, download CTA — every previously-maroon element is now purple.

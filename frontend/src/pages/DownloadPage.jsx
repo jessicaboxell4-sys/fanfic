@@ -5,14 +5,14 @@ import { API, api } from "../lib/api";
 import { toast } from "sonner";
 import Navbar from "../components/Navbar";
 
-// AO3-themed scrollbar styles — slim maroon track, dense look. Scoped to the
-// .ao3-scrollbar selector so it doesn't leak into the rest of the app.
+// Themed scrollbar styles — slim purple track to match the app's primary
+// accent. Scoped to the .ao3-scrollbar selector so it doesn't leak elsewhere.
 const AO3_SCROLLBAR_CSS = `
 .ao3-scrollbar::-webkit-scrollbar { width: 10px; height: 10px; }
-.ao3-scrollbar::-webkit-scrollbar-track { background: #fffaf0; border-left: 1px solid #d0c8b0; }
-.ao3-scrollbar::-webkit-scrollbar-thumb { background: #900; border: 2px solid #fffaf0; border-radius: 0; }
-.ao3-scrollbar::-webkit-scrollbar-thumb:hover { background: #700; }
-.ao3-scrollbar { scrollbar-color: #900 #fffaf0; scrollbar-width: thin; }
+.ao3-scrollbar::-webkit-scrollbar-track { background: #FBFAFE; border-left: 1px solid #E5DDC5; }
+.ao3-scrollbar::-webkit-scrollbar-thumb { background: #6B46C1; border: 2px solid #FBFAFE; border-radius: 0; }
+.ao3-scrollbar::-webkit-scrollbar-thumb:hover { background: #553397; }
+.ao3-scrollbar { scrollbar-color: #6B46C1 #FBFAFE; scrollbar-width: thin; }
 `;
 
 function CheckboxFilter({ label, testId, options, selected, onToggle, onBulkSet, topN }) {
@@ -43,9 +43,9 @@ function CheckboxFilter({ label, testId, options, selected, onToggle, onBulkSet,
   return (
     <fieldset
       data-testid={testId}
-      className="border border-[#900] bg-white"
+      className="border border-[#6B46C1] bg-white"
     >
-      <legend className="px-2 mx-2 text-sm font-bold text-[#900] uppercase tracking-wide">
+      <legend className="px-2 mx-2 text-sm font-bold text-[#6B46C1] uppercase tracking-wide">
         {label}
         {selected.size > 0 && (
           <span className="ml-2 text-xs font-normal text-[#666] normal-case tracking-normal">
@@ -61,13 +61,13 @@ function CheckboxFilter({ label, testId, options, selected, onToggle, onBulkSet,
             placeholder="Search…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            className="w-full pl-7 pr-2 py-1 border border-[#999] bg-white text-sm focus:outline-none focus:border-[#900]"
+            className="w-full pl-7 pr-2 py-1 border border-[#999] bg-white text-sm focus:outline-none focus:border-[#6B46C1]"
           />
           {filtered.length > 1 && onBulkSet && (
             <button
               type="button"
               onClick={handleBulk}
-              className="mt-1 text-xs text-[#2a6496] hover:text-[#900] underline"
+              className="mt-1 text-xs text-[#6B46C1] hover:text-[#553397] underline"
               data-testid={`${testId}-select-all`}
             >
               {allVisiblePicked
@@ -81,7 +81,7 @@ function CheckboxFilter({ label, testId, options, selected, onToggle, onBulkSet,
             <button
               type="button"
               onClick={() => setShowAll((v) => !v)}
-              className="mt-1 ml-3 text-xs text-[#2a6496] hover:text-[#900] underline"
+              className="mt-1 ml-3 text-xs text-[#6B46C1] hover:text-[#553397] underline"
               data-testid={`${testId}-toggle-all`}
             >
               {showAll ? `Show top ${topN} only` : `Show all ${allFiltered.length}`}
@@ -99,13 +99,13 @@ function CheckboxFilter({ label, testId, options, selected, onToggle, onBulkSet,
             return (
               <label
                 key={o.name}
-                className={`flex items-center gap-2 px-2 py-1 text-sm cursor-pointer border-b border-[#eee] last:border-b-0 ${isOn ? "bg-[#fdf5dc]" : "hover:bg-[#fcf8e8]"}`}
+                className={`flex items-center gap-2 px-2 py-1 text-sm cursor-pointer border-b border-[#eee] last:border-b-0 ${isOn ? "bg-[#EEE9FB]" : "hover:bg-[#F4EFF9]"}`}
               >
                 <input
                   type="checkbox"
                   checked={isOn}
                   onChange={() => onToggle(o.name)}
-                  className="accent-[#900]"
+                  className="accent-[#6B46C1]"
                 />
                 <span className="flex-1 truncate">{o.name}</span>
                 <span className="text-xs text-[#666] flex-shrink-0">({o.count})</span>
@@ -113,7 +113,7 @@ function CheckboxFilter({ label, testId, options, selected, onToggle, onBulkSet,
             );
           })}
           {isCapped && (
-            <div className="px-2 py-1.5 text-[11px] text-[#666] text-center bg-[#fffaf0] border-t border-[#eee] italic">
+            <div className="px-2 py-1.5 text-[11px] text-[#666] text-center bg-[#FBFAFE] border-t border-[#eee] italic">
               Showing top {topN} of {allFiltered.length} — use search or "Show all" to see the rest
             </div>
           )}
@@ -326,7 +326,7 @@ export default function DownloadPage() {
         <Link
           to="/library"
           data-testid="download-back"
-          className="inline-flex items-center gap-1.5 text-sm text-[#2a6496] hover:text-[#900] mb-3"
+          className="inline-flex items-center gap-1.5 text-sm text-[#6B46C1] hover:text-[#553397] mb-3"
         >
           <ArrowLeft className="w-4 h-4" />
           Back to library
@@ -335,9 +335,9 @@ export default function DownloadPage() {
         {/* AO3-style header band */}
         <div
           data-testid={isXlsx ? "xlsx-download-page" : "zip-download-page"}
-          className="border-2 border-[#900] bg-white"
+          className="border-2 border-[#6B46C1] bg-white"
         >
-          <div className="flex items-center gap-3 px-5 py-3 bg-[#900] text-white">
+          <div className="flex items-center gap-3 px-5 py-3 bg-[#6B46C1] text-white">
             <FilterIcon className="w-5 h-5 flex-shrink-0" />
             <div className="flex-1">
               <h1 className="text-lg font-bold leading-tight uppercase tracking-wide">{KIND_COPY.title}</h1>
@@ -346,7 +346,7 @@ export default function DownloadPage() {
           </div>
 
           {/* Filter sections in a roomy 2x2 grid */}
-          <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-5 bg-[#fffaf0]">
+          <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-5 bg-[#FBFAFE]">
             <CheckboxFilter
               label="Fandom"
               testId="zip-filter-fandom"
@@ -397,9 +397,9 @@ export default function DownloadPage() {
           {activeFilterCount > 0 && (
             <div
               data-testid="active-filter-chips"
-              className="px-5 py-3 bg-[#fffaf0] border-t border-[#900]/30 flex flex-wrap items-center gap-2"
+              className="px-5 py-3 bg-[#FBFAFE] border-t border-[#6B46C1]/30 flex flex-wrap items-center gap-2"
             >
-              <span className="text-xs font-bold uppercase tracking-wide text-[#900]">Active:</span>
+              <span className="text-xs font-bold uppercase tracking-wide text-[#6B46C1]">Active:</span>
               {[
                 { setName: "Fandom", set: fandom, setSetter: setFandom, extra: () => setRelationship(new Set()) },
                 { setName: "Pairing", set: relationship, setSetter: setRelationship },
@@ -417,7 +417,7 @@ export default function DownloadPage() {
                     }}
                     data-testid={`chip-${setName.toLowerCase()}-${val}`}
                     title={`Remove ${setName.toLowerCase()} filter`}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-[#fdf5dc] border border-[#900] text-[#900] hover:bg-[#900] hover:text-white"
+                    className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-[#EEE9FB] border border-[#6B46C1] text-[#6B46C1] hover:bg-[#6B46C1] hover:text-white"
                   >
                     <span className="font-semibold uppercase">{setName}:</span>
                     <span>{val}</span>
@@ -429,12 +429,12 @@ export default function DownloadPage() {
           )}
 
           {/* Footer with reset / cancel / download */}
-          <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 border-t-2 border-[#900] bg-[#f5ecd5]">
+          <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 border-t-2 border-[#6B46C1] bg-[#EDE7FB]">
             <button
               data-testid="zip-filter-reset"
               onClick={() => { setFandom(new Set()); setRelationship(new Set()); setAuthor(new Set()); setCategory(new Set()); }}
               disabled={activeFilterCount === 0}
-              className="text-sm text-[#2a6496] hover:text-[#900] underline disabled:opacity-40 disabled:no-underline"
+              className="text-sm text-[#6B46C1] hover:text-[#553397] underline disabled:opacity-40 disabled:no-underline"
             >
               Reset filters
             </button>
@@ -450,7 +450,7 @@ export default function DownloadPage() {
                 data-testid="zip-filter-start"
                 onClick={startDownload}
                 disabled={downloading}
-                className="px-5 py-1.5 text-sm font-bold bg-[#900] text-white border border-[#600] hover:bg-[#700] disabled:opacity-60 inline-flex items-center gap-2 uppercase tracking-wide"
+                className="px-5 py-1.5 text-sm font-bold bg-[#6B46C1] text-white border border-[#553397] hover:bg-[#5d3aaa] disabled:opacity-60 inline-flex items-center gap-2 uppercase tracking-wide"
               >
                 {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <KIND_COPY.Icon className="w-4 h-4" />}
                 {downloading ? `${KIND_COPY.verb}…` : activeFilterCount > 0 ? KIND_COPY.ctaFiltered : KIND_COPY.ctaFull}
