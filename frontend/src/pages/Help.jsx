@@ -281,6 +281,7 @@ export default function Help() {
                 <strong>Friends</strong> live at <Link to="/friends">/friends</Link>: search by name or email (min 2 chars), send a request, the other side accepts or declines.
                 If both sides happen to send requests at the same time, they auto-pair into accepted. From the Friends page you can also <strong>remove a friend</strong> (wipes the DM room),
                 <strong> block someone</strong> (silent, they vanish from your search and can't message you), or <strong>unblock</strong> later.
+                <strong> Invite by email</strong> sends a Resend invite to anyone not yet on Shelfsort — they click the one-time link, sign up, and become your friend automatically. Pending invites expire after 30 days and can be cancelled from the same panel.
               </p>
               <p>
                 <strong>Privacy</strong> lives on your <Link to="/account#privacy">Account page</Link>:

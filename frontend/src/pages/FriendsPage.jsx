@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import {
   ArrowLeft, Users, Search, UserPlus, Check, X as XIcon, MessageSquare,
-  Ban, ShieldOff, Loader2, Mail,
+  Ban, ShieldOff, Loader2, Mail, Send,
 } from "lucide-react";
 import Navbar from "../components/Navbar";
 import { api } from "../lib/api";
@@ -37,6 +37,11 @@ export default function FriendsPage() {
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [busyId, setBusyId] = useState(null);
+  // Invite-by-email state
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteNote, setInviteNote] = useState("");
+  const [inviting, setInviting] = useState(false);
+  const [myInvites, setMyInvites] = useState([]);
 
   const load = async () => {
     setLoading(true);
@@ -45,8 +50,46 @@ export default function FriendsPage() {
       setData(data);
     } catch { toast.error("Couldn't load friends"); }
     finally { setLoading(false); }
+    try {
+      const { data } = await api.get("/friends/invites");
+      setMyInvites(data?.invites || []);
+    } catch { /* ignore */ }
   };
   useEffect(() => { load(); }, []);
+
+  const sendInvite = async () => {
+    if (!inviteEmail.trim()) return;
+    setInviting(true);
+    try {
+      const { data } = await api.post("/friends/invite", {
+        email: inviteEmail.trim(),
+        note: inviteNote.trim() || undefined,
+      });
+      if (data.path === "friend_request_sent" || data.path === "auto_accepted") {
+        toast.success("That email is already on Shelfsort — friend request sent");
+      } else if (data.path === "invite_sent") {
+        toast.success(`Invite emailed to ${data.target_email}`);
+      } else if (data.path === "invite_already_pending") {
+        toast.info("You've already invited that email");
+      } else if (data.path === "invite_created_email_failed") {
+        toast.warning("Invite created but email failed — share the link manually");
+      } else if (data.path === "request_already_pending") {
+        toast.info("Friend request already pending with that user");
+      } else if (data.path === "already_friends") {
+        toast.info("You're already friends with that user");
+      }
+      setInviteEmail(""); setInviteNote("");
+      await load();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't send invite");
+    } finally { setInviting(false); }
+  };
+
+  const cancelInvite = async (inviteId) => {
+    if (!window.confirm("Cancel this invite? The link will stop working.")) return;
+    try { await api.delete(`/friends/invites/${inviteId}`); toast.success("Invite cancelled"); await load(); }
+    catch (e) { toast.error(e?.response?.data?.detail || "Couldn't cancel"); }
+  };
 
   // Debounced search.
   useEffect(() => {
@@ -197,6 +240,70 @@ export default function FriendsPage() {
                 </PersonRow>
               ))}
             </ul>
+          )}
+        </section>
+
+        {/* Invite by email — for people not on Shelfsort yet */}
+        <section className="shelf-card p-5 mb-5" data-testid="friends-invite-card">
+          <p className="text-xs font-bold uppercase tracking-wider text-[#6B705C] mb-2 flex items-center gap-1.5">
+            <Mail className="w-3 h-3" /> Invite someone by email
+          </p>
+          <p className="text-xs text-[#6B705C] mb-3">
+            Not on Shelfsort yet? Send them an invite — they get an email with a one-click link to sign up and become your friend automatically.
+          </p>
+          <div className="space-y-2">
+            <input
+              type="email"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+              placeholder="friend@example.com"
+              data-testid="friends-invite-email"
+              className="w-full text-sm px-3 py-2 rounded-lg border border-[#E5DDC5] bg-white focus:outline-none focus:ring-2 focus:ring-[#3A5A40]/30"
+            />
+            <input
+              type="text"
+              value={inviteNote}
+              onChange={(e) => setInviteNote(e.target.value.slice(0, 200))}
+              placeholder="Optional note (e.g. 'You'd love this for your fanfic stash')"
+              data-testid="friends-invite-note"
+              className="w-full text-sm px-3 py-2 rounded-lg border border-[#E5DDC5] bg-white focus:outline-none focus:ring-2 focus:ring-[#3A5A40]/30"
+            />
+            <button
+              type="button"
+              onClick={sendInvite}
+              disabled={inviting || !inviteEmail.trim()}
+              data-testid="friends-invite-send-btn"
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--primary)] text-white text-sm font-semibold hover:bg-[var(--primary-hover)] disabled:opacity-50"
+            >
+              {inviting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              Send invite
+            </button>
+          </div>
+          {myInvites.filter((i) => i.status === "pending").length > 0 && (
+            <details className="mt-4" data-testid="friends-invite-pending-details">
+              <summary className="text-xs font-semibold text-[#6B705C] cursor-pointer">
+                Pending invites ({myInvites.filter((i) => i.status === "pending").length})
+              </summary>
+              <ul className="mt-2 rounded-lg border border-[#E8E6E1]">
+                {myInvites.filter((i) => i.status === "pending").map((inv) => (
+                  <li
+                    key={inv.invite_id}
+                    data-testid={`friends-invite-row-${inv.invite_id}`}
+                    className="px-3 py-2 flex items-center gap-2 border-b border-[#E8E6E1] last:border-b-0 text-xs"
+                  >
+                    <Mail className="w-3 h-3 text-[#6B705C]" />
+                    <span className="flex-1 truncate text-[#2C2C2C]">{inv.target_email}</span>
+                    <button
+                      type="button"
+                      onClick={() => cancelInvite(inv.invite_id)}
+                      className="text-[10px] px-2 py-0.5 rounded border border-[#E5DDC5] text-[#6B705C]"
+                    >
+                      Cancel
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </details>
           )}
         </section>
 
