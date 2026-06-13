@@ -138,6 +138,9 @@ export default function Help() {
         <header className="mb-8">
           <h1 className="font-serif text-5xl md:text-6xl text-[#2C2C2C] leading-tight">Help</h1>
           <p className="text-[#6B705C] mt-2">How to do everything in Shelfsort. Last updated 2026-06-13.</p>
+          <p className="text-sm text-[#6B705C] mt-3">
+            Don&rsquo;t see what you&rsquo;re looking for? <Link to="/suggestions" className="text-[var(--primary)] font-semibold underline">Drop a suggestion →</Link> — bugs, tweaks, brand new ideas all welcome.
+          </p>
           <div className="mt-5 relative max-w-md" data-testid="help-search-wrapper">
             <Search className="w-4 h-4 text-[#6B705C] absolute top-1/2 -translate-y-1/2 left-3 pointer-events-none" />
             <input

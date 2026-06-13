@@ -27,6 +27,7 @@ import Account from "@/pages/Account";
 import AppearancePage from "@/pages/AppearancePage";
 import MessagesPage from "@/pages/MessagesPage";
 import FriendsPage from "@/pages/FriendsPage";
+import SuggestionsPage from "@/pages/SuggestionsPage";
 import InviteAcceptPage from "@/pages/InviteAcceptPage";
 import Reader from "@/pages/Reader";
 import CompareVersions from "@/pages/CompareVersions";
@@ -107,6 +108,7 @@ function AppRouter() {
       <Route path="/messages" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
       <Route path="/messages/:roomId" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
       <Route path="/friends" element={<ProtectedRoute><FriendsPage /></ProtectedRoute>} />
+      <Route path="/suggestions" element={<ProtectedRoute><SuggestionsPage /></ProtectedRoute>} />
       <Route path="/invite/:token" element={<InviteAcceptPage />} />
       <Route path="/account/emails" element={<ProtectedRoute><EmailPreferences /></ProtectedRoute>} />
       <Route path="/account/duplicates" element={<ProtectedRoute><FindDuplicates /></ProtectedRoute>} />

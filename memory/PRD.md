@@ -1198,3 +1198,13 @@ These are agent-suggested features the user hasn't picked yet. Bring them up nex
 ### Parked idea 2026-06-13 (Author detail page — P2)
 - Concept: `/library/author/{name}` page lists every book by that author in the user's library, with a small user-editable bio area ("first read 2018", "writes hurt/comfort"). Clean author strings from the new cleanup pass mean clean URLs for these pages. Could also surface a "shared with friends" indicator and a "mark as favorite author" affordance.
 - Priority: P2.
+
+
+### Added 2026-06-13 (User suggestions / feature-request box)
+- **New backend module** `routes/suggestions.py` (~190 lines) with a `suggestions` collection (`{suggestion_id, title, body, category, status, submitter, voters[], admin_note, created_at, updated_at}`). Categories: `bug | improvement | feature`. Statuses: `open | under_review | planned | done | declined`.
+- **User endpoints**: list (filterable by status/category/`mine_only`, sorted by status then votes), submit (auto-votes for self), toggle vote, self-delete own.
+- **Admin endpoints**: `PUT /api/admin/suggestions/{sid}` to change status + admin_note (audit-logged as `suggestion.update`), `DELETE /api/admin/suggestions/{sid}` for spam, `GET /api/admin/suggestions/open-count` for the admin badge.
+- **New `/suggestions` page** (`SuggestionsPage.jsx`): combined submission form (title + 4000-char body + category chip picker), filter bar (status select + category select + "My submissions" checkbox), and a sorted list with upvote arrow buttons (visually distinct when you've voted). Per-row admin controls (status select, "Note" button, delete) render only for admins. Submitters can self-delete with a trash icon.
+- **Help page** now has a "Don't see what you're looking for? Drop a suggestion →" link in the header.
+- **Tests** (`tests/test_suggestions.py`): **17/17 pass.** Coverage: auth gating, title required, invalid category, auto-vote on submit, vote toggle (vote → unvote), 404 on unknown id, filter by status/category, mine-only excludes others, self-delete vs cross-user 403, admin status update, open-count, audit-log trail, admin spam-delete.
+- Verified e2e via Playwright: submit form → toast → row renders with vote count `1`, OPEN pill, admin row showing (status select + Note + Trash).
