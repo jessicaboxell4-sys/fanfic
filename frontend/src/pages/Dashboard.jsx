@@ -13,6 +13,12 @@ import DashboardSuggestionsBox from "../components/DashboardSuggestionsBox";
 import DuplicateResolutionModal from "../components/DuplicateResolutionModal";
 import UrlListDedupeModal from "../components/UrlListDedupeModal";
 import { Library, ArrowRight, Pin, RotateCcw, BarChart3 } from "lucide-react";
+import { toast } from "sonner";
+
+// One-shot "what's new" banner fired on the user's next visit to the
+// dashboard after a notable visual / UX shift. Bump the version suffix
+// to re-fire for everyone after the next big change.
+const WHATSNEW_KEY = "shelfsort_whatsnew_2026-06-13_chips";
 
 /**
  * Welcome dashboard at `/library`. Intentionally lean — replaces the old
@@ -47,6 +53,30 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // What's new — fire once per user. Toast points at the Help legend so
+  // existing readers discover the new chip-icon conventions instantly.
+  useEffect(() => {
+    let seen = "0";
+    try { seen = localStorage.getItem(WHATSNEW_KEY) || "0"; } catch { /* ignore */ }
+    if (seen === "1") return;
+    const markSeen = () => {
+      try { localStorage.setItem(WHATSNEW_KEY, "1"); } catch { /* ignore */ }
+    };
+    const id = setTimeout(() => {
+      toast("New chip icons across your library", {
+        description: "⇄ crossover · ♡ pairing · 👤 author — peek at the chip key on the Help page.",
+        duration: 12000,
+        action: {
+          label: "Show me",
+          onClick: () => { markSeen(); navigate("/help"); },
+        },
+        onDismiss: markSeen,
+        onAutoClose: markSeen,
+      });
+    }, 1200);
+    return () => clearTimeout(id);
+  }, [navigate]);
 
   return (
     <div className="min-h-screen bg-paper">

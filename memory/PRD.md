@@ -1702,6 +1702,13 @@ Both upload sites (the regular EPUB upload pipeline + the URL-fetch path) now pe
 - Verified visually in both light and dark mode — pill background converges on `var(--surface)` automatically thanks to the existing `bg-white` dark override, so no new CSS rules needed. Dark-mode regression suite (3/3) still green.
 
 - Final piece of the recognisable-chip-glyph trio (fandoms: no icon · crossovers: ⇄ · pairings: ♡ · **authors: 👤**). Every chip type in the library now has a unique at-a-glance marker.
+
+### Added 2026-06-13 (Dashboard — one-shot "what's new" toast)
+- Added a 1.2s-delayed Sonner toast on the `/library` Dashboard mount: title `New chip icons across your library`, description `⇄ crossover · ♡ pairing · 👤 author — peek at the chip key on the Help page.`, primary action `Show me` → navigates to `/help`.
+- Fires once per user, persisted via `localStorage["shelfsort_whatsnew_2026-06-13_chips"] = "1"`. The flag is set on any of three exit paths: action click, manual dismiss, or 12s auto-close.
+- Versioned key so the next big visual shift can simply bump the suffix to re-fire for everyone.
+- Verified end-to-end via Playwright: fresh visit → toast appears → action click → navigated to `/help` + flag set → revisit `/library` → toast does NOT reappear (all 3 assertions pass).
+
 - Hit surfaces:
   - `AuthorsPage.jsx` — every directory row prefixed with the `User` lucide icon in purple. Count pill also switched from neutral cream `bg-[#E5DDC5]/60` to the unified `bg-[#6B46C1]/10 text-[#6B46C1]` lavender so all three index pages (Pairings, Authors, …) share visual rhythm.
   - `AllBooksPage.jsx` Authors rail — the existing inline `UserCircle2` icon kept, but the chip palette flipped from black-on-white (`bg-white text-[#2C2C2C] border-[#E8E6E1]`) to the unified `bg-[#EDE7FB] text-[#6B46C1] border-[#6B46C1]/20` lavender to match every other chip rail on the page.
