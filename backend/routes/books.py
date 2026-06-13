@@ -805,6 +805,22 @@ def _normalize_title_for_match(title: Optional[str]) -> str:
     return re.sub(r"\s+", " ", (title or "").strip()).lower()
 
 
+def _normalize_author_for_match(author: Optional[str]) -> str:
+    """Normalize for cross-row comparison: lowercase, drop dots, collapse
+    whitespace, and merge runs of single-letter "initials" so 'J. K. Rowling'
+    and 'JK Rowling' compare equal. Empty stays empty so callers can detect
+    missing-author and fall back to title-only matching."""
+    s = re.sub(r"\.", "", (author or "")).strip()
+    s = re.sub(r"\s+", " ", s).lower()
+    # Concatenate runs of single-letter words: 'j k rowling' → 'jk rowling'
+    s = re.sub(
+        r"\b([a-z])(\s+[a-z]\b)+",
+        lambda m: m.group(0).replace(" ", ""),
+        s,
+    )
+    return s
+
+
 # ---------------------------------------------------------------------------
 # URL-list dedupe — treats a .txt of fanfic URLs as a wishlist and strips out
 # URLs that already correspond to books in the user's library.
@@ -1334,6 +1350,7 @@ async def find_duplicate_candidates(
     user_id: str,
     *,
     title: Optional[str],
+    author: Optional[str] = None,
     source_url: Optional[str],
     fanfic_urls: Optional[List[str]] = None,
     exclude_book_id: Optional[str] = None,
@@ -1341,7 +1358,10 @@ async def find_duplicate_candidates(
     """Find existing books in the user's library that look like duplicates.
 
     Match rules (any of):
-      - normalized title equality (case-insensitive, whitespace-collapsed)
+      - normalized title + author equality (case-insensitive, whitespace-collapsed,
+        dots stripped from author). When either side has no author on file we
+        fall back to title-only matching so books that legitimately lack an
+        author still dedupe.
       - exact source_url equality
       - any shared canonical fanfic URL (intersection on `fanfic_urls`)
 
@@ -1353,12 +1373,13 @@ async def find_duplicate_candidates(
     Returns a list of `{book_id, title, author, match_reasons: [...]}` dicts.
     """
     norm_title = _normalize_title_for_match(title)
+    norm_author = _normalize_author_for_match(author)
     urls = [u for u in (fanfic_urls or []) if u]
 
     or_clauses: List[Dict[str, Any]] = []
     if norm_title:
-        # Case-insensitive exact match on title (with collapsed whitespace).
-        # We use $regex anchored to ^…$ so partial matches don't trip.
+        # Narrow the title regex pre-filter; we still verify title+author
+        # equality in Python below.
         escaped = re.escape(norm_title)
         or_clauses.append({"title": {"$regex": f"^\\s*{escaped}\\s*$", "$options": "i"}})
     if source_url:
@@ -1403,7 +1424,16 @@ async def find_duplicate_candidates(
 
         reasons: List[str] = []
         if norm_title and _normalize_title_for_match(doc.get("title")) == norm_title:
-            reasons.append("title")
+            # Tightened rule: when both sides have an author, they must
+            # match too — otherwise two different books with the same title
+            # (e.g. retellings, generic titles like "Untitled") get
+            # falsely paired. Fall back to title-only when either side is
+            # missing an author.
+            doc_norm_author = _normalize_author_for_match(doc.get("author"))
+            if not norm_author or not doc_norm_author:
+                reasons.append("title")
+            elif doc_norm_author == norm_author:
+                reasons.append("title+author")
         if source_url and doc.get("source_url") == source_url:
             reasons.append("source_url")
         if urls:
@@ -2672,6 +2702,7 @@ async def upload_books(
         dupes = await find_duplicate_candidates(
             user.user_id,
             title=meta['title'],
+            author=meta.get('author'),
             source_url=source_url,
             fanfic_urls=fanfic_urls,
         )

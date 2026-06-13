@@ -1164,3 +1164,19 @@ These are agent-suggested features the user hasn't picked yet. Bring them up nex
 - Row of six clickable chips below the Help search input shown only when the query is empty: `palette`, `friends`, `EPUB`, `shelves`, `backup`, `dark mode`. Click pre-fills the search → instant filter, no typing.
 - Verified via Playwright: 6 chips render, clicking `friends` → search input filled → "1 section match" + TOC narrows to Messages & friends.
 
+
+
+### Bug fix 2026-06-13 (Duplicate detection — require author match, not just title)
+- **Problem reported**: books with the same title but different authors and different source URLs were being flagged as duplicates. Common for generic titles ("Crossroads", "Lost", "Untitled", series-shared chapter titles).
+- **Root cause**: `find_duplicate_candidates` in `routes/books.py` had a title-only OR clause — any case-insensitive title match was sufficient to flag the upload as a duplicate, even when author and source_url were both different.
+- **Fix**:
+  - Added `author: Optional[str] = None` to `find_duplicate_candidates`. Caller in the upload pipeline now passes `meta.get('author')`.
+  - Added `_normalize_author_for_match()` helper: lowercase, drop dots, collapse whitespace, **and** merge runs of single-letter "initials" so `J. K. Rowling`, `J.K. Rowling`, and `JK Rowling` all normalize to `jk rowling`.
+  - Title clause inside the result loop now requires title+author equality. The new match reason is `title+author` (vs the legacy `title`). When **either** side has no author on file, falls back to title-only matching with the legacy `title` reason — so we don't miss legit dupes when metadata is incomplete.
+- **Tests** (`tests/test_new_features.py::TestDuplicateDetection`):
+  - Updated existing `test_title_match_triggers_duplicate_flag` to accept either `title+author` (new) or `title` (legacy fallback).
+  - Added `test_same_title_different_author_NOT_duplicate` — regression test for the reported bug ("Crossroads" by Alice Wright vs Bob Lee).
+  - Added `test_title_match_missing_author_still_duplicate` — seeds an authorless book directly to verify the fallback path.
+  - Added `test_author_normalization_strips_dots` — verifies "J. K. Rowling" + "JK Rowling" still pair.
+  - All 11 `TestDuplicateDetection` tests pass; full `test_new_features.py` (194 tests) all green.
+- **Help docs** rewritten on `/help` to describe the new three-tier detection (URL → title+author → title fallback) and explicitly mention the "Crossroads" example users were tripping over.

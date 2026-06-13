@@ -1325,8 +1325,56 @@ class TestDuplicateDetection:
         second = _upload(tok, b)
         assert second.get("duplicate_pending") is True
         reasons = (second.get("duplicate_of") or [{}])[0].get("match_reasons") or []
-        assert "title" in reasons
+        # New: same title + same author surfaces as "title+author" (was "title")
+        assert "title+author" in reasons or "title" in reasons
         # cleanup
+        db.books.delete_many({"user_id": uid, "book_id": {"$in": [first["book_id"], second["book_id"]]}})
+
+    def test_same_title_different_author_NOT_duplicate(self, dup_user):
+        """Regression: 'Crossroads' by two different authors with no shared URL
+        must not be flagged as duplicate. Common for generic titles."""
+        uid, tok = dup_user
+        a = _make_epub_with_links("Crossroads", "Alice Wright", [])
+        b = _make_epub_with_links("Crossroads", "Bob Lee", [])
+        first = _upload(tok, a)
+        second = _upload(tok, b)
+        assert not second.get("duplicate_pending"), (
+            "Books with same title but different authors and no shared URL "
+            "should NOT be flagged as duplicates"
+        )
+        db.books.delete_many({"user_id": uid, "book_id": {"$in": [first["book_id"], second["book_id"]]}})
+
+    def test_title_match_missing_author_still_duplicate(self, dup_user):
+        """If either book has an empty author IN THE DB, fall back to title-only
+        matching so we don't miss legit dupes. We seed an authorless book
+        directly because the upload pipeline always populates an author."""
+        uid, tok = dup_user
+        seeded_id = f"book_seeded_{uuid.uuid4().hex[:8]}"
+        db.books.insert_one({
+            "user_id": uid,
+            "book_id": seeded_id,
+            "title": "Vintage Title",
+            "author": "",
+            "category": "Original Fiction",
+            "fanfic_urls": [],
+        })
+        b = _make_epub_with_links("vintage title", "Some Author", [])
+        second = _upload(tok, b)
+        assert second.get("duplicate_pending") is True
+        reasons = (second.get("duplicate_of") or [{}])[0].get("match_reasons") or []
+        assert "title" in reasons
+        db.books.delete_many({"user_id": uid, "book_id": {"$in": [seeded_id, second["book_id"]]}})
+
+    def test_author_normalization_strips_dots(self, dup_user):
+        """'J. K. Rowling' and 'JK Rowling' for the same title should dedupe."""
+        uid, tok = dup_user
+        a = _make_epub_with_links("Wizard Story", "J. K. Rowling", [])
+        b = _make_epub_with_links("Wizard Story", "JK Rowling", [])
+        first = _upload(tok, a)
+        second = _upload(tok, b)
+        assert second.get("duplicate_pending") is True
+        reasons = (second.get("duplicate_of") or [{}])[0].get("match_reasons") or []
+        assert "title+author" in reasons
         db.books.delete_many({"user_id": uid, "book_id": {"$in": [first["book_id"], second["book_id"]]}})
 
     def test_shared_fanfic_url_triggers_duplicate_flag(self, dup_user):
