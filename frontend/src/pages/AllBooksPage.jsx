@@ -953,9 +953,9 @@ export default function AllBooksPage() {
                   <button
                     onClick={() => navigate("/library/crossovers")}
                     data-testid="dashboard-crossover-chip"
-                    className="mb-3 mr-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-[#FDF3E1] text-[#900] border border-[#900]/30 hover:bg-[#900] hover:text-white transition-colors"
+                    className="mb-3 mr-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-[#FDF3E1] text-[#6B46C1] border border-[#6B46C1]/30 hover:bg-[#6B46C1] hover:text-white transition-colors"
                   >
-                    <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1 rounded-full bg-[#900] text-white text-[10px] font-bold leading-none">
+                    <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1 rounded-full bg-[#6B46C1] text-white text-[10px] font-bold leading-none">
                       ×
                     </span>
                     {stats.crossover_count} crossover{stats.crossover_count === 1 ? "" : "s"} · open browser
@@ -965,7 +965,7 @@ export default function AllBooksPage() {
                 <button
                   onClick={() => navigate("/library/pairings")}
                   data-testid="dashboard-pairings-chip"
-                  className="mb-3 mr-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-[#900]/10 text-[#900] border border-[#900]/30 hover:bg-[#900] hover:text-white transition-colors"
+                  className="mb-3 mr-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-[#6B46C1]/10 text-[#6B46C1] border border-[#6B46C1]/30 hover:bg-[#6B46C1] hover:text-white transition-colors"
                   title="Browse all pairings / ships across your library"
                 >
                   Browse pairings
@@ -1012,14 +1012,14 @@ export default function AllBooksPage() {
                             title={isCrossover ? `Crossover · ${xPieces.length} fandoms` : f.name}
                             className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors flex items-center gap-1.5 ${
                               isCrossover
-                                ? "bg-[#FDF3E1] text-[#900] border-[#900]/30 hover:bg-[#900] hover:text-white"
+                                ? "bg-[#FDF3E1] text-[#6B46C1] border-[#6B46C1]/30 hover:bg-[#6B46C1] hover:text-white"
                                 : "bg-[#EDE7FB] text-[#6B46C1] border-[#6B46C1]/20 hover:bg-[#6B46C1] hover:text-white"
                             }`}
                           >
                             {isCrossover && (
                               <span
                                 data-testid={`crossover-badge-${f.name.replace(/\s+/g, '-').toLowerCase()}`}
-                                className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-[#900] text-white text-[10px] font-bold leading-none"
+                                className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-[#6B46C1] text-white text-[10px] font-bold leading-none"
                               >
                                 ×{xPieces.length}
                               </span>

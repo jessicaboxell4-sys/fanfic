@@ -123,13 +123,13 @@ export default function FandomShelf() {
               if (xPieces.length < 2) return null;
               return (
                 <div className="mt-4 flex flex-wrap items-center gap-2" data-testid="crossover-constituents">
-                  <span className="text-xs uppercase tracking-wide text-[#900] font-bold">Crossover · drill into one:</span>
+                  <span className="text-xs uppercase tracking-wide text-[#6B46C1] font-bold">Crossover · drill into one:</span>
                   {xPieces.map((p) => (
                     <button
                       key={p}
                       onClick={() => navigate(`/library/fandom/${encodeURIComponent(p)}`)}
                       data-testid={`constituent-${p.replace(/\s+/g, "-").toLowerCase()}`}
-                      className="px-3 py-1 rounded-full text-xs font-semibold border bg-[#FDF3E1] text-[#900] border-[#900]/30 hover:bg-[#900] hover:text-white transition-colors"
+                      className="px-3 py-1 rounded-full text-xs font-semibold border bg-[#FDF3E1] text-[#6B46C1] border-[#6B46C1]/30 hover:bg-[#6B46C1] hover:text-white transition-colors"
                     >
                       {p}
                     </button>
@@ -201,7 +201,7 @@ export default function FandomShelf() {
         {/* Reverse-index: crossovers that include this fandom */}
         {related.length > 0 && (
           <section className="mt-12" data-testid="fandom-related-crossovers">
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#900] mb-3">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-3">
               Also appears in {related.length} crossover{related.length === 1 ? "" : "s"}
             </p>
             <div className="flex flex-wrap gap-2">
@@ -210,10 +210,10 @@ export default function FandomShelf() {
                   key={r.name}
                   onClick={() => navigate(`/library/fandom/${encodeURIComponent(r.name)}`)}
                   data-testid={`related-crossover-${r.name.replace(/\s+/g, "-").toLowerCase()}`}
-                  className="px-3 py-1.5 rounded-full text-xs font-semibold border bg-[#FDF3E1] text-[#900] border-[#900]/30 hover:bg-[#900] hover:text-white transition-colors inline-flex items-center gap-2"
+                  className="px-3 py-1.5 rounded-full text-xs font-semibold border bg-[#FDF3E1] text-[#6B46C1] border-[#6B46C1]/30 hover:bg-[#6B46C1] hover:text-white transition-colors inline-flex items-center gap-2"
                   title={`${r.count} book${r.count === 1 ? "" : "s"} · ${(r.parts || []).join(" + ")}`}
                 >
-                  <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-[#900] text-white text-[10px] font-bold leading-none">
+                  <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-[#6B46C1] text-white text-[10px] font-bold leading-none">
                     ×{(r.parts || []).length}
                   </span>
                   <span>{r.name}</span>

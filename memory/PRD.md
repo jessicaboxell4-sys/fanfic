@@ -1662,3 +1662,11 @@ Both upload sites (the regular EPUB upload pipeline + the URL-fetch path) now pe
 - Updated the in-file `ao3-scrollbar` CSS to track + thumb in purple.
 - Added the two new lavender pales (`#FBFAFE`, `#F4EFF9`) to `index.css` dark-mode overrides so the page reads cleanly in dark mode — caught by the regression test on the first try, all 3 dark-mode tests now pass.
 - Visually verified light + dark mode end-to-end: header banner, filter legends, scrollbar, checkbox accents, active-filter chips, download CTA — every previously-maroon element is now purple.
+
+
+### Fixed 2026-06-13 (Full AO3-maroon → purple sweep across the app)
+- Followed up the DownloadPage fix with a comprehensive sweep of every other file that still used the AO3-maroon palette (`#900`/`#600`/`#700` + the blue link `#2a6496`).
+- Hit files: `pages/FandomShelf.jsx`, `pages/OriginalsShelf.jsx`, `pages/Account.jsx`, `pages/UnreadableShelf.jsx`, `pages/AllBooksPage.jsx`, `pages/PairingsPage.jsx`, `pages/CrossoverShelf.jsx`. Every `#900` → `#6B46C1`, dark variants similarly converted; the lingering `#2a6496` blue link in Account flipped to purple as well.
+- Affected UX surfaces: the **`×N` crossover badges**, the **crossover shelf** page, the **pairings** index + search input + filter chips, the **unreadable-books** "corrupt EPUB" filter chip + reason badges, the **originals shelf** duplicate-indicator panel, the **fandom shelf** "drill into one" crossover chips, the **AllBooksPage** crossover-rail buttons, the **Account** danger-link.
+- Cleaned up the now-orphan `:root[data-theme="dark"] .text-[#900]/.bg-[#900]/.border-[#900]/30` overrides in `index.css` (replaced with a brief retirement note). The `text-[#2a6496]` override kept with an explanatory note in case any third-party content references it.
+- Verified visually in dark mode on the live tenant: pairings, crossovers, library fandom rail — every previously-coral element renders as a coherent purple now. The 3-test dark-mode regression suite still passes (0 violations across the codebase).

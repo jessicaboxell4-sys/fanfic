@@ -107,7 +107,7 @@ export default function OriginalsShelf() {
           {dupCount > 0 && (
             <div
               data-testid="originals-dup-banner"
-              className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs bg-[#FDF3E1] text-[#900] border border-[#900]/30"
+              className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs bg-[#FDF3E1] text-[#6B46C1] border border-[#6B46C1]/30"
             >
               <AlertTriangle className="w-3.5 h-3.5" />
               {dupCount} file{dupCount === 1 ? "" : "s"} duplicate{dupCount === 1 ? "s" : ""} an EPUB you already have
@@ -158,9 +158,9 @@ export default function OriginalsShelf() {
               <div
                 key={b.book_id}
                 data-testid={`original-row-${b.book_id}`}
-                className={`shelf-card p-4 flex items-center gap-4 ${isDup ? "border-[#900]/40" : ""}`}
+                className={`shelf-card p-4 flex items-center gap-4 ${isDup ? "border-[#6B46C1]/40" : ""}`}
               >
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${isDup ? "bg-[#900]/10 text-[#900]" : "bg-[#6B46C1]/10 text-[#6B46C1]"}`}>
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${isDup ? "bg-[#6B46C1]/10 text-[#6B46C1]" : "bg-[#6B46C1]/10 text-[#6B46C1]"}`}>
                   <FileText className="w-5 h-5" />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -169,7 +169,7 @@ export default function OriginalsShelf() {
                     {b.author || "Unknown"} · .{(b.original_format || "").toUpperCase()} · {Math.round((b.size_bytes || 0) / 1024)} KB
                   </div>
                   {isDup && (
-                    <div className="text-xs text-[#900] mt-1 inline-flex items-center gap-1">
+                    <div className="text-xs text-[#6B46C1] mt-1 inline-flex items-center gap-1">
                       <AlertTriangle className="w-3 h-3" />
                       Also in your EPUB library
                     </div>

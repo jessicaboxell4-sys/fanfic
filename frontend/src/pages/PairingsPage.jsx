@@ -45,7 +45,7 @@ export function PairingsDirectory() {
           <ArrowLeft className="w-4 h-4" /> Back to library
         </button>
         <header className="mb-6 flex items-start gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-[#900]/10 text-[#900] flex items-center justify-center flex-shrink-0">
+          <div className="w-12 h-12 rounded-2xl bg-[#6B46C1]/10 text-[#6B46C1] flex items-center justify-center flex-shrink-0">
             <Heart className="w-6 h-6" />
           </div>
           <div>
@@ -73,7 +73,7 @@ export function PairingsDirectory() {
             placeholder="Search pairings…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2.5 text-sm rounded-lg border border-[#E5DDC5] bg-white focus:outline-none focus:border-[#900]/60"
+            className="w-full pl-9 pr-3 py-2.5 text-sm rounded-lg border border-[#E5DDC5] bg-white focus:outline-none focus:border-[#6B46C1]/60"
           />
         </div>
 
@@ -96,7 +96,7 @@ export function PairingsDirectory() {
                 >
                   <div className="flex items-center justify-between gap-3 mb-1">
                     <span className="font-medium text-[#2C2C2C] font-mono text-sm">{p.pairing}</span>
-                    <span className="text-xs px-2 py-1 rounded-full bg-[#900]/10 text-[#900] flex-shrink-0">
+                    <span className="text-xs px-2 py-1 rounded-full bg-[#6B46C1]/10 text-[#6B46C1] flex-shrink-0">
                       {p.count} book{p.count === 1 ? "" : "s"}
                     </span>
                   </div>
@@ -150,7 +150,7 @@ export function PairingShelf() {
         </button>
 
         <header className="mb-6 flex items-start gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-[#900]/10 text-[#900] flex items-center justify-center flex-shrink-0">
+          <div className="w-12 h-12 rounded-2xl bg-[#6B46C1]/10 text-[#6B46C1] flex items-center justify-center flex-shrink-0">
             <Heart className="w-6 h-6" />
           </div>
           <div>

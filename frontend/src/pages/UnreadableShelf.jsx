@@ -131,7 +131,7 @@ export default function UnreadableShelf() {
                 <button
                   onClick={() => setReasonFilter(reasonFilter === "corrupt_epub" ? "" : "corrupt_epub")}
                   data-testid="unreadable-reason-corrupt"
-                  className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${reasonFilter === "corrupt_epub" ? "bg-[#900] text-white border-[#900]" : "bg-white text-[#2C2C2C] border-[#E5DDC5] hover:bg-[#F5F3EC]"}`}
+                  className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${reasonFilter === "corrupt_epub" ? "bg-[#6B46C1] text-white border-[#6B46C1]" : "bg-white text-[#2C2C2C] border-[#E5DDC5] hover:bg-[#F5F3EC]"}`}
                 >
                   Corrupt EPUB · {byReason.corrupt_epub}
                 </button>
@@ -192,7 +192,7 @@ export default function UnreadableShelf() {
                       <span
                         className={`text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wide whitespace-nowrap ${
                           b.reason === "corrupt_epub"
-                            ? "bg-[#900]/10 text-[#900]"
+                            ? "bg-[#6B46C1]/10 text-[#6B46C1]"
                             : "bg-[#6B46C1]/10 text-[#6B46C1]"
                         }`}
                         title={reasonHint(b.reason)}
@@ -210,7 +210,7 @@ export default function UnreadableShelf() {
                       {b.size_bytes ? <> · {formatBytes(b.size_bytes)}</> : null}
                     </div>
                     {b.error && (
-                      <div className="text-xs text-[#900]/80 mt-2 font-mono whitespace-pre-wrap break-words" data-testid={`unreadable-error-${b.book_id}`}>
+                      <div className="text-xs text-[#6B46C1]/80 mt-2 font-mono whitespace-pre-wrap break-words" data-testid={`unreadable-error-${b.book_id}`}>
                         {b.error}
                       </div>
                     )}
@@ -228,7 +228,7 @@ export default function UnreadableShelf() {
                       onClick={() => handleDelete(b)}
                       disabled={deletingId === b.book_id}
                       data-testid={`unreadable-delete-${b.book_id}`}
-                      className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border border-[#900]/30 bg-white text-[#900] hover:bg-[#900] hover:text-white transition-colors disabled:opacity-50"
+                      className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border border-[#6B46C1]/30 bg-white text-[#6B46C1] hover:bg-[#6B46C1] hover:text-white transition-colors disabled:opacity-50"
                       title="Delete this book and its file"
                     >
                       <Trash2 className="w-3.5 h-3.5" />

@@ -356,12 +356,10 @@
 :root[data-theme="dark"] .bg-\[\#EDE7FB\] { background-color: rgba(167, 139, 250, 0.22); }
 :root[data-theme="dark"] .border-\[\#6B46C1\]\/20 { border-color: rgba(196, 181, 253, 0.35); }
 :root[data-theme="dark"] .bg-\[\#FDF3E1\] { background-color: rgba(255, 165, 130, 0.18); }
-:root[data-theme="dark"] .text-\[\#900\] { color: #FF9A85; }
-:root[data-theme="dark"] .border-\[\#900\]\/30 { border-color: rgba(255, 154, 133, 0.45); }
-/* The "×N" crossover badge — `bg-[#900]` (dark maroon) stays dark in */
-/* both themes; brighten to a coral so the contrast against the      */
-/* lighter dark-mode chip still pops.                                 */
-:root[data-theme="dark"] .bg-\[\#900\] { background-color: #FF7A66; color: #1B1B1E; }
+/* The former AO3-maroon `#900` accent was retired in favour of the purple    */
+/* primary `#6B46C1` everywhere (2026-06-13 theme parity sweep). The text     */
+/* and border overrides that lived here are no longer referenced by any JSX  */
+/* and have been removed.                                                    */
 
 /* Amber / warning chips — keep the warm hue but lift contrast.       */
 :root[data-theme="dark"] .bg-\[\#FDF4E5\],
@@ -493,7 +491,9 @@
 :root[data-theme="dark"] .text-\[\#8c5c00\],
 :root[data-theme="dark"] .text-\[\#a76900\] { color: #F0B860; }
 
-/* Dark blue (`#2A6496` DownloadPage info) — bright cyan-blue for readability. */
+/* Dark blue (`#2a6496` formerly used as DownloadPage info text — retired   */
+/* 2026-06-13 in the purple theme parity sweep. Override kept for safety in  */
+/* case any third-party content embeds the colour.                            */
 :root[data-theme="dark"] .text-\[\#2a6496\] { color: #A8C0E8; }
 
 /* Dark pink (`#b85c7c` LibraryActivityWidgets "Recently added by friends") */

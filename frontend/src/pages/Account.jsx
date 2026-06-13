@@ -296,7 +296,7 @@ function FandomAliasesCard() {
               <button
                 onClick={() => removeAlias(k)}
                 data-testid={`alias-remove-${k.replace(/\s+/g, "-").toLowerCase()}`}
-                className="text-[#6B705C] hover:text-[#900] p-1"
+                className="text-[#6B705C] hover:text-[#6B46C1] p-1"
                 aria-label={`Remove alias ${k}`}
               >
                 <XIcon className="w-4 h-4" />
@@ -310,7 +310,7 @@ function FandomAliasesCard() {
         <button
           onClick={runMergeNow}
           data-testid="alias-apply-now"
-          className="mt-4 text-xs text-[#2a6496] hover:text-[#900] underline"
+          className="mt-4 text-xs text-[#6B46C1] hover:text-[#553397] underline"
         >
           Apply these aliases to existing books now
         </button>
