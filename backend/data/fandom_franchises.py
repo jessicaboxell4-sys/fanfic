@@ -39,8 +39,10 @@ FRANCHISE_GROUPS: Dict[str, List[str]] = {
         "Percy Jackson and the Olympians (TV)",
         "Heroes of Olympus",
         "Trials of Apollo",
+        "The Sun and the Star",
         "Magnus Chase and the Gods of Asgard",
         "The Kane Chronicles",
+        "Daughter of the Deep",
     ],
     "Marvel": [
         "Marvel",

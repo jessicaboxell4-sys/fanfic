@@ -60,6 +60,14 @@ FANDOM_KEYWORDS = {
         "annabeth chase", "olympians", "lightning thief", "pjo",
         "percy jackson and the olympians", "son of poseidon",
         "grover underwood", "luke castellan",
+        # Direct-sequel novels — they file under PJO on AO3, so we use
+        # title keywords rather than spawning new fandoms.
+        "chalice of the gods", "wrath of the triple goddess",
+        # Mythology compendium books (Greek Gods/Heroes/etc.) and
+        # companion guides also file under PJO.
+        "percy jackson's greek gods", "percy jackson's greek heroes",
+        "camp half-blood confidential", "the demigod files",
+        "demigods and magicians",
     ],
     "Percy Jackson and the Olympians (TV)": [
         "percy jackson and the olympians tv", "pjo tv", "disney+ percy jackson",
@@ -76,6 +84,11 @@ FANDOM_KEYWORDS = {
         "dark prophecy", "the burning maze", "tyrant's tomb",
         "tower of nero",
     ],
+    "The Sun and the Star": [
+        "the sun and the star", "nico di angelo and will solace",
+        # Riordan + Mark Oshiro co-authored Nico/Will spinoff novel
+        "from the world of percy jackson the sun and the star",
+    ],
     "Magnus Chase and the Gods of Asgard": [
         "magnus chase", "gods of asgard", "sword of summer",
         "hammer of thor", "ship of the dead",
@@ -83,6 +96,10 @@ FANDOM_KEYWORDS = {
     "The Kane Chronicles": [
         "kane chronicles", "carter kane", "sadie kane",
         "red pyramid", "throne of fire", "serpent's shadow",
+    ],
+    "Daughter of the Deep": [
+        "daughter of the deep", "ana dakkar", "house of nemo",
+        "harding-pencroft academy",
     ],
     "Doctor Who": ["doctor who", "tardis", "the doctor", "gallifrey"],
     "Supernatural": ["supernatural fic", "dean winchester", "sam winchester", "castiel"],
