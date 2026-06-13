@@ -708,6 +708,7 @@ def start_digest_scheduler():
 
     async def _account_grace_tick():
         cutoff = datetime.now(timezone.utc)
+        # 1) Hard-delete anyone past their grace window.
         cursor = db.users.find(
             {"scheduled_deletion_at": {"$lte": cutoff}},
             {"_id": 0, "user_id": 1, "email": 1},
@@ -718,6 +719,31 @@ def start_digest_scheduler():
                 logger.info("Grace-tick hard-deleted account %s (%s)", u["user_id"], u.get("email"))
             except Exception as e:
                 logger.exception("Grace-tick failed for %s: %s", u["user_id"], e)
+
+        # 2) Send a "7 days left" reminder to anyone whose deletion is
+        # between 6 and 8 days away and who hasn't been notified yet.
+        # Wide window (6-8d) handles the edge case where the daily tick
+        # runs once per day but the 7-day mark might fall between runs.
+        reminder_low = cutoff + timedelta(days=6)
+        reminder_high = cutoff + timedelta(days=8)
+        cursor2 = db.users.find(
+            {
+                "scheduled_deletion_at": {"$gte": reminder_low, "$lte": reminder_high},
+                "grace_reminder_sent_at": {"$exists": False},
+                "email": {"$exists": True, "$ne": ""},
+            },
+            {"_id": 0, "user_id": 1, "email": 1, "name": 1, "scheduled_deletion_at": 1},
+        )
+        async for u in cursor2:
+            try:
+                await _send_grace_reminder_email(u)
+                await db.users.update_one(
+                    {"user_id": u["user_id"]},
+                    {"$set": {"grace_reminder_sent_at": cutoff}},
+                )
+                logger.info("Sent 7-day grace reminder to %s", u.get("email"))
+            except Exception as e:
+                logger.exception("Grace-reminder send failed for %s: %s", u["user_id"], e)
 
     sched.add_job(_account_grace_tick, "cron", hour=3, minute=17, id="account_grace_tick", replace_existing=True)
     sched.start()
