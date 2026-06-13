@@ -67,9 +67,9 @@ def hex_to_luminance(hex_str: str) -> float | None:
 
 
 def _collect_arbitrary_uses(prop: str) -> dict[str, list[tuple[str, int]]]:
-    """Returns: { hex_lowercase: [(file, line_num), ...] } for `{prop}-[#hex]`."""
+    """Returns: { hex_lowercase: [(file, line_num, exact_case_hex), ...] } for `{prop}-[#hex]`."""
     pattern = re.compile(rf"{prop}-\[#([0-9A-Fa-f]{{3,6}})\]")
-    out: dict[str, list[tuple[str, int]]] = {}
+    out: dict[str, list[tuple[str, int, str]]] = {}
     for ext in ("*.jsx", "*.js", "*.tsx", "*.ts"):
         for path in FRONTEND_SRC.rglob(ext):
             if "node_modules" in path.parts:
@@ -80,20 +80,37 @@ def _collect_arbitrary_uses(prop: str) -> dict[str, list[tuple[str, int]]]:
                 continue
             for i, line in enumerate(lines, 1):
                 for m in pattern.finditer(line):
-                    out.setdefault(m.group(1).lower(), []).append(
-                        (str(path.relative_to(FRONTEND_SRC)), i)
+                    exact = m.group(1)
+                    out.setdefault(exact.lower(), []).append(
+                        (str(path.relative_to(FRONTEND_SRC)), i, exact)
                     )
     return out
 
 
 def _collect_dark_overrides(prop: str) -> set[str]:
-    """Returns the set of hex strings already overridden for `:root[data-theme="dark"] .{prop}-[#hex]`."""
+    """Returns the set of hex strings (lowercased) already overridden for `:root[data-theme="dark"] .{prop}-[#hex]`."""
     text = CSS_FILE.read_text(encoding="utf-8")
     pattern = re.compile(
         rf':root\[data-theme="dark"\][^{{}}]*?\.{prop}-\\?\[\\?#([0-9A-Fa-f]{{3,6}})\\?\]',
         re.IGNORECASE,
     )
     return {m.group(1).lower() for m in pattern.finditer(text)}
+
+
+def _collect_dark_override_exact_cases(prop: str) -> dict[str, set[str]]:
+    """Like _collect_dark_overrides but preserves the exact case spelling
+    seen in the CSS. Returns { lowercased_hex: {exact_case_1, exact_case_2, …} }
+    so we can verify the JSX-side spelling has a matching override (CSS
+    class selectors are case-sensitive)."""
+    text = CSS_FILE.read_text(encoding="utf-8")
+    pattern = re.compile(
+        rf':root\[data-theme="dark"\][^{{}}]*?\.{prop}-\\?\[\\?#([0-9A-Fa-f]{{3,6}})\\?\]'
+    )
+    out: dict[str, set[str]] = {}
+    for m in pattern.finditer(text):
+        exact = m.group(1)
+        out.setdefault(exact.lower(), set()).add(exact)
+    return out
 
 
 def _build_failure_message(prop: str, danger_zone: str, offenders: list, example_fix: str) -> str:
@@ -107,7 +124,8 @@ def _build_failure_message(prop: str, danger_zone: str, offenders: list, example
     ]
     for hex_str, lum, locations in offenders:
         msg.append(f"  #{hex_str}  (luminance={lum:.3f}, {len(locations)} usage(s))")
-        for f, ln in locations[:5]:
+        for loc in locations[:5]:
+            f, ln = loc[0], loc[1]
             msg.append(f"      {f}:{ln}")
         if len(locations) > 5:
             msg.append(f"      … and {len(locations) - 5} more")
@@ -196,3 +214,54 @@ def test_every_light_arbitrary_border_has_a_dark_mode_override():
             "{ border-color: var(--border); }",
         )
     )
+
+
+def test_arbitrary_class_case_matches_between_jsx_and_css():
+    """CSS class selectors are case-sensitive. A JSX `bg-[#eee]` generates
+    the class `.bg-[#eee]` while an override `:root[data-theme="dark"] .bg-\\[\\#EEE\\]`
+    targets a different class and won't apply. This guard catches any
+    `{bg,text,border}-[#hex]` whose lowercased hex has SOME dark override but
+    not one with the exact case the JSX uses. Caught the DownloadPage Cancel
+    button bug (JSX `bg-[#eee]` vs CSS `.bg-[#EEE]`) in retro."""
+    mismatches: list[tuple[str, str, str, list[tuple[str, int]]]] = []
+    for prop in ("bg", "text", "border"):
+        uses = _collect_arbitrary_uses(prop)
+        css_cases = _collect_dark_override_exact_cases(prop)
+        for lower_hex, locations in uses.items():
+            css_spellings = css_cases.get(lower_hex)
+            if not css_spellings:
+                # No override at all — that's the OTHER three tests' job
+                # to surface, so skip here to avoid duplicate failure noise.
+                continue
+            # Group JSX usages by their exact-case spelling.
+            by_case: dict[str, list[tuple[str, int]]] = {}
+            for loc in locations:
+                f, ln, jsx_exact = loc[0], loc[1], loc[2]
+                by_case.setdefault(jsx_exact, []).append((f, ln))
+            for jsx_exact, locs in by_case.items():
+                if jsx_exact not in css_spellings:
+                    mismatches.append((prop, jsx_exact, ", ".join(sorted(css_spellings)), locs))
+    if not mismatches:
+        return
+    msg = [
+        f"Found {len(mismatches)} JSX arbitrary-value class(es) whose hex CASE "
+        f"doesn't match any dark-mode override in frontend/src/index.css.",
+        "",
+        "CSS class selectors are case-sensitive — a JSX `bg-[#eee]` only "
+        "matches an override targeting `.bg-\\[\\#eee\\]`, NOT `.bg-\\[\\#EEE\\]`.",
+        "",
+        "Mismatches:",
+    ]
+    for prop, jsx_exact, css_seen, locs in mismatches:
+        msg.append(f"  {prop}-[#{jsx_exact}] — CSS only has cases {{{css_seen}}}")
+        for f, ln in locs[:5]:
+            msg.append(f"      {f}:{ln}")
+        if len(locs) > 5:
+            msg.append(f"      … and {len(locs) - 5} more")
+    msg.append("")
+    msg.append(
+        "Fix: add the exact-case selector alongside the existing one, e.g.\n"
+        '    :root[data-theme="dark"] .bg-\\[\\#EEE\\],\n'
+        '    :root[data-theme="dark"] .bg-\\[\\#eee\\] { background-color: var(--surface); }'
+    )
+    raise AssertionError("\n".join(msg))

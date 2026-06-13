@@ -1720,3 +1720,10 @@ Both upload sites (the regular EPUB upload pipeline + the URL-fetch path) now pe
 
   - `AllBooksPage.jsx` Authors rail — the existing inline `UserCircle2` icon kept, but the chip palette flipped from black-on-white (`bg-white text-[#2C2C2C] border-[#E8E6E1]`) to the unified `bg-[#EDE7FB] text-[#6B46C1] border-[#6B46C1]/20` lavender to match every other chip rail on the page.
 - Net effect verified on Jessica's library: scanning the dashboard rails, you can instantly distinguish fandoms vs. crossovers vs. ships vs. authors without reading a single name. Dark-mode regression suite (3/3) still green.
+
+
+### Added 2026-06-13 (Dark-mode regression guard — case-sensitivity test)
+- Added a 4th sibling test: `test_arbitrary_class_case_matches_between_jsx_and_css`. For every JSX `{bg,text,border}-[#hex]` use whose lowercased hex has a dark-mode override, verifies the JSX exact-case spelling matches at least one of the CSS override's exact-case spellings. CSS class selectors are case-sensitive, so `bg-[#eee]` and `bg-[#EEE]` are different selectors.
+- Immediately surfaced **8 latent text-colour bugs** (`text-[#B85C7C]`, `text-[#9A9580]`, `text-[#4A4A4A]`, `text-[#3A3A3A]`, `text-[#B43F26]`, `text-[#9E5A2E]`, `text-[#9D2A2A]`, `text-[#8C5C00]`) where JSX used uppercase but overrides only listed lowercase → invisible text on dark surface.
+- All 8 fixed by extending the existing CSS rules to include both casings. Helpful comment added in `index.css` explaining the case-sensitivity gotcha.
+- Suite now: 4 tests, ~0.1s, blocks the entire family of "I changed a Tailwind colour case and the dark override silently broke" bugs.

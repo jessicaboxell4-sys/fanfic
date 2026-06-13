@@ -480,9 +480,13 @@
 /* would render as near-black on the dark surface and become invisible.    */
 
 /* Neutral darks (greys + body text variants) — match primary text colour. */
+/* Both lowercase and uppercase spellings are listed because CSS class      */
+/* selectors are case-sensitive and the JSX mixes both casings.             */
 :root[data-theme="dark"] .text-\[\#333\],
 :root[data-theme="dark"] .text-\[\#3a3a3a\],
-:root[data-theme="dark"] .text-\[\#4a4a4a\] { color: var(--text-primary); }
+:root[data-theme="dark"] .text-\[\#3A3A3A\],
+:root[data-theme="dark"] .text-\[\#4a4a4a\],
+:root[data-theme="dark"] .text-\[\#4A4A4A\] { color: var(--text-primary); }
 /* Mid-grey `#666` is secondary support copy — match `--text-secondary`. */
 :root[data-theme="dark"] .text-\[\#666\] { color: var(--text-secondary); }
 
@@ -492,14 +496,21 @@
 
 /* Red / red-orange family — coral matches the existing `#9B3531` family. */
 :root[data-theme="dark"] .text-\[\#9d2a2a\],
+:root[data-theme="dark"] .text-\[\#9D2A2A\],
 :root[data-theme="dark"] .text-\[\#a83a36\],
+:root[data-theme="dark"] .text-\[\#A83A36\],
 :root[data-theme="dark"] .text-\[\#b43f26\],
+:root[data-theme="dark"] .text-\[\#B43F26\],
 :root[data-theme="dark"] .text-\[\#a8532f\],
-:root[data-theme="dark"] .text-\[\#9e5a2e\] { color: #FF9A85; }
+:root[data-theme="dark"] .text-\[\#A8532F\],
+:root[data-theme="dark"] .text-\[\#9e5a2e\],
+:root[data-theme="dark"] .text-\[\#9E5A2E\] { color: #FF9A85; }
 
 /* Dark amber — match the existing `#B87A00 → #F0B860` brightening.       */
 :root[data-theme="dark"] .text-\[\#8c5c00\],
-:root[data-theme="dark"] .text-\[\#a76900\] { color: #F0B860; }
+:root[data-theme="dark"] .text-\[\#8C5C00\],
+:root[data-theme="dark"] .text-\[\#a76900\],
+:root[data-theme="dark"] .text-\[\#A76900\] { color: #F0B860; }
 
 /* Dark blue (`#2a6496` formerly used as DownloadPage info text — retired   */
 /* 2026-06-13 in the purple theme parity sweep. Override kept for safety in  */
@@ -507,12 +518,14 @@
 :root[data-theme="dark"] .text-\[\#2a6496\] { color: #A8C0E8; }
 
 /* Dark pink (`#b85c7c` LibraryActivityWidgets "Recently added by friends") */
-:root[data-theme="dark"] .text-\[\#b85c7c\] { color: #FFB0CC; }
+:root[data-theme="dark"] .text-\[\#b85c7c\],
+:root[data-theme="dark"] .text-\[\#B85C7C\] { color: #FFB0CC; }
 
 /* Muted sage placeholder (`#9A9580`) used by FandomFinder + AdminConsole  */
 /* section-search inputs — match the existing input::placeholder colour.  */
 :root[data-theme="dark"] .placeholder\:text-\[\#9A9580\]::placeholder,
-:root[data-theme="dark"] .text-\[\#9a9580\] { color: #8a8675; }
+:root[data-theme="dark"] .text-\[\#9a9580\],
+:root[data-theme="dark"] .text-\[\#9A9580\] { color: #8a8675; }
 
 /* ── Light-border overrides (2026-06-13) ──────────────────────────────── */
 /* The `border-[#eee]` / `border-[#EEE]` cases are handled above alongside */
