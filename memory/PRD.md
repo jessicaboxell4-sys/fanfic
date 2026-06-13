@@ -1565,3 +1565,11 @@ Both upload sites (the regular EPUB upload pipeline + the URL-fetch path) now pe
 - Persistent ribbons (BackupReminder, OnboardingPrompt for "Polish your library", HelpNudge) kept on the welcome dashboard, matching the user's brief.
 - Verified end-to-end via screenshot in light AND dark mode with a seeded 93-book library.
 
+### Added 2026-06-13 (Reading queue feature wired up)
+- New "Add to queue" / "Remove from queue" hover icon on `BookCard` (left of the read toggle). Optimistic UI with `inQueue` state, calls `POST /api/library/queue/{add,remove}` (already existed in `library_discovery.py`).
+- New `ReadingQueuePage.jsx` at `/library/queue`: lists queue with index numbers, cover thumbs, title + author + fandom, up/down chevron reorder (calls `POST /library/queue/reorder` with the new id order), per-row remove ×, and an empty state pointing to `/library/all`. Live reorder is optimistic with rollback on failure.
+- Activity widget's mini queue rail gained a "Manage →" link to `/library/queue`.
+- Verified end-to-end in light + dark mode: add 3 books → reorder (Book A moves from #1 to #2) → remove Book B → queue collapses to ['A','C'], index re-numbers correctly, toast on each action.
+- The dashboard's "Up next: nothing queued" stub copy now becomes "Up next (N)" rail with the latest 5 queued books once the user adds anything.
+
+

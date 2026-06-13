@@ -21,6 +21,7 @@ import PublicYearInBooks from "@/pages/PublicYearInBooks";
 import SmartShelves from "@/pages/SmartShelves";
 import SmartShelfPage from "@/pages/SmartShelfPage";
 import AllBooksPage from "@/pages/AllBooksPage";
+import ReadingQueuePage from "@/pages/ReadingQueuePage";
 import TagCloudPage from "@/pages/TagCloudPage";
 import TagShelfPage from "@/pages/TagShelfPage";
 import CantFindOnline from "@/pages/CantFindOnline";
@@ -97,6 +98,7 @@ function AppRouter() {
       <Route path="/share/yib/:token" element={<PublicYearInBooks />} />
       <Route path="/library" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/library/all" element={<ProtectedRoute><AllBooksPage /></ProtectedRoute>} />
+      <Route path="/library/queue" element={<ProtectedRoute><ReadingQueuePage /></ProtectedRoute>} />
       <Route path="/library/fandom/:fandom" element={<ProtectedRoute><FandomShelf /></ProtectedRoute>} />
       <Route path="/library/series/:name" element={<ProtectedRoute><SeriesShelf /></ProtectedRoute>} />
       <Route path="/library/author/:name" element={<ProtectedRoute><AuthorShelf /></ProtectedRoute>} />

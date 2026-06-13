@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Book, Check, CheckCircle2, Circle } from "lucide-react";
+import { Book, Check, CheckCircle2, Circle, ListPlus, ListChecks } from "lucide-react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
 import { toast } from "sonner";
@@ -44,6 +44,8 @@ function ClassifierChip({ classifier }) {
 export default function BookCard({ book, selectMode, selected, onToggleSelect, onChanged }) {
   const { user } = useAuth();
   const [marking, setMarking] = useState(false);
+  const [queueing, setQueueing] = useState(false);
+  const [inQueue, setInQueue] = useState(!!book.in_queue);
   const coverUrl = book.has_cover
     ? `${process.env.REACT_APP_BACKEND_URL}/api/books/${book.book_id}/cover`
     : null;
@@ -67,6 +69,29 @@ export default function BookCard({ book, selectMode, selected, onToggleSelect, o
       toast.error("Couldn't update");
     } finally {
       setMarking(false);
+    }
+  };
+
+  const toggleQueue = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (queueing) return;
+    setQueueing(true);
+    try {
+      if (inQueue) {
+        await api.post("/library/queue/remove", { book_id: book.book_id });
+        setInQueue(false);
+        toast.success(`Removed "${book.title}" from queue`);
+      } else {
+        await api.post("/library/queue/add", { book_id: book.book_id });
+        setInQueue(true);
+        toast.success(`Added "${book.title}" to queue`);
+      }
+      onChanged && onChanged();
+    } catch (err) {
+      toast.error("Couldn't update queue");
+    } finally {
+      setQueueing(false);
     }
   };
 
@@ -112,6 +137,25 @@ export default function BookCard({ book, selectMode, selected, onToggleSelect, o
           >
             <CheckCircle2 className="w-3 h-3" /> Read
           </div>
+        )}
+
+        {/* Hover-only quick action: add/remove from reading queue */}
+        {!selectMode && (
+          <button
+            type="button"
+            data-testid={`toggle-queue-${book.book_id}`}
+            onClick={toggleQueue}
+            disabled={queueing}
+            title={inQueue ? "Remove from reading queue" : "Add to reading queue"}
+            className={`absolute bottom-2 right-12 w-9 h-9 rounded-full flex items-center justify-center transition-all
+              ${inQueue
+                ? "bg-white text-[#6B46C1] border border-[#6B46C1]/30 opacity-100"
+                : "bg-white text-[#6B705C] border border-[#E8E6E1] opacity-0 group-hover:opacity-100 hover:text-[#6B46C1]"
+              }
+              ${queueing ? "animate-pulse" : ""} shadow-md hover:shadow-lg`}
+          >
+            {inQueue ? <ListChecks className="w-4 h-4" /> : <ListPlus className="w-4 h-4" />}
+          </button>
         )}
 
         {/* Hover-only quick action: mark read / unread */}

@@ -146,6 +146,14 @@ function ReadingQueueWidget() {
         <span className="text-sm font-medium text-[#2C2C2C] inline-flex items-center gap-2">
           <Bookmark className="w-4 h-4 text-[#6B46C1]" /> Up next ({queue.length})
         </span>
+        <button
+          type="button"
+          onClick={() => navigate("/library/queue")}
+          data-testid="queue-manage-link"
+          className="text-xs text-[#6B46C1] hover:text-[#553397] font-semibold uppercase tracking-wider"
+        >
+          Manage →
+        </button>
       </div>
       <ul className="space-y-1">
         {queue.slice(0, 5).map((b) => (
