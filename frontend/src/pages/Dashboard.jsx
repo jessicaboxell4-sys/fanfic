@@ -14,6 +14,7 @@ import DuplicateResolutionModal from "../components/DuplicateResolutionModal";
 import UrlListDedupeModal from "../components/UrlListDedupeModal";
 import BackupReminderBanner from "../components/BackupReminderBanner";
 import LibraryActivityWidgets from "../components/LibraryActivityWidgets";
+import Ao3FilterChips from "../components/Ao3FilterChips";
 import { Search, X, Plus, ArrowRight, CheckSquare, Sparkles, Loader2, RefreshCw, Library, UserCircle2, Filter, Pin, FolderOpen, ArrowUpDown, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { FETCHING_UI_ENABLED } from "../lib/featureFlags";
@@ -33,6 +34,7 @@ export default function Dashboard() {
   const [category, setCategory] = useState("All");
   const [fandom, setFandom] = useState(null);
   const [relationship, setRelationship] = useState(null);
+  const [ao3Filters, setAo3Filters] = useState({ rating: null, ao3_category: null, warning: null, exclude_warning: null });
   const [search, setSearch] = useState("");
   const [customCats, setCustomCats] = useState([]);
   const [newCat, setNewCat] = useState("");
@@ -103,6 +105,10 @@ export default function Dashboard() {
       if (category && category !== "All") params.category = category;
       if (fandom) params.fandom = fandom;
       if (relationship) params.relationship = relationship;
+      if (ao3Filters.rating) params.rating = ao3Filters.rating;
+      if (ao3Filters.ao3_category) params.ao3_category = ao3Filters.ao3_category;
+      if (ao3Filters.warning) params.warning = ao3Filters.warning;
+      if (ao3Filters.exclude_warning) params.exclude_warning = ao3Filters.exclude_warning;
       if (search) params.q = search;
       if (smart) params.smart = smart;
       const [b, s, c] = await Promise.all([
@@ -174,7 +180,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [category, fandom, relationship, search, smart]);
+  }, [category, fandom, relationship, ao3Filters, search, smart]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -1101,6 +1107,7 @@ export default function Dashboard() {
                 </button>
               </div>
             )}
+            <Ao3FilterChips value={ao3Filters} onChange={setAo3Filters} />
             {loading ? (
               <p className="text-[#6B705C] py-12 text-center">Loading…</p>
             ) : books.length === 0 ? (

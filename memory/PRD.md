@@ -1499,3 +1499,13 @@ Both upload sites (the regular EPUB upload pipeline + the URL-fetch path) now pe
 
 **Health** — 48 passed across AO3 + bookmarks + p2_batch1 + books_comprehensive suites. New public endpoint smoke-tested via curl returning `count=131`.
 
+
+### Added 2026-06-13 (AO3 filter chips wired into Dashboard)
+- `Ao3FilterChips.jsx` is now mounted in `Dashboard.jsx` right above the books grid, with a collapsible panel and an "N active" badge that surfaces selected filters.
+- Wired `rating` / `ao3_category` / `warning` / `exclude_warning` into the `load()` query params and into the `useCallback` dependency array so the grid auto-refreshes on selection.
+- Backed by `GET /api/books` filters added on 2026-06-13: exact-match on `rating` / `categories` / `warnings`, plus `$ne` semantics for `exclude_warning` (content-safety opt-out). When both `warning` and `exclude_warning` are set, the route now combines them via `$and` so both apply.
+- New test suite `tests/test_ao3_filter_endpoints.py` (8 cases, all pass) seeds 5 books directly and asserts each filter narrows the list correctly, including combined queries and the unknown-rating empty case.
+- Smoke-tested in browser: filter toggles, ratings selection updates query, books grid refreshes, "1 active" badge appears, "clear all AO3 filters" works.
+
+**This closes the in-progress P0 task carried over from the previous handoff.** Books.py refactor Phase 3 + Phase 4 remain P1 backlog.
+

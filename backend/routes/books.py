@@ -3083,6 +3083,10 @@ async def list_books(
     q: Optional[str] = None,
     smart: Optional[str] = None,
     include_originals: bool = False,
+    rating: Optional[str] = None,
+    ao3_category: Optional[str] = None,
+    warning: Optional[str] = None,
+    exclude_warning: Optional[str] = None,
     user: User = Depends(get_current_user),
 ):
     query: Dict[str, Any] = {"user_id": user.user_id}
@@ -3095,6 +3099,27 @@ async def list_books(
         query['fandom'] = fandom
     if relationship:
         query['relationships'] = relationship
+    # AO3 metadata filters (added 2026-06-13). Each is exact-match on a
+    # canonical value (e.g. "Mature", "M/M", "Graphic Depictions Of Violence").
+    if rating:
+        query['rating'] = rating
+    if ao3_category:
+        query['categories'] = ao3_category
+    if warning:
+        query['warnings'] = warning
+    if exclude_warning:
+        # "Hide books warned for X" — content-safety filter. Returns books
+        # whose ``warnings`` array does NOT contain the given value.
+        query.setdefault('warnings', {})
+        if isinstance(query['warnings'], dict):
+            query['warnings']['$ne'] = exclude_warning
+        else:
+            # warning was also set — combine into $and so both apply.
+            query['$and'] = query.get('$and', []) + [
+                {'warnings': query['warnings']},
+                {'warnings': {'$ne': exclude_warning}},
+            ]
+            del query['warnings']
     # Originals (kept-as-is non-EPUBs) live on /library/originals — exclude
     # them from the main library unless explicitly asked.
     if not include_originals and not (category == "Originals"):
@@ -3997,6 +4022,12 @@ async def export_all_links(
             ("Title", "title", 36),
             ("Author", "author", 22),
             ("Fandom", "fandom", 22),
+            ("Rating", "rating", 14),
+            ("Categories", "categories", 16),
+            ("Archive Warnings", "warnings", 26),
+            ("Relationships", "relationships", 30),
+            ("AO3 Tags", "ao3_freeform_tags", 28),
+            ("User Tags", "tags", 22),
             ("Source URL", "source_url", 60),
         ]
 
@@ -4046,7 +4077,15 @@ async def export_all_links(
             # Data rows
             for r_idx, b in enumerate(bucket_books, start=2):
                 for c_idx, (label, key, _w) in enumerate(columns, start=1):
-                    ws.cell(row=r_idx, column=c_idx, value=b.get(key) or "")
+                    raw = b.get(key)
+                    if isinstance(raw, list):
+                        # List-valued columns (warnings, categories, etc.)
+                        # render as a comma-joined string so Excel filters
+                        # work on a single column.
+                        value = ", ".join(str(x) for x in raw if x)
+                    else:
+                        value = raw or ""
+                    ws.cell(row=r_idx, column=c_idx, value=value)
             ws.auto_filter.ref = ws.dimensions
 
         buf = _io.BytesIO()
@@ -5380,7 +5419,11 @@ async def export_library_backup(user: User = Depends(get_current_user)):
 
     iso_today = _dt.now(timezone.utc).strftime("%Y-%m-%d")
     manifest = {
-        "schema_version": 1,
+        # schema_version 2 (2026-06-13): books now carry AO3 metadata
+        # fields (``rating``, ``warnings``, ``categories``,
+        # ``ao3_freeform_tags``). v1 restores still work — missing
+        # fields default to None/[] on the restored doc.
+        "schema_version": 2,
         "generated_at": _dt.now(timezone.utc).isoformat(),
         "user": user_doc,
         "books": books,
