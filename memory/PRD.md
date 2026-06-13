@@ -1208,3 +1208,11 @@ These are agent-suggested features the user hasn't picked yet. Bring them up nex
 - **Help page** now has a "Don't see what you're looking for? Drop a suggestion →" link in the header.
 - **Tests** (`tests/test_suggestions.py`): **17/17 pass.** Coverage: auth gating, title required, invalid category, auto-vote on submit, vote toggle (vote → unvote), 404 on unknown id, filter by status/category, mine-only excludes others, self-delete vs cross-user 403, admin status update, open-count, audit-log trail, admin spam-delete.
 - Verified e2e via Playwright: submit form → toast → row renders with vote count `1`, OPEN pill, admin row showing (status select + Note + Trash).
+
+
+### Added 2026-06-13 (Suggestion status notifications — email + in-app)
+- **New backend module** `routes/notifications.py` — generic in-app notification system. `create_notification(user_id, kind, title, body, link)` is callable from any route; endpoints `GET /api/notifications`, `GET /api/notifications/unread-count`, `POST /api/notifications/{id}/read`, `POST /api/notifications/read-all`.
+- **Hook in suggestions admin update**: when an admin changes `status` or `admin_note` on a suggestion they didn't submit themselves, the submitter gets (a) an in-app notification (kind=`suggestion_status`, linked to `/suggestions`) and (b) a styled Resend email ("Your suggestion 'X' is now Planned" with the admin note rendered as a callout). Self-updates by the admin who submitted skip both — no spam.
+- **New `NotificationsBell` component** sits in the navbar between the appearance popover and the chat bubble. Shows a palette-coloured numeric badge (15s polling), opens a 320px dropdown with the 20 most recent notifications. Unread rows have a subtle highlight + purple dot. Click a row → marks read + follows the link. "Mark all read" link in the header.
+- **Tests**: extended `tests/test_suggestions.py` with `test_status_change_creates_notification` covering both notification creation and the mark-all-read flow. **18/18 pass.**
+- Verified e2e: bell visible in navbar, popover opens with "Nothing new" empty state when admin == submitter (correct: no self-notification spam).

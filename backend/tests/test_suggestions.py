@@ -170,6 +170,27 @@ class TestAdmin:
         actions = [e["action"] for e in r.json()["entries"]]
         assert "suggestion.update" in actions
 
+    def test_status_change_creates_notification(self, alice_suggestion):
+        # Mark all of Alice's notifications read first so we can detect the new one
+        db.notifications.delete_many({"user_id": ALICE["user_id"]})
+        r = requests.put(
+            f"{BASE}/api/admin/suggestions/{alice_suggestion}",
+            json={"status": "under_review", "admin_note": "Looking into it"},
+            headers=H(ADMIN),
+        )
+        assert r.status_code == 200
+        # Alice should now have a notification
+        rs = requests.get(f"{BASE}/api/notifications/unread-count", headers=H(ALICE))
+        assert rs.status_code == 200
+        assert rs.json()["unread"] >= 1
+        rs2 = requests.get(f"{BASE}/api/notifications", headers=H(ALICE))
+        titles = [n["title"] for n in rs2.json()["notifications"]]
+        assert any("Suggestion update" in t for t in titles)
+        # mark-all-read works
+        m = requests.post(f"{BASE}/api/notifications/read-all", headers=H(ALICE))
+        assert m.status_code == 200
+        assert requests.get(f"{BASE}/api/notifications/unread-count", headers=H(ALICE)).json()["unread"] == 0
+
     def test_admin_delete(self):
         c = requests.post(
             f"{BASE}/api/suggestions",

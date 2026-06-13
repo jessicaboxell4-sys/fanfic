@@ -14,16 +14,19 @@ Admins can:
 Categories: bug, improvement, feature.
 """
 import uuid
+import asyncio
 from datetime import datetime, timezone
 from typing import Optional, Literal, Dict, Any, List
 
+import resend
 from fastapi import Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from deps import db, api_router, logger
+from deps import db, api_router, logger, RESEND_API_KEY, SENDER_EMAIL, FRONTEND_URL
 from models import User
 from auth_dep import get_current_user, require_admin
 from utils.admin_audit import record_admin_action
+from routes.notifications import create_notification
 
 
 CATEGORIES = ("bug", "improvement", "feature")
@@ -163,6 +166,59 @@ async def admin_update(sid: str, body: SuggestionUpdate, user: User = Depends(re
         user, "suggestion.update", target=sid,
         metadata={"changed": [k for k in update.keys() if k != "updated_at"]},
     )
+
+    # Notify the submitter if the status (or admin_note) actually changed.
+    status_changed = body.status is not None and body.status != doc.get("status")
+    note_changed = body.admin_note is not None and (body.admin_note.strip() or None) != doc.get("admin_note")
+    if (status_changed or note_changed) and doc["submitter_user_id"] != user.user_id:
+        new_status_label = {
+            "open": "Open",
+            "under_review": "Under review",
+            "planned": "Planned",
+            "done": "Done",
+            "declined": "Declined",
+        }.get(body.status or doc.get("status", "open"), "Updated")
+        link = "/suggestions"
+        notif_title = f"Suggestion update: {new_status_label}"
+        notif_body = f'Your suggestion "{doc["title"]}" is now {new_status_label}.'
+        if body.admin_note:
+            notif_body += f' Admin note: "{body.admin_note.strip()}"'
+        # In-app notification
+        await create_notification(
+            doc["submitter_user_id"], kind="suggestion_status",
+            title=notif_title, body=notif_body, link=link,
+        )
+        # Email — best-effort
+        submitter_email = doc.get("submitter_email", "")
+        if RESEND_API_KEY and submitter_email:
+            try:
+                resend.api_key = RESEND_API_KEY
+                params = {
+                    "from": SENDER_EMAIL,
+                    "to": [submitter_email],
+                    "subject": f"Shelfsort: your suggestion is {new_status_label.lower()}",
+                    "html": f"""
+                    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px; background: #FBF7EE; border-radius: 12px;">
+                      <div style="display:inline-flex;align-items:center;gap:8px;padding:6px 12px;background:#EEF3EC;border:1px solid rgba(58,90,64,0.3);border-radius:999px;margin-bottom:16px;font-size:12px;font-weight:600;color:#3A5A40;letter-spacing:0.5px;">💡 SUGGESTION UPDATE</div>
+                      <h1 style="color:#2C2C2C;margin:0 0 12px;font-size:20px;font-family:Georgia,serif;">Your suggestion is now {new_status_label}</h1>
+                      <p style="color:#4A4A4A;line-height:1.6;font-size:15px;margin:0 0 12px;">
+                        <strong>"{doc['title']}"</strong>
+                      </p>
+                      {('<p style="margin:16px 0;padding:12px 16px;background:#EEF3EC;border-left:3px solid #3A5A40;border-radius:6px;font-size:14px;color:#4A4A4A;"><strong>Admin note:</strong> ' + body.admin_note.strip() + '</p>') if body.admin_note else ''}
+                      <p style="margin:24px 0;text-align:center;">
+                        <a href="{FRONTEND_URL.rstrip('/')}/suggestions" style="display:inline-block;padding:10px 20px;background:#3A5A40;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;">View on Shelfsort →</a>
+                      </p>
+                      <p style="color:#6B705C;font-size:11px;margin:0;">Thanks for helping make Shelfsort better.</p>
+                    </div>
+                    """,
+                    "text": f"Your suggestion '{doc['title']}' is now {new_status_label}.\n\n"
+                            + (f"Admin note: {body.admin_note.strip()}\n\n" if body.admin_note else "")
+                            + f"View at: {FRONTEND_URL.rstrip('/')}/suggestions",
+                }
+                await asyncio.to_thread(resend.Emails.send, params)
+            except Exception as e:  # noqa: BLE001
+                logger.error("Suggestion status email failed: %s", e)
+
     refreshed = await db.suggestions.find_one({"suggestion_id": sid}, {"_id": 0})
     return _serialize(refreshed, user.user_id)
 
