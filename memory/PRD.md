@@ -1379,3 +1379,9 @@ These are agent-suggested features the user hasn't picked yet. Bring them up nex
 - All 6 pass; full suite still **656 → 658 passed** (+2 new).
 
 **E2E verified**: screenshotted the page with stale-days=3 and stale-only=true → exactly the 4 modules that haven't been touched in ≥3 days appear, with the amber STALE pill + "15d ago" / "14d ago" labels. Filtered count shows "16 stale" out of 216 total.
+
+
+
+### Parked idea 2026-06-13 ("Mongo collections inspector" admin widget — P2)
+- Concept: a third "ops" admin card alongside Cron Health + Route Catalogue. `GET /api/admin/db-collections` (admin-only) iterates `db.list_collection_names()`, runs `collStats` for each (`count`, `size`, `avgObjSize`, indexes), plus a cheap `find_one(..., sort=[(_id,-1)])` to get the last-write `_id` ObjectId timestamp. Frontend card: sortable table by collection name / doc count / size / last-write age. Bundles into the "ops surface" so admins can inspect the live DB without ever opening the Mongo shell.
+- Priority: P2 (parked by user 2026-06-13 with "remind later").
