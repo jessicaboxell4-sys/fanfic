@@ -6,10 +6,10 @@ import {
   ArrowLeft, Upload, Sparkles, Layers, RefreshCw, BookOpen, Trash2,
   Filter, Heart, AlertTriangle, Settings, GitCompare, Bell, LineChart,
   Globe, Shield, CheckCircle2, Clock, FileWarning, User as UserIcon, X,
-  MessageSquare, Search,
+  MessageSquare, Search, ListChecks,
 } from "lucide-react";
 
-// Help guide — kept current with the app. Last updated: 2026-06-09.
+// Help guide — kept current with the app. Last updated: 2026-06-13.
 // When you add a feature, drop a new <Section> here; the sticky table
 // of contents builds itself from each section's `id`.
 
@@ -34,10 +34,15 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const SECTIONS = [
   { id: "getting-started", label: "Getting started" },
+  { id: "dashboard-tour", label: "Dashboard tour" },
   { id: "uploads", label: "Uploading books" },
   { id: "shelves", label: "Shelves & filters" },
   { id: "discovery", label: "Browsing & discovery" },
   { id: "ao3-metadata", label: "AO3 metadata: ratings, warnings, tags" },
+  { id: "ao3-filters", label: "AO3 filter chips & Save-as-shelf" },
+  { id: "smart-shelves", label: "Smart shelves" },
+  { id: "reading-queue", label: "Reading queue (Up next)" },
+  { id: "filter-urls", label: "Filter URLs you already own" },
   { id: "fandoms", label: "Fandoms we sort into" },
   { id: "sources", label: "Sources we recognize" },
   { id: "detection", label: "Detection & overrides" },
@@ -273,11 +278,24 @@ export default function Help() {
               <p>Shelfsort organizes your EPUB library by fandom, author, pairing, completion status, and reading progress — built for fanfiction readers but works for any ebook collection.</p>
               <ol>
                 <li>Sign in with email + password (or Google OAuth)</li>
-                <li>Drop an EPUB onto the upload zone on the main library page</li>
+                <li>Drop an EPUB onto the upload zone on the dashboard</li>
                 <li>Watch it get auto-classified onto the right shelf, with status and pairings extracted</li>
-                <li>Click the cover to read it in-browser</li>
+                <li>Click <Link to="/library/all">Browse all books</Link> to see the full grid; click any cover to read it in-browser</li>
               </ol>
               <p>Everything is auto-detected at upload time — you only step in when you want to override.</p>
+            </Section>
+
+            <Section id="dashboard-tour" icon={Sparkles} title="Dashboard tour (the welcome page)">
+              <p>The page you land on after signing in is your <strong>welcome dashboard</strong> at <code>/library</code>. It’s deliberately lean — the full books grid lives on its own <Link to="/library/all">All books</Link> page. From the dashboard you can:</p>
+              <ul>
+                <li><strong>See your library at a glance</strong> — total book count, top 4 fandoms with counts, &ldquo;Since you were last here&rdquo; activity ribbon.</li>
+                <li><strong>Upload</strong> — the big drop zone accepts files OR a whole folder. EPUBs go straight in; PDFs / MOBI / DOCX / TXT get a confirmation prompt then Calibre-convert.</li>
+                <li><strong>Filter a URL list</strong> — the spotlighted &ldquo;Have a list of fanfic URLs?&rdquo; card lets you paste a list of AO3 / FFnet / RoyalRoad / SpaceBattles links right on the dashboard. It detects the count live and ships you to the <Link to="/library/filter-urls">full filter page</Link> with the list pre-loaded. See <a href="#filter-urls">Filter URLs you already own</a>.</li>
+                <li><strong>Up next</strong> — your reading queue surfaces here (see <a href="#reading-queue">Reading queue</a>).</li>
+                <li><strong>Pinned smart shelves</strong> — appear as quick chips once you’ve pinned any.</li>
+                <li><strong>Help &amp; Suggestions</strong> — two cards at the bottom: this guide on the left, a 5-second feedback box on the right.</li>
+              </ul>
+              <p>The persistent ribbons at the top — Backup reminder, Polish your library, Help nudge — only appear when relevant (overdue backup, un-templated EPUBs, etc.). Dismissing one is remembered.</p>
             </Section>
 
             <Section id="uploads" icon={Upload} title="Uploading books">
@@ -328,6 +346,54 @@ export default function Help() {
               <p><strong>How it works</strong>: a single classifier walks every <code>&lt;dc:subject&gt;</code> element in the EPUB&apos;s OPF metadata. It matches against canonical alias tables (case-insensitive), assigns the subject to a bucket, and dedupes. Anything new is preserved verbatim. The full taxonomy + alias tables live in <code>backend/utils/ao3_metadata.py</code>.</p>
               <p><em>Heads up</em>: the AO3 metadata fields are read at upload time. Books uploaded before this feature shipped won&apos;t have them populated — you can refresh from source (if linked) or re-upload to get the fields filled.</p>
             </Section>
+
+            <Section id="ao3-filters" icon={Layers} title="AO3 filter chips & Save-as-shelf">
+              <p>On the <Link to="/library/all">All books</Link> page, click the <strong>AO3 filters</strong> chip near the top to open a collapsible panel with four filter dimensions:</p>
+              <ul>
+                <li><strong>Rating</strong> — G / T / M / E / NR (single-pick).</li>
+                <li><strong>Category</strong> — F/F · F/M · Gen · M/M · Multi · Other.</li>
+                <li><strong>Show only Warnings</strong> — show only books that carry the chosen Archive Warning.</li>
+                <li><strong>Hide Warnings</strong> — content-safety opt-out: hide books that carry the chosen warning (e.g. Major Character Death).</li>
+              </ul>
+              <p>Filters compose (AND) and update the books grid live. A small badge counts how many are active; &ldquo;clear all AO3 filters&rdquo; resets the panel.</p>
+              <p><strong>Save as Smart Shelf</strong> — once at least one filter is active, the purple &ldquo;Save as shelf&rdquo; button opens a modal where you name the shelf and optionally tick &ldquo;Pin to dashboard sidebar.&rdquo; The saved shelf becomes editable on its dedicated page (<code>/library/smart/&lt;id&gt;</code>) using the full smart-shelf builder — you can swap the rating, add a fandom rule, change combinator, etc. See <a href="#smart-shelves">Smart shelves</a>.</p>
+            </Section>
+
+            <Section id="smart-shelves" icon={Layers} title="Smart shelves">
+              <p>Smart shelves are saved filter combinations stored under your account. Build them from the <Link to="/library/smart-shelves">Shelves page</Link>, the AO3 filter chips (see above), or by clicking &ldquo;Edit rules&rdquo; on any existing shelf.</p>
+              <p><strong>Rule types supported</strong>:</p>
+              <ul>
+                <li><strong>Has all / any / no tags</strong> — match against personal tag list.</li>
+                <li><strong>Category / Fandom / Author</strong> — exact match.</li>
+                <li><strong>Status</strong> — reading / finished / unread.</li>
+                <li><strong>Word count</strong> — min and/or max.</li>
+                <li><strong>AO3 rating / category / warning / exclude warning</strong> — exact match on the AO3 metadata, with the <em>exclude warning</em> rule using <code>$ne</code> so it works as a content-safety filter.</li>
+              </ul>
+              <p>Rules combine via the top-of-builder AND/OR combinator. A live preview pane shows matching books as you edit so you can see counts before saving. Pin any shelf to surface it as a one-click chip on the welcome dashboard.</p>
+            </Section>
+
+            <Section id="reading-queue" icon={BookOpen} title="Reading queue (Up next)">
+              <p>The reading queue is a personal stack of books you want to read next.</p>
+              <ul>
+                <li><strong>Add to queue</strong>: hover any book card on <Link to="/library/all">All books</Link> and click the <ListChecks className="inline w-4 h-4 -mt-0.5" /> icon that appears (left of the read toggle). Click again to remove.</li>
+                <li><strong>View / reorder / remove</strong>: open the <Link to="/library/queue">Reading queue page</Link> from the dashboard&apos;s &ldquo;Up next&rdquo; rail. Each row shows index + cover + title/author; use the ▲▼ arrows to reorder or × to remove.</li>
+                <li><strong>Dashboard surfacing</strong>: while empty you see &ldquo;Up next: nothing queued.&rdquo; Once you add anything, the dashboard rail shows the top 5 with a count + a Manage → link.</li>
+              </ul>
+              <p>The queue is per-user and order is persisted server-side, so it follows you across devices.</p>
+            </Section>
+
+            <Section id="filter-urls" icon={Globe} title="Filter URLs you already own">
+              <p>Got a long list of fanfic links from a recs post, a Discord, or someone&apos;s reading log? Shelfsort can tell you which ones you already have in your library so you only fetch the genuinely new ones.</p>
+              <p><strong>From the dashboard</strong>: the &ldquo;Have a list of fanfic URLs?&rdquo; card shows a textarea that detects fanfic URLs live (AO3, FFnet, RoyalRoad, SpaceBattles, Sufficient Velocity, Questionable Questing, FictionPress). Hit <em>Filter my list</em> to be taken to the <Link to="/library/filter-urls">full filter page</Link> with the list pre-populated.</p>
+              <p><strong>What the filter does</strong>:</p>
+              <ul>
+                <li>Normalizes every URL (strips chapter / collection / mirror cruft) so an AO3 URL with <code>?view_adult=true</code> matches the same work without it, and FFnet URLs with or without the trailing chapter ID collapse together.</li>
+                <li>Flags <em>owned</em> vs <em>new</em> URLs, and also <em>duplicates within your input list</em> so you don&apos;t waste a fetch on the same fic twice.</li>
+                <li>Lets you download just the new URLs as a <code>.txt</code> or <code>.xlsx</code> — ready to paste into FanFicFare or a download manager.</li>
+              </ul>
+              <p>For uploads, dropping a <code>.txt</code> of mostly-URLs onto the regular upload zone triggers the same flow automatically.</p>
+            </Section>
+
 
             <Section id="fandoms" icon={BookOpen} title="Fandoms we sort into">
               <p>Shelfsort recognizes <strong>{knownFandoms.length || "…"}</strong> fandoms out of the box and routes a book to one of them automatically when the title, description, or sample text matches enough of that fandom&apos;s keywords. Anything that doesn&apos;t match well enough falls into <em>Original Fiction</em> or <em>Non-fiction</em> — and the admin&apos;s unknown-fandoms queue surfaces popular suggestions for promotion.</p>

@@ -1573,3 +1573,11 @@ Both upload sites (the regular EPUB upload pipeline + the URL-fetch path) now pe
 - The dashboard's "Up next: nothing queued" stub copy now becomes "Up next (N)" rail with the latest 5 queued books once the user adds anything.
 
 
+
+
+### Added 2026-06-13 (Dashboard Help card + Suggestions box + Help-page refresh)
+- New `DashboardHelpCard.jsx`: big "Need a hand?" cream card with HelpCircle icon, 5 quick-link rows (Uploads / AO3 metadata + filters / Smart shelves / Reading queue / Filter URLs), big purple "Open the help guide" CTA.
+- New `DashboardSuggestionsBox.jsx`: 5-second feedback form on the dashboard. Title + optional body + category pills (Feature / Improvement / Bug) → `POST /api/suggestions`. Clears form, shows success toast + "Sent: <title>. Track it on the board →" confirmation.
+- Both cards in a 2-col grid above the footer quick-actions, dark-mode contrast verified.
+- Help page refreshed with 5 new sections: `Dashboard tour`, `AO3 filter chips & Save-as-shelf`, `Smart shelves`, `Reading queue (Up next)`, `Filter URLs you already own`. TOC updated; "Last updated" bumped to 2026-06-13.
+

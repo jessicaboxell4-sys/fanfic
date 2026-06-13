@@ -8,6 +8,8 @@ import HelpNudge from "../components/HelpNudge";
 import BackupReminderBanner from "../components/BackupReminderBanner";
 import LibraryActivityWidgets from "../components/LibraryActivityWidgets";
 import UrlPasteCard from "../components/UrlPasteCard";
+import DashboardHelpCard from "../components/DashboardHelpCard";
+import DashboardSuggestionsBox from "../components/DashboardSuggestionsBox";
 import DuplicateResolutionModal from "../components/DuplicateResolutionModal";
 import UrlListDedupeModal from "../components/UrlListDedupeModal";
 import { Library, ArrowRight, Pin, RotateCcw, BarChart3 } from "lucide-react";
@@ -108,6 +110,16 @@ export default function Dashboard() {
         {/* Spotlighted URL paste card — bigger, always-visible textarea */}
         <section className="mb-10">
           <UrlPasteCard />
+        </section>
+
+        {/* Help + Suggestions — surfaced prominently so new users always
+            know where to ask, and so the suggestions board grows. */}
+        <section
+          data-testid="dashboard-help-suggestions"
+          className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-10"
+        >
+          <DashboardHelpCard />
+          <DashboardSuggestionsBox />
         </section>
 
         {/* Pinned smart shelves — only when the user has some */}
