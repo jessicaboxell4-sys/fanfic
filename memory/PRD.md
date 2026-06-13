@@ -1677,3 +1677,14 @@ Both upload sites (the regular EPUB upload pipeline + the URL-fetch path) now pe
 - The ⇄ icon is the universal "exchange / both directions" symbol and reads as "crossover" without needing a colour cue. Power readers can now spot crossovers from anywhere in the library instantly, while the chip itself stays on the unified purple palette.
 - Badge geometry tweaked (min-width bumped to 24–32px depending on context) so the icon + count fit cleanly with no overlap.
 - Verified visually on Jessica's real `NCIS: Tony / Ziva · 2` crossover in both the crossovers page and the AllBooksPage fandom rail.
+
+
+### Added 2026-06-13 (Pairing semantic-icon heart)
+- Companion to the crossover ⇄ icon: every pairing/relationship surface now leads with a tiny `Heart` icon prefix so ships are instantly distinguishable from regular fandom or category chips, even on the unified purple palette.
+- Hit surfaces:
+  - `PairingsPage.jsx` — every directory row now starts with `♡` next to the mono-typed pairing name.
+  - `AllBooksPage.jsx` Relationships rail — every chip is `♡ Harry Potter / Severus Snape · 37`. Re-skinned away from `bg-pink-50/text-pink-800/border-pink-200` to the unified `bg-[#EDE7FB]/text-[#6B46C1]/border-[#6B46C1]/20` palette; active chip uses `bg-[#6B46C1]` with a **filled** heart (`fill-current`) as an extra state cue.
+  - `AllBooksPage.jsx` active-relationship banner — `♥ Showing pairing · …` (filled heart), repainted purple.
+  - `BookDetail.jsx` Pairings meta-list — each pairing pill gains the heart prefix and the purple palette.
+- Zero remaining `pink-*` Tailwind classes anywhere in `frontend/src/` after this change.
+- Dark-mode regression suite still passes (3/3).

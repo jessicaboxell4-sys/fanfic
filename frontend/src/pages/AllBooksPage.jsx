@@ -16,7 +16,7 @@ import BackupReminderBanner from "../components/BackupReminderBanner";
 import LibraryActivityWidgets from "../components/LibraryActivityWidgets";
 import Ao3FilterChips from "../components/Ao3FilterChips";
 import FandomFinder from "../components/FandomFinder";
-import { Search, X, Plus, ArrowRight, ArrowLeftRight, CheckSquare, Sparkles, Loader2, RefreshCw, Library, UserCircle2, Filter, Pin, FolderOpen, ArrowUpDown, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Trash2 } from "lucide-react";
+import { Search, X, Plus, ArrowRight, ArrowLeftRight, Heart, CheckSquare, Sparkles, Loader2, RefreshCw, Library, UserCircle2, Filter, Pin, FolderOpen, ArrowUpDown, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { FETCHING_UI_ENABLED } from "../lib/featureFlags";
 
@@ -1060,10 +1060,11 @@ export default function AllBooksPage() {
                         }}
                         className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors flex items-center gap-1.5 ${
                           active
-                            ? "bg-pink-700 text-white border-pink-700"
-                            : "bg-pink-50 text-pink-800 border-pink-200 hover:bg-pink-700 hover:text-white hover:border-pink-700"
+                            ? "bg-[#6B46C1] text-white border-[#6B46C1]"
+                            : "bg-[#EDE7FB] text-[#6B46C1] border-[#6B46C1]/20 hover:bg-[#6B46C1] hover:text-white hover:border-[#6B46C1]"
                         }`}
                       >
+                        <Heart className={`w-3 h-3 flex-shrink-0 ${active ? "fill-current" : ""}`} aria-hidden="true" />
                         {r.name} · {r.count}
                       </button>
                     );
@@ -1103,9 +1104,10 @@ export default function AllBooksPage() {
             )}
 
             {relationship && (
-              <div data-testid="active-relationship-banner" className="mb-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-pink-50 text-pink-800 border border-pink-200">
+              <div data-testid="active-relationship-banner" className="mb-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-[#EDE7FB] text-[#6B46C1] border border-[#6B46C1]/30">
+                <Heart className="w-3 h-3 fill-current flex-shrink-0" aria-hidden="true" />
                 Showing pairing · <span className="font-semibold">{relationship}</span>
-                <button onClick={() => setRelationship(null)} className="hover:text-pink-900" aria-label="Clear relationship filter">
+                <button onClick={() => setRelationship(null)} className="hover:text-[#553397]" aria-label="Clear relationship filter">
                   <X className="w-3 h-3" />
                 </button>
               </div>

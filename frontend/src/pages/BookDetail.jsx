@@ -4,7 +4,7 @@ import { api, API } from "../lib/api";
 import Navbar from "../components/Navbar";
 import TagInput from "../components/TagInput";
 import ReadingStatsCard from "../components/ReadingStatsCard";
-import { ArrowLeft, Download, Trash2, Sparkles, Book, Edit3, Link as LinkIcon, BookOpen, RefreshCw, Tag as TagIcon, Loader2, Upload } from "lucide-react";
+import { ArrowLeft, Download, Trash2, Sparkles, Book, Edit3, Heart, Link as LinkIcon, BookOpen, RefreshCw, Tag as TagIcon, Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { FETCHING_UI_ENABLED } from "../lib/featureFlags";
 
@@ -570,8 +570,9 @@ export default function BookDetail() {
                         <Link
                           key={r}
                           to={`/library?relationship=${encodeURIComponent(r)}`}
-                          className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-pink-50 text-pink-800 border border-pink-200 hover:bg-pink-100"
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-[#EDE7FB] text-[#6B46C1] border border-[#6B46C1]/20 hover:bg-[#6B46C1] hover:text-white transition-colors"
                         >
+                          <Heart className="w-3 h-3 flex-shrink-0" aria-hidden="true" />
                           {r}
                         </Link>
                       ))}

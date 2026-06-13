@@ -95,7 +95,10 @@ export function PairingsDirectory() {
                   className="shelf-card p-3 w-full text-left hover:bg-[#F5F3EC] transition-colors"
                 >
                   <div className="flex items-center justify-between gap-3 mb-1">
-                    <span className="font-medium text-[#2C2C2C] font-mono text-sm">{p.pairing}</span>
+                    <span className="flex items-center gap-1.5 font-medium text-[#2C2C2C] font-mono text-sm">
+                      <Heart className="w-3.5 h-3.5 text-[#6B46C1] flex-shrink-0" aria-hidden="true" />
+                      {p.pairing}
+                    </span>
                     <span className="text-xs px-2 py-1 rounded-full bg-[#6B46C1]/10 text-[#6B46C1] flex-shrink-0">
                       {p.count} book{p.count === 1 ? "" : "s"}
                     </span>
