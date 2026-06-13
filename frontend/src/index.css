@@ -424,3 +424,37 @@
 :root[data-theme="dark"] ::-webkit-scrollbar-thumb { background-color: #45454B; }
 :root[data-theme="dark"] ::-webkit-scrollbar-track { background-color: #1B1B1E; }
 
+
+
+/* ── Bulk dark-mode overrides (2026-06-13) ─────────────────────────────── */
+/* Surfaces the static-analysis test (`test_dark_mode_overrides.py`) found  */
+/* in JSX without a matching dark-mode rule. Same pattern as the existing   */
+/* override blocks above: tint the surface to fit the dark palette so the   */
+/* already-remapped near-white text stays readable.                         */
+
+/* Warm peach pales — Account streak card, Email-prefs success banners,    */
+/* Pairings/Authors/RestoreBackup info pills, AllBooks pinned-shelf chips. */
+:root[data-theme="dark"] .bg-\[\#FFF1ED\],
+:root[data-theme="dark"] .bg-\[\#FDEFE7\],
+:root[data-theme="dark"] .bg-\[\#FCEFE6\],
+:root[data-theme="dark"] .bg-\[\#FDECE6\],
+:root[data-theme="dark"] .bg-\[\#FBE8E0\],
+:root[data-theme="dark"] .bg-\[\#F8E8D8\] { background-color: rgba(255, 165, 130, 0.16); }
+
+/* Warm yellow/amber cream — DownloadPage "calibre" callouts, processing   */
+/* progress banners. Match the existing amber pale pattern.                */
+:root[data-theme="dark"] .bg-\[\#FCF8E8\],
+:root[data-theme="dark"] .bg-\[\#FDF5DC\],
+:root[data-theme="dark"] .bg-\[\#F5ECD5\] { background-color: #3a2f1b; color: #F0D6A0; }
+
+/* Neutral cream surfaces — MessagesPage thread row, AdminConsole route   */
+/* row, ReadingStatsCard tiles, DownloadPage divider. Converge on the      */
+/* generic dark surface so they blend with the surrounding cards.          */
+:root[data-theme="dark"] .bg-\[\#F4EFE5\],
+:root[data-theme="dark"] .bg-\[\#F4EFE4\],
+:root[data-theme="dark"] .bg-\[\#F1EFE8\],
+:root[data-theme="dark"] .bg-\[\#EEE\] { background-color: var(--surface); }
+
+/* Pink-red pale — CompareVersions "removed" highlight. Match the existing */
+/* `#FBE9E7` red-pale treatment.                                            */
+:root[data-theme="dark"] .bg-\[\#F8ECEC\] { background-color: rgba(217, 83, 79, 0.18); }

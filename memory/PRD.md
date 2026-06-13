@@ -1624,3 +1624,11 @@ Both upload sites (the regular EPUB upload pipeline + the URL-fetch path) now pe
 ### Fixed 2026-06-13 (Library — "Since you were last here" dark-mode contrast)
 - The `SinceLastLogin` activity banner in `LibraryActivityWidgets.jsx` was unreadable in dark mode because `bg-[#EEF3EC]` (pale sage) had no dark-mode override in `index.css`, while `text-[#2C2C2C]` IS remapped to near-white — result: near-white text on cream background → invisible.
 - Added a one-line CSS override at `:root[data-theme="dark"] .bg-\[\#EEF3EC\]` → `rgba(167, 139, 250, 0.14)` (same tinted-purple surface used by other accented panels). Verified computed styles: `bg: rgba(167, 139, 250, 0.14)`, `color: rgb(232, 228, 216)` — fully legible.
+
+
+### Added 2026-06-13 (Dark-mode regression guard — pytest)
+- New `/app/backend/tests/test_dark_mode_overrides.py`: pure static-analysis test (~70 LoC). Scans every `.jsx/.js/.tsx/.ts` under `frontend/src` for `bg-[#hex]` Tailwind classes, computes WCAG relative luminance, then parses `index.css` for matching `:root[data-theme="dark"] .bg-\[\#hex\]` overrides. Fails with a structured multi-line message (file:line for every offender) if any class with luminance > 0.80 lacks an override.
+- Caught **14 latent dark-mode bugs** (cream/peach/yellow panels lacking overrides) across `DownloadPage`, `CantFindOnline`, `StreakBadge`, `EmailPreferences`, `Account`, `MessagesPage`, `AllBooksPage`, `AdminConsole`, `ReadingStatsCard`, `CompareVersions`, `RestoreBackupPage`, `BookDetail`, `PairingsPage`, `AuthorsPage`.
+- All 14 fixed in one CSS block at the bottom of `index.css`, grouped by hue: warm-peach pales → `rgba(255, 165, 130, 0.16)`, warm-yellow/amber → `#3a2f1b` + `#F0D6A0` text, neutral cream → `var(--surface)`, pink-red → `rgba(217, 83, 79, 0.18)`. Total dark overrides now 34 (was 19).
+- Sanity-verified on the Account page in dark mode — all sections render with consistent dark surfaces, no washed-out cream panels.
+- Threshold (`LIGHT_THRESHOLD = 0.80`) and explicit `WHITELIST: set[str]` exposed at the top of the test for future tuning.
