@@ -1193,3 +1193,8 @@ These are agent-suggested features the user hasn't picked yet. Bring them up nex
 - **Wired** into both the EPUB metadata extractor (line 258) and the FicHub/FanFicFare fetch path (line 1838) so every author landing in Mongo goes through normalization.
 - **Tests**: 33 parametrized cases in `tests/test_author_cleanup.py` covering every cleanup pattern + a round-trip of the matching helper (`_normalize_author_for_match`) on the cleaned outputs.
 - Combined dedup + cleanup test count: **44/44 pass.** Improves both the dedup signal (cleaner inputs to the comparator) AND the library display.
+
+
+### Parked idea 2026-06-13 (Author detail page — P2)
+- Concept: `/library/author/{name}` page lists every book by that author in the user's library, with a small user-editable bio area ("first read 2018", "writes hurt/comfort"). Clean author strings from the new cleanup pass mean clean URLs for these pages. Could also surface a "shared with friends" indicator and a "mark as favorite author" affordance.
+- Priority: P2.
