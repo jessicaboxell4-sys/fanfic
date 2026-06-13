@@ -1061,3 +1061,17 @@ These are agent-suggested features the user hasn't picked yet. Bring them up nex
 - **One-shot pulse**: new `@keyframes appearancePulse` in `index.css` (three soft rings using `box-shadow` + `color-mix` so the ring colour respects the active palette). Applied via `.appearance-pulse` class on the navbar sun/moon button when `localStorage.shelfsort_appearance_seen` is missing. Cleared on first click of the icon (popover open) — so power users dismiss it instantly and the flag persists forever in that browser.
 - **"What's new?" announcement** published via `POST /api/announcements` with version `2026-06-13-appearance`, title "Appearance, all in one place", two items: the popover entry + the dedicated Appearance page (with deep-links to `/library` and `/account/appearance`). Surfaces in the existing `UpdatesBell` until the user dismisses it.
 - Verified via Playwright: `Has pulse class: True` on first load; `localStorage.shelfsort_appearance_seen = "1"` after click; announcement visible (purple dot on the bell).
+
+
+### Added 2026-06-13 (Palette sharing — export/import tokens)
+- **Token format**: presets pack as `ss-p-<id>` (e.g. `ss-p-forest`), Custom palettes pack as `ss-c-<base64>` of `{v:1, l:{primary, primaryHover, pale1, pale2}}`. Versioned (`v:1`) for forward-compat; strict hex regex validation on decode; helpful error strings when malformed.
+- **Helpers**: `encodePaletteToken(paletteId, customLight)` and `decodePaletteToken(raw) → {paletteId, customLight?} | {error}` added to `lib/palettes.js` (alongside the existing palette config).
+- **UI**: new "Share palette" card on `/account/appearance` (between Live Preview and footer). Two rows: (1) current token in a `font-mono` code box with Copy-to-clipboard button + transient ✓ Copied state; (2) paste-field with Enter-key support + Apply button. Toasts on success/error. Disabled-state on Apply when field is empty.
+- Verified via Playwright: token shows `ss-p-purple`, typing `ss-p-forest` → Apply → toast "Applied palette 'forest'" → live preview turns green → token field updates to `ss-p-forest`. Custom-palette round-trip works too (base64 path).
+
+
+### Added 2026-06-13 (Curated palette gallery + Help page rewrite)
+- **`GUEST_PALETTES` array** in `lib/palettes.js` — six hand-picked named palettes with descriptions: Cozy Library (warm amber + cream), Midnight Reader (steel indigo), Sun-bleached Paperback (mustard + parchment), AO3 Classic (the original coral), Forest Floor (olive + moss), Vintage Ink (deep burgundy). Each is just light-mode hexes; dark variants auto-derive when applied.
+- **New "Curated palettes" card** on `/account/appearance` (between Live Preview and Share palette). 3-column responsive grid; each tile = 56px gradient header (primary → primaryHover → pale2) + name + description. One click → sets paletteId to `custom`, loads the four hexes, toasts.
+- **Help page rewritten**: the Appearance bullet on `/help` now lists every Appearance feature explicitly — popover with hover caption, dedicated `/account/appearance` page, Light/Dark cards, full Custom hex picker, Live preview, Curated palettes gallery, Share palette tokens (preset `ss-p-…` vs Custom `ss-c-…`), and Reset to defaults.
+- Verified end-to-end via Playwright: gallery renders 6 tiles, clicking Midnight Reader → toast → Live Preview switches to indigo → Share-palette token field becomes the long `ss-c-eyJ2IjoxLCJsIjp7InByaW1hcnk…` base64.

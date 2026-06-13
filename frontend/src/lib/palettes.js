@@ -61,6 +61,50 @@ export const PALETTES = [
 export const CUSTOM_PALETTE_ID = "custom";
 export const CUSTOM_PALETTE_KEY = "shelfsort_palette_custom";
 
+// Curated guest palettes — applied as one-shot custom palettes
+// (paletteId becomes "custom", customLight loads with these hexes).
+// Display-only metadata; never persisted as a paletteId on its own.
+// To add more, drop a new entry — the gallery on /account/appearance
+// picks them up automatically.
+export const GUEST_PALETTES = [
+  {
+    id: "cozy-library",
+    name: "Cozy Library",
+    description: "Warm amber + cream. Reading-nook in autumn.",
+    light: { primary: "#B8865A", primaryHover: "#9A6E47", pale1: "#FBF5EC", pale2: "#F2E3CC" },
+  },
+  {
+    id: "midnight-reader",
+    name: "Midnight Reader",
+    description: "Steel indigo. After-hours, ink on velvet.",
+    light: { primary: "#5B6CA8", primaryHover: "#475590", pale1: "#EDEFF7", pale2: "#D8DCEE" },
+  },
+  {
+    id: "sun-bleached",
+    name: "Sun-bleached Paperback",
+    description: "Mustard + parchment. Old paperbacks in the window.",
+    light: { primary: "#C9A86A", primaryHover: "#A8893F", pale1: "#FBF6EA", pale2: "#F0E4C7" },
+  },
+  {
+    id: "ao3-classic",
+    name: "AO3 Classic",
+    description: "The original Shelfsort coral. Bookish and bright.",
+    light: { primary: "#E07A5F", primaryHover: "#C45F3F", pale1: "#FBE8E0", pale2: "#F4CFBC" },
+  },
+  {
+    id: "forest-floor",
+    name: "Forest Floor",
+    description: "Olive + moss. Damp woods after rain.",
+    light: { primary: "#6B7E45", primaryHover: "#52613A", pale1: "#F0EFE2", pale2: "#DCDFC2" },
+  },
+  {
+    id: "vintage-ink",
+    name: "Vintage Ink",
+    description: "Deep burgundy. Antique leather + worn pages.",
+    light: { primary: "#7A3B47", primaryHover: "#5F2A37", pale1: "#F6E9EB", pale2: "#E5C9D0" },
+  },
+];
+
 // Default custom palette starting point — same hexes as Purple so the
 // picker opens on a known-good state instead of black/transparent.
 export const DEFAULT_CUSTOM_LIGHT = {
@@ -146,4 +190,73 @@ export function buildPaletteCss(palette) {
   --accent-pale-2: ${d.pale2};
 }
 `.trim();
+}
+
+
+// ---------------------------------------------------------------------
+// Palette sharing — encode a palette into a copy-pasteable token, decode
+// it back. For presets, the token is `ss-p-<id>` (short, human-glanceable).
+// For Custom palettes, the four light-mode hexes are packed into a
+// base64-encoded JSON. The `ss-` prefix lets the importer reject random
+// pasted text immediately.
+// ---------------------------------------------------------------------
+const TOKEN_PREFIX = "ss-";
+
+export function encodePaletteToken(paletteId, customLight) {
+  if (paletteId === CUSTOM_PALETTE_ID) {
+    // Drop any non-hex slots in case a future SLOT is added without
+    // back-compat. Stay strict — Primary, primaryHover, pale1, pale2.
+    const payload = {
+      v: 1,
+      l: {
+        primary: customLight.primary,
+        primaryHover: customLight.primaryHover,
+        pale1: customLight.pale1,
+        pale2: customLight.pale2,
+      },
+    };
+    const b64 = btoa(JSON.stringify(payload));
+    return `${TOKEN_PREFIX}c-${b64}`;
+  }
+  // Preset — token is just the id, prefixed.
+  return `${TOKEN_PREFIX}p-${paletteId}`;
+}
+
+// Returns {paletteId, customLight?} on success, or {error: string}.
+export function decodePaletteToken(raw) {
+  const token = String(raw || "").trim();
+  if (!token.startsWith(TOKEN_PREFIX)) {
+    return { error: "Not a Shelfsort palette token (expected ss-…)" };
+  }
+  const body = token.slice(TOKEN_PREFIX.length);
+  if (body.startsWith("p-")) {
+    const id = body.slice(2);
+    if (!PALETTES.some((p) => p.id === id)) {
+      return { error: `Unknown preset '${id}'` };
+    }
+    return { paletteId: id };
+  }
+  if (body.startsWith("c-")) {
+    try {
+      const json = JSON.parse(atob(body.slice(2)));
+      const l = json?.l || {};
+      const hex = /^#[0-9a-fA-F]{6}$/;
+      if (!hex.test(l.primary) || !hex.test(l.primaryHover) ||
+          !hex.test(l.pale1) || !hex.test(l.pale2)) {
+        return { error: "Custom token has invalid hex values" };
+      }
+      return {
+        paletteId: CUSTOM_PALETTE_ID,
+        customLight: {
+          primary: l.primary,
+          primaryHover: l.primaryHover,
+          pale1: l.pale1,
+          pale2: l.pale2,
+        },
+      };
+    } catch (e) {
+      return { error: "Custom token is malformed" };
+    }
+  }
+  return { error: "Unrecognised token format" };
 }

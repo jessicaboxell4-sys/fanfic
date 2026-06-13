@@ -277,13 +277,19 @@ export default function Help() {
                 <li>
                   <strong>Appearance</strong> (theme + colour) — click the sun/moon icon in the Navbar.
                   A small popover drops down with the Light/Dark toggle and the seven palette swatches
-                  (Peach, Purple, Forest, Ocean, Crimson, Charcoal, and Custom). Click a swatch to flip
-                  the accent colour site-wide instantly. For the full controls (live preview + the
-                  four-slot Custom hex picker for Primary, Primary hover, and the two pale tints) tap{" "}
-                  <strong>More appearance options</strong> at the bottom of the popover &mdash; that
-                  opens the dedicated <Link to="/account/appearance">Appearance page</Link>. Dark-mode
-                  variants are auto-derived from the light hexes, so one set of pickers covers both
-                  modes. Saved to this browser only.
+                  (Peach, Purple, Forest, Ocean, Crimson, Charcoal, and Custom). Hover any swatch to see
+                  its name in a live caption. Click a swatch to flip the accent colour site-wide instantly.
+                  Tap <strong>More appearance options</strong> at the bottom of the popover to open the
+                  dedicated <Link to="/account/appearance">Appearance page</Link>, which adds:
+                  <ul>
+                    <li><strong>Light/Dark cards</strong> with descriptions instead of a tiny toggle</li>
+                    <li><strong>The full Custom hex picker</strong> — four colour inputs for Primary, Primary hover, and two pale tints. Dark-mode variants are auto-derived via HSL math</li>
+                    <li><strong>Live preview</strong> showing your active palette on a primary button, secondary button, NEW pill, and a pale-tint card with link</li>
+                    <li><strong>Curated palettes gallery</strong> — six hand-picked named palettes (Cozy Library, Midnight Reader, Sun-bleached Paperback, AO3 Classic, Forest Floor, Vintage Ink) you can apply with one click and then tweak</li>
+                    <li><strong>Share palette</strong> card — copy your current palette as a short token (e.g. <code>ss-p-forest</code> for presets, longer <code>ss-c-…</code> base64 for Custom) and apply tokens others have shared with you</li>
+                    <li><strong>Reset to defaults</strong> link at the bottom — two-click confirmation, restores the default Purple palette + default Custom hexes</li>
+                  </ul>
+                  Saved to this browser only.
                 </li>
                 <li>
                   <strong>Danger zone — Delete entire library</strong>: wipes every book, EPUB file, reading

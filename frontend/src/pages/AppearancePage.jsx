@@ -1,12 +1,16 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Sun, Moon, Palette, RotateCcw } from "lucide-react";
+import { ArrowLeft, Sun, Moon, Palette, RotateCcw, Share2, Copy, Check, ArrowDownToLine } from "lucide-react";
 import { toast } from "sonner";
 import Navbar from "../components/Navbar";
 import PalettePickerCard from "../components/PalettePickerCard";
 import { useTheme } from "../context/ThemeContext";
 import { usePalette } from "../context/PaletteContext";
-import { DEFAULT_PALETTE_ID, DEFAULT_CUSTOM_LIGHT } from "../lib/palettes";
+import {
+  DEFAULT_PALETTE_ID, DEFAULT_CUSTOM_LIGHT,
+  encodePaletteToken, decodePaletteToken,
+  GUEST_PALETTES, CUSTOM_PALETTE_ID,
+} from "../lib/palettes";
 
 // /account/appearance — full theme & colour controls.
 // Reached from the Navbar appearance popover ("More appearance options →")
@@ -14,8 +18,10 @@ import { DEFAULT_PALETTE_ID, DEFAULT_CUSTOM_LIGHT } from "../lib/palettes";
 // (formerly on /account), and a live preview.
 export default function AppearancePage() {
   const { theme, toggleTheme } = useTheme();
-  const { paletteId, setPaletteId, setCustomLight } = usePalette();
+  const { palette, paletteId, setPaletteId, customLight, setCustomLight } = usePalette();
   const [confirmReset, setConfirmReset] = useState(false);
+  const [importText, setImportText] = useState("");
+  const [copied, setCopied] = useState(false);
 
   const resetDefaults = () => {
     if (!confirmReset) {
@@ -28,6 +34,36 @@ export default function AppearancePage() {
     toast.success("Appearance reset to defaults");
   };
   const isAtDefaults = paletteId === DEFAULT_PALETTE_ID;
+
+  const currentToken = encodePaletteToken(paletteId, customLight);
+  const copyToken = async () => {
+    try {
+      await navigator.clipboard.writeText(currentToken);
+      setCopied(true);
+      toast.success("Palette token copied");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Couldn't access the clipboard — copy the text manually");
+    }
+  };
+
+  const applyImport = () => {
+    const result = decodePaletteToken(importText);
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
+    if (result.customLight) setCustomLight(result.customLight);
+    setPaletteId(result.paletteId);
+    setImportText("");
+    toast.success(`Applied palette '${result.paletteId}'`);
+  };
+
+  const applyGuest = (guest) => {
+    setCustomLight(guest.light);
+    setPaletteId(CUSTOM_PALETTE_ID);
+    toast.success(`Applied '${guest.name}'`);
+  };
 
   return (
     <div className="min-h-screen bg-[#FBF7EE]">
@@ -131,6 +167,115 @@ export default function AppearancePage() {
                   And a link
                 </a>{" "}
                 that uses the accent.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* Guest palette gallery */}
+        <section className="shelf-card p-6 mb-6" data-testid="appearance-gallery-card">
+          <div className="flex items-start gap-3 mb-4">
+            <div className="w-10 h-10 rounded-xl bg-[#FBFAF6] text-[#3A5A40] flex items-center justify-center flex-shrink-0">
+              <Palette className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="font-serif text-2xl text-[#2C2C2C]">Curated palettes</h2>
+              <p className="text-sm text-[#6B705C] mt-0.5">
+                Hand-picked palettes beyond the six presets. One click applies; tweak from there in the Custom hex picker above.
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3" data-testid="appearance-gallery-grid">
+            {GUEST_PALETTES.map((g) => (
+              <button
+                key={g.id}
+                type="button"
+                onClick={() => applyGuest(g)}
+                data-testid={`appearance-gallery-${g.id}`}
+                className="group text-left rounded-xl border border-[#E5DDC5] bg-white hover:border-[#3A5A40]/40 hover:shadow-sm transition-all overflow-hidden"
+              >
+                <div
+                  className="h-14 w-full"
+                  style={{ background: `linear-gradient(135deg, ${g.light.primary} 0%, ${g.light.primaryHover} 50%, ${g.light.pale2} 100%)` }}
+                  aria-hidden
+                />
+                <div className="p-3">
+                  <p className="font-semibold text-sm text-[#2C2C2C] mb-0.5">{g.name}</p>
+                  <p className="text-xs text-[#6B705C] leading-snug">{g.description}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {/* Share palette */}
+        <section className="shelf-card p-6 mb-6" data-testid="appearance-share-card">
+          <div className="flex items-start gap-3 mb-4">
+            <div className="w-10 h-10 rounded-xl bg-[#FBFAF6] text-[#3A5A40] flex items-center justify-center flex-shrink-0">
+              <Share2 className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="font-serif text-2xl text-[#2C2C2C]">Share palette</h2>
+              <p className="text-sm text-[#6B705C] mt-0.5">
+                Copy your current palette as a short token, or paste one from a friend to apply theirs instantly.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {/* Export current */}
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wider text-[#6B705C] mb-1 block">
+                Your current palette <span className="font-normal text-[#6B705C]/70">({palette.name})</span>
+              </label>
+              <div className="flex gap-2">
+                <code
+                  data-testid="appearance-share-token"
+                  className="flex-1 text-xs font-mono bg-[#FBFAF6] border border-[#E5DDC5] rounded-lg px-3 py-2 truncate select-all"
+                  title={currentToken}
+                >
+                  {currentToken}
+                </code>
+                <button
+                  type="button"
+                  onClick={copyToken}
+                  data-testid="appearance-share-copy-btn"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#3A5A40] text-white text-sm font-semibold hover:bg-[#2D4632] transition-colors"
+                >
+                  {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  {copied ? "Copied" : "Copy"}
+                </button>
+              </div>
+            </div>
+
+            {/* Import */}
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wider text-[#6B705C] mb-1 block">
+                Paste a palette token
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={importText}
+                  onChange={(e) => setImportText(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") applyImport(); }}
+                  placeholder="ss-p-forest  or  ss-c-eyJ2…"
+                  data-testid="appearance-share-import-input"
+                  className="flex-1 text-xs font-mono bg-white border border-[#E5DDC5] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#3A5A40]/30"
+                />
+                <button
+                  type="button"
+                  onClick={applyImport}
+                  disabled={!importText.trim()}
+                  data-testid="appearance-share-import-btn"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white border border-[#3A5A40] text-[#3A5A40] text-sm font-semibold hover:bg-[#FBFAF6] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <ArrowDownToLine className="w-4 h-4" />
+                  Apply
+                </button>
+              </div>
+              <p className="text-xs text-[#6B705C] mt-1.5">
+                Presets export as a short string (e.g. <code className="bg-[#FBFAF6] px-1.5 py-0.5 rounded text-[10px]">ss-p-forest</code>). Custom palettes pack the four hexes into a longer token.
               </p>
             </div>
           </div>
