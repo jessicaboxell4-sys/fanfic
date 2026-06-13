@@ -68,6 +68,31 @@ FRANCHISE_GROUPS: Dict[str, List[str]] = {
         "Throne of Glass - Sarah J. Maas",
         "Crescent City",
     ],
+    "Star Wars Universe": [
+        "Star Wars",
+        "Star Wars - All Media Types",
+        "Star Wars Sequel Trilogy",
+        "Star Wars: The Clone Wars (2008) - All Media Types",
+        "The Mandalorian (TV)",
+        "Andor (TV)",
+        "Star Wars: The Bad Batch (Cartoon)",
+        "Star Wars Rebels",
+        "Star Wars: Knights of the Old Republic",
+        "Star Wars Visions",
+        "Rogue One: A Star Wars Story",
+    ],
+    "Critical Role / D&D": [
+        "Critical Role (Web Series)",
+        "The Legend of Vox Machina (Cartoon)",
+        "Vox Machina (Critical Role)",
+        "The Mighty Nein (Critical Role)",
+        "Bell's Hells (Critical Role)",
+        "Dungeons & Dragons (Role-Playing Game)",
+    ],
+    "My Hero Academia": [
+        "My Hero Academia",
+        "My Hero Academia: Vigilantes",
+    ],
     "Marvel": [
         "Marvel",
         "Marvel Cinematic Universe",
@@ -87,10 +112,11 @@ FRANCHISE_GROUPS: Dict[str, List[str]] = {
         "Young Justice (Comics)",
     ],
     "Star Wars": [
-        "Star Wars",
-        "Star Wars - All Media Types",
-        "Star Wars: The Clone Wars (2008) - All Media Types",
-        "Star Wars Sequel Trilogy",
+        # Empty — superseded by "Star Wars Universe" near the top of
+        # this dict (which adds Mandalorian, Andor, Bad Batch, Rebels,
+        # KOTOR, Visions, Rogue One). Kept here as a sentinel so
+        # downstream code that imports this module can still introspect
+        # the name; the reverse index picks the populated entry.
     ],
     "Middle-earth": [
         "Lord of the Rings",

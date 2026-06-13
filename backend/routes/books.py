@@ -161,6 +161,68 @@ FANDOM_KEYWORDS = {
         "house of sky and breath", "house of flame and shadow",
         "bryce quinlan", "hunt athalar", "danika fendyr",
     ],
+    # ----- Star Wars sub-fandoms. The umbrella + All Media Types +
+    # Sequel Trilogy + Clone Wars (2008) already live in the AO3 seed;
+    # we add the live-action TV / KOTOR / Rebels lines so each gets
+    # its own shelf instead of all crashing into "Star Wars".
+    "The Mandalorian (TV)": [
+        "the mandalorian", "din djarin", "grogu", "baby yoda",
+        "mandalorian disney+", "mando din djarin",
+    ],
+    "Andor (TV)": [
+        "andor disney+", "cassian andor andor series", "mon mothma andor",
+        "andor (tv)",
+    ],
+    "Star Wars: The Bad Batch (Cartoon)": [
+        "the bad batch", "clone force 99", "hunter wrecker tech",
+        "omega bad batch",
+    ],
+    "Star Wars Rebels": [
+        "star wars rebels", "ezra bridger", "kanan jarrus",
+        "hera syndulla", "ghost crew",
+    ],
+    "Star Wars: Knights of the Old Republic": [
+        "knights of the old republic", "kotor", "revan",
+        "darth malak", "swtor",
+    ],
+    "Star Wars Visions": [
+        "star wars visions",
+    ],
+    "Rogue One: A Star Wars Story": [
+        "rogue one", "jyn erso", "cassian andor rogue one",
+        "k-2so", "bodhi rook",
+    ],
+    # ----- Other standalone large fandoms.
+    "Fairy Tail": [
+        "fairy tail", "fairy tail manga", "natsu dragneel",
+        "lucy heartfilia", "erza scarlet", "gray fullbuster",
+        "hiro mashima",
+    ],
+    "Dungeons & Dragons (Role-Playing Game)": [
+        "dungeons & dragons", "dungeons and dragons", "d&d 5e",
+        "5e d&d", "ttrpg", "tabletop roleplaying game",
+    ],
+    "The Legend of Vox Machina (Cartoon)": [
+        "legend of vox machina", "vox machina cartoon",
+        "vox machina animated",
+    ],
+    "Vox Machina (Critical Role)": [
+        "vox machina", "vex'ahlia", "vax'ildan", "percy de rolo",
+        "grog strongjaw", "scanlan shorthalt",
+    ],
+    "The Mighty Nein (Critical Role)": [
+        "mighty nein", "caleb widogast", "fjord stone",
+        "jester lavorre", "yasha", "beauregard lionett",
+        "molly molymauk", "veth brenatto", "kingsley tealeaf",
+    ],
+    "Bell's Hells (Critical Role)": [
+        "bell's hells", "campaign 3 critical role", "imogen temult",
+        "laudna critical role", "fearne calloway", "fcg ashton",
+    ],
+    "My Hero Academia: Vigilantes": [
+        "my hero academia vigilantes", "vigilantes mha",
+        "knuckleduster", "koichi haimawari", "pop step",
+    ],
     "Doctor Who": ["doctor who", "tardis", "the doctor", "gallifrey"],
     "Supernatural": ["supernatural fic", "dean winchester", "sam winchester", "castiel"],
     "Game of Thrones": ["game of thrones", "westeros", "jon snow", "daenerys", "targaryen", "stark family"],
