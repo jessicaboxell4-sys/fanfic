@@ -1018,3 +1018,10 @@ These are agent-suggested features the user hasn't picked yet. Bring them up nex
 - **Model**: added `scheduled_deletion_at: Optional[datetime]` to `User`.
 - Verified end-to-end via curl: schedule → cookie cleared → re-login → `/auth/me` shows scheduled date → cancel → field nulls back out. UI banner screenshot confirms visual.
 
+
+
+### Added 2026-06-13 (Resend email — actually sending now)
+- **Resend API key wired**: `RESEND_API_KEY` populated in `/app/backend/.env`. Sender = `onboarding@resend.dev` (Resend sandbox). Sandbox limitation: only the email registered with Resend (`jessicaboxell4@gmail.com`) receives mail; sends to other addresses are silently dropped by Resend until a custom domain is verified at https://resend.com/domains.
+- **Verified end-to-end**: live test email sent successfully (Resend message ID `18c3aae7-f079-4a71-9bb5-78d9fb40016a`).
+- **Now active**: weekly digest scheduler, fanfic-update notifications, and the 7-day "scheduled deletion" reminder cron all actually deliver mail. Previously each codepath silently no-op'd via the `if not RESEND_API_KEY` guard.
+- **Future**: when scaling beyond personal use, verify a custom domain (`shelfsort.app` or similar) at resend.com/domains, then update `SENDER_EMAIL` in `.env` and switch from sandbox to authenticated sender.
