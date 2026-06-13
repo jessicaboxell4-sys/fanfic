@@ -63,7 +63,7 @@ export default function AuthorShelf() {
               <UserCircle2 className="w-8 h-8" />
             </div>
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] mb-2">
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-2">
                 Author shelf
               </p>
               <h1

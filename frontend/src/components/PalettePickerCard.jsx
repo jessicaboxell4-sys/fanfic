@@ -28,7 +28,7 @@ export default function PalettePickerCard() {
   return (
     <section className="shelf-card p-6 mb-6" data-testid="palette-picker-card">
       <div className="flex items-start gap-3 mb-3">
-        <div className="w-10 h-10 rounded-xl bg-[#FBFAF6] text-[#3A5A40] flex items-center justify-center flex-shrink-0">
+        <div className="w-10 h-10 rounded-xl bg-[#FBFAF6] text-[#6B46C1] flex items-center justify-center flex-shrink-0">
           <Palette className="w-5 h-5" />
         </div>
         <div>
@@ -51,12 +51,12 @@ export default function PalettePickerCard() {
               aria-pressed={selected}
               className={`relative text-left rounded-xl border p-3 transition-all ${
                 selected
-                  ? "border-[#3A5A40] bg-[#FBFAF6] shadow-sm"
-                  : "border-[#E5DDC5] bg-white hover:border-[#3A5A40]/40"
+                  ? "border-[#6B46C1] bg-[#FBFAF6] shadow-sm"
+                  : "border-[#E5DDC5] bg-white hover:border-[#6B46C1]/40"
               }`}
             >
               {selected && (
-                <span className="absolute top-2 right-2 w-5 h-5 rounded-full bg-[#3A5A40] text-white flex items-center justify-center">
+                <span className="absolute top-2 right-2 w-5 h-5 rounded-full bg-[#6B46C1] text-white flex items-center justify-center">
                   <Check className="w-3 h-3" />
                 </span>
               )}
@@ -87,12 +87,12 @@ export default function PalettePickerCard() {
           aria-pressed={isCustomActive}
           className={`relative text-left rounded-xl border p-3 transition-all ${
             isCustomActive
-              ? "border-[#3A5A40] bg-[#FBFAF6] shadow-sm"
-              : "border-[#E5DDC5] border-dashed bg-white hover:border-[#3A5A40]/40"
+              ? "border-[#6B46C1] bg-[#FBFAF6] shadow-sm"
+              : "border-[#E5DDC5] border-dashed bg-white hover:border-[#6B46C1]/40"
           }`}
         >
           {isCustomActive && (
-            <span className="absolute top-2 right-2 w-5 h-5 rounded-full bg-[#3A5A40] text-white flex items-center justify-center">
+            <span className="absolute top-2 right-2 w-5 h-5 rounded-full bg-[#6B46C1] text-white flex items-center justify-center">
               <Check className="w-3 h-3" />
             </span>
           )}
@@ -118,7 +118,7 @@ export default function PalettePickerCard() {
       {/* Colour pickers — visible whenever Custom is selected. */}
       {isCustomActive && (
         <div className="mt-5 p-4 rounded-xl border border-[#E5DDC5] bg-[#FBFAF6]" data-testid="palette-custom-pickers">
-          <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#3A5A40] mb-3">Light-mode colours · dark variants are auto-derived</p>
+          <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B46C1] mb-3">Light-mode colours · dark variants are auto-derived</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {Object.entries(SLOT_LABELS).map(([slot, meta]) => (
               <label

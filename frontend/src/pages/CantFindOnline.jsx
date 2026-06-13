@@ -209,12 +209,12 @@ export default function CantFindOnline() {
             data-testid="fanfic-status-banner"
             className={`mb-6 rounded-2xl border p-4 flex items-start gap-3 ${
               status.ok
-                ? "bg-[#E5EBE6] border-[#3A5A40]/30 text-[#2C2C2C]"
+                ? "bg-[#EDE7FB] border-[#6B46C1]/30 text-[#2C2C2C]"
                 : "bg-[#FFF1ED] border-[#E07A5F]/40 text-[#2C2C2C]"
             }`}
           >
             {status.ok ? (
-              <CheckCircle2 className="w-5 h-5 text-[#3A5A40] flex-shrink-0 mt-0.5" />
+              <CheckCircle2 className="w-5 h-5 text-[#6B46C1] flex-shrink-0 mt-0.5" />
             ) : (
               <AlertTriangle className="w-5 h-5 text-[#E07A5F] flex-shrink-0 mt-0.5" />
             )}
@@ -254,7 +254,7 @@ export default function CantFindOnline() {
           <p className="text-[#6B705C] py-12 text-center">Loading…</p>
         ) : books.length === 0 ? (
           <div className="text-center py-16 shelf-card">
-            <Book className="w-12 h-12 text-[#3A5A40] mx-auto mb-4 opacity-70" />
+            <Book className="w-12 h-12 text-[#6B46C1] mx-auto mb-4 opacity-70" />
             <h2 className="font-serif text-2xl text-[#2C2C2C] mb-2">Nothing's lost</h2>
             <p className="text-[#6B705C]">Every refreshable book in your library is reachable on FanFicFare.</p>
           </div>

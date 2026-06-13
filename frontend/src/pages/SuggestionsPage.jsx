@@ -12,7 +12,7 @@ import { useAuth } from "../context/AuthContext";
 const CATEGORIES = [
   { id: "bug", label: "Bug", icon: Bug, color: "#B43F26" },
   { id: "improvement", label: "Improvement", icon: Lightbulb, color: "#B87A00" },
-  { id: "feature", label: "New feature", icon: Sparkles, color: "#3A5A40" },
+  { id: "feature", label: "New feature", icon: Sparkles, color: "#6B46C1" },
 ];
 const STATUSES = [
   { id: "open", label: "Open" },
@@ -26,7 +26,7 @@ function StatusPill({ status }) {
   const map = {
     open: { label: "Open", bg: "#FBFAF6", color: "#6B705C" },
     under_review: { label: "Under review", bg: "#FDF3E1", color: "#B87A00" },
-    planned: { label: "Planned", bg: "#EEF3EC", color: "#3A5A40" },
+    planned: { label: "Planned", bg: "#EEF3EC", color: "#6B46C1" },
     done: { label: "Done", bg: "#E6F0E8", color: "#1F4D2A" },
     declined: { label: "Declined", bg: "#F4E0DC", color: "#B43F26" },
   };
@@ -153,7 +153,7 @@ export default function SuggestionsPage() {
             onChange={(e) => setTitle(e.target.value.slice(0, 120))}
             placeholder="Short, clear title (e.g. Add bookmarks to the reader)"
             data-testid="suggestions-title-input"
-            className="w-full text-sm px-3 py-2 rounded-lg border border-[#E5DDC5] bg-white mb-2 focus:outline-none focus:ring-2 focus:ring-[#3A5A40]/30"
+            className="w-full text-sm px-3 py-2 rounded-lg border border-[#E5DDC5] bg-white mb-2 focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/30"
           />
           <textarea
             value={body}
@@ -161,7 +161,7 @@ export default function SuggestionsPage() {
             placeholder="Optional detail — what's the scenario, how would it work, etc."
             data-testid="suggestions-body-input"
             rows={3}
-            className="w-full text-sm px-3 py-2 rounded-lg border border-[#E5DDC5] bg-white mb-2 focus:outline-none focus:ring-2 focus:ring-[#3A5A40]/30 resize-none"
+            className="w-full text-sm px-3 py-2 rounded-lg border border-[#E5DDC5] bg-white mb-2 focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/30 resize-none"
           />
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-1" data-testid="suggestions-category-picker">
@@ -246,7 +246,7 @@ export default function SuggestionsPage() {
                   </div>
                   {s.body && <p className="text-xs text-[#4A4A4A] whitespace-pre-wrap mb-1">{s.body}</p>}
                   {s.admin_note && (
-                    <p className="text-xs text-[#3A5A40] mt-1 p-2 rounded bg-[#EEF3EC] border-l-2 border-[#3A5A40]">
+                    <p className="text-xs text-[#6B46C1] mt-1 p-2 rounded bg-[#EEF3EC] border-l-2 border-[#6B46C1]">
                       <strong>Admin note:</strong> {s.admin_note}
                     </p>
                   )}

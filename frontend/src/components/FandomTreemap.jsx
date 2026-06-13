@@ -8,7 +8,7 @@ import { Loader2, PieChart, Layers, List as ListIcon } from "lucide-react";
 // largest shelves, sage/teal in the middle, dusty rose at the tail.
 const COLOR_RAMP = [
   "#E07A5F", "#D87553", "#C46A4A", "#A85B40",
-  "#3A5A40", "#4E7553", "#608C68", "#7AAE82",
+  "#6B46C1", "#4E7553", "#608C68", "#7AAE82",
   "#B68063", "#9A6D55", "#7D5B47", "#604937",
   "#967159", "#A8836A", "#BB957F", "#CCA796",
 ];

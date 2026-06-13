@@ -42,7 +42,7 @@ function ToggleSwitch({ checked, disabled, onChange, testid }) {
       disabled={disabled}
       onClick={onChange}
       className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors flex-shrink-0 ${
-        checked ? "bg-[#3A5A40]" : "bg-[#E8E6E1]"
+        checked ? "bg-[#6B46C1]" : "bg-[#E8E6E1]"
       } ${disabled ? "opacity-60" : ""}`}
     >
       <span
@@ -300,7 +300,7 @@ export default function EmailPreferences() {
                 onClick={sendTestEmail}
                 disabled={sendingTest}
                 data-testid="emails-send-test-btn"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-[#3A5A40] text-[#3A5A40] text-xs font-semibold hover:bg-[#EEF3EC] transition-colors disabled:opacity-60"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-[#6B46C1] text-[#6B46C1] text-xs font-semibold hover:bg-[#EEF3EC] transition-colors disabled:opacity-60"
                 title="Send a one-shot test email to confirm delivery"
               >
                 {sendingTest ? (
@@ -313,7 +313,7 @@ export default function EmailPreferences() {
             )}
             {email_configured ? (
               <span
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#EEF3EC] text-[#3A5A40] text-xs font-semibold"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#EEF3EC] text-[#6B46C1] text-xs font-semibold"
                 data-testid="emails-configured-pill"
               >
                 <CheckCircle2 className="h-3.5 w-3.5" />
@@ -413,7 +413,7 @@ export default function EmailPreferences() {
         <ChannelCard
           icon={<Sparkles className="w-5 h-5" />}
           iconBg="bg-[#EEF3EC]"
-          iconColor="text-[#3A5A40]"
+          iconColor="text-[#6B46C1]"
           title="Fic-update alerts"
           subtitle="The instant your fanfics refresh, get an email listing what's new with one-click jumps to the changed chapters."
           enabled={fic_updates.enabled}
@@ -465,7 +465,7 @@ export default function EmailPreferences() {
               </p>
             )}
             <p className="mt-3 text-xs">
-              <Link to="/year-in-books" className="text-[#3A5A40] hover:underline font-semibold">
+              <Link to="/year-in-books" className="text-[#6B46C1] hover:underline font-semibold">
                 Preview the in-app version →
               </Link>
             </p>

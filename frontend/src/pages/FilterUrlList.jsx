@@ -303,10 +303,10 @@ export default function FilterUrlList() {
 
         {showInlinePrompt && (
           <div
-            className="mt-4 p-4 rounded-lg bg-[#3A5A40]/10 border border-[#3A5A40]/30 flex items-center gap-3 flex-wrap"
+            className="mt-4 p-4 rounded-lg bg-[#6B46C1]/10 border border-[#6B46C1]/30 flex items-center gap-3 flex-wrap"
             data-testid="single-url-prompt"
           >
-            <Sparkles className="w-5 h-5 text-[#3A5A40] flex-shrink-0" />
+            <Sparkles className="w-5 h-5 text-[#6B46C1] flex-shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-[#2C2C2C]">
                 {inlineFics.length === 1
@@ -324,7 +324,7 @@ export default function FilterUrlList() {
                 data-testid="single-url-fetch"
                 onClick={fetchAsEpub}
                 disabled={pulling}
-                className="px-4 py-2 rounded-lg text-sm font-medium bg-[#3A5A40] text-white hover:bg-[#2f4933] disabled:opacity-60 inline-flex items-center gap-2"
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-[#6B46C1] text-white hover:bg-[#2f4933] disabled:opacity-60 inline-flex items-center gap-2"
               >
                 {pulling ? <Loader2 className="w-4 h-4 animate-spin" /> : <DownloadCloud className="w-4 h-4" />}
                 Yes, fetch {inlineFics.length === 1 ? "it" : "them"}
@@ -356,7 +356,7 @@ export default function FilterUrlList() {
         {/* — visually separated EPUB upload zone — */}
         <div className="mt-10 pt-8 border-t border-dashed border-[#E5DDC5]" data-testid="epub-upload-section">
           <div className="flex items-start gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-[#3A5A40]/10 text-[#3A5A40] flex items-center justify-center flex-shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-[#6B46C1]/10 text-[#6B46C1] flex items-center justify-center flex-shrink-0">
               <BookOpen className="w-5 h-5" />
             </div>
             <div>
@@ -503,7 +503,7 @@ export default function FilterUrlList() {
                   data-testid="url-list-pull"
                   onClick={pullIntoLibrary}
                   disabled={pulling || report.new_urls.length === 0}
-                  className="px-5 py-2 rounded-lg text-sm font-medium bg-[#3A5A40] text-white hover:bg-[#2f4933] disabled:opacity-60 inline-flex items-center gap-2"
+                  className="px-5 py-2 rounded-lg text-sm font-medium bg-[#6B46C1] text-white hover:bg-[#2f4933] disabled:opacity-60 inline-flex items-center gap-2"
                   title={report.new_urls.length === 0 ? "Nothing new to pull — all URLs are already owned or unrecognized." : "Fetch every new URL into your library, one at a time"}
                 >
                   {pulling ? <Loader2 className="w-4 h-4 animate-spin" /> : <DownloadCloud className="w-4 h-4" />}
@@ -522,8 +522,8 @@ export default function FilterUrlList() {
             </div>
 
             {FETCHING_UI_ENABLED && pullReport && (
-              <div className="mt-4 p-4 rounded-lg bg-[#E5EBE6] border border-[#3A5A40]/20" data-testid="pull-result">
-                <p className="font-medium text-[#3A5A40] mb-2">
+              <div className="mt-4 p-4 rounded-lg bg-[#EDE7FB] border border-[#6B46C1]/20" data-testid="pull-result">
+                <p className="font-medium text-[#6B46C1] mb-2">
                   Pull complete · <strong>{pullReport.added?.length || 0}</strong> added
                   {pullReport.failed?.length ? <> · <span className="text-amber-700">{pullReport.failed.length} failed</span></> : null}
                 </p>

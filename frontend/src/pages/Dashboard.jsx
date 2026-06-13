@@ -257,7 +257,7 @@ export default function Dashboard() {
         <OnboardingPrompt />
         <HelpNudge />
         <div className="mb-10">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] mb-2">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-2">
             Your library
           </p>
           <h1 className="font-serif text-4xl sm:text-5xl text-[#2C2C2C]">
@@ -299,7 +299,7 @@ export default function Dashboard() {
             <Link
               to="/library/conversions"
               data-testid="conversion-chip"
-              className="inline-flex items-center gap-1.5 mt-3 ml-2 px-3 py-1 rounded-full text-xs font-medium border border-[#3A5A40]/30 bg-[#E5EBE6] text-[#3A5A40] hover:bg-[#d8e1d9]"
+              className="inline-flex items-center gap-1.5 mt-3 ml-2 px-3 py-1 rounded-full text-xs font-medium border border-[#6B46C1]/30 bg-[#EDE7FB] text-[#6B46C1] hover:bg-[#d8e1d9]"
             >
               <Sparkles className="w-3 h-3" />
               {conversions.recent_done > 0 && `${conversions.recent_done} converted`}
@@ -314,10 +314,10 @@ export default function Dashboard() {
           (overview && (overview.books_finished > 0 || overview.pages_read > 0 || overview.reading_streak_days > 0))) && (
           <section
             data-testid="at-a-glance-folder"
-            className="mb-10 shelf-card p-6 md:p-8 bg-gradient-to-br from-[#FDF3E1]/60 via-white to-[#E5EBE6]/40 border-[#B87A00]/20"
+            className="mb-10 shelf-card p-6 md:p-8 bg-gradient-to-br from-[#FDF3E1]/60 via-white to-[#EDE7FB]/40 border-[#B87A00]/20"
           >
             <div className="flex items-center justify-between mb-5">
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] flex items-center gap-2">
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] flex items-center gap-2">
                 <FolderOpen className="w-4 h-4" /> At a glance
               </p>
               <div className="flex items-center gap-2">
@@ -325,7 +325,7 @@ export default function Dashboard() {
                   <button
                     data-testid="reset-glance-btn"
                     onClick={resetGlanceLayout}
-                    className="text-xs font-semibold uppercase tracking-wider inline-flex items-center gap-1 px-2 py-1 rounded text-[#3A5A40] hover:text-[#2C2C2C] hover:bg-white/60"
+                    className="text-xs font-semibold uppercase tracking-wider inline-flex items-center gap-1 px-2 py-1 rounded text-[#6B46C1] hover:text-[#2C2C2C] hover:bg-white/60"
                     title="Restore the default order with everything visible"
                   >
                     <RotateCcw className="w-3 h-3" /> Reset
@@ -335,7 +335,7 @@ export default function Dashboard() {
                   data-testid="organize-glance-btn"
                   onClick={() => setOrganizing((v) => !v)}
                   className={`text-xs font-semibold uppercase tracking-wider inline-flex items-center gap-1 px-2 py-1 rounded ${
-                    organizing ? "text-white bg-[#3A5A40]" : "text-[#3A5A40] hover:text-[#2C2C2C]"
+                    organizing ? "text-white bg-[#6B46C1]" : "text-[#6B46C1] hover:text-[#2C2C2C]"
                   }`}
                   title="Reorder or hide these sections"
                 >
@@ -373,13 +373,13 @@ export default function Dashboard() {
                     return (
                       <div>
                         <div className="flex items-center justify-between mb-3">
-                          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] flex items-center gap-2">
+                          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] flex items-center gap-2">
                             <Pin className="w-3 h-3" /> Pinned smart shelves
                           </p>
                           <Link
                             to="/library/smart-shelves"
                             data-testid="manage-smart-shelves"
-                            className="text-xs text-[#3A5A40] hover:text-[#2C2C2C] font-semibold uppercase tracking-wider inline-flex items-center gap-1"
+                            className="text-xs text-[#6B46C1] hover:text-[#2C2C2C] font-semibold uppercase tracking-wider inline-flex items-center gap-1"
                           >
                             <Filter className="w-3 h-3" /> Manage
                           </Link>
@@ -414,7 +414,7 @@ export default function Dashboard() {
                           data-testid={`glance-up-${key}`}
                           onClick={() => moveGlance(key, -1)}
                           disabled={idx === 0}
-                          className="w-6 h-6 rounded bg-white border border-[#B87A00]/30 text-[#3A5A40] hover:bg-[#FDF3E1] disabled:opacity-30 flex items-center justify-center"
+                          className="w-6 h-6 rounded bg-white border border-[#B87A00]/30 text-[#6B46C1] hover:bg-[#FDF3E1] disabled:opacity-30 flex items-center justify-center"
                           title="Move up"
                         >
                           <ChevronUp className="w-3 h-3" />
@@ -423,7 +423,7 @@ export default function Dashboard() {
                           data-testid={`glance-down-${key}`}
                           onClick={() => moveGlance(key, +1)}
                           disabled={idx === glanceOrder.length - 1}
-                          className="w-6 h-6 rounded bg-white border border-[#B87A00]/30 text-[#3A5A40] hover:bg-[#FDF3E1] disabled:opacity-30 flex items-center justify-center"
+                          className="w-6 h-6 rounded bg-white border border-[#B87A00]/30 text-[#6B46C1] hover:bg-[#FDF3E1] disabled:opacity-30 flex items-center justify-center"
                           title="Move down"
                         >
                           <ChevronDown className="w-3 h-3" />
@@ -434,7 +434,7 @@ export default function Dashboard() {
                           className={`w-6 h-6 rounded border flex items-center justify-center ${
                             isHidden
                               ? "bg-[#FDF3E1] border-[#B87A00] text-[#B87A00]"
-                              : "bg-white border-[#B87A00]/30 text-[#3A5A40] hover:bg-[#FDF3E1]"
+                              : "bg-white border-[#B87A00]/30 text-[#6B46C1] hover:bg-[#FDF3E1]"
                           }`}
                           title={isHidden ? "Show on dashboard" : "Hide from dashboard"}
                         >
@@ -583,10 +583,10 @@ export default function Dashboard() {
         {refreshStatus.refreshable > 0 && FETCHING_UI_ENABLED && (
           <div
             data-testid="refresh-all-banner"
-            className="mb-8 shelf-card p-5 flex flex-wrap items-center justify-between gap-4 bg-gradient-to-r from-[#E5EBE6] to-white border-[#3A5A40]/30"
+            className="mb-8 shelf-card p-5 flex flex-wrap items-center justify-between gap-4 bg-gradient-to-r from-[#EDE7FB] to-white border-[#6B46C1]/30"
           >
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-lg bg-[#3A5A40]/10 text-[#3A5A40] flex items-center justify-center flex-shrink-0">
+              <div className="w-10 h-10 rounded-lg bg-[#6B46C1]/10 text-[#6B46C1] flex items-center justify-center flex-shrink-0">
                 <RefreshCw className="w-5 h-5" />
               </div>
               <div>
@@ -604,7 +604,7 @@ export default function Dashboard() {
               onClick={refreshAll}
               disabled={refreshingAll}
               className="btn-primary text-sm flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
-              style={{ background: "#3A5A40" }}
+              style={{ background: "#6B46C1" }}
             >
               {refreshingAll ? (
                 <>
@@ -709,8 +709,8 @@ export default function Dashboard() {
                   }}
                   className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
                     smart === "finished"
-                      ? "bg-[#3A5A40] text-white border-[#3A5A40]"
-                      : "bg-white border-[#3A5A40]/30 text-[#3A5A40] hover:bg-[#3A5A40]/10"
+                      ? "bg-[#6B46C1] text-white border-[#6B46C1]"
+                      : "bg-white border-[#6B46C1]/30 text-[#6B46C1] hover:bg-[#6B46C1]/10"
                   }`}
                 >
                   ✓ Finished · {stats.finished}
@@ -776,8 +776,8 @@ export default function Dashboard() {
                   key={c}
                   className={`group flex items-center gap-1 pl-4 pr-1.5 py-1.5 rounded-full text-sm font-medium border transition-colors ${
                     category === c
-                      ? "bg-[#3A5A40] text-white border-[#3A5A40]"
-                      : "bg-[#E5EBE6] border-[#3A5A40]/20 text-[#3A5A40] hover:bg-[#3A5A40] hover:text-white"
+                      ? "bg-[#6B46C1] text-white border-[#6B46C1]"
+                      : "bg-[#EDE7FB] border-[#6B46C1]/20 text-[#6B46C1] hover:bg-[#6B46C1] hover:text-white"
                   }`}
                 >
                   <button
@@ -859,7 +859,7 @@ export default function Dashboard() {
                 <button
                   data-testid="add-category-btn"
                   onClick={() => setAddingCat(true)}
-                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium border border-dashed border-[#3A5A40]/40 text-[#3A5A40] hover:bg-[#E5EBE6] transition-colors"
+                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium border border-dashed border-[#6B46C1]/40 text-[#6B46C1] hover:bg-[#EDE7FB] transition-colors"
                 >
                   <Plus className="w-4 h-4" />
                   New shelf
@@ -870,7 +870,7 @@ export default function Dashboard() {
             {seriesList.length > 0 && (
               <div className="mb-8">
                 <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] flex items-center gap-2">
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] flex items-center gap-2">
                     <Library className="w-3 h-3" /> Series detected
                   </p>
                   <p className="text-xs text-[#6B705C] hidden sm:block">
@@ -899,7 +899,7 @@ export default function Dashboard() {
                 <button
                   onClick={() => navigate("/library/linkless")}
                   data-testid="dashboard-linkless-chip"
-                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-[#E5EBE6] text-[#3A5A40] border border-[#3A5A40]/30 hover:bg-[#3A5A40] hover:text-white transition-colors"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-[#EDE7FB] text-[#6B46C1] border border-[#6B46C1]/30 hover:bg-[#6B46C1] hover:text-white transition-colors"
                   title="Books with no embedded source URL"
                 >
                   {linklessCount} linkless book{linklessCount === 1 ? "" : "s"} · open browser
@@ -928,10 +928,10 @@ export default function Dashboard() {
                 <button
                   onClick={() => navigate("/admin/unknown-sources")}
                   data-testid="dashboard-unknown-sources-chip"
-                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-[#EAF0EB] text-[#3A5A40] border border-[#3A5A40]/30 hover:bg-[#3A5A40] hover:text-white transition-colors"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-[#EEE9FB] text-[#6B46C1] border border-[#6B46C1]/30 hover:bg-[#6B46C1] hover:text-white transition-colors"
                   title="Potential new fanfic sources Shelfsort flagged for review"
                 >
-                  <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1 rounded-full bg-[#3A5A40] text-white text-[10px] font-bold leading-none">?</span>
+                  <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1 rounded-full bg-[#6B46C1] text-white text-[10px] font-bold leading-none">?</span>
                   {unknownSourcesCount} unknown source{unknownSourcesCount === 1 ? "" : "s"} · review
                   <ArrowRight className="w-3 h-3" />
                 </button>
@@ -944,10 +944,10 @@ export default function Dashboard() {
                   <button
                     onClick={() => navigate("/library/complete")}
                     data-testid="dashboard-complete-chip"
-                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-[#EAF0EB] text-[#3A5A40] border border-[#3A5A40]/30 hover:bg-[#3A5A40] hover:text-white transition-colors"
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-[#EEE9FB] text-[#6B46C1] border border-[#6B46C1]/30 hover:bg-[#6B46C1] hover:text-white transition-colors"
                     title="Books with a definitive ending"
                   >
-                    <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1 rounded-full bg-[#3A5A40] text-white text-[10px] font-bold leading-none">✓</span>
+                    <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1 rounded-full bg-[#6B46C1] text-white text-[10px] font-bold leading-none">✓</span>
                     {statusCounts.complete} finished
                     <ArrowRight className="w-3 h-3" />
                   </button>
@@ -970,7 +970,7 @@ export default function Dashboard() {
             {stats.fandoms.length > 0 && (
               <div className="mb-8">
                 <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40]">
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1]">
                     Fandom shelves
                   </p>
                   <p className="text-xs text-[#6B705C] hidden sm:block">
@@ -1014,7 +1014,7 @@ export default function Dashboard() {
                         className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors flex items-center gap-1.5 ${
                           isCrossover
                             ? "bg-[#FDF3E1] text-[#900] border-[#900]/30 hover:bg-[#900] hover:text-white"
-                            : "bg-[#E5EBE6] text-[#3A5A40] border-[#3A5A40]/20 hover:bg-[#3A5A40] hover:text-white"
+                            : "bg-[#EDE7FB] text-[#6B46C1] border-[#6B46C1]/20 hover:bg-[#6B46C1] hover:text-white"
                         }`}
                       >
                         {isCrossover && (
@@ -1037,7 +1037,7 @@ export default function Dashboard() {
             {stats.relationships && stats.relationships.length > 0 && (
               <div className="mb-8">
                 <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40]">
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1]">
                     Relationships
                   </p>
                   <p className="text-xs text-[#6B705C] hidden sm:block">
@@ -1072,13 +1072,13 @@ export default function Dashboard() {
             {authorsList.length > 0 && (
               <div className="mb-8">
                 <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] flex items-center gap-2">
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] flex items-center gap-2">
                     <UserCircle2 className="w-3 h-3" /> Authors
                   </p>
                   <button
                     onClick={() => navigate("/library/authors")}
                     data-testid="dashboard-authors-view-all"
-                    className="text-xs text-[#3A5A40] hover:text-[#2C2C2C] hover:underline"
+                    className="text-xs text-[#6B46C1] hover:text-[#2C2C2C] hover:underline"
                   >
                     View all →
                   </button>

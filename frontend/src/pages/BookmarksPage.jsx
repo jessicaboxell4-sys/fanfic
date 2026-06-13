@@ -36,11 +36,11 @@ export default function BookmarksPage() {
     <div className="min-h-screen bg-paper">
       <Navbar />
       <main className="max-w-5xl mx-auto px-6 py-10" data-testid="bookmarks-page">
-        <Link to="/" className="inline-flex items-center gap-1 text-sm text-[#6B705C] hover:text-[#3A5A40] mb-4">
+        <Link to="/" className="inline-flex items-center gap-1 text-sm text-[#6B705C] hover:text-[#6B46C1] mb-4">
           <ArrowLeft className="w-4 h-4" /> Back to library
         </Link>
         <div className="flex items-center gap-3 mb-6">
-          <Bookmark className="w-6 h-6 text-[#3A5A40]" />
+          <Bookmark className="w-6 h-6 text-[#6B46C1]" />
           <div>
             <h1 className="font-serif text-3xl text-[#2C2C2C]">All bookmarks</h1>
             <p className="text-sm text-[#6B705C]">
@@ -73,7 +73,7 @@ export default function BookmarksPage() {
                   {bm.book?.author && <span className="text-[#6B705C] text-sm font-normal"> — {bm.book.author}</span>}
                 </p>
                 {bm.chapter_label && (
-                  <p className="text-sm text-[#3A5A40] mt-1">{bm.chapter_label}</p>
+                  <p className="text-sm text-[#6B46C1] mt-1">{bm.chapter_label}</p>
                 )}
                 {bm.note && (
                   <p className="text-sm italic text-[#2C2C2C] mt-1">&ldquo;{bm.note}&rdquo;</p>

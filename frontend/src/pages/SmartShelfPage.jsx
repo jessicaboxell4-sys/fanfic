@@ -89,7 +89,7 @@ export default function SmartShelfPage() {
 
         <div className="mb-10 flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] mb-2">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-2">
               Smart shelf
             </p>
             <h1 className="font-serif text-4xl sm:text-5xl text-[#2C2C2C]" data-testid="smart-shelf-page-title">

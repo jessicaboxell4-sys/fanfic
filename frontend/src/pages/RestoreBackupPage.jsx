@@ -113,7 +113,7 @@ export default function RestoreBackupPage() {
         </button>
 
         <header className="mb-6 flex items-start gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-[#3A5A40]/10 text-[#3A5A40] flex items-center justify-center flex-shrink-0">
+          <div className="w-12 h-12 rounded-2xl bg-[#6B46C1]/10 text-[#6B46C1] flex items-center justify-center flex-shrink-0">
             <Upload className="w-6 h-6" />
           </div>
           <div>
@@ -210,7 +210,7 @@ export default function RestoreBackupPage() {
 
             {preview.smart_shelves.length > 0 && (
               <>
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] mb-2 flex items-center gap-2">
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-2 flex items-center gap-2">
                   <Layers className="w-3 h-3" /> Smart shelves
                 </p>
                 <ul className="space-y-1 mb-6 shelf-card p-2" data-testid="restore-shelf-list">
@@ -239,7 +239,7 @@ export default function RestoreBackupPage() {
                 onClick={apply}
                 disabled={busy || (selectedBooks.size === 0 && selectedShelves.size === 0)}
                 data-testid="restore-apply-btn"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#3A5A40] text-white hover:bg-[#2c4530] disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#6B46C1] text-white hover:bg-[#2c4530] disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
               >
                 {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
                 {busy ? "Restoring…" : `Restore ${selectedBooks.size} book${selectedBooks.size === 1 ? "" : "s"} + ${selectedShelves.size} shelves`}
@@ -258,7 +258,7 @@ export default function RestoreBackupPage() {
         {result && (
           <div className="shelf-card p-6" data-testid="restore-result">
             <div className="flex items-start gap-3 mb-4">
-              <CheckCircle2 className="w-6 h-6 text-[#3A5A40] flex-shrink-0 mt-0.5" />
+              <CheckCircle2 className="w-6 h-6 text-[#6B46C1] flex-shrink-0 mt-0.5" />
               <div>
                 <p className="font-serif text-xl text-[#2C2C2C]">Restore complete.</p>
                 <ul className="text-sm text-[#6B705C] mt-2 space-y-1">
@@ -273,7 +273,7 @@ export default function RestoreBackupPage() {
             <button
               onClick={() => navigate("/library")}
               data-testid="restore-done-btn"
-              className="px-4 py-2 rounded-lg bg-[#3A5A40] text-white hover:bg-[#2c4530] text-sm"
+              className="px-4 py-2 rounded-lg bg-[#6B46C1] text-white hover:bg-[#2c4530] text-sm"
             >
               Open library
             </button>

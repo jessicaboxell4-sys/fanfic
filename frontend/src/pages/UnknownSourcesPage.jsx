@@ -143,7 +143,7 @@ export default function UnknownSourcesPage() {
         </button>
 
         <header className="mb-6 flex items-start gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-[#3A5A40]/10 text-[#3A5A40] flex items-center justify-center flex-shrink-0">
+          <div className="w-12 h-12 rounded-2xl bg-[#6B46C1]/10 text-[#6B46C1] flex items-center justify-center flex-shrink-0">
             <Globe className="w-6 h-6" />
           </div>
           <div>
@@ -172,7 +172,7 @@ export default function UnknownSourcesPage() {
                   data-testid={`unknown-filter-${b.id}`}
                   className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
                     filter === b.id
-                      ? "bg-[#3A5A40] text-white border-[#3A5A40]"
+                      ? "bg-[#6B46C1] text-white border-[#6B46C1]"
                       : "bg-white text-[#2C2C2C] border-[#E5DDC5] hover:bg-[#F5F3EC]"
                   }`}
                 >
@@ -194,7 +194,7 @@ export default function UnknownSourcesPage() {
             onChange={(e) => setNewUrl(e.target.value)}
             data-testid="unknown-add-url"
             placeholder="Add a host manually — paste a URL (e.g. https://newarchive.com/story/1)"
-            className="flex-1 min-w-0 px-3 py-2 text-sm rounded-lg border border-[#E5DDC5] bg-white focus:outline-none focus:border-[#3A5A40]/60"
+            className="flex-1 min-w-0 px-3 py-2 text-sm rounded-lg border border-[#E5DDC5] bg-white focus:outline-none focus:border-[#6B46C1]/60"
           />
           <input
             type="text"
@@ -203,13 +203,13 @@ export default function UnknownSourcesPage() {
             data-testid="unknown-add-note"
             placeholder="Optional note ('friend mentioned it')"
             maxLength={500}
-            className="sm:w-64 px-3 py-2 text-sm rounded-lg border border-[#E5DDC5] bg-white focus:outline-none focus:border-[#3A5A40]/60"
+            className="sm:w-64 px-3 py-2 text-sm rounded-lg border border-[#E5DDC5] bg-white focus:outline-none focus:border-[#6B46C1]/60"
           />
           <button
             type="submit"
             disabled={adding || !newUrl.trim()}
             data-testid="unknown-add-submit"
-            className="px-4 py-2 text-sm font-medium rounded-lg bg-[#3A5A40] text-white hover:bg-[#2c4530] disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+            className="px-4 py-2 text-sm font-medium rounded-lg bg-[#6B46C1] text-white hover:bg-[#2c4530] disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
           >
             {adding ? "Queueing…" : "Queue for review"}
           </button>
@@ -223,7 +223,7 @@ export default function UnknownSourcesPage() {
             placeholder="Search host, sample URL, or book title…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2.5 text-sm rounded-lg border border-[#E5DDC5] bg-white focus:outline-none focus:border-[#3A5A40]/60"
+            className="w-full pl-9 pr-3 py-2.5 text-sm rounded-lg border border-[#E5DDC5] bg-white focus:outline-none focus:border-[#6B46C1]/60"
           />
         </div>
 
@@ -233,7 +233,7 @@ export default function UnknownSourcesPage() {
           <div className="shelf-card p-8 text-center text-[#6B705C]">
             {hosts.length === 0 ? (
               <>
-                <Globe className="w-10 h-10 mx-auto mb-3 text-[#3A5A40]" />
+                <Globe className="w-10 h-10 mx-auto mb-3 text-[#6B46C1]" />
                 <p className="font-medium text-[#2C2C2C] mb-1">No unknown sources.</p>
                 <p className="text-sm">Every URL you&apos;ve seen so far comes from a host we already recognize.</p>
               </>
@@ -256,7 +256,7 @@ export default function UnknownSourcesPage() {
                       {h.marked_accepted && (
                         <span
                           data-testid={`unknown-marked-${h.host}`}
-                          className="text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wide bg-[#3A5A40]/10 text-[#3A5A40] inline-flex items-center gap-1"
+                          className="text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wide bg-[#6B46C1]/10 text-[#6B46C1] inline-flex items-center gap-1"
                           title={`Marked ${formatTime(h.marked_accepted_at)} — agent will pick this up next session`}
                         >
                           <Tag className="w-3 h-3" /> Marked for adding
@@ -279,7 +279,7 @@ export default function UnknownSourcesPage() {
                     </div>
                     {(h.samples || []).length > 0 && (
                       <details className="text-xs">
-                        <summary className="cursor-pointer text-[#3A5A40] hover:text-[#2C2C2C]">
+                        <summary className="cursor-pointer text-[#6B46C1] hover:text-[#2C2C2C]">
                           {h.samples.length} sample URL{h.samples.length === 1 ? "" : "s"}
                         </summary>
                         <ul className="mt-2 space-y-1 ml-2">
@@ -289,7 +289,7 @@ export default function UnknownSourcesPage() {
                                 href={u}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-[#6B705C] hover:text-[#3A5A40] inline-flex items-center gap-1"
+                                className="text-[#6B705C] hover:text-[#6B46C1] inline-flex items-center gap-1"
                               >
                                 <ExternalLink className="w-3 h-3 flex-shrink-0" />
                                 {u}
@@ -307,8 +307,8 @@ export default function UnknownSourcesPage() {
                       data-testid={`unknown-mark-${h.host}`}
                       className={`inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border transition-colors disabled:opacity-50 ${
                         h.marked_accepted
-                          ? "bg-[#3A5A40] text-white border-[#3A5A40] hover:bg-[#2c4530]"
-                          : "bg-white text-[#3A5A40] border-[#3A5A40]/30 hover:bg-[#3A5A40] hover:text-white"
+                          ? "bg-[#6B46C1] text-white border-[#6B46C1] hover:bg-[#2c4530]"
+                          : "bg-white text-[#6B46C1] border-[#6B46C1]/30 hover:bg-[#6B46C1] hover:text-white"
                       }`}
                       title={h.marked_accepted ? "Un-mark this host" : "Mark this host for adding to the accepted list next session"}
                     >

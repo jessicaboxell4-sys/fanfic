@@ -149,7 +149,7 @@ export default function PublicYearInBooks() {
           >
             {data.year}
           </h1>
-          <p className="font-serif text-2xl md:text-3xl text-[#3A5A40] italic">
+          <p className="font-serif text-2xl md:text-3xl text-[#6B46C1] italic">
             {hasData ? "A year in books." : "A quieter year."}
           </p>
         </header>
@@ -167,7 +167,7 @@ export default function PublicYearInBooks() {
             <section className="shelf-card p-8 md:p-12 mb-8" data-testid="public-headline-stats">
               <div className="grid grid-cols-3 gap-4 md:gap-6">
                 <BigStat value={s.books_opened} label="Books opened" color="#E07A5F" />
-                <BigStat value={s.books_finished} label="Finished" color="#3A5A40" />
+                <BigStat value={s.books_finished} label="Finished" color="#6B46C1" />
                 <BigStat value={s.longest_streak} label="Longest streak" color="#B87A00" />
               </div>
               <div className="grid grid-cols-2 gap-4 md:gap-6 mt-10 pt-8 border-t border-[#E8E6E1]">
@@ -182,7 +182,7 @@ export default function PublicYearInBooks() {
               </div>
               {s.best_month && s.best_month.opens > 0 && (
                 <p className="text-center text-[#6B705C] mt-8 italic">
-                  Best month: <strong className="text-[#3A5A40] not-italic font-semibold">{s.best_month.name}</strong>{" "}
+                  Best month: <strong className="text-[#6B46C1] not-italic font-semibold">{s.best_month.name}</strong>{" "}
                   ({s.best_month.opens} book opens).
                 </p>
               )}
@@ -190,7 +190,7 @@ export default function PublicYearInBooks() {
 
             <section className="shelf-card p-6 md:p-8 mb-8">
               <div className="flex items-center gap-2 mb-5">
-                <Calendar className="w-4 h-4 text-[#3A5A40]" />
+                <Calendar className="w-4 h-4 text-[#6B46C1]" />
                 <h2 className="font-serif text-2xl text-[#2C2C2C]">Month by month</h2>
               </div>
               <div className="flex items-end gap-2 h-44">
@@ -231,12 +231,12 @@ export default function PublicYearInBooks() {
               {(s.top_authors || []).length > 0 && (
                 <section className="shelf-card p-6">
                   <div className="flex items-center gap-2 mb-4">
-                    <UserCircle2 className="w-4 h-4 text-[#3A5A40]" />
+                    <UserCircle2 className="w-4 h-4 text-[#6B46C1]" />
                     <h2 className="font-serif text-2xl text-[#2C2C2C]">Most-read authors</h2>
                   </div>
                   <div className="space-y-3">
                     {s.top_authors.map(a => (
-                      <BarRow key={a.name} label={a.name} value={a.count} max={maxAuthor} accent="#3A5A40" />
+                      <BarRow key={a.name} label={a.name} value={a.count} max={maxAuthor} accent="#6B46C1" />
                     ))}
                   </div>
                 </section>
@@ -286,7 +286,7 @@ export default function PublicYearInBooks() {
               )}
               {(s.top_fandoms || []).length >= 3 && (
                 <div className="shelf-card p-4 flex items-center gap-3">
-                  <Sparkles className="w-8 h-8 text-[#3A5A40] flex-shrink-0" />
+                  <Sparkles className="w-8 h-8 text-[#6B46C1] flex-shrink-0" />
                   <div>
                     <p className="text-sm font-semibold text-[#2C2C2C]">Eclectic</p>
                     <p className="text-xs text-[#6B705C]">{s.top_fandoms.length}+ fandoms</p>

@@ -36,7 +36,7 @@ export default function SeriesShelf() {
         </button>
 
         <div className="mb-10">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] mb-2 flex items-center gap-2">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-2 flex items-center gap-2">
             <Library className="w-3.5 h-3.5" /> Series shelf
           </p>
           <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl text-[#2C2C2C] leading-[1.05]" data-testid="series-title">

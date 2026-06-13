@@ -257,7 +257,7 @@ function SmartShelfBuilder({ initial, onClose, onSaved }) {
       >
         <div className="p-6 border-b border-[#E8E6E1] flex items-center justify-between">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] mb-1">Smart shelf</p>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-1">Smart shelf</p>
             <h2 className="font-serif text-2xl text-[#2C2C2C]">
               {initial ? "Edit shelf" : "New smart shelf"}
             </h2>
@@ -423,7 +423,7 @@ export default function SmartShelves() {
 
         <div className="mb-10 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] mb-2">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-2">
               Saved queries
             </p>
             <h1 className="font-serif text-4xl sm:text-5xl text-[#2C2C2C]" data-testid="smart-shelves-title">
@@ -518,7 +518,7 @@ export default function SmartShelves() {
 
                 <Link
                   to={`/library/smart/${s.shelf_id}`}
-                  className="text-sm font-semibold text-[#3A5A40] hover:text-[#2C2C2C] inline-flex items-center gap-1"
+                  className="text-sm font-semibold text-[#6B46C1] hover:text-[#2C2C2C] inline-flex items-center gap-1"
                 >
                   {s.count} book{s.count === 1 ? "" : "s"} <ArrowRight className="w-3 h-3" />
                 </Link>

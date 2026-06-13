@@ -42,7 +42,7 @@ export function AuthorsDirectory() {
           <ArrowLeft className="w-4 h-4" /> Back to library
         </button>
         <header className="mb-6 flex items-start gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-[#3A5A40]/10 text-[#3A5A40] flex items-center justify-center flex-shrink-0">
+          <div className="w-12 h-12 rounded-2xl bg-[#6B46C1]/10 text-[#6B46C1] flex items-center justify-center flex-shrink-0">
             <User className="w-6 h-6" />
           </div>
           <div>
@@ -70,7 +70,7 @@ export function AuthorsDirectory() {
             placeholder="Search authors…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2.5 text-sm rounded-lg border border-[#E5DDC5] bg-white focus:outline-none focus:border-[#3A5A40]/60"
+            className="w-full pl-9 pr-3 py-2.5 text-sm rounded-lg border border-[#E5DDC5] bg-white focus:outline-none focus:border-[#6B46C1]/60"
           />
         </div>
 
@@ -150,7 +150,7 @@ export function AuthorShelf() {
         </button>
 
         <header className="mb-6 flex items-start gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-[#3A5A40]/10 text-[#3A5A40] flex items-center justify-center flex-shrink-0">
+          <div className="w-12 h-12 rounded-2xl bg-[#6B46C1]/10 text-[#6B46C1] flex items-center justify-center flex-shrink-0">
             <User className="w-6 h-6" />
           </div>
           <div>
@@ -170,7 +170,7 @@ export function AuthorShelf() {
                 onClick={() => setCategoryFilter("")}
                 className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
                   categoryFilter === ""
-                    ? "bg-[#3A5A40] text-white border-[#3A5A40]"
+                    ? "bg-[#6B46C1] text-white border-[#6B46C1]"
                     : "bg-white text-[#2C2C2C] border-[#E5DDC5] hover:bg-[#F5F3EC]"
                 }`}
               >
@@ -182,7 +182,7 @@ export function AuthorShelf() {
                   onClick={() => setCategoryFilter(categoryFilter === cat ? "" : cat)}
                   className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
                     categoryFilter === cat
-                      ? "bg-[#3A5A40] text-white border-[#3A5A40]"
+                      ? "bg-[#6B46C1] text-white border-[#6B46C1]"
                       : "bg-white text-[#2C2C2C] border-[#E5DDC5] hover:bg-[#F5F3EC]"
                   }`}
                 >
@@ -217,7 +217,7 @@ export function AuthorShelf() {
                         className={`text-[10px] px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
                           isOngoing
                             ? "bg-[#F8E8D8] text-[#9E5A2E]"
-                            : "bg-[#EAF0EB] text-[#3A5A40]"
+                            : "bg-[#EEE9FB] text-[#6B46C1]"
                         }`}
                         title={isOngoing ? "Ongoing" : "Finished"}
                       >

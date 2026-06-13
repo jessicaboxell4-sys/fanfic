@@ -190,7 +190,7 @@ export function PairingShelf() {
                         className={`text-[10px] px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
                           isOngoing
                             ? "bg-[#F8E8D8] text-[#9E5A2E]"
-                            : "bg-[#EAF0EB] text-[#3A5A40]"
+                            : "bg-[#EEE9FB] text-[#6B46C1]"
                         }`}
                       >
                         {isOngoing

@@ -196,7 +196,7 @@ export default function YearInBooksPage() {
           >
             {year}
           </h1>
-          <p className="font-serif text-2xl md:text-3xl text-[#3A5A40] italic">
+          <p className="font-serif text-2xl md:text-3xl text-[#6B46C1] italic">
             {hasData ? "Your year in books." : "A quiet year on the shelf."}
           </p>
         </header>
@@ -220,7 +220,7 @@ export default function YearInBooksPage() {
             <section className="shelf-card p-8 md:p-12 mb-8" data-testid="year-headline-stats">
               <div className="grid grid-cols-3 gap-4 md:gap-6">
                 <BigStat value={s.books_opened} label="Books opened" color="#E07A5F" />
-                <BigStat value={s.books_finished} label="Finished" color="#3A5A40" />
+                <BigStat value={s.books_finished} label="Finished" color="#6B46C1" />
                 <BigStat value={s.longest_streak} label="Longest streak" color="#B87A00" />
               </div>
               <div className="grid grid-cols-2 gap-4 md:gap-6 mt-10 pt-8 border-t border-[#E8E6E1]">
@@ -235,7 +235,7 @@ export default function YearInBooksPage() {
               </div>
               {s.best_month && s.best_month.opens > 0 && (
                 <p className="text-center text-[#6B705C] mt-8 italic" data-testid="best-month-line">
-                  Your most active month was <strong className="text-[#3A5A40] not-italic font-semibold">{s.best_month.name}</strong>{" "}
+                  Your most active month was <strong className="text-[#6B46C1] not-italic font-semibold">{s.best_month.name}</strong>{" "}
                   ({s.best_month.opens} book opens).
                 </p>
               )}
@@ -244,7 +244,7 @@ export default function YearInBooksPage() {
             {/* Monthly chart */}
             <section className="shelf-card p-6 md:p-8 mb-8" data-testid="year-monthly-chart">
               <div className="flex items-center gap-2 mb-5">
-                <Calendar className="w-4 h-4 text-[#3A5A40]" />
+                <Calendar className="w-4 h-4 text-[#6B46C1]" />
                 <h2 className="font-serif text-2xl text-[#2C2C2C]">Month by month</h2>
               </div>
               <div className="flex items-end gap-2 h-44">
@@ -295,7 +295,7 @@ export default function YearInBooksPage() {
               {(s.top_authors || []).length > 0 && (
                 <section className="shelf-card p-6" data-testid="year-top-authors">
                   <div className="flex items-center gap-2 mb-4">
-                    <UserCircle2 className="w-4 h-4 text-[#3A5A40]" />
+                    <UserCircle2 className="w-4 h-4 text-[#6B46C1]" />
                     <h2 className="font-serif text-2xl text-[#2C2C2C]">Most-read authors</h2>
                   </div>
                   <div className="space-y-3">
@@ -306,7 +306,7 @@ export default function YearInBooksPage() {
                         value={a.count}
                         max={maxAuthor}
                         to={`/library/author/${encodeURIComponent(a.name)}`}
-                        accent="#3A5A40"
+                        accent="#6B46C1"
                       />
                     ))}
                   </div>
@@ -363,7 +363,7 @@ export default function YearInBooksPage() {
               )}
               {(s.top_fandoms || []).length >= 3 && (
                 <div className="shelf-card p-4 flex items-center gap-3">
-                  <Sparkles className="w-8 h-8 text-[#3A5A40] flex-shrink-0" />
+                  <Sparkles className="w-8 h-8 text-[#6B46C1] flex-shrink-0" />
                   <div>
                     <p className="text-sm font-semibold text-[#2C2C2C]">Eclectic</p>
                     <p className="text-xs text-[#6B705C]">{s.top_fandoms.length}+ fandoms</p>
@@ -415,7 +415,7 @@ export default function YearInBooksPage() {
           >
             <div className="p-6 border-b border-[#E8E6E1] flex items-center justify-between">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] mb-1">Public link</p>
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-1">Public link</p>
                 <h2 className="font-serif text-2xl text-[#2C2C2C]">Share your {year}</h2>
               </div>
               <button

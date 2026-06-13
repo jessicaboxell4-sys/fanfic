@@ -43,8 +43,8 @@ function SinceLastLogin() {
   const total = data.new_books + data.friend_requests + data.new_messages + data.unread_notifications;
   if (total === 0) return null;
   return (
-    <div className="bg-[#EEF3EC] border border-[#3A5A40]/30 rounded-xl p-3 text-sm text-[#2C2C2C] flex flex-wrap items-center gap-3" data-testid="since-last-login">
-      <Bell className="w-4 h-4 text-[#3A5A40]" />
+    <div className="bg-[#EEF3EC] border border-[#6B46C1]/30 rounded-xl p-3 text-sm text-[#2C2C2C] flex flex-wrap items-center gap-3" data-testid="since-last-login">
+      <Bell className="w-4 h-4 text-[#6B46C1]" />
       <span className="font-medium">Since you were last here ({fmtAgo(data.since)}):</span>
       {data.new_books > 0 && <span data-testid="since-new-books">📚 {data.new_books} new book{data.new_books === 1 ? "" : "s"}</span>}
       {data.friend_requests > 0 && <span data-testid="since-friend-requests">👋 {data.friend_requests} friend request{data.friend_requests === 1 ? "" : "s"}</span>}
@@ -83,7 +83,7 @@ function SurpriseMeButton() {
       className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-[#E8E2D4] hover:bg-[#F7F4EE] text-sm text-[#2C2C2C] disabled:opacity-50"
       data-testid="surprise-me-btn"
     >
-      {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Shuffle className="w-4 h-4 text-[#3A5A40]" />}
+      {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Shuffle className="w-4 h-4 text-[#6B46C1]" />}
       Surprise me
     </button>
   );
@@ -101,7 +101,7 @@ function UnreadFilterChip() {
       className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-[#E8E2D4] hover:bg-[#F7F4EE] text-sm text-[#2C2C2C]"
       data-testid="unread-filter-chip"
     >
-      <BookOpen className="w-4 h-4 text-[#3A5A40]" />
+      <BookOpen className="w-4 h-4 text-[#6B46C1]" />
       Books I haven&apos;t read
     </button>
   );
@@ -144,7 +144,7 @@ function ReadingQueueWidget() {
     <div className="bg-white border border-[#E8E2D4] rounded-xl p-3" data-testid="reading-queue-widget">
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm font-medium text-[#2C2C2C] inline-flex items-center gap-2">
-          <Bookmark className="w-4 h-4 text-[#3A5A40]" /> Up next ({queue.length})
+          <Bookmark className="w-4 h-4 text-[#6B46C1]" /> Up next ({queue.length})
         </span>
       </div>
       <ul className="space-y-1">
@@ -153,7 +153,7 @@ function ReadingQueueWidget() {
             <button
               type="button"
               onClick={() => navigate(`/read/${b.book_id}`)}
-              className="flex-1 text-left truncate text-[#2C2C2C] hover:text-[#3A5A40]"
+              className="flex-1 text-left truncate text-[#2C2C2C] hover:text-[#6B46C1]"
             >
               {b.title} <span className="text-[#6B705C] text-xs">— {b.author || "Unknown"}</span>
             </button>

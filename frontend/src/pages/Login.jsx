@@ -76,7 +76,7 @@ export default function Login() {
             <BookOpen className="w-7 h-7 text-[#E07A5F]" />
             <span className="font-serif text-2xl">Shelfsort</span>
           </div>
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] mb-3">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-3">
             {mode === "login" ? "Welcome back" : mode === "register" ? "Make a shelf" : "Forgot your password?"}
           </p>
           <h1 className="font-serif text-4xl text-[#2C2C2C] mb-3">

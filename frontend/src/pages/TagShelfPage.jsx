@@ -93,7 +93,7 @@ export default function TagShelfPage() {
               <TagIcon className="w-7 h-7" />
             </div>
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] mb-2">
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-2">
                 Tag shelf
               </p>
               <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl text-[#2C2C2C]" data-testid="tag-shelf-title">

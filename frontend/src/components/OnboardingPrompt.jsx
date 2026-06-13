@@ -107,7 +107,7 @@ export default function OnboardingPrompt() {
           onClick={() => dismiss(true)}
           disabled={working}
           data-testid="onboarding-template-accept"
-          className="px-5 py-2 rounded-xl bg-[#3A5A40] text-white text-sm font-semibold hover:bg-[#2D4730] disabled:opacity-60 flex items-center gap-2"
+          className="px-5 py-2 rounded-xl bg-[#6B46C1] text-white text-sm font-semibold hover:bg-[#2D4730] disabled:opacity-60 flex items-center gap-2"
         >
           {working ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
           {working ? "Working…" : "Yes, polish everything"}

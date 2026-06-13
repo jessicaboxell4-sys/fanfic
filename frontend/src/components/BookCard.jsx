@@ -21,7 +21,7 @@ const categoryBadgeClass = (category) => {
 //   A  ai              — Claude classified (heuristic fell through)
 //   X  manual          — user picked the fandom by hand
 const CLASSIFIER_CHIPS = {
-  metadata:        { letter: "M", title: "Classified by keyword metadata match",  cls: "bg-[#EAF0EB] text-[#3A5A40]" },
+  metadata:        { letter: "M", title: "Classified by keyword metadata match",  cls: "bg-[#EEE9FB] text-[#6B46C1]" },
   metadata_rescan: { letter: "R", title: "Rescued from 'Other' by admin rescan",  cls: "bg-[#FDF3E1] text-[#8C5C00]" },
   ai:              { letter: "A", title: "Classified by AI (Claude)",             cls: "bg-[#F0E8F5] text-[#6B4A8C]" },
   manual:          { letter: "X", title: "Classified manually",                   cls: "bg-[#E8EEF5] text-[#3A5A8C]" },
@@ -108,7 +108,7 @@ export default function BookCard({ book, selectMode, selected, onToggleSelect, o
         {!selectMode && isRead && (
           <div
             data-testid={`read-badge-${book.book_id}`}
-            className="absolute top-2 right-2 bg-[#3A5A40] text-white text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full flex items-center gap-1 shadow"
+            className="absolute top-2 right-2 bg-[#6B46C1] text-white text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full flex items-center gap-1 shadow"
           >
             <CheckCircle2 className="w-3 h-3" /> Read
           </div>
@@ -124,8 +124,8 @@ export default function BookCard({ book, selectMode, selected, onToggleSelect, o
             title={isRead ? "Mark as unread" : "Mark as read"}
             className={`absolute bottom-2 right-2 w-9 h-9 rounded-full flex items-center justify-center transition-all
               ${isRead
-                ? "bg-white text-[#3A5A40] border border-[#3A5A40]/30 opacity-0 group-hover:opacity-100"
-                : "bg-white text-[#6B705C] border border-[#E8E6E1] opacity-0 group-hover:opacity-100 hover:text-[#3A5A40]"
+                ? "bg-white text-[#6B46C1] border border-[#6B46C1]/30 opacity-0 group-hover:opacity-100"
+                : "bg-white text-[#6B705C] border border-[#E8E6E1] opacity-0 group-hover:opacity-100 hover:text-[#6B46C1]"
               }
               ${marking ? "animate-pulse" : ""} shadow-md hover:shadow-lg`}
           >

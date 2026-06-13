@@ -91,7 +91,7 @@ export default function Navbar() {
                   className="p-2 hover:bg-[#F5F3EC] rounded-lg relative"
                   title={unknownFandomCount > 0 ? `Admin console — ${unknownFandomCount} unknown fandom${unknownFandomCount === 1 ? "" : "s"}` : "Admin console"}
                 >
-                  <ShieldCheck className="w-4 h-4 text-[#3A5A40]" />
+                  <ShieldCheck className="w-4 h-4 text-[#6B46C1]" />
                   {unknownFandomCount > 0 && (
                     <span
                       data-testid="navbar-admin-badge"

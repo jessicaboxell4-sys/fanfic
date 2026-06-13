@@ -105,7 +105,7 @@ export default function StatsPage() {
 
         <div className="mb-10 flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] mb-2">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-2">
               Reading statistics
             </p>
             <h1 className="font-serif text-4xl sm:text-5xl text-[#2C2C2C]" data-testid="stats-page-title">
@@ -160,7 +160,7 @@ export default function StatsPage() {
 
         {isEmpty ? (
           <div className="shelf-card p-12 text-center">
-            <BookCheck className="w-12 h-12 text-[#3A5A40] mx-auto mb-4 opacity-70" />
+            <BookCheck className="w-12 h-12 text-[#6B46C1] mx-auto mb-4 opacity-70" />
             <h2 className="font-serif text-2xl text-[#2C2C2C] mb-2">No reading history yet</h2>
             <p className="text-[#6B705C] mb-6">Open a few books to start building your stats.</p>
             <Link to="/library" className="btn-primary text-sm inline-block">Go to library</Link>
@@ -171,7 +171,7 @@ export default function StatsPage() {
             <section className="shelf-card p-6 mb-6" data-testid="daily-activity-card">
               <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
                 <div className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-[#3A5A40]" />
+                  <Calendar className="w-4 h-4 text-[#6B46C1]" />
                   <h2 className="font-serif text-2xl text-[#2C2C2C]">Last 30 days</h2>
                 </div>
                 <p className="text-sm text-[#6B705C]">
@@ -230,7 +230,7 @@ export default function StatsPage() {
               {/* Top authors */}
               <section className="shelf-card p-6" data-testid="top-authors-card">
                 <div className="flex items-center gap-2 mb-4">
-                  <UserCircle2 className="w-4 h-4 text-[#3A5A40]" />
+                  <UserCircle2 className="w-4 h-4 text-[#6B46C1]" />
                   <h2 className="font-serif text-2xl text-[#2C2C2C]">Most read authors</h2>
                 </div>
                 {(detail.top_authors || []).length === 0 ? (
@@ -244,7 +244,7 @@ export default function StatsPage() {
                         value={a.count}
                         max={maxAuthor}
                         to={`/library/author/${encodeURIComponent(a.name)}`}
-                        accent="#3A5A40"
+                        accent="#6B46C1"
                       />
                     ))}
                   </div>
@@ -255,7 +255,7 @@ export default function StatsPage() {
             {/* Books finished per month */}
             <section className="shelf-card p-6 mb-6" data-testid="monthly-finished-card">
               <div className="flex items-center gap-2 mb-4">
-                <TrendingUp className="w-4 h-4 text-[#3A5A40]" />
+                <TrendingUp className="w-4 h-4 text-[#6B46C1]" />
                 <h2 className="font-serif text-2xl text-[#2C2C2C]">Books finished — last 12 months</h2>
               </div>
               <div className="flex items-end gap-2 h-40">
@@ -268,7 +268,7 @@ export default function StatsPage() {
                         className="w-full rounded-t-md transition-all"
                         style={{
                           height: `${Math.max(2, pct)}%`,
-                          background: m.finished > 0 ? "#3A5A40" : "#E8E6E1",
+                          background: m.finished > 0 ? "#6B46C1" : "#E8E6E1",
                           minHeight: "4px",
                         }}
                       />
@@ -293,7 +293,7 @@ export default function StatsPage() {
                     max={detail.books_total}
                     accent={
                       c.name === "Fanfiction" ? "#E07A5F" :
-                      c.name === "Original Fiction" ? "#3A5A40" :
+                      c.name === "Original Fiction" ? "#6B46C1" :
                       c.name === "Non-fiction" ? "#B87A00" : "#6B705C"
                     }
                   />

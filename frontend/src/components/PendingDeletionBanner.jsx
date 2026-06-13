@@ -46,7 +46,7 @@ export default function PendingDeletionBanner() {
         onClick={cancel}
         disabled={cancelling}
         data-testid="pending-deletion-cancel-btn"
-        className="px-3 py-1 rounded-lg bg-[#3A5A40] text-white text-xs font-semibold hover:bg-[#2c4530] disabled:opacity-60 flex items-center gap-1 flex-shrink-0"
+        className="px-3 py-1 rounded-lg bg-[#6B46C1] text-white text-xs font-semibold hover:bg-[#2c4530] disabled:opacity-60 flex items-center gap-1 flex-shrink-0"
       >
         {cancelling ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
         {cancelling ? "Cancelling…" : "Cancel deletion"}

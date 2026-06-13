@@ -9,7 +9,7 @@ import { api } from "../lib/api";
 //   warn  — amber
 //   error — red
 const SEV_STYLES = {
-  info:  { bg: "bg-[#EAF0EB]", border: "border-[#3A5A40]/30", text: "text-[#3A5A40]", Icon: Info },
+  info:  { bg: "bg-[#EEE9FB]", border: "border-[#6B46C1]/30", text: "text-[#6B46C1]", Icon: Info },
   warn:  { bg: "bg-[#FDF3E1]", border: "border-[#B87A00]/40", text: "text-[#8C5C00]", Icon: AlertTriangle },
   error: { bg: "bg-[#FBE9E7]", border: "border-[#D9534F]/40", text: "text-[#9B3531]", Icon: AlertCircle },
 };

@@ -70,10 +70,10 @@ export default function BackupReminderBanner() {
 
   return (
     <div
-      className="mb-4 shelf-card p-4 flex items-start gap-3 border-l-4 border-l-[#3A5A40]"
+      className="mb-4 shelf-card p-4 flex items-start gap-3 border-l-4 border-l-[#6B46C1]"
       data-testid="backup-reminder-banner"
     >
-      <Shield className="w-5 h-5 text-[#3A5A40] flex-shrink-0 mt-0.5" />
+      <Shield className="w-5 h-5 text-[#6B46C1] flex-shrink-0 mt-0.5" />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-[#2C2C2C]">{headline}</p>
         <p className="text-xs text-[#6B705C] mt-0.5">
@@ -85,7 +85,7 @@ export default function BackupReminderBanner() {
           onClick={download}
           disabled={busy}
           data-testid="backup-reminder-download"
-          className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-[#3A5A40] text-white hover:bg-[#2c4530] transition-colors disabled:opacity-50 whitespace-nowrap"
+          className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-[#6B46C1] text-white hover:bg-[#2c4530] transition-colors disabled:opacity-50 whitespace-nowrap"
         >
           {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
           {busy ? "Generating…" : "Download backup"}

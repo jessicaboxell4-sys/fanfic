@@ -27,13 +27,13 @@ export default function UnreadLibraryPage() {
       <main className="max-w-7xl mx-auto px-6 py-10" data-testid="unread-library-page">
         <Link
           to="/"
-          className="inline-flex items-center gap-1 text-sm text-[#6B705C] hover:text-[#3A5A40] mb-4"
+          className="inline-flex items-center gap-1 text-sm text-[#6B705C] hover:text-[#6B46C1] mb-4"
           data-testid="unread-library-back"
         >
           <ArrowLeft className="w-4 h-4" /> Back to library
         </Link>
         <div className="flex items-center gap-3 mb-6">
-          <BookOpen className="w-6 h-6 text-[#3A5A40]" />
+          <BookOpen className="w-6 h-6 text-[#6B46C1]" />
           <div>
             <h1 className="font-serif text-3xl text-[#2C2C2C]">Books I haven&apos;t read</h1>
             <p className="text-sm text-[#6B705C]">

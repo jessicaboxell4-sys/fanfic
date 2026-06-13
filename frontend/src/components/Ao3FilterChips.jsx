@@ -89,7 +89,7 @@ export default function Ao3FilterChips({ value, onChange, onShelfSaved }) {
         <span className="font-medium inline-flex items-center gap-2">
           AO3 filters
           {anyActive && (
-            <span className="text-xs bg-[#3A5A40] text-white px-2 py-0.5 rounded-full" data-testid="ao3-filter-active-count">
+            <span className="text-xs bg-[#6B46C1] text-white px-2 py-0.5 rounded-full" data-testid="ao3-filter-active-count">
               {[v.rating, v.ao3_category, v.warning, v.exclude_warning].filter(Boolean).length} active
             </span>
           )}
@@ -102,7 +102,7 @@ export default function Ao3FilterChips({ value, onChange, onShelfSaved }) {
           <div>
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs font-medium text-[#6B705C]">Rating</span>
-              {v.rating && <button type="button" onClick={() => clear("rating")} className="text-xs text-[#3A5A40] hover:underline">clear</button>}
+              {v.rating && <button type="button" onClick={() => clear("rating")} className="text-xs text-[#6B46C1] hover:underline">clear</button>}
             </div>
             <div className="flex flex-wrap gap-1.5">
               {RATINGS.map((r) => (
@@ -113,7 +113,7 @@ export default function Ao3FilterChips({ value, onChange, onShelfSaved }) {
                   title={r.title}
                   className={`px-2.5 py-1 rounded-full text-xs font-mono border ${
                     v.rating === r.v
-                      ? "bg-[#3A5A40] text-white border-[#3A5A40]"
+                      ? "bg-[#6B46C1] text-white border-[#6B46C1]"
                       : "bg-white text-[#2C2C2C] border-[#E8E2D4] hover:bg-[#F7F4EE]"
                   }`}
                   data-testid={`ao3-rating-${r.label}`}
@@ -128,7 +128,7 @@ export default function Ao3FilterChips({ value, onChange, onShelfSaved }) {
           <div>
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs font-medium text-[#6B705C]">Category</span>
-              {v.ao3_category && <button type="button" onClick={() => clear("ao3_category")} className="text-xs text-[#3A5A40] hover:underline">clear</button>}
+              {v.ao3_category && <button type="button" onClick={() => clear("ao3_category")} className="text-xs text-[#6B46C1] hover:underline">clear</button>}
             </div>
             <div className="flex flex-wrap gap-1.5">
               {CATEGORIES.map((c) => (
@@ -138,7 +138,7 @@ export default function Ao3FilterChips({ value, onChange, onShelfSaved }) {
                   onClick={() => patch("ao3_category", v.ao3_category === c ? null : c)}
                   className={`px-2.5 py-1 rounded-full text-xs font-mono border ${
                     v.ao3_category === c
-                      ? "bg-[#3A5A40] text-white border-[#3A5A40]"
+                      ? "bg-[#6B46C1] text-white border-[#6B46C1]"
                       : "bg-white text-[#2C2C2C] border-[#E8E2D4] hover:bg-[#F7F4EE]"
                   }`}
                   data-testid={`ao3-category-${c.replace(/\//g, "")}`}
@@ -153,7 +153,7 @@ export default function Ao3FilterChips({ value, onChange, onShelfSaved }) {
           <div>
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs font-medium text-[#6B705C]">Show only books warned for</span>
-              {v.warning && <button type="button" onClick={() => clear("warning")} className="text-xs text-[#3A5A40] hover:underline">clear</button>}
+              {v.warning && <button type="button" onClick={() => clear("warning")} className="text-xs text-[#6B46C1] hover:underline">clear</button>}
             </div>
             <div className="flex flex-wrap gap-1.5">
               {WARNINGS.map((w) => (
@@ -181,7 +181,7 @@ export default function Ao3FilterChips({ value, onChange, onShelfSaved }) {
                 <ShieldAlert className="w-3 h-3" />
                 Hide books warned for
               </span>
-              {v.exclude_warning && <button type="button" onClick={() => clear("exclude_warning")} className="text-xs text-[#3A5A40] hover:underline">clear</button>}
+              {v.exclude_warning && <button type="button" onClick={() => clear("exclude_warning")} className="text-xs text-[#6B46C1] hover:underline">clear</button>}
             </div>
             <div className="flex flex-wrap gap-1.5">
               {WARNINGS.filter((w) => w !== "No Archive Warnings Apply").map((w) => (
@@ -208,7 +208,7 @@ export default function Ao3FilterChips({ value, onChange, onShelfSaved }) {
                 type="button"
                 onClick={saveAsShelf}
                 disabled={saving}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-[#3A5A40] text-white hover:bg-[#2C4730] disabled:opacity-60 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-[#6B46C1] text-white hover:bg-[#2C4730] disabled:opacity-60 disabled:cursor-not-allowed"
                 data-testid="ao3-filter-save-shelf"
                 title="Save this filter as a Smart Shelf"
               >
@@ -218,7 +218,7 @@ export default function Ao3FilterChips({ value, onChange, onShelfSaved }) {
               <button
                 type="button"
                 onClick={clearAll}
-                className="text-xs text-[#6B705C] hover:text-[#3A5A40] underline inline-flex items-center gap-1"
+                className="text-xs text-[#6B705C] hover:text-[#6B46C1] underline inline-flex items-center gap-1"
                 data-testid="ao3-filter-clear-all"
               >
                 <XIcon className="w-3 h-3" /> clear all AO3 filters

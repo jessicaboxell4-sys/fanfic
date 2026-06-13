@@ -63,7 +63,7 @@ export default function LibraryStatsCard() {
   return (
     <section className="shelf-card p-6 mb-6" data-testid="library-stats-card">
       <div className="flex items-start gap-3 mb-4">
-        <div className="w-10 h-10 rounded-xl bg-[#3A5A40]/10 text-[#3A5A40] flex items-center justify-center flex-shrink-0">
+        <div className="w-10 h-10 rounded-xl bg-[#6B46C1]/10 text-[#6B46C1] flex items-center justify-center flex-shrink-0">
           <BookOpen className="w-5 h-5" />
         </div>
         <div className="flex-1">
@@ -80,8 +80,8 @@ export default function LibraryStatsCard() {
               data-testid={`trend-window-${w.label.toLowerCase()}`}
               className={`px-2.5 py-1 rounded-full text-xs font-medium transition ${
                 windowDays === w.d
-                  ? "bg-[#3A5A40] text-white"
-                  : "bg-[#FDF3E1] text-[#6B705C] hover:bg-[#3A5A40]/10 hover:text-[#3A5A40]"
+                  ? "bg-[#6B46C1] text-white"
+                  : "bg-[#FDF3E1] text-[#6B705C] hover:bg-[#6B46C1]/10 hover:text-[#6B46C1]"
               }`}
             >
               {w.label}
@@ -102,7 +102,7 @@ export default function LibraryStatsCard() {
               <div className="text-xs uppercase tracking-wide text-[#6B705C] mt-1">{label}</div>
               {trend != null && (
                 <div
-                  className={`text-[10px] mt-1 ${trend > 0 ? "text-[#3A5A40] font-semibold" : "text-[#6B705C]/70"}`}
+                  className={`text-[10px] mt-1 ${trend > 0 ? "text-[#6B46C1] font-semibold" : "text-[#6B705C]/70"}`}
                   data-testid={`${testId}-trend`}
                 >
                   {delta(trend)}

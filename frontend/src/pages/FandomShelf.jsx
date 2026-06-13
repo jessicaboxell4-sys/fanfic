@@ -109,7 +109,7 @@ export default function FandomShelf() {
 
         <div className="mb-10 flex flex-wrap items-end justify-between gap-6">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] mb-2">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-2">
               Fanfiction · Fandom shelf
             </p>
             <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl text-[#2C2C2C] leading-[1.05]" data-testid="fandom-title">

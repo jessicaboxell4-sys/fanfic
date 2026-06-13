@@ -72,7 +72,7 @@ export default function ResetPassword() {
 
         {done ? (
           <div className="text-center">
-            <div className="w-14 h-14 rounded-full bg-[#E5EBE6] text-[#3A5A40] flex items-center justify-center mx-auto mb-4">
+            <div className="w-14 h-14 rounded-full bg-[#EDE7FB] text-[#6B46C1] flex items-center justify-center mx-auto mb-4">
               <CheckCircle2 className="w-7 h-7" />
             </div>
             <h1 className="font-serif text-3xl text-[#2C2C2C] mb-3">Password updated</h1>
@@ -80,7 +80,7 @@ export default function ResetPassword() {
           </div>
         ) : (
           <>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] mb-3">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-3">
               Almost there
             </p>
             <h1 className="font-serif text-4xl text-[#2C2C2C] mb-3">Choose a new password.</h1>

@@ -170,10 +170,10 @@ function StatusShelf({ target, icon: Icon, accent, title, blurb, emptyMsg, dataT
 }
 
 const COMPLETE_ACCENT = {
-  bg: "bg-[#3A5A40]/10",
-  text: "text-[#3A5A40]",
-  solid: "bg-[#3A5A40]",
-  focus: "focus:border-[#3A5A40]/60",
+  bg: "bg-[#6B46C1]/10",
+  text: "text-[#6B46C1]",
+  solid: "bg-[#6B46C1]",
+  focus: "focus:border-[#6B46C1]/60",
 };
 const ONGOING_ACCENT = {
   bg: "bg-[#D08C60]/15",

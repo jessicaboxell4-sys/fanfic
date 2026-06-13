@@ -150,7 +150,7 @@ function AttachBookPopover({ open, onClose, onPick }) {
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search title…"
           data-testid="chat-attach-book-search"
-          className="w-full text-xs px-3 py-1.5 rounded-lg border border-[#E5DDC5] bg-[#FBFAF6] focus:outline-none focus:ring-2 focus:ring-[#3A5A40]/30"
+          className="w-full text-xs px-3 py-1.5 rounded-lg border border-[#E5DDC5] bg-[#FBFAF6] focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/30"
         />
       </div>
       <ul className="max-h-64 overflow-y-auto">
@@ -291,7 +291,7 @@ function Composer({ roomId, onSent }) {
           placeholder="Type a message… (Shift+Enter for new line)"
           data-testid="chat-composer-input"
           rows={1}
-          className="flex-1 text-sm px-3 py-2 rounded-lg border border-[#E5DDC5] bg-[#FBFAF6] focus:outline-none focus:ring-2 focus:ring-[#3A5A40]/30 resize-none"
+          className="flex-1 text-sm px-3 py-2 rounded-lg border border-[#E5DDC5] bg-[#FBFAF6] focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/30 resize-none"
         />
         <button
           type="button"

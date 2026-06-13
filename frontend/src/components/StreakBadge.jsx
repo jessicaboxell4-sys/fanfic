@@ -38,7 +38,7 @@ export default function StreakBadge() {
           ? "bg-[#FDF3E1] text-[#B87A00] border border-[#B87A00]/30"
           : isHot
           ? "bg-[#FDEFE7] text-[#E07A5F] border border-[#E07A5F]/30"
-          : "bg-[#EEF3EC] text-[#3A5A40] border border-[#3A5A40]/20"
+          : "bg-[#EEF3EC] text-[#6B46C1] border border-[#6B46C1]/20"
       }`}
       title={
         grace

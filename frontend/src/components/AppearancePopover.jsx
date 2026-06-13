@@ -110,8 +110,8 @@ export default function AppearancePopover() {
                     aria-label={`${p.name} palette`}
                     className={`relative h-10 rounded-lg border transition-all ${
                       selected
-                        ? "border-[#3A5A40] ring-2 ring-[#3A5A40]/30"
-                        : "border-[#E5DDC5] hover:border-[#3A5A40]/40"
+                        ? "border-[#6B46C1] ring-2 ring-[#6B46C1]/30"
+                        : "border-[#E5DDC5] hover:border-[#6B46C1]/40"
                     }`}
                     style={{
                       background: `linear-gradient(135deg, ${p.light.primary} 0%, ${p.light.primaryHover} 100%)`,
@@ -138,8 +138,8 @@ export default function AppearancePopover() {
                 aria-label="Custom palette"
                 className={`relative h-10 rounded-lg border-2 border-dashed transition-all flex items-center justify-center ${
                   isCustom
-                    ? "border-[#3A5A40] ring-2 ring-[#3A5A40]/30"
-                    : "border-[#E5DDC5] hover:border-[#3A5A40]/40"
+                    ? "border-[#6B46C1] ring-2 ring-[#6B46C1]/30"
+                    : "border-[#E5DDC5] hover:border-[#6B46C1]/40"
                 }`}
                 style={
                   isCustom
@@ -167,7 +167,7 @@ export default function AppearancePopover() {
             to="/account/appearance"
             onClick={() => setOpen(false)}
             data-testid="appearance-popover-more-link"
-            className="flex items-center justify-between gap-2 px-4 py-3 text-sm text-[#3A5A40] hover:bg-[#FBFAF6] font-semibold"
+            className="flex items-center justify-between gap-2 px-4 py-3 text-sm text-[#6B46C1] hover:bg-[#FBFAF6] font-semibold"
           >
             <span>More appearance options</span>
             <ChevronRight className="w-4 h-4" />

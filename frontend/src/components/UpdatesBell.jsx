@@ -108,7 +108,7 @@ export default function UpdatesBell() {
             <button
               onClick={markAllSeen}
               disabled={loading}
-              className="text-xs text-[#3A5A40] hover:underline disabled:opacity-50 inline-flex items-center gap-1"
+              className="text-xs text-[#6B46C1] hover:underline disabled:opacity-50 inline-flex items-center gap-1"
               data-testid="updates-bell-mark-all"
             >
               <CheckCheck className="h-3 w-3" />
@@ -142,7 +142,7 @@ export default function UpdatesBell() {
                     </p>
                     <div className="flex items-center gap-3 text-xs">
                       {added > 0 && (
-                        <span className="inline-flex items-center gap-1 text-[#3A5A40] font-semibold">
+                        <span className="inline-flex items-center gap-1 text-[#6B46C1] font-semibold">
                           +{added} new chapter{added === 1 ? "" : "s"}
                         </span>
                       )}
@@ -158,7 +158,7 @@ export default function UpdatesBell() {
                         {formatRelative(u.last_refreshed_at)}
                       </span>
                     </div>
-                    <p className="mt-2 inline-flex items-center gap-1 text-xs text-[#3A5A40] hover:underline">
+                    <p className="mt-2 inline-flex items-center gap-1 text-xs text-[#6B46C1] hover:underline">
                       <GitCompare className="h-3 w-3" />
                       See what changed
                     </p>

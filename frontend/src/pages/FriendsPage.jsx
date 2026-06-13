@@ -205,7 +205,7 @@ export default function FriendsPage() {
             onChange={(e) => setQ(e.target.value)}
             placeholder="Name or email (min 2 chars)…"
             data-testid="friends-search-input"
-            className="w-full text-sm px-3 py-2 rounded-lg border border-[#E5DDC5] bg-white focus:outline-none focus:ring-2 focus:ring-[#3A5A40]/30"
+            className="w-full text-sm px-3 py-2 rounded-lg border border-[#E5DDC5] bg-white focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/30"
           />
           {q.trim().length >= 2 && (
             <ul className="mt-3 rounded-lg border border-[#E8E6E1] bg-white overflow-hidden">
@@ -234,7 +234,7 @@ export default function FriendsPage() {
                       type="button"
                       onClick={() => accept(u.user_id)}
                       data-testid={`friends-accept-btn-${u.user_id}`}
-                      className="text-[11px] px-2 py-1 rounded bg-[#3A5A40] text-white font-semibold inline-flex items-center gap-1"
+                      className="text-[11px] px-2 py-1 rounded bg-[#6B46C1] text-white font-semibold inline-flex items-center gap-1"
                     >
                       <Check className="w-3 h-3" /> Accept
                     </button>
@@ -243,7 +243,7 @@ export default function FriendsPage() {
                     <button
                       type="button"
                       onClick={() => openDM(u.user_id)}
-                      className="text-[11px] px-2 py-1 rounded border border-[#3A5A40] text-[#3A5A40] inline-flex items-center gap-1"
+                      className="text-[11px] px-2 py-1 rounded border border-[#6B46C1] text-[#6B46C1] inline-flex items-center gap-1"
                     >
                       <MessageSquare className="w-3 h-3" /> Message
                     </button>
@@ -269,7 +269,7 @@ export default function FriendsPage() {
               onChange={(e) => setInviteEmail(e.target.value)}
               placeholder="friend@example.com"
               data-testid="friends-invite-email"
-              className="w-full text-sm px-3 py-2 rounded-lg border border-[#E5DDC5] bg-white focus:outline-none focus:ring-2 focus:ring-[#3A5A40]/30"
+              className="w-full text-sm px-3 py-2 rounded-lg border border-[#E5DDC5] bg-white focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/30"
             />
             <input
               type="text"
@@ -277,7 +277,7 @@ export default function FriendsPage() {
               onChange={(e) => setInviteNote(e.target.value.slice(0, 200))}
               placeholder="Optional note (e.g. 'You'd love this for your fanfic stash')"
               data-testid="friends-invite-note"
-              className="w-full text-sm px-3 py-2 rounded-lg border border-[#E5DDC5] bg-white focus:outline-none focus:ring-2 focus:ring-[#3A5A40]/30"
+              className="w-full text-sm px-3 py-2 rounded-lg border border-[#E5DDC5] bg-white focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/30"
             />
             <button
               type="button"
@@ -335,7 +335,7 @@ export default function FriendsPage() {
                 <ul className="rounded-lg border border-[#E8E6E1]">
                   {data.pending_in.map((r) => (
                     <PersonRow key={r.friendship_id} row={r} testid={`friends-pending-in-${r.other_user_id}`}>
-                      <button type="button" onClick={() => accept(r.other_user_id)} data-testid={`friends-accept-btn-${r.other_user_id}`} className="text-[11px] px-2 py-1 rounded bg-[#3A5A40] text-white font-semibold inline-flex items-center gap-1">
+                      <button type="button" onClick={() => accept(r.other_user_id)} data-testid={`friends-accept-btn-${r.other_user_id}`} className="text-[11px] px-2 py-1 rounded bg-[#6B46C1] text-white font-semibold inline-flex items-center gap-1">
                         <Check className="w-3 h-3" /> Accept
                       </button>
                       <button type="button" onClick={() => decline(r.other_user_id)} data-testid={`friends-decline-btn-${r.other_user_id}`} className="text-[11px] px-2 py-1 rounded border border-[#E5DDC5] text-[#6B705C]">
@@ -384,7 +384,7 @@ export default function FriendsPage() {
                         >
                           <Library className="w-3 h-3" /> Library
                         </button>
-                        <button type="button" onClick={() => openDM(r.other_user_id)} data-testid={`friends-message-btn-${r.other_user_id}`} className="text-[11px] px-2 py-1 rounded border border-[#3A5A40] text-[#3A5A40] inline-flex items-center gap-1">
+                        <button type="button" onClick={() => openDM(r.other_user_id)} data-testid={`friends-message-btn-${r.other_user_id}`} className="text-[11px] px-2 py-1 rounded border border-[#6B46C1] text-[#6B46C1] inline-flex items-center gap-1">
                           <MessageSquare className="w-3 h-3" /> Message
                         </button>
                         <button type="button" onClick={() => block(r.other_user_id)} className="text-[11px] px-2 py-1 rounded text-[#B43F26]" title="Block">

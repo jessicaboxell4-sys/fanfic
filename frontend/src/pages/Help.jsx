@@ -167,7 +167,7 @@ export default function Help() {
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search the docs… (e.g. palette, friends, EPUB)"
               data-testid="help-search-input"
-              className="w-full pl-9 pr-9 py-2.5 text-sm rounded-full border border-[#E5DDC5] bg-white focus:outline-none focus:ring-2 focus:ring-[#3A5A40]/30"
+              className="w-full pl-9 pr-9 py-2.5 text-sm rounded-full border border-[#E5DDC5] bg-white focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/30"
             />
             {query && (
               <button
@@ -246,7 +246,7 @@ export default function Help() {
                   );
                 })}
               </ul>
-              <a href="#shelves" className="inline-block mt-3 text-xs font-semibold uppercase tracking-[0.15em] text-[#3A5A40] hover:text-[#E07A5F]">
+              <a href="#shelves" className="inline-block mt-3 text-xs font-semibold uppercase tracking-[0.15em] text-[#6B46C1] hover:text-[#E07A5F]">
                 Jump to the full shelf guide →
               </a>
             </div>
@@ -255,7 +255,7 @@ export default function Help() {
 
         <div className="grid md:grid-cols-[200px,1fr] gap-10">
           <nav className="md:sticky md:top-24 self-start" data-testid="help-toc">
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] mb-3">Sections</p>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-3">Sections</p>
             <ul className="space-y-1.5 text-sm">
               {SECTIONS.filter((s) => matchingSectionIds.includes(s.id)).map((s) => (
                 <li key={s.id}>
@@ -338,9 +338,9 @@ export default function Help() {
                 ) : fandomGroups.map((g) => (
                   <div key={g.name} className="break-inside-avoid mb-4" data-testid={`fandom-group-${g.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`}>
                     <div className="flex items-baseline justify-between gap-2 mb-1">
-                      <span className="font-semibold text-[#3A5A40]">{g.name}</span>
+                      <span className="font-semibold text-[#6B46C1]">{g.name}</span>
                       {g.total > 0 && (
-                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-[#3A5A40]/10 text-[#3A5A40]" title={`${g.total} book${g.total === 1 ? "" : "s"} across the community`}>
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-[#6B46C1]/10 text-[#6B46C1]" title={`${g.total} book${g.total === 1 ? "" : "s"} across the community`}>
                           {g.total}
                         </span>
                       )}

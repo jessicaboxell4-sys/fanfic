@@ -120,7 +120,7 @@ export default function OriginalsShelf() {
             data-testid="originals-bulk-panel"
             className="shelf-card p-4 mb-4 flex flex-wrap items-center gap-3"
           >
-            <span className="text-xs font-bold uppercase tracking-wide text-[#3A5A40]">Bulk convert</span>
+            <span className="text-xs font-bold uppercase tracking-wide text-[#6B46C1]">Bulk convert</span>
             <label className="flex items-center gap-2 text-sm text-[#6B705C]">
               <input
                 type="checkbox"
@@ -135,7 +135,7 @@ export default function OriginalsShelf() {
               onClick={convertAll}
               disabled={bulkRunning}
               data-testid="bulk-convert-all"
-              className="ml-auto px-4 py-2 rounded-lg text-sm font-medium bg-[#3A5A40] text-white hover:bg-[#2c4530] disabled:opacity-60 inline-flex items-center gap-2"
+              className="ml-auto px-4 py-2 rounded-lg text-sm font-medium bg-[#6B46C1] text-white hover:bg-[#2c4530] disabled:opacity-60 inline-flex items-center gap-2"
             >
               {bulkRunning ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
               Convert all{skipDups
@@ -160,7 +160,7 @@ export default function OriginalsShelf() {
                 data-testid={`original-row-${b.book_id}`}
                 className={`shelf-card p-4 flex items-center gap-4 ${isDup ? "border-[#900]/40" : ""}`}
               >
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${isDup ? "bg-[#900]/10 text-[#900]" : "bg-[#3A5A40]/10 text-[#3A5A40]"}`}>
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${isDup ? "bg-[#900]/10 text-[#900]" : "bg-[#6B46C1]/10 text-[#6B46C1]"}`}>
                   <FileText className="w-5 h-5" />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -181,7 +181,7 @@ export default function OriginalsShelf() {
                     disabled={convertingId === b.book_id}
                     data-testid={`original-convert-${b.book_id}`}
                     title="Run Calibre — move this file out of Originals and into the main library"
-                    className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[#3A5A40] text-white hover:bg-[#2c4530] disabled:opacity-60 inline-flex items-center gap-1.5"
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[#6B46C1] text-white hover:bg-[#2c4530] disabled:opacity-60 inline-flex items-center gap-1.5"
                   >
                     {convertingId === b.book_id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                     Convert to EPUB

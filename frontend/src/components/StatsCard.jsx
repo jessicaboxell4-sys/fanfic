@@ -9,8 +9,8 @@ export default function StatsCard({ stats, viewMoreTo }) {
       icon: <BookCheck className="w-5 h-5" />,
       label: "Books finished",
       value: stats.books_finished ?? 0,
-      tint: "text-[#3A5A40]",
-      bg: "bg-[#E5EBE6]",
+      tint: "text-[#6B46C1]",
+      bg: "bg-[#EDE7FB]",
     },
     {
       icon: <Layers className="w-5 h-5" />,
@@ -59,7 +59,7 @@ export default function StatsCard({ stats, viewMoreTo }) {
           <Link
             to={viewMoreTo}
             data-testid="view-detailed-stats"
-            className="text-xs text-[#3A5A40] hover:text-[#2C2C2C] inline-flex items-center gap-1 font-semibold tracking-wide uppercase"
+            className="text-xs text-[#6B46C1] hover:text-[#2C2C2C] inline-flex items-center gap-1 font-semibold tracking-wide uppercase"
           >
             <BarChart3 className="w-3 h-3" />
             View detailed stats

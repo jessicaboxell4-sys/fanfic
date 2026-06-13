@@ -95,7 +95,7 @@ export default function Trash() {
               <button
                 data-testid="restore-all-btn"
                 onClick={restoreAll}
-                className="px-4 py-2 rounded-lg text-sm font-medium bg-white border border-[#3A5A40]/30 text-[#3A5A40] hover:bg-[#E5EBE6] inline-flex items-center gap-2"
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-white border border-[#6B46C1]/30 text-[#6B46C1] hover:bg-[#EDE7FB] inline-flex items-center gap-2"
               >
                 <RotateCcw className="w-4 h-4" /> Restore all
               </button>
@@ -145,7 +145,7 @@ export default function Trash() {
                 <button
                   data-testid={`trash-restore-${b.book_id}`}
                   onClick={() => restore(b.book_id)}
-                  className="px-3 py-1.5 rounded text-xs font-medium bg-white border border-[#3A5A40]/30 text-[#3A5A40] hover:bg-[#E5EBE6] inline-flex items-center gap-1"
+                  className="px-3 py-1.5 rounded text-xs font-medium bg-white border border-[#6B46C1]/30 text-[#6B46C1] hover:bg-[#EDE7FB] inline-flex items-center gap-1"
                 >
                   <RotateCcw className="w-3 h-3" /> Restore
                 </button>

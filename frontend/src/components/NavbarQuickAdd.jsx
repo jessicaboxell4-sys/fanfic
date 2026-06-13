@@ -95,7 +95,7 @@ export default function NavbarQuickAdd() {
       data-testid="navbar-quick-add"
     >
       <Sparkles
-        className={`w-3.5 h-3.5 flex-shrink-0 ${valid ? "text-[#3A5A40]" : "text-[#6B705C]"}`}
+        className={`w-3.5 h-3.5 flex-shrink-0 ${valid ? "text-[#6B46C1]" : "text-[#6B705C]"}`}
       />
       <input
         ref={inputRef}
@@ -113,7 +113,7 @@ export default function NavbarQuickAdd() {
         data-testid="navbar-quick-add-submit"
         onClick={submit}
         disabled={!valid || pulling}
-        className="p-1 rounded text-[#3A5A40] hover:bg-[#3A5A40]/10 disabled:opacity-30 disabled:hover:bg-transparent flex-shrink-0"
+        className="p-1 rounded text-[#6B46C1] hover:bg-[#6B46C1]/10 disabled:opacity-30 disabled:hover:bg-transparent flex-shrink-0"
         title={valid ? "Fetch this fic as an EPUB" : "Paste an AO3 / FFnet / RoyalRoad URL"}
         aria-label="Fetch URL as EPUB"
       >

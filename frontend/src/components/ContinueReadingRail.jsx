@@ -20,7 +20,7 @@ export default function ContinueReadingRail({ books }) {
     <section className="" data-testid="continue-reading-rail">
       <div className="flex items-end justify-between mb-4">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] mb-1">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-1">
             Continue reading
           </p>
           <h2 className="font-serif text-2xl text-[#2C2C2C]">Pick up where you left off</h2>

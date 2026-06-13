@@ -205,7 +205,7 @@ export default function BookDetail() {
           </div>
 
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] mb-2">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-2">
               {book.author && book.author.toLowerCase() !== "unknown" ? (
                 <Link
                   to={`/library/author/${encodeURIComponent(book.author)}`}
@@ -227,13 +227,13 @@ export default function BookDetail() {
                 {book.replaces && (
                   <p className="text-[#2C2C2C]">
                     <span className="font-semibold text-[#B87A00]">Updated copy</span> ·{" "}
-                    <Link to={`/book/${book.replaces}`} className="text-[#3A5A40] hover:underline">
+                    <Link to={`/book/${book.replaces}`} className="text-[#6B46C1] hover:underline">
                       see original
                     </Link>
                     {" · "}
                     <Link
                       to={`/book/${book.book_id}/compare`}
-                      className="text-[#3A5A40] hover:underline font-semibold"
+                      className="text-[#6B46C1] hover:underline font-semibold"
                       data-testid="compare-versions-link"
                     >
                       Compare versions →
@@ -243,13 +243,13 @@ export default function BookDetail() {
                 {book.replaced_by && (
                   <p className="text-[#2C2C2C]">
                     <span className="font-semibold text-[#B87A00]">Old version</span> · a refreshed copy is in{" "}
-                    <Link to={`/book/${book.replaced_by}`} className="text-[#3A5A40] hover:underline">
+                    <Link to={`/book/${book.replaced_by}`} className="text-[#6B46C1] hover:underline">
                       Updated stories
                     </Link>
                     {" · "}
                     <Link
                       to={`/book/${book.book_id}/compare`}
-                      className="text-[#3A5A40] hover:underline font-semibold"
+                      className="text-[#6B46C1] hover:underline font-semibold"
                       data-testid="compare-versions-link"
                     >
                       Compare versions →
@@ -291,7 +291,7 @@ export default function BookDetail() {
             {/* Tags */}
             <div className="mb-8" data-testid="book-tags-section">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] flex items-center gap-1.5">
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] flex items-center gap-1.5">
                   <TagIcon className="w-3 h-3" /> Tags
                 </p>
                 <button
@@ -674,7 +674,7 @@ function StatusBadge({ book, onChange }) {
   const label = effective === "ongoing" ? "Ongoing" : "Finished";
   const cls = effective === "ongoing"
     ? "bg-[#F8E8D8] text-[#9E5A2E] border-[#9E5A2E]/30"
-    : "bg-[#EAF0EB] text-[#3A5A40] border-[#3A5A40]/30";
+    : "bg-[#EEE9FB] text-[#6B46C1] border-[#6B46C1]/30";
 
   const apply = async (next) => {
     setBusy(true);
@@ -721,7 +721,7 @@ function StatusBadge({ book, onChange }) {
             className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-[#F5F3EC] flex items-center justify-between"
           >
             Finished
-            {effective === "complete" && <span className="text-[#3A5A40]">✓</span>}
+            {effective === "complete" && <span className="text-[#6B46C1]">✓</span>}
           </button>
           <button
             type="button"

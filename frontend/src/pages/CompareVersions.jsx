@@ -18,7 +18,7 @@ import {
 function StatBlock({ value, label, tone = "neutral", testid }) {
   const tones = {
     neutral: "text-[#2C2C2C]",
-    positive: "text-[#3A5A40]",
+    positive: "text-[#6B46C1]",
     negative: "text-[#9D2A2A]",
     accent: "text-[#B87A00]",
   };
@@ -35,9 +35,9 @@ function StatBlock({ value, label, tone = "neutral", testid }) {
 function ChapterRow({ kind, entry, newBookId, navigate }) {
   const palettes = {
     added: {
-      border: "border-l-4 border-[#3A5A40]",
+      border: "border-l-4 border-[#6B46C1]",
       bg: "bg-[#EEF3EC]",
-      icon: <Plus className="h-4 w-4 text-[#3A5A40]" />,
+      icon: <Plus className="h-4 w-4 text-[#6B46C1]" />,
       label: "Added",
     },
     removed: {
@@ -173,7 +173,7 @@ export default function CompareVersions() {
             </p>
             <Link
               to={`/book/${id}`}
-              className="inline-block mt-4 text-sm font-semibold text-[#3A5A40] hover:underline"
+              className="inline-block mt-4 text-sm font-semibold text-[#6B46C1] hover:underline"
             >
               ← Back to book
             </Link>
@@ -276,7 +276,7 @@ export default function CompareVersions() {
                       : `/read/${data.new.book_id}`;
                     navigate(url);
                   }}
-                  className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-[#3A5A40] hover:bg-[#2D4730] text-white font-semibold transition-colors flex-shrink-0"
+                  className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-[#6B46C1] hover:bg-[#2D4730] text-white font-semibold transition-colors flex-shrink-0"
                   data-testid="reread-changes-btn"
                 >
                   <BookOpen className="h-4 w-4" />

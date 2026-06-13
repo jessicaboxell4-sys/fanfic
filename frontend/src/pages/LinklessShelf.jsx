@@ -56,7 +56,7 @@ export default function LinklessShelf() {
         </button>
 
         <header className="mb-6 flex items-start gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-[#3A5A40]/10 text-[#3A5A40] flex items-center justify-center flex-shrink-0">
+          <div className="w-12 h-12 rounded-2xl bg-[#6B46C1]/10 text-[#6B46C1] flex items-center justify-center flex-shrink-0">
             <LibraryIcon className="w-6 h-6" />
           </div>
           <div>
@@ -86,7 +86,7 @@ export default function LinklessShelf() {
                   key={cat}
                   onClick={() => setCategoryFilter(cat === categoryFilter ? "" : cat)}
                   data-testid={`linkless-cat-${cat.toLowerCase().replace(/\s+/g, "-")}`}
-                  className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${categoryFilter === cat ? "bg-[#3A5A40] text-white border-[#3A5A40]" : "bg-white text-[#2C2C2C] border-[#E5DDC5] hover:bg-[#F5F3EC]"}`}
+                  className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${categoryFilter === cat ? "bg-[#6B46C1] text-white border-[#6B46C1]" : "bg-white text-[#2C2C2C] border-[#E5DDC5] hover:bg-[#F5F3EC]"}`}
                 >
                   {cat} · {n}
                 </button>
@@ -113,7 +113,7 @@ export default function LinklessShelf() {
           <div className="shelf-card p-8 text-center text-[#6B705C]">
             {books.length === 0 ? (
               <>
-                <FileText className="w-10 h-10 mx-auto mb-3 text-[#3A5A40]" />
+                <FileText className="w-10 h-10 mx-auto mb-3 text-[#6B46C1]" />
                 <p className="font-medium text-[#2C2C2C] mb-1">Every book has a source URL.</p>
                 <p className="text-sm">Nice — your library is fully traceable back to its sources.</p>
               </>

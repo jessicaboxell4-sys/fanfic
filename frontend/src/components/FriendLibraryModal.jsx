@@ -73,7 +73,7 @@ export default function FriendLibraryModal({ friend, onClose }) {
             onChange={(e) => setQ(e.target.value)}
             placeholder="Filter title or author…"
             data-testid="friend-library-search"
-            className="flex-1 text-sm px-2 py-1 rounded border border-[#E5DDC5] focus:outline-none focus:ring-2 focus:ring-[#3A5A40]/30"
+            className="flex-1 text-sm px-2 py-1 rounded border border-[#E5DDC5] focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/30"
           />
         </div>
         <div className="overflow-y-auto flex-1">
@@ -102,7 +102,7 @@ export default function FriendLibraryModal({ friend, onClose }) {
                   {b.i_have_it ? (
                     <span
                       data-testid={`friend-library-have-${b.book_id}`}
-                      className="inline-flex items-center gap-1 text-[10px] text-[#3A5A40] font-semibold"
+                      className="inline-flex items-center gap-1 text-[10px] text-[#6B46C1] font-semibold"
                       title="You also have this book"
                     >
                       <Check className="w-3 h-3" /> You have

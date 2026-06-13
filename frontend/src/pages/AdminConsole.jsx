@@ -34,7 +34,7 @@ function Card({ icon: Icon, title, subtitle, children, testid }) {
   return (
     <section className="shelf-card p-6 mb-6" data-testid={testid}>
       <div className="flex items-start gap-3 mb-4">
-        <div className="w-10 h-10 rounded-xl bg-[#EAF0EB] text-[#3A5A40] flex items-center justify-center flex-shrink-0">
+        <div className="w-10 h-10 rounded-xl bg-[#EEE9FB] text-[#6B46C1] flex items-center justify-center flex-shrink-0">
           <Icon className="w-5 h-5" />
         </div>
         <div>
@@ -89,7 +89,7 @@ function UsersCard() {
                 <p className="font-semibold text-[#2C2C2C] truncate">
                   {u.name || u.email}
                   {u.is_admin && (
-                    <span className="ml-2 inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.15em] text-[#3A5A40] font-bold">
+                    <span className="ml-2 inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.15em] text-[#6B46C1] font-bold">
                       <ShieldCheck className="w-3 h-3" /> Admin
                     </span>
                   )}
@@ -104,7 +104,7 @@ function UsersCard() {
                 className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors flex items-center gap-1 ${
                   u.is_admin
                     ? "text-[#9B3531] hover:bg-[#FBE9E7]"
-                    : "text-[#3A5A40] hover:bg-[#EAF0EB]"
+                    : "text-[#6B46C1] hover:bg-[#EEE9FB]"
                 }`}
               >
                 {busyId === u.user_id ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
@@ -160,7 +160,7 @@ function MaintenanceBannerCard() {
           Show banner now
         </label>
         <div>
-          <label className="block text-xs font-bold uppercase tracking-[0.15em] text-[#3A5A40] mb-1">Message</label>
+          <label className="block text-xs font-bold uppercase tracking-[0.15em] text-[#6B46C1] mb-1">Message</label>
           <input
             type="text"
             value={message}
@@ -173,7 +173,7 @@ function MaintenanceBannerCard() {
           <p className="text-xs text-[#6B705C] mt-1">{message.length}/240</p>
         </div>
         <div>
-          <label className="block text-xs font-bold uppercase tracking-[0.15em] text-[#3A5A40] mb-1">Severity</label>
+          <label className="block text-xs font-bold uppercase tracking-[0.15em] text-[#6B46C1] mb-1">Severity</label>
           <select
             value={severity}
             onChange={(e) => setSeverity(e.target.value)}
@@ -190,7 +190,7 @@ function MaintenanceBannerCard() {
           onClick={save}
           disabled={saving}
           data-testid="admin-banner-save"
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#3A5A40] text-white hover:bg-[#2c4530] disabled:opacity-50 transition-colors text-sm font-medium"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#6B46C1] text-white hover:bg-[#2c4530] disabled:opacity-50 transition-colors text-sm font-medium"
         >
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
           {saving ? "Saving…" : "Save banner"}
@@ -207,10 +207,10 @@ function HealthPill({ ok, label }) {
   return (
     <span
       className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-semibold ${
-        ok ? "bg-[#EAF0EB] text-[#3A5A40]" : "bg-[#FBE9E7] text-[#9B3531]"
+        ok ? "bg-[#EEE9FB] text-[#6B46C1]" : "bg-[#FBE9E7] text-[#9B3531]"
       }`}
     >
-      <span className={`w-1.5 h-1.5 rounded-full ${ok ? "bg-[#3A5A40]" : "bg-[#9B3531]"}`} />
+      <span className={`w-1.5 h-1.5 rounded-full ${ok ? "bg-[#6B46C1]" : "bg-[#9B3531]"}`} />
       {label}: {ok ? "OK" : "Down"}
     </span>
   );
@@ -262,7 +262,7 @@ function HealthCard() {
         type="button"
         onClick={load}
         data-testid="admin-health-refresh"
-        className="mt-3 text-xs font-semibold text-[#3A5A40] hover:text-[#E07A5F] inline-flex items-center gap-1"
+        className="mt-3 text-xs font-semibold text-[#6B46C1] hover:text-[#E07A5F] inline-flex items-center gap-1"
       >
         <ChevronRight className="w-3 h-3" /> Refresh
       </button>
@@ -412,7 +412,7 @@ function GlobalStatsCard() {
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#3A5A40] mb-1.5">Top fandoms</p>
+          <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B46C1] mb-1.5">Top fandoms</p>
           <ul className="space-y-1 text-xs" data-testid="admin-stats-top-fandoms">
             {stats.top_fandoms?.map((f) => (
               <li key={f.fandom} className="flex justify-between bg-[#FBFAF6] border border-[#E5DDC5] rounded px-2 py-1">
@@ -423,7 +423,7 @@ function GlobalStatsCard() {
           </ul>
         </div>
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#3A5A40] mb-1.5">Categories</p>
+          <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B46C1] mb-1.5">Categories</p>
           <ul className="space-y-1 text-xs" data-testid="admin-stats-categories">
             {Object.entries(stats.categories || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => (
               <li key={k} className="flex justify-between bg-[#FBFAF6] border border-[#E5DDC5] rounded px-2 py-1">
@@ -488,7 +488,7 @@ function FeatureFlagsCard() {
                   disabled={busy === key}
                   data-testid={`admin-flag-toggle-${key}`}
                   className={`text-xs px-3 py-1.5 rounded-full font-semibold flex items-center gap-1 transition-colors ${
-                    on ? "bg-[#EAF0EB] text-[#3A5A40] hover:bg-[#3A5A40] hover:text-white"
+                    on ? "bg-[#EEE9FB] text-[#6B46C1] hover:bg-[#6B46C1] hover:text-white"
                        : "bg-[#FBE9E7] text-[#9B3531] hover:bg-[#D9534F] hover:text-white"
                   }`}
                 >
@@ -586,7 +586,7 @@ function AuditLogCard() {
           type="button"
           onClick={load}
           data-testid="admin-audit-refresh"
-          className="text-xs font-semibold text-[#3A5A40] hover:text-[#E07A5F] inline-flex items-center gap-1"
+          className="text-xs font-semibold text-[#6B46C1] hover:text-[#E07A5F] inline-flex items-center gap-1"
         >
           <ChevronRight className="w-3 h-3" /> Refresh
         </button>
@@ -595,7 +595,7 @@ function AuditLogCard() {
           onClick={exportCsv}
           disabled={exporting}
           data-testid="admin-audit-export-csv"
-          className="text-xs font-semibold text-[#3A5A40] hover:text-[#E07A5F] inline-flex items-center gap-1 disabled:opacity-50"
+          className="text-xs font-semibold text-[#6B46C1] hover:text-[#E07A5F] inline-flex items-center gap-1 disabled:opacity-50"
         >
           {exporting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
           {exporting ? "Exporting…" : "Export CSV"}
@@ -635,7 +635,7 @@ function UnknownFandomRow({ r, isDismissed, busy, onRescan, onDismiss, onUndismi
           onClick={() => onRescan(r.fandom, r.count)}
           disabled={busy === `rescan:${r.fandom}`}
           data-testid={`admin-unknown-fandom-rescan-${r.fandom}`}
-          className="text-xs px-3 py-1.5 rounded-lg text-[#3A5A40] hover:bg-[#EAF0EB] inline-flex items-center gap-1 font-semibold"
+          className="text-xs px-3 py-1.5 rounded-lg text-[#6B46C1] hover:bg-[#EEE9FB] inline-flex items-center gap-1 font-semibold"
           title="Re-run keyword classifier on these books"
         >
           {busy === `rescan:${r.fandom}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
@@ -729,7 +729,7 @@ function UnknownFandomsCard() {
       ) : (
         <>
           {rows.length === 0 ? (
-            <p className="text-sm text-[#3A5A40] inline-flex items-center gap-1.5" data-testid="admin-unknown-fandoms-empty">
+            <p className="text-sm text-[#6B46C1] inline-flex items-center gap-1.5" data-testid="admin-unknown-fandoms-empty">
               <Check className="w-4 h-4" /> All fandoms in your library are recognized.
             </p>
           ) : (
@@ -859,7 +859,7 @@ function EmailDiagnosticCard() {
               value={pickedUserId}
               onChange={(e) => setPickedUserId(e.target.value)}
               data-testid="admin-email-diag-user-select"
-              className="ml-6 w-full max-w-md text-sm rounded-lg border border-[#E8E6E1] bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#3A5A40]/30"
+              className="ml-6 w-full max-w-md text-sm rounded-lg border border-[#E8E6E1] bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/30"
             >
               <option value="">— Choose a user —</option>
               {users.map((u) => (
@@ -886,7 +886,7 @@ function EmailDiagnosticCard() {
               onChange={(e) => setCustomEmail(e.target.value)}
               placeholder="ops@example.com"
               data-testid="admin-email-diag-custom-input"
-              className="ml-6 w-full max-w-md text-sm rounded-lg border border-[#E8E6E1] bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#3A5A40]/30"
+              className="ml-6 w-full max-w-md text-sm rounded-lg border border-[#E8E6E1] bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/30"
             />
           )}
         </fieldset>
@@ -900,7 +900,7 @@ function EmailDiagnosticCard() {
             onChange={(e) => setNote(e.target.value.slice(0, 200))}
             placeholder="e.g. Checking that you can receive digests after your domain change"
             data-testid="admin-email-diag-note-input"
-            className="w-full text-sm rounded-lg border border-[#E8E6E1] bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#3A5A40]/30"
+            className="w-full text-sm rounded-lg border border-[#E8E6E1] bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/30"
             rows={2}
           />
           <p className="text-xs text-[#6B705C] mt-1">{note.length}/200</p>
@@ -912,7 +912,7 @@ function EmailDiagnosticCard() {
             onClick={send}
             disabled={sending}
             data-testid="admin-email-diag-send-btn"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#3A5A40] text-white text-sm font-semibold hover:bg-[#2D4632] transition-colors disabled:opacity-60"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#6B46C1] text-white text-sm font-semibold hover:bg-[#2D4632] transition-colors disabled:opacity-60"
           >
             {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             Send diagnostic
@@ -920,7 +920,7 @@ function EmailDiagnosticCard() {
           {lastResult && lastResult.ok && lastResult.delivered && (
             <span
               data-testid="admin-email-diag-last-success"
-              className="inline-flex items-center gap-1.5 text-xs text-[#3A5A40] font-semibold"
+              className="inline-flex items-center gap-1.5 text-xs text-[#6B46C1] font-semibold"
             >
               <Check className="w-3.5 h-3.5" />
               Delivered to {lastResult.to}
@@ -1072,7 +1072,7 @@ function ChatRoomsCard() {
                             type="button"
                             onClick={() => saveEdit(r.room_id)}
                             data-testid={`admin-chat-room-save-${r.room_id}`}
-                            className="text-xs px-3 py-1 rounded bg-[#3A5A40] text-white font-semibold"
+                            className="text-xs px-3 py-1 rounded bg-[#6B46C1] text-white font-semibold"
                           >
                             Save
                           </button>
@@ -1130,7 +1130,7 @@ function ChatRoomsCard() {
 
           {/* Create form */}
           <div className="rounded-xl border border-[#E5DDC5] bg-[#FBFAF6] p-4" data-testid="admin-chat-room-create-form">
-            <p className="text-xs font-bold uppercase tracking-wider text-[#3A5A40] mb-2">Create a new room</p>
+            <p className="text-xs font-bold uppercase tracking-wider text-[#6B46C1] mb-2">Create a new room</p>
             <input
               type="text"
               value={name}
@@ -1158,7 +1158,7 @@ function ChatRoomsCard() {
               onClick={create}
               disabled={creating || !name.trim() || memberIds.length === 0}
               data-testid="admin-chat-room-create-btn"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#3A5A40] text-white text-sm font-semibold hover:bg-[#2D4632] disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#6B46C1] text-white text-sm font-semibold hover:bg-[#2D4632] disabled:opacity-50"
             >
               {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
               Create room
@@ -1198,7 +1198,7 @@ function CronJobRow({ job }) {
   const isError = status === "error";
 
   // Pill colour: stale > error > ok > unknown.
-  let pillClass = "bg-[#EAF0EB] text-[#3A5A40]";
+  let pillClass = "bg-[#EEE9FB] text-[#6B46C1]";
   let pillLabel = "ok";
   let PillIcon = Check;
   if (!lastRun) { pillClass = "bg-gray-100 text-gray-500"; pillLabel = "no runs yet"; PillIcon = Clock; }
@@ -1234,7 +1234,7 @@ function CronJobRow({ job }) {
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="text-xs text-[#3A5A40] hover:underline"
+          className="text-xs text-[#6B46C1] hover:underline"
           data-testid={`cron-toggle-${job.id}`}
         >
           {expanded ? "hide history" : `history (${job.recent.length})`}
@@ -1249,7 +1249,7 @@ function CronJobRow({ job }) {
             <ul className="space-y-1 max-h-72 overflow-auto" data-testid={`cron-history-${job.id}`}>
               {job.recent.map((r, idx) => (
                 <li key={idx} className="text-xs flex items-start gap-2 font-mono">
-                  <span className={r.status === "ok" ? "text-[#3A5A40]" : "text-red-700"}>
+                  <span className={r.status === "ok" ? "text-[#6B46C1]" : "text-red-700"}>
                     {r.status === "ok" ? "✓" : "✗"}
                   </span>
                   <span className="text-[#6B705C] flex-shrink-0">{fmtTime(r.started_at)}</span>
@@ -1295,7 +1295,7 @@ function CronHealthCard() {
           type="button"
           onClick={load}
           disabled={loading}
-          className="text-xs text-[#3A5A40] hover:underline disabled:opacity-50 inline-flex items-center gap-1"
+          className="text-xs text-[#6B46C1] hover:underline disabled:opacity-50 inline-flex items-center gap-1"
           data-testid="cron-health-refresh"
         >
           {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
@@ -1370,7 +1370,7 @@ function RouteCatalogueCard() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="filter by path, function name, or docstring…"
-            className="w-full pl-8 pr-3 py-1.5 text-sm border border-[#E8E2D4] rounded-lg focus:outline-none focus:border-[#3A5A40]"
+            className="w-full pl-8 pr-3 py-1.5 text-sm border border-[#E8E2D4] rounded-lg focus:outline-none focus:border-[#6B46C1]"
             data-testid="route-catalogue-filter"
           />
         </div>
@@ -1408,7 +1408,7 @@ function RouteCatalogueCard() {
           type="button"
           onClick={load}
           disabled={loading}
-          className="text-xs text-[#3A5A40] hover:underline disabled:opacity-50 inline-flex items-center gap-1"
+          className="text-xs text-[#6B46C1] hover:underline disabled:opacity-50 inline-flex items-center gap-1"
           data-testid="route-catalogue-refresh"
         >
           {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
@@ -1506,9 +1506,9 @@ function EmailStatsCard() {
               <p className="text-xs text-[#6B705C]">Total (7d)</p>
               <p className="text-2xl font-medium text-[#2C2C2C]">{data.total_7d}</p>
             </div>
-            <div className="bg-[#EAF0EB] border border-[#3A5A40]/30 rounded-lg p-3" data-testid="email-stats-ok">
-              <p className="text-xs text-[#3A5A40]">Delivered</p>
-              <p className="text-2xl font-medium text-[#3A5A40]">{data.ok_7d}</p>
+            <div className="bg-[#EEE9FB] border border-[#6B46C1]/30 rounded-lg p-3" data-testid="email-stats-ok">
+              <p className="text-xs text-[#6B46C1]">Delivered</p>
+              <p className="text-2xl font-medium text-[#6B46C1]">{data.ok_7d}</p>
             </div>
             <div className={`${data.error_7d > 0 ? "bg-red-50 border-red-200" : "bg-white border-[#E8E2D4]"} border rounded-lg p-3`} data-testid="email-stats-error-count">
               <p className="text-xs text-red-700">Errors</p>
@@ -1526,7 +1526,7 @@ function EmailStatsCard() {
                 {data.by_kind.map((k) => (
                   <li key={k.kind} className="flex items-center gap-3 text-[#2C2C2C]" data-testid={`email-stats-kind-${k.kind}`}>
                     <span className="flex-1">{k.kind}</span>
-                    <span className="text-[#3A5A40]">{k.ok} ok</span>
+                    <span className="text-[#6B46C1]">{k.ok} ok</span>
                     {k.error > 0 && <span className="text-red-700">{k.error} err</span>}
                     <span className="text-[#6B705C]">{k.total} total</span>
                   </li>
@@ -1546,7 +1546,7 @@ function EmailStatsCard() {
               </ul>
             </div>
           )}
-          <button type="button" onClick={load} className="text-xs text-[#3A5A40] hover:underline mt-3 inline-flex items-center gap-1" data-testid="email-stats-refresh">
+          <button type="button" onClick={load} className="text-xs text-[#6B46C1] hover:underline mt-3 inline-flex items-center gap-1" data-testid="email-stats-refresh">
             <RotateCcw className="w-3 h-3" /> refresh
           </button>
         </>
@@ -1566,11 +1566,11 @@ export default function AdminConsole() {
           <ArrowLeft className="w-4 h-4" /> back to library
         </Link>
         <header className="mb-8 flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-[#3A5A40] text-white flex items-center justify-center">
+          <div className="w-12 h-12 rounded-2xl bg-[#6B46C1] text-white flex items-center justify-center">
             <ShieldCheck className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40]">Operator</p>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1]">Operator</p>
             <h1 className="font-serif text-4xl md:text-5xl text-[#2C2C2C] leading-tight">Admin console</h1>
           </div>
         </header>

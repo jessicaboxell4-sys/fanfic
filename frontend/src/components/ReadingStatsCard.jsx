@@ -127,7 +127,7 @@ export default function ReadingStatsCard({ bookId }) {
           </p>
           {stats.sparkline_max_minutes > 0 && (
             <p className="text-[10px] text-[#6B705C]">
-              busiest day: <span className="font-semibold text-[#3A5A40]">{formatDuration(stats.sparkline_max_minutes)}</span>
+              busiest day: <span className="font-semibold text-[#6B46C1]">{formatDuration(stats.sparkline_max_minutes)}</span>
             </p>
           )}
         </div>
@@ -142,7 +142,7 @@ export default function ReadingStatsCard({ bookId }) {
               heightPct = Math.max(14, Math.round((d.minutes / max) * 100));
               // Green intensity scales with the same ratio
               const ratio = d.minutes / max;
-              if (ratio > 0.66) bg = "bg-[#3A5A40]";
+              if (ratio > 0.66) bg = "bg-[#6B46C1]";
               else if (ratio > 0.33) bg = "bg-[#5B7A60]";
               else bg = "bg-[#8FA68F]";
             } else if (d.active) {

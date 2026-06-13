@@ -32,7 +32,7 @@ export default function Landing() {
 
       <section className="max-w-6xl mx-auto px-6 md:px-8 pt-16 md:pt-24 pb-20 grid lg:grid-cols-2 gap-12 items-center">
         <div className="fade-in">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] mb-6">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-6">
             A quieter way to organize ebooks
           </p>
           <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl text-[#2C2C2C] leading-[1.05] mb-6">
@@ -94,7 +94,7 @@ export default function Landing() {
 function Feature({ icon, title, body }) {
   return (
     <div className="shelf-card p-6">
-      <div className="w-10 h-10 rounded-lg bg-[#E5EBE6] text-[#3A5A40] flex items-center justify-center mb-4">
+      <div className="w-10 h-10 rounded-lg bg-[#EDE7FB] text-[#6B46C1] flex items-center justify-center mb-4">
         {icon}
       </div>
       <h3 className="font-serif text-xl text-[#2C2C2C] mb-2">{title}</h3>

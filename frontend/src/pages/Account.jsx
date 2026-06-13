@@ -65,7 +65,7 @@ function PrivacyMessagingCard({ navigate }) {
   return (
     <section className="shelf-card p-6 mb-6" id="privacy" data-testid="privacy-messaging-card">
       <div className="flex items-start gap-3 mb-4">
-        <div className="w-10 h-10 rounded-xl bg-[#EAF0EB] text-[#3A5A40] flex items-center justify-center flex-shrink-0">
+        <div className="w-10 h-10 rounded-xl bg-[#EEE9FB] text-[#6B46C1] flex items-center justify-center flex-shrink-0">
           <ShieldCheckIcon className="w-5 h-5" />
         </div>
         <div>
@@ -94,7 +94,7 @@ function PrivacyMessagingCard({ navigate }) {
               data-testid="privacy-friends-only-btn"
               className={`text-xs px-3 py-1.5 rounded ${
                 privacy.message_privacy === "friends_only"
-                  ? "bg-[#3A5A40] text-white font-semibold"
+                  ? "bg-[#6B46C1] text-white font-semibold"
                   : "border border-[#E5DDC5] text-[#6B705C] hover:bg-white"
               }`}
             >Friends only</button>
@@ -105,7 +105,7 @@ function PrivacyMessagingCard({ navigate }) {
               data-testid="privacy-anyone-btn"
               className={`text-xs px-3 py-1.5 rounded ${
                 privacy.message_privacy === "anyone"
-                  ? "bg-[#3A5A40] text-white font-semibold"
+                  ? "bg-[#6B46C1] text-white font-semibold"
                   : "border border-[#E5DDC5] text-[#6B705C] hover:bg-white"
               }`}
             >Anyone</button>
@@ -125,7 +125,7 @@ function PrivacyMessagingCard({ navigate }) {
             disabled={saving}
             data-testid="privacy-hidden-toggle"
             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ${
-              privacy.hidden_from_search ? "bg-[#3A5A40]" : "bg-[#E8E6E1]"
+              privacy.hidden_from_search ? "bg-[#6B46C1]" : "bg-[#E8E6E1]"
             }`}
           >
             <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${privacy.hidden_from_search ? "translate-x-6" : "translate-x-1"}`} />
@@ -145,7 +145,7 @@ function PrivacyMessagingCard({ navigate }) {
             disabled={saving}
             data-testid="privacy-library-toggle"
             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ${
-              libraryVisible ? "bg-[#3A5A40]" : "bg-[#E8E6E1]"
+              libraryVisible ? "bg-[#6B46C1]" : "bg-[#E8E6E1]"
             }`}
           >
             <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${libraryVisible ? "translate-x-6" : "translate-x-1"}`} />
@@ -389,7 +389,7 @@ function BackupCard() {
   return (
     <section className="shelf-card p-6 mb-6" data-testid="backup-card" id="backup-card">
       <h2 className="font-serif text-2xl text-[#2C2C2C] mb-1 flex items-center gap-2">
-        <Download className="w-5 h-5 text-[#3A5A40]" /> Library backup
+        <Download className="w-5 h-5 text-[#6B46C1]" /> Library backup
       </h2>
       <p className="text-sm text-[#6B705C] mb-5">
         Download every EPUB plus a manifest of your books, tags, smart shelves, and preferences as a single ZIP. The filename is dated so you can keep multiple backups. Restore is manual for now — keep the ZIP somewhere safe.
@@ -398,7 +398,7 @@ function BackupCard() {
         onClick={download}
         disabled={busy}
         data-testid="backup-download-btn"
-        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#3A5A40] text-white hover:bg-[#2c4530] disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#6B46C1] text-white hover:bg-[#2c4530] disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
       >
         {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
         {busy ? "Generating…" : "Download library backup"}
@@ -406,7 +406,7 @@ function BackupCard() {
       <a
         href="/account/restore"
         data-testid="backup-restore-link"
-        className="ml-3 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white border border-[#3A5A40]/30 text-[#3A5A40] hover:bg-[#3A5A40] hover:text-white transition-colors text-sm font-medium"
+        className="ml-3 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white border border-[#6B46C1]/30 text-[#6B46C1] hover:bg-[#6B46C1] hover:text-white transition-colors text-sm font-medium"
       >
         Restore from backup
       </a>
@@ -414,7 +414,7 @@ function BackupCard() {
       {/* Backup history — chronological list so the user can answer
           "did I back up before <bad date>?" at a glance. */}
       <div className="mt-6 pt-5 border-t border-[#E5DDC5]" data-testid="backup-history">
-        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] mb-3">
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-3">
           Backup history
         </p>
         {historyLoading ? (
@@ -540,7 +540,7 @@ function AnnouncementsCard() {
 
       {/* Current published note */}
       <div className="mt-4 mb-5 p-3 rounded-lg bg-[#FBFAF6] border border-[#E5DDC5]" data-testid="announcements-current">
-        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] mb-1.5">Currently live</p>
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-1.5">Currently live</p>
         {loading ? (
           <p className="text-xs text-[#6B705C] italic">Loading…</p>
         ) : !latest ? (
@@ -569,7 +569,7 @@ function AnnouncementsCard() {
       <div className="space-y-3">
         <div className="grid grid-cols-1 md:grid-cols-[140px,1fr] gap-3">
           <div>
-            <label className="block text-xs font-bold uppercase tracking-[0.15em] text-[#3A5A40] mb-1">Version</label>
+            <label className="block text-xs font-bold uppercase tracking-[0.15em] text-[#6B46C1] mb-1">Version</label>
             <input
               type="text"
               value={version}
@@ -580,7 +580,7 @@ function AnnouncementsCard() {
             />
           </div>
           <div>
-            <label className="block text-xs font-bold uppercase tracking-[0.15em] text-[#3A5A40] mb-1">Title</label>
+            <label className="block text-xs font-bold uppercase tracking-[0.15em] text-[#6B46C1] mb-1">Title</label>
             <input
               type="text"
               value={title}
@@ -593,7 +593,7 @@ function AnnouncementsCard() {
         </div>
 
         <div>
-          <label className="block text-xs font-bold uppercase tracking-[0.15em] text-[#3A5A40] mb-1.5">Items</label>
+          <label className="block text-xs font-bold uppercase tracking-[0.15em] text-[#6B46C1] mb-1.5">Items</label>
           <div className="space-y-2">
             {items.map((row, idx) => (
               <div
@@ -655,7 +655,7 @@ function AnnouncementsCard() {
             type="button"
             onClick={addRow}
             data-testid="announcements-add-row"
-            className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[#3A5A40] hover:text-[#E07A5F]"
+            className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[#6B46C1] hover:text-[#E07A5F]"
           >
             <Plus className="w-3.5 h-3.5" /> Add item
           </button>
@@ -925,7 +925,7 @@ export default function Account() {
     <div className="min-h-screen bg-paper">
       <Navbar />
       <main className="max-w-2xl mx-auto px-6 md:px-8 py-8 md:py-12 fade-in">
-        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] mb-2">Account</p>
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-2">Account</p>
         <h1 className="font-serif text-4xl sm:text-5xl text-[#2C2C2C] mb-3" data-testid="account-title">Your shelf, your settings.</h1>
         <p className="text-[#6B705C] mb-10">Signed in as <strong className="text-[#2C2C2C]">{profile.email}</strong></p>
 
@@ -1007,7 +1007,7 @@ export default function Account() {
         {FETCHING_UI_ENABLED && (
         <section className="shelf-card p-6 mb-6" data-testid="fff-options-card">
           <div className="flex items-start gap-3 mb-1">
-            <div className="w-10 h-10 rounded-xl bg-[#EEF3EC] text-[#3A5A40] flex items-center justify-center flex-shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-[#EEF3EC] text-[#6B46C1] flex items-center justify-center flex-shrink-0">
               <Settings2 className="w-5 h-5" />
             </div>
             <div>
@@ -1067,7 +1067,7 @@ export default function Account() {
                     disabled={savingFff}
                     onClick={() => toggleFff(opt.key)}
                     className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors flex-shrink-0 ${
-                      fff[opt.key] ? "bg-[#3A5A40]" : "bg-[#E8E6E1]"
+                      fff[opt.key] ? "bg-[#6B46C1]" : "bg-[#E8E6E1]"
                     } ${savingFff ? "opacity-60" : ""}`}
                   >
                     <span

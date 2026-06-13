@@ -79,7 +79,7 @@ export default function AppearancePage() {
 
         <header className="flex items-center gap-3 mb-8">
           <div className="h-12 w-12 rounded-2xl bg-[#FBFAF6] border border-[#E5DDC5] flex items-center justify-center">
-            <Palette className="h-6 w-6 text-[#3A5A40]" />
+            <Palette className="h-6 w-6 text-[#6B46C1]" />
           </div>
           <div>
             <h1 className="font-serif text-3xl sm:text-4xl text-[#2C2C2C] leading-tight">
@@ -94,7 +94,7 @@ export default function AppearancePage() {
         {/* Light / Dark theme card */}
         <section className="shelf-card p-6 mb-6" data-testid="appearance-theme-card">
           <div className="flex items-start gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-[#FBFAF6] text-[#3A5A40] flex items-center justify-center flex-shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-[#FBFAF6] text-[#6B46C1] flex items-center justify-center flex-shrink-0">
               {theme === "dark" ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
             </div>
             <div>
@@ -112,8 +112,8 @@ export default function AppearancePage() {
               aria-pressed={theme === "light"}
               className={`relative text-left rounded-xl border p-4 transition-all ${
                 theme === "light"
-                  ? "border-[#3A5A40] bg-[#FBFAF6] shadow-sm"
-                  : "border-[#E5DDC5] bg-white hover:border-[#3A5A40]/40"
+                  ? "border-[#6B46C1] bg-[#FBFAF6] shadow-sm"
+                  : "border-[#E5DDC5] bg-white hover:border-[#6B46C1]/40"
               }`}
             >
               <div className="flex items-center gap-2 mb-2">
@@ -129,12 +129,12 @@ export default function AppearancePage() {
               aria-pressed={theme === "dark"}
               className={`relative text-left rounded-xl border p-4 transition-all ${
                 theme === "dark"
-                  ? "border-[#3A5A40] bg-[#FBFAF6] shadow-sm"
-                  : "border-[#E5DDC5] bg-white hover:border-[#3A5A40]/40"
+                  ? "border-[#6B46C1] bg-[#FBFAF6] shadow-sm"
+                  : "border-[#E5DDC5] bg-white hover:border-[#6B46C1]/40"
               }`}
             >
               <div className="flex items-center gap-2 mb-2">
-                <Moon className="w-5 h-5 text-[#3A5A40]" />
+                <Moon className="w-5 h-5 text-[#6B46C1]" />
                 <p className="font-semibold text-[#2C2C2C]">Dark</p>
               </div>
               <p className="text-xs text-[#6B705C]">Deep slate, paper-bright type, accent-coloured highlights.</p>
@@ -175,7 +175,7 @@ export default function AppearancePage() {
         {/* Guest palette gallery */}
         <section className="shelf-card p-6 mb-6" data-testid="appearance-gallery-card">
           <div className="flex items-start gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-[#FBFAF6] text-[#3A5A40] flex items-center justify-center flex-shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-[#FBFAF6] text-[#6B46C1] flex items-center justify-center flex-shrink-0">
               <Palette className="w-5 h-5" />
             </div>
             <div>
@@ -192,7 +192,7 @@ export default function AppearancePage() {
                 type="button"
                 onClick={() => applyGuest(g)}
                 data-testid={`appearance-gallery-${g.id}`}
-                className="group text-left rounded-xl border border-[#E5DDC5] bg-white hover:border-[#3A5A40]/40 hover:shadow-sm transition-all overflow-hidden"
+                className="group text-left rounded-xl border border-[#E5DDC5] bg-white hover:border-[#6B46C1]/40 hover:shadow-sm transition-all overflow-hidden"
               >
                 <div
                   className="h-14 w-full"
@@ -211,7 +211,7 @@ export default function AppearancePage() {
         {/* Share palette */}
         <section className="shelf-card p-6 mb-6" data-testid="appearance-share-card">
           <div className="flex items-start gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-[#FBFAF6] text-[#3A5A40] flex items-center justify-center flex-shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-[#FBFAF6] text-[#6B46C1] flex items-center justify-center flex-shrink-0">
               <Share2 className="w-5 h-5" />
             </div>
             <div>
@@ -240,7 +240,7 @@ export default function AppearancePage() {
                   type="button"
                   onClick={copyToken}
                   data-testid="appearance-share-copy-btn"
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#3A5A40] text-white text-sm font-semibold hover:bg-[#2D4632] transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#6B46C1] text-white text-sm font-semibold hover:bg-[#2D4632] transition-colors"
                 >
                   {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                   {copied ? "Copied" : "Copy"}
@@ -261,14 +261,14 @@ export default function AppearancePage() {
                   onKeyDown={(e) => { if (e.key === "Enter") applyImport(); }}
                   placeholder="ss-p-forest  or  ss-c-eyJ2…"
                   data-testid="appearance-share-import-input"
-                  className="flex-1 text-xs font-mono bg-white border border-[#E5DDC5] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#3A5A40]/30"
+                  className="flex-1 text-xs font-mono bg-white border border-[#E5DDC5] rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/30"
                 />
                 <button
                   type="button"
                   onClick={applyImport}
                   disabled={!importText.trim()}
                   data-testid="appearance-share-import-btn"
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white border border-[#3A5A40] text-[#3A5A40] text-sm font-semibold hover:bg-[#FBFAF6] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white border border-[#6B46C1] text-[#6B46C1] text-sm font-semibold hover:bg-[#FBFAF6] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <ArrowDownToLine className="w-4 h-4" />
                   Apply

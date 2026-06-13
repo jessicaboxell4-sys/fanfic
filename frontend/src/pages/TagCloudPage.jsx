@@ -70,7 +70,7 @@ export default function TagCloudPage() {
 
         <div className="mb-10 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] mb-2 flex items-center gap-1.5">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-2 flex items-center gap-1.5">
               <TagIcon className="w-3 h-3" /> All tags
             </p>
             <h1 className="font-serif text-4xl sm:text-5xl text-[#2C2C2C]" data-testid="tag-cloud-title">

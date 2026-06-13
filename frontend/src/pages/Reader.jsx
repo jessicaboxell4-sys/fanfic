@@ -473,7 +473,7 @@ export default function Reader() {
                           </p>
                         )}
                         {bm.note && (
-                          <p className="text-sm text-[#3A5A40] mt-1 italic">&ldquo;{bm.note}&rdquo;</p>
+                          <p className="text-sm text-[#6B46C1] mt-1 italic">&ldquo;{bm.note}&rdquo;</p>
                         )}
                         <p className="text-xs text-[#9B9B8C] mt-1">
                           {new Date(bm.created_at).toLocaleDateString()}

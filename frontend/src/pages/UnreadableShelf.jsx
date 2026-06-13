@@ -140,7 +140,7 @@ export default function UnreadableShelf() {
                 <button
                   onClick={() => setReasonFilter(reasonFilter === "failed_conversion" ? "" : "failed_conversion")}
                   data-testid="unreadable-reason-conversion"
-                  className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${reasonFilter === "failed_conversion" ? "bg-[#3A5A40] text-white border-[#3A5A40]" : "bg-white text-[#2C2C2C] border-[#E5DDC5] hover:bg-[#F5F3EC]"}`}
+                  className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${reasonFilter === "failed_conversion" ? "bg-[#6B46C1] text-white border-[#6B46C1]" : "bg-white text-[#2C2C2C] border-[#E5DDC5] hover:bg-[#F5F3EC]"}`}
                 >
                   Failed conversion · {byReason.failed_conversion}
                 </button>
@@ -167,7 +167,7 @@ export default function UnreadableShelf() {
           <div className="shelf-card p-8 text-center text-[#6B705C]">
             {books.length === 0 ? (
               <>
-                <FileWarning className="w-10 h-10 mx-auto mb-3 text-[#3A5A40]" />
+                <FileWarning className="w-10 h-10 mx-auto mb-3 text-[#6B46C1]" />
                 <p className="font-medium text-[#2C2C2C] mb-1">No unreadable files.</p>
                 <p className="text-sm">Every upload was parsed successfully — nice library hygiene.</p>
               </>
@@ -193,7 +193,7 @@ export default function UnreadableShelf() {
                         className={`text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wide whitespace-nowrap ${
                           b.reason === "corrupt_epub"
                             ? "bg-[#900]/10 text-[#900]"
-                            : "bg-[#3A5A40]/10 text-[#3A5A40]"
+                            : "bg-[#6B46C1]/10 text-[#6B46C1]"
                         }`}
                         title={reasonHint(b.reason)}
                       >

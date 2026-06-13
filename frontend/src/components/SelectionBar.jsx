@@ -77,7 +77,7 @@ function BulkMetadataDialog({ ids, customCats, onClose, onDone }) {
       >
         <div className="p-6 border-b border-[#E8E6E1] flex items-center justify-between">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40] mb-1">Bulk edit</p>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-1">Bulk edit</p>
             <h2 className="font-serif text-2xl text-[#2C2C2C]">
               Update {ids.length} book{ids.length === 1 ? "" : "s"}
             </h2>
