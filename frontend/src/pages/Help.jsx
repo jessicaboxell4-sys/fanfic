@@ -267,29 +267,33 @@ export default function Help() {
               <p><strong>Refresh fanfics</strong>: the URL-fetching feature (FanFicFare + FicHub) is intentionally hidden from the UI but the code is preserved for a future re-enable. No FAQ entry until then.</p>
             </Section>
 
-            <Section id="messages" icon={MessageSquare} title="Messages">
+            <Section id="messages" icon={MessageSquare} title="Messages & friends">
               <p>
-                Shelfsort has a built-in direct-messaging system at <Link to="/messages">/messages</Link>.
-                Rooms are <strong>admin-curated</strong> for now — an admin creates a room and picks who's
-                in it. Once you're in, everyone in the room can chat freely. A new chat bubble icon sits
-                in the Navbar; it polls every 15 seconds and shows a numeric badge whenever you have
-                unread messages.
+                Shelfsort has built-in direct messaging at <Link to="/messages">/messages</Link>. Three room types coexist:
               </p>
-              <p>You can send three kinds of messages:</p>
               <ul>
-                <li><strong>Text</strong> — plain message body (Enter to send, Shift+Enter for newline).</li>
-                <li><strong>Attach a book</strong> — click the book icon in the composer, search your library, pick one. The recipient sees a clickable card with the title + author that links straight to the book in their own copy of Shelfsort (only useful if they have it).</li>
-                <li><strong>Attach your current palette</strong> — click the palette icon to bundle whatever colour scheme you're currently running. The recipient sees a card with an <strong>Apply</strong> button that instantly switches their accent to match. Pairs neatly with the share-palette tokens on the Appearance page.</li>
+                <li><strong>Admin-curated group rooms</strong> — an admin creates the room and picks members. Members chat freely inside.</li>
+                <li><strong>1-on-1 DMs between friends</strong> — once you and another user are friends, either side can open a DM that lives forever in your sidebar.</li>
+                <li><strong>1-on-1 DMs from anyone</strong> — if a user has opened up their privacy to "anyone", you can DM them without being friends first.</li>
+              </ul>
+              <p>Three kinds of messages: text (Enter to send, Shift+Enter for newline), attached <strong>book</strong> (search your library, recipient gets a card linking to it), and attached <strong>palette token</strong> (one-click Apply on the recipient's side using the share-palette work).</p>
+              <p>
+                <strong>Friends</strong> live at <Link to="/friends">/friends</Link>: search by name or email (min 2 chars), send a request, the other side accepts or declines.
+                If both sides happen to send requests at the same time, they auto-pair into accepted. From the Friends page you can also <strong>remove a friend</strong> (wipes the DM room),
+                <strong> block someone</strong> (silent, they vanish from your search and can't message you), or <strong>unblock</strong> later.
+              </p>
+              <p>
+                <strong>Privacy</strong> lives on your <Link to="/account#privacy">Account page</Link>:
+              </p>
+              <ul>
+                <li><strong>Who can DM me</strong> — <em>Friends only</em> (default) blocks DMs from strangers; <em>Anyone</em> opens it up. When you have pending requests sitting around, a small "Switch to open DM mode" link appears on the Friends page so you don't have to dig.</li>
+                <li><strong>Hide me from user search</strong> — toggle on to keep your name/email out of other users' search results. Existing friends still see you.</li>
               </ul>
               <p>
-                Messages are stored per-room with a per-user read marker. Rooms with new messages
-                surface a count badge both on the navbar icon and in the sidebar of the Messages page.
-                Opening a room auto-marks it read.
+                <strong>Notifications</strong>: the chat-bubble icon in the Navbar shows one combined badge — unread messages + pending friend requests added together. Hover for the breakdown.
               </p>
               <p className="text-xs text-[#6B705C] italic">
-                Future phases (parked): open user-to-user messaging without admin curation, friend-request
-                gated chat, and websockets for instant delivery (right now it's a 15-second poll which is
-                plenty for casual chat).
+                Phase 1c (one-click "switch to open" banner) and websockets for instant delivery are parked. Current 15-second poll is plenty for casual chat.
               </p>
             </Section>
 

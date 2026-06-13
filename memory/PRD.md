@@ -1095,3 +1095,24 @@ These are agent-suggested features the user hasn't picked yet. Bring them up nex
 ### Parked idea 2026-06-13 (Reading-along rooms / mini book-club)
 - Concept: a chat room can pin one specific fic; members see each other's reading-progress on that fic update in real time ("Maya is on chapter 12"). Optional spoiler-tag system per-chapter. Turns Shelfsort from a personal library into a tiny book-club platform — unique angle no AO3 / KOReader / calibre clone has.
 - Priority: P2. Depends on the chat system (already built) and the existing reading-progress data (already tracked per book).
+
+
+### Added 2026-06-13 (Chat Phase 1a + 1b — friend-gated open messaging)
+- **New backend module** `routes/friends.py` (~330 lines) with `friendships` collection (canonical `(user_a, user_b)` pair, status `pending`/`accepted`/`blocked`, `requested_by`, `blocked_by`). Two new `users` fields: `message_privacy` (default `friends_only`, alt `anyone`) and `hidden_from_search` (default false).
+- **Endpoints**:
+  - `GET /api/friends` → `{accepted, pending_in, pending_out, blocked}` with email/name/picture hydrated; only the blocker sees their own block entries (option 3a).
+  - `GET /api/friends/pending-count` → for the combined navbar badge.
+  - `POST /api/friends/request {target_user_id? | target_email?}` — 404 on unknown user, 409 on duplicate, 403 if blocked, **auto-accepts** when the other side already had a pending outgoing request, case-insensitive email lookup.
+  - `POST /api/friends/{uid}/accept` · `POST /api/friends/{uid}/decline` (decline-or-cancel) · `DELETE /api/friends/{uid}` (remove + wipe DM room).
+  - `POST /api/friends/{uid}/block` · `DELETE /api/friends/{uid}/block` (unblock). Blocking tears down any existing DM room with that user.
+  - `GET /api/users/search?q=…` — name/email substring (min 2 chars), excludes self, hidden users, and blocked-in-either-direction. Returns relation status (`none`/`friend`/`pending_in`/`pending_out`) so the UI shows the right CTA.
+  - `GET/PUT /api/account/privacy` — toggle `message_privacy` and `hidden_from_search`.
+  - `POST /api/chat/dm/{uid}` — opens or creates a 1-on-1 DM room. Idempotent. Returns 403 if the target is `friends_only` and not your friend, or if either side has blocked.
+- **DM rooms** are differentiated via `room_type: "dm" | "group"` + `dm_pair_key` for uniqueness. They live in the same `chat_rooms` collection so the existing Messages page renders them with zero special-casing.
+- **Frontend `/friends` page** (`FriendsPage.jsx`): live-debounced user search (300 ms), three lists (Incoming, Friends, Blocked) + outgoing-pending when any exist. Per-row actions: Request / Accept / Decline / Message / Remove / Block / Unblock with browser-confirm on destructive ones. Empty-state copy on each list. A "Switch to open DM mode →" link appears under Incoming when any pending requests exist (Phase 1c).
+- **Account page** has a new **Privacy & messaging** card (`PrivacyMessagingCard`, anchored at `#privacy`): toggle DM privacy (`friends_only` vs `anyone`) with two segmented buttons, toggle hidden-from-search with a Shadcn-style switch, and a "Manage friends" button that shows pending count and deep-links to `/friends`.
+- **Navbar badge upgraded** (option 4b): `ChatInboxIcon` now sums unread messages + pending friend requests into one number; hover tooltip breaks down which is which.
+- **Messages page sidebar** has a new "+ DM" link pointing to `/friends` (use the search there to start a new DM).
+- **Help docs**: rewrote the Messages section to cover the three room types (admin-curated group, friend DM, open DM), the friend-request lifecycle, privacy toggles, hidden-from-search, blocking, and the combined navbar badge.
+- **Tests**: 32 new pytest cases in `tests/test_friends.py` covering: request lifecycle (send/duplicate/auto-accept), decline, decline-then-re-request, DM privacy gate (`friends_only` blocks non-friends, `anyone` allows), DM idempotency, user search (short query empty, by email, by name, excludes self/hidden, relation annotation), privacy CRUD, block leak prevention (blocker sees their block; blockee doesn't), block → DM 403, unblock allows fresh requests. **All 32 pass.** Total backend suite 81/81 on friends + chat + admin.
+- **Verified e2e via Playwright**: `/friends` renders, search "user" returns 6 candidates with Request buttons, empty Incoming/Friends/Blocked sections all show appropriate copy.

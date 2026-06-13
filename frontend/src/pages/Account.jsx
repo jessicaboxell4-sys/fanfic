@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
-import { User as UserIcon, Mail, Lock, Loader2, Mail as MailIcon, Settings2, AlertTriangle, Layers, Plus, X as XIcon, Download, Sparkles, Trash2 } from "lucide-react";
+import { User as UserIcon, Mail, Lock, Loader2, Mail as MailIcon, Settings2, AlertTriangle, Layers, Plus, X as XIcon, Download, Sparkles, Trash2, Users as UsersIcon, ShieldCheck as ShieldCheckIcon } from "lucide-react";
 import LibraryStatsCard from "../components/LibraryStatsCard";
 import FandomTreemap from "../components/FandomTreemap";
 // PalettePickerCard moved to /account/appearance (linked from the navbar appearance popover)
@@ -15,6 +15,127 @@ function errMsg(d) {
   if (typeof d === "string") return d;
   if (Array.isArray(d)) return d.map((e) => e?.msg || JSON.stringify(e)).join(" ");
   return String(d);
+}
+
+// Privacy & messaging — combines the DM privacy toggle (Phase 1a),
+// the "hide me from user search" toggle (Phase 1b), and a deep-link to
+// the Friends page. Anchored at id="privacy" so banners can scroll here.
+function PrivacyMessagingCard({ navigate }) {
+  const [privacy, setPrivacy] = useState({ message_privacy: "friends_only", hidden_from_search: false });
+  const [pendingIn, setPendingIn] = useState(0);
+  const [saving, setSaving] = useState(false);
+
+  const load = async () => {
+    try {
+      const { data } = await api.get("/account/privacy");
+      setPrivacy(data);
+    } catch { /* ignore */ }
+    try {
+      const { data } = await api.get("/friends/pending-count");
+      setPendingIn(data?.pending_in || 0);
+    } catch { /* ignore */ }
+  };
+  useEffect(() => { load(); }, []);
+
+  const updatePrivacy = async (patch) => {
+    setSaving(true);
+    try {
+      const { data } = await api.put("/account/privacy", patch);
+      setPrivacy(data);
+      toast.success("Saved");
+    } catch (e) { toast.error(errMsg(e?.response?.data?.detail)); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <section className="shelf-card p-6 mb-6" id="privacy" data-testid="privacy-messaging-card">
+      <div className="flex items-start gap-3 mb-4">
+        <div className="w-10 h-10 rounded-xl bg-[#EAF0EB] text-[#3A5A40] flex items-center justify-center flex-shrink-0">
+          <ShieldCheckIcon className="w-5 h-5" />
+        </div>
+        <div>
+          <h2 className="font-serif text-2xl text-[#2C2C2C]">Privacy & messaging</h2>
+          <p className="text-sm text-[#6B705C] mt-0.5">
+            Control who can DM you and whether you show up in user search.
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <div className="flex items-start justify-between gap-3 p-3 rounded-lg border border-[#E5DDC5] bg-[#FBFAF6]">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-[#2C2C2C]">Who can send me DMs</p>
+            <p className="text-xs text-[#6B705C]">
+              {privacy.message_privacy === "friends_only"
+                ? "Only accepted friends can DM you. Strangers must send a friend request first."
+                : "Anyone signed in can DM you directly, no friend request needed."}
+            </p>
+          </div>
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => updatePrivacy({ message_privacy: "friends_only" })}
+              disabled={saving || privacy.message_privacy === "friends_only"}
+              data-testid="privacy-friends-only-btn"
+              className={`text-xs px-3 py-1.5 rounded ${
+                privacy.message_privacy === "friends_only"
+                  ? "bg-[#3A5A40] text-white font-semibold"
+                  : "border border-[#E5DDC5] text-[#6B705C] hover:bg-white"
+              }`}
+            >Friends only</button>
+            <button
+              type="button"
+              onClick={() => updatePrivacy({ message_privacy: "anyone" })}
+              disabled={saving || privacy.message_privacy === "anyone"}
+              data-testid="privacy-anyone-btn"
+              className={`text-xs px-3 py-1.5 rounded ${
+                privacy.message_privacy === "anyone"
+                  ? "bg-[#3A5A40] text-white font-semibold"
+                  : "border border-[#E5DDC5] text-[#6B705C] hover:bg-white"
+              }`}
+            >Anyone</button>
+          </div>
+        </div>
+
+        <div className="flex items-start justify-between gap-3 p-3 rounded-lg border border-[#E5DDC5] bg-[#FBFAF6]">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-[#2C2C2C]">Hide me from user search</p>
+            <p className="text-xs text-[#6B705C]">
+              When on, your name and email won&apos;t show up when other users search. Existing friends still see you.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => updatePrivacy({ hidden_from_search: !privacy.hidden_from_search })}
+            disabled={saving}
+            data-testid="privacy-hidden-toggle"
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ${
+              privacy.hidden_from_search ? "bg-[#3A5A40]" : "bg-[#E8E6E1]"
+            }`}
+          >
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${privacy.hidden_from_search ? "translate-x-6" : "translate-x-1"}`} />
+          </button>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => navigate("/friends")}
+          data-testid="privacy-open-friends-btn"
+          className="w-full flex items-center justify-between gap-2 px-4 py-3 rounded-lg border border-[#E5DDC5] bg-white hover:bg-[#FBFAF6] transition-colors text-sm text-[#2C2C2C]"
+        >
+          <span className="flex items-center gap-2">
+            <UsersIcon className="w-4 h-4 text-[var(--primary)]" />
+            Manage friends
+          </span>
+          {pendingIn > 0 && (
+            <span className="px-2 py-0.5 rounded-full bg-[var(--primary)] text-white text-[10px] font-bold">
+              {pendingIn} pending
+            </span>
+          )}
+        </button>
+      </div>
+    </section>
+  );
 }
 
 // Manual fandom aliases — e.g. "HP" -> "Harry Potter". Applied during
@@ -843,6 +964,9 @@ export default function Account() {
             </button>
           </div>
         </section>
+
+        {/* Privacy & messaging */}
+        <PrivacyMessagingCard navigate={navigate} />
 
         {/* FanFicFare options */}
         {FETCHING_UI_ENABLED && (

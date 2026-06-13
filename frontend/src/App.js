@@ -26,6 +26,7 @@ import CantFindOnline from "@/pages/CantFindOnline";
 import Account from "@/pages/Account";
 import AppearancePage from "@/pages/AppearancePage";
 import MessagesPage from "@/pages/MessagesPage";
+import FriendsPage from "@/pages/FriendsPage";
 import Reader from "@/pages/Reader";
 import CompareVersions from "@/pages/CompareVersions";
 import EmailPreferences from "@/pages/EmailPreferences";
@@ -104,6 +105,7 @@ function AppRouter() {
       <Route path="/account/appearance" element={<ProtectedRoute><AppearancePage /></ProtectedRoute>} />
       <Route path="/messages" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
       <Route path="/messages/:roomId" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
+      <Route path="/friends" element={<ProtectedRoute><FriendsPage /></ProtectedRoute>} />
       <Route path="/account/emails" element={<ProtectedRoute><EmailPreferences /></ProtectedRoute>} />
       <Route path="/account/duplicates" element={<ProtectedRoute><FindDuplicates /></ProtectedRoute>} />
       <Route path="/library/trash" element={<ProtectedRoute><Trash /></ProtectedRoute>} />

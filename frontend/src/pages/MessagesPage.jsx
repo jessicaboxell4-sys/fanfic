@@ -411,8 +411,16 @@ export default function MessagesPage() {
         <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-4 shelf-card overflow-hidden" style={{ minHeight: 480 }}>
           {/* Sidebar */}
           <aside className="border-r border-[#E8E6E1] bg-white md:max-h-[70vh] md:overflow-y-auto" data-testid="chat-room-list">
-            <div className="p-3 border-b border-[#E8E6E1]">
+            <div className="p-3 border-b border-[#E8E6E1] flex items-center justify-between gap-2">
               <p className="text-xs font-bold uppercase tracking-wider text-[#6B705C]">Your rooms</p>
+              <Link
+                to="/friends"
+                data-testid="chat-new-dm-link"
+                className="text-[10px] font-semibold text-[var(--primary)] hover:underline"
+                title="Find someone to DM"
+              >
+                + DM
+              </Link>
             </div>
             {loadingRooms ? (
               <p className="p-4 text-xs text-[#6B705C]">Loading…</p>
