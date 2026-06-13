@@ -1643,3 +1643,10 @@ Both upload sites (the regular EPUB upload pipeline + the URL-fetch path) now pe
 - All 16 fixed in one consolidated CSS block at the bottom of `index.css`, grouped by hue (greys → `--text-primary` / `--text-secondary`, purples → `#C4B5FD`, reds → `#FF9A85`, ambers → `#F0B860`, blue → `#A8C0E8`, pink → `#FFB0CC`, placeholder → `#8a8675`, border → `--border`).
 - Sanity-verified on the Help page in dark mode — `Crossovers`, `Finished`, `Ongoing`, `Linkless`, `Unreadable` labels (previously invisible) now render as legible light coral.
 - All 3 tests run in < 0.1s combined and are now part of the regression suite — any future PR that adds a light bg / dark text / light border arbitrary-value class without a matching dark override will fail immediately.
+
+
+### Added 2026-06-13 (Navbar — 1-click theme quick toggle)
+- Split the navbar's `AppearancePopover` control into a paired button group: a primary **Sun/Moon quick toggle** (new testid `navbar-theme-quick-toggle`) that flips light↔dark on a single click, and a smaller **Palette** icon to its right (existing testid `navbar-theme-toggle`) that still opens the full appearance popover for accent-colour selection.
+- The quick-toggle's icon updates in place (Moon → Sun) and the `title`/`aria-label` flip dynamically ("Switch to dark mode" / "Switch to light mode") so screen readers stay accurate.
+- Also fixed a popover positioning regression introduced by the new flex wrapper — added `top-full` so the popover anchors below the button group instead of rendering above the navbar.
+- Verified end-to-end via Playwright: initial light → 1 click → dark → 1 click → light → palette button opens popover with Theme + Accent Colour sections both visible → inside-popover theme toggle still flips correctly. All assertions pass. Dark-mode regression suite still green.

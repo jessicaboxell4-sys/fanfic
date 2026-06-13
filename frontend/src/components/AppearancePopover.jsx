@@ -44,18 +44,32 @@ export default function AppearancePopover() {
   const isCustom = paletteId === CUSTOM_PALETTE_ID;
 
   return (
-    <div className="relative" ref={rootRef}>
+    <div className="relative flex items-center" ref={rootRef}>
+      {/* Quick toggle — single click instantly flips the theme. The popover
+          remains accessible via the small palette button to the right. */}
       <button
-        data-testid="navbar-theme-toggle"
-        onClick={() => { setOpen((v) => !v); if (pulse) markSeen(); }}
-        className={`p-2 hover:bg-[#F5F3EC] rounded-lg ${pulse ? "appearance-pulse" : ""}`}
-        title="Appearance — theme & colour"
-        aria-label="Appearance"
-        aria-expanded={open}
+        type="button"
+        data-testid="navbar-theme-quick-toggle"
+        onClick={() => { toggleTheme(); if (pulse) markSeen(); }}
+        className={`p-2 hover:bg-[#F5F3EC] rounded-l-lg ${pulse ? "appearance-pulse" : ""}`}
+        title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+        aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
       >
         {theme === "dark"
           ? <Sun className="w-4 h-4 text-[#6B705C]" />
           : <Moon className="w-4 h-4 text-[#6B705C]" />}
+      </button>
+      {/* Palette / appearance settings — keep the popover for accent colour
+          selection and the link to the full appearance page. */}
+      <button
+        data-testid="navbar-theme-toggle"
+        onClick={() => { setOpen((v) => !v); if (pulse) markSeen(); }}
+        className="px-1.5 py-2 hover:bg-[#F5F3EC] rounded-r-lg border-l border-[#E8E6E1]/0 hover:border-[#E8E6E1]"
+        title="Accent colour & appearance settings"
+        aria-label="Appearance settings"
+        aria-expanded={open}
+      >
+        <Palette className="w-3.5 h-3.5 text-[#6B705C]" />
       </button>
 
       {open && (
@@ -63,7 +77,7 @@ export default function AppearancePopover() {
           data-testid="appearance-popover"
           role="dialog"
           aria-label="Appearance settings"
-          className="absolute right-0 mt-2 w-72 rounded-xl border border-[#E8E6E1] bg-white shadow-lg z-50 overflow-hidden"
+          className="absolute right-0 top-full mt-2 w-72 rounded-xl border border-[#E8E6E1] bg-white shadow-lg z-50 overflow-hidden"
         >
           {/* Theme row */}
           <div className="p-3 border-b border-[#E8E6E1]">
