@@ -17,7 +17,7 @@ The maintenance banner is also readable at `GET /maintenance-banner`
 """
 from fastapi import HTTPException, Depends
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from datetime import datetime, timezone, timedelta
 import shutil
 import os
@@ -630,3 +630,120 @@ async def admin_email_test(
             metadata={"to": target_email, "delivered": False, "error": str(e)[:300]},
         )
         raise HTTPException(status_code=502, detail=f"Resend rejected the send: {e}")
+
+
+
+# ---------------------------------------------------------------------------
+# Cron health — surfaces last-run telemetry for every scheduled job so
+# silent failures never go undetected again.
+# ---------------------------------------------------------------------------
+
+# These are the jobs we expect to exist. Each entry says how often the job
+# is expected to fire so the frontend can render a "stale" badge if the
+# last run is suspiciously old.
+KNOWN_CRON_JOBS: List[Dict[str, Any]] = [
+    {
+        "id": "weekly_digest_tick",
+        "label": "Weekly digest + auto-tick (hourly check)",
+        "schedule": "every hour at :00 UTC",
+        "expected_max_gap_hours": 2,
+    },
+    {
+        "id": "account_grace_tick",
+        "label": "Account grace-period sweep (deletion + 7-day reminder)",
+        "schedule": "daily at 03:17 UTC",
+        "expected_max_gap_hours": 26,
+    },
+]
+
+
+@api_router.get("/admin/cron-health")
+async def get_cron_health(user: User = Depends(require_admin)):
+    """Return last-run telemetry for every known scheduled job.
+
+    For each job we return:
+      • `last_run` — the most recent row from `db.cron_runs`
+      • `last_ok` — the most recent successful run (so an error doesn't
+        hide the last-known-good timestamp)
+      • `runs_24h`, `errors_24h`, `error_rate_24h` — rolling counters
+      • `stale` — True if `last_run.started_at` is older than the
+        expected schedule cadence (so the dashboard can flag it red)
+      • `recent` — the last 20 runs (started_at, status, duration_ms,
+        error) so the admin can scroll through history
+    """
+    from datetime import timedelta as _td
+    now = datetime.now(timezone.utc)
+    out: List[Dict[str, Any]] = []
+    for job in KNOWN_CRON_JOBS:
+        jid = job["id"]
+        last_run = await db.cron_runs.find_one(
+            {"job_id": jid},
+            sort=[("started_at", -1)],
+        )
+        last_ok = await db.cron_runs.find_one(
+            {"job_id": jid, "status": "ok"},
+            sort=[("started_at", -1)],
+        )
+        window_start = now - _td(hours=24)
+        runs_24h = await db.cron_runs.count_documents(
+            {"job_id": jid, "started_at": {"$gte": window_start}}
+        )
+        errors_24h = await db.cron_runs.count_documents(
+            {"job_id": jid, "status": "error", "started_at": {"$gte": window_start}}
+        )
+        recent_cursor = (
+            db.cron_runs.find({"job_id": jid})
+            .sort("started_at", -1)
+            .limit(20)
+        )
+        recent = []
+        async for r in recent_cursor:
+            started = r.get("started_at") or now
+            if started.tzinfo is None:
+                started = started.replace(tzinfo=timezone.utc)
+            recent.append({
+                "started_at": started.isoformat(),
+                "duration_ms": r.get("duration_ms"),
+                "status": r.get("status"),
+                "error": r.get("error"),
+            })
+
+        # "Stale" = last run is older than the expected cadence.
+        stale = True
+        if last_run and last_run.get("started_at"):
+            started = last_run["started_at"]
+            if started.tzinfo is None:
+                started = started.replace(tzinfo=timezone.utc)
+            gap_hours = (now - started).total_seconds() / 3600
+            stale = gap_hours > job["expected_max_gap_hours"]
+
+        def _iso(dt):
+            if dt is None:
+                return None
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt.isoformat()
+
+        out.append({
+            **job,
+            "last_run": (
+                {
+                    "started_at": _iso(last_run["started_at"]),
+                    "duration_ms": last_run.get("duration_ms"),
+                    "status": last_run.get("status"),
+                    "error": last_run.get("error"),
+                }
+                if last_run else None
+            ),
+            "last_ok_at": (
+                _iso(last_ok["started_at"]) if last_ok else None
+            ),
+            "runs_24h": runs_24h,
+            "errors_24h": errors_24h,
+            "error_rate_24h": (
+                round(errors_24h / runs_24h, 3) if runs_24h else 0.0
+            ),
+            "stale": stale,
+            "recent": recent,
+        })
+    return {"jobs": out, "checked_at": now.isoformat()}

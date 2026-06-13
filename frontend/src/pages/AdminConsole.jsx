@@ -7,7 +7,7 @@ import {
   ArrowLeft, ShieldCheck, Users, Heart, AlertTriangle, Activity, Layers,
   BarChart3, ToggleLeft, ClipboardList, Loader2, Plus, X as XIcon, Trash2,
   Check, ChevronRight, Download, AlertOctagon, RotateCcw, Send, Mail,
-  MessageSquare,
+  MessageSquare, Clock, CircleAlert,
 } from "lucide-react";
 
 function fmtBytes(n) {
@@ -1172,6 +1172,148 @@ function ChatRoomsCard() {
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
+// Cron Health card — surfaces last run + status of every scheduled job so a
+// silent cron crash can't go unnoticed (the reason this widget exists at all).
+// ---------------------------------------------------------------------------
+function fmtAgo(iso) {
+  if (!iso) return "never";
+  try {
+    const ms = Date.now() - new Date(iso).getTime();
+    const s = Math.floor(ms / 1000);
+    if (s < 60) return `${s}s ago`;
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    if (h < 48) return `${h}h ago`;
+    return `${Math.floor(h / 24)}d ago`;
+  } catch { return iso; }
+}
+
+function CronJobRow({ job }) {
+  const [expanded, setExpanded] = useState(false);
+  const lastRun = job.last_run;
+  const status = lastRun?.status;
+  const isStale = job.stale;
+  const isError = status === "error";
+
+  // Pill colour: stale > error > ok > unknown.
+  let pillClass = "bg-[#EAF0EB] text-[#3A5A40]";
+  let pillLabel = "ok";
+  let PillIcon = Check;
+  if (!lastRun) { pillClass = "bg-gray-100 text-gray-500"; pillLabel = "no runs yet"; PillIcon = Clock; }
+  else if (isStale) { pillClass = "bg-amber-100 text-amber-800"; pillLabel = "stale"; PillIcon = AlertTriangle; }
+  else if (isError) { pillClass = "bg-red-100 text-red-800"; pillLabel = "last run failed"; PillIcon = CircleAlert; }
+
+  return (
+    <div className="border border-[#E8E2D4] rounded-xl p-4 mb-3" data-testid={`cron-job-${job.id}`}>
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-medium text-[#2C2C2C]">{job.label}</span>
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${pillClass}`} data-testid={`cron-pill-${job.id}`}>
+              <PillIcon className="w-3 h-3" />
+              {pillLabel}
+            </span>
+          </div>
+          <p className="text-xs text-[#6B705C] mt-1">
+            <Clock className="w-3 h-3 inline mr-1" />
+            schedule: {job.schedule}
+            {" · "}
+            last run: {lastRun ? fmtAgo(lastRun.started_at) : "never"}
+            {lastRun?.duration_ms ? ` (${lastRun.duration_ms}ms)` : ""}
+            {" · "}
+            24h: {job.runs_24h} runs / {job.errors_24h} errors
+          </p>
+          {isError && lastRun?.error && (
+            <p className="text-xs text-red-700 mt-1 font-mono break-all" data-testid={`cron-error-${job.id}`}>
+              {lastRun.error}
+            </p>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="text-xs text-[#3A5A40] hover:underline"
+          data-testid={`cron-toggle-${job.id}`}
+        >
+          {expanded ? "hide history" : `history (${job.recent.length})`}
+        </button>
+      </div>
+
+      {expanded && (
+        <div className="mt-3 pt-3 border-t border-[#E8E2D4]">
+          {job.recent.length === 0 ? (
+            <p className="text-xs text-[#6B705C]">No runs recorded yet.</p>
+          ) : (
+            <ul className="space-y-1 max-h-72 overflow-auto" data-testid={`cron-history-${job.id}`}>
+              {job.recent.map((r, idx) => (
+                <li key={idx} className="text-xs flex items-start gap-2 font-mono">
+                  <span className={r.status === "ok" ? "text-[#3A5A40]" : "text-red-700"}>
+                    {r.status === "ok" ? "✓" : "✗"}
+                  </span>
+                  <span className="text-[#6B705C] flex-shrink-0">{fmtTime(r.started_at)}</span>
+                  <span className="text-[#6B705C] flex-shrink-0">{r.duration_ms ?? "?"}ms</span>
+                  {r.error && <span className="text-red-700 break-all">{r.error}</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CronHealthCard() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data } = await api.get("/admin/cron-health");
+      setData(data);
+    } catch (e) {
+      setError(e?.response?.data?.detail || e.message || "Failed to load cron health");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  return (
+    <Card icon={Clock} title="Scheduled jobs" subtitle="Last-run telemetry for every cron — flags silent failures." testid="cron-health-card">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs text-[#6B705C]">
+          {data?.checked_at ? `Snapshot taken ${fmtAgo(data.checked_at)}` : ""}
+        </p>
+        <button
+          type="button"
+          onClick={load}
+          disabled={loading}
+          className="text-xs text-[#3A5A40] hover:underline disabled:opacity-50 inline-flex items-center gap-1"
+          data-testid="cron-health-refresh"
+        >
+          {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
+          refresh
+        </button>
+      </div>
+      {error && (
+        <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3 mb-3" data-testid="cron-health-error">
+          {error}
+        </div>
+      )}
+      {loading && !data && <p className="text-sm text-[#6B705C]">Loading…</p>}
+      {data?.jobs?.map((j) => <CronJobRow key={j.id} job={j} />)}
+    </Card>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
 export default function AdminConsole() {
   return (
     <div className="min-h-screen bg-[#FAF6EE]">
@@ -1195,6 +1337,7 @@ export default function AdminConsole() {
         <UnknownFandomsCard />
         <MaintenanceBannerCard />
         <HealthCard />
+        <CronHealthCard />
         <EmailDiagnosticCard />
         <GlobalAliasesCard />
         <GlobalStatsCard />

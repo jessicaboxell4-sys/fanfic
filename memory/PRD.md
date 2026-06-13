@@ -1252,3 +1252,48 @@ These are agent-suggested features the user hasn't picked yet. Bring them up nex
 ### Parked idea 2026-06-13 ("Books your friends added recently" carousel — P2)
 - Concept: small horizontal carousel on the library home page that surfaces `friend_new_book` notifications from the last 7 days as clickable cards (friend avatar + fandom badge + "View library →"). Turns the bell into a passive discovery feed even when users don't click in. Pulls from `db.notifications` filtered by `kind="friend_new_book"` + `created_at >= now-7d`.
 - Priority: P2 (parked by user 2026-06-13 with "remind later").
+
+
+### Fixed 2026-06-13 (Static-analysis health pass — 2 production bugs + cleanups)
+
+**🔴 Bug A — 7-day account-deletion warning emails were completely broken**
+- `routes/digest.py::_account_grace_tick` (daily cron at 03:17 UTC) called `_send_grace_reminder_email(u)`, but the function was **never defined**. Every nightly run hit the broad `except Exception` and silently failed → users scheduled for hard-deletion got deleted with zero warning.
+- Fix: implemented `_send_grace_reminder_email(user_doc)` in `routes/digest.py` mirroring the digest mailer's structure — HTML + plain text, Resend via `asyncio.to_thread`, `/settings` cancel CTA, graceful fallback when `RESEND_API_KEY` is empty (returns `{"delivered": False, "logged": True}` so the cron still marks `grace_reminder_sent_at` and doesn't loop forever).
+- Tests: `tests/test_grace_reminder.py` — 5 cases pin the contract (function exists, no-key path returns logged, handles missing name + missing date, swallows Resend exceptions).
+
+**🔴 Bug B — Franchise treemap silently included Original-Fiction / Non-fiction books**
+- `routes/books.py::get_fandoms_grouped` filtered fandoms with `{"$ne": None, "$ne": ""}` — Python dict literal with a duplicate key; only `"$ne": ""` was kept, so books with `fandom=None` (Original Fiction, Non-fiction) leaked into the treemap.
+- Fix: replaced with `{"$nin": [None, ""]}`. E2E verified: seeding `["Harry Potter", "Harry Potter", None, "", "Twilight"]` now returns exactly `[HP(2), Twilight(1)]` — None and empty-string buckets correctly excluded.
+
+**🟡 Cleanups (no runtime impact, just code-smell removal)**
+- `routes/admin.py`: added `List` to the typing import (was used in two variable annotations without being imported).
+- `routes/books.py`: renamed the second `list_authors` (the `/library/authors` endpoint) to `list_authors_directory` to stop namespace shadowing. Both routes still register and respond.
+- `routes/books.py`: removed an unused `user_dir` local, an unused `convert_error: Optional[str] = None`, an unused `other =` ternary in the status-detector helper, a shadowed `tempfile` re-import inside `_do_download`, two empty-f-string fragments in the 403 retry message, and split two `import a, b, c` lines (E401). Removed an unused `ip` capture in the login throttle path (already throttled by email only — comment already explained why).
+
+**Health after fixes**
+- Linter: `ruff check backend/routes/` — **0 blocking, 0 advisory** (was 28 blocking, 0 advisory).
+- Tests: full suite **644 passed, 14 skipped, 0 failed** (5 new grace-reminder tests added).
+
+
+### Added 2026-06-13 (Cron-health admin dashboard)
+
+**Why**: directly motivated by Bug A above. The 7-day deletion-reminder job had been silently crashing every night for who-knows-how-long with no visibility. We needed a single pane of glass for every scheduled job so future silent failures get caught on day one.
+
+**Backend**
+- `utils/cron_health.py` — telemetry wrapper. `wrap_cron_job(coro, job_id)` records every invocation to `db.cron_runs` (`{job_id, started_at, finished_at, duration_ms, status, error}`). Lazy retention trims to 200 runs per job. Re-raises exceptions so APScheduler still sees the failure.
+- `routes/digest.py` — both schedulers (`weekly_digest_tick` hourly, `account_grace_tick` daily 03:17 UTC) are now wrapped with `wrap_cron_job`.
+- `routes/admin.py::GET /api/admin/cron-health` — returns per-job `last_run`, `last_ok_at`, 24h `runs/errors/error_rate`, `stale` flag (true if `last_run.started_at` is older than the job's `expected_max_gap_hours`), and the latest 20 runs (`recent[]`). Admin-only.
+- `KNOWN_CRON_JOBS` registry: each job lists its expected cadence so the API can flag "stale" status. Adding a new cron job = add one entry + wrap with `wrap_cron_job`.
+
+**Frontend**
+- `AdminConsole.jsx::CronHealthCard` + `CronJobRow` — a new card on the Admin page. Each job shows a colored pill (`ok` / `last run failed` / `stale` / `no runs yet`), schedule, last-run timestamp + duration, 24h counters, and an expandable history of the last 20 runs (status icon, timestamp, duration, error text). Manual refresh button.
+- Data-test-ids: `cron-health-card`, `cron-health-refresh`, `cron-job-<id>`, `cron-pill-<id>`, `cron-error-<id>`, `cron-toggle-<id>`, `cron-history-<id>`, `cron-health-error`.
+
+**Tests**
+- `tests/test_cron_health.py` — 8 cases covering: wrapper records success + failure + reraises, retention trims to 200, admin endpoint returns known jobs with all contract keys, surfaces recent runs + error text, marks `stale` when the last run is older than cadence, rejects non-admin + anonymous.
+- `tests/conftest.py` — new session-scoped `shared_event_loop` fixture. Motor binds its connection pool to whichever event loop first uses it; `test_friends.py`, `test_grace_reminder.py`, and `test_cron_health.py` all now share this fixture. Without it, the second module to run would crash with "Future attached to a different loop" because each was making its own `asyncio.new_event_loop()`.
+- E2E verified via screenshot: logged in as admin → seeded a failing + several successful runs → opened `/admin` → CronHealthCard correctly shows the red "last run failed" pill with the actual `RuntimeError('SMTP timeout')` exception text, and the green "ok" pill for the grace-tick.
+
+**Health**
+- Full suite: **652 passed, 14 skipped, 0 failed** (+8 new tests).
+- Lint: 0 blocking.

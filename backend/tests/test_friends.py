@@ -188,22 +188,18 @@ class TestFriendNotifications:
 class TestFriendUploadFandomNotifications:
     """When you upload fanfic, friends who already collect that fandom get pinged."""
 
+    @pytest.fixture(autouse=True)
+    def _attach_loop(self, shared_event_loop):
+        # Share the session-scoped loop so Motor's pool stays attached to
+        # ONE event loop across test_cron_health.py + this class.
+        self.__class__._loop = shared_event_loop
+
     @classmethod
     def setup_class(cls):
-        import sys, asyncio, pathlib
+        import sys, pathlib
         backend_dir = str(pathlib.Path(__file__).resolve().parent.parent)
         if backend_dir not in sys.path:
             sys.path.insert(0, backend_dir)
-        # Reuse one event loop so Motor's pool stays attached to a single loop
-        # across every test in this class.
-        cls._loop = asyncio.new_event_loop()
-
-    @classmethod
-    def teardown_class(cls):
-        try:
-            cls._loop.close()
-        except Exception:
-            pass
 
     def _run(self, coro):
         return self.__class__._loop.run_until_complete(coro)

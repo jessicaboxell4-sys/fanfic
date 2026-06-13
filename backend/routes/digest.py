@@ -652,6 +652,68 @@ async def _send_update_digest_email(
         return {"delivered": False, "error": str(e), "summary": payload["summary"]}
 
 
+async def _send_grace_reminder_email(user_doc: Dict[str, Any]) -> Dict[str, Any]:
+    """7-day "your account will be deleted soon" warning. Mirrors the
+    digest sender: returns delivered=False/logged=True when the API key
+    isn't configured so the cron tick can still flip
+    `grace_reminder_sent_at`.
+    """
+    to_email = user_doc.get("email") or ""
+    name = (user_doc.get("name") or "").strip()
+    greeting = f"Hi {name}," if name else "Hi,"
+    sched_at = user_doc.get("scheduled_deletion_at")
+    if isinstance(sched_at, datetime):
+        sched_str = sched_at.strftime("%A, %B %d, %Y")
+    else:
+        sched_str = "in about a week"
+    base = (FRONTEND_URL or "").rstrip("/")
+    cancel_link = f"{base}/settings" if base else "/settings"
+    subject = "Your Shelfsort account is scheduled for deletion in 7 days"
+    text = (
+        f"{greeting}\n\n"
+        f"Heads-up: your Shelfsort account is scheduled for hard deletion on {sched_str}.\n"
+        f"Once that happens, your library, tags, shelves, and reading history will be gone for good.\n\n"
+        f"If you want to keep your library, you can cancel the deletion at any time before then:\n"
+        f"{cancel_link}\n\n"
+        f"Just open the Settings page and click \"Cancel deletion\".\n\n"
+        f"— Shelfsort"
+    )
+    html = (
+        f"<div style=\"font-family:system-ui,-apple-system,sans-serif;color:#2a2a2a;line-height:1.55;max-width:560px\">"
+        f"<p>{greeting}</p>"
+        f"<p>Heads-up: your <strong>Shelfsort</strong> account is scheduled for hard deletion on "
+        f"<strong>{sched_str}</strong>. Once that happens, your library, tags, shelves, and reading history "
+        f"will be gone for good.</p>"
+        f"<p>If you want to keep your library, you can cancel the deletion any time before then:</p>"
+        f"<p><a href=\"{cancel_link}\" style=\"display:inline-block;padding:10px 18px;background:#5b3a99;"
+        f"color:#fff;text-decoration:none;border-radius:6px\">Cancel deletion</a></p>"
+        f"<p style=\"color:#666;font-size:13px;margin-top:24px\">If you meant to delete your account, "
+        f"you don't have to do anything — we'll take care of it on {sched_str}.</p>"
+        f"<p style=\"color:#999;font-size:12px\">— Shelfsort</p>"
+        f"</div>"
+    )
+    if not RESEND_API_KEY:
+        logger.warning(
+            "RESEND_API_KEY not set — would have sent grace reminder to %s (scheduled %s)",
+            to_email, sched_str,
+        )
+        return {"delivered": False, "logged": True}
+    try:
+        resend.api_key = RESEND_API_KEY
+        params = {
+            "from": SENDER_EMAIL,
+            "to": [to_email],
+            "subject": subject,
+            "html": html,
+            "text": text,
+        }
+        result = await asyncio.to_thread(resend.Emails.send, params)
+        return {"delivered": True, "id": result.get("id")}
+    except Exception as e:
+        logger.error("Grace-reminder Resend send failed for %s: %s", to_email, e)
+        return {"delivered": False, "error": str(e)}
+
+
 async def maybe_send_update_digest(user_id: str, new_book_ids: List[str]) -> None:
     """If the user opted in, send a fic-update digest. Failures are logged, not raised."""
     if not new_book_ids:
@@ -760,8 +822,16 @@ def start_digest_scheduler():
     global _scheduler
     if _scheduler:
         return
+    from utils.cron_health import wrap_cron_job
+
     sched = AsyncIOScheduler(timezone="UTC")
-    sched.add_job(_digest_tick, "cron", minute=0, id="weekly_digest_tick", replace_existing=True)
+    sched.add_job(
+        wrap_cron_job(_digest_tick, "weekly_digest_tick"),
+        "cron",
+        minute=0,
+        id="weekly_digest_tick",
+        replace_existing=True,
+    )
     # Account grace-period sweep — runs daily at 03:17 UTC (off-peak) and
     # hard-deletes any user whose `scheduled_deletion_at` is in the past.
     # Logic lives in `routes.auth._hard_delete_user`; the trigger lives
@@ -807,7 +877,14 @@ def start_digest_scheduler():
             except Exception as e:
                 logger.exception("Grace-reminder send failed for %s: %s", u["user_id"], e)
 
-    sched.add_job(_account_grace_tick, "cron", hour=3, minute=17, id="account_grace_tick", replace_existing=True)
+    sched.add_job(
+        wrap_cron_job(_account_grace_tick, "account_grace_tick"),
+        "cron",
+        hour=3,
+        minute=17,
+        id="account_grace_tick",
+        replace_existing=True,
+    )
     sched.start()
     _scheduler = sched
     logger.info("Schedulers started (weekly digest + daily account grace tick).")

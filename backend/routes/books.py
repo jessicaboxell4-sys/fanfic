@@ -1513,7 +1513,6 @@ async def _apply_duplicate_policy(
     field with the previous values so the action can be undone via
     `POST /api/books/{book_id}/undo-resolve`.
     """
-    user_dir = STORAGE_DIR / user_id
     now_iso = datetime.now(timezone.utc).isoformat()
 
     if policy == "keep_both":
@@ -1724,7 +1723,6 @@ async def fanfic_fetch_epub(source_url: str, options: Optional[Dict[str, Any]] =
         return epub_bytes, obj.get("meta") or {}
 
     def _do_download():
-        import tempfile
         from fanficfare import adapters
         from fanficfare.configurable import Configuration
         from fanficfare import exceptions as fff_exc
@@ -1754,7 +1752,7 @@ async def fanfic_fetch_epub(source_url: str, options: Optional[Dict[str, Any]] =
             except Exception as cfg_err:
                 logger.warning("Failed to apply FFF user options: %s", cfg_err)
             adapter = adapters.getAdapter(config, source_url)
-        except fff_exc.UnknownSite as e:
+        except fff_exc.UnknownSite:
             raise FanficNotFoundError(f"This site isn't supported: {host}")
         except fff_exc.InvalidStoryURL as e:
             raise FanficNotFoundError(f"Invalid story URL: {e}")
@@ -1788,9 +1786,9 @@ async def fanfic_fetch_epub(source_url: str, options: Optional[Dict[str, Any]] =
                 except fff_exc.HTTPErrorFFF as e2:
                     if "403" in str(e2):
                         raise FanficNotFoundError(
-                            f"Source site blocked the request (HTTP 403, retried). The site may be rate-limiting, "
-                            f"behind a Cloudflare challenge, or restricting this work to registered users. "
-                            f"Try opening the URL in a browser to check."
+                            "Source site blocked the request (HTTP 403, retried). The site may be rate-limiting, "
+                            "behind a Cloudflare challenge, or restricting this work to registered users. "
+                            "Try opening the URL in a browser to check."
                         )
                     raise FanficNotFoundError(f"Couldn't reach source after retry: {e2}")
                 except Exception as e2:
@@ -2481,7 +2479,6 @@ async def upload_books(
         # On conversion failure we keep the original file under the
         # "Needs conversion" shelf with a friendly error message.
         original_format: Optional[str] = None
-        convert_error: Optional[str] = None
         if ext != ".epub" and ext in NEEDS_CONVERSION_EXTS:
             book_id = f"book_{uuid.uuid4().hex[:12]}"
             src_target = user_dir / f"{book_id}{ext}"
@@ -5376,7 +5373,6 @@ def _status_query(user_id: str, target: str) -> Dict[str, Any]:
     "Effective" = manual_status if set, else status, else "complete"
     (the default for unknown/old books per user choice 3b).
     """
-    other = STATUS_COMPLETE if target == STATUS_ONGOING else STATUS_ONGOING
     if target == STATUS_COMPLETE:
         # Book is complete when:
         #   manual_status == complete
@@ -5513,7 +5509,7 @@ async def set_book_status(
 # AUTHOR SHELVES — directory + per-author book listing
 # ============================================================
 @api_router.get("/library/authors")
-async def list_authors(user: User = Depends(get_current_user)):
+async def list_authors_directory(user: User = Depends(get_current_user)):
     """Return every distinct author in the user's library with a book
     count, sorted by count DESC then alphabetically. Excludes trash.
 
@@ -5921,7 +5917,9 @@ async def get_backup_history(user: User = Depends(get_current_user)):
 def _read_backup_manifest(file_bytes: bytes) -> Dict[str, Any]:
     """Parse a backup ZIP. Returns the manifest dict; raises HTTPException
     with a helpful message on every failure path."""
-    import zipfile as _zipfile, json as _json, io as _io
+    import zipfile as _zipfile
+    import json as _json
+    import io as _io
     try:
         zf = _zipfile.ZipFile(_io.BytesIO(file_bytes))
     except _zipfile.BadZipFile:
@@ -6035,7 +6033,9 @@ async def restore_apply(
     current library. Files inside `epubs/` are copied to the user's
     storage dir; existing files are NOT overwritten unless
     `overwrite_collisions` is true on the selection."""
-    import zipfile as _zipfile, io as _io, json as _json
+    import zipfile as _zipfile
+    import io as _io
+    import json as _json
     try:
         sel = RestoreApplyBody(**_json.loads(selection))
     except (ValueError, TypeError) as e:
@@ -6552,7 +6552,7 @@ async def get_fandoms_grouped(user: User = Depends(get_current_user)):
     pipeline = [
         {"$match": {"user_id": user.user_id, "category": {"$ne": TRASH_SHELF}}},
         {"$group": {"_id": "$fandom", "count": {"$sum": 1}}},
-        {"$match": {"_id": {"$ne": None, "$ne": ""}}},
+        {"$match": {"_id": {"$nin": [None, ""]}}},
     ]
     rows = await db.books.aggregate(pipeline).to_list(5000)
 

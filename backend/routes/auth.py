@@ -222,7 +222,6 @@ async def auth_login(body: LoginBody, request: Request, response: Response):
     email = (body.email or "").strip().lower()
     password = body.password or ""
 
-    ip = (request.client.host if request.client else "?") or "?"
     # Throttle by email only — behind ingress/NAT we can't trust client IP.
     identifier = f"email:{email}"
 
