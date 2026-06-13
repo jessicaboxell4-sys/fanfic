@@ -50,6 +50,12 @@ export default function Dashboard() {
   const [seriesList, setSeriesList] = useState([]);
   const [authorsList, setAuthorsList] = useState([]);
   const [pinnedShelves, setPinnedShelves] = useState([]);
+  const reloadPinnedShelves = useCallback(async () => {
+    try {
+      const sh = await api.get("/smart-shelves");
+      setPinnedShelves((sh.data.shelves || []).filter((s) => s.pinned));
+    } catch (e) { /* non-blocking */ }
+  }, []);
   const [pendingDupes, setPendingDupes] = useState([]);
   const [pendingUrlLists, setPendingUrlLists] = useState([]);
   const [undoActions, setUndoActions] = useState([]);  // {book_id, title, action, target_book_id, undoable}
@@ -161,7 +167,7 @@ export default function Dashboard() {
       try {
         const sh = await api.get("/smart-shelves");
         setPinnedShelves((sh.data.shelves || []).filter((s) => s.pinned));
-      } catch (e) { /* ignore */ }
+      } catch (e) { /* ignore — handled by reloadPinnedShelves later */ }
       try {
         const dl = await api.get("/user/dashboard-layout");
         if (Array.isArray(dl.data.order) && dl.data.order.length === 3) {
@@ -1107,7 +1113,7 @@ export default function Dashboard() {
                 </button>
               </div>
             )}
-            <Ao3FilterChips value={ao3Filters} onChange={setAo3Filters} onShelfSaved={load} />
+            <Ao3FilterChips value={ao3Filters} onChange={setAo3Filters} onShelfSaved={() => { load(); reloadPinnedShelves(); }} />
             {loading ? (
               <p className="text-[#6B705C] py-12 text-center">Loading…</p>
             ) : books.length === 0 ? (

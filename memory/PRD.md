@@ -1521,3 +1521,31 @@ Both upload sites (the regular EPUB upload pipeline + the URL-fetch path) now pe
 
 
 
+### Added 2026-06-13 (Phase 3 books.py refactor — done & green)
+- New `routes/conversions.py`: `/api/conversions/status`, `/api/conversions/dismiss`, `/api/conversions/retry-all`, `/api/conversions/{job_id}/retry`, `/api/library/originals`, `/api/library/originals/convert-all` + the internal `convert_original_to_epub` helper.
+- New `routes/user_prefs.py`: FFF options, duplicate policy, format prefs, dashboard layout, apply-template-to-all, tidy-filenames, onboarding status, dismiss-template-prompt, fandom aliases. 14 endpoints.
+- New `routes/library_backup.py`: `/api/library/backup`, `/api/user/backup-reminder{,/dismiss}`, `/api/user/backup-history`, `/api/library/restore/preview`, `/api/library/restore/apply` + a bug fix so the new schema_version=2 backups can now be restored.
+- `books.py` shrank from 7500 → 6319 lines (1181 lines moved out, ~16%). Full pytest suite still green (741+ passing, including 258 in the most-affected modules).
+- Phase 4 (fanfic_refresh + duplicates extraction) was deliberately deferred — the routes are scattered across 6000 lines with deep helper dependencies; the risk/reward didn't justify doing it in the same session as Phase 3.
+
+### Added 2026-06-13 (Pin-on-save in AO3 Save-as-Shelf modal)
+- Replaced the `window.prompt`-based shelf save in `Ao3FilterChips.jsx` with a proper purple-themed `SaveAsShelfModal` dialog featuring a name input (char counter, pre-fill, autoFocus) and a "Pin to dashboard sidebar" checkbox.
+- When pinned, the toast says "and pinned to your sidebar"; otherwise "saved as a shelf". The Dashboard now exposes a `reloadPinnedShelves` callback so the new pinned shelf shows up in the sidebar immediately on the next render without a hard refresh.
+- Backend already accepted `pinned: true` in the POST body — no API changes needed.
+
+### Added 2026-06-13 (purple-everywhere brand refresh)
+- Swapped hardcoded sage `#3A5A40` → deep violet `#6B46C1` across the entire frontend (60 files) and the few backend hex literals (Excel header fill, email styling). Pale tints `#E5EBE6` / `#EAF0EB` → `#EDE7FB` / `#EEE9FB`.
+- Updated dark-mode CSS overrides so the brightened sibling is now lavender (`#C4B5FD`) and `rgba(167,139,250,…)` instead of sage RGB.
+- Default user palette was already "purple" — only the secondary brand accent needed swapping. Verified across Dashboard, AO3 filters, Help, navbar, modals.
+
+### Added 2026-06-13 (Help-page fandom list rework)
+- `GET /api/fandoms/known` now returns the **classifier's real source of truth** (`routes.books.FANDOM_KEYWORDS`, 151 fandoms including Harry Potter, Twilight, Marvel, NCIS spin-offs) plus a new `groups` array that buckets fandoms by franchise using `data/fandom_franchises.py`.
+- Help page now renders the list **grouped by franchise** (Stargate, NCIS, Marvel umbrella, Star Trek/Wars, …) and **sorted by community-wide popularity** (anonymized aggregate counts from `db.books`). Within a group, members sort by count desc + alphabetical fallback.
+- Fixed dark-mode contrast: the cream `#FAF7F0` panel was invisible against dark text; added explicit dark overrides for `#FAF7F0` and `#E8E2D4` (now used throughout).
+- Added NCIS to `FRANCHISE_GROUPS` (7 spin-offs).
+
+### Added 2026-06-13 (AO3 Save-as-Smart-Shelf — initial wire-up)
+- Backend `routes/smart_shelves.py` got 4 new rule types: `rating` / `ao3_category` (→ `categories`) / `warning` / `exclude_warning` (`$ne`). All allow-listed and tested.
+- `Ao3FilterChips.jsx` got a "Save as shelf" button that builds rules from the active filters and POSTs to `/api/smart-shelves`. Initial flow used `window.prompt`; replaced by the proper modal above.
+
+
