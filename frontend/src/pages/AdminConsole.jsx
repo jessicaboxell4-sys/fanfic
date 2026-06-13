@@ -21,9 +21,38 @@ import {
 // `remember` lets the user opt in to persisting each card's open/closed state
 // to localStorage across page loads — off by default so the page is always
 // tidy on first visit.
-const AdminCardsContext = React.createContext({ openTick: 0, closeTick: 0, remember: false });
+// `query` is the live search box value. Cards whose title + subtitle don't
+// contain the (lowercased) query string render null so the page becomes a
+// targeted view when an admin is firefighting a specific subsystem.
+const AdminCardsContext = React.createContext({ openTick: 0, closeTick: 0, remember: false, query: "" });
 const REMEMBER_PREF_KEY = "shelfsort.admin.remember-open";
 const CARD_STATE_PREFIX = "shelfsort.admin.card.";
+
+// Hardcoded manifest used by the search bar's "X of N · No matches" count
+// and the suggestion chips. Kept in sync with the Card title/subtitle strings
+// below; extra `keywords` make the search forgiving (e.g. "outage" matches
+// the Maintenance banner card whose title doesn't contain that word).
+const ADMIN_CARD_MANIFEST = [
+  { testid: "admin-users-card", title: "Users & admins", subtitle: "Promote or demote any account.", keywords: "users admins promote demote roles accounts" },
+  { testid: "admin-chat-rooms-card", title: "Chat rooms", subtitle: "Direct-message rooms.", keywords: "chat rooms messages dm direct message conversations" },
+  { testid: "admin-unknown-fandoms-card", title: "Unknown fandoms", subtitle: "Fandoms not yet in the keyword classifier.", keywords: "unknown fandoms classifier rescan dismiss missing tag" },
+  { testid: "admin-banner-card", title: "Maintenance banner", subtitle: "Site-wide announcement banner.", keywords: "maintenance banner outage announcement downtime planned heads-up" },
+  { testid: "admin-health-card", title: "System health", subtitle: "External dependencies + storage snapshot.", keywords: "health system mongo storage disk dependencies status" },
+  { testid: "cron-health-card", title: "Scheduled jobs", subtitle: "Last-run telemetry for crons.", keywords: "cron jobs scheduled task background failure last-run" },
+  { testid: "route-catalogue-card", title: "Route catalogue", subtitle: "Every /api/* endpoint.", keywords: "route catalogue endpoint api list routes urls" },
+  { testid: "email-stats-card", title: "Resend deliveries · this week", subtitle: "Send volume, error rate, recent failures.", keywords: "email resend delivery send failure stats bounce mail" },
+  { testid: "admin-email-diagnostic-card", title: "Email diagnostic", subtitle: "One-shot diagnostic email.", keywords: "email diagnostic test send resend troubleshoot mail" },
+  { testid: "admin-aliases-card", title: "Global fandom aliases", subtitle: "Tenant-wide fandom aliases.", keywords: "fandom aliases global rename remap synonym" },
+  { testid: "admin-stats-card", title: "Global stats", subtitle: "Tenant-wide rollup.", keywords: "stats global rollup books users storage signups categories fandoms" },
+  { testid: "admin-flags-card", title: "Feature flags", subtitle: "Runtime kill switches.", keywords: "feature flags toggles kill switch runtime config" },
+  { testid: "admin-audit-card", title: "Audit log", subtitle: "Every admin write action.", keywords: "audit log history admin actions write changes" },
+];
+
+function cardMatchesQuery(card, q) {
+  if (!q) return true;
+  const haystack = `${card.title} ${card.subtitle} ${card.keywords}`.toLowerCase();
+  return haystack.includes(q);
+}
 
 function fmtBytes(n) {
   if (!Number.isFinite(n) || n <= 0) return "0 B";
@@ -49,7 +78,7 @@ function Card({ icon: Icon, title, subtitle, children, testid }) {
   // index of category headers. Click the header (or chevron) to reveal.
   // If the user opted into "remember open sections", we hydrate the
   // initial value from localStorage and persist on every change.
-  const { openTick, closeTick, remember } = useContext(AdminCardsContext);
+  const { openTick, closeTick, remember, query } = useContext(AdminCardsContext);
   const storageKey = testid ? `${CARD_STATE_PREFIX}${testid}` : null;
   const [open, setOpen] = useState(() => {
     if (!remember || !storageKey) return false;
@@ -61,6 +90,15 @@ function Card({ icon: Icon, title, subtitle, children, testid }) {
     if (!remember || !storageKey) return;
     try { localStorage.setItem(storageKey, open ? "1" : "0"); } catch { /* ignore */ }
   }, [open, remember, storageKey]);
+
+  // Search filter: hide this card entirely when the page-level query
+  // doesn't match title / subtitle / extra keywords from the manifest.
+  if (query && testid) {
+    const manifest = ADMIN_CARD_MANIFEST.find((m) => m.testid === testid);
+    const extraKeywords = manifest ? manifest.keywords : "";
+    const haystack = `${title} ${subtitle || ""} ${extraKeywords}`.toLowerCase();
+    if (!haystack.includes(query)) return null;
+  }
 
   return (
     <section
@@ -1651,6 +1689,9 @@ function EmailStatsCard() {
 export default function AdminConsole() {
   const [openTick, setOpenTick] = useState(0);
   const [closeTick, setCloseTick] = useState(0);
+  const [rawQuery, setRawQuery] = useState("");
+  const query = rawQuery.trim().toLowerCase();
+  const visibleCards = ADMIN_CARD_MANIFEST.filter((c) => cardMatchesQuery(c, query));
   const [remember, setRemember] = useState(() => {
     try { return localStorage.getItem(REMEMBER_PREF_KEY) === "1"; } catch { return false; }
   });
@@ -1671,6 +1712,10 @@ export default function AdminConsole() {
       return next;
     });
   };
+  // Small, friendly suggestion list shown under the search box so admins
+  // don't have to guess what keywords are wired up. One-click sets the
+  // search and immediately filters the cards below.
+  const SEARCH_SUGGESTIONS = ["users", "email", "fandom", "cron", "stats", "flags", "chat", "audit", "route"];
   return (
     <div className="min-h-screen bg-[#FAF6EE]">
       <Navbar />
@@ -1721,25 +1766,95 @@ export default function AdminConsole() {
             </button>
           </div>
         </header>
+
+        {/* Section search */}
+        <div className="mb-4" data-testid="admin-section-search">
+          <div className="relative">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#6B705C] pointer-events-none" aria-hidden="true" />
+            <input
+              type="text"
+              value={rawQuery}
+              onChange={(e) => setRawQuery(e.target.value)}
+              placeholder="Search sections… (e.g. email, fandom, cron)"
+              data-testid="admin-section-search-input"
+              className="w-full pl-9 pr-9 py-2.5 rounded-full border border-[#E5DDC5] bg-white text-sm text-[#2C2C2C] placeholder:text-[#9A9580] focus:outline-none focus:border-[#6B46C1] focus:ring-2 focus:ring-[#EEE9FB] transition-colors"
+            />
+            {rawQuery && (
+              <button
+                type="button"
+                onClick={() => setRawQuery("")}
+                aria-label="Clear search"
+                data-testid="admin-section-search-clear"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B705C] hover:text-[#2C2C2C]"
+              >
+                <XIcon className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          <div className="mt-2 flex items-center gap-2 flex-wrap text-xs text-[#6B705C]">
+            <span className="italic">Try:</span>
+            {SEARCH_SUGGESTIONS.map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setRawQuery(s)}
+                data-testid={`admin-section-search-suggest-${s}`}
+                className={`px-2 py-0.5 rounded-full border text-xs font-semibold transition-colors ${query === s ? "bg-[#6B46C1] text-white border-[#6B46C1]" : "bg-[#FBFAF6] text-[#6B46C1] border-[#E5DDC5] hover:bg-[#EEE9FB] hover:border-[#6B46C1]"}`}
+              >
+                {s}
+              </button>
+            ))}
+            {query && (
+              <span
+                className="ml-auto text-[11px] uppercase tracking-[0.15em] font-bold text-[#6B46C1]"
+                data-testid="admin-section-search-count"
+              >
+                {visibleCards.length} of {ADMIN_CARD_MANIFEST.length} sections
+              </span>
+            )}
+          </div>
+        </div>
+
         <p className="text-xs text-[#6B705C] italic mb-6" data-testid="admin-collapsed-hint">
           Sections are collapsed by default — click a category to reveal its contents.
           {remember ? " Your open sections will be remembered on your next visit." : ""}
         </p>
 
-        <AdminCardsContext.Provider value={{ openTick, closeTick, remember }}>
-          <UsersCard />
-          <ChatRoomsCard />
-          <UnknownFandomsCard />
-          <MaintenanceBannerCard />
-          <HealthCard />
-          <CronHealthCard />
-          <RouteCatalogueCard />
-          <EmailStatsCard />
-          <EmailDiagnosticCard />
-          <GlobalAliasesCard />
-          <GlobalStatsCard />
-          <FeatureFlagsCard />
-          <AuditLogCard />
+        <AdminCardsContext.Provider value={{ openTick, closeTick, remember, query }}>
+          {visibleCards.length === 0 ? (
+            <div
+              className="shelf-card p-8 text-center"
+              data-testid="admin-section-search-empty"
+            >
+              <Search className="w-8 h-8 text-[#6B705C] mx-auto mb-2" aria-hidden="true" />
+              <p className="font-serif text-xl text-[#2C2C2C] mb-1">No sections match "{rawQuery}"</p>
+              <p className="text-sm text-[#6B705C] mb-4">Try one of the suggestions above — or clear the search to see all 13 sections.</p>
+              <button
+                type="button"
+                onClick={() => setRawQuery("")}
+                data-testid="admin-section-search-empty-clear"
+                className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-[#6B46C1] text-white text-xs font-bold uppercase tracking-[0.15em] hover:bg-[#553397] transition-colors"
+              >
+                Clear search
+              </button>
+            </div>
+          ) : (
+            <>
+              <UsersCard />
+              <ChatRoomsCard />
+              <UnknownFandomsCard />
+              <MaintenanceBannerCard />
+              <HealthCard />
+              <CronHealthCard />
+              <RouteCatalogueCard />
+              <EmailStatsCard />
+              <EmailDiagnosticCard />
+              <GlobalAliasesCard />
+              <GlobalStatsCard />
+              <FeatureFlagsCard />
+              <AuditLogCard />
+            </>
+          )}
         </AdminCardsContext.Provider>
       </main>
     </div>

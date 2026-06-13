@@ -1602,3 +1602,11 @@ Both upload sites (the regular EPUB upload pipeline + the URL-fetch path) now pe
 - Toggling OFF wipes every `shelfsort.admin.card.*` key so the next visit starts clean — no stale flags lingering after an opt-out.
 - Toast confirms each state change ("Will remember which sections you leave open" / "Sections will reset on every visit"). The italic hint line under the header dynamically appends "Your open sections will be remembered on your next visit." when Remember is on.
 - Verified end-to-end via Playwright: default Off → toggle On → expand Users → reload → Users still open + Remember still On → toggle Off → localStorage card keys cleared.
+
+### Added 2026-06-13 (Admin Console — section search + suggestion chips)
+- New full-width rounded search input above the cards (testid `admin-section-search-input`) with leading magnifier icon and a trailing × clear button. Live filter — typing narrows the page down to matching sections only.
+- Below the input: a "Try:" row of one-click suggestion chips (`users`, `email`, `fandom`, `cron`, `stats`, `flags`, `chat`, `audit`, `route`) so admins know exactly what keywords are wired in. Active chip highlights filled-purple.
+- Match logic combines each card's title + subtitle + a hardcoded `keywords` field (e.g. "outage" surfaces Maintenance banner; "send" surfaces both email cards). Manifest lives in `ADMIN_CARD_MANIFEST` at the top of the file.
+- When a query is active, a right-aligned count label shows `N of 13 sections`. When nothing matches, the cards collapse into a friendly empty-state card with a magnifier icon, the offending query echoed back, and a "Clear search" CTA (testid `admin-section-search-empty-clear`).
+- Cards self-hide in their own render via `query` from `AdminCardsContext` — no wrapper component needed, no DOM nodes left behind.
+- Verified end-to-end: clicking `email` chip → 2 of 13 sections, only `email-stats-card` + `admin-email-diagnostic-card` rendered; typing "xyzqqqzz" → empty state; clear → all 13 return; typing "outage" → only `admin-banner-card` surfaces via keywords.
