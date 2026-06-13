@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { api } from "../lib/api";
 import Navbar from "../components/Navbar";
 import BookCard from "../components/BookCard";
-import { ArrowLeft, Download, Link as LinkIcon, Search, BookOpen } from "lucide-react";
+import { ArrowLeft, ArrowLeftRight, Download, Link as LinkIcon, Search, BookOpen } from "lucide-react";
 import { toast } from "sonner";
 
 export default function FandomShelf() {
@@ -213,8 +213,9 @@ export default function FandomShelf() {
                   className="px-3 py-1.5 rounded-full text-xs font-semibold border bg-[#FDF3E1] text-[#6B46C1] border-[#6B46C1]/30 hover:bg-[#6B46C1] hover:text-white transition-colors inline-flex items-center gap-2"
                   title={`${r.count} book${r.count === 1 ? "" : "s"} · ${(r.parts || []).join(" + ")}`}
                 >
-                  <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-[#6B46C1] text-white text-[10px] font-bold leading-none">
-                    ×{(r.parts || []).length}
+                  <span className="inline-flex items-center justify-center gap-0.5 min-w-[26px] h-[18px] px-1.5 rounded-full bg-[#6B46C1] text-white text-[10px] font-bold leading-none">
+                    <ArrowLeftRight className="w-2.5 h-2.5" aria-hidden="true" />
+                    {(r.parts || []).length}
                   </span>
                   <span>{r.name}</span>
                   <span className="text-[10px] opacity-70">· {r.count}</span>

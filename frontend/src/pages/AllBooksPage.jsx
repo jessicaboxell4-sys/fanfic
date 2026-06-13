@@ -16,7 +16,7 @@ import BackupReminderBanner from "../components/BackupReminderBanner";
 import LibraryActivityWidgets from "../components/LibraryActivityWidgets";
 import Ao3FilterChips from "../components/Ao3FilterChips";
 import FandomFinder from "../components/FandomFinder";
-import { Search, X, Plus, ArrowRight, CheckSquare, Sparkles, Loader2, RefreshCw, Library, UserCircle2, Filter, Pin, FolderOpen, ArrowUpDown, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Trash2 } from "lucide-react";
+import { Search, X, Plus, ArrowRight, ArrowLeftRight, CheckSquare, Sparkles, Loader2, RefreshCw, Library, UserCircle2, Filter, Pin, FolderOpen, ArrowUpDown, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { FETCHING_UI_ENABLED } from "../lib/featureFlags";
 
@@ -956,7 +956,7 @@ export default function AllBooksPage() {
                     className="mb-3 mr-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-[#FDF3E1] text-[#6B46C1] border border-[#6B46C1]/30 hover:bg-[#6B46C1] hover:text-white transition-colors"
                   >
                     <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1 rounded-full bg-[#6B46C1] text-white text-[10px] font-bold leading-none">
-                      ×
+                      <ArrowLeftRight className="w-2.5 h-2.5" aria-hidden="true" />
                     </span>
                     {stats.crossover_count} crossover{stats.crossover_count === 1 ? "" : "s"} · open browser
                     <ArrowRight className="w-3 h-3" />
@@ -1019,9 +1019,11 @@ export default function AllBooksPage() {
                             {isCrossover && (
                               <span
                                 data-testid={`crossover-badge-${f.name.replace(/\s+/g, '-').toLowerCase()}`}
-                                className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-[#6B46C1] text-white text-[10px] font-bold leading-none"
+                                className="inline-flex items-center justify-center gap-0.5 min-w-[26px] h-[18px] px-1.5 rounded-full bg-[#6B46C1] text-white text-[10px] font-bold leading-none"
+                                title={`Crossover · ${xPieces.length} fandoms`}
                               >
-                                ×{xPieces.length}
+                                <ArrowLeftRight className="w-2.5 h-2.5" aria-hidden="true" />
+                                {xPieces.length}
                               </span>
                             )}
                             {f.name} · {f.count}

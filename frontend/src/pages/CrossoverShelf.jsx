@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Search, Filter } from "lucide-react";
+import { ArrowLeft, ArrowLeftRight, ArrowRight, Search, Filter } from "lucide-react";
 import { api } from "../lib/api";
 import Navbar from "../components/Navbar";
 
@@ -117,8 +117,9 @@ export default function CrossoverShelf() {
               className="shelf-card p-4 text-left hover:shadow-md transition border-[#6B46C1]/20 hover:border-[#6B46C1]"
             >
               <div className="flex items-start justify-between gap-2 mb-2">
-                <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full bg-[#6B46C1] text-white text-xs font-bold leading-none">
-                  ×{(f.parts || []).length}
+                <span className="inline-flex items-center justify-center gap-1 min-w-[32px] h-[22px] px-2 rounded-full bg-[#6B46C1] text-white text-xs font-bold leading-none">
+                  <ArrowLeftRight className="w-3 h-3" aria-hidden="true" />
+                  {(f.parts || []).length}
                 </span>
                 <span className="text-xs text-[#6B705C] flex-shrink-0">{f.count} book{f.count === 1 ? "" : "s"}</span>
               </div>

@@ -1670,3 +1670,10 @@ Both upload sites (the regular EPUB upload pipeline + the URL-fetch path) now pe
 - Affected UX surfaces: the **`×N` crossover badges**, the **crossover shelf** page, the **pairings** index + search input + filter chips, the **unreadable-books** "corrupt EPUB" filter chip + reason badges, the **originals shelf** duplicate-indicator panel, the **fandom shelf** "drill into one" crossover chips, the **AllBooksPage** crossover-rail buttons, the **Account** danger-link.
 - Cleaned up the now-orphan `:root[data-theme="dark"] .text-[#900]/.bg-[#900]/.border-[#900]/30` overrides in `index.css` (replaced with a brief retirement note). The `text-[#2a6496]` override kept with an explanatory note in case any third-party content references it.
 - Verified visually in dark mode on the live tenant: pairings, crossovers, library fandom rail — every previously-coral element renders as a coherent purple now. The 3-test dark-mode regression suite still passes (0 violations across the codebase).
+
+
+### Added 2026-06-13 (Crossover semantic-icon badge)
+- After the maroon → purple sweep removed the colour distinction between crossover and regular fandom chips, replaced the `×N` crossover badge glyph with the lucide-react `ArrowLeftRight` icon (⇄) + count across all three render sites: `AllBooksPage.jsx` (top-of-rail crossover pill + inline fandom chip badge), `FandomShelf.jsx` (related-crossovers row), `CrossoverShelf.jsx` (per-crossover card).
+- The ⇄ icon is the universal "exchange / both directions" symbol and reads as "crossover" without needing a colour cue. Power readers can now spot crossovers from anywhere in the library instantly, while the chip itself stays on the unified purple palette.
+- Badge geometry tweaked (min-width bumped to 24–32px depending on context) so the icon + count fit cleanly with no overlap.
+- Verified visually on Jessica's real `NCIS: Tony / Ziva · 2` crossover in both the crossovers page and the AllBooksPage fandom rail.
