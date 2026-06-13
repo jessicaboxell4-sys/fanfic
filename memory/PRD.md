@@ -1246,3 +1246,9 @@ These are agent-suggested features the user hasn't picked yet. Bring them up nex
   - 5 fics in same fandom → exactly 1 notification (per-batch dedup) ✓
 - **E2E verified**: scripted an Alice→Bob friendship with Bob holding an existing HP book; Alice uploaded an EPUB titled "Harry Potter and the New Adventure"; the classifier tagged it `fandom="Harry Potter"`, and Bob received exactly **1** `friend_new_book` notification with the correct title and `/friends` link.
 - Full backend suite (test_friends + test_suggestions + test_tags_and_smart_shelves): **71 passed, 3 skipped, 0 failed.**
+
+
+
+### Parked idea 2026-06-13 ("Books your friends added recently" carousel — P2)
+- Concept: small horizontal carousel on the library home page that surfaces `friend_new_book` notifications from the last 7 days as clickable cards (friend avatar + fandom badge + "View library →"). Turns the bell into a passive discovery feed even when users don't click in. Pulls from `db.notifications` filtered by `kind="friend_new_book"` + `created_at >= now-7d`.
+- Priority: P2 (parked by user 2026-06-13 with "remind later").
