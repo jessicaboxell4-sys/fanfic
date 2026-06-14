@@ -1304,6 +1304,21 @@ from utils.url_canonical import (  # noqa: E402
     _looks_like_url_list,
 )
 
+# Phase 5 cleanup: helpers that were extracted to other modules but are still
+# referenced from this file (upload_books, list_library_xlsx, etc.).
+def _safe_folder(name: str) -> str:
+    """Mirror of routes/exports.py::_safe_folder — sanitised dir/file name."""
+    import re as _re
+    out = _re.sub(r"[^\w\-. ]+", "_", (name or "").strip())
+    return out[:60] or "unknown"
+
+
+async def _dedupe_url_list(text: str, user_id: str):
+    """Lazy-import bridge so `upload_books` keeps working after url_lists.py
+    moved out of this file. Imported on demand to dodge the circular."""
+    from routes.url_lists import _dedupe_url_list as _impl  # noqa: WPS433
+    return await _impl(text, user_id)
+
 
 # ----------------------------------------------------------------------
 # EPUB TEMPLATE APPLIER
@@ -2610,7 +2625,10 @@ async def upload_books(
         # fulltext glitch to break the upload itself, so we swallow.
         try:
             from utils.epub_fulltext import extract_epub_text, upsert_fulltext, count_words  # noqa: WPS433
-            _ft_text = extract_epub_text(epub_path)
+            from pathlib import Path as _P  # noqa: WPS433
+            # Reconstruct the on-disk path from STORAGE_DIR + user_id + book_id.
+            _epub_path = STORAGE_DIR / user.user_id / f"{doc['book_id']}.epub"
+            _ft_text = extract_epub_text(_epub_path)
             await upsert_fulltext(db, doc["book_id"], user.user_id, _ft_text)
             _wc = count_words(_ft_text)
             if _wc > 0:
@@ -3571,6 +3589,44 @@ async def export_all_links(
         fname = "shelfsort_filtered_links.txt"
     headers = {"Content-Disposition": f"attachment; filename={fname}"}
     return Response(content=body, media_type="text/plain; charset=utf-8", headers=headers)
+
+
+@api_router.get("/books/quick-search")
+async def quick_search_books(q: str, limit: int = 8, user: User = Depends(get_current_user)):
+    """Lightweight title/author typeahead — feeds the navbar quick-search dropdown.
+
+    Case-insensitive *substring* match against title + author (NOT full-body
+    text — see `/library/search/fulltext` for the heavier search). Excludes
+    trashed / replaced books.  Returns minimal fields so the dropdown stays
+    snappy.
+    """
+    needle = (q or "").strip()
+    if len(needle) < 2:
+        return {"books": []}
+    limit = max(1, min(limit, 20))
+    safe = re.escape(needle)
+    cursor = db.books.find(
+        {
+            "user_id": user.user_id,
+            "category": {"$ne": "Trash"},
+            "replaced_by": {"$exists": False},
+            "$or": [
+                {"title": {"$regex": safe, "$options": "i"}},
+                {"author": {"$regex": safe, "$options": "i"}},
+            ],
+        },
+        {"_id": 0, "book_id": 1, "title": 1, "author": 1, "category": 1, "fandom": 1},
+    ).sort([("last_opened_at", -1), ("title", 1)]).limit(limit)
+    out = []
+    async for b in cursor:
+        out.append({
+            "book_id": b["book_id"],
+            "title": b.get("title", ""),
+            "author": b.get("author", ""),
+            "category": b.get("category", ""),
+            "fandom": b.get("fandom", []),
+        })
+    return {"books": out}
 
 
 @api_router.get("/books/{book_id}/links")

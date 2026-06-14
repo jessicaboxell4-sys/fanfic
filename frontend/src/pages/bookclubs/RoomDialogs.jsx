@@ -133,6 +133,11 @@ export function InviteFriendsBlock({ roomId, currentMemberIds, onInvited }) {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
 
+  // @handle lookup for non-friends — same UX pattern as /friends invite.
+  const [handleQuery, setHandleQuery] = useState("");
+  const [handleResults, setHandleResults] = useState([]);
+  const [showResults, setShowResults] = useState(false);
+
   useEffect(() => {
     api.get("/friends")
       .then(({ data }) => setFriends(data?.accepted || []))
@@ -140,37 +145,111 @@ export function InviteFriendsBlock({ roomId, currentMemberIds, onInvited }) {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    const trimmed = handleQuery.trim();
+    if (!trimmed.startsWith("@")) {
+      setHandleResults([]);
+      setShowResults(false);
+      return;
+    }
+    const id = setTimeout(async () => {
+      try {
+        const { data } = await api.get("/users/search", { params: { q: trimmed, limit: 6 } });
+        const filtered = (data?.users || []).filter((u) => !currentMemberIds.has(u.user_id));
+        setHandleResults(filtered);
+        setShowResults(true);
+      } catch { setHandleResults([]); setShowResults(false); }
+    }, 250);
+    return () => clearTimeout(id);
+  }, [handleQuery, currentMemberIds]);
+
   const inviteable = useMemo(
     () => friends.filter((f) => !currentMemberIds.has(f.other_user_id)),
     [friends, currentMemberIds],
   );
 
-  const send = async (f) => {
-    setBusyId(f.other_user_id);
+  const send = async (target) => {
+    const tid = target.other_user_id || target.user_id;
+    const label = target.username
+      ? `@${target.username}`
+      : (target.name || target.email);
+    setBusyId(tid);
     try {
-      await api.post(`/bookclubs/${roomId}/invite`, { user_id: f.other_user_id });
-      toast.success(`Invited ${f.name || f.email}`);
+      await api.post(`/bookclubs/${roomId}/invite`, { user_id: tid });
+      toast.success(`Invited ${label}`);
+      setHandleQuery("");
+      setShowResults(false);
       onInvited?.();
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Couldn't invite");
     } finally { setBusyId(null); }
   };
 
-  if (loading) return <div className="text-xs text-[#6B705C] flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Loading friends…</div>;
-  if (friends.length === 0) return <p className="text-xs text-[#6B705C]">Add friends first from <Link to="/friends" className="text-[#6B46C1] underline">Friends</Link>.</p>;
-  if (inviteable.length === 0) return <p className="text-xs text-[#6B705C]">All your friends are already in this room.</p>;
-
   return (
-    <ul className="space-y-1" data-testid="invite-friends-list">
-      {inviteable.map((f) => (
-        <li key={f.other_user_id} data-testid={`invite-friend-${f.other_user_id}`} className="flex items-center gap-2 bg-[#FBFAF6] border border-[#E5DDC5] rounded-lg px-3 py-2">
-          {f.picture ? <img src={f.picture} alt={f.name} className="w-6 h-6 rounded-full" /> : <div className="w-6 h-6 rounded-full bg-[#E5DDC5]" />}
-          <div className="min-w-0 flex-1"><p className="text-sm font-medium text-[#2C2C2C] truncate">{f.name || f.email}</p></div>
-          <button data-testid={`invite-btn-${f.other_user_id}`} disabled={busyId === f.other_user_id} onClick={() => send(f)} className="btn-secondary text-xs flex items-center gap-1">
-            {busyId === f.other_user_id ? <Loader2 className="w-3 h-3 animate-spin" /> : <UserPlus className="w-3 h-3" />} Invite
-          </button>
-        </li>
-      ))}
-    </ul>
+    <div className="space-y-2">
+      {/* @handle quick-invite — works for any Shelfsort user, not just friends. */}
+      <div className="relative">
+        <input
+          data-testid="invite-handle-input"
+          type="text"
+          value={handleQuery}
+          onChange={(e) => setHandleQuery(e.target.value)}
+          onFocus={() => handleResults.length > 0 && setShowResults(true)}
+          onBlur={() => setTimeout(() => setShowResults(false), 150)}
+          placeholder="@handle to invite anyone…"
+          className="w-full text-xs px-2 py-1.5 rounded-lg border border-[#E5DDC5] bg-white focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/30 font-mono"
+        />
+        {showResults && handleResults.length > 0 && (
+          <ul
+            data-testid="invite-handle-results"
+            className="absolute left-0 right-0 top-[34px] z-20 bg-white border border-[#E5DDC5] rounded-lg shadow-lg max-h-48 overflow-y-auto"
+          >
+            {handleResults.map((u) => (
+              <li key={u.user_id}>
+                <button
+                  type="button"
+                  data-testid={`invite-handle-result-${u.username}`}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => send(u)}
+                  disabled={busyId === u.user_id}
+                  className="w-full text-left flex items-center gap-2 px-2.5 py-1.5 hover:bg-[#FBFAF6] disabled:opacity-50"
+                >
+                  {u.picture
+                    ? <img src={u.picture} alt={u.username} className="w-5 h-5 rounded-full" />
+                    : <div className="w-5 h-5 rounded-full bg-[#E5DDC5] flex items-center justify-center text-[10px] font-mono text-[#6B705C]">@</div>}
+                  <span className="text-xs font-mono truncate">@{u.username}</span>
+                  {busyId === u.user_id && <Loader2 className="w-3 h-3 animate-spin text-[#6B46C1] ml-auto" />}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* Existing friends list */}
+      {loading ? (
+        <div className="text-xs text-[#6B705C] flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Loading friends…</div>
+      ) : friends.length === 0 ? (
+        <p className="text-xs text-[#6B705C]">No friends yet — invite by <code className="font-mono">@handle</code> above or add some from <Link to="/friends" className="text-[#6B46C1] underline">Friends</Link>.</p>
+      ) : inviteable.length === 0 ? (
+        <p className="text-xs text-[#6B705C]">All your friends are already in this room — use <code className="font-mono">@handle</code> above to invite anyone else.</p>
+      ) : (
+        <ul className="space-y-1" data-testid="invite-friends-list">
+          {inviteable.map((f) => (
+            <li key={f.other_user_id} data-testid={`invite-friend-${f.other_user_id}`} className="flex items-center gap-2 bg-[#FBFAF6] border border-[#E5DDC5] rounded-lg px-3 py-2">
+              {f.picture ? <img src={f.picture} alt={f.name} className="w-6 h-6 rounded-full" /> : <div className="w-6 h-6 rounded-full bg-[#E5DDC5]" />}
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-[#2C2C2C] truncate">
+                  {f.username ? `@${f.username}` : (f.name || f.email)}
+                </p>
+              </div>
+              <button data-testid={`invite-btn-${f.other_user_id}`} disabled={busyId === f.other_user_id} onClick={() => send(f)} className="btn-secondary text-xs flex items-center gap-1">
+                {busyId === f.other_user_id ? <Loader2 className="w-3 h-3 animate-spin" /> : <UserPlus className="w-3 h-3" />} Invite
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }

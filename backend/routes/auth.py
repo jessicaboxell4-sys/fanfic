@@ -389,40 +389,6 @@ async def clear_previous_username(user: User = Depends(get_current_user)):
     return {"ok": True}
 
 
-@api_router.get("/users/search")
-async def search_users(q: str, limit: int = 8, user: User = Depends(get_current_user)):
-    """Autocomplete-style prefix search over public usernames.
-
-    Case-insensitive; matches `@imc` → `@ImCrazy42`.  Returns at most `limit`
-    results.  Excludes the current user and anyone who set `hidden_from_search`.
-    Empty/short queries return empty so the dropdown stays quiet until the
-    user actually typed something useful.
-    """
-    needle = (q or "").strip().lstrip("@").lower()
-    if len(needle) < 2:
-        return {"users": []}
-    limit = max(1, min(limit, 20))
-    # Anchor-on-prefix regex via the lowercase index field for speed.
-    cursor = db.users.find(
-        {
-            "username_lower": {"$regex": f"^{re.escape(needle)}", "$options": "i"},
-            "user_id": {"$ne": user.user_id},
-            "hidden_from_search": {"$ne": True},
-        },
-        {"_id": 0, "user_id": 1, "username": 1, "previous_username": 1, "name": 1, "picture": 1},
-    ).sort("username_lower", 1).limit(limit)
-    out = []
-    async for u in cursor:
-        out.append({
-            "user_id": u["user_id"],
-            "username": u.get("username"),
-            "previous_username": u.get("previous_username"),
-            "name": u.get("name"),
-            "picture": u.get("picture", ""),
-        })
-    return {"users": out}
-
-
 @api_router.patch("/auth/profile")
 async def update_profile(body: UpdateProfileBody, user: User = Depends(get_current_user)):
     name = (body.name or "").strip()

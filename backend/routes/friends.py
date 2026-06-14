@@ -330,12 +330,25 @@ async def unblock_user(other_user_id: str, user: User = Depends(get_current_user
 # ---------------------------------------------------------------------
 
 @api_router.get("/users/search")
-async def search_users(q: str = "", user: User = Depends(get_current_user)):
-    """Find users by name or email substring. Excludes hidden, self,
-    and anyone the caller has blocked (or who blocked the caller)."""
-    q = (q or "").strip()
+async def search_users(
+    q: str = "",
+    limit: int = 20,
+    user: User = Depends(get_current_user),
+):
+    """Find users by username (prefix), name, or email substring.
+
+    - A leading `@` is stripped so `@imc` works like `imc`.
+    - Username matches are anchored to the prefix (autocomplete-friendly)
+      via the lowercase index field.
+    - Name and email are case-insensitive substring matches so legacy
+      callers (users without a claimed handle) keep working.
+    - Excludes self, anyone hidden, and anyone in a blocked relation.
+    - Always annotates `relation` so the UI can render the right CTA.
+    """
+    q = (q or "").strip().lstrip("@")
     if len(q) < 2:
         return {"users": []}
+    limit = max(1, min(limit, 20))
     escaped = re.escape(q)
     pattern = re.compile(escaped, re.IGNORECASE)
     # Excluded user_ids: self + everyone in a 'blocked' row touching me.
@@ -351,10 +364,17 @@ async def search_users(q: str = "", user: User = Depends(get_current_user)):
         {
             "user_id": {"$nin": list(excluded)},
             "hidden_from_search": {"$ne": True},
-            "$or": [{"email": {"$regex": pattern}}, {"name": {"$regex": pattern}}],
+            "$or": [
+                {"username_lower": {"$regex": f"^{escaped.lower()}"}},
+                {"email": {"$regex": pattern}},
+                {"name": {"$regex": pattern}},
+            ],
         },
-        {"_id": 0, "user_id": 1, "email": 1, "name": 1, "picture": 1, "message_privacy": 1},
-    ).limit(20).to_list(length=20)
+        {
+            "_id": 0, "user_id": 1, "email": 1, "name": 1, "picture": 1,
+            "message_privacy": 1, "username": 1, "previous_username": 1,
+        },
+    ).limit(limit).to_list(length=limit)
 
     # Annotate relation status so the UI can show the right CTA.
     pairs = [_pair(user.user_id, c["user_id"]) for c in candidates]
@@ -384,6 +404,8 @@ async def search_users(q: str = "", user: User = Depends(get_current_user)):
             "email": c.get("email", ""),
             "name": c.get("name", ""),
             "picture": c.get("picture", ""),
+            "username": c.get("username"),
+            "previous_username": c.get("previous_username"),
             "message_privacy": c.get("message_privacy") or "friends_only",
             "relation": relation,
         })

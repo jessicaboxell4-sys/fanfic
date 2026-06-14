@@ -11,6 +11,7 @@ import AppearancePopover from "./AppearancePopover";
 import ChatInboxIcon from "./ChatInboxIcon";
 import NotificationsBell from "./NotificationsBell";
 import DisplayName from "./DisplayName";
+import BookQuickSearch from "./BookQuickSearch";
 import { FETCHING_UI_ENABLED } from "../lib/featureFlags";
 
 export default function Navbar() {
@@ -44,6 +45,7 @@ export default function Navbar() {
         </Link>
 
         {user && FETCHING_UI_ENABLED && <NavbarQuickAdd />}
+        {user && <div className="hidden md:block flex-1 max-w-xs"><BookQuickSearch /></div>}
 
         <div className="flex items-center gap-2 md:gap-3">
           <AppearancePopover />
