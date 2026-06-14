@@ -2,6 +2,8 @@ import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { BookOpen, Sparkles, FolderTree, Download } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import PrimaryCTAButton from "../components/PrimaryCTAButton";
+import SecondaryCTAButton from "../components/SecondaryCTAButton";
 
 export default function Landing() {
   const navigate = useNavigate();
@@ -45,20 +47,18 @@ export default function Landing() {
             in your downloads.
           </p>
           <div className="flex flex-wrap gap-3">
-            <button
-              data-testid="hero-cta-start"
+            <PrimaryCTAButton
+              testid="hero-cta-start"
               onClick={handleStart}
-              className="btn-primary"
             >
               Start sorting
-            </button>
-            <a
-              href="#features"
-              className="btn-secondary"
-              data-testid="hero-cta-learn"
+            </PrimaryCTAButton>
+            <SecondaryCTAButton
+              testid="hero-cta-learn"
+              anchor="#features"
             >
               How it works
-            </a>
+            </SecondaryCTAButton>
           </div>
         </div>
         <div className="relative">

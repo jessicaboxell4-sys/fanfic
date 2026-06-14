@@ -3,11 +3,13 @@ import { Link } from "react-router-dom";
 
 /**
  * Standardised primary CTA. Either renders an internal <Link> when `to` is
- * provided, an external <a> when `href`, or a `<button>` otherwise.
+ * provided, an external <a> when `href`, an in-page anchor <a> when `anchor`
+ * (e.g. "#features"), or a `<button>` otherwise.
  *
  * Props:
  *   to       — internal route (uses react-router Link)
  *   href     — external URL (uses <a target=_blank>)
+ *   anchor   — in-page hash like "#features" (same-page scroll, no _blank)
  *   onClick  — falls back to a <button>
  *   icon     — optional left-side icon (lucide-react component)
  *   size     — "sm" (compact) | "md" (default)
@@ -23,6 +25,7 @@ const SIZE_CLASSES = {
 export default function PrimaryCTAButton({
   to,
   href,
+  anchor,
   onClick,
   icon: Icon,
   size = "md",
@@ -44,6 +47,9 @@ export default function PrimaryCTAButton({
 
   if (to && !disabled) {
     return <Link to={to} {...sharedProps}>{content}</Link>;
+  }
+  if (anchor && !disabled) {
+    return <a href={anchor} {...sharedProps}>{content}</a>;
   }
   if (href && !disabled) {
     return <a href={href} target="_blank" rel="noopener noreferrer" {...sharedProps}>{content}</a>;

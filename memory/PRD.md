@@ -1998,3 +1998,11 @@ No backend changes for any of the three. No new dependencies.
 - **#10 Rename `progress_percent` → `progress_fraction`** — DEFERRED with note. The field is referenced by 30+ call sites across `routes/smart_shelves.py`, `routes/digest.py`, `routes/stats.py`, `routes/year_in_books.py`, 10+ test files, AND is the field name in already-persisted MongoDB documents. A clean rename needs (a) a forward-compatible read layer, (b) a DB migration script, (c) cutover. Effort is **medium**, not **small**. Moved to its own card on the backlog with that re-estimate; happy to take it on as a standalone task.
 
 No backend changes for any Batch 3 item.
+
+
+### Changed 2026-06-14 (CTA sweep follow-up)
+
+- Audited every `btn-secondary` site in `src/`.  Verdict: most are tiny dialog Cancel buttons that are intentionally lightweight — swapping them to the new `<SecondaryCTAButton />` would make dialogs heavier visually. Only one clean swap opportunity exists in current UI: **the Landing hero pair**.
+- Added an `anchor` prop to both `<PrimaryCTAButton />` and `<SecondaryCTAButton />` for in-page hash links (e.g. `#features`) — renders a plain `<a href={anchor}>` (no `target=_blank`) so browsers handle the scroll natively and the URL retains the hash for sharing.
+- Swapped `Landing.jsx` hero pair: `Start sorting` → `<PrimaryCTAButton testid="hero-cta-start" onClick={handleStart}>` and `How it works` → `<SecondaryCTAButton testid="hero-cta-learn" anchor="#features">`. All existing data-testids preserved; visual output identical to before (the CSS classes the components emit match the original `btn-primary`/`btn-secondary` styles). Live verified: both buttons render, anchor click updates URL to `/#features`, no new console errors.
+- Other "back to library" / "Cancel" outline buttons left as-is per the audit — using the CTA components there would be over-styling.
