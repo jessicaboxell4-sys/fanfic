@@ -16,7 +16,7 @@ import BackupReminderBanner from "../components/BackupReminderBanner";
 import LibraryActivityWidgets from "../components/LibraryActivityWidgets";
 import Ao3FilterChips from "../components/Ao3FilterChips";
 import FandomFinder from "../components/FandomFinder";
-import { Search, X, Plus, ArrowRight, ArrowLeftRight, Heart, CheckSquare, Sparkles, Loader2, RefreshCw, Library, UserCircle2, Filter, Pin, FolderOpen, ArrowUpDown, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Trash2 } from "lucide-react";
+import { Search, X, Plus, ArrowRight, ArrowLeftRight, Heart, BookOpen, CheckSquare, Sparkles, Loader2, RefreshCw, Library, UserCircle2, Filter, Pin, FolderOpen, ArrowUpDown, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { FETCHING_UI_ENABLED } from "../lib/featureFlags";
 
@@ -37,6 +37,9 @@ export default function AllBooksPage() {
   const [relationship, setRelationship] = useState(null);
   const [ao3Filters, setAo3Filters] = useState({ rating: null, ao3_category: null, warning: null, exclude_warning: null });
   const [search, setSearch] = useState("");
+  const [fulltextMode, setFulltextMode] = useState(false);
+  const [fulltextResults, setFulltextResults] = useState(null);
+  const [fulltextLoading, setFulltextLoading] = useState(false);
   const [customCats, setCustomCats] = useState([]);
   const [newCat, setNewCat] = useState("");
   const [addingCat, setAddingCat] = useState(false);
@@ -191,6 +194,36 @@ export default function AllBooksPage() {
   }, [category, fandom, relationship, ao3Filters, search, smart]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Full-text search: when the toggle is on and the user types ≥ 2 chars,
+  // debounce 350 ms then call the dedicated `/api/library/search/fulltext`
+  // endpoint. Results render in a panel above the regular book grid; the
+  // grid filters themselves keep working untouched so the user can clear
+  // the full-text mode and instantly fall back to metadata search.
+  useEffect(() => {
+    if (!fulltextMode) {
+      setFulltextResults(null);
+      return;
+    }
+    const q = search.trim();
+    if (q.length < 2) {
+      setFulltextResults(null);
+      return;
+    }
+    let cancelled = false;
+    setFulltextLoading(true);
+    const id = setTimeout(async () => {
+      try {
+        const { data } = await api.get("/library/search/fulltext", { params: { q, limit: 20 } });
+        if (!cancelled) setFulltextResults(data);
+      } catch {
+        if (!cancelled) setFulltextResults({ q, count: 0, results: [] });
+      } finally {
+        if (!cancelled) setFulltextLoading(false);
+      }
+    }, 350);
+    return () => { cancelled = true; clearTimeout(id); };
+  }, [fulltextMode, search]);
 
   // Honor `?relationship=...` query param on first mount so deep-links from
   // BookDetail pairing chips land on a pre-filtered library.
@@ -608,12 +641,26 @@ export default function AllBooksPage() {
                 <input
                   data-testid="search-input"
                   type="text"
-                  placeholder="Search by title or author…"
+                  placeholder={fulltextMode ? "Search inside book text…" : "Search by title or author…"}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="w-full bg-white border border-[#E8E6E1] rounded-lg pl-10 pr-3 py-2.5 text-sm focus:outline-none focus:border-[#E07A5F] focus:ring-2 focus:ring-[#E07A5F]/20"
+                  className="w-full bg-white border border-[#E8E6E1] rounded-lg pl-10 pr-3 py-2.5 text-sm focus:outline-none focus:border-[#6B46C1] focus:ring-2 focus:ring-[#EEE9FB]"
                 />
               </div>
+              <button
+                type="button"
+                onClick={() => { setFulltextMode((v) => !v); setFulltextResults(null); }}
+                data-testid="toggle-fulltext-search"
+                title="Toggle searching the body text of EPUBs (vs. just titles/authors)"
+                aria-pressed={fulltextMode}
+                className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium border transition-colors ${
+                  fulltextMode
+                    ? "bg-[#6B46C1] text-white border-[#6B46C1] hover:bg-[#553397]"
+                    : "bg-white text-[#6B46C1] border-[#6B46C1]/30 hover:bg-[#EEE9FB]"
+                }`}
+              >
+                <BookOpen className="w-4 h-4" /> Search inside
+              </button>
               <button
                 data-testid="toggle-select-mode"
                 onClick={() => {
@@ -1113,6 +1160,55 @@ export default function AllBooksPage() {
               </div>
             )}
             <Ao3FilterChips value={ao3Filters} onChange={setAo3Filters} onShelfSaved={() => { load(); reloadPinnedShelves(); }} />
+            {fulltextMode && (
+              <div className="mb-6" data-testid="fulltext-results-panel">
+                {fulltextLoading && (
+                  <p className="text-[#6B705C] py-4 text-center text-sm">Searching inside books…</p>
+                )}
+                {!fulltextLoading && fulltextResults && search.trim().length >= 2 && (
+                  <>
+                    <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B46C1] mb-3">
+                      Inside-book matches ({fulltextResults.count})
+                    </p>
+                    {fulltextResults.results.length === 0 ? (
+                      <p className="text-sm text-[#6B705C] py-6 text-center" data-testid="fulltext-empty">
+                        No book bodies contain "{search.trim()}". Books are indexed at upload time — older books may need an admin to run the Full-text backfill.
+                      </p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {fulltextResults.results.map((r) => (
+                          <li
+                            key={r.book_id}
+                            data-testid={`fulltext-hit-${r.book_id}`}
+                            className="shelf-card p-3"
+                          >
+                            <Link
+                              to={`/book/${r.book_id}`}
+                              className="font-medium text-[#2C2C2C] hover:text-[#6B46C1] flex items-center justify-between gap-2"
+                            >
+                              <span className="truncate">{r.title || "Untitled"} <span className="text-[#6B705C] font-normal">— {r.author || "Unknown"}</span></span>
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#EEE9FB] text-[#6B46C1] flex-shrink-0">
+                                score {r.score}
+                              </span>
+                            </Link>
+                            {r.snippet && (
+                              <p className="mt-1.5 text-xs text-[#6B705C] italic leading-relaxed">
+                                {r.snippet}
+                              </p>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </>
+                )}
+                {!fulltextLoading && (!fulltextResults || search.trim().length < 2) && (
+                  <p className="text-sm text-[#6B705C] py-4 text-center" data-testid="fulltext-empty-prompt">
+                    Type at least 2 characters to search inside your books.
+                  </p>
+                )}
+              </div>
+            )}
             {loading ? (
               <p className="text-[#6B705C] py-12 text-center">Loading…</p>
             ) : books.length === 0 ? (

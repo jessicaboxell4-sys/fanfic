@@ -48,6 +48,7 @@ const ADMIN_CARD_MANIFEST = [
   { testid: "admin-flags-card", title: "Feature flags", subtitle: "Runtime kill switches.", keywords: "feature flags toggles kill switch runtime config" },
   { testid: "admin-audit-card", title: "Audit log", subtitle: "Every admin write action.", keywords: "audit log history admin actions write changes" },
   { testid: "admin-mongo-inspector-card", title: "Mongo inspector", subtitle: "Read-only browse of every collection.", keywords: "mongo db database collections docs raw browse inspect" },
+  { testid: "admin-fulltext-card", title: "Full-text index", subtitle: "Backfill EPUB body text for search.", keywords: "fulltext full-text search epub index backfill body" },
 ];
 
 function cardMatchesQuery(card, q) {
@@ -1702,6 +1703,53 @@ function MongoInspectorCardWrap() {
   );
 }
 
+function FulltextBackfillCard() {
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+  const run = async () => {
+    setBusy(true);
+    setResult(null);
+    try {
+      const { data } = await api.post("/admin/fulltext/backfill?limit=500");
+      setResult(data);
+      toast.success(`Indexed ${data.indexed} books (${data.skipped_missing_file} missing files, ${data.errors} errors)`);
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Backfill failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Card
+      icon={Search}
+      title="Full-text index"
+      subtitle="Backfill EPUB body text for search."
+      testid="admin-fulltext-card"
+    >
+      <div className="text-sm text-[#2C2C2C] space-y-3" data-testid="admin-fulltext-body">
+        <p>
+          New uploads are indexed automatically. Run this to index the older books that pre-date the feature. Each click processes up to <strong>500 books</strong> — re-click to continue.
+        </p>
+        <button
+          type="button"
+          onClick={run}
+          disabled={busy}
+          data-testid="admin-fulltext-backfill-btn"
+          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#6B46C1] text-white text-xs font-bold uppercase tracking-[0.15em] hover:bg-[#553397] transition-colors disabled:opacity-40"
+        >
+          {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+          {busy ? "Indexing…" : "Run backfill (500)"}
+        </button>
+        {result && (
+          <div className="text-xs text-[#6B705C] font-mono" data-testid="admin-fulltext-result">
+            scanned={result.scanned} · indexed={result.indexed} · missing_file={result.skipped_missing_file} · errors={result.errors}
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
 
 
 
@@ -1873,6 +1921,7 @@ export default function AdminConsole() {
               <FeatureFlagsCard />
               <AuditLogCard />
               <MongoInspectorCardWrap />
+              <FulltextBackfillCard />
             </>
           )}
         </AdminCardsContext.Provider>

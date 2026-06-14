@@ -1772,3 +1772,17 @@ Both upload sites (the regular EPUB upload pipeline + the URL-fetch path) now pe
 - **Account section** brought up to date: Appearance description corrected to describe the **paired Sun/Moon + Palette icon group** ("flips light↔dark on a single click"); Share palette card lists all **three** options — Copy token, Copy as Markdown, Download PNG — with one-line descriptions each.
 - Verified via Playwright that all 5 documentation strings render on the live Help page.
 - Out-of-scope on purpose: admin-only features (Mongo inspector, cron-failure alerts, condensed Admin Console) aren't documented in the user-facing Help page — they're operator tooling.
+
+
+### Added 2026-06-13 (P2: Full-text EPUB search)
+- New `backend/utils/epub_fulltext.py` — extracts an EPUB's spine into one whitespace-normalised string. 5 MB cap, helpers for `upsert_fulltext`, idempotent `ensure_text_index`, and `make_snippet` (200-char excerpt centred on first match).
+- New collection `book_fulltext` with `{book_id, user_id, text, indexed_at}` + Mongo `$text` index on `text`.
+- New routes (`backend/routes/fulltext.py`):
+  - `GET /api/library/search/fulltext?q&limit` — user-scoped `$text` search, joins back to `books` for metadata, returns `{book_id, title, author, fandom, score, snippet}`.
+  - `POST /api/admin/fulltext/backfill?limit` — admin batch indexer; missing-file books get empty rows so they're not retried; returns `{scanned, indexed, errors, skipped_missing_file}`.
+- Upload pipeline hook in `books.py:upload_book`: extract + upsert after every successful insert, swallowing extraction errors so a fulltext glitch never blocks upload.
+- Frontend `AllBooksPage.jsx`: new **"Search inside"** toggle next to the metadata search; 350 ms debounce; results panel above the grid with score badges + italic snippet excerpts; informative empty / pre-typing states pointing at the admin backfill.
+- New Admin Console card **Full-text index** (testid `admin-fulltext-card`) — one-click button runs the 500-book backfill, shows the `scanned/indexed/errors/missing_file` summary + toast.
+- Tests: 8 new pytests in `backend/tests/test_fulltext_search.py` — snippet centring, snippet fallback, search auth required, **user-scoping leak guard** (User A search can't see User B's matches), score+snippet shape, q-too-short → 422, backfill admin-only, backfill response shape. 29/29 across today's suites still pass.
+- Smoke-verified live backfill on the preview: 17 books indexed from EPUBs on disk; the 500-book batch ran without errors.
+- Deliberately deferred: per-chapter chunking + deep-link nav, "Find in this book" on BookDetail, phrase/regex/boolean operators, auto-reindex on metadata edits.

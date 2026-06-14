@@ -3173,6 +3173,16 @@ async def upload_books(
             doc["duplicate_of"] = dupes
 
         await db.books.insert_one(doc)
+        # Hook in full-text index — extract the EPUB body so the new book
+        # is searchable from `/library/search/fulltext` immediately. Any
+        # failure here is logged inside the helper; we never want a
+        # fulltext glitch to break the upload itself, so we swallow.
+        try:
+            from utils.epub_fulltext import extract_epub_text, upsert_fulltext  # noqa: WPS433
+            _ft_text = extract_epub_text(epub_path)
+            await upsert_fulltext(db, doc["book_id"], user.user_id, _ft_text)
+        except Exception as _ft_exc:
+            logger.warning("fulltext index on upload failed for %s: %s", doc.get("book_id"), _ft_exc)
         results.append({k: v for k, v in doc.items() if k != '_id'})
 
     # Auto-resolve based on the user's default duplicate policy. When the
