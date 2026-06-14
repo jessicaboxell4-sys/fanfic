@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import React, { useEffect, useRef, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
   ArrowLeft, Users, Search, UserPlus, Check, X as XIcon, MessageSquare,
@@ -10,6 +10,7 @@ import FriendLibraryModal from "../components/FriendLibraryModal";
 import DmDrawer from "../components/DmDrawer";
 import PrimaryCTAButton from "../components/PrimaryCTAButton";
 import { api } from "../lib/api";
+import { useAuth } from "../context/AuthContext";
 
 function PersonRow({ row, children, testid }) {
   return (
@@ -34,6 +35,7 @@ function PersonRow({ row, children, testid }) {
 }
 
 export default function FriendsPage() {
+  const { user: authedUser } = useAuth();
   const [data, setData] = useState({ accepted: [], pending_in: [], pending_out: [], blocked: [] });
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
@@ -70,6 +72,43 @@ export default function FriendsPage() {
     } catch { /* ignore */ }
   };
   useEffect(() => { load(); }, []);
+
+  // Honour `?room=<roomId>` deep links (legacy /messages/:roomId redirects).
+  // Look the room up in /chat/rooms, find the other member, open the drawer,
+  // then strip the param so it doesn't re-trigger on every state change.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const handledRoomRef = useRef(null);
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const wantedRoom = params.get("room");
+    if (!wantedRoom) return;
+    // Strict-mode double-mount + finally{navigate} re-renders both fire this
+    // effect more than once for the same URL — dedupe via ref.
+    if (handledRoomRef.current === wantedRoom) return;
+    handledRoomRef.current = wantedRoom;
+    (async () => {
+      try {
+        const { data } = await api.get("/chat/rooms");
+        const rooms = data?.rooms || data || [];
+        const match = rooms.find((r) => r.room_id === wantedRoom);
+        if (match) {
+          // Pick the other member's display name (or fall back to "Friend").
+          const others = (match.members || []).filter((m) => m.user_id !== authedUser?.user_id);
+          const name = others[0]?.name || others[0]?.email || match.name || "Friend";
+          setDmTarget({ room_id: match.room_id, name });
+        } else {
+          toast.info("That conversation isn't available anymore.");
+        }
+      } catch {
+        toast.error("Couldn't open that conversation");
+      } finally {
+        // Strip the query param either way so a reload doesn't loop.
+        navigate("/friends", { replace: true });
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search, authedUser?.user_id]);
 
   const sendInvite = async () => {
     if (!inviteEmail.trim()) return;

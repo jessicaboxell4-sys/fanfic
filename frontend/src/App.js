@@ -1,6 +1,6 @@
 import React from "react";
 import "@/App.css";
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from "react-router-dom";
 import { Toaster } from "sonner";
 
 import { AuthProvider, useAuth } from "@/context/AuthContext";
@@ -117,7 +117,7 @@ function AppRouter() {
       <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
       <Route path="/account/appearance" element={<ProtectedRoute><AppearancePage /></ProtectedRoute>} />
       <Route path="/messages" element={<Navigate to="/friends" replace />} />
-      <Route path="/messages/:roomId" element={<Navigate to="/friends" replace />} />
+      <Route path="/messages/:roomId" element={<MessagesRoomRedirect />} />
       <Route path="/friends" element={<ProtectedRoute><FriendsPage /></ProtectedRoute>} />
       <Route path="/bookclubs" element={<ProtectedRoute><BookclubsPage /></ProtectedRoute>} />
       <Route path="/bookclubs/:roomId" element={<ProtectedRoute><BookclubsPage /></ProtectedRoute>} />
@@ -151,6 +151,15 @@ function AppRouter() {
     <TourMount />
     </>
   );
+}
+
+function MessagesRoomRedirect() {
+  // Old deep-link `/messages/:roomId` still appears in older emails/notifications.
+  // The route was retired in 2026-06-14 in favour of the inline DmDrawer on
+  // /friends.  Preserve the roomId so FriendsPage can auto-open the matching
+  // DM drawer instead of dropping the user on the bare /friends page.
+  const { roomId } = useParams();
+  return <Navigate to={`/friends?room=${encodeURIComponent(roomId || "")}`} replace />;
 }
 
 function TourMount() {

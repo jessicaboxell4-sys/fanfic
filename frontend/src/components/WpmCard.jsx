@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Gauge, Loader2 } from "lucide-react";
 import { api } from "../lib/api";
+
+const SAVE_DEBOUNCE_MS = 500;
 
 const PRESETS = [
   { label: "Slow", wpm: 180 },
@@ -21,6 +23,9 @@ export default function WpmCard() {
   const [defaultWpm, setDefaultWpm] = useState(250);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // Tracks the last value we successfully persisted so the debounced effect
+  // skips redundant PUTs (initial load, presets that save immediately).
+  const lastSavedRef = useRef(null);
 
   useEffect(() => {
     api.get("/user/wpm")
@@ -29,6 +34,7 @@ export default function WpmCard() {
         setMin(data.min);
         setMax(data.max);
         setDefaultWpm(data.default);
+        lastSavedRef.current = data.words_per_minute;
       })
       .catch((e) => {
         console.error("wpm load failed", e);
@@ -38,14 +44,27 @@ export default function WpmCard() {
   }, []);
 
   const save = async (value) => {
+    if (value === lastSavedRef.current) return;
     setSaving(true);
     try {
       const { data } = await api.put("/user/wpm", { words_per_minute: value });
+      lastSavedRef.current = data.words_per_minute;
       setWpm(data.words_per_minute);
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Couldn't save");
     } finally { setSaving(false); }
   };
+
+  // Debounced auto-save: any change to `wpm` (slider drag, keyboard arrows,
+  // typing into the number input, preset click) is persisted 500ms after the
+  // user stops changing it.  Avoids hammering /user/wpm during a drag.
+  useEffect(() => {
+    if (loading) return;
+    if (wpm === lastSavedRef.current) return;
+    const id = setTimeout(() => { save(wpm); }, SAVE_DEBOUNCE_MS);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wpm, loading]);
 
   if (loading) {
     return (
@@ -81,8 +100,6 @@ export default function WpmCard() {
           step={10}
           value={wpm}
           onChange={(e) => setWpm(parseInt(e.target.value, 10))}
-          onMouseUp={(e) => save(parseInt(e.target.value, 10))}
-          onTouchEnd={(e) => save(parseInt(e.target.value, 10))}
           data-testid="wpm-slider"
           className="flex-1 accent-[#6B46C1]"
         />
@@ -98,7 +115,6 @@ export default function WpmCard() {
             if (Number.isNaN(v)) v = defaultWpm;
             v = Math.max(min, Math.min(max, v));
             setWpm(v);
-            save(v);
           }}
           data-testid="wpm-input"
           className="w-20 px-2 py-1.5 bg-white border border-[#E5DDC5] rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-[#6B46C1]"
@@ -111,7 +127,7 @@ export default function WpmCard() {
           <button
             key={p.wpm}
             data-testid={`wpm-preset-${p.wpm}`}
-            onClick={() => { setWpm(p.wpm); save(p.wpm); }}
+            onClick={() => { setWpm(p.wpm); }}
             disabled={saving}
             className={`px-3 py-1 rounded-full text-xs border transition ${
               wpm === p.wpm

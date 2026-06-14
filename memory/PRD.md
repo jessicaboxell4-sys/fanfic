@@ -1964,3 +1964,14 @@ Both upload sites (the regular EPUB upload pipeline + the URL-fetch path) now pe
 - Replay supported via custom event: `window.dispatchEvent(new Event('shelfsort:replay-tour'))` — useful for re-running from Help.
 - data-testids: `tour-overlay`, `tour-step-<id>`, `tour-next`, `tour-back`, `tour-skip`, `tour-dots`.
 - testing_agent_v3_fork iter21 — **9/9 acceptance criteria pass, 100% frontend, zero product bugs**. Three nit-level comments parked: (a) inline comment for the intentional eslint-disable on the navigation effect, (b) last `done` step has no `path` so it inherits the previous URL — keep or set `/dashboard`, (c) replay listener registered once at mount — adequate for current flow.
+
+
+### Changed 2026-06-14 (Batch 1 — tiny fixes)
+Four small parked items finished in one pass to make a credit go further:
+
+- **#8 Preserve roomId on legacy redirect** — `/messages/:roomId` used to redirect to a bare `/friends`, dropping the room. Now wraps a small `<MessagesRoomRedirect />` in `App.js` that re-navigates to `/friends?room=<id>` (replace). `FriendsPage` reads the query param, fetches `/chat/rooms`, finds the matching room + the other member's name, opens the inline `DmDrawer`, and `navigate('/friends', {replace:true})` strips the param so reload doesn't loop. Dedupe ref guards against React 18 Strict-mode double-mount. Verified end-to-end via Playwright: drawer opens with the right friend on the very first hit.
+- **#9 Debounce WPM slider PUT** — Removed `onMouseUp` / `onTouchEnd` / `onBlur`-save handlers from `WpmCard.jsx`. Replaced with a single 500ms `setTimeout` debounce inside `useEffect([wpm])`, plus a `lastSavedRef` so initial-load and idempotent values don't fire a PUT. Now keyboard arrows on the slider, number-input typing, slider drag, and preset clicks all share the same coalesced save path. Playwright proof: 13 rapid changes → 4 PUTs (vs ~13 previously); 800ms after a burst exactly 1 PUT lands.
+- **#11 `<span>` in `<option>` hydration warning** — Audited every `<select><option>` site in `src/**`; none contain `<span>` children. Live console scan on `/help`, `/library/all`, `/suggestions` showed zero `validateDOMNesting` warnings. Item closed as already-resolved in an earlier commit.
+- **#13 Replay-tour button on Help** — Already shipped in iter-prev (`/help` → "What's new" strip has `data-testid="help-replay-tour"` that clears `shelfsort_tour_seen` and dispatches `shelfsort:replay-tour`). Verified click reopens the `TourOverlay`. Item closed.
+
+No backend changes. No new dependencies. No regressions across the existing testing-agent reports.
