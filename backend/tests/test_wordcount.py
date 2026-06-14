@@ -71,7 +71,7 @@ def seed():
             "book_id": b["id"], "user_id": USER["user_id"],
             "title": b["title"], "author": "Test",
             "category": "Fanfiction", "fandom": "Test Fandom",
-            "word_count": b["word_count"], "progress_percent": b["progress"],
+            "word_count": b["word_count"], "progress_fraction": b["progress"],
             "created_at": now,
         })
     yield

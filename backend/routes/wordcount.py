@@ -83,14 +83,14 @@ async def set_wpm(body: WpmBody, user: User = Depends(get_current_user)):
 async def book_reading_time(book_id: str, user: User = Depends(get_current_user)):
     book = await db.books.find_one(
         {"book_id": book_id, "user_id": user.user_id},
-        {"_id": 0, "word_count": 1, "progress_percent": 1},
+        {"_id": 0, "word_count": 1, "progress_fraction": 1},
     )
     if not book:
         raise HTTPException(status_code=404, detail="Book not found")
     wc = int(book.get("word_count") or 0)
     wpm = await get_user_wpm(user.user_id)
     total = reading_minutes_for(wc, wpm)
-    progress = float(book.get("progress_percent") or 0.0)
+    progress = float(book.get("progress_fraction") or 0.0)
     remaining = max(0, int(round(total * (1 - max(0.0, min(progress, 1.0))))))
     return {
         "book_id": book_id,
@@ -98,7 +98,7 @@ async def book_reading_time(book_id: str, user: User = Depends(get_current_user)
         "minutes_total": total,
         "minutes_remaining": remaining,
         "wpm": wpm,
-        "progress_percent": progress,
+        "progress_fraction": progress,
     }
 
 
@@ -121,7 +121,7 @@ async def library_reading_stats(user: User = Depends(get_current_user)):
             "category": {"$nin": ["Old stories", "Trash"]},
             "replaced_by": {"$exists": False},
         },
-        {"_id": 0, "word_count": 1, "progress_percent": 1},
+        {"_id": 0, "word_count": 1, "progress_fraction": 1},
     )
     total_words = 0
     unfinished_words = 0
@@ -135,7 +135,7 @@ async def library_reading_stats(user: User = Depends(get_current_user)):
             continue
         with_wc += 1
         total_words += wc
-        progress = float(b.get("progress_percent") or 0.0)
+        progress = float(b.get("progress_fraction") or 0.0)
         progress = max(0.0, min(progress, 1.0))
         if progress >= 0.95:
             finished_words += wc

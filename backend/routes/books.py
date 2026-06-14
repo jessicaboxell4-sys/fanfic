@@ -2932,16 +2932,16 @@ async def list_books(
         ])
 
     if smart == "reading":
-        query['progress_percent'] = {"$gte": 0.05, "$lt": 0.95}
+        query['progress_fraction'] = {"$gte": 0.05, "$lt": 0.95}
     elif smart == "finished":
-        query['progress_percent'] = {"$gte": 0.99}
+        query['progress_fraction'] = {"$gte": 0.99}
     elif smart == "unavailable":
         query['unavailable'] = True
     elif smart == "unread":
         or_clauses.append([
-            {"progress_percent": {"$exists": False}},
-            {"progress_percent": None},
-            {"progress_percent": {"$lt": 0.05}},
+            {"progress_fraction": {"$exists": False}},
+            {"progress_fraction": None},
+            {"progress_fraction": {"$lt": 0.05}},
         ])
 
     if len(or_clauses) == 1:
@@ -2976,11 +2976,11 @@ async def book_stats(user: User = Depends(get_current_user)):
     total = await db.books.count_documents({"user_id": user.user_id})
     reading = await db.books.count_documents({
         "user_id": user.user_id,
-        "progress_percent": {"$gte": 0.05, "$lt": 0.95},
+        "progress_fraction": {"$gte": 0.05, "$lt": 0.95},
     })
     finished = await db.books.count_documents({
         "user_id": user.user_id,
-        "progress_percent": {"$gte": 0.99},
+        "progress_fraction": {"$gte": 0.99},
     })
     unreadable = await db.books.count_documents({
         "user_id": user.user_id,
@@ -3179,7 +3179,7 @@ async def book_reading_stats(book_id: str, user: User = Depends(get_current_user
 
     book = await db.books.find_one(
         {"book_id": book_id, "user_id": user.user_id},
-        {"_id": 0, "book_id": 1, "reading_minutes": 1, "last_opened_at": 1, "created_at": 1, "progress_percent": 1},
+        {"_id": 0, "book_id": 1, "reading_minutes": 1, "last_opened_at": 1, "created_at": 1, "progress_fraction": 1},
     )
     if not book:
         raise HTTPException(status_code=404, detail="Not found")
@@ -3221,7 +3221,7 @@ async def book_reading_stats(book_id: str, user: User = Depends(get_current_user
     #   * at least 5 minutes of tracked reading (otherwise per-progress is noisy)
     #   * progress between 5% and 99% (else division explodes or book is done)
     reading_minutes = int(book.get("reading_minutes") or 0)
-    progress = float(book.get("progress_percent") or 0)
+    progress = float(book.get("progress_fraction") or 0)
     estimated_minutes_left: Optional[int] = None
     if reading_minutes >= 5 and 0.05 <= progress < 0.99:
         try:
@@ -3241,7 +3241,7 @@ async def book_reading_stats(book_id: str, user: User = Depends(get_current_user
         "last_opened_at": book.get("last_opened_at"),
         "sparkline": sparkline,
         "sparkline_max_minutes": int(max_minutes),
-        "progress_percent": progress,
+        "progress_fraction": progress,
         "estimated_minutes_left": estimated_minutes_left,
     }
 
@@ -3762,7 +3762,7 @@ class MarkBody(BaseModel):
 async def mark_book(book_id: str, body: MarkBody, user: User = Depends(get_current_user)):
     """Mark a book as fully read or unread (sets progress to 100% / 0%)."""
     update: Dict[str, Any] = {
-        "progress_percent": 1.0 if body.read else 0.0,
+        "progress_fraction": 1.0 if body.read else 0.0,
     }
     if body.read:
         update["last_opened_at"] = datetime.now(timezone.utc).isoformat()
@@ -3841,7 +3841,7 @@ async def update_progress(book_id: str, body: ProgressBody, user: User = Depends
     """Persist reading progress (0.0-1.0) and last CFI for this book."""
     pct = max(0.0, min(1.0, float(body.percent)))
     update: Dict[str, Any] = {
-        "progress_percent": pct,
+        "progress_fraction": pct,
         "last_opened_at": datetime.now(timezone.utc).isoformat(),
     }
     if body.cfi:
@@ -3995,7 +3995,7 @@ async def bulk_delete(body: BulkIdsBody, user: User = Depends(get_current_user))
 
 
 class ResetStateBody(BaseModel):
-    reset_progress: bool = False  # progress_percent, last_opened_at, reading_minutes, reading_activity
+    reset_progress: bool = False  # progress_fraction, last_opened_at, reading_minutes, reading_activity
     reset_tags: bool = False       # clear book.tags
     reset_smart_shelves: bool = False  # drop user's smart_shelves
     reset_versions: bool = False   # collapse "Old stories"/"Updated stories YYYY-MM-DD" back into a single category
@@ -4017,7 +4017,7 @@ async def reset_state(body: ResetStateBody, user: User = Depends(get_current_use
         r = await db.books.update_many(
             {"user_id": user.user_id},
             {"$unset": {
-                "progress_percent": "",
+                "progress_fraction": "",
                 "last_opened_at": "",
                 "reading_minutes": "",
                 "manually_uploaded_at": "",
@@ -5487,7 +5487,7 @@ async def find_duplicates(user: User = Depends(get_current_user)):
             "fanfic_urls": 1,
             "created_at": 1,
             "reading_minutes": 1,
-            "progress_percent": 1,
+            "progress_fraction": 1,
         },
     )
     books: List[Dict[str, Any]] = []
@@ -5589,7 +5589,7 @@ async def find_duplicates(user: User = Depends(get_current_user)):
                     "fandom": b.get("fandom") or "",
                     "created_at": b.get("created_at") or "",
                     "reading_minutes": int(b.get("reading_minutes") or 0),
-                    "progress_percent": float(b.get("progress_percent") or 0.0),
+                    "progress_fraction": float(b.get("progress_fraction") or 0.0),
                 }
                 for b in member_books
             ],

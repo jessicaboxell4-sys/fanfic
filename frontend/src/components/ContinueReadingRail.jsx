@@ -65,16 +65,16 @@ export default function ContinueReadingRail({ books }) {
                     <span className="text-[10px] uppercase tracking-wider text-white/85 font-semibold">
                       {relTime(b.last_opened_at)}
                     </span>
-                    {typeof b.progress_percent === "number" && b.progress_percent > 0 && (
+                    {typeof b.progress_fraction === "number" && b.progress_fraction > 0 && (
                       <span className="text-[11px] font-semibold text-white tabular-nums">
-                        {Math.round(b.progress_percent * 100)}%
+                        {Math.round(b.progress_fraction * 100)}%
                       </span>
                     )}
                   </div>
                   <div className="h-1 rounded-full bg-white/20 overflow-hidden">
                     <div
                       className="h-full bg-[#E07A5F] rounded-full transition-all"
-                      style={{ width: `${Math.max(2, Math.round((b.progress_percent || 0) * 100))}%` }}
+                      style={{ width: `${Math.max(2, Math.round((b.progress_fraction || 0) * 100))}%` }}
                     />
                   </div>
                 </div>

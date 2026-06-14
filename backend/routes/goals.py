@@ -15,7 +15,7 @@ Collection ``reading_goals``::
     }
 
 Progress is **derived live** from the books collection — a book counts toward
-its period iff ``progress_percent >= 0.99`` AND ``last_opened_at`` falls inside
+its period iff ``progress_fraction >= 0.99`` AND ``last_opened_at`` falls inside
 the period.  This mirrors the heuristic already used by ``stats.py`` and
 ``year.py``, so a single source of truth.
 """
@@ -107,7 +107,7 @@ def _period_label(period_type: str, period_value: str) -> str:
 async def _compute_progress(user_id: str, metric: str, period_type: str, period_value: str) -> int:
     """Sum the achievement metric across books finished in the period.
 
-    A book counts if ``progress_percent >= 0.99`` AND ``last_opened_at`` ISO
+    A book counts if ``progress_fraction >= 0.99`` AND ``last_opened_at`` ISO
     string starts with the period prefix.  We compare prefixes because Mongo
     stores the timestamps as strings and Mongo's string comparison is well-
     defined for ISO-8601.
@@ -120,7 +120,7 @@ async def _compute_progress(user_id: str, metric: str, period_type: str, period_
     cursor = db.books.find(
         {
             "user_id": user_id,
-            "progress_percent": {"$gte": 0.99},
+            "progress_fraction": {"$gte": 0.99},
             "last_opened_at": {"$gte": start_iso, "$lt": end_iso},
         },
         {"_id": 0, "book_id": 1, "word_count": 1},
@@ -129,7 +129,7 @@ async def _compute_progress(user_id: str, metric: str, period_type: str, period_
         # Cheap path — server-side count, no docs returned.
         return await db.books.count_documents({
             "user_id": user_id,
-            "progress_percent": {"$gte": 0.99},
+            "progress_fraction": {"$gte": 0.99},
             "last_opened_at": {"$gte": start_iso, "$lt": end_iso},
         })
     total_words = 0

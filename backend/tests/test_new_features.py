@@ -441,21 +441,21 @@ class TestBookReadingStats:
             "title": "Pace Off",
             "author": "T",
             "reading_minutes": 1,
-            "progress_percent": 0.5,
+            "progress_fraction": 0.5,
         })
         body = requests.get(f"{BASE}/api/books/{bid}/reading-stats", headers=H()).json()
         assert body["estimated_minutes_left"] is None
 
         db.books.update_one(
             {"book_id": bid},
-            {"$set": {"reading_minutes": 60, "progress_percent": 0.01}},
+            {"$set": {"reading_minutes": 60, "progress_fraction": 0.01}},
         )
         body = requests.get(f"{BASE}/api/books/{bid}/reading-stats", headers=H()).json()
         assert body["estimated_minutes_left"] is None
 
         db.books.update_one(
             {"book_id": bid},
-            {"$set": {"reading_minutes": 100, "progress_percent": 0.995}},
+            {"$set": {"reading_minutes": 100, "progress_fraction": 0.995}},
         )
         body = requests.get(f"{BASE}/api/books/{bid}/reading-stats", headers=H()).json()
         assert body["estimated_minutes_left"] is None
@@ -469,7 +469,7 @@ class TestBookReadingStats:
             "title": "Pace On",
             "author": "T",
             "reading_minutes": 60,
-            "progress_percent": 0.30,
+            "progress_fraction": 0.30,
         })
         body = requests.get(f"{BASE}/api/books/{bid}/reading-stats", headers=H()).json()
         # Expected: 60 / 0.30 * 0.70 = 140 minutes (±2 for rounding)
@@ -478,7 +478,7 @@ class TestBookReadingStats:
         # Sanity clamp: huge pace caps at one week
         db.books.update_one(
             {"book_id": bid},
-            {"$set": {"reading_minutes": 600, "progress_percent": 0.05}},
+            {"$set": {"reading_minutes": 600, "progress_fraction": 0.05}},
         )
         body = requests.get(f"{BASE}/api/books/{bid}/reading-stats", headers=H()).json()
         assert body["estimated_minutes_left"] == 10080
@@ -910,7 +910,7 @@ class TestUploadNewVersion:
                 "source_url": "https://www.fanfiction.net/s/1902191",
                 "fandom": "Test",
                 "category": "Fanfiction",
-                "progress_percent": 0.7,
+                "progress_fraction": 0.7,
             }},
         )
         files = {"file": ("fresh.epub", self._minimal_epub_bytes("Fresh"), "application/epub+zip")}
@@ -928,7 +928,7 @@ class TestUploadNewVersion:
         assert old["category"] == "Old stories"
         assert old["replaced_by"] == body["new_book_id"]
         # OLD book's progress (0.7) STAYS on the old book — was not wiped
-        assert old["progress_percent"] == 0.7
+        assert old["progress_fraction"] == 0.7
 
         # New book exists with carried-over fields
         new = db.books.find_one({"book_id": body["new_book_id"]})
@@ -1075,7 +1075,7 @@ class TestLinksExportByFolder:
                 "fandom": "XLSXFandomA",
                 "source_url": "https://archiveofourown.org/works/123",
                 "words": 12345,
-                "progress_percent": 0.42,
+                "progress_fraction": 0.42,
             }},
         )
         db.books.insert_one({
@@ -1211,7 +1211,7 @@ class TestResetState:
         db.books.insert_one({
             "user_id": USER_ID, "book_id": bid,
             "title": "RS Book", "author": "X",
-            "progress_percent": 0.5, "reading_minutes": 30,
+            "progress_fraction": 0.5, "reading_minutes": 30,
             "tags": ["keep-me"],
         })
         db.reading_activity.insert_one({
@@ -1224,7 +1224,7 @@ class TestResetState:
         )
         assert r.status_code == 200, r.text
         doc = db.books.find_one({"book_id": bid})
-        assert "progress_percent" not in doc
+        assert "progress_fraction" not in doc
         assert "reading_minutes" not in doc
         # Tags survived (different reset dimension)
         assert doc["tags"] == ["keep-me"]

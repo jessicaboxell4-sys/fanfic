@@ -54,7 +54,7 @@ export default function BookCard({ book, selectMode, selected, onToggleSelect, o
     ? book.fandom
     : book.category;
 
-  const isRead = typeof book.progress_percent === "number" && book.progress_percent >= 0.99;
+  const isRead = typeof book.progress_fraction === "number" && book.progress_fraction >= 0.99;
 
   const toggleRead = async (e) => {
     e.preventDefault();

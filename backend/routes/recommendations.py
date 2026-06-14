@@ -1,7 +1,7 @@
 """Friend-recommendations widget — surfaces books my friends loved that I don't own yet.
 
 Signals (combined into a score):
-  +3 per friend who FINISHED the book (progress_percent >= 0.95)
+  +3 per friend who FINISHED the book (progress_fraction >= 0.95)
   +1 per friend who put serious reading time in (reading_minutes >= 30, not necessarily finished)
   bonus = capped 50-min weight from total reading_minutes across friends
 
@@ -137,7 +137,7 @@ async def friend_recommendations(
         {
             "user_id": {"$in": sharing_ids},
             "$or": [
-                {"progress_percent": {"$gte": 0.95}},
+                {"progress_fraction": {"$gte": 0.95}},
                 {"reading_minutes": {"$gte": 30}},
             ],
             # Exclude archived versions ("Old stories") and the trash.
@@ -149,7 +149,7 @@ async def friend_recommendations(
             "book_id": 1, "user_id": 1,
             "title": 1, "author": 1, "fandom": 1, "category": 1,
             "description": 1, "source_url": 1, "fanfic_urls": 1,
-            "progress_percent": 1, "reading_minutes": 1,
+            "progress_fraction": 1, "reading_minutes": 1,
             "last_opened_at": 1, "has_cover": 1,
         },
     ).to_list(length=5000)
@@ -186,7 +186,7 @@ async def friend_recommendations(
         if rkey in dismissed:
             continue
 
-        finished = float(c.get("progress_percent") or 0) >= 0.95
+        finished = float(c.get("progress_fraction") or 0) >= 0.95
         minutes = int(c.get("reading_minutes") or 0)
         opened = c.get("last_opened_at")
 
@@ -404,7 +404,7 @@ async def _collect_friends_finished_payload(
     candidates = await db.books.find(
         {
             "user_id": {"$in": sharing_ids},
-            "progress_percent": {"$gte": 0.95},
+            "progress_fraction": {"$gte": 0.95},
             "last_opened_at": {"$gte": cutoff},
             "category": {"$nin": ["Old stories", "Trash"]},
             "replaced_by": {"$exists": False},

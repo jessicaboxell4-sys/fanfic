@@ -70,7 +70,7 @@ def seed():
         "title": "Bob's Just-Finished Book",
         "author": "Recent Author",
         "category": "Fanfiction",
-        "progress_percent": 1.0,
+        "progress_fraction": 1.0,
         "last_opened_at": now - timedelta(hours=12),
         "finished_at": (now - timedelta(hours=12)).isoformat(),
         "created_at": now - timedelta(days=4),
@@ -82,7 +82,7 @@ def seed():
         "title": "Bob Stale Book",
         "author": "Old",
         "category": "Fanfiction",
-        "progress_percent": 1.0,
+        "progress_fraction": 1.0,
         "last_opened_at": now - timedelta(days=90),
         "created_at": now - timedelta(days=120),
     })
@@ -93,7 +93,7 @@ def seed():
         "title": "Carol Private Finish",
         "author": "Hidden",
         "category": "Fanfiction",
-        "progress_percent": 1.0,
+        "progress_fraction": 1.0,
         "last_opened_at": now - timedelta(hours=6),
         "created_at": now - timedelta(days=2),
     })

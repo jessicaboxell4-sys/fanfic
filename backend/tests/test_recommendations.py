@@ -38,12 +38,12 @@ USERS = {
 # Books — one shared title across Bob + Erin to test grouping.
 BOOKS = {
     "alice_owned":   {"book_id": f"b_a_{uuid.uuid4().hex[:6]}", "owner": "alice", "title": "I Already Own This", "author": "A. Owned"},
-    "bob_finished_hot": {"book_id": f"b_b1_{uuid.uuid4().hex[:6]}", "owner": "bob",   "title": "The Best Fic Ever", "author": "Star Author", "progress_percent": 1.0, "reading_minutes": 120},
-    "bob_finished_ok":  {"book_id": f"b_b2_{uuid.uuid4().hex[:6]}", "owner": "bob",   "title": "Decent Read",       "author": "B. Author",   "progress_percent": 0.96, "reading_minutes": 30},
-    "bob_progress":     {"book_id": f"b_b3_{uuid.uuid4().hex[:6]}", "owner": "bob",   "title": "Long In Progress",  "author": "C. Author",   "progress_percent": 0.40, "reading_minutes": 90},
-    "carol_finished":   {"book_id": f"b_c_{uuid.uuid4().hex[:6]}",  "owner": "carol", "title": "Hidden Book",       "author": "Z. Author",   "progress_percent": 1.0, "reading_minutes": 50},
-    "dave_finished":    {"book_id": f"b_d_{uuid.uuid4().hex[:6]}",  "owner": "dave",  "title": "Stranger Book",     "author": "Y. Author",   "progress_percent": 1.0, "reading_minutes": 50},
-    "erin_shared_hot":  {"book_id": f"b_e1_{uuid.uuid4().hex[:6]}", "owner": "erin",  "title": "The Best Fic Ever", "author": "Star Author", "progress_percent": 1.0, "reading_minutes": 60},
+    "bob_finished_hot": {"book_id": f"b_b1_{uuid.uuid4().hex[:6]}", "owner": "bob",   "title": "The Best Fic Ever", "author": "Star Author", "progress_fraction": 1.0, "reading_minutes": 120},
+    "bob_finished_ok":  {"book_id": f"b_b2_{uuid.uuid4().hex[:6]}", "owner": "bob",   "title": "Decent Read",       "author": "B. Author",   "progress_fraction": 0.96, "reading_minutes": 30},
+    "bob_progress":     {"book_id": f"b_b3_{uuid.uuid4().hex[:6]}", "owner": "bob",   "title": "Long In Progress",  "author": "C. Author",   "progress_fraction": 0.40, "reading_minutes": 90},
+    "carol_finished":   {"book_id": f"b_c_{uuid.uuid4().hex[:6]}",  "owner": "carol", "title": "Hidden Book",       "author": "Z. Author",   "progress_fraction": 1.0, "reading_minutes": 50},
+    "dave_finished":    {"book_id": f"b_d_{uuid.uuid4().hex[:6]}",  "owner": "dave",  "title": "Stranger Book",     "author": "Y. Author",   "progress_fraction": 1.0, "reading_minutes": 50},
+    "erin_shared_hot":  {"book_id": f"b_e1_{uuid.uuid4().hex[:6]}", "owner": "erin",  "title": "The Best Fic Ever", "author": "Star Author", "progress_fraction": 1.0, "reading_minutes": 60},
 }
 
 
@@ -80,7 +80,7 @@ def seed():
             "author": b["author"],
             "category": "Fanfiction",
             "fandom": "Test Fandom",
-            "progress_percent": b.get("progress_percent", 0),
+            "progress_fraction": b.get("progress_fraction", 0),
             "reading_minutes": b.get("reading_minutes", 0),
             "last_opened_at": now,
             "created_at": now,
@@ -135,7 +135,7 @@ class TestFriendRecommendations:
             "title": "I Already Own This",
             "author": "A. Owned",
             "category": "Fanfiction",
-            "progress_percent": 1.0,
+            "progress_fraction": 1.0,
             "reading_minutes": 60,
             "last_opened_at": datetime.now(timezone.utc),
             "created_at": datetime.now(timezone.utc),

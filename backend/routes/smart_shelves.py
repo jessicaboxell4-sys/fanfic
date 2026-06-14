@@ -72,14 +72,14 @@ def _rule_to_mongo(rule: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if field == "status":
         v = rule.get("value")
         if v == "reading":
-            return {"progress_percent": {"$gte": 0.05, "$lt": 0.95}}
+            return {"progress_fraction": {"$gte": 0.05, "$lt": 0.95}}
         if v == "finished":
-            return {"progress_percent": {"$gte": 0.99}}
+            return {"progress_fraction": {"$gte": 0.99}}
         if v == "unread":
             return {"$or": [
-                {"progress_percent": {"$exists": False}},
-                {"progress_percent": None},
-                {"progress_percent": {"$lt": 0.05}},
+                {"progress_fraction": {"$exists": False}},
+                {"progress_fraction": None},
+                {"progress_fraction": {"$lt": 0.05}},
             ]}
         return None
     if field == "words":

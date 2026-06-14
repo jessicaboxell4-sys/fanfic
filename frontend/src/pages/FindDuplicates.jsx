@@ -128,7 +128,7 @@ function GroupCard({ group, onResolved }) {
                     {b.category ? ` · ${b.category}` : ""}
                     {b.created_at ? ` · uploaded ${formatDate(b.created_at)}` : ""}
                     {b.reading_minutes > 0 ? ` · ${b.reading_minutes} min read` : ""}
-                    {b.progress_percent > 0 ? ` · ${Math.round(b.progress_percent)}% progress` : ""}
+                    {b.progress_fraction > 0 ? ` · ${Math.round(b.progress_fraction)}% progress` : ""}
                   </p>
                 </div>
               </div>

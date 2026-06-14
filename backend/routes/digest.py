@@ -101,20 +101,20 @@ async def _build_digest_payload(user_doc: Dict[str, Any]) -> Dict[str, Any]:
     pages_this_week = 0
     fandom_counts: Dict[str, int] = {}
     for b in books_this_week:
-        # finished this week heuristic: progress_percent >= 0.99 AND last_opened within window
+        # finished this week heuristic: progress_fraction >= 0.99 AND last_opened within window
         last_open = b.get("last_opened_at")
         try:
             lo_dt = datetime.fromisoformat(last_open.replace("Z", "+00:00")) if isinstance(last_open, str) else last_open
         except (ValueError, AttributeError):
             lo_dt = None
-        if (b.get("progress_percent") or 0) >= 0.99 and lo_dt and lo_dt.date() >= week_start:
+        if (b.get("progress_fraction") or 0) >= 0.99 and lo_dt and lo_dt.date() >= week_start:
             finished_this_week += 1
         # Pages this week: approximate as (current_progress - 0) * total_pages distributed across active days
         # We don't have per-day progress deltas, so use a simpler heuristic:
-        # estimate pages opened this week as len(text or chapters) * progress_percent for newly opened
+        # estimate pages opened this week as len(text or chapters) * progress_fraction for newly opened
         total = b.get("words") or 0
         pages = max(1, total // 250) if total else 0
-        pct = float(b.get("progress_percent") or 0)
+        pct = float(b.get("progress_fraction") or 0)
         pages_this_week += int(pages * pct)
         f = b.get("fandom")
         if f:
@@ -126,7 +126,7 @@ async def _build_digest_payload(user_doc: Dict[str, Any]) -> Dict[str, Any]:
     cutoff = datetime.now(timezone.utc) - timedelta(days=3)
     nudges: List[Dict[str, Any]] = []
     for b in all_books:
-        pct = float(b.get("progress_percent") or 0)
+        pct = float(b.get("progress_fraction") or 0)
         if 0.5 <= pct < 0.99:
             last_open = b.get("last_opened_at")
             try:

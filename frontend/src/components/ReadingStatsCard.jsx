@@ -85,7 +85,7 @@ export default function ReadingStatsCard({ bookId }) {
             <span className="italic text-[#6B705C]">At your current pace,</span>{" "}
             <span className="font-semibold">about {formatDuration(stats.estimated_minutes_left)} left</span>{" "}
             <span className="text-[#6B705C]">
-              to finish ({Math.round(stats.progress_percent * 100)}% done).
+              to finish ({Math.round(stats.progress_fraction * 100)}% done).
             </span>
           </p>
         </div>

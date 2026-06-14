@@ -88,13 +88,13 @@ def test_create_month_goal_with_words():
 
 
 def test_progress_counts_finished_books():
-    # Insert two books finished in 2026 with last_opened_at and progress_percent=1.
+    # Insert two books finished in 2026 with last_opened_at and progress_fraction=1.
     for i, words in enumerate((30000, 70000)):
         db.books.insert_one({
             "book_id": f"bk_{uuid.uuid4().hex[:8]}",
             "user_id": USER["user_id"],
             "title": f"Test Book {i}",
-            "progress_percent": 1.0,
+            "progress_fraction": 1.0,
             "last_opened_at": f"2026-06-{i + 1:02d}T10:00:00+00:00",
             "word_count": words,
         })
@@ -102,7 +102,7 @@ def test_progress_counts_finished_books():
     db.books.insert_one({
         "book_id": f"bk_{uuid.uuid4().hex[:8]}",
         "user_id": USER["user_id"], "title": "Excluded",
-        "progress_percent": 1.0, "last_opened_at": "2025-12-01T00:00:00+00:00",
+        "progress_fraction": 1.0, "last_opened_at": "2025-12-01T00:00:00+00:00",
         "word_count": 99999,
     })
 

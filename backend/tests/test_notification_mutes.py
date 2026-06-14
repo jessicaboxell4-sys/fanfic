@@ -130,7 +130,7 @@ class TestNotificationMutes:
         db.books.insert_one({
             "book_id": bk_id, "user_id": friend["user_id"],
             "title": "Mute test book", "author": "MA",
-            "category": "Fanfiction", "progress_percent": 1.0,
+            "category": "Fanfiction", "progress_fraction": 1.0,
             "last_opened_at": now - timedelta(hours=1),
             "created_at": now - timedelta(days=2),
         })

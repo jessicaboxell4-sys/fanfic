@@ -13,7 +13,7 @@ import { api } from "../lib/api";
  *
  * Lets the user set per-period reading targets (books / words / pages)
  * for any year or month and tracks live progress against the existing
- * "books with progress_percent >= 0.99 within the period" heuristic.
+ * "books with progress_fraction >= 0.99 within the period" heuristic.
  * Multi-year history visible, retroactive goal creation supported.
  *
  * Goal-hit moments: a one-time in-app notification fires on the server,

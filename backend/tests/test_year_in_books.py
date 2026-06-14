@@ -61,7 +61,7 @@ def seeded_book():
         "author": "Test Author",
         "fandom": "Harry Potter",
         "category": "Fanfiction",
-        "progress_percent": 0.99,
+        "progress_fraction": 0.99,
         "page_count": 250,
         "last_opened_at": f"{TARGET_YEAR}-06-15T12:00:00+00:00",
         "created_at": f"{TARGET_YEAR}-06-01T12:00:00+00:00",

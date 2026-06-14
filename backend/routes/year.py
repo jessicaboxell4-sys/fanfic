@@ -94,7 +94,7 @@ async def _build_year_payload(user_doc: Dict[str, Any], year: int) -> Dict[str, 
                 last_opened_ts = lo_dt
                 last_opened_book = b
         # finished this year?
-        if (b.get("progress_percent") or 0) >= 0.99 and lo_dt and year_start <= lo_dt.date() <= year_end:
+        if (b.get("progress_fraction") or 0) >= 0.99 and lo_dt and year_start <= lo_dt.date() <= year_end:
             finished_books.append(b)
             monthly_finished[lo_dt.month] += 1
         f = b.get("fandom")
@@ -136,7 +136,7 @@ async def _build_year_payload(user_doc: Dict[str, Any], year: int) -> Dict[str, 
         if b["book_id"] in opened:
             words = b.get("words") or 0
             total_pages = max(1, words // 250) if words else 0
-            pages += int(total_pages * float(b.get("progress_percent") or 0))
+            pages += int(total_pages * float(b.get("progress_fraction") or 0))
 
     top_fandoms = sorted(
         [{"name": k, "count": v} for k, v in fandom_counts.items()],

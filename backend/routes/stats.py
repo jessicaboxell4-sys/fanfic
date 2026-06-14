@@ -41,10 +41,10 @@ async def stats_overview(user: User = Depends(get_current_user)):
     # (e.g. cover bytes, tags, fanfic-URL arrays) by an order of magnitude.
     books = await db.books.find(
         {"user_id": user.user_id},
-        {"_id": 0, "progress_percent": 1, "source_meta": 1, "size_bytes": 1},
+        {"_id": 0, "progress_fraction": 1, "source_meta": 1, "size_bytes": 1},
     ).to_list(5000)
-    finished = sum(1 for b in books if (b.get("progress_percent") or 0) >= 0.99)
-    reading = sum(1 for b in books if 0.05 <= (b.get("progress_percent") or 0) < 0.95)
+    finished = sum(1 for b in books if (b.get("progress_fraction") or 0) >= 0.99)
+    reading = sum(1 for b in books if 0.05 <= (b.get("progress_fraction") or 0) < 0.95)
 
     # Estimate pages: word counts when known, else size_bytes / 2500
     WORDS_PER_PAGE = 250
@@ -60,7 +60,7 @@ async def stats_overview(user: User = Depends(get_current_user)):
         else:
             pages = max(1.0, float(b.get("size_bytes") or 0) / BYTES_PER_PAGE)
         pages_total += pages
-        pages_read += pages * float(b.get("progress_percent") or 0)
+        pages_read += pages * float(b.get("progress_fraction") or 0)
 
     # Streak from reading_activity collection (one doc per active day)
     activity = await db.reading_activity.find(
@@ -197,7 +197,7 @@ async def stats_detailed(user: User = Depends(get_current_user)):
     # ---- Books finished per month (last 12 months) ----
     finished_by_month: Dict[str, int] = {}
     for b in books:
-        if (b.get("progress_percent") or 0) < 0.99:
+        if (b.get("progress_fraction") or 0) < 0.99:
             continue
         ts = b.get("last_opened_at") or b.get("created_at")
         if not ts:
@@ -269,7 +269,7 @@ async def stats_export_csv(user: User = Depends(get_current_user)):
             author_counts[a] = author_counts.get(a, 0) + 1
         c = b.get("category") or "Unclassified"
         cat_counts[c] = cat_counts.get(c, 0) + 1
-        if (b.get("progress_percent") or 0) >= 0.99:
+        if (b.get("progress_fraction") or 0) >= 0.99:
             finished_total += 1
         minutes_total += float(b.get("reading_minutes") or 0)
 

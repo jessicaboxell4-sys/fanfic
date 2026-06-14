@@ -660,8 +660,8 @@ export default function BookDetail() {
                   }
                 />
               )}
-              {typeof book.progress_percent === "number" && book.progress_percent > 0 && (
-                <Meta label="Progress" value={`${Math.round(book.progress_percent * 100)}%`} />
+              {typeof book.progress_fraction === "number" && book.progress_fraction > 0 && (
+                <Meta label="Progress" value={`${Math.round(book.progress_fraction * 100)}%`} />
               )}
               {book.word_count > 0 && (
                 <Meta
@@ -671,7 +671,7 @@ export default function BookDetail() {
                 />
               )}
               {book.word_count > 0 && (
-                <BookReadingTime bookId={book.book_id} progress={book.progress_percent || 0} />
+                <BookReadingTime bookId={book.book_id} progress={book.progress_fraction || 0} />
               )}
               {book.source_meta?.chapters && (
                 <Meta label="Chapters" value={book.source_meta.chapters} />
