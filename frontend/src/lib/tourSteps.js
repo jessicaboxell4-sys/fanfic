@@ -16,7 +16,7 @@ const TOUR_STEPS = [
     id: "welcome",
     title: "Welcome to Shelfsort 👋",
     body: [
-      "This 60-second tour will show you the four hubs of the app so you can find your way around.",
+      "This quick tour will walk you through Shelfsort's main hubs — library, friends, reading rooms, recommendations, appearance, and feedback — so you can find your way around.",
       "Hit Skip any time — you can replay this tour from the Help page later.",
     ],
     path: "/dashboard",
@@ -58,13 +58,31 @@ const TOUR_STEPS = [
     path: "/library/recommendations",
   },
   {
-    id: "account",
-    title: "Make it yours",
+    id: "appearance",
+    title: "Make it feel like home",
     body: [
-      "From Account → Appearance you can pick light/dark/auto themes (with a time-of-day dark window), set your reading speed for accurate time estimates, and choose a palette.",
-      "Account → Emails covers every opt-in email channel plus a per-kind mute matrix for in-app notifications.",
+      "Tap the Sun/Moon icon in the top navbar to flip light ↔ dark in one click. The little palette icon next to it opens a popover with seven curated colour schemes (Peach, Purple, Forest, Ocean, Crimson, Charcoal, Custom).",
+      "Want more? Account → Appearance gives you a full hex picker for Custom palettes, a live preview, and a scheduled auto-theme (e.g. dark from 19:00 to 07:00 local).",
+    ],
+    path: "/account/appearance",
+  },
+  {
+    id: "account",
+    title: "Other settings",
+    body: [
+      "Account → Emails covers every opt-in email channel (weekly digest, Year-in-Books, book-club digest) plus a per-kind mute matrix for in-app notifications. Account → Username lets you claim a public @handle so friends can find you without sharing your email.",
+      "Reading speed lives under Appearance and tunes the time estimates everywhere — set it once and the whole library updates.",
     ],
     path: "/account",
+  },
+  {
+    id: "feedback",
+    title: "Suggestions & feedback",
+    body: [
+      "Found a bug, want a new fandom added, or have a feature idea? The Suggestions page is a 5-second feedback box — drop a one-liner and you'll get a notification when its status changes.",
+      "There's also a quick Suggestion card right on the dashboard. Every idea is read.",
+    ],
+    path: "/suggestions",
   },
   {
     id: "done",

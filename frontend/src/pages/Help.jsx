@@ -330,8 +330,8 @@ export default function Help() {
           </ul>
         </div>
 
-        <div className="grid md:grid-cols-[200px,1fr] gap-10">
-          <nav className="md:sticky md:top-24 self-start" data-testid="help-toc">
+        <div className="grid md:grid-cols-[200px,minmax(0,1fr)] gap-10">
+          <nav className="md:sticky md:top-24 self-start min-w-0" data-testid="help-toc">
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-3">Sections</p>
             <ul className="space-y-1.5 text-sm">
               {SECTIONS.filter((s) => matchingSectionIds.includes(s.id)).map((s) => (
@@ -345,7 +345,7 @@ export default function Help() {
             </ul>
           </nav>
 
-          <article>
+          <article className="min-w-0 break-words">
             <Section id="getting-started" icon={Sparkles} title="Getting started">
               <p>Shelfsort organizes your EPUB library by fandom, author, pairing, completion status, and reading progress — built for fanfiction readers but works for any ebook collection.</p>
               <ol>
@@ -358,9 +358,9 @@ export default function Help() {
             </Section>
 
             <Section id="tour" icon={Compass} title="First-time tour">
-              <p>The first time you land on a fresh account, a friendly overlay walks you through Shelfsort&rsquo;s four pillars: <strong>Upload</strong>, <strong>Library</strong>, <strong>Friends</strong>, and <strong>Reading goals</strong>. Each step highlights the relevant card or navbar button so you know where the feature lives, not just what it does.</p>
+              <p>The first time you land on a fresh account, a friendly overlay walks you through Shelfsort&rsquo;s main hubs: <strong>Library</strong>, <strong>Friends &amp; DMs</strong>, <strong>Reading rooms</strong>, <strong>Recommendations</strong>, <strong>Appearance</strong> (light/dark + colour scheme), <strong>Account &amp; usernames</strong>, and <strong>Suggestions &amp; feedback</strong>. Each step highlights the relevant page so you know where the feature lives, not just what it does.</p>
               <ul>
-                <li><strong>Skip any step</strong> — &ldquo;Skip tour&rdquo; dismisses it for good, &ldquo;Next&rdquo; advances one step at a time.</li>
+                <li><strong>Skip any step</strong> — &ldquo;Skip tour&rdquo; dismisses it for good, &ldquo;Next&rdquo; advances one step at a time, &ldquo;Back&rdquo; goes one step back.</li>
                 <li><strong>Replay later</strong> — at the top of this Help page, hit the <em>Replay tour →</em> link in the &ldquo;What&rsquo;s new&rdquo; strip. It clears the localStorage flag and re-opens the overlay on your next dashboard visit.</li>
                 <li><strong>Per-browser memory</strong> — the &ldquo;seen&rdquo; flag lives in localStorage, so the tour reappears if you sign in on a new device or wipe browser data.</li>
               </ul>
@@ -505,32 +505,52 @@ export default function Help() {
             <Section id="fandoms" icon={BookOpen} title="Fandoms we sort into">
               <p>Shelfsort recognizes <strong>{knownFandoms.length || "…"}</strong> fandoms out of the box and routes a book to one of them automatically when the title, description, or sample text matches enough of that fandom&apos;s keywords. Anything that doesn&apos;t match well enough falls into <em>Original Fiction</em> or <em>Non-fiction</em> — and the admin&apos;s unknown-fandoms queue surfaces popular suggestions for promotion.</p>
               <p>Sorted by community-wide popularity (most-used first) and grouped by franchise so related sub-fandoms (NCIS spin-offs, all Stargate series, Marvel + MCU + Avengers, …) stay together. Counts reflect everyone&apos;s libraries on this instance, anonymized.</p>
-              <div className="columns-1 sm:columns-2 lg:columns-3 gap-x-6 text-sm bg-[#FAF6EE] border border-[#E8E6E1] rounded-lg p-4 text-[#2C2C2C]" data-testid="help-fandoms-list">
-                {fandomGroups.length === 0 ? (
-                  <span className="text-[#6B705C] italic">Loading the list…</span>
-                ) : fandomGroups.map((g) => (
-                  <div key={g.name} className="break-inside-avoid mb-4" data-testid={`fandom-group-${g.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`}>
-                    <div className="flex items-baseline justify-between gap-2 mb-1">
-                      <span className="font-semibold text-[#6B46C1]">{g.name}</span>
-                      {g.total > 0 && (
-                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-[#6B46C1]/10 text-[#6B46C1]" title={`${g.total} book${g.total === 1 ? "" : "s"} across the community`}>
-                          {g.total}
-                        </span>
-                      )}
+              <details
+                className="group bg-[#FAF6EE] border border-[#E8E6E1] rounded-lg overflow-hidden"
+                data-testid="help-fandoms-collapse"
+              >
+                <summary className="cursor-pointer select-none px-4 py-3 flex items-center justify-between gap-3 text-sm text-[#2C2C2C] hover:bg-[#F5F0E0] transition-colors">
+                  <span>
+                    <strong className="text-[#6B46C1]">Show the full fandom list</strong>
+                    {fandomGroups.length > 0 && (
+                      <span className="text-[#6B705C] ml-2">
+                        ({fandomGroups.length} group{fandomGroups.length === 1 ? "" : "s"}, {knownFandoms.length} fandom{knownFandoms.length === 1 ? "" : "s"})
+                      </span>
+                    )}
+                  </span>
+                  <span className="text-xs font-semibold text-[#6B705C] group-open:hidden">expand ▾</span>
+                  <span className="text-xs font-semibold text-[#6B705C] hidden group-open:inline">collapse ▴</span>
+                </summary>
+                <div
+                  className="columns-1 sm:columns-2 lg:columns-3 gap-x-6 text-sm p-4 border-t border-[#E8E6E1] text-[#2C2C2C]"
+                  data-testid="help-fandoms-list"
+                >
+                  {fandomGroups.length === 0 ? (
+                    <span className="text-[#6B705C] italic">Loading the list…</span>
+                  ) : fandomGroups.map((g) => (
+                    <div key={g.name} className="break-inside-avoid mb-4" data-testid={`fandom-group-${g.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`}>
+                      <div className="flex items-baseline justify-between gap-2 mb-1">
+                        <span className="font-semibold text-[#6B46C1]">{g.name}</span>
+                        {g.total > 0 && (
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-[#6B46C1]/10 text-[#6B46C1]" title={`${g.total} book${g.total === 1 ? "" : "s"} across the community`}>
+                            {g.total}
+                          </span>
+                        )}
+                      </div>
+                      <ul className="font-mono text-xs space-y-0.5 pl-2 border-l border-[#E8E6E1]">
+                        {g.fandoms.map((f) => (
+                          <li key={f.name} className="flex items-center gap-2">
+                            <span className="truncate">{f.name}</span>
+                            {f.count > 0 && (
+                              <span className="ml-auto text-[10px] text-[#6B705C] tabular-nums shrink-0">{f.count}</span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
                     </div>
-                    <ul className="font-mono text-xs space-y-0.5 pl-2 border-l border-[#E8E6E1]">
-                      {g.fandoms.map((f) => (
-                        <li key={f.name} className="flex items-center gap-2">
-                          <span className="truncate">{f.name}</span>
-                          {f.count > 0 && (
-                            <span className="ml-auto text-[10px] text-[#6B705C] tabular-nums shrink-0">{f.count}</span>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              </details>
               <p className="mt-3"><em>Don&apos;t see your fandom?</em> Drop it on the <Link to="/suggestions">Suggestions page</Link> with a couple of distinctive title/description keywords and we&apos;ll get it added.</p>
             </Section>
 
