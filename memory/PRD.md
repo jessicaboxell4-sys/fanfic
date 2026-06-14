@@ -1943,3 +1943,15 @@ Both upload sites (the regular EPUB upload pipeline + the URL-fetch path) now pe
 - testing_agent_v3_fork frontend e2e (iter19): **12/12 acceptance criteria pass**; one test-script race in T9 (not a product bug); reviewer flagged the single 773-line file as a candidate for future split into `/pages/bookclubs/*.jsx` (parked, low priority).
 - Backend regression: `pytest tests/test_bookclubs.py` → **29/29 pass** (no backend changes).
 
+
+### Changed 2026-06-14 (Friends + Messages consolidated on /friends)
+- User directive: "These two pages either need to be separated or all on one page." Option A picked: unify on `/friends`.
+- `/messages` and `/messages/:roomId` now `<Navigate to="/friends" replace />` redirects.
+- FriendsPage gains a new **inline DmDrawer** (`/components/DmDrawer.jsx`): slide-in chat panel from the right side, polls every 15s, posts to existing `/api/chat/rooms/{room_id}/messages`, marks-as-read via `/api/chat/rooms/{room_id}/read`. Click backdrop or X to close — FriendsPage stays mounted underneath.
+- `openDM(uid, name)` no longer navigates away; it POSTs `/api/chat/dm/{uid}` (idempotent room create/fetch) and sets local `dmTarget` state to open the drawer.
+- Header copy updated: "Click **Message** on any friend to chat inline." (no more `/messages` link).
+- Navbar inbox icon (`ChatInboxIcon.jsx`) and Help page references retargeted to `/friends`.
+- All previous `data-testid` attributes preserved: `friends-page`, `friends-search-input`, `friends-message-btn-{uid}`, `friends-request-btn-{uid}`, etc. New ones: `dm-drawer`, `dm-drawer-title`, `dm-drawer-messages`, `dm-drawer-input`, `dm-drawer-send`, `dm-drawer-close`.
+- MessagesPage.jsx left in the repo (no route points to it) — can be deleted in a future cleanup pass; keeping for now in case other code references it.
+- testing_agent_v3_fork iter20: **9/9 spec items pass, zero product bugs**. Applied two reviewer micro-fixes (composer bottom-padding + busyId-disable on Message button to prevent rapid double-click).
+

@@ -386,7 +386,7 @@ export default function FriendsPage() {
                         >
                           <Library className="w-3 h-3" /> Library
                         </button>
-                        <button type="button" onClick={() => openDM(r.other_user_id, r.name || r.email)} data-testid={`friends-message-btn-${r.other_user_id}`} className="text-[11px] px-2 py-1 rounded border border-[#6B46C1] text-[#6B46C1] inline-flex items-center gap-1">
+                        <button type="button" onClick={() => openDM(r.other_user_id, r.name || r.email)} disabled={busyId === r.other_user_id} data-testid={`friends-message-btn-${r.other_user_id}`} className="text-[11px] px-2 py-1 rounded border border-[#6B46C1] text-[#6B46C1] inline-flex items-center gap-1 disabled:opacity-50">
                           <MessageSquare className="w-3 h-3" /> Message
                         </button>
                         <button type="button" onClick={() => block(r.other_user_id)} className="text-[11px] px-2 py-1 rounded text-[#B43F26]" title="Block">

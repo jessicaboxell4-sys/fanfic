@@ -76,14 +76,14 @@ export default function DmDrawer({ roomId, friendName, onClose }) {
           )}
           <div ref={endRef} />
         </div>
-        <div className="border-t border-[#E8E6E1] px-4 py-3 bg-white">
+        <div className="border-t border-[#E8E6E1] px-4 py-3 pb-5 bg-white">
           <div className="flex items-end gap-2">
             <textarea
               value={body}
               onChange={(e) => setBody(e.target.value)}
               rows={2}
               maxLength={4000}
-              placeholder="Type a message…"
+              placeholder="Type a message… (⌘/Ctrl + Enter to send)"
               data-testid="dm-drawer-input"
               onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) send(); }}
               className="flex-1 px-3 py-2 bg-[#FBFAF6] border border-[#E5DDC5] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6B46C1] resize-none"
