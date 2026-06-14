@@ -1984,3 +1984,17 @@ No backend changes. No new dependencies. No regressions across the existing test
 - **#5 Unread-message dot on friends list** — `FriendsPage.jsx` fetches `/chat/rooms` after auth resolves, builds a `dmUnreadByFriend` map (`friend_user_id → unread count`), and renders a pill badge in each friend's row when `unread > 0`. `data-testid="friends-unread-dot-<user_id>"`, shows numeric count (`9+` cap). The badge clears optimistically when the user clicks Message (the drawer marks-as-read on mount), and `loadDmUnread()` re-runs on drawer close to true-up the count. Verified end-to-end: friend B sent A a message → A sees a "1" badge on B's row.
 
 No backend changes for any of the three. No new dependencies.
+
+
+### Changed 2026-06-14 (Batch 3 — refactors)
+
+- **#7 Split `BookclubsPage.jsx`** — 828-line monolith broken into 4 files (786 LOC total, all under 330 each):
+  - `pages/BookclubsPage.jsx` (326 lines) — page shell, left-rail, invite-handling, localStorage-based unread tracking. Unchanged routing (`/bookclubs`, `/bookclubs/:roomId`).
+  - `pages/bookclubs/ActiveRoomPanel.jsx` (277 lines) — chapter tabs, message thread, composer, right-rail (progress + members + invite).
+  - `pages/bookclubs/RoomDialogs.jsx` (158 lines) — `CreateRoomForm`, `EditRoomDialog`, `InviteFriendsBlock`.
+  - `pages/bookclubs/_shared.jsx` (25 lines) — `RoleBadge` + `fmtRelative` helper.
+  - All existing `data-testid`s preserved (bookclubs-page, bookclubs-left-rail, active-room-panel, chapter-tab-N, message-input, send-message-btn, members-card, edit-room-btn, etc.). Live verified: shell renders, create-room dialog opens with cross-file import resolving correctly, zero console errors.
+- **#12 `<SecondaryCTAButton />`** — Mirror of `PrimaryCTAButton` with outline styling on paper background (`bg-white`, `border-[#E5DDC5]`, hover→primary). Same prop contract (`to`/`href`/`onClick`/`icon`/`size`/`testid`/`disabled`). Ready for the next CTA pairing that needs a "less shouty" companion to a primary button. File: `/app/frontend/src/components/SecondaryCTAButton.jsx`.
+- **#10 Rename `progress_percent` → `progress_fraction`** — DEFERRED with note. The field is referenced by 30+ call sites across `routes/smart_shelves.py`, `routes/digest.py`, `routes/stats.py`, `routes/year_in_books.py`, 10+ test files, AND is the field name in already-persisted MongoDB documents. A clean rename needs (a) a forward-compatible read layer, (b) a DB migration script, (c) cutover. Effort is **medium**, not **small**. Moved to its own card on the backlog with that re-estimate; happy to take it on as a standalone task.
+
+No backend changes for any Batch 3 item.
