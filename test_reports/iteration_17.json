@@ -1,0 +1,26 @@
+{
+  "summary": "Frontend e2e of NotificationMuteMatrix on /account/emails. All 7 review-request acceptance criteria PASS: (1) notification-mutes-card renders below the email-channel cards, (2) the four group testids (friends / book-clubs / recommendations / suggestions) all render with the catalog rows in order, (3) the two critical kinds (friend_request, bookclub_invite) have disabled toggles + 'Critical — can't be muted' subtext + cursor-not-allowed/opacity-50 label styling — clicking does nothing, (4) toggling bookclub_message flips state immediately, PUTs /api/user/notification-mutes 200, renders the red/purple track + translated knob, (5) muted-count badge appears in the header showing '1 MUTED' / '3 MUTED' as more rows are muted, (6) untoggling restores state and the badge disappears when count hits 0, (7) page refresh persists muted state (GET /api/user/notification-mutes returns the muted_kinds and the UI hydrates accordingly). Server-side curl verified bookclub_message was actually written to Mongo. All 4 network calls during the test were 2xx (GET 200, GET 200, PUT 200 x4).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/account/emails — weekly-digest-day & weekly-digest-hour selects", "issues": ["Pre-existing React hydration warning: '<span> cannot be a child of <option>' from runtime instrumentation injecting <span data-ve-dynamic> inside <option> children. Same warning flagged in iter15 + iter16. Cosmetic, not introduced by this change, but pollutes the console on every /account/emails load."]}
+    ]
+  },
+  "test_report_links": ["/app/.screenshots/iter17_mute_matrix.png", "/app/.screenshots/iter17_final.png"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "NotificationMuteMatrix.jsx line 49 fires save() in the same tick as setMuted(next), which is fine for optimistic UX, but if the user spam-toggles a row before the previous PUT resolves, two in-flight requests may race. The server is idempotent (replaces the whole array) so the *final* state will converge, but the intermediate badge count can briefly flicker. Low impact; consider debouncing save() by ~200ms or queueing if you ever see complaints.",
+    "Line 22-25: the catch block swallows the error object entirely (`catch { toast.error(...) }`) without logging. For a network failure on the initial load, the user sees the toast but the dev console gets no detail. Consider `catch (e) { console.error(e); toast.error(...) }` to aid future debugging.",
+    "Group testid is derived via `groupName.toLowerCase().replace(/\\s+/g, '-')`. This yields 'book-clubs' for 'Book clubs' — fine — but if a future catalog group has punctuation (e.g. 'Library & shelves') the testid would be 'library-&-shelves'. Consider also stripping non-alphanumeric to keep selectors predictable.",
+    "Pre-existing (iter15/16): the <span data-ve-dynamic> hydration warning inside <option> children. Unrelated to this card."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only)", "frontend": "100% — 7/7 acceptance criteria pass"},
+  "test_credentials": "Ephemeral Mongo-seeded user user_iter17_17a00250 / Bearer tok_iter17_b06f591636a3b4d3771e45dab2a6b4bd. Cleaned up after run (users + user_sessions docs deleted).",
+  "seed_data_creation": "Single ephemeral user + session for the cookie-based auth round-trip. No additional fixtures needed — the catalog is static and all 9 kinds rendered correctly without any pre-existing notifications.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "NotificationMuteMatrix card is fully functional and integrated. The mute toggle UI is a custom checkbox: hidden .sr-only input + visual pill span. Playwright must click the parent <label> element (not the visual <span>) — clicking the input directly also works. Selectors used: [data-testid=notification-mutes-card], [data-testid=mute-group-{friends|book-clubs|recommendations|suggestions}], [data-testid=mute-row-{kind}], [data-testid=mute-toggle-{kind}], [data-testid=muted-count]. The auth contract for this domain remains Bearer-via-session_token cookie (httpOnly=false in our seed so the JS can read it via axios withCredentials). Critical kinds the catalog marks mutable=false are friend_request and bookclub_invite; clicking their disabled toggles is a confirmed no-op both visually and server-side."
+}

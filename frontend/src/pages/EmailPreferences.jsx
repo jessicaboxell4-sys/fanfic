@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
+import NotificationMuteMatrix from "../components/NotificationMuteMatrix";
 import { api } from "../lib/api";
 import {
   ArrowLeft,
@@ -549,6 +550,11 @@ export default function EmailPreferences() {
             and once the operator adds a Resend API key, your emails will start arriving.
           </p>
         )}
+
+        {/* In-app notification mute matrix — separate from email channels */}
+        <div className="mt-8">
+          <NotificationMuteMatrix />
+        </div>
       </div>
     </div>
   );
