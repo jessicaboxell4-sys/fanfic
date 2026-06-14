@@ -45,31 +45,21 @@ export default function AppearancePopover() {
 
   return (
     <div className="relative flex items-center" ref={rootRef}>
-      {/* Quick toggle — single click instantly flips the theme. The popover
-          remains accessible via the small palette button to the right. */}
+      {/* Single appearance button — Sun/Moon icon doubles as the popover
+          trigger.  The popover itself contains the light/dark toggle row
+          plus the palette swatches and a link to the full settings page. */}
       <button
         type="button"
-        data-testid="navbar-theme-quick-toggle"
-        onClick={() => { toggleTheme(); if (pulse) markSeen(); }}
-        className={`p-2 hover:bg-[#F5F3EC] rounded-l-lg ${pulse ? "appearance-pulse" : ""}`}
-        title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-        aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+        data-testid="navbar-theme-toggle"
+        onClick={() => { setOpen((v) => !v); if (pulse) markSeen(); }}
+        className={`p-2 hover:bg-[#F5F3EC] rounded-lg ${pulse ? "appearance-pulse" : ""}`}
+        title="Theme & accent colour"
+        aria-label="Theme & accent colour"
+        aria-expanded={open}
       >
         {theme === "dark"
           ? <Sun className="w-4 h-4 text-[#6B705C]" />
           : <Moon className="w-4 h-4 text-[#6B705C]" />}
-      </button>
-      {/* Palette / appearance settings — keep the popover for accent colour
-          selection and the link to the full appearance page. */}
-      <button
-        data-testid="navbar-theme-toggle"
-        onClick={() => { setOpen((v) => !v); if (pulse) markSeen(); }}
-        className="px-1.5 py-2 hover:bg-[#F5F3EC] rounded-r-lg border-l border-[#E8E6E1]/0 hover:border-[#E8E6E1]"
-        title="Accent colour & appearance settings"
-        aria-label="Appearance settings"
-        aria-expanded={open}
-      >
-        <Palette className="w-3.5 h-3.5 text-[#6B705C]" />
       </button>
 
       {open && (

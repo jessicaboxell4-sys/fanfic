@@ -163,10 +163,42 @@ export default function Help() {
   return (
     <div className="min-h-screen bg-[#FAF6EE]">
       <Navbar />
-      <main className="max-w-5xl mx-auto px-6 py-10">
-        <Link to="/library" className="inline-flex items-center gap-1 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-4">
-          <ArrowLeft className="w-4 h-4" /> back to library
-        </Link>
+      <main className="px-4 lg:px-8 py-10">
+        <div className="lg:flex lg:items-start lg:gap-10 max-w-7xl mx-auto">
+          {/* Left rail: sticky scrollable TOC.  On mobile it stacks above the
+              article inside a collapsible <details>; on lg+ it pins to the
+              left edge of the wrapper, Wikipedia-style. */}
+          <nav
+            className="lg:sticky lg:top-24 lg:w-56 lg:shrink-0 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:pr-2 lg:[scrollbar-width:thin] mb-6 lg:mb-0"
+            data-testid="help-toc"
+          >
+            <details className="lg:open:!block lg:[&]:!block" open>
+              <summary className="lg:hidden cursor-pointer select-none text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-2 px-1 py-2 rounded-lg border border-[#E8E6E1] bg-white">
+                Sections
+              </summary>
+              <p className="hidden lg:block text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-3">
+                Sections
+              </p>
+              <ul className="space-y-1.5 text-sm pt-2 lg:pt-0">
+                {SECTIONS.filter((s) => matchingSectionIds.includes(s.id)).map((s) => (
+                  <li key={s.id}>
+                    <a href={`#${s.id}`} className="text-[#6B705C] hover:text-[#E07A5F]">{s.label}</a>
+                  </li>
+                ))}
+                {SECTIONS.length > 0 && matchingSectionIds.length === 0 && (
+                  <li className="text-[10px] italic text-[#6B705C]">no matches — clear search to see all</li>
+                )}
+              </ul>
+            </details>
+          </nav>
+
+          {/* Right column: back link, header, what's new, then the article.
+              Capped at max-w-3xl so paragraphs stay easy to read on large
+              screens (matches the Wikipedia content column). */}
+          <div className="flex-1 min-w-0 lg:max-w-3xl">
+            <Link to="/library" className="inline-flex items-center gap-1 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-4">
+              <ArrowLeft className="w-4 h-4" /> back to library
+            </Link>
 
         <header className="mb-8">
           <h1 className="font-serif text-5xl md:text-6xl text-[#2C2C2C] leading-tight">Help</h1>
@@ -330,24 +362,7 @@ export default function Help() {
           </ul>
         </div>
 
-        <div className="grid md:grid-cols-[200px,minmax(0,1fr)] gap-10">
-          <nav
-            className="md:sticky md:top-24 self-start min-w-0 md:max-h-[calc(100vh-7rem)] md:overflow-y-auto md:pr-2 md:[scrollbar-width:thin]"
-            data-testid="help-toc"
-          >
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-3">Sections</p>
-            <ul className="space-y-1.5 text-sm">
-              {SECTIONS.filter((s) => matchingSectionIds.includes(s.id)).map((s) => (
-                <li key={s.id}>
-                  <a href={`#${s.id}`} className="text-[#6B705C] hover:text-[#E07A5F]">{s.label}</a>
-                </li>
-              ))}
-              {SECTIONS.length > 0 && matchingSectionIds.length === 0 && (
-                <li className="text-[10px] italic text-[#6B705C]">no matches — clear search to see all</li>
-              )}
-            </ul>
-          </nav>
-
+        <div className="grid md:grid-cols-1 gap-10">
           <article className="min-w-0 break-words">
             <Section id="getting-started" icon={Sparkles} title="Getting started">
               <p>Shelfsort organizes your EPUB library by fandom, author, pairing, completion status, and reading progress — built for fanfiction readers but works for any ebook collection.</p>
@@ -738,11 +753,11 @@ export default function Help() {
                 <li><strong>Fandom aliases</strong> — map your custom shorthand to canonical fandom names</li>
                 <li><strong>Format prefs</strong> for the Originals shelf</li>
                 <li>
-                  <strong>Appearance</strong> (theme + colour) — the Navbar carries a paired button group:
-                  the <strong>Sun/Moon icon flips light↔dark on a single click</strong>, and the small
-                  palette icon next to it opens an Appearance popover with the seven palette swatches
-                  (Peach, Purple, Forest, Ocean, Crimson, Charcoal, and Custom). Hover any swatch to see
-                  its name in a live caption. Click a swatch to flip the accent colour site-wide instantly.
+                  <strong>Appearance</strong> (theme + colour) — the Navbar carries a single
+                  <strong> Sun/Moon icon</strong> that opens an Appearance popover. Inside the popover
+                  you can flip light↔dark and pick from seven palette swatches (Peach, Purple, Forest,
+                  Ocean, Crimson, Charcoal, and Custom). Hover any swatch to see its name in a live
+                  caption. Click a swatch to flip the accent colour site-wide instantly.
                   Tap <strong>More appearance options</strong> at the bottom of the popover to open the
                   dedicated <Link to="/account/appearance">Appearance page</Link>, which adds:
                   <ul>
@@ -783,6 +798,8 @@ export default function Help() {
             </Section>
           </article>
         </div>
+          </div>{/* /right column */}
+        </div>{/* /flex wrapper */}
       </main>
     </div>
   );

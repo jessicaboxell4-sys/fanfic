@@ -61,7 +61,7 @@ const TOUR_STEPS = [
     id: "appearance",
     title: "Make it feel like home",
     body: [
-      "Tap the Sun/Moon icon in the top navbar to flip light ↔ dark in one click. The little palette icon next to it opens a popover with seven curated colour schemes (Peach, Purple, Forest, Ocean, Crimson, Charcoal, Custom).",
+      "Tap the Sun/Moon icon in the top navbar to open the appearance popover. From there you can flip light ↔ dark and pick from seven curated colour schemes (Peach, Purple, Forest, Ocean, Crimson, Charcoal, Custom).",
       "Want more? Account → Appearance gives you a full hex picker for Custom palettes, a live preview, and a scheduled auto-theme (e.g. dark from 19:00 to 07:00 local).",
     ],
     path: "/account/appearance",
