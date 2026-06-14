@@ -2090,3 +2090,34 @@ Backend-only refactor. Two new sub-modules carved out of the 6949-line `routes/b
 - **23 pytest cases pass** in `test_books_comprehensive.py` (11 skipped per baseline). Zero regressions.
 
 No frontend changes. No API surface changes — the same paths still work, registered just from a different module now.
+
+
+### Changed 2026-06-14 (Phase 5 — A+B+C refactor)
+
+Three more sub-modules carved out of ``routes/books.py``:
+
+- **`routes/url_lists.py`** (574 lines, **new**) — URL-list dedupe / export-xlsx / pull workflow:
+  - `POST /api/books/url-list/dedupe`
+  - `POST /api/books/url-list/export-xlsx`
+  - `POST /api/books/url-list/pull`
+  - Internal helpers `_backfill_user_fanfic_urls`, `_dedupe_url_list`.
+- **`routes/fandoms.py`** (136 lines, **new**) — fandom listing / canonicalisation:
+  - `GET /api/fandoms/{name}/crossovers`
+  - `GET /api/fandoms/grouped`
+  - `POST /api/fandoms/canonicalize-crossovers`
+- **`routes/exports.py`** (271 lines, **new**) — EPUB-bundle download:
+  - `GET /api/books/export/zip` + the `_safe_folder` helper.
+
+`books.py` re-keeps the `from utils.url_canonical import _URL_RE, _canonical_fanfic_url, _looks_like_url_list` block at module top-level because `upload_books` and `claim_source_url` still use those helpers. The other modules import from `routes.books` (`apply_template_to_epub`, `STORAGE_DIR`, `OLD_STORIES_SHELF`, `_canonicalize_fandom`, `_templated_filename`, `_safe_filename`, etc.).
+
+**`server.py`** — `url_lists, fandoms, exports` added to the import tuple. The `_reorder_static_routes_first()` pass added in Phase 4 keeps static paths matched before `{book_id}` so no shadowing.
+
+**Cumulative line-count delta** (whole session):
+- `books.py`: **6949 → 5702** — **–1247 lines (–18%)** spread across 5 new sub-modules (`refresh.py`, `duplicates.py`, `url_lists.py`, `fandoms.py`, `exports.py`).
+
+**Verification**:
+- cURL smoke for every moved endpoint: dedupe, export-xlsx, fandoms/grouped, fandoms/crossovers, canonicalize-crossovers, books/export/zip — all return correct status codes and payloads (404 with `{"detail":"No books"}` is the documented behaviour for an empty library export).
+- **23/23 `test_books_comprehensive.py` pass** (11 skipped baseline). Initial 2 failures were a stale name-resolution issue from the URL-canonical import block landing in `url_lists.py` only; fixed by re-importing it at the top of `books.py` too.
+- 163 other backend tests pass; 2 friend-notification tests show up as failed only when run in a large combined session (test pollution, unrelated to refactor — they pass cleanly in isolation: 5/5).
+
+No frontend changes. No API surface changes.
