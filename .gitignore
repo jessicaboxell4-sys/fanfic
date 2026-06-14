@@ -118,9 +118,9 @@ frontend/node_modules/.cache/default-development/29.pack
 frontend/node_modules/.cache/default-development/22.pack
 frontend/node_modules/.cache/default-development/28.pack
 frontend/node_modules/.cache/default-development/32.pack
-.env
-.env.*
-*.env
+# .env files intentionally committed: Emergent overrides the values at
+# deploy time (MONGO_URL, REACT_APP_BACKEND_URL, etc.).  Keeping them
+# tracked is required for production deployments to start cleanly.
 credentials.json
 *.key
 .credentials
