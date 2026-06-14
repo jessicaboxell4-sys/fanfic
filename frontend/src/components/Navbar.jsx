@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   BookOpen, LogOut, BarChart3, Filter, HelpCircle, FileText, ShieldCheck,
   Target, Menu, X, Library, Download, ChevronDown, Link as LinkIcon,
-  Lightbulb, MessageCircleQuestion,
+  Lightbulb, MessageCircleQuestion, Sparkles, Users, MessageSquare,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../lib/api";
@@ -11,8 +11,9 @@ import UpdatesBell from "./UpdatesBell";
 import StreakBadge from "./StreakBadge";
 import NavbarQuickAdd from "./NavbarQuickAdd";
 import AppearancePopover from "./AppearancePopover";
-import ChatInboxIcon from "./ChatInboxIcon";
+import MessagesDropdown from "./MessagesDropdown";
 import NotificationsBell from "./NotificationsBell";
+import AccountDropdown from "./AccountDropdown";
 import DisplayName from "./DisplayName";
 import BookQuickSearch from "./BookQuickSearch";
 import { FETCHING_UI_ENABLED } from "../lib/featureFlags";
@@ -81,6 +82,7 @@ function SecondaryLinks({ user, unknownFandomCount, onNavigate, inDrawer = false
     { to: "/library/smart-shelves", label: "Smart shelves", testid: "navbar-smart-shelves", icon: Filter, title: "Saved filter combinations" },
     { to: "/library/stats", label: "Reading stats", testid: "navbar-stats", icon: BarChart3, title: "Reading statistics" },
     { to: "/goals", label: "Reading goals", testid: "navbar-goals", icon: Target, title: "Yearly & monthly reading targets" },
+    { to: "/library/recommendations", label: "Recommendations", testid: "navbar-recommendations", icon: Sparkles, title: "Books your friends loved that you don't own yet" },
     { to: "/library/originals", label: "Originals", testid: "navbar-originals", icon: FileText, title: "Original-format files (PDF, MOBI, DOCX, etc.) kept without conversion" },
   ];
   const exportItems = [
@@ -109,6 +111,16 @@ function SecondaryLinks({ user, unknownFandomCount, onNavigate, inDrawer = false
             <it.icon className="w-4 h-4" /> {it.label}
           </Link>
         ))}
+        <p className="px-3 pt-2 pb-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B705C]">Community</p>
+        <Link to="/friends" data-testid="drawer-messages" className={itemBase} onClick={close}>
+          <MessageSquare className="w-4 h-4" /> Messages
+        </Link>
+        <Link to="/friends" data-testid="drawer-friends" className={itemBase} onClick={close}>
+          <Users className="w-4 h-4" /> Friends
+        </Link>
+        <Link to="/bookclubs" data-testid="drawer-bookclubs" className={itemBase} onClick={close}>
+          <BookOpen className="w-4 h-4" /> Reading rooms
+        </Link>
         <p className="px-3 pt-2 pb-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B705C]">Help &amp; feedback</p>
         <Link to="/help" data-testid="drawer-help" className={itemBase} onClick={close}>
           <HelpCircle className="w-4 h-4" /> Help &amp; guide
@@ -210,39 +222,13 @@ export default function Navbar() {
               avatar where users expect status / "me" controls. */}
           <AppearancePopover />
           {user && <NotificationsBell />}
-          {user && <ChatInboxIcon />}
+          {user && <MessagesDropdown />}
           {user && <StreakBadge />}
           {user && FETCHING_UI_ENABLED && <UpdatesBell />}
 
           {user && (
             <>
-              <Link
-                to="/account"
-                data-testid="navbar-account"
-                className="flex items-center gap-2 px-1.5 md:px-2 py-1 rounded-lg hover:bg-[#F5F3EC] shrink-0"
-                title="Account settings"
-              >
-                {user.picture && (
-                  <img
-                    src={user.picture}
-                    alt={user.name}
-                    className="w-8 h-8 rounded-full border border-[#E8E6E1]"
-                  />
-                )}
-                <DisplayName
-                  user={user}
-                  className="text-sm text-[#2C2C2C] hidden xl:inline"
-                  testid="navbar-user-name"
-                />
-              </Link>
-              <button
-                data-testid="navbar-logout"
-                onClick={logout}
-                className="p-2 hover:bg-[#F5F3EC] rounded-lg hidden md:inline-flex shrink-0"
-                title="Sign out"
-              >
-                <LogOut className="w-4 h-4 text-[#6B705C]" />
-              </button>
+              <AccountDropdown user={user} onLogout={logout} />
 
               {/* Hamburger toggle — only on <lg viewports where the
                   secondary links are tucked into the drawer below. */}
