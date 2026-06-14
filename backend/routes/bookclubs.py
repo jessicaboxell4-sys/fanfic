@@ -554,7 +554,12 @@ async def set_my_progress(
     prev = int(me.get("current_chapter", 0) or 0)
     await db.bookclub_members.update_one(
         {"room_id": room_id, "user_id": user.user_id},
-        {"$set": {"current_chapter": target_chapter}},
+        {"$set": {
+            "current_chapter": target_chapter,
+            # Engagement signal for the weekly digest pruner — bumped whenever
+            # the user moves their reading marker, even backwards.
+            "last_progress_update_at": datetime.now(timezone.utc),
+        }},
     )
     # Milestone notification: notify other active members when this user
     # crosses into a new chapter (forward direction only) and finishes the book.
@@ -674,6 +679,31 @@ async def post_message(
 # Idempotent per ISO-year-week. Honours user.email_unsubscribed_all.
 
 BOOKCLUB_DIGEST_LOOKBACK_DAYS = 7
+# A user is considered "engaged" with bookclubs (and therefore eligible for
+# the weekly digest email) if they've posted a message OR moved their reading
+# marker in any room within this window.  Quiet readers who set up a room and
+# walked away stop getting the Monday email after this many days of silence.
+BOOKCLUB_DIGEST_ENGAGEMENT_DAYS = 28
+
+
+async def _user_recently_engaged(
+    user_id: str, lookback_days: int = BOOKCLUB_DIGEST_ENGAGEMENT_DAYS,
+) -> bool:
+    """Return True if the user has posted a bookclub message or moved their
+    reading marker in any of their rooms within the last `lookback_days`."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=lookback_days)
+    recent_msg = await db.bookclub_messages.find_one(
+        {"user_id": user_id, "created_at": {"$gte": cutoff}},
+        {"_id": 1},
+    )
+    if recent_msg is not None:
+        return True
+    recent_progress = await db.bookclub_members.find_one(
+        {"user_id": user_id, "last_progress_update_at": {"$gte": cutoff}},
+        {"_id": 1},
+    )
+    return recent_progress is not None
+
 
 
 def _bc_year_week_key(dt: datetime) -> str:
@@ -893,6 +923,15 @@ async def maybe_send_bookclub_digest(user_doc: Dict[str, Any]) -> bool:
     now = datetime.now(timezone.utc)
     yw = _bc_year_week_key(now)
     if prefs.get("last_year_week") == yw:
+        return False
+    # Engagement gate — stop emailing users who haven't touched their rooms in
+    # weeks.  Still mark the week as handled so a quiet user doesn't re-tick on
+    # every subsequent run during the same calendar week.
+    if not await _user_recently_engaged(user_doc["user_id"]):
+        await db.users.update_one(
+            {"user_id": user_doc["user_id"]},
+            {"$set": {"bookclub_digest.last_year_week": yw}},
+        )
         return False
     payload = await _collect_bookclub_digest_payload(user_doc["user_id"])
     if not payload["rooms"]:

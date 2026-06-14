@@ -2006,3 +2006,22 @@ No backend changes for any Batch 3 item.
 - Added an `anchor` prop to both `<PrimaryCTAButton />` and `<SecondaryCTAButton />` for in-page hash links (e.g. `#features`) — renders a plain `<a href={anchor}>` (no `target=_blank`) so browsers handle the scroll natively and the URL retains the hash for sharing.
 - Swapped `Landing.jsx` hero pair: `Start sorting` → `<PrimaryCTAButton testid="hero-cta-start" onClick={handleStart}>` and `How it works` → `<SecondaryCTAButton testid="hero-cta-learn" anchor="#features">`. All existing data-testids preserved; visual output identical to before (the CSS classes the components emit match the original `btn-primary`/`btn-secondary` styles). Live verified: both buttons render, anchor click updates URL to `/#features`, no new console errors.
 - Other "back to library" / "Cancel" outline buttons left as-is per the audit — using the CTA components there would be over-styling.
+
+
+### Changed 2026-06-14 (#6 — Weekly bookclub digest pruning to engaged rooms)
+
+Backend-only change. The Monday-morning bookclub digest now skips users who've gone quiet, instead of nagging them indefinitely whenever any of their rooms see activity.
+
+- **New constant `BOOKCLUB_DIGEST_ENGAGEMENT_DAYS = 28`** in `routes/bookclubs.py`.
+- **New helper `_user_recently_engaged(user_id, lookback_days=28)`** — returns True iff the user has at least one `bookclub_messages` doc OR a `bookclub_members` doc with `last_progress_update_at` set inside the window.
+- **New field `bookclub_members.last_progress_update_at`** — bumped on every `POST /api/bookclubs/{room_id}/progress` regardless of direction. (No retroactive backfill; users who never move their marker remain "idle" until they next touch the slider, which is the desired behaviour.)
+- **`maybe_send_bookclub_digest()` gate**: short-circuits to `return False` when the user isn't engaged AND still updates `bookclub_digest.last_year_week` so the scheduler's 24× hourly retry doesn't keep evaluating the same idle user.
+- 5 new unit tests in `tests/test_bookclub_digest_engagement.py` (all pass):
+  - Idle user → not engaged
+  - Recent message → engaged
+  - Old message (>28d) → not engaged
+  - Recent progress update → engaged
+  - Idle user's digest skipped AND `last_year_week` correctly stamped
+- Existing 35 bookclub tests (`test_bookclubs.py` + `test_bookclub_digest.py`) all still pass.
+
+Side effect: users currently subscribed but inactive will simply stop receiving Monday emails until they post or move progress. They can immediately re-engage by visiting a room — no settings change needed.
