@@ -36,7 +36,13 @@ from auth_dep import get_current_user
 @api_router.get("/stats/overview")
 async def stats_overview(user: User = Depends(get_current_user)):
     """Aggregate reading stats for the dashboard / stats card."""
-    books = await db.books.find({"user_id": user.user_id}, {"_id": 0}).to_list(5000)
+    # Field projection: only fetch what the aggregation actually reads.
+    # On large libraries this cuts the response size and memory pressure
+    # (e.g. cover bytes, tags, fanfic-URL arrays) by an order of magnitude.
+    books = await db.books.find(
+        {"user_id": user.user_id},
+        {"_id": 0, "progress_percent": 1, "source_meta": 1, "size_bytes": 1},
+    ).to_list(5000)
     finished = sum(1 for b in books if (b.get("progress_percent") or 0) >= 0.99)
     reading = sum(1 for b in books if 0.05 <= (b.get("progress_percent") or 0) < 0.95)
 
