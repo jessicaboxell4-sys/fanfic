@@ -1,0 +1,26 @@
+{
+  "summary": "Retest after main agent added updateFromFriendsEmail + sendFromFriendsPreview handlers in EmailPreferences.jsx. /account/emails now renders cleanly with no React error overlay. From-friends card, toggle, and preview button all present. Toggle round-trips to PUT /api/recommendations/friends-finished/settings (200) and flips aria-checked false->true->false with toasts. Preview button POSTs to /api/recommendations/friends-finished/preview?send_email=true (200) and shows info toast 'No new friend-finishes in the last week — preview skipped.' (expected since seed user had no friends/finishes). Existing weekly-digest, fic-updates, and year-recap cards still render and weekly-digest toggle still works (no regression). All 5 review-request acceptance criteria PASS.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/account/emails — weekly-digest-day & weekly-digest-hour selects", "issues": ["Pre-existing React hydration warning: '<span> cannot be a child of <option>' for the select dropdowns. Caused by a global wrapper injecting <span data-ve-dynamic=...> inside each <option>. Cosmetic only — selects work — but pollutes the console. Not introduced by this fix; was present in iter15 too."]}
+    ]
+  },
+  "test_report_links": ["/app/.screenshots/iter16_email_prefs.png"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "EmailPreferences.jsx line 256 still has the stray formatting noted in iter15: `setSendingUpdatePreview(false);    try {` on the same physical line. Functional but ugly — main agent may want to reformat for readability.",
+    "updateFromFriendsEmail and sendFromFriendsPreview both share the savingDigest / sendingDigestPreview state with the Weekly-digest channel. This means clicking the From-friends toggle disables the Weekly-digest toggle (and vice versa) and clicking either 'Send a sample' button spins both Send buttons. Low impact in practice (saves are fast) but a dedicated savingFromFriends / sendingFromFriendsPreview pair would be cleaner and avoid cross-channel UI coupling.",
+    "Pre-existing: the <option> hydration warning above. Likely fixable by removing the runtime instrumentation that injects <span data-ve-dynamic> inside <option> children, or by switching weekly-digest day/hour to a shadcn/ui Select."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only retest)", "frontend": "100% — all 5 acceptance criteria pass"},
+  "test_credentials": "Ephemeral Mongo-seeded user user_iter16_dcd21729 / Bearer tok_iter16_579916941c6d4ab796b5e432224b7eaf — cleaned up after run (users + user_sessions docs deleted).",
+  "seed_data_creation": "Single ephemeral user + session for the Bearer/cookie auth round-trip. No friendships or finishes seeded — preview correctly surfaced the 'No new friend-finishes' info toast path.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "EmailPreferences page is fully functional. From-friends handlers behave identically to updateFicEmail/sendFicPreview as intended. If extending: there are 3 distinct preview-branch toasts (success: data.email_sent, warning: data.email_error / data.email_logged, info: !data.fired). Only the info path was exercised this run because the seed user had no friends; backend was 92/92 green in iter15 for the other branches. If you want to exercise the email_sent branch in UI, seed a friendship + a finished book within the last 7 days for the test user.",
+  "rca of the issue": "Iter15 RCA was correct: the two handlers were missing. Main agent added them at lines 181-217 with the exact pattern recommended. Verified by network trace (PUT settings 200 + POST preview?send_email=true 200), aria-checked DOM updates, and toast text. No further action needed."
+}

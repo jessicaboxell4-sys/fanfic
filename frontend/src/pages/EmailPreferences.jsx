@@ -178,6 +178,44 @@ export default function EmailPreferences() {
     }
   };
 
+  const updateFromFriendsEmail = async (enabled) => {
+    setSavingDigest(true);
+    try {
+      await api.put("/recommendations/friends-finished/settings", { email_enabled: enabled });
+      setOverview((o) => ({
+        ...o,
+        from_friends: { ...(o.from_friends || {}), email_enabled: enabled },
+      }));
+      toast.success(enabled ? "From-friends emails on" : "From-friends emails off");
+    } catch (e) {
+      toast.error(errMsg(e?.response?.data?.detail));
+    } finally {
+      setSavingDigest(false);
+    }
+  };
+
+  const sendFromFriendsPreview = async () => {
+    setSendingDigestPreview(true);
+    try {
+      const { data } = await api.post("/recommendations/friends-finished/preview?send_email=true");
+      if (!data?.fired) {
+        toast.info("No new friend-finishes in the last week — preview skipped.");
+      } else if (data.email_sent) {
+        toast.success(`Sample sent to ${overview.email}`);
+      } else if (data.email_error) {
+        toast.warning(`In-app fired, but email failed: ${data.email_error}`);
+      } else if (data.email_logged) {
+        toast.warning("In-app fired. Email logged — delivery not configured.");
+      } else {
+        toast.success("In-app notification fired.");
+      }
+    } catch (e) {
+      toast.error(errMsg(e?.response?.data?.detail));
+    } finally {
+      setSendingDigestPreview(false);
+    }
+  };
+
   const sendDigestPreview = async () => {
     setSendingDigestPreview(true);
     try {
