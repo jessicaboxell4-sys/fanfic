@@ -2175,3 +2175,27 @@ User asked for two refinements right after the initial username ship:
 **2 new tests** (`test_usernames.py`, **13/13 pass**): `test_mixed_case_normalized_to_lower` (renamed/repurposed — caps now preserved), `test_case_insensitive_uniqueness` (Brad/brad/BRAD all collide), `test_friend_request_finds_either_case` (lookup-by-lowercase finds Mixed-case user).
 
 E2E Playwright verified: `ImCrazy94316` registers with caps preserved → `imcrazy94316` blocked with 409 → `@ImCrazy94316` and `@imcrazy94316` friend requests both find the same user → navbar shows `@ImCrazy94316`.
+
+
+### Added 2026-06-14 (Username autocomplete on friend-invite)
+
+Discord/Twitter-style `@handle` typeahead on the friend-find input.
+
+**Backend** — new endpoint `GET /api/users/search?q=&limit=8`:
+- Strips a leading `@`, lowercases, requires ≥2 chars (empty/short → `{users: []}` so the dropdown stays quiet).
+- Prefix match on the `username_lower` index field (fast).
+- Excludes current user + anyone with `hidden_from_search: true`.
+- Returns `{user_id, username, previous_username, name, picture}`.
+
+**Frontend** — `FriendsPage` now:
+- Single input box (placeholder: `friend@example.com or @handle`) that branches based on what the user typed.
+- 250ms-debounced effect calls `/users/search` only when the input starts with `@`.
+- Dropdown of matches with `@handle`, avatar/initial, and "was @previous" line when applicable.
+- Clicking a match calls `POST /friends/request` with `target_username` (case-insensitive lookup courtesy of yesterday's work) and toasts `Friend request sent to @handle`.
+- "No one with that handle yet." pill shown when the typed handle ≥3 chars produces no hits.
+- Hitting the **Send invite** button with a value that starts with `@` or doesn't contain `@` is routed through the same username path; only `name@example.com`-shaped values still go through the email-invite flow.
+- Section heading updated to "Find a friend"; explanatory copy now mentions both lookup paths.
+
+**Test IDs** added: `friends-invite-suggestions`, `friends-invite-suggest-<username>`, `friends-invite-no-results`.
+
+E2E verified: typed `@findme...` → dropdown showed `@FindMe91443` → clicked → outgoing request created with `username=FindMe91443` → empty/no-match states render correctly. Screenshot snapshot saved.

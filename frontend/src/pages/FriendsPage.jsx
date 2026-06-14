@@ -45,6 +45,10 @@ export default function FriendsPage() {
   const [busyId, setBusyId] = useState(null);
   // Invite-by-email state
   const [inviteEmail, setInviteEmail] = useState("");
+  // Autocomplete state for @-prefixed lookups (already-Shelfsort users).
+  const [inviteSuggestions, setInviteSuggestions] = useState([]);
+  const [showSuggest, setShowSuggest] = useState(false);
+  const [requestingId, setRequestingId] = useState(null);
   const [inviteNote, setInviteNote] = useState("");
   const [inviting, setInviting] = useState(false);
   const [myInvites, setMyInvites] = useState([]);
@@ -140,8 +144,57 @@ export default function FriendsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.search, authedUser?.user_id]);
 
+  // Debounced autocomplete: trigger only when the input starts with "@".
+  useEffect(() => {
+    const trimmed = inviteEmail.trim();
+    if (!trimmed.startsWith("@")) {
+      setInviteSuggestions([]);
+      setShowSuggest(false);
+      return;
+    }
+    const id = setTimeout(async () => {
+      try {
+        const { data } = await api.get("/users/search", { params: { q: trimmed } });
+        setInviteSuggestions(data?.users || []);
+        setShowSuggest(true);
+      } catch {
+        setInviteSuggestions([]);
+        setShowSuggest(false);
+      }
+    }, 250);
+    return () => clearTimeout(id);
+  }, [inviteEmail]);
+
+  const sendUsernameRequest = async (handle) => {
+    const clean = (handle || "").trim();
+    if (!clean) return;
+    setRequestingId(clean);
+    try {
+      const { data } = await api.post("/friends/request", { target_username: clean });
+      if (data.status === "accepted") {
+        toast.success(`You're now friends with @${clean}`);
+      } else {
+        toast.success(`Friend request sent to @${clean}`);
+      }
+      setInviteEmail("");
+      setShowSuggest(false);
+      await load();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || `Couldn't request @${clean}`);
+    } finally { setRequestingId(null); }
+  };
+
   const sendInvite = async () => {
     if (!inviteEmail.trim()) return;
+    // If the user typed "@handle", route through /friends/request (username
+    // path) instead of /friends/invite (email path).  This catches the case
+    // where someone clicks the input, types a handle, and hits Send instead
+    // of picking from the dropdown.
+    const trimmed = inviteEmail.trim();
+    if (trimmed.startsWith("@") || !trimmed.includes("@")) {
+      await sendUsernameRequest(trimmed.replace(/^@+/, ""));
+      return;
+    }
     setInviting(true);
     try {
       const { data } = await api.post("/friends/invite", {
@@ -344,20 +397,57 @@ export default function FriendsPage() {
         {/* Invite by email — for people not on Shelfsort yet */}
         <section className="shelf-card p-5 mb-5" data-testid="friends-invite-card">
           <p className="text-xs font-bold uppercase tracking-wider text-[#6B705C] mb-2 flex items-center gap-1.5">
-            <Mail className="w-3 h-3" /> Invite someone by email
+            <Mail className="w-3 h-3" /> Find a friend
           </p>
           <p className="text-xs text-[#6B705C] mb-3">
-            Not on Shelfsort yet? Send them an invite — they get an email with a one-click link to sign up and become your friend automatically.
+            Already on Shelfsort? Type <code className="bg-[#F5F3EC] px-1 rounded">@handle</code> to find them. Not yet? Send an email invite — they get a one-click link to sign up and become your friend automatically.
           </p>
-          <div className="space-y-2">
+          <div className="space-y-2 relative">
             <input
-              type="email"
+              type="text"
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
-              placeholder="friend@example.com"
+              onFocus={() => inviteEmail.trim().startsWith("@") && setShowSuggest(true)}
+              onBlur={() => setTimeout(() => setShowSuggest(false), 150)}
+              placeholder="friend@example.com or @handle"
               data-testid="friends-invite-email"
               className="w-full text-sm px-3 py-2 rounded-lg border border-[#E5DDC5] bg-white focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/30"
             />
+            {showSuggest && inviteSuggestions.length > 0 && (
+              <ul
+                data-testid="friends-invite-suggestions"
+                className="absolute left-0 right-0 top-[42px] z-20 bg-white border border-[#E5DDC5] rounded-lg shadow-lg max-h-60 overflow-y-auto"
+              >
+                {inviteSuggestions.map((u) => (
+                  <li key={u.user_id}>
+                    <button
+                      type="button"
+                      data-testid={`friends-invite-suggest-${u.username}`}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => sendUsernameRequest(u.username)}
+                      disabled={requestingId === u.username}
+                      className="w-full text-left flex items-center gap-2 px-3 py-2 hover:bg-[#FBFAF6] disabled:opacity-50"
+                    >
+                      {u.picture
+                        ? <img src={u.picture} alt={u.username} className="w-6 h-6 rounded-full flex-shrink-0" />
+                        : <div className="w-6 h-6 rounded-full bg-[#E5DDC5] flex-shrink-0 flex items-center justify-center text-xs font-mono text-[#6B705C]">@</div>}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-mono text-[#2C2C2C] truncate">@{u.username}</p>
+                        {u.previous_username && (
+                          <p className="text-[10px] text-[#6B705C] truncate">was @{u.previous_username}</p>
+                        )}
+                      </div>
+                      {requestingId === u.username && <Loader2 className="w-3 h-3 animate-spin text-[#6B46C1]" />}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {showSuggest && inviteEmail.trim().startsWith("@") && inviteSuggestions.length === 0 && inviteEmail.trim().length >= 3 && (
+              <div className="absolute left-0 right-0 top-[42px] z-20 bg-white border border-[#E5DDC5] rounded-lg shadow-lg px-3 py-2 text-xs text-[#6B705C]" data-testid="friends-invite-no-results">
+                No one with that handle yet.
+              </div>
+            )}
             <input
               type="text"
               value={inviteNote}
