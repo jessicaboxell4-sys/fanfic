@@ -216,13 +216,13 @@ export default function EmailPreferences() {
     try {
       const { data } = await api.post("/bookclubs/digest/preview?send_email=true");
       if (data?.reason === "no_activity") {
-        toast.info("No new activity in your reading rooms this past week.");
+        toast.info("No new activity in your reading rooms this past week — nothing to preview.");
       } else if (data?.sent) {
-        toast.success(`Sample sent to ${overview.email}`);
+        toast.success(`Sample email sent to ${overview.email}`);
       } else if (data?.error) {
-        toast.warning(`Email failed: ${data.error}`);
+        toast.warning(`Email preview attempted but delivery failed: ${data.error}`);
       } else if (data?.logged) {
-        toast.warning("Logged — email delivery not configured.");
+        toast.warning("Preview prepared — email delivery not configured on this server.");
       } else {
         toast.info("Preview returned no activity.");
       }

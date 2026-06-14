@@ -1881,3 +1881,51 @@ Both upload sites (the regular EPUB upload pipeline + the URL-fetch path) now pe
 - Reviewer micro-fixes applied: console.error in the load-error catch, regex tightening on group testid generation.
 - Out of scope (parked): potential debounce on rapid-toggle save() — server is idempotent so the final state always converges.
 
+
+### Added 2026-06-14 (P3 batch — three items shipped together)
+
+#### P3.1 — Word count + reading time per book
+- Word count now computed at upload time inside the same fulltext-extraction pass (`utils/epub_fulltext.count_words`). Stamped on the book doc as `word_count`.
+- Per-user `words_per_minute` preference (default **250**, bounds 80-1500) drives every "minutes remaining" estimate. Stored on user doc as `words_per_minute`.
+- New `routes/wordcount.py` exposes 5 endpoints:
+  - `GET /api/user/wpm` / `PUT /api/user/wpm`
+  - `GET /api/books/{book_id}/reading-time` → `{word_count, minutes_total, minutes_remaining, wpm}` — minutes_remaining honours `progress_percent`
+  - `GET /api/library/reading-stats` → aggregate dashboard tile: `{total_words, total_minutes, unfinished_words, unfinished_minutes, finished_words, finished_minutes, books_with_wordcount, books_without_wordcount, wpm}`
+  - `POST /api/admin/wordcount/backfill` — stamps `word_count` from existing `book_fulltext` rows without overwriting any existing value
+- Frontend:
+  - **`LibraryReadingStatsCard.jsx`** on the dashboard (`data-testid="library-reading-stats-card"`) — three stat tiles (Left to read · Already read · Library total) + "X books without word counts" warning when applicable. Auto-hides when no book has a word_count.
+  - **`WpmCard.jsx`** on `/account/appearance` (`data-testid="wpm-card"`) — slider + number input + 4 preset buttons (Slow 180 / Average 250 / Fast 350 / Speed reader 500).
+  - **Book detail page** shows two new Meta tiles: `book-detail-word-count` and `book-detail-reading-time`. For half-read books the reading-time line reads "XXh YYm · ZZm left".
+- Tests: `backend/tests/test_wordcount.py` — 13 cases (pure helpers, wpm prefs roundtrip + bounds, per-book reading-time computation, library aggregate, admin backfill + no-overwrite guarantee). 13/13 pass.
+
+#### P3.2 — Scheduled auto-theme
+- `ThemeContext` rewritten to support three modes: `light` · `dark` · `auto`.
+  - `auto` resolves via `autoConfig.kind`:
+    - **`time`** (default) — dark window between `dark_start` and `dark_end` HH:MM in user-local time; correctly supports windows that wrap midnight (e.g. 19:00 → 07:00).
+    - **`system`** — follows `prefers-color-scheme` media query; live-reacts to OS theme changes.
+  - Re-evaluates every 60s when in auto/time mode so the flip lands at the right minute without a reload.
+  - Persisted to localStorage: `shelfsort_theme_mode` + `shelfsort_theme_auto`. Legacy `shelfsort_theme` key still read for back-compat (auto-migrates).
+  - Effective theme set on `<html data-theme="...">`; the legacy `theme`/`toggleTheme`/`setTheme(light|dark)` exports stay backward-compatible so nothing else in the app needed to change.
+- Pure helper `isWithinDarkWindow(now, start, end)` is exported for testability.
+- UI: `/account/appearance` theme card now a **3-column grid** (Light / Dark / Auto). Picking Auto reveals a config panel with kind toggle (Time of day / Follow system) and two HH:MM `<input type="time">` controls (when kind=time). Live "Currently rendering: dark · dark window 19:00 – 07:00 (local time)" status line.
+- Tested against live preview; the time-based auto mode actually flipped during testing because the preview clock fell inside the dark window. ✅
+
+#### P3.3 — Weekly book-club email digest
+- Opt-in 5th channel: each Monday at 08:00 UTC, an email rollup of the past 7 days of room activity (chapter messages + finished-book milestones).
+- Per-message bell pings (`bookclub_message`, `bookclub_finished`) still fire unconditionally — this is purely the email rollup of the same data.
+- Backend (`routes/bookclubs.py` additions):
+  - `GET /api/bookclubs/digest/settings` / `PUT` — `email_enabled` toggle, defaults to `false`.
+  - `POST /api/bookclubs/digest/preview` (with `?send_email=true` to also fire the email).
+  - Payload includes `top_messages` (latest 5 per room, excluding the user's own posts), `finishers` (members who hit `current_chapter ≥ book_total_chapters` this week), and total counts.
+  - HTML + text email template via Resend, mirroring the existing weekly-digest visual style.
+- Hooked into `routes/digest.py:_digest_tick` at `weekday==0 && hour==8` (Monday 08:00 UTC). Idempotent per ISO-year-week via `bookclub_digest.last_year_week`.
+- `GET /api/user/email-overview` now exposes a 5th channel `bookclub_digest: {email_enabled, last_email_sent_at, note}`.
+- Frontend: new ChannelCard on `/account/emails` (`data-testid="bookclub-digest-card"`) with toggle + "Send sample email" button. Toast messaging distinguishes between "no activity to preview" / "delivered" / "delivery error" / "delivery not configured".
+- Tests: `backend/tests/test_bookclub_digest.py` — 6 cases (default-disabled, toggle roundtrip, self-excluding payload, no-activity branch, email-path exercised, email-overview includes channel). 6/6 pass.
+
+#### Combined verification
+- `pytest tests/test_wordcount.py tests/test_bookclub_digest.py tests/test_notification_mutes.py tests/test_friends_finished_digest.py tests/test_recommendations.py tests/test_opds.py tests/test_bookclubs.py` → **84/84 passing** (incl. 19 new tests).
+- testing_agent_v3_fork e2e — **100% on backend + frontend** (iter18). No critical bugs. Code-review surfaced two refinements:
+  - Tweaked the bookclub-digest preview toast copy to distinguish "delivered / error / not configured / no activity".
+  - Other suggestions (debounce WPM slider, rename `progress_percent` semantics, audit cron TZ) parked as low-priority follow-ups.
+

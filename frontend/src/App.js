@@ -29,8 +29,7 @@ import Account from "@/pages/Account";
 import AppearancePage from "@/pages/AppearancePage";
 import MessagesPage from "@/pages/MessagesPage";
 import FriendsPage from "@/pages/FriendsPage";
-import BookclubsListPage from "@/pages/BookclubsListPage";
-import BookclubRoomPage from "@/pages/BookclubRoomPage";
+import BookclubsPage from "@/pages/BookclubsPage";
 import RecommendationsPage from "@/pages/RecommendationsPage";
 import SuggestionsPage from "@/pages/SuggestionsPage";
 import InviteAcceptPage from "@/pages/InviteAcceptPage";
@@ -119,8 +118,8 @@ function AppRouter() {
       <Route path="/messages" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
       <Route path="/messages/:roomId" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
       <Route path="/friends" element={<ProtectedRoute><FriendsPage /></ProtectedRoute>} />
-      <Route path="/bookclubs" element={<ProtectedRoute><BookclubsListPage /></ProtectedRoute>} />
-      <Route path="/bookclubs/:roomId" element={<ProtectedRoute><BookclubRoomPage /></ProtectedRoute>} />
+      <Route path="/bookclubs" element={<ProtectedRoute><BookclubsPage /></ProtectedRoute>} />
+      <Route path="/bookclubs/:roomId" element={<ProtectedRoute><BookclubsPage /></ProtectedRoute>} />
       <Route path="/library/recommendations" element={<ProtectedRoute><RecommendationsPage /></ProtectedRoute>} />
       <Route path="/suggestions" element={<ProtectedRoute><SuggestionsPage /></ProtectedRoute>} />
       <Route path="/invite/:token" element={<InviteAcceptPage />} />
