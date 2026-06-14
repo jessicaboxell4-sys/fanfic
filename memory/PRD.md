@@ -2060,3 +2060,33 @@ Full feature delivered with all five product calls honoured:
 E2E verified via Playwright: created 1 yearly + 1 monthly + 1 retroactive 2024 goal, switched tabs, edited target, all rendered without errors. `data-testid`s exposed for every interactive element: `goals-page`, `goals-empty-state`, `new-goal-btn`, `goals-empty-create-btn`, `goal-card-<id>`, `goal-edit-<id>`, `goal-delete-<id>`, `goal-progress-<id>`, `goal-target-<id>`, `goals-year-tab-<year>`, `goal-dialog`, `goal-dialog-close`, `goal-dialog-save`, `goal-metric-select`, `goal-period-type-select`, `goal-period-value-input`, `goal-target-input`, `confetti`.
 
 No backend regressions. No new dependencies. Browse `/goals` to use.
+
+
+### Changed 2026-06-14 (#1 — routes/books.py Phase 4 refactor)
+
+Backend-only refactor. Two new sub-modules carved out of the 6949-line `routes/books.py`:
+
+- **`routes/refresh.py`** (386 lines, **new**) — owns:
+  - `GET /api/books/refresh-status`
+  - `POST /api/books/refresh-all`
+  - `GET /api/fanfic/status`
+  - `POST /api/books/retry-unavailable`
+  - `POST /api/books/{book_id}/refresh`
+  - Module-level health-probe state: `_FANFIC_PROBE_URL`, `_fanfic_status_cache`, `_probe_fanfic_now`, `_sweep_user_unavailable`.
+- **`routes/duplicates.py`** (77 lines, **new**) — owns:
+  - `POST /api/books/{book_id}/undo-resolve`
+
+`books.py` keeps the *helpers* that `upload_books` needs (`apply_refresh`, `find_duplicate_candidates`, `_apply_duplicate_policy`, `FanficNotFoundError`); the new modules import them back from `routes.books`. No circular imports.
+
+**Other touched files**:
+- `routes/digest.py` — switched `from routes.books import _probe_fanfic_now, _sweep_user_unavailable, _fanfic_status_cache` → `from routes.refresh import …`.
+- `server.py` — `refresh` and `duplicates` added to the import tuple. **New** `_reorder_static_routes_first()` runs once at startup: moves all static-path routes ahead of dynamic-path ones in `api_router.routes` so the existing API contract holds despite the new modules being imported after `books.py`. (Without this, `/books/refresh-status` was being shadowed by `/books/{book_id}`.)
+
+**Line-count delta** (`books.py`): 6949 → **6563** (−386 lines, the same volume that landed in the new modules). 7026 total across the three files.
+
+**Verification**:
+- `cURL` smoke: refresh-status, books/recent, fanfic/status, books listing all respond correctly.
+- **76 pytest cases pass** across `test_goals.py`, `test_bookclub_digest_engagement.py`, `test_bookclubs.py`, `test_digest.py` (the digest suite exercises the moved health-probe helpers via the now-canonical `routes.refresh` import).
+- **23 pytest cases pass** in `test_books_comprehensive.py` (11 skipped per baseline). Zero regressions.
+
+No frontend changes. No API surface changes — the same paths still work, registered just from a different module now.

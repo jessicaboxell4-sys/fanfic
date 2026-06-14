@@ -12,7 +12,21 @@ import os
 from deps import app, api_router, db, logger, client
 
 # Import each routes module so its @api_router decorators register.
-from routes import root, auth, books, conversions, user_prefs, library_backup, tags, authors, pairings, trash, bookmarks, library_discovery, stats, series_categories, digest, year, smart_shelves, announcements, admin, admin_db, fulltext, chat, friends, invites, friend_library, suggestions, notifications, bookclubs, recommendations, opds, wordcount, goals  # noqa: F401
+from routes import root, auth, books, conversions, user_prefs, library_backup, tags, authors, pairings, trash, bookmarks, library_discovery, stats, series_categories, digest, year, smart_shelves, announcements, admin, admin_db, fulltext, chat, friends, invites, friend_library, suggestions, notifications, bookclubs, recommendations, opds, wordcount, goals, refresh, duplicates  # noqa: F401
+
+# Some static-path routes (e.g. /api/books/refresh-status, /api/books/recent)
+# live in route modules that are imported *after* books.py, which means
+# books.py's dynamic /api/books/{book_id} route is registered first and would
+# shadow them.  Re-sort the router so any route whose path contains a path
+# parameter is matched LAST.  Static paths first, dynamic second — preserves
+# the contract from before the Phase 4 refactor without re-ordering imports.
+def _reorder_static_routes_first() -> None:
+    static_routes = [r for r in api_router.routes if "{" not in getattr(r, "path", "")]
+    dynamic_routes = [r for r in api_router.routes if "{" in getattr(r, "path", "")]
+    api_router.routes[:] = static_routes + dynamic_routes
+
+
+_reorder_static_routes_first()
 
 # Mount the router and middleware.
 app.include_router(api_router)
