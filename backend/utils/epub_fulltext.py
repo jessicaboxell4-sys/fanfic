@@ -119,6 +119,29 @@ async def upsert_fulltext(db, book_id: str, user_id: str, text: str) -> None:
     )
 
 
+# Default reading speed used when the user hasn't customised theirs.
+# 250 wpm is the broadly-cited adult reading-speed average for fiction.
+DEFAULT_WORDS_PER_MINUTE = 250
+
+
+def count_words(text: str) -> int:
+    """Cheap whitespace-token word count. Good enough for reading-time
+    estimates — accuracy beyond ±5% is wasted effort here."""
+    if not text:
+        return 0
+    return len(text.split())
+
+
+def reading_minutes_for(word_count: int, wpm: int = DEFAULT_WORDS_PER_MINUTE) -> int:
+    """Convert a word count into minutes, rounded up to the nearest minute
+    so '900 words / 250 wpm = 3.6' becomes 4. Returns 0 for empty books."""
+    if not word_count or word_count <= 0:
+        return 0
+    wpm = max(80, min(int(wpm or DEFAULT_WORDS_PER_MINUTE), 1500))
+    import math
+    return max(1, math.ceil(word_count / wpm))
+
+
 async def ensure_text_index(db) -> None:
     """Create the Mongo `$text` index on `book_fulltext.text` if missing.
 

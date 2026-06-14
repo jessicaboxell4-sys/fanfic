@@ -504,6 +504,29 @@ async def _digest_tick():
     except Exception as e:
         logger.warning("Trash sweep failed: %s", e)
 
+    # Book-club weekly digest — fires Monday 08:00 UTC for users who
+    # opted into the email channel. Per-event in-app pings (bookclub_message,
+    # bookclub_finished) already happen unconditionally — this is just
+    # the email rollup of the past week.
+    try:
+        if weekday == 0 and hour == 8:
+            from routes.bookclubs import maybe_send_bookclub_digest  # noqa: WPS433
+            bc_cursor = db.users.find(
+                {"bookclub_digest.email_enabled": True},
+                {"_id": 0},
+            )
+            bc_sent = 0
+            async for ud in bc_cursor:
+                try:
+                    if await maybe_send_bookclub_digest(ud):
+                        bc_sent += 1
+                except Exception as e:
+                    logger.warning("Book-club digest failed for %s: %s", ud.get("email"), e)
+            if bc_sent:
+                logger.info("Book-club digest tick: emailed %d user(s)", bc_sent)
+    except Exception as e:
+        logger.warning("Book-club digest sweep failed: %s", e)
+
     # "From friends" weekly notification digest — fires once per ISO-week
     # for every user with sharing friends and at least one new finish.
     # In-app notification ALWAYS fires (no user toggle); only the optional
@@ -846,6 +869,11 @@ async def email_overview(user: User = Depends(get_current_user)):
             "email_enabled": bool((user_doc.get("friends_finished") or {}).get("email_enabled", False)),
             "last_email_sent_at": (user_doc.get("friends_finished") or {}).get("last_email_sent_at"),
             "note": "In-app notifications always fire on Sunday 18:00 UTC; toggle to also receive an email copy.",
+        },
+        "bookclub_digest": {
+            "email_enabled": bool((user_doc.get("bookclub_digest") or {}).get("email_enabled", False)),
+            "last_email_sent_at": (user_doc.get("bookclub_digest") or {}).get("last_email_sent_at"),
+            "note": "Per-message bell pings already fire unconditionally; toggle to also receive a Monday 08:00 UTC weekly rollup of every room.",
         },
     }
 

@@ -33,7 +33,7 @@ bookclub_messages:
     }
 """
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any, Literal
 
 from fastapi import Depends, HTTPException
@@ -651,3 +651,315 @@ async def post_message(
             link=f"/bookclubs/{room_id}?chapter={chapter_index}",
         )
     return _serialize_message(msg)
+
+
+# =====================================================================
+# Weekly book-club digest — Monday morning email rollup
+# =====================================================================
+#
+# Opt-in email summarising chapter messages + finished-book milestones
+# from every reading room the user is an active member of, over the
+# past 7 days. Mirrors the friends_finished pattern: in-app pings
+# already fire per-event (bookclub_message, bookclub_finished); this
+# is purely the email-channel digest, default OFF.
+#
+# Preferences live on the user doc:
+#   bookclub_digest: {
+#     email_enabled: bool=False,
+#     last_year_week: str|null,
+#     last_email_sent_at: iso str|null,
+#   }
+#
+# Fires from `routes/digest.py:_digest_tick` on Monday 08:00 UTC.
+# Idempotent per ISO-year-week. Honours user.email_unsubscribed_all.
+
+BOOKCLUB_DIGEST_LOOKBACK_DAYS = 7
+
+
+def _bc_year_week_key(dt: datetime) -> str:
+    iso = dt.isocalendar()
+    return f"{iso[0]}-W{iso[1]:02d}"
+
+
+def _get_bookclub_digest_prefs(user_doc: Dict[str, Any]) -> Dict[str, Any]:
+    p = user_doc.get("bookclub_digest") or {}
+    return {
+        "email_enabled": bool(p.get("email_enabled", False)),
+        "last_year_week": p.get("last_year_week"),
+        "last_email_sent_at": p.get("last_email_sent_at"),
+    }
+
+
+async def _collect_bookclub_digest_payload(
+    user_id: str, lookback_days: int = BOOKCLUB_DIGEST_LOOKBACK_DAYS,
+) -> Dict[str, Any]:
+    """Build a {rooms: [{room, messages_count, finishers, top_messages}]} payload
+    summarising the last week of activity across the user's active rooms."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=lookback_days)
+    member_rows = await db.bookclub_members.find(
+        {"user_id": user_id, "status": "active"},
+        {"_id": 0, "room_id": 1},
+    ).to_list(length=500)
+    if not member_rows:
+        return {"rooms": [], "total_messages": 0, "total_finishers": 0}
+
+    room_ids = [r["room_id"] for r in member_rows]
+    rooms = await db.bookclubs.find(
+        {"room_id": {"$in": room_ids}},
+        {"_id": 0, "room_id": 1, "name": 1, "book_title": 1, "book_author": 1, "book_total_chapters": 1},
+    ).to_list(length=500)
+    rooms_by_id = {r["room_id"]: r for r in rooms}
+
+    out_rooms = []
+    grand_msgs = 0
+    grand_finishers = 0
+    for rid in room_ids:
+        room_meta = rooms_by_id.get(rid)
+        if not room_meta:
+            continue
+        # Messages in the past week, excluding the user's own.
+        msgs = await db.bookclub_messages.find(
+            {
+                "room_id": rid,
+                "created_at": {"$gte": cutoff},
+                "user_id": {"$ne": user_id},
+            },
+            {"_id": 0, "user_name": 1, "body": 1, "chapter_index": 1, "created_at": 1},
+        ).sort("created_at", -1).limit(5).to_list(length=5)
+        total_msgs = await db.bookclub_messages.count_documents({
+            "room_id": rid,
+            "created_at": {"$gte": cutoff},
+            "user_id": {"$ne": user_id},
+        })
+        # Finishers in the past week (members who hit current_chapter == total).
+        finishers_cursor = db.bookclub_members.find(
+            {
+                "room_id": rid,
+                "user_id": {"$ne": user_id},
+                "status": "active",
+                "current_chapter": {"$gte": int(room_meta.get("book_total_chapters") or 1)},
+            },
+            {"_id": 0, "user_id": 1},
+        )
+        finisher_ids = [m["user_id"] async for m in finishers_cursor]
+        finishers = []
+        if finisher_ids:
+            udocs = await db.users.find(
+                {"user_id": {"$in": finisher_ids}},
+                {"_id": 0, "user_id": 1, "name": 1, "email": 1},
+            ).to_list(length=50)
+            finishers = [u.get("name") or u.get("email") or "A friend" for u in udocs]
+        if total_msgs == 0 and not finishers:
+            continue
+        top_messages = [
+            {
+                "user_name": m.get("user_name", ""),
+                "chapter_index": int(m.get("chapter_index", 0) or 0),
+                "preview": (m.get("body", "")[:140] + ("…" if len(m.get("body", "")) > 140 else "")),
+            }
+            for m in msgs
+        ]
+        out_rooms.append({
+            "room_id": rid,
+            "name": room_meta.get("name", ""),
+            "book_title": room_meta.get("book_title", ""),
+            "book_author": room_meta.get("book_author", ""),
+            "total_messages": int(total_msgs),
+            "finishers": finishers,
+            "top_messages": top_messages,
+        })
+        grand_msgs += int(total_msgs)
+        grand_finishers += len(finishers)
+    out_rooms.sort(key=lambda r: r["total_messages"] + 5 * len(r["finishers"]), reverse=True)
+    return {
+        "rooms": out_rooms,
+        "total_messages": grand_msgs,
+        "total_finishers": grand_finishers,
+    }
+
+
+def _build_bookclub_digest_email_payload(
+    user_doc: Dict[str, Any], payload: Dict[str, Any], base_url: str,
+) -> Dict[str, str]:
+    name = (user_doc.get("name") or user_doc.get("email", "").split("@")[0] or "there").split(" ")[0]
+    rooms = payload["rooms"]
+    subject = f"Your book-club week: {payload['total_messages']} message{'s' if payload['total_messages'] != 1 else ''} across {len(rooms)} room{'s' if len(rooms) != 1 else ''}"
+    text_lines = [
+        f"Hi {name},",
+        "",
+        "Here's what happened in your reading rooms this past week:",
+        "",
+    ]
+    html_blocks = []
+    for r in rooms[:10]:
+        block_text = [f"# {r['name']} — {r['book_title']}"]
+        if r["finishers"]:
+            block_text.append(f"  Finishers: {', '.join(r['finishers'])}")
+        block_text.append(f"  {r['total_messages']} message{'s' if r['total_messages'] != 1 else ''} this week")
+        for m in r["top_messages"][:3]:
+            ch = f"Ch. {m['chapter_index']}" if m['chapter_index'] > 0 else "Lobby"
+            block_text.append(f"    [{ch}] {m['user_name']}: {m['preview']}")
+        text_lines.extend(block_text + [""])
+
+        html_messages = "".join(
+            f'<div style="margin:6px 0 0 14px;font-size:13px;color:#2C2C2C;">'
+            f'<span style="color:#6B46C1;font-weight:600;">'
+            f'{"Ch. " + str(m["chapter_index"]) if m["chapter_index"] > 0 else "Lobby"}'
+            f'</span> · <strong>{m["user_name"]}</strong>: {m["preview"]}'
+            f'</div>'
+            for m in r["top_messages"][:3]
+        )
+        finishers_html = (
+            f'<p style="font-size:12px;color:#1F4D2A;margin:4px 0 0 0;">'
+            f'<strong>Finishers:</strong> {", ".join(r["finishers"])}</p>'
+            if r["finishers"] else ""
+        )
+        html_blocks.append(
+            f'<div style="padding:12px 0;border-bottom:1px solid #EFEAE0;">'
+            f'<a href="{base_url}/bookclubs/{r["room_id"]}" style="text-decoration:none;color:#2C2C2C;">'
+            f'<div style="font-weight:700;font-size:16px;">{r["name"]}</div>'
+            f'<div style="font-size:13px;color:#6B705C;">{r["book_title"]}</div>'
+            f'</a>'
+            f'<p style="font-size:13px;color:#6B705C;margin:4px 0 0 0;">'
+            f'{r["total_messages"]} message{"s" if r["total_messages"] != 1 else ""} this week</p>'
+            f'{finishers_html}'
+            f'{html_messages}'
+            f'</div>'
+        )
+    text_lines += [
+        f"Open in Shelfsort: {base_url}/bookclubs",
+        "",
+        "Manage email preferences:",
+        f"  {base_url}/account/emails",
+        "",
+        "— Shelfsort",
+    ]
+    text = "\n".join(text_lines)
+    html = (
+        '<div style="font-family:Georgia,serif;color:#2C2C2C;line-height:1.5;max-width:600px;">'
+        f'<h2 style="font-size:22px;margin:0 0 6px 0;">Your book-club week</h2>'
+        f'<p style="color:#6B705C;font-size:14px;margin:0 0 14px 0;">'
+        f'{payload["total_messages"]} message{"s" if payload["total_messages"] != 1 else ""} across {len(rooms)} room{"s" if len(rooms) != 1 else ""}'
+        f'{(", " + str(payload["total_finishers"]) + " finisher" + ("s" if payload["total_finishers"] != 1 else "")) if payload["total_finishers"] else ""}.'
+        '</p>'
+        + "".join(html_blocks) +
+        f'<p style="margin:20px 0 0 0;"><a href="{base_url}/bookclubs" '
+        'style="background:#6B46C1;color:white;text-decoration:none;padding:10px 18px;'
+        'border-radius:8px;font-weight:600;display:inline-block;">'
+        'Open your rooms</a></p>'
+        f'<p style="font-size:11px;color:#6B705C;margin-top:24px;">'
+        f'You\'re getting this because you opted into the "Book-club weekly digest" email channel. '
+        f'<a href="{base_url}/account/emails" style="color:#6B46C1;">Manage preferences</a>.'
+        '</p>'
+        '</div>'
+    )
+    return {"subject": subject, "html": html, "text": text}
+
+
+async def _send_bookclub_digest_email(user_doc: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
+    from deps import RESEND_API_KEY, SENDER_EMAIL, FRONTEND_URL
+    import asyncio
+    import resend
+    from utils.email_log import log_email_send
+
+    to_email = user_doc.get("email") or ""
+    if not to_email:
+        return {"delivered": False, "reason": "no_email"}
+    base = (FRONTEND_URL or "").rstrip("/")
+    msg = _build_bookclub_digest_email_payload(user_doc, payload, base)
+    if not RESEND_API_KEY:
+        logger.warning("RESEND_API_KEY not set — would have sent bookclub digest to %s", to_email)
+        return {"delivered": False, "logged": True}
+    try:
+        resend.api_key = RESEND_API_KEY
+        params = {"from": SENDER_EMAIL, "to": [to_email], **msg}
+        result = await asyncio.to_thread(resend.Emails.send, params)
+        await log_email_send("bookclub_digest", to_email, "ok", resend_id=(result or {}).get("id"))
+        return {"delivered": True, "id": (result or {}).get("id")}
+    except Exception as e:
+        logger.error("Bookclub digest email send failed for %s: %s", to_email, e)
+        await log_email_send("bookclub_digest", to_email, "error", error=str(e))
+        return {"delivered": False, "error": str(e)}
+
+
+async def maybe_send_bookclub_digest(user_doc: Dict[str, Any]) -> bool:
+    """Called from the weekly digest tick. Only sends email; in-app pings
+    already fire per-message via bookclub_message / bookclub_finished kinds.
+    Idempotent per ISO-year-week. Returns True if email actually delivered
+    (or was logged in test envs)."""
+    prefs = _get_bookclub_digest_prefs(user_doc)
+    if not prefs.get("email_enabled"):
+        return False
+    now = datetime.now(timezone.utc)
+    yw = _bc_year_week_key(now)
+    if prefs.get("last_year_week") == yw:
+        return False
+    payload = await _collect_bookclub_digest_payload(user_doc["user_id"])
+    if not payload["rooms"]:
+        # Quiet week — still mark handled to avoid re-checking 24x.
+        await db.users.update_one(
+            {"user_id": user_doc["user_id"]},
+            {"$set": {"bookclub_digest.last_year_week": yw}},
+        )
+        return False
+    result = await _send_bookclub_digest_email(user_doc, payload)
+    set_updates: Dict[str, Any] = {"bookclub_digest.last_year_week": yw}
+    delivered = bool(result.get("delivered") or result.get("logged"))
+    if delivered:
+        set_updates["bookclub_digest.last_email_sent_at"] = now.isoformat()
+    await db.users.update_one(
+        {"user_id": user_doc["user_id"]},
+        {"$set": set_updates},
+    )
+    return delivered
+
+
+# ---------------------------------------------------------------------
+# Preferences + preview
+# ---------------------------------------------------------------------
+
+class BookclubDigestPrefsBody(BaseModel):
+    email_enabled: bool
+
+
+@api_router.get("/bookclubs/digest/settings")
+async def get_bookclub_digest_settings(user: User = Depends(get_current_user)):
+    doc = await db.users.find_one(
+        {"user_id": user.user_id}, {"_id": 0, "bookclub_digest": 1},
+    ) or {}
+    from deps import RESEND_API_KEY
+    prefs = _get_bookclub_digest_prefs(doc)
+    prefs["email_configured"] = bool(RESEND_API_KEY)
+    return prefs
+
+
+@api_router.put("/bookclubs/digest/settings")
+async def update_bookclub_digest_settings(
+    body: BookclubDigestPrefsBody, user: User = Depends(get_current_user),
+):
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": {"bookclub_digest.email_enabled": bool(body.email_enabled)}},
+    )
+    return await get_bookclub_digest_settings(user)
+
+
+@api_router.post("/bookclubs/digest/preview")
+async def preview_bookclub_digest(
+    send_email: bool = False, user: User = Depends(get_current_user),
+):
+    user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="User not found")
+    payload = await _collect_bookclub_digest_payload(user.user_id)
+    if not payload["rooms"]:
+        return {"sent": False, "reason": "no_activity", **payload}
+    email_result = {"delivered": False, "skipped": True}
+    if send_email:
+        email_result = await _send_bookclub_digest_email(user_doc, payload)
+    return {
+        "sent": bool(email_result.get("delivered")),
+        "logged": bool(email_result.get("logged")),
+        "error": email_result.get("error"),
+        **payload,
+    }

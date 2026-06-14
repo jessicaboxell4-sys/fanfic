@@ -663,6 +663,16 @@ export default function BookDetail() {
               {typeof book.progress_percent === "number" && book.progress_percent > 0 && (
                 <Meta label="Progress" value={`${Math.round(book.progress_percent * 100)}%`} />
               )}
+              {book.word_count > 0 && (
+                <Meta
+                  label="Word count"
+                  value={Number(book.word_count).toLocaleString()}
+                  testid="book-detail-word-count"
+                />
+              )}
+              {book.word_count > 0 && (
+                <BookReadingTime bookId={book.book_id} progress={book.progress_percent || 0} />
+              )}
               {book.source_meta?.chapters && (
                 <Meta label="Chapters" value={book.source_meta.chapters} />
               )}
@@ -680,12 +690,42 @@ export default function BookDetail() {
   );
 }
 
-function Meta({ label, value }) {
+function Meta({ label, value, testid }) {
   return (
-    <div>
+    <div {...(testid ? { "data-testid": testid } : {})}>
       <p className="text-xs uppercase tracking-wider text-[#6B705C] font-semibold mb-1">{label}</p>
       <p className="text-[#2C2C2C] break-words">{value}</p>
     </div>
+  );
+}
+
+
+function BookReadingTime({ bookId, progress }) {
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    api.get(`/books/${bookId}/reading-time`)
+      .then(({ data: d }) => { if (!cancelled) setData(d); })
+      .catch(() => { /* non-blocking */ });
+    return () => { cancelled = true; };
+  }, [bookId]);
+  if (!data || data.minutes_total <= 0) return null;
+  const fmt = (m) => {
+    if (m < 60) return `${m} min`;
+    const h = Math.floor(m / 60);
+    const r = m % 60;
+    return r ? `${h}h ${r}m` : `${h}h`;
+  };
+  return (
+    <Meta
+      label="Reading time"
+      testid="book-detail-reading-time"
+      value={
+        progress > 0 && progress < 1
+          ? `${fmt(data.minutes_total)} · ${fmt(data.minutes_remaining)} left`
+          : fmt(data.minutes_total)
+      }
+    />
   );
 }
 

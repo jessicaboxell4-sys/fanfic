@@ -4,6 +4,7 @@ import { ArrowLeft, Sun, Moon, Palette, RotateCcw, Share2, Copy, Check, ArrowDow
 import { toast } from "sonner";
 import Navbar from "../components/Navbar";
 import PalettePickerCard from "../components/PalettePickerCard";
+import WpmCard from "../components/WpmCard";
 import { useTheme } from "../context/ThemeContext";
 import { usePalette } from "../context/PaletteContext";
 import {
@@ -17,7 +18,7 @@ import {
 // or directly. Hosts the Light/Dark toggle, the full Palette Picker
 // (formerly on /account), and a live preview.
 export default function AppearancePage() {
-  const { theme, toggleTheme } = useTheme();
+  const { theme, mode, setMode, autoConfig, setAutoConfig, toggleTheme } = useTheme();
   const { palette, paletteId, setPaletteId, customLight, setCustomLight } = usePalette();
   const [confirmReset, setConfirmReset] = useState(false);
   const [importText, setImportText] = useState("");
@@ -209,14 +210,14 @@ export default function AppearancePage() {
               </p>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3" data-testid="appearance-theme-options">
+          <div className="grid grid-cols-3 gap-3" data-testid="appearance-theme-options">
             <button
               type="button"
-              onClick={() => { if (theme !== "light") toggleTheme(); }}
+              onClick={() => setMode("light")}
               data-testid="appearance-theme-light-btn"
-              aria-pressed={theme === "light"}
+              aria-pressed={mode === "light"}
               className={`relative text-left rounded-xl border p-4 transition-all ${
-                theme === "light"
+                mode === "light"
                   ? "border-[#6B46C1] bg-[#FBFAF6] shadow-sm"
                   : "border-[#E5DDC5] bg-white hover:border-[#6B46C1]/40"
               }`}
@@ -229,11 +230,11 @@ export default function AppearancePage() {
             </button>
             <button
               type="button"
-              onClick={() => { if (theme !== "dark") toggleTheme(); }}
+              onClick={() => setMode("dark")}
               data-testid="appearance-theme-dark-btn"
-              aria-pressed={theme === "dark"}
+              aria-pressed={mode === "dark"}
               className={`relative text-left rounded-xl border p-4 transition-all ${
-                theme === "dark"
+                mode === "dark"
                   ? "border-[#6B46C1] bg-[#FBFAF6] shadow-sm"
                   : "border-[#E5DDC5] bg-white hover:border-[#6B46C1]/40"
               }`}
@@ -244,11 +245,99 @@ export default function AppearancePage() {
               </div>
               <p className="text-xs text-[#6B705C]">Deep slate, paper-bright type, accent-coloured highlights.</p>
             </button>
+            <button
+              type="button"
+              onClick={() => setMode("auto")}
+              data-testid="appearance-theme-auto-btn"
+              aria-pressed={mode === "auto"}
+              className={`relative text-left rounded-xl border p-4 transition-all ${
+                mode === "auto"
+                  ? "border-[#6B46C1] bg-[#FBFAF6] shadow-sm"
+                  : "border-[#E5DDC5] bg-white hover:border-[#6B46C1]/40"
+              }`}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <Sun className="w-5 h-5 text-[#B87A00]" />
+                <Moon className="w-5 h-5 text-[#6B46C1] -ml-1.5" />
+                <p className="font-semibold text-[#2C2C2C]">Auto</p>
+              </div>
+              <p className="text-xs text-[#6B705C]">Switch at your chosen hours or follow the system theme.</p>
+            </button>
           </div>
+
+          {mode === "auto" && (
+            <div className="mt-4 p-4 rounded-xl bg-[#FBFAF6] border border-[#E5DDC5] space-y-3" data-testid="appearance-auto-config">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-[#6B705C]">Auto strategy</p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAutoConfig({ kind: "time" })}
+                  data-testid="appearance-auto-kind-time"
+                  aria-pressed={autoConfig.kind === "time"}
+                  className={`rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
+                    autoConfig.kind === "time"
+                      ? "border-[#6B46C1] bg-white"
+                      : "border-[#E5DDC5] bg-white hover:border-[#6B46C1]/40"
+                  }`}
+                >
+                  <p className="font-semibold text-[#2C2C2C]">Time of day</p>
+                  <p className="text-xs text-[#6B705C]">Dark from a custom hour each evening.</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAutoConfig({ kind: "system" })}
+                  data-testid="appearance-auto-kind-system"
+                  aria-pressed={autoConfig.kind === "system"}
+                  className={`rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
+                    autoConfig.kind === "system"
+                      ? "border-[#6B46C1] bg-white"
+                      : "border-[#E5DDC5] bg-white hover:border-[#6B46C1]/40"
+                  }`}
+                >
+                  <p className="font-semibold text-[#2C2C2C]">Follow system</p>
+                  <p className="text-xs text-[#6B705C]">Use your OS / browser appearance.</p>
+                </button>
+              </div>
+
+              {autoConfig.kind === "time" && (
+                <div className="grid grid-cols-2 gap-3" data-testid="appearance-auto-time-config">
+                  <label className="block text-xs text-[#6B705C]">
+                    Dark from
+                    <input
+                      type="time"
+                      value={autoConfig.dark_start}
+                      onChange={(e) => setAutoConfig({ dark_start: e.target.value })}
+                      data-testid="appearance-auto-dark-start"
+                      className="mt-1 w-full px-3 py-2 bg-white border border-[#E5DDC5] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6B46C1]"
+                    />
+                  </label>
+                  <label className="block text-xs text-[#6B705C]">
+                    Back to light at
+                    <input
+                      type="time"
+                      value={autoConfig.dark_end}
+                      onChange={(e) => setAutoConfig({ dark_end: e.target.value })}
+                      data-testid="appearance-auto-dark-end"
+                      className="mt-1 w-full px-3 py-2 bg-white border border-[#E5DDC5] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6B46C1]"
+                    />
+                  </label>
+                </div>
+              )}
+              <p className="text-[11px] text-[#6B705C]" data-testid="appearance-auto-effective">
+                Currently rendering: <strong className="text-[#2C2C2C]">{theme}</strong>
+                {autoConfig.kind === "time" && (
+                  <> · dark window <code className="bg-white px-1 rounded">{autoConfig.dark_start}</code> – <code className="bg-white px-1 rounded">{autoConfig.dark_end}</code> (local time)</>
+                )}
+              </p>
+            </div>
+          )}
         </section>
 
         {/* Palette picker (was on /account) */}
         <PalettePickerCard />
+
+        {/* Reading-speed setting for word-count time estimates */}
+        <WpmCard />
 
         {/* Live preview */}
         <section className="shelf-card p-6 mb-6" data-testid="appearance-preview-card">

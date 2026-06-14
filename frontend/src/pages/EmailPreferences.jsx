@@ -195,6 +195,44 @@ export default function EmailPreferences() {
     }
   };
 
+  const updateBookclubDigestEmail = async (enabled) => {
+    setSavingDigest(true);
+    try {
+      await api.put("/bookclubs/digest/settings", { email_enabled: enabled });
+      setOverview((o) => ({
+        ...o,
+        bookclub_digest: { ...(o.bookclub_digest || {}), email_enabled: enabled },
+      }));
+      toast.success(enabled ? "Book-club digest on" : "Book-club digest off");
+    } catch (e) {
+      toast.error(errMsg(e?.response?.data?.detail));
+    } finally {
+      setSavingDigest(false);
+    }
+  };
+
+  const sendBookclubDigestPreview = async () => {
+    setSendingDigestPreview(true);
+    try {
+      const { data } = await api.post("/bookclubs/digest/preview?send_email=true");
+      if (data?.reason === "no_activity") {
+        toast.info("No new activity in your reading rooms this past week.");
+      } else if (data?.sent) {
+        toast.success(`Sample sent to ${overview.email}`);
+      } else if (data?.error) {
+        toast.warning(`Email failed: ${data.error}`);
+      } else if (data?.logged) {
+        toast.warning("Logged — email delivery not configured.");
+      } else {
+        toast.info("Preview returned no activity.");
+      }
+    } catch (e) {
+      toast.error(errMsg(e?.response?.data?.detail));
+    } finally {
+      setSendingDigestPreview(false);
+    }
+  };
+
   const sendFromFriendsPreview = async () => {
     setSendingDigestPreview(true);
     try {
@@ -291,6 +329,7 @@ export default function EmailPreferences() {
     fic_updates,
     year_recap,
     from_friends,
+    bookclub_digest,
   } = overview;
 
   return (
@@ -514,8 +553,36 @@ export default function EmailPreferences() {
           }
         />
 
-        {/* Year-in-Books recap */}
+        {/* Book-club weekly digest */}
         <ChannelCard
+          icon={<Sparkles className="w-5 h-5" />}
+          iconBg="bg-[#EEE9FB]"
+          iconColor="text-[#6B46C1]"
+          title="Book-club weekly digest"
+          subtitle="Per-message bell pings already fire unconditionally. Toggle to also receive a Monday 08:00 UTC email rollup of every reading room you're in."
+          enabled={bookclub_digest?.email_enabled || false}
+          onToggle={() => updateBookclubDigestEmail(!bookclub_digest?.email_enabled)}
+          saving={savingDigest}
+          testidPrefix="bookclub-digest"
+          lastSent={bookclub_digest?.last_email_sent_at}
+          previewBtn={
+            <>
+              <button
+                type="button"
+                onClick={sendBookclubDigestPreview}
+                disabled={sendingDigestPreview}
+                data-testid="bookclub-digest-preview-btn"
+                className="btn-secondary text-sm flex items-center gap-2 disabled:opacity-60"
+              >
+                {sendingDigestPreview ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                Send sample email
+              </button>
+              <p className="text-xs text-[#6B705C]">{bookclub_digest?.note}</p>
+            </>
+          }
+        />
+
+        {/* Year-in-Books recap */}        <ChannelCard
           icon={<PartyPopper className="w-5 h-5" />}
           iconBg="bg-[#FDEFE7]"
           iconColor="text-[#E07A5F]"

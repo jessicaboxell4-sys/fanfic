@@ -22,6 +22,7 @@ from deps import api_router, db, STORAGE_DIR
 from models import User
 from auth_dep import get_current_user, require_admin
 from utils.epub_fulltext import (
+    count_words,
     ensure_text_index,
     extract_epub_text,
     make_snippet,
@@ -108,6 +109,13 @@ async def backfill_fulltext(
             # Heavy work — push to a thread so we don't pin the loop.
             text = await asyncio.to_thread(extract_epub_text, epub_path)
             await upsert_fulltext(db, book_id, user_id, text)
+            # Also stamp word_count so the reading-time estimate is fresh.
+            wc = count_words(text)
+            if wc > 0:
+                await db.books.update_one(
+                    {"book_id": book_id},
+                    {"$set": {"word_count": wc}},
+                )
             indexed_n += 1
         except Exception as exc:
             logger.warning("backfill: %s failed: %s", book_id, exc)

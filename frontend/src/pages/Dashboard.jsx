@@ -11,6 +11,7 @@ import UrlPasteCard from "../components/UrlPasteCard";
 import DashboardHelpCard from "../components/DashboardHelpCard";
 import DashboardSuggestionsBox from "../components/DashboardSuggestionsBox";
 import FriendRecsCard from "../components/FriendRecsCard";
+import LibraryReadingStatsCard from "../components/LibraryReadingStatsCard";
 import DuplicateResolutionModal from "../components/DuplicateResolutionModal";
 import UrlListDedupeModal from "../components/UrlListDedupeModal";
 import { Library, ArrowRight, Pin, RotateCcw, BarChart3 } from "lucide-react";
@@ -155,6 +156,9 @@ export default function Dashboard() {
 
         {/* Friend recommendations — auto-hides if there's nothing to show */}
         <FriendRecsCard />
+
+        {/* Reading-time stats — auto-hides until word counts exist */}
+        <LibraryReadingStatsCard />
 
         {/* Pinned smart shelves — only when the user has some */}
         {pinnedShelves.length > 0 && (

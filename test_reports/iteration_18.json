@@ -1,0 +1,43 @@
+{
+  "summary": "End-to-end testing of all three P3 items (word-count + reading-time, scheduled auto-theme, weekly book-club digest email). Backend 84/84 pytest passing (when run from /app/backend where pytest.ini sets rootdir). Frontend: 7/7 acceptance criteria PASS. Smoke-tested every endpoint via curl with a Mongo-seeded Bearer session, then drove the SPA with Playwright. Network traces show every UI interaction round-trips a 2xx to the matching API. The auto-theme actually flipped to dark at test time because the preview environment's local clock fell inside the 19:00-07:00 window — the live computation works.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "tests/test_wordcount.py::TestPureHelpers", "issue": "Two helper tests import `from utils.epub_fulltext` which only resolves when pytest is launched from /app/backend (where pytest.ini lives). Running from /app fails with ModuleNotFoundError. Cosmetic — same convention as the rest of the suite — but if a future regression run hard-codes `cd /app`, they'll skip. Consider `from backend.utils.epub_fulltext` or a sys.path shim in conftest.py."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/book/:id — confidence chip", "issues": ["Pre-existing (not introduced by this story): the confidence pill renders 'NaN% confident' when seed data lacks a numeric confidence — should fall back to a hyphen or hide entirely. Visible in the iter18_bookdetail2 screenshot."]},
+      {"screen": "/account/emails — weekly-digest day/hour selects", "issues": ["Pre-existing hydration warning carried over from iter15/16/17: '<span> cannot be a child of <option>' from a runtime instrumentation script. Cosmetic."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_wordcount.py",
+    "/app/backend/tests/test_bookclub_digest.py",
+    "/app/test_reports/pytest/pytest_iter18.xml"
+  ],
+  "action_items": [
+    "(Optional, non-blocking) Make TestPureHelpers in test_wordcount.py runnable from /app (sys.path shim or `from backend.utils...`) so a future regression `pytest /app/backend/tests/` from the repo root passes cleanly.",
+    "(Optional, pre-existing) Suppress the 'NaN% confident' chip on book detail when classification confidence is missing/non-numeric."
+  ],
+  "critical_code_review_comments": [
+    "wordcount.py reading-time route: progress_percent is treated as a 0.0-1.0 fraction (line 94: `min(progress, 1.0)`). The field NAME ('percent') strongly suggests 0-100. Any external integration that POSTs progress as 50 (meaning 50%) will be silently clamped to 1.0 (100% read) — this bit me during seed setup and could bite a future API consumer. Either rename to `progress_fraction` or accept both ranges with auto-detection.",
+    "WpmCard preset click fires the PUT immediately on every change. Combined with the existing slider onInput handler, dragging the slider rapidly could flood the backend with PUTs. Consider debouncing slider changes (~300ms) while keeping preset clicks immediate.",
+    "ThemeContext auto-mode: the live 'currently rendering: dark · dark window 19:00 - 07:00' line uses the browser's local clock, but the backend's _digest_tick (Mon 08:00 UTC) runs on server time. If a user sets dark_start in their local TZ but the digest fires in UTC, that's fine for theme but worth a one-line UI note that the auto-window is *local time* (already shown — good catch). Verify cron jobs still use UTC and not user-local time.",
+    "/account/emails 'Book-club weekly digest' preview button is wired to ?send_email=true even when the user hasn't opted in to the email channel. That's intentional (it's a preview), but the toast 'Book-club digest on' fires whether or not the email actually went out. Consider distinguishing 'preview email queued' vs 'no activity to preview' more explicitly (right now both succeed quietly)."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% — 84/84 pytest passing (wordcount 13/13, bookclub_digest 6/6, plus the regression suite test_notification_mutes 6/6, test_friends_finished_digest 8/8, test_recommendations 7/7, test_opds 13/13, test_bookclubs 31/31)",
+    "frontend": "100% — 7/7 acceptance criteria pass (library-reading-stats-card with 3 tiles, 3 theme options + auto config + time/system kinds + HH:MM inputs, wpm-card with 4 presets, book-detail word-count + reading-time metas with 'XXh YYm · ZZm left' formatting, bookclub-digest-card 5th channel with toggle + preview)"
+  },
+  "test_credentials": "Ephemeral Mongo-seeded user user_iter18_fddcf535 / Bearer tok_iter18_837af136452a70b2bac40a96b4fbde66 with two books (75000 words @ 50% progress, 12000 words @ 100% progress). Cleaned up after the run (users + user_sessions + books + user_preferences + bookclub_digest_prefs all deleted).",
+  "seed_data_creation": "One ephemeral user + session + two books with word_count populated. Required because reading-stats card and book-detail meta both auto-hide when no books have word_count. Bookclub digest preview was tested with no rooms — confirmed the 'no_activity' branch returns the expected payload and the toast surfaces it correctly.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Run backend tests from /app/backend (not /app) so pytest.ini rootdir resolves the `utils.epub_fulltext` import. progress_percent in the books collection is a 0.0-1.0 fraction, NOT 0-100 — seed with 0.5 to mean 'halfway through'. The library-reading-stats-card and book-detail word/reading meta auto-HIDE when word_count is missing, so any future test must seed word_count > 0 to assert their presence. Auto-theme renders live based on browser-local time; to force the dark branch in a test, monkey-patch Date.prototype.getHours via page.evaluate before reload, OR set the dark window to span the current hour. The bookclub digest preview always succeeds in this preview env even with no rooms (no_activity branch), so don't expect 4xx — assert the toast text instead. Existing data-testids on /account/appearance: appearance-theme-{light|dark|auto}-btn, appearance-auto-config, appearance-auto-kind-{time|system}, appearance-auto-dark-{start|end}, wpm-card, wpm-preset-{180|250|350|500}. On /account/emails: bookclub-digest-card, bookclub-digest-toggle, bookclub-digest-preview-btn. On /book/:id: book-detail-word-count, book-detail-reading-time. NOTE the book detail route is /book/:id (singular), not /books/:id.",
+  "rca of the issue": "No issues to RCA — all P3 items shipped cleanly. The two 'failures' I saw initially were both my mistake (used /books/{id} instead of /book/{id}, and seeded progress_percent=50 instead of 0.5). Both resolved as soon as I read the route table and the field semantics."
+}

@@ -3178,9 +3178,16 @@ async def upload_books(
         # failure here is logged inside the helper; we never want a
         # fulltext glitch to break the upload itself, so we swallow.
         try:
-            from utils.epub_fulltext import extract_epub_text, upsert_fulltext  # noqa: WPS433
+            from utils.epub_fulltext import extract_epub_text, upsert_fulltext, count_words  # noqa: WPS433
             _ft_text = extract_epub_text(epub_path)
             await upsert_fulltext(db, doc["book_id"], user.user_id, _ft_text)
+            _wc = count_words(_ft_text)
+            if _wc > 0:
+                await db.books.update_one(
+                    {"book_id": doc["book_id"]},
+                    {"$set": {"word_count": _wc}},
+                )
+                doc["word_count"] = _wc
         except Exception as _ft_exc:
             logger.warning("fulltext index on upload failed for %s: %s", doc.get("book_id"), _ft_exc)
         results.append({k: v for k, v in doc.items() if k != '_id'})
