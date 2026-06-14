@@ -6,10 +6,10 @@ import {
   ArrowLeft, ArrowLeftRight, Upload, Sparkles, Layers, RefreshCw, BookOpen, Trash2,
   Filter, Heart, AlertTriangle, Settings, GitCompare, Bell, LineChart,
   Globe, Shield, CheckCircle2, Clock, FileWarning, User as UserIcon, X,
-  MessageSquare, Search, ListChecks,
+  MessageSquare, Search, ListChecks, AtSign, Target, Compass,
 } from "lucide-react";
 
-// Help guide — kept current with the app. Last updated: 2026-06-13.
+// Help guide — kept current with the app. Last updated: 2026-06-14.
 // When you add a feature, drop a new <Section> here; the sticky table
 // of contents builds itself from each section's `id`.
 
@@ -19,14 +19,14 @@ import {
 // deploy, POST to /api/announcements with a fresh `version` string.
 // `version` doubles as the per-user localStorage dismissal key.
 const FALLBACK_WHATS_NEW = {
-  version: "2026-06-13-purple",
+  version: "2026-06-14-handles",
   title: "Fresh in Shelfsort",
   items: [
-    { to: "/help#chip-key", label: "Chip-icon key", desc: "— spot crossovers (⇄), pairings (♡), and authors (👤) from across the room without reading a single name." },
-    { to: "/library/all", label: "Find-a-fandom search", desc: "— when your library has more than 10 fandoms, a search box appears at the top of the Fandom rail with one-click suggestion chips for your biggest fandoms." },
-    { to: "/account/appearance", label: "Share your palette", desc: "— copy the full hex palette as a Markdown block (perfect for Discord/GitHub) or download a 800×420 PNG snapshot." },
-    { to: "/", label: "1-click theme toggle", desc: "— Sun/Moon icon in the navbar flips light↔dark on a single tap; the small palette icon next to it still opens the full accent-colour panel." },
-    { to: "/library/all", label: "All-purple polish", desc: "— the entire app now lives on one cohesive purple palette: Download page, crossovers, pairings, authors, and dark mode all unified." },
+    { to: "/goals", label: "Reading goals", desc: "— set a yearly or monthly target (books or minutes), watch the SVG ring fill, and get confetti the moment you hit it." },
+    { to: "/account#username", label: "Public usernames", desc: "— claim a one-of-a-kind @handle (capital letters welcome) so friends can find you without sharing your email." },
+    { to: "/friends", label: "@handle autocomplete", desc: "— type `@` in the friend-invite or bookclub-invite box and pick from a live dropdown of usernames." },
+    { to: "/library/all", label: "Navbar book search", desc: "— a typeahead in the top bar jumps straight to any title or author in your library, no clicks required." },
+    { to: "/help#tour", label: "First-time tour", desc: "— the welcome overlay walks new accounts through Upload, Library, Friends, and Reading goals. Replay it anytime from the “Replay tour” link below." },
   ],
 };
 const WHATS_NEW_KEY = "shelfsort.whatsNewDismissed";
@@ -34,14 +34,17 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const SECTIONS = [
   { id: "getting-started", label: "Getting started" },
+  { id: "tour", label: "First-time tour" },
   { id: "dashboard-tour", label: "Dashboard tour" },
   { id: "uploads", label: "Uploading books" },
+  { id: "quick-search", label: "Navbar quick-search" },
   { id: "shelves", label: "Shelves & filters" },
   { id: "discovery", label: "Browsing & discovery" },
   { id: "ao3-metadata", label: "AO3 metadata: ratings, warnings, tags" },
   { id: "ao3-filters", label: "AO3 filter chips & Save-as-shelf" },
   { id: "smart-shelves", label: "Smart shelves" },
   { id: "reading-queue", label: "Reading queue (Up next)" },
+  { id: "goals", label: "Reading goals" },
   { id: "filter-urls", label: "Filter URLs you already own" },
   { id: "fandoms", label: "Fandoms we sort into" },
   { id: "sources", label: "Sources we recognize" },
@@ -49,6 +52,7 @@ const SECTIONS = [
   { id: "data-safety", label: "Backup & restore" },
   { id: "reading", label: "Reader & stats" },
   { id: "word-count", label: "Word count & reading time" },
+  { id: "usernames", label: "Public usernames & @handles" },
   { id: "messages", label: "Messages & friends" },
   { id: "bookclubs", label: "Book-club reading rooms" },
   { id: "recommendations", label: "Friend recommendations" },
@@ -166,7 +170,7 @@ export default function Help() {
 
         <header className="mb-8">
           <h1 className="font-serif text-5xl md:text-6xl text-[#2C2C2C] leading-tight">Help</h1>
-          <p className="text-[#6B705C] mt-2">How to do everything in Shelfsort. Last updated 2026-06-13.</p>
+          <p className="text-[#6B705C] mt-2">How to do everything in Shelfsort. Last updated 2026-06-14.</p>
           <p className="text-sm text-[#6B705C] mt-3">
             Don&rsquo;t see what you&rsquo;re looking for? <Link to="/suggestions" className="text-[var(--primary)] font-semibold underline">Drop a suggestion →</Link> — bugs, tweaks, brand new ideas all welcome.
           </p>
@@ -235,7 +239,7 @@ export default function Help() {
           {!query.trim() && (
             <div className="flex flex-wrap items-center gap-1.5 mt-3" data-testid="help-search-chips">
               <span className="text-[10px] uppercase tracking-wider text-[#6B705C] font-semibold mr-1">Try:</span>
-              {["palette", "friends", "EPUB", "shelves", "backup", "dark mode"].map((chip) => (
+              {["palette", "goals", "@handle", "friends", "EPUB", "shelves", "backup"].map((chip) => (
                 <button
                   key={chip}
                   type="button"
@@ -312,6 +316,9 @@ export default function Help() {
           </div>
           <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-1 text-sm text-[#2C2C2C] list-disc list-inside">
             <li><Link to="/goals" className="hover:underline font-semibold">Reading goals</Link> — yearly &amp; monthly targets, confetti on hit</li>
+            <li><a href="#usernames" className="hover:underline font-semibold">Public usernames &amp; @handles</a> with autocomplete</li>
+            <li><a href="#quick-search" className="hover:underline">Navbar book quick-search</a> — typeahead jumps</li>
+            <li><a href="#tour" className="hover:underline">First-time tour</a> — replay any time</li>
             <li><a href="#bookclubs" className="hover:underline">Book-club reading rooms</a> — chat-style layout</li>
             <li><a href="#word-count" className="hover:underline">Word count &amp; reading time</a> with WPM setting</li>
             <li><a href="#recommendations" className="hover:underline">Friend recommendations</a> + weekly Sunday digest</li>
@@ -350,6 +357,15 @@ export default function Help() {
               <p>Everything is auto-detected at upload time — you only step in when you want to override.</p>
             </Section>
 
+            <Section id="tour" icon={Compass} title="First-time tour">
+              <p>The first time you land on a fresh account, a friendly overlay walks you through Shelfsort&rsquo;s four pillars: <strong>Upload</strong>, <strong>Library</strong>, <strong>Friends</strong>, and <strong>Reading goals</strong>. Each step highlights the relevant card or navbar button so you know where the feature lives, not just what it does.</p>
+              <ul>
+                <li><strong>Skip any step</strong> — &ldquo;Skip tour&rdquo; dismisses it for good, &ldquo;Next&rdquo; advances one step at a time.</li>
+                <li><strong>Replay later</strong> — at the top of this Help page, hit the <em>Replay tour →</em> link in the &ldquo;What&rsquo;s new&rdquo; strip. It clears the localStorage flag and re-opens the overlay on your next dashboard visit.</li>
+                <li><strong>Per-browser memory</strong> — the &ldquo;seen&rdquo; flag lives in localStorage, so the tour reappears if you sign in on a new device or wipe browser data.</li>
+              </ul>
+            </Section>
+
             <Section id="dashboard-tour" icon={Sparkles} title="Dashboard tour (the welcome page)">
               <p>The page you land on after signing in is your <strong>welcome dashboard</strong> at <code>/library</code>. It’s deliberately lean — the full books grid lives on its own <Link to="/library/all">All books</Link> page. From the dashboard you can:</p>
               <ul>
@@ -374,6 +390,17 @@ export default function Help() {
               </ul>
               <p><strong>What happens during upload:</strong> metadata is extracted, the book is classified onto a category (Fanfiction / Original Fiction / Non-fiction / etc.), the fandom is detected from <strong>{knownFandoms.length || "150+"}</strong> canonical fandoms, relationships/pairings are extracted, completion status is detected (see &ldquo;Detection &amp; overrides&rdquo;), and any embedded source URLs are saved for future dedupe + the Linkless filter.</p>
               <p><strong>Duplicates</strong> are caught three ways: (1) by exact source-URL or shared canonical fanfic URL (so all AO3 / FFN / RoyalRoad mirrors of the same work collapse together), (2) by <strong>title + author</strong> match (case-insensitive, dots stripped from author so &lsquo;J. K. Rowling&rsquo; and &lsquo;JK Rowling&rsquo; still pair), and (3) by title alone <em>only when one side has no author on file</em>. Two books with the same generic title (e.g. &ldquo;Crossroads&rdquo;) but different authors and different URLs are correctly kept as separate books. When a dupe is flagged you choose: keep both / replace older / skip. Cross-format duplicates (same book uploaded as PDF after the EPUB) are filed under <Link to="/library/originals">Originals</Link>.</p>
+            </Section>
+
+            <Section id="quick-search" icon={Search} title="Navbar quick-search">
+              <p>The magnifying-glass field in the top navbar is a typeahead jumpgate to anything in your library. Start typing a title, an author, or a fragment of either, and a dropdown shows the top matches. Pick one with a click or hit <kbd>Enter</kbd> on the highlighted row to land directly on that book&rsquo;s detail page.</p>
+              <ul>
+                <li><strong>Matches both title and author</strong> in a single query — &ldquo;rowling&rdquo; surfaces all J.K. Rowling books, &ldquo;harry potter&rdquo; surfaces every HP fic.</li>
+                <li><strong>Debounced</strong> so you can type at full speed without firing a request per keystroke.</li>
+                <li><strong>Keyboard-first</strong> — arrow keys move through suggestions, <kbd>Esc</kbd> closes the dropdown, <kbd>Enter</kbd> navigates.</li>
+                <li><strong>No match?</strong> The dropdown collapses quietly — your full-text search (inside an open EPUB) is still the place to find a passage by phrase.</li>
+              </ul>
+              <p className="text-xs text-[#6B705C]">Tip: pair this with <strong>Surprise me</strong> on the dashboard when you can&rsquo;t decide what to read.</p>
             </Section>
 
             <Section id="shelves" icon={Layers} title="Shelves & filters">
@@ -447,6 +474,19 @@ export default function Help() {
                 <li><strong>Dashboard surfacing</strong>: while empty you see &ldquo;Up next: nothing queued.&rdquo; Once you add anything, the dashboard rail shows the top 5 with a count + a Manage → link.</li>
               </ul>
               <p>The queue is per-user and order is persisted server-side, so it follows you across devices.</p>
+            </Section>
+
+            <Section id="goals" icon={Target} title="Reading goals">
+              <p>Set a target, watch the ring fill, get confetti when you hit it. Reading goals live at <Link to="/goals">/goals</Link> and surface as a small ring widget on the Dashboard.</p>
+              <ul>
+                <li><strong>Two cadences</strong>: <em>Yearly</em> (e.g. &ldquo;52 books in 2026&rdquo;) and <em>Monthly</em> (e.g. &ldquo;5 books this June&rdquo;). You can keep one of each kind running at the same time.</li>
+                <li><strong>Two metrics</strong>: <em>Books finished</em> (counts any book you flip to Finished during the period) or <em>Minutes read</em> (sums actual time in the in-app reader plus any manual log entries).</li>
+                <li><strong>Live SVG progress ring</strong>: as you finish books or rack up minutes, the ring fills in real time. The fraction is recomputed server-side so it stays honest if you bulk-mark older books finished.</li>
+                <li><strong>Confetti on hit</strong>: the moment a goal crosses 100%, a CSS-only burst plays and the goal is stamped with a <code>hit_at</code> timestamp so it stays celebrated even if you re-edit the target later.</li>
+                <li><strong>History</strong>: closed-out periods stay listed below the active card with a tiny &ldquo;✓ hit&rdquo; or &ldquo;X / Y&rdquo; summary so you can see how this month compared to last.</li>
+                <li><strong>Edit or retire</strong>: bump the target up or down at any time. If you exceed the new target, the hit-state flips on retroactively.</li>
+              </ul>
+              <p className="text-xs text-[#6B705C]">Goals are personal — no one else sees them. They&rsquo;re a self-pacing tool, not a leaderboard.</p>
             </Section>
 
             <Section id="filter-urls" icon={Globe} title="Filter URLs you already own">
@@ -549,6 +589,19 @@ export default function Help() {
               <p><strong>Refresh fanfics</strong>: the URL-fetching feature (FanFicFare + FicHub) is intentionally hidden from the UI but the code is preserved for a future re-enable. No FAQ entry until then.</p>
             </Section>
 
+            <Section id="usernames" icon={AtSign} title="Public usernames &amp; @handles">
+              <p>A username is your public handle on Shelfsort — what friends type when they want to find you without trading email addresses. Claiming one is <em>optional</em>: if you skip it, friends can still invite you by email or by name.</p>
+              <ul>
+                <li><strong>Claim it</strong> at <Link to="/account#username">Account → Username</Link>. 3–20 characters, letters/digits/underscores, must be unique. Capital letters are welcome — &ldquo;<code>@ImCrazy42</code>&rdquo; displays exactly as typed.</li>
+                <li><strong>Uniqueness is case-insensitive</strong> — &ldquo;<code>@Bookworm</code>&rdquo; and &ldquo;<code>@bookworm</code>&rdquo; can&rsquo;t both exist, so nobody can impersonate you with a different casing.</li>
+                <li><strong>Rename safely</strong>: change your handle whenever you like. Shelfsort remembers your previous handle for a grace period so &ldquo;@NewName (was @OldName)&rdquo; appears in friends&rsquo; cards until you clear it from the same panel.</li>
+                <li><strong>@-mention autocomplete</strong>: anywhere Shelfsort accepts a handle (friend invites, bookclub invites), start typing <code>@</code> and a live dropdown surfaces matching users. Empty/short queries stay quiet so the UI doesn&rsquo;t flicker.</li>
+                <li><strong>Find-by-handle</strong> from <Link to="/friends">/friends</Link>: type a full or partial handle into the invite box, pick the suggestion, hit send. If you already have an email-style invite open, the same field still accepts <code>name@domain</code>.</li>
+                <li><strong>Privacy still applies</strong>: toggling <em>Hide me from user search</em> on the Account page removes you from <code>@</code> autocomplete results too — your existing friends can still DM you.</li>
+              </ul>
+              <p className="text-xs text-[#6B705C]">Heads up: usernames are public. Don&rsquo;t pick something you wouldn&rsquo;t want stamped onto a friend&rsquo;s screenshot.</p>
+            </Section>
+
             <Section id="messages" icon={MessageSquare} title="Messages & friends">
               <p>
                 Shelfsort has built-in direct messaging — click <strong>Message</strong> on any friend at <Link to="/friends">/friends</Link> to open an inline chat drawer. Three room types coexist:
@@ -560,7 +613,7 @@ export default function Help() {
               </ul>
               <p>Three kinds of messages: text (Enter to send, Shift+Enter for newline), attached <strong>book</strong> (search your library, recipient gets a card linking to it), and attached <strong>palette token</strong> (one-click Apply on the recipient&rsquo;s side using the share-palette work).</p>
               <p>
-                <strong>Friends</strong> live at <Link to="/friends">/friends</Link>: search by name or email (min 2 chars), send a request, the other side accepts or declines.
+                <strong>Friends</strong> live at <Link to="/friends">/friends</Link>: search by <strong>@handle</strong>, name, or email (min 2 chars) — typing <code>@</code> opens the autocomplete dropdown for instant picks. Send a request, the other side accepts or declines.
                 If both sides happen to send requests at the same time, they auto-pair into accepted. From the Friends page you can also <strong>remove a friend</strong> (wipes the DM room),
                 <strong> block someone</strong> (silent, they vanish from your search and can&rsquo;t message you), or <strong>unblock</strong> later.
                 <strong> Invite by email</strong> sends a Resend invite to anyone not yet on Shelfsort — they click the one-time link, sign up, and become your friend automatically. Pending invites expire after 30 days and can be cancelled from the same panel.
@@ -601,7 +654,7 @@ export default function Help() {
                 <li><strong>Chapter threads</strong>: every room has a <em>Lobby</em> plus one tab per chapter in the book. Pick a tab to scope your messages to that part of the book — perfect for spoiler-safe discussion.</li>
                 <li><strong>Progress slider</strong>: drag to mark your current chapter. When you cross the finish line, every other active member gets a notification (and a row in the Sunday digest if they&apos;ve opted in).</li>
                 <li><strong>Roles</strong>: Owner / Moderator / Member. Owners can edit, invite, promote, demote, remove, transfer ownership, or delete. Moderators can edit + invite + remove. Members read &amp; post.</li>
-                <li><strong>Friends-only invites</strong>: you can only invite accepted friends to a reading room. Use <Link to="/friends">/friends</Link> to add people first.</li>
+                <li><strong>Friends-only invites</strong>: pick from your accepted-friends list <em>or</em> type an <code>@handle</code> in the quick-invite field at the top of the members rail to invite anyone on Shelfsort. Use <Link to="/friends">/friends</Link> to add people first if you&apos;d rather route through the friends list.</li>
                 <li><strong>Notifications</strong>: bookclub invites and per-message pings always fire in the bell. Optional <em>weekly email digest</em> ships every Monday at 08:00 UTC summarising the past week&apos;s activity across all your rooms — opt-in at <Link to="/account/emails">Account → Emails</Link>.</li>
               </ul>
             </Section>
