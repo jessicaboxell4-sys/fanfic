@@ -67,7 +67,7 @@ export default function BookQuickSearch() {
   };
 
   return (
-    <div ref={wrapRef} className="relative w-full max-w-xs" data-testid="book-quick-search">
+    <div ref={wrapRef} className="relative w-full" data-testid="book-quick-search">
       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#6B705C] pointer-events-none" />
       <input
         ref={inputRef}

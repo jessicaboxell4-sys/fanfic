@@ -2,13 +2,12 @@ import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   BookOpen, LogOut, BarChart3, Filter, HelpCircle, FileText, ShieldCheck,
-  Target, Menu, X,
+  Target, Menu, X, Library, Download, ChevronDown, Link as LinkIcon,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../lib/api";
 import UpdatesBell from "./UpdatesBell";
 import StreakBadge from "./StreakBadge";
-import DownloadZipButton from "./DownloadZipButton";
 import NavbarQuickAdd from "./NavbarQuickAdd";
 import AppearancePopover from "./AppearancePopover";
 import ChatInboxIcon from "./ChatInboxIcon";
@@ -17,53 +16,150 @@ import DisplayName from "./DisplayName";
 import BookQuickSearch from "./BookQuickSearch";
 import { FETCHING_UI_ENABLED } from "../lib/featureFlags";
 
-// Secondary links — rendered inline on lg+ and as a drawer on <lg.  Lives
-// at module scope so React doesn't remount its children every render.
+// Lightweight dropdown trigger used to group related navbar links so the
+// bar stays scannable.  Click toggles open; outside-click and link-click
+// both close.  No portal needed — the menu is positioned right under the
+// trigger button.
+function NavDropdown({ label, icon: Icon, items, testid }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
+  return (
+    <div ref={wrapRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        data-testid={testid}
+        aria-expanded={open}
+        className="btn-secondary text-sm flex items-center gap-1.5"
+      >
+        {Icon && <Icon className="w-4 h-4" />}
+        <span>{label}</span>
+        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div
+          data-testid={`${testid}-menu`}
+          className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-lg border border-[#E8E6E1] py-1.5 z-50"
+        >
+          {items.map((it) => (
+            <Link
+              key={it.to}
+              to={it.to}
+              data-testid={it.testid}
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2.5 px-3 py-2 text-sm text-[#2C2C2C] hover:bg-[#F5F3EC]"
+              title={it.title}
+            >
+              {it.icon && <it.icon className="w-4 h-4 text-[#6B705C]" />}
+              <span className="flex-1">{it.label}</span>
+              {it.hint && <span className="text-[10px] text-[#6B705C]">{it.hint}</span>}
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Secondary nav — inline (xl+) shows dropdowns to keep the bar compact, the
+// hamburger drawer (< xl) shows everything flat so users can scan all
+// destinations at once.
 function SecondaryLinks({ user, unknownFandomCount, onNavigate, inDrawer = false }) {
   if (!user) return null;
-  const wrap = inDrawer
-    ? "flex flex-col gap-1 w-full"
-    : "hidden xl:flex items-center gap-2";
-  const itemBase = inDrawer
-    ? "flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-[#2C2C2C] hover:bg-[#F5F3EC] w-full"
-    : "btn-secondary text-sm flex items-center gap-2";
-  const close = () => { if (onNavigate) onNavigate(); };
+
+  // Items used in BOTH layouts — defining once keeps wording identical.
+  const libraryItems = [
+    { to: "/library/smart-shelves", label: "Smart shelves", testid: "navbar-smart-shelves", icon: Filter, title: "Saved filter combinations" },
+    { to: "/library/stats", label: "Reading stats", testid: "navbar-stats", icon: BarChart3, title: "Reading statistics" },
+    { to: "/goals", label: "Reading goals", testid: "navbar-goals", icon: Target, title: "Yearly & monthly reading targets" },
+  ];
+  const exportItems = [
+    { to: "/library/download?kind=xlsx", label: "Library (.xlsx)", testid: "navbar-download-links", icon: LinkIcon, title: "Excel workbook with title + author + source link" },
+    { to: "/library/download", label: "Download ZIP", testid: "navbar-download-zip", icon: Download, title: "Bulk-download EPUBs as a single ZIP" },
+  ];
+
+  if (inDrawer) {
+    const close = () => { if (onNavigate) onNavigate(); };
+    const itemBase = "flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-[#2C2C2C] hover:bg-[#F5F3EC] w-full";
+    return (
+      <div className="flex flex-col gap-1 w-full">
+        <p className="px-3 pt-1.5 pb-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B705C]">Library</p>
+        {libraryItems.map((it) => (
+          <Link key={it.to} to={it.to} data-testid={`drawer-${it.testid.replace("navbar-","")}`} className={itemBase} onClick={close}>
+            <it.icon className="w-4 h-4" /> {it.label}
+          </Link>
+        ))}
+        <p className="px-3 pt-2 pb-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B705C]">Export</p>
+        {exportItems.map((it) => (
+          <Link key={it.to} to={it.to} data-testid={`drawer-${it.testid.replace("navbar-","")}`} className={itemBase} onClick={close}>
+            <it.icon className="w-4 h-4" /> {it.label}
+          </Link>
+        ))}
+        <p className="px-3 pt-2 pb-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B705C]">More</p>
+        <Link to="/help" data-testid="drawer-help" className={itemBase} onClick={close}>
+          <HelpCircle className="w-4 h-4" /> Help &amp; guide
+        </Link>
+        <Link to="/library/originals" data-testid="drawer-originals" className={itemBase} onClick={close}>
+          <FileText className="w-4 h-4" /> Originals
+        </Link>
+        {user.is_admin && (
+          <Link to="/admin" data-testid="drawer-admin" className={itemBase} onClick={close}>
+            <ShieldCheck className="w-4 h-4 text-[#6B46C1]" />
+            Admin console
+            {unknownFandomCount > 0 && (
+              <span data-testid="drawer-admin-badge" className="ml-auto w-2 h-2 rounded-full bg-[#E07A5F]" />
+            )}
+          </Link>
+        )}
+      </div>
+    );
+  }
+
+  // Inline (lg+) — two compact dropdowns + standalone Help/Admin/Originals.
   return (
-    <div className={wrap}>
-      <Link to="/library/smart-shelves" data-testid={inDrawer ? "drawer-shelves" : "navbar-smart-shelves"} className={itemBase} title="Smart shelves" onClick={close}>
-        <Filter className="w-4 h-4" /> Shelves
-      </Link>
-      <Link to="/library/stats" data-testid={inDrawer ? "drawer-stats" : "navbar-stats"} className={itemBase} title="Reading statistics" onClick={close}>
-        <BarChart3 className="w-4 h-4" /> Stats
-      </Link>
-      <Link to="/goals" data-testid={inDrawer ? "drawer-goals" : "navbar-goals"} className={itemBase} title="Reading goals" onClick={close}>
-        <Target className="w-4 h-4" /> Goals
-      </Link>
-      <DownloadZipButton kind="xlsx" />
-      <DownloadZipButton />
-      <Link to="/help" data-testid={inDrawer ? "drawer-help" : "navbar-help"} className={inDrawer ? itemBase : "p-2 hover:bg-[#F5F3EC] rounded-lg"} title="Help & guide" onClick={close}>
-        <HelpCircle className="w-4 h-4 text-[#6B705C]" /> {inDrawer && "Help"}
+    <div className="hidden lg:flex items-center gap-2">
+      <NavDropdown label="Library" icon={Library} items={libraryItems} testid="navbar-library-menu" />
+      <NavDropdown label="Export" icon={Download} items={exportItems} testid="navbar-export-menu" />
+      <Link
+        to="/help"
+        data-testid="navbar-help"
+        className="btn-secondary text-sm flex items-center gap-1.5"
+        title="Help & guide"
+      >
+        <HelpCircle className="w-4 h-4" />
+        <span>Help</span>
       </Link>
       {user.is_admin && (
         <Link
           to="/admin"
-          data-testid={inDrawer ? "drawer-admin" : "navbar-admin"}
-          className={inDrawer ? itemBase : "p-2 hover:bg-[#F5F3EC] rounded-lg relative"}
+          data-testid="navbar-admin"
+          className="p-2 hover:bg-[#F5F3EC] rounded-lg relative"
           title={unknownFandomCount > 0 ? `Admin console — ${unknownFandomCount} unknown fandom${unknownFandomCount === 1 ? "" : "s"}` : "Admin console"}
-          onClick={close}
         >
           <ShieldCheck className="w-4 h-4 text-[#6B46C1]" />
-          {inDrawer && "Admin console"}
           {unknownFandomCount > 0 && (
             <span
-              data-testid={inDrawer ? "drawer-admin-badge" : "navbar-admin-badge"}
-              className={inDrawer ? "ml-auto w-2 h-2 rounded-full bg-[#E07A5F]" : "absolute top-1 right-1 w-2 h-2 rounded-full bg-[#E07A5F] ring-2 ring-[#FDFBF7]"}
+              data-testid="navbar-admin-badge"
+              className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#E07A5F] ring-2 ring-[#FDFBF7]"
             />
           )}
         </Link>
       )}
-      <Link to="/library/originals" data-testid={inDrawer ? "drawer-originals" : "navbar-originals"} className={inDrawer ? itemBase : "p-2 hover:bg-[#F5F3EC] rounded-lg"} title="Original-format files (PDF, MOBI, etc.)" onClick={close}>
-        <FileText className="w-4 h-4 text-[#6B705C]" /> {inDrawer && "Originals"}
+      <Link
+        to="/library/originals"
+        data-testid="navbar-originals"
+        className="p-2 hover:bg-[#F5F3EC] rounded-lg"
+        title="Original-format files (PDF, MOBI, etc.)"
+      >
+        <FileText className="w-4 h-4 text-[#6B705C]" />
       </Link>
     </div>
   );
@@ -112,7 +208,7 @@ export default function Navbar() {
         </Link>
 
         {user && FETCHING_UI_ENABLED && <NavbarQuickAdd />}
-        {user && <div className="hidden md:block flex-1 max-w-xs"><BookQuickSearch /></div>}
+        {user && <div className="hidden md:block flex-1 max-w-sm"><BookQuickSearch /></div>}
 
         <div className="flex items-center gap-1.5 md:gap-2 lg:gap-3">
           {/* Always-visible primary icons.  These stay in the bar at every
@@ -159,7 +255,7 @@ export default function Navbar() {
 
               {/* Hamburger toggle — only on <lg viewports where the
                   secondary links are tucked into the drawer below. */}
-              <div className="relative xl:hidden" ref={menuRef}>
+              <div className="relative lg:hidden" ref={menuRef}>
                 <button
                   data-testid="navbar-menu-toggle"
                   onClick={() => setMenuOpen((v) => !v)}
