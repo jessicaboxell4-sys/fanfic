@@ -504,6 +504,32 @@ async def _digest_tick():
     except Exception as e:
         logger.warning("Trash sweep failed: %s", e)
 
+    # "From friends" weekly notification digest — fires once per ISO-week
+    # for every user, gated by their friends_finished.enabled flag (default
+    # True). Independent of the email digest schedule: we fire on a fixed
+    # Sunday at 18:00 UTC sweep so it lands at a quiet, predictable time.
+    try:
+        if weekday == 6 and hour == 18:
+            from routes.recommendations import maybe_send_friends_finished_digest  # noqa: WPS433
+            ff_cursor = db.users.find(
+                {"$or": [
+                    {"friends_finished.enabled": True},
+                    {"friends_finished.enabled": {"$exists": False}},
+                ]},
+                {"_id": 0},
+            )
+            ff_sent = 0
+            async for ud in ff_cursor:
+                try:
+                    if await maybe_send_friends_finished_digest(ud):
+                        ff_sent += 1
+                except Exception as e:
+                    logger.warning("From-friends digest failed for %s: %s", ud.get("email"), e)
+            if ff_sent:
+                logger.info("From-friends digest tick: notified %d user(s)", ff_sent)
+    except Exception as e:
+        logger.warning("From-friends digest sweep failed: %s", e)
+
 
 
 # ============================================================

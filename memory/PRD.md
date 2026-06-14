@@ -1841,3 +1841,17 @@ Both upload sites (the regular EPUB upload pipeline + the URL-fetch path) now pe
 - `pytest tests/test_recommendations.py tests/test_opds.py tests/test_bookclubs.py` → **51/51 passing** on live preview URL.
 - testing_agent_v3_fork full e2e (backend + frontend): **100% on both** features. No bugs surfaced.
 
+
+### Added 2026-06-14 (Weekly "From friends" notification digest)
+- Single grouped in-app notification per ISO-week summarising books your sharing friends just finished. Quiet by design — fires once on Sunday 18:00 UTC, lands in the existing notifications bell, links to `/library/recommendations`.
+- Reuses the recommendation pipeline's filters: only friends who opted into library sharing, books not already owned, and not previously dismissed.
+- "Newly finished" signal: `progress_percent >= 0.95 AND last_opened_at` within the last 7 days. Groups by canonical rec_key so a book multiple friends finished collapses into one row with `friend_names`.
+- Hooked into `routes/digest.py:_digest_tick` (gated on `weekday==6 && hour==18`), iterates users whose `friends_finished.enabled != false`, calls the helper, marks `friends_finished.last_year_week` for idempotency.
+- New endpoints (all `/api/recommendations/friends-finished/...`):
+  - `GET /settings` → `{enabled, last_year_week, last_sent_at}`
+  - `PUT /settings` body `{enabled: bool}` — defaults to True
+  - `POST /preview` — bypasses cooldown to fire immediately; returns `{fired, total, books, reason?}`
+- Frontend: tiny dashed card on `/library/recommendations` (`data-testid="friends-finished-digest-card"`) with a "Send a sample now" button (`data-testid="friends-finished-preview"`) and an enable/disable toggle (`data-testid="friends-finished-toggle"`). Sample/preview opens a toast indicating how many friend-finishes were found.
+- Tests: `backend/tests/test_friends_finished_digest.py` — 6 cases (auth, default-enabled, toggle roundtrip, payload filters out non-sharing friends + stale finishes, preview creates notification row, owned-book filter wipes the payload). 6/6 pass.
+- Combined live regression: `pytest test_friends_finished_digest test_recommendations test_opds test_bookclubs` → **57/57 passing**.
+

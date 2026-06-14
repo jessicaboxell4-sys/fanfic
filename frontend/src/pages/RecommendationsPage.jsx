@@ -68,6 +68,44 @@ export default function RecommendationsPage() {
   const [loading, setLoading] = useState(true);
   const [busyKey, setBusyKey] = useState(null);
   const [showDismissed, setShowDismissed] = useState(false);
+  const [digestEnabled, setDigestEnabled] = useState(true);
+  const [digestBusy, setDigestBusy] = useState(false);
+
+  const loadDigestSettings = async () => {
+    try {
+      const { data } = await api.get("/recommendations/friends-finished/settings");
+      setDigestEnabled(!!data?.enabled);
+    } catch { /* non-blocking */ }
+  };
+
+  const toggleDigest = async () => {
+    const next = !digestEnabled;
+    setDigestEnabled(next);  // optimistic
+    setDigestBusy(true);
+    try {
+      await api.put("/recommendations/friends-finished/settings", { enabled: next });
+      toast.success(next ? "Weekly digest on" : "Weekly digest off");
+    } catch (e) {
+      setDigestEnabled(!next);  // revert
+      toast.error(e?.response?.data?.detail || "Couldn't save");
+    } finally { setDigestBusy(false); }
+  };
+
+  const sendDigestPreview = async () => {
+    setDigestBusy(true);
+    try {
+      const { data } = await api.post("/recommendations/friends-finished/preview");
+      if (data?.fired) {
+        toast.success(`Sent — ${data.total} book${data.total === 1 ? "" : "s"} from your friends. Check the notifications bell.`);
+      } else if (data?.reason === "no_new_finishes") {
+        toast.info("No new finishes from your friends in the last week.");
+      } else {
+        toast.info("No notification sent.");
+      }
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't send preview");
+    } finally { setDigestBusy(false); }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -92,6 +130,7 @@ export default function RecommendationsPage() {
   useEffect(() => {
     load();
     loadDismissed();
+    loadDigestSettings();
   }, []);
 
   const dismiss = async (rec) => {
@@ -144,6 +183,42 @@ export default function RecommendationsPage() {
               Friends who haven&apos;t opted in see no books here
             </Link>
           )}
+        </div>
+
+        {/* Weekly digest toggle */}
+        <div
+          data-testid="friends-finished-digest-card"
+          className="bg-[#FDFBF7] border border-[#E8E6E1] rounded-2xl p-4 flex flex-wrap items-center gap-3"
+        >
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-[#2C2C2C]">Weekly &quot;From friends&quot; notification</p>
+            <p className="text-xs text-[#6B705C] mt-0.5">
+              Every Sunday at 18:00 UTC, get a single in-app notification listing the books your sharing friends finished that week.
+            </p>
+          </div>
+          <button
+            data-testid="friends-finished-preview"
+            onClick={sendDigestPreview}
+            disabled={digestBusy}
+            className="btn-secondary text-xs inline-flex items-center gap-1"
+          >
+            {digestBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+            Send a sample now
+          </button>
+          <button
+            type="button"
+            data-testid="friends-finished-toggle"
+            onClick={toggleDigest}
+            disabled={digestBusy}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ${
+              digestEnabled ? "bg-[#6B46C1]" : "bg-[#E8E6E1]"
+            }`}
+            title={digestEnabled ? "Disable weekly digest" : "Enable weekly digest"}
+          >
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+              digestEnabled ? "translate-x-6" : "translate-x-1"
+            }`} />
+          </button>
         </div>
 
         {/* Recs */}

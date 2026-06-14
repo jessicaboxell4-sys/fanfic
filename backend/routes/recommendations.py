@@ -24,7 +24,7 @@ Collection: recommendation_dismissals
     {user_id, rec_key, dismissed_at}
 """
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional, Tuple
 
 from fastapi import Depends, HTTPException
@@ -33,6 +33,7 @@ from pydantic import BaseModel, Field
 from deps import db, api_router, logger
 from models import User
 from auth_dep import get_current_user
+from routes.notifications import create_notification
 
 
 # ---------------------------------------------------------------------
@@ -335,3 +336,240 @@ async def undismiss_rec(body: DismissBody, user: User = Depends(get_current_user
         {"user_id": user.user_id, "rec_key": body.rec_key},
     )
     return {"undismissed": body.rec_key}
+
+
+# =====================================================================
+# Weekly "From friends" notification digest
+# =====================================================================
+#
+# Drops a single grouped in-app notification per user per week summarising
+# every book their sharing friends finished in the last 7 days that the
+# user doesn't already own.
+#
+# Hooked from `routes/digest.py:_digest_tick` (same weekly schedule as
+# the email digest — fires on the user's selected day_of_week + hour).
+# Idempotent per ISO-year-week via `friends_finished.last_year_week`.
+#
+# Preferences live on the user doc:
+#   friends_finished: {enabled: bool=True, last_year_week: str|null,
+#                      last_sent_at: iso str|null}
+
+FRIENDS_FINISHED_LOOKBACK_DAYS = 7
+
+
+def _year_week_key(dt: datetime) -> str:
+    iso = dt.isocalendar()
+    return f"{iso[0]}-W{iso[1]:02d}"
+
+
+def _get_friends_finished_prefs(user_doc: Dict[str, Any]) -> Dict[str, Any]:
+    p = user_doc.get("friends_finished") or {}
+    return {
+        "enabled": bool(p.get("enabled", True)),
+        "last_year_week": p.get("last_year_week"),
+        "last_sent_at": p.get("last_sent_at"),
+    }
+
+
+async def _collect_friends_finished_payload(
+    user_id: str, lookback_days: int = FRIENDS_FINISHED_LOOKBACK_DAYS,
+) -> Dict[str, Any]:
+    """Build {books: [{title, author, friend_names, finished_at, source_url}], total}
+    summarising recent finishes from sharing friends, filtered against the
+    caller's owned library and prior dismissals."""
+    friend_ids = await _accepted_friend_ids(user_id)
+    if not friend_ids:
+        return {"books": [], "total": 0, "friend_count": 0, "shared_friend_count": 0}
+
+    sharing = await db.users.find(
+        {"user_id": {"$in": friend_ids}, "library_visible_to_friends": True},
+        {"_id": 0, "user_id": 1, "name": 1, "email": 1},
+    ).to_list(length=2000)
+    if not sharing:
+        return {"books": [], "total": 0, "friend_count": len(friend_ids), "shared_friend_count": 0}
+    fmeta = {f["user_id"]: f for f in sharing}
+    sharing_ids = list(fmeta.keys())
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=lookback_days)
+
+    # "Newly finished" = progress >= 0.95 AND last_opened_at >= cutoff.
+    # last_opened_at is set by the heartbeat path so this approximates "I just finished".
+    candidates = await db.books.find(
+        {
+            "user_id": {"$in": sharing_ids},
+            "progress_percent": {"$gte": 0.95},
+            "last_opened_at": {"$gte": cutoff},
+            "category": {"$nin": ["Old stories", "Trash"]},
+            "replaced_by": {"$exists": False},
+        },
+        {
+            "_id": 0, "book_id": 1, "user_id": 1,
+            "title": 1, "author": 1, "fandom": 1, "source_url": 1,
+            "fanfic_urls": 1, "last_opened_at": 1, "finished_at": 1,
+        },
+    ).to_list(length=2000)
+
+    if not candidates:
+        return {"books": [], "total": 0, "friend_count": len(friend_ids), "shared_friend_count": len(sharing_ids)}
+
+    # Filter out caller's owned books.
+    my_books = await db.books.find(
+        {
+            "user_id": user_id,
+            "category": {"$nin": ["Old stories", "Trash"]},
+        },
+        {"_id": 0, "title": 1, "author": 1, "source_url": 1, "fanfic_urls": 1},
+    ).to_list(length=20000)
+    my_keys = set()
+    for b in my_books:
+        for k in _book_keys(b):
+            my_keys.add(k)
+
+    dismissed_rows = await db.recommendation_dismissals.find(
+        {"user_id": user_id}, {"_id": 0, "rec_key": 1},
+    ).to_list(length=10000)
+    dismissed = {r["rec_key"] for r in dismissed_rows}
+
+    # Group by rec_key.
+    groups: Dict[str, Dict[str, Any]] = {}
+    for c in candidates:
+        rkey = _primary_rec_key(c)
+        if not rkey or rkey in dismissed:
+            continue
+        if any(k in my_keys for k in _book_keys(c)):
+            continue
+        g = groups.get(rkey)
+        if not g:
+            g = {
+                "rec_key": rkey,
+                "title": c.get("title", ""),
+                "author": c.get("author", ""),
+                "fandom": c.get("fandom") or "",
+                "source_url": c.get("source_url") or "",
+                "friend_names": [],
+                "most_recent_at": "",
+            }
+            groups[rkey] = g
+        fmeta_row = fmeta.get(c["user_id"], {})
+        name = fmeta_row.get("name") or fmeta_row.get("email") or "A friend"
+        if name not in g["friend_names"]:
+            g["friend_names"].append(name)
+        when = c.get("finished_at") or c.get("last_opened_at")
+        when_iso = when.isoformat() if isinstance(when, datetime) else (when or "")
+        if when_iso and when_iso > g["most_recent_at"]:
+            g["most_recent_at"] = when_iso
+
+    books = sorted(groups.values(), key=lambda g: g["most_recent_at"], reverse=True)
+    return {
+        "books": books,
+        "total": len(books),
+        "friend_count": len(friend_ids),
+        "shared_friend_count": len(sharing_ids),
+    }
+
+
+async def maybe_send_friends_finished_digest(user_doc: Dict[str, Any]) -> bool:
+    """Called from the hourly digest tick. Returns True if a notification fired.
+
+    Honours per-user enabled flag, idempotent per ISO-year-week, only fires
+    when there's at least one matching book.
+    """
+    prefs = _get_friends_finished_prefs(user_doc)
+    if not prefs["enabled"]:
+        return False
+    now = datetime.now(timezone.utc)
+    yw = _year_week_key(now)
+    if prefs.get("last_year_week") == yw:
+        return False
+    payload = await _collect_friends_finished_payload(user_doc["user_id"])
+    if payload["total"] == 0:
+        # Still mark this week as "handled" so we don't re-check 24x the same day.
+        await db.users.update_one(
+            {"user_id": user_doc["user_id"]},
+            {"$set": {"friends_finished.last_year_week": yw}},
+        )
+        return False
+
+    total = payload["total"]
+    sample = payload["books"][:3]
+    headline = (
+        f"{total} book{'s' if total != 1 else ''} your friends just finished"
+    )
+    body_lines = []
+    for b in sample:
+        names = ", ".join(b["friend_names"][:2])
+        more = max(0, len(b["friend_names"]) - 2)
+        suffix = f" +{more} more" if more else ""
+        body_lines.append(f"{b['title']} — {names}{suffix}")
+    if total > len(sample):
+        body_lines.append(f"…and {total - len(sample)} more.")
+    body = " · ".join(body_lines)
+
+    try:
+        await create_notification(
+            user_doc["user_id"],
+            kind="friends_finished_digest",
+            title=headline,
+            body=body,
+            link="/library/recommendations",
+        )
+        await db.users.update_one(
+            {"user_id": user_doc["user_id"]},
+            {"$set": {
+                "friends_finished.last_year_week": yw,
+                "friends_finished.last_sent_at": now.isoformat(),
+            }},
+        )
+        return True
+    except Exception as e:
+        logger.warning("Friends-finished digest failed for %s: %s", user_doc.get("email"), e)
+        return False
+
+
+# ---------------------------------------------------------------------
+# Preferences + manual preview
+# ---------------------------------------------------------------------
+
+class FriendsFinishedPrefsBody(BaseModel):
+    enabled: bool
+
+
+@api_router.get("/recommendations/friends-finished/settings")
+async def get_friends_finished_settings(user: User = Depends(get_current_user)):
+    doc = await db.users.find_one(
+        {"user_id": user.user_id}, {"_id": 0, "friends_finished": 1},
+    ) or {}
+    return _get_friends_finished_prefs(doc)
+
+
+@api_router.put("/recommendations/friends-finished/settings")
+async def update_friends_finished_settings(
+    body: FriendsFinishedPrefsBody, user: User = Depends(get_current_user),
+):
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": {"friends_finished.enabled": bool(body.enabled)}},
+    )
+    return await get_friends_finished_settings(user)
+
+
+@api_router.post("/recommendations/friends-finished/preview")
+async def preview_friends_finished(user: User = Depends(get_current_user)):
+    """Force-fire the digest right now (bypassing the per-week cooldown).
+    Used for the 'Send me a sample' button on the recs page."""
+    user_doc = await db.users.find_one(
+        {"user_id": user.user_id}, {"_id": 0},
+    )
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="User not found")
+    payload = await _collect_friends_finished_payload(user.user_id)
+    if payload["total"] == 0:
+        return {"fired": False, "reason": "no_new_finishes", **payload}
+    # Bypass cooldown by clearing the marker before firing.
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$unset": {"friends_finished.last_year_week": ""}},
+    )
+    user_doc.pop("friends_finished", None)
+    fired = await maybe_send_friends_finished_digest(user_doc)
+    return {"fired": fired, **payload}
