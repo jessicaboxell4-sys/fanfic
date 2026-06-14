@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Bell, CheckCheck } from "lucide-react";
+import { toast } from "sonner";
+import { Bell, CheckCheck, BellOff } from "lucide-react";
 import { api } from "../lib/api";
 
 function relTime(iso) {
@@ -18,6 +19,11 @@ export default function NotificationsBell() {
   const [unread, setUnread] = useState(0);
   const [items, setItems] = useState([]);
   const [open, setOpen] = useState(false);
+  // Mute matrix snapshot — fetched lazily when the popover opens so the bell
+  // doesn't make a request on every page load.
+  const [mutedKinds, setMutedKinds] = useState(null);  // null until first load
+  const [mutableKinds, setMutableKinds] = useState(new Set());
+  const [busyMute, setBusyMute] = useState(null);
   const ref = useRef(null);
 
   const loadCount = async () => {
@@ -34,6 +40,36 @@ export default function NotificationsBell() {
     } catch { setItems([]); }
   };
 
+  const loadMutes = async () => {
+    try {
+      const { data } = await api.get("/user/notification-mutes");
+      setMutedKinds(new Set(data?.muted_kinds || []));
+      const mut = new Set();
+      (data?.catalog || []).forEach((c) => { if (c.mutable) mut.add(c.kind); });
+      setMutableKinds(mut);
+    } catch {
+      setMutedKinds(new Set());
+      setMutableKinds(new Set());
+    }
+  };
+
+  const muteKind = async (kind) => {
+    if (!kind || !mutedKinds || !mutableKinds.has(kind)) return;
+    if (mutedKinds.has(kind)) return;  // already muted
+    setBusyMute(kind);
+    const next = new Set(mutedKinds);
+    next.add(kind);
+    try {
+      const { data } = await api.put("/user/notification-mutes", {
+        muted_kinds: Array.from(next),
+      });
+      setMutedKinds(new Set(data?.muted_kinds || Array.from(next)));
+      toast.success(`Muted. Unmute from Account → Emails when you change your mind.`);
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't mute");
+    } finally { setBusyMute(null); }
+  };
+
   useEffect(() => {
     loadCount();
     const id = setInterval(loadCount, 15000);
@@ -43,9 +79,11 @@ export default function NotificationsBell() {
   useEffect(() => {
     if (!open) return;
     loadList();
+    if (mutedKinds === null) loadMutes();
     const onDown = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const markAll = async () => {
@@ -106,6 +144,7 @@ export default function NotificationsBell() {
             {items.length === 0 ? (
               <li className="px-3 py-6 text-xs text-[#6B705C] italic text-center">Nothing new.</li>
             ) : items.map((n) => {
+              const canMute = !!(n.kind && mutableKinds.has(n.kind) && !mutedKinds?.has(n.kind));
               const content = (
                 <div className={`flex flex-col gap-1 px-3 py-2 hover:bg-[#FBFAF6] border-b border-[#E8E6E1] last:border-b-0 ${n.read ? "" : "bg-[#FBF7EE]"}`}>
                   <div className="flex items-center justify-between gap-2">
@@ -117,7 +156,7 @@ export default function NotificationsBell() {
                 </div>
               );
               return (
-                <li key={n.notification_id} data-testid={`notification-${n.notification_id}`}>
+                <li key={n.notification_id} data-testid={`notification-${n.notification_id}`} className="relative group">
                   {n.link ? (
                     <Link to={n.link} onClick={() => { handleClick(n); setOpen(false); }} className="block">
                       {content}
@@ -125,6 +164,18 @@ export default function NotificationsBell() {
                   ) : (
                     <button type="button" onClick={() => handleClick(n)} className="w-full text-left">
                       {content}
+                    </button>
+                  )}
+                  {canMute && (
+                    <button
+                      type="button"
+                      data-testid={`notification-mute-${n.kind}`}
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); muteKind(n.kind); }}
+                      disabled={busyMute === n.kind}
+                      title={`Mute future "${n.kind.replaceAll("_", " ")}" notifications`}
+                      className="absolute right-2 bottom-2 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-white border border-[#E5DDC5] text-[9px] uppercase tracking-wider font-semibold text-[#6B705C] hover:text-[var(--primary)] hover:border-[var(--primary)] disabled:opacity-40"
+                    >
+                      <BellOff className="w-2.5 h-2.5" /> Mute this kind
                     </button>
                   )}
                 </li>

@@ -511,6 +511,19 @@ function ActiveRoomPanel({ roomId, onRoomChanged, onRoomGone }) {
 }
 
 /* --------------------------- Page shell --------------------------- */
+const ROOM_LASTSEEN_KEY = "shelfsort_bookclub_lastseen_v1";
+
+function readLastSeen() {
+  try {
+    const raw = window.localStorage.getItem(ROOM_LASTSEEN_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+function writeLastSeen(map) {
+  try { window.localStorage.setItem(ROOM_LASTSEEN_KEY, JSON.stringify(map)); }
+  catch { /* ignore quota errors */ }
+}
+
 export default function BookclubsPage() {
   const navigate = useNavigate();
   const { roomId: routeRoomId } = useParams();
@@ -522,6 +535,9 @@ export default function BookclubsPage() {
   const [busyInvite, setBusyInvite] = useState(null);
   const [query, setQuery] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // Per-room "last seen" timestamps (ISO strings) for unread indicators.
+  // localStorage-backed so it survives reloads but stays client-side.
+  const [lastSeen, setLastSeen] = useState(() => readLastSeen());
 
   const activeRoomId = routeRoomId || null;
 
@@ -533,6 +549,20 @@ export default function BookclubsPage() {
       const i = data?.invites || [];
       setRooms(r);
       setInvites(i);
+      // Baseline any rooms we've never seen so they don't all show as unread
+      // on first load. New activity past this baseline will surface a dot.
+      setLastSeen((prev) => {
+        const next = { ...prev };
+        let changed = false;
+        r.forEach((room) => {
+          if (!next[room.room_id] && room.updated_at) {
+            next[room.room_id] = room.updated_at;
+            changed = true;
+          }
+        });
+        if (changed) writeLastSeen(next);
+        return changed ? next : prev;
+      });
       // Auto-select the first room when nothing's selected and there's something to show.
       if (!routeRoomId && r.length > 0) {
         navigate(`/bookclubs/${r[0].room_id}`, { replace: true });
@@ -543,6 +573,20 @@ export default function BookclubsPage() {
   }, []);
 
   useEffect(() => { loadList(); }, [loadList]);
+
+  // When the user opens a room, mark it as seen at its current updated_at so
+  // any *future* activity (after their visit) re-surfaces the dot.
+  useEffect(() => {
+    if (!activeRoomId) return;
+    const room = rooms.find((r) => r.room_id === activeRoomId);
+    if (!room?.updated_at) return;
+    setLastSeen((prev) => {
+      if (prev[activeRoomId] === room.updated_at) return prev;
+      const next = { ...prev, [activeRoomId]: room.updated_at };
+      writeLastSeen(next);
+      return next;
+    });
+  }, [activeRoomId, rooms]);
 
   const selectRoom = (rid) => {
     setDrawerOpen(false);
@@ -648,6 +692,8 @@ export default function BookclubsPage() {
               const progress = r.book_total_chapters > 0
                 ? Math.min(100, Math.round((r.my_current_chapter / r.book_total_chapters) * 100))
                 : 0;
+              const seen = lastSeen[r.room_id];
+              const hasUnread = !isActive && !!r.updated_at && (!seen || r.updated_at > seen);
               return (
                 <li key={r.room_id} data-testid={`room-list-item-${r.room_id}`}>
                   <button
@@ -660,7 +706,16 @@ export default function BookclubsPage() {
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2 mb-0.5">
-                      <p className={`text-sm font-semibold truncate ${isActive ? "text-[#2C2C2C]" : "text-[#2C2C2C]"}`}>{r.name}</p>
+                      <p className={`text-sm font-semibold truncate flex items-center gap-1.5 ${isActive ? "text-[#2C2C2C]" : "text-[#2C2C2C]"}`}>
+                        {hasUnread && (
+                          <span
+                            data-testid={`room-unread-dot-${r.room_id}`}
+                            title="New activity since your last visit"
+                            className="w-2 h-2 rounded-full bg-[var(--primary)] flex-shrink-0"
+                          />
+                        )}
+                        <span className="truncate">{r.name}</span>
+                      </p>
                       <RoleBadge role={r.my_role} />
                     </div>
                     <p className="text-[11px] text-[#6B705C] truncate">{r.book_title}</p>

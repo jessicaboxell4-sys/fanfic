@@ -51,6 +51,27 @@ export default function FriendsPage() {
   const [mutualByFriend, setMutualByFriend] = useState({});
   const [libraryFriend, setLibraryFriend] = useState(null);
   const [dmTarget, setDmTarget] = useState(null);  // {room_id, name}
+  // Map of friend user_id → {room_id, unread} pulled from /chat/rooms so the
+  // friends list can show an unread-message dot per friend.
+  const [dmUnreadByFriend, setDmUnreadByFriend] = useState({});
+
+  const loadDmUnread = async () => {
+    try {
+      const { data } = await api.get("/chat/rooms");
+      const next = {};
+      (data?.rooms || []).forEach((room) => {
+        if (!room.unread || !Array.isArray(room.member_user_ids)) return;
+        // DMs are 2-member rooms; flag the *other* member as having unreads.
+        room.member_user_ids
+          .filter((uid) => uid !== authedUser?.user_id)
+          .forEach((uid) => {
+            const prev = next[uid] || { unread: 0 };
+            next[uid] = { room_id: room.room_id, unread: prev.unread + room.unread };
+          });
+      });
+      setDmUnreadByFriend(next);
+    } catch { /* non-blocking */ }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -72,6 +93,14 @@ export default function FriendsPage() {
     } catch { /* ignore */ }
   };
   useEffect(() => { load(); }, []);
+
+  // Pull DM unread counts once the auth context is ready. Re-fetched after
+  // the DM drawer closes so the dot disappears as the user clears messages.
+  useEffect(() => {
+    if (!authedUser?.user_id) return;
+    loadDmUnread();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authedUser?.user_id]);
 
   // Honour `?room=<roomId>` deep links (legacy /messages/:roomId redirects).
   // Look the room up in /chat/rooms, find the other member, open the drawer,
@@ -212,6 +241,13 @@ export default function FriendsPage() {
     try {
       const { data } = await api.post(`/chat/dm/${uid}`);
       setDmTarget({ room_id: data.room_id, name: name || "Friend" });
+      // The drawer marks the room as read on mount; clear the dot eagerly.
+      setDmUnreadByFriend((prev) => {
+        if (!prev[uid]) return prev;
+        const next = { ...prev };
+        delete next[uid];
+        return next;
+      });
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Couldn't open DM");
     } finally { setBusyId(null); }
@@ -414,8 +450,19 @@ export default function FriendsPage() {
                 <ul className="rounded-lg border border-[#E8E6E1]">
                   {data.accepted.map((r) => {
                     const m = mutualByFriend[r.other_user_id];
+                    const dm = dmUnreadByFriend[r.other_user_id];
+                    const unreadCount = dm?.unread || 0;
                     return (
                       <PersonRow key={r.friendship_id} row={r} testid={`friends-accepted-row-${r.other_user_id}`}>
+                        {unreadCount > 0 && (
+                          <span
+                            data-testid={`friends-unread-dot-${r.other_user_id}`}
+                            title={`${unreadCount} unread message${unreadCount === 1 ? "" : "s"}`}
+                            className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-[var(--primary)] text-white text-[10px] font-bold"
+                          >
+                            {unreadCount > 9 ? "9+" : unreadCount}
+                          </span>
+                        )}
                         {m && m.count > 0 && (
                           <span
                             data-testid={`friends-mutual-badge-${r.other_user_id}`}
@@ -490,7 +537,7 @@ export default function FriendsPage() {
           <DmDrawer
             roomId={dmTarget.room_id}
             friendName={dmTarget.name}
-            onClose={() => setDmTarget(null)}
+            onClose={() => { setDmTarget(null); loadDmUnread(); }}
           />
         )}
       </main>

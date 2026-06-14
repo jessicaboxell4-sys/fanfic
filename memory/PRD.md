@@ -1975,3 +1975,12 @@ Four small parked items finished in one pass to make a credit go further:
 - **#13 Replay-tour button on Help** — Already shipped in iter-prev (`/help` → "What's new" strip has `data-testid="help-replay-tour"` that clears `shelfsort_tour_seen` and dispatches `shelfsort:replay-tour`). Verified click reopens the `TourOverlay`. Item closed.
 
 No backend changes. No new dependencies. No regressions across the existing testing-agent reports.
+
+
+### Changed 2026-06-14 (Batch 2 — three small UX dots)
+
+- **#3 Inline "Mute this kind" in notifications bell** — `NotificationsBell.jsx` now lazy-loads the user's mute matrix (`GET /api/user/notification-mutes`) the first time the popover is opened, then renders a hover-revealed `<BellOff /> Mute this kind` chip on every notification whose `kind` is `mutable=True` in the catalog. Clicking PUTs the kind into `notification_mutes`, updates local state optimistically, and toasts "Muted. Unmute from Account → Emails when you change your mind." `data-testid="notification-mute-<kind>"`. Verified: clicking the chip on a `friend_accepted` notification persisted `["friend_accepted"]` to `/user/notification-mutes`.
+- **#4 Per-room unread indicator in bookclubs left rail** — Pure client-side, no backend changes. `BookclubsPage.jsx` stores per-room `lastSeen` ISO timestamps in `localStorage["shelfsort_bookclub_lastseen_v1"]`. On rooms-load, never-before-seen rooms are auto-baselined to their current `updated_at` so the dot doesn't fire universally on first visit. On `selectRoom(rid)`, lastSeen is bumped to that room's `updated_at`. Any room whose `updated_at` is newer than lastSeen renders a small purple dot before the room name — `data-testid="room-unread-dot-<room_id>"`. Page renders cleanly with the localStorage entry present (empty-state still shows for users with no rooms).
+- **#5 Unread-message dot on friends list** — `FriendsPage.jsx` fetches `/chat/rooms` after auth resolves, builds a `dmUnreadByFriend` map (`friend_user_id → unread count`), and renders a pill badge in each friend's row when `unread > 0`. `data-testid="friends-unread-dot-<user_id>"`, shows numeric count (`9+` cap). The badge clears optimistically when the user clicks Message (the drawer marks-as-read on mount), and `loadDmUnread()` re-runs on drawer close to true-up the count. Verified end-to-end: friend B sent A a message → A sees a "1" badge on B's row.
+
+No backend changes for any of the three. No new dependencies.
