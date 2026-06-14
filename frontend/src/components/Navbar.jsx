@@ -80,6 +80,7 @@ function SecondaryLinks({ user, unknownFandomCount, onNavigate, inDrawer = false
     { to: "/library/smart-shelves", label: "Smart shelves", testid: "navbar-smart-shelves", icon: Filter, title: "Saved filter combinations" },
     { to: "/library/stats", label: "Reading stats", testid: "navbar-stats", icon: BarChart3, title: "Reading statistics" },
     { to: "/goals", label: "Reading goals", testid: "navbar-goals", icon: Target, title: "Yearly & monthly reading targets" },
+    { to: "/library/originals", label: "Originals", testid: "navbar-originals", icon: FileText, title: "Original-format files (PDF, MOBI, DOCX, etc.) kept without conversion" },
   ];
   const exportItems = [
     { to: "/library/download?kind=xlsx", label: "Library (.xlsx)", testid: "navbar-download-links", icon: LinkIcon, title: "Excel workbook with title + author + source link" },
@@ -106,9 +107,6 @@ function SecondaryLinks({ user, unknownFandomCount, onNavigate, inDrawer = false
         <p className="px-3 pt-2 pb-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B705C]">More</p>
         <Link to="/help" data-testid="drawer-help" className={itemBase} onClick={close}>
           <HelpCircle className="w-4 h-4" /> Help &amp; guide
-        </Link>
-        <Link to="/library/originals" data-testid="drawer-originals" className={itemBase} onClick={close}>
-          <FileText className="w-4 h-4" /> Originals
         </Link>
         {user.is_admin && (
           <Link to="/admin" data-testid="drawer-admin" className={itemBase} onClick={close}>
@@ -153,14 +151,6 @@ function SecondaryLinks({ user, unknownFandomCount, onNavigate, inDrawer = false
           )}
         </Link>
       )}
-      <Link
-        to="/library/originals"
-        data-testid="navbar-originals"
-        className="p-2 hover:bg-[#F5F3EC] rounded-lg"
-        title="Original-format files (PDF, MOBI, etc.)"
-      >
-        <FileText className="w-4 h-4 text-[#6B705C]" />
-      </Link>
     </div>
   );
 }
