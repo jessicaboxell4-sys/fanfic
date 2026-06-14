@@ -1955,3 +1955,12 @@ Both upload sites (the regular EPUB upload pipeline + the URL-fetch path) now pe
 - MessagesPage.jsx left in the repo (no route points to it) — can be deleted in a future cleanup pass; keeping for now in case other code references it.
 - testing_agent_v3_fork iter20: **9/9 spec items pass, zero product bugs**. Applied two reviewer micro-fixes (composer bottom-padding + busyId-disable on Message button to prevent rapid double-click).
 
+
+
+### Changed 2026-06-14 (First-Time Tour overlay)
+- Built `/components/TourOverlay.jsx` + `/lib/tourSteps.js` (7 steps: welcome, library, friends, bookclubs, recs, account, done).
+- Mounted via `TourMount` in `App.js` — opens 600ms after auth resolves on the user's first authenticated visit; persists dismissal via `localStorage["shelfsort_tour_seen"] = "1"`.
+- Each step can specify a `path` and the overlay auto-navigates as it advances (Dashboard → Library → Friends → Bookclubs → Recommendations → Account → done).
+- Replay supported via custom event: `window.dispatchEvent(new Event('shelfsort:replay-tour'))` — useful for re-running from Help.
+- data-testids: `tour-overlay`, `tour-step-<id>`, `tour-next`, `tour-back`, `tour-skip`, `tour-dots`.
+- testing_agent_v3_fork iter21 — **9/9 acceptance criteria pass, 100% frontend, zero product bugs**. Three nit-level comments parked: (a) inline comment for the intentional eslint-disable on the navigation effect, (b) last `done` step has no `path` so it inherits the previous URL — keep or set `/dashboard`, (c) replay listener registered once at mount — adequate for current flow.
