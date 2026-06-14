@@ -10,6 +10,7 @@ import NavbarQuickAdd from "./NavbarQuickAdd";
 import AppearancePopover from "./AppearancePopover";
 import ChatInboxIcon from "./ChatInboxIcon";
 import NotificationsBell from "./NotificationsBell";
+import DisplayName from "./DisplayName";
 import { FETCHING_UI_ENABLED } from "../lib/featureFlags";
 
 export default function Navbar() {
@@ -132,7 +133,11 @@ export default function Navbar() {
                     className="w-8 h-8 rounded-full border border-[#E8E6E1]"
                   />
                 )}
-                <span className="text-sm text-[#2C2C2C] hidden md:inline" data-testid="navbar-user-name">{user.name}</span>
+                <DisplayName
+                  user={user}
+                  className="text-sm text-[#2C2C2C] hidden md:inline"
+                  testid="navbar-user-name"
+                />
               </Link>
               <button
                 data-testid="navbar-logout"

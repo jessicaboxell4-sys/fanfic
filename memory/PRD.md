@@ -2160,3 +2160,18 @@ User-requested feature. Lets every account claim an optional public handle (Disc
 **Regression** — 39/39 `test_friends.py` pass.
 
 E2E Playwright verified: registration → Account "claim handle" hint → suggest button → realtime availability check → reserved blocked → first claim shows `@brad02362` (no parens) → change to `@imcrazy02362` shows `@imcrazy02362 (was @brad02362 — hide)` → click hide removes the parenthetical (toast: "Old handle removed").
+
+
+### Changed 2026-06-14 (Username follow-ups — caps allowed + navbar swap)
+
+User asked for two refinements right after the initial username ship:
+
+- **Capital letters allowed in usernames.** Regex relaxed from `[a-z0-9_]{3,20}` → `[A-Za-z0-9_]{3,20}`. The user's chosen casing is now preserved everywhere (`@ImCrazy` stays `@ImCrazy`).
+- **Case-insensitive uniqueness still enforced.** Added a `username_lower` field on the user doc, set every time a handle is claimed/changed. `username_is_taken()` queries by `username_lower` first with a fallback regex for any legacy users without the new field. Result: `@Brad` and `@brad` cannot co-exist; first claim wins.
+- **Friend search works in either case.** `target_username` lookup tries `username_lower == handle.lower()` first, falls back to a case-insensitive regex on `username`. So inviting `@brad` finds the user who registered as `@Brad`, and vice-versa.
+- **Frontend no longer force-lowercases input.** Registration and Account inputs let users type `ImCrazy` and see it round-trip cleanly.
+- **Navbar now uses `<DisplayName />`** — top-right shows `@yourhandle` (or `name` for legacy users with no handle yet). The "you see your own broadcast identity" loop is closed.
+
+**2 new tests** (`test_usernames.py`, **13/13 pass**): `test_mixed_case_normalized_to_lower` (renamed/repurposed — caps now preserved), `test_case_insensitive_uniqueness` (Brad/brad/BRAD all collide), `test_friend_request_finds_either_case` (lookup-by-lowercase finds Mixed-case user).
+
+E2E Playwright verified: `ImCrazy94316` registers with caps preserved → `imcrazy94316` blocked with 409 → `@ImCrazy94316` and `@imcrazy94316` friend requests both find the same user → navbar shows `@ImCrazy94316`.

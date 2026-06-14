@@ -932,7 +932,7 @@ export default function Account() {
 
   const saveUsername = async (e) => {
     e?.preventDefault?.();
-    const handle = (usernameInput || "").trim().toLowerCase();
+    const handle = (usernameInput || "").trim();
     if (!handle) return;
     setSavingUsername(true);
     try {
@@ -1093,8 +1093,8 @@ export default function Account() {
                 data-testid="username-input"
                 type="text"
                 value={usernameInput}
-                onChange={(e) => setUsernameInput(e.target.value.toLowerCase())}
-                placeholder={profile.username || "new_handle"}
+                onChange={(e) => setUsernameInput(e.target.value)}
+                placeholder={profile.username || "ImCrazy"}
                 maxLength={20}
                 autoComplete="off"
                 className="w-full bg-white border border-[#E8E6E1] rounded-xl pl-7 pr-3 py-2.5 text-sm font-mono focus:outline-none focus:border-[#6B46C1] focus:ring-2 focus:ring-[#6B46C1]/20"

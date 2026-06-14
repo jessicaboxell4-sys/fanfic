@@ -131,9 +131,9 @@ export default function Login() {
                 <input
                   data-testid="auth-username-input"
                   type="text"
-                  placeholder="username (optional, lowercase)"
+                  placeholder="username (optional, e.g. ImCrazy)"
                   value={username}
-                  onChange={(e) => setUsername(e.target.value.toLowerCase())}
+                  onChange={(e) => setUsername(e.target.value)}
                   maxLength={20}
                   autoComplete="off"
                   className="w-full bg-white border border-[#E8E6E1] rounded-xl pl-10 pr-3 py-2.5 text-sm font-mono focus:outline-none focus:border-[#E07A5F] focus:ring-2 focus:ring-[#E07A5F]/20"

@@ -258,6 +258,7 @@ async def auth_register(body: RegisterBody, response: Response):
     }
     if username:
         user_doc["username"] = username
+        user_doc["username_lower"] = username.lower()
     await db.users.insert_one(user_doc)
     await _issue_session(user_id, response)
     return {"user_id": user_id, "email": email, "name": name, "username": username or None, "picture": ""}
@@ -361,7 +362,7 @@ async def set_username(body: UsernameBody, user: User = Depends(get_current_user
             "previous_username": user.previous_username,
             "changed": False,
         }
-    update = {"username": handle}
+    update = {"username": handle, "username_lower": handle.lower()}
     # Only stamp `previous_username` if there was an old one to track.
     if user.username:
         update["previous_username"] = user.username

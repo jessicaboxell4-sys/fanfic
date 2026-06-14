@@ -70,10 +70,31 @@ def test_format_violations_rejected(me):
 
 
 def test_mixed_case_normalized_to_lower(me):
-    """Mixed case input gets lowercased automatically — convenience UX."""
+    """Mixed-case input is now PRESERVED (capital letters are allowed).
+    Uniqueness comparison is still case-insensitive.
+    """
     r = requests.patch(f"{BASE}/api/auth/username", headers=H(me), json={"username": "Mixed_Case"})
     assert r.status_code == 200
-    assert r.json()["username"] == "mixed_case"
+    assert r.json()["username"] == "Mixed_Case"  # caps preserved
+
+
+def test_case_insensitive_uniqueness(me, them):
+    """Brad and brad cannot both exist."""
+    r1 = requests.patch(f"{BASE}/api/auth/username", headers=H(me), json={"username": "Brad99"})
+    assert r1.status_code == 200
+    r2 = requests.patch(f"{BASE}/api/auth/username", headers=H(them), json={"username": "brad99"})
+    assert r2.status_code == 409
+    r3 = requests.patch(f"{BASE}/api/auth/username", headers=H(them), json={"username": "BRAD99"})
+    assert r3.status_code == 409
+
+
+def test_friend_request_finds_either_case(me, them):
+    """A friend search by `@brad` finds the user registered as `@Brad`."""
+    requests.patch(f"{BASE}/api/auth/username", headers=H(them), json={"username": "MixedFind"})
+    r = requests.post(f"{BASE}/api/friends/request", headers=H(me), json={"target_username": "@mixedfind"})
+    assert r.status_code == 200, r.text
+    assert r.json()["other_user_id"] == them["user_id"]
+    db.friendships.delete_many({"$or": [{"user_a": me["user_id"]}, {"user_b": me["user_id"]}]})
 
 
 def test_reserved_rejected(me):

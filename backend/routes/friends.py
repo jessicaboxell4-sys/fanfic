@@ -138,12 +138,21 @@ async def send_friend_request(body: FriendRequestBody, user: User = Depends(get_
             {"_id": 0, "user_id": 1, "email": 1, "name": 1, "username": 1, "hidden_from_search": 1},
         )
     elif body.target_username:
-        handle = (body.target_username or "").strip().lstrip("@").lower()
+        handle = (body.target_username or "").strip().lstrip("@")
         if handle:
+            # Case-insensitive lookup so "@Brad" finds the user who registered
+            # as "@brad" (or vice-versa).  Try the lowercase index first,
+            # fall back to a case-insensitive regex for older users without
+            # the username_lower field yet.
             target = await db.users.find_one(
-                {"username": handle},
+                {"username_lower": handle.lower()},
                 {"_id": 0, "user_id": 1, "email": 1, "name": 1, "username": 1, "hidden_from_search": 1},
             )
+            if not target:
+                target = await db.users.find_one(
+                    {"username": {"$regex": f"^{re.escape(handle)}$", "$options": "i"}},
+                    {"_id": 0, "user_id": 1, "email": 1, "name": 1, "username": 1, "hidden_from_search": 1},
+                )
     elif body.target_email:
         # Case-insensitive lookup — emails may have been stored with
         # original casing (older accounts, test fixtures).
