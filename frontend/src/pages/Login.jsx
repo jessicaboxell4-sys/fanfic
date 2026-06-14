@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { BookOpen, Mail, Lock, User as UserIcon, Loader2 } from "lucide-react";
+import { BookOpen, Mail, Lock, User as UserIcon, AtSign, Loader2 } from "lucide-react";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "sonner";
@@ -19,6 +19,7 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [username, setUsername] = useState("");
   const [busy, setBusy] = useState(false);
 
   const handleGoogle = () => {
@@ -121,6 +122,21 @@ export default function Login() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="w-full bg-white border border-[#E8E6E1] rounded-xl pl-10 pr-3 py-2.5 text-sm focus:outline-none focus:border-[#E07A5F] focus:ring-2 focus:ring-[#E07A5F]/20"
+                />
+              </div>
+            )}
+            {mode === "register" && (
+              <div className="relative">
+                <AtSign className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#6B705C]" />
+                <input
+                  data-testid="auth-username-input"
+                  type="text"
+                  placeholder="username (optional, lowercase)"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value.toLowerCase())}
+                  maxLength={20}
+                  autoComplete="off"
+                  className="w-full bg-white border border-[#E8E6E1] rounded-xl pl-10 pr-3 py-2.5 text-sm font-mono focus:outline-none focus:border-[#E07A5F] focus:ring-2 focus:ring-[#E07A5F]/20"
                 />
               </div>
             )}

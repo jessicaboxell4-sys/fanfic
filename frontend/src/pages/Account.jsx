@@ -704,6 +704,13 @@ export default function Account() {
   const [confirmPw, setConfirmPw] = useState("");
   const [savingPw, setSavingPw] = useState(false);
 
+  // Public-handle (username) state — separate flow from `name` because the
+  // rules are stricter (lowercase, 3-20 chars, globally unique).
+  const [usernameInput, setUsernameInput] = useState("");
+  const [usernameStatus, setUsernameStatus] = useState({ ok: null, reason: null });
+  const [savingUsername, setSavingUsername] = useState(false);
+  const [clearingPrev, setClearingPrev] = useState(false);
+
   // (Email preferences moved to /account/emails — handled in EmailPreferences.jsx)
 
   // FanFicFare options for fanfic downloads
@@ -906,6 +913,64 @@ export default function Account() {
     }
   };
 
+  // Debounced availability check for the username input.
+  useEffect(() => {
+    if (!usernameInput) {
+      setUsernameStatus({ ok: null, reason: null });
+      return;
+    }
+    const id = setTimeout(async () => {
+      try {
+        const { data } = await api.get("/auth/username-available", { params: { handle: usernameInput } });
+        setUsernameStatus({ ok: !!data.available, reason: data.reason || null });
+      } catch {
+        setUsernameStatus({ ok: false, reason: "Couldn't check availability" });
+      }
+    }, 350);
+    return () => clearTimeout(id);
+  }, [usernameInput]);
+
+  const saveUsername = async (e) => {
+    e?.preventDefault?.();
+    const handle = (usernameInput || "").trim().toLowerCase();
+    if (!handle) return;
+    setSavingUsername(true);
+    try {
+      const { data } = await api.patch("/auth/username", { username: handle });
+      const updated = {
+        ...profile,
+        username: data.username,
+        previous_username: data.previous_username,
+      };
+      setProfile(updated);
+      setUser((u) => (u ? { ...u, username: data.username, previous_username: data.previous_username } : u));
+      setUsernameInput("");
+      setUsernameStatus({ ok: null, reason: null });
+      toast.success(profile?.username ? "Username changed" : "Username claimed");
+    } catch (err) {
+      toast.error(errMsg(err?.response?.data?.detail));
+    } finally { setSavingUsername(false); }
+  };
+
+  const clearPreviousUsername = async () => {
+    setClearingPrev(true);
+    try {
+      await api.delete("/auth/previous-username");
+      setProfile((p) => ({ ...p, previous_username: null }));
+      setUser((u) => (u ? { ...u, previous_username: null } : u));
+      toast.success("Old handle removed");
+    } catch (err) {
+      toast.error(errMsg(err?.response?.data?.detail));
+    } finally { setClearingPrev(false); }
+  };
+
+  const suggestUsername = async () => {
+    try {
+      const { data } = await api.get("/auth/username-suggest");
+      setUsernameInput(data.suggestion || "");
+    } catch { /* non-blocking */ }
+  };
+
   const changePw = async (e) => {
     e.preventDefault();
     if (newPw !== confirmPw) {
@@ -985,6 +1050,72 @@ export default function Account() {
             >
               {savingName && <Loader2 className="w-4 h-4 animate-spin" />}
               Save name
+            </button>
+          </form>
+        </section>
+
+        {/* Username (public handle) */}
+        <section className="shelf-card p-6 mb-6" data-testid="username-card">
+          <h2 className="font-serif text-2xl text-[#2C2C2C] mb-1">Public handle</h2>
+          <p className="text-sm text-[#6B705C] mb-4">
+            Your <code className="bg-[#F5F3EC] px-1 py-0.5 rounded text-[12px]">@username</code> is how friends find you and how you show up across the app. Lowercase letters, numbers, and underscores — 3 to 20 characters.
+          </p>
+          {profile.username ? (
+            <p className="text-sm text-[#2C2C2C] mb-4">
+              Current: <strong className="font-mono" data-testid="current-username">@{profile.username}</strong>
+              {profile.previous_username && (
+                <span className="text-[#6B705C]">
+                  {" "}(was <code className="font-mono" data-testid="previous-username">@{profile.previous_username}</code>
+                  {" "}—{" "}
+                  <button
+                    onClick={clearPreviousUsername}
+                    disabled={clearingPrev}
+                    data-testid="clear-previous-username"
+                    className="underline hover:text-[#2C2C2C]"
+                  >hide</button>)
+                </span>
+              )}
+            </p>
+          ) : (
+            <p className="text-sm text-[#6B46C1] mb-4 flex items-center gap-2" data-testid="claim-username-hint">
+              You haven&apos;t picked a handle yet.
+              <button
+                onClick={suggestUsername}
+                className="text-xs underline hover:text-[#553B96]"
+                data-testid="suggest-username-btn"
+              >Suggest one</button>
+            </p>
+          )}
+          <form onSubmit={saveUsername} className="space-y-2">
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#6B705C] text-sm">@</span>
+              <input
+                data-testid="username-input"
+                type="text"
+                value={usernameInput}
+                onChange={(e) => setUsernameInput(e.target.value.toLowerCase())}
+                placeholder={profile.username || "new_handle"}
+                maxLength={20}
+                autoComplete="off"
+                className="w-full bg-white border border-[#E8E6E1] rounded-xl pl-7 pr-3 py-2.5 text-sm font-mono focus:outline-none focus:border-[#6B46C1] focus:ring-2 focus:ring-[#6B46C1]/20"
+              />
+            </div>
+            {usernameInput && usernameStatus.ok === true && (
+              <p className="text-xs text-[#1F8F4E]" data-testid="username-available-msg">
+                ✓ <code className="font-mono">@{usernameInput}</code> is available
+              </p>
+            )}
+            {usernameInput && usernameStatus.ok === false && (
+              <p className="text-xs text-[#B43F26]" data-testid="username-unavailable-msg">{usernameStatus.reason}</p>
+            )}
+            <button
+              type="submit"
+              data-testid="save-username-btn"
+              disabled={savingUsername || !usernameInput || usernameStatus.ok !== true}
+              className="btn-primary text-sm flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {savingUsername && <Loader2 className="w-4 h-4 animate-spin" />}
+              {profile.username ? "Change handle" : "Claim handle"}
             </button>
           </form>
         </section>

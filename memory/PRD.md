@@ -2121,3 +2121,42 @@ Three more sub-modules carved out of ``routes/books.py``:
 - 163 other backend tests pass; 2 friend-notification tests show up as failed only when run in a large combined session (test pollution, unrelated to refactor — they pass cleanly in isolation: 5/5).
 
 No frontend changes. No API surface changes.
+
+
+### Added 2026-06-14 (Optional usernames + public @-handles)
+
+User-requested feature. Lets every account claim an optional public handle (Discord-style: lowercase alphanumeric + underscore, 3-20 chars, globally unique) that's used everywhere `name` previously appeared, displayed as `@handle` — and rendered as `"@newhandle (@oldhandle)"` for one rotation after a change.
+
+**Honoured choices (verbatim):**
+- **Purpose (1a + 1d)** — Public display handle AND friend-search by `@handle`.
+- **Where set (2c)** — Optional field on registration AND editable on Account.
+- **Change-tracking (2 follow-up)** — When changed, prior handle shows in parens until user hides it (toast: "Old handle removed").
+- **Format (3a)** — Strict: lowercase, [a-z0-9_], 3–20 chars, globally unique, **+** mixed-case input is silently lowercased (UX courtesy), **+** reserved-words list (admin, root, etc.) blocked.
+- **Where displayed (4e)** — Everywhere `name` shows: friend cards, bookclub messages, members card, pending invites. Uses a new single-source-of-truth `<DisplayName />` component so future swaps are one-liners.
+- **Existing users (5)** — Legacy accounts see a "claim handle" prompt on the Account page with a "Suggest one" button (derives from email prefix, appends `1`/`2`/… if taken).
+
+**Backend (≈ 130 lines new code)**:
+- New `utils/usernames.py` — `normalize_username`, `validate_username_format`, `username_is_taken`, `suggestion_from_email`, `RESERVED_USERNAMES` list.
+- `models.py User` — added `username: Optional[str]` and `previous_username: Optional[str]`.
+- `routes/auth.py` — new endpoints:
+  - `GET  /api/auth/username-available?handle=...` — debounced availability check
+  - `GET  /api/auth/username-suggest` — derive a starter handle from email
+  - `PATCH /api/auth/username` — claim/change (stamps `previous_username` only on a change)
+  - `DELETE /api/auth/previous-username` — clear the parenthetical
+  - `POST /api/auth/register` — accepts optional `username` at sign-up time (validated + unique)
+  - `GET  /api/auth/me` — now returns `username` + `previous_username`
+- `routes/friends.py` — `FriendRequestBody.target_username` field; `/friends/request` now accepts `"@handle"` lookups. Returned friend rows include `username` + `previous_username`.
+- `routes/bookclubs.py` — `_hydrate_users` returns username fields; new bookclub messages snapshot `user_username` + `user_previous_username` at write time (no backfill — older messages just show `user_name`).
+
+**Frontend (≈ 200 lines new code)**:
+- New `components/DisplayName.jsx` — renders `@username (previous)` / `@username` / `name` / email-prefix, in that priority. Single component swapped in at every interactive display site.
+- `pages/Login.jsx` — added optional `@username` field on the register form, with the existing AtSign lucide icon.
+- `pages/Account.jsx` — new "Public handle" card with realtime availability check (350ms debounce), suggest button, claim/change CTA, and `"@newhandle (was @oldhandle — hide)"` line.
+- `pages/FriendsPage.jsx` `PersonRow` — uses `<DisplayName />`.
+- `pages/bookclubs/ActiveRoomPanel.jsx` — message author + members card use `<DisplayName />`.
+
+**Tests** — `backend/tests/test_usernames.py` (**11 cases, all pass**): first-claim-no-previous, format-violations, mixed-case-normalized, reserved-blocked, uniqueness-cross-user, change-stamps-previous, clear-previous, availability-check (reserved/bad-format/open), friend-request-by-`@handle`, friend-request-username-not-found, register-with-username.
+
+**Regression** — 39/39 `test_friends.py` pass.
+
+E2E Playwright verified: registration → Account "claim handle" hint → suggest button → realtime availability check → reserved blocked → first claim shows `@brad02362` (no parens) → change to `@imcrazy02362` shows `@imcrazy02362 (was @brad02362 — hide)` → click hide removes the parenthetical (toast: "Old handle removed").

@@ -8,6 +8,7 @@ import {
 import Navbar from "../components/Navbar";
 import FriendLibraryModal from "../components/FriendLibraryModal";
 import DmDrawer from "../components/DmDrawer";
+import DisplayName from "../components/DisplayName";
 import PrimaryCTAButton from "../components/PrimaryCTAButton";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
@@ -26,7 +27,7 @@ function PersonRow({ row, children, testid }) {
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-[#2C2C2C] truncate">{row.name || row.email}</p>
+        <DisplayName user={row} className="text-sm font-semibold text-[#2C2C2C] truncate block" testid={testid ? `${testid}-name` : undefined} />
         <p className="text-[10px] text-[#6B705C] truncate">{row.email}</p>
       </div>
       <div className="flex items-center gap-1 flex-shrink-0">{children}</div>

@@ -10,6 +10,12 @@ class User(BaseModel):
     user_id: str
     email: str
     name: str
+    # Optional public Discord-style handle. Lowercase, [a-z0-9_], 3-20 chars,
+    # globally unique. Falls back to ``name`` everywhere it's displayed.
+    username: Optional[str] = None
+    # Previous handle, set the first time the user changes their username so
+    # the UI can render "newhandle (oldhandle)" until they change it again.
+    previous_username: Optional[str] = None
     picture: Optional[str] = None
     is_admin: bool = False
     scheduled_deletion_at: Optional[datetime] = None

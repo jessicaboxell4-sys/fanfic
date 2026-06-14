@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
+import DisplayName from "../../components/DisplayName";
 import { fmtRelative } from "./_shared";
 import { EditRoomDialog, InviteFriendsBlock } from "./RoomDialogs";
 
@@ -215,7 +216,10 @@ export default function ActiveRoomPanel({ roomId, onRoomChanged, onRoomGone }) {
                 return (
                   <div key={m.message_id} data-testid={`message-${m.message_id}`} className={`flex flex-col ${mine ? "items-end" : "items-start"}`}>
                     <div className={`max-w-[80%] rounded-2xl px-4 py-2 ${mine ? "bg-[#6B46C1] text-white" : "bg-[#F5F3EC] text-[#2C2C2C]"}`}>
-                      <p className={`text-[10px] uppercase tracking-wider mb-0.5 ${mine ? "text-white/80" : "text-[#6B705C]"}`}>{m.user_name} · {fmtRelative(m.created_at)}</p>
+                      <p className={`text-[10px] uppercase tracking-wider mb-0.5 ${mine ? "text-white/80" : "text-[#6B705C]"}`}>
+                        <DisplayName user={{ username: m.user_username, previous_username: m.user_previous_username, name: m.user_name }} />
+                        {" · "}{fmtRelative(m.created_at)}
+                      </p>
                       <p className="text-sm whitespace-pre-wrap break-words">{m.body}</p>
                     </div>
                   </div>
@@ -265,7 +269,7 @@ export default function ActiveRoomPanel({ roomId, onRoomChanged, onRoomGone }) {
                       {m.picture ? <img src={m.picture} alt={m.name} className="w-6 h-6 rounded-full flex-shrink-0" /> : <div className="w-6 h-6 rounded-full bg-[#E5DDC5] flex-shrink-0" />}
                       <div className="min-w-0 flex-1">
                         <p className="text-sm text-[#2C2C2C] truncate flex items-center gap-1">
-                          {m.name || m.email}
+                          <DisplayName user={m} />
                           {m.role === "owner" && <Crown className="w-3 h-3 text-[#B87A00]" title="Owner" />}
                           {m.role === "moderator" && <ShieldCheck className="w-3 h-3 text-[#6B46C1]" title="Moderator" />}
                           {isMe && <span className="text-[10px] text-[#6B705C]">(you)</span>}

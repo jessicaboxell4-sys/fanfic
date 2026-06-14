@@ -52,7 +52,7 @@ async def _hydrate_users(user_ids: List[str]) -> Dict[str, Dict[str, Any]]:
         return {}
     docs = await db.users.find(
         {"user_id": {"$in": user_ids}},
-        {"_id": 0, "user_id": 1, "email": 1, "name": 1, "picture": 1},
+        {"_id": 0, "user_id": 1, "email": 1, "name": 1, "username": 1, "previous_username": 1, "picture": 1},
     ).to_list(length=500)
     return {d["user_id"]: d for d in docs}
 
@@ -64,6 +64,9 @@ async def _hydrate_users(user_ids: List[str]) -> Dict[str, Dict[str, Any]]:
 class FriendRequestBody(BaseModel):
     target_user_id: Optional[str] = None
     target_email: Optional[str] = Field(default=None, max_length=200)
+    # Lookup by public handle (e.g. "@john" or just "john"). Mutually
+    # exclusive with target_email / target_user_id; first non-empty wins.
+    target_username: Optional[str] = Field(default=None, max_length=64)
 
 
 class PrivacyBody(BaseModel):
@@ -93,6 +96,8 @@ async def list_friends(user: User = Depends(get_current_user)):
         other = by_id.get(s["other_user_id"], {})
         s["email"] = other.get("email", "")
         s["name"] = other.get("name", "")
+        s["username"] = other.get("username")
+        s["previous_username"] = other.get("previous_username")
         s["picture"] = other.get("picture", "")
         if r["status"] == "accepted":
             accepted.append(s)
@@ -130,14 +135,21 @@ async def send_friend_request(body: FriendRequestBody, user: User = Depends(get_
     if body.target_user_id:
         target = await db.users.find_one(
             {"user_id": body.target_user_id},
-            {"_id": 0, "user_id": 1, "email": 1, "name": 1, "hidden_from_search": 1},
+            {"_id": 0, "user_id": 1, "email": 1, "name": 1, "username": 1, "hidden_from_search": 1},
         )
+    elif body.target_username:
+        handle = (body.target_username or "").strip().lstrip("@").lower()
+        if handle:
+            target = await db.users.find_one(
+                {"username": handle},
+                {"_id": 0, "user_id": 1, "email": 1, "name": 1, "username": 1, "hidden_from_search": 1},
+            )
     elif body.target_email:
         # Case-insensitive lookup — emails may have been stored with
         # original casing (older accounts, test fixtures).
         target = await db.users.find_one(
             {"email": {"$regex": f"^{re.escape(body.target_email.strip())}$", "$options": "i"}},
-            {"_id": 0, "user_id": 1, "email": 1, "name": 1, "hidden_from_search": 1},
+            {"_id": 0, "user_id": 1, "email": 1, "name": 1, "username": 1, "hidden_from_search": 1},
         )
     if not target:
         raise HTTPException(status_code=404, detail="User not found")

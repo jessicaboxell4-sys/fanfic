@@ -33,6 +33,12 @@ from deps import (
 from models import User, BookOut
 from auth_dep import get_current_user
 from utils.email_log import log_email_send
+from utils.usernames import (
+    normalize_username,
+    validate_username_format,
+    username_is_taken,
+    suggestion_from_email,
+)
 
 
 # ============================================================
@@ -118,6 +124,8 @@ async def auth_me(user: User = Depends(get_current_user)):
         "user_id": user.user_id,
         "email": user.email,
         "name": user.name,
+        "username": user.username,
+        "previous_username": user.previous_username,
         "picture": user.picture,
         "is_admin": user.is_admin,
         "scheduled_deletion_at": user.scheduled_deletion_at.isoformat() if user.scheduled_deletion_at else None,
@@ -208,6 +216,7 @@ class RegisterBody(BaseModel):
     email: str
     password: str
     name: Optional[str] = None
+    username: Optional[str] = None
 
 
 class LoginBody(BaseModel):
@@ -229,17 +238,29 @@ async def auth_register(body: RegisterBody, response: Response):
     if existing:
         raise HTTPException(status_code=409, detail="An account with that email already exists")
 
+    # Optional username at registration. Validated + checked for uniqueness.
+    username = normalize_username(body.username or "")
+    if username:
+        err = validate_username_format(username)
+        if err:
+            raise HTTPException(status_code=400, detail=err)
+        if await username_is_taken(username):
+            raise HTTPException(status_code=409, detail="That username is taken")
+
     user_id = f"user_{uuid.uuid4().hex[:12]}"
-    await db.users.insert_one({
+    user_doc = {
         "user_id": user_id,
         "email": email,
         "name": name,
         "picture": "",
         "password_hash": _hash_password(password),
         "created_at": datetime.now(timezone.utc).isoformat(),
-    })
+    }
+    if username:
+        user_doc["username"] = username
+    await db.users.insert_one(user_doc)
     await _issue_session(user_id, response)
-    return {"user_id": user_id, "email": email, "name": name, "picture": ""}
+    return {"user_id": user_id, "email": email, "name": name, "username": username or None, "picture": ""}
 
 
 @api_router.post("/auth/login")
@@ -279,9 +300,92 @@ class UpdateProfileBody(BaseModel):
     name: str
 
 
+class UsernameBody(BaseModel):
+    username: str
+
+
 class ChangePasswordBody(BaseModel):
     current_password: str
     new_password: str
+
+
+@api_router.get("/auth/username-available")
+async def username_available(handle: str, user: User = Depends(get_current_user)):
+    """Realtime availability check for the registration/Account form."""
+    normalized = normalize_username(handle)
+    err = validate_username_format(normalized)
+    if err:
+        return {"available": False, "normalized": normalized, "reason": err}
+    taken = await username_is_taken(normalized, except_user_id=user.user_id)
+    return {
+        "available": not taken,
+        "normalized": normalized,
+        "reason": "That username is taken" if taken else None,
+    }
+
+
+@api_router.get("/auth/username-suggest")
+async def username_suggest(user: User = Depends(get_current_user)):
+    """Suggest a starter handle for the current user (used by the Account
+    page's "Pick a handle" prompt for legacy users with no username yet).
+    """
+    base = suggestion_from_email(user.email)
+    candidate = base
+    suffix = 0
+    while await username_is_taken(candidate, except_user_id=user.user_id):
+        suffix += 1
+        candidate = f"{base}{suffix}"[: 20]
+    return {"suggestion": candidate}
+
+
+@api_router.patch("/auth/username")
+async def set_username(body: UsernameBody, user: User = Depends(get_current_user)):
+    """Claim or change a username.
+
+    - On *first* claim (user.username is currently None), no `previous_username`
+      is recorded — there's nothing to compare against.
+    - On a *change*, the prior handle moves into `previous_username` so the UI
+      can render "newhandle (oldhandle)" until the next change. Each change
+      overwrites that pointer; we only show the immediately-prior handle.
+    """
+    handle = normalize_username(body.username or "")
+    err = validate_username_format(handle)
+    if err:
+        raise HTTPException(status_code=400, detail=err)
+    if await username_is_taken(handle, except_user_id=user.user_id):
+        raise HTTPException(status_code=409, detail="That username is taken")
+    if handle == (user.username or ""):
+        return {
+            "ok": True,
+            "username": handle,
+            "previous_username": user.previous_username,
+            "changed": False,
+        }
+    update = {"username": handle}
+    # Only stamp `previous_username` if there was an old one to track.
+    if user.username:
+        update["previous_username"] = user.username
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": update},
+    )
+    return {
+        "ok": True,
+        "username": handle,
+        "previous_username": update.get("previous_username"),
+        "changed": True,
+    }
+
+
+@api_router.delete("/auth/previous-username")
+async def clear_previous_username(user: User = Depends(get_current_user)):
+    """Hide the 'newhandle (oldhandle)' parenthetical — users may want to
+    drop the old name from their public card at any time."""
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$unset": {"previous_username": ""}},
+    )
+    return {"ok": True}
 
 
 @api_router.patch("/auth/profile")

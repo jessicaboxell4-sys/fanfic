@@ -129,6 +129,8 @@ def _serialize_message(doc: Dict[str, Any]) -> Dict[str, Any]:
         "room_id": doc["room_id"],
         "user_id": doc["user_id"],
         "user_name": doc.get("user_name", ""),
+        "user_username": doc.get("user_username"),
+        "user_previous_username": doc.get("user_previous_username"),
         "chapter_index": int(doc.get("chapter_index", 0) or 0),
         "body": doc.get("body", ""),
         "created_at": _iso(doc.get("created_at")),
@@ -140,7 +142,7 @@ async def _hydrate_users(user_ids: List[str]) -> Dict[str, Dict[str, Any]]:
         return {}
     docs = await db.users.find(
         {"user_id": {"$in": list(set(user_ids))}},
-        {"_id": 0, "user_id": 1, "email": 1, "name": 1, "picture": 1},
+        {"_id": 0, "user_id": 1, "email": 1, "name": 1, "username": 1, "previous_username": 1, "picture": 1},
     ).to_list(length=500)
     return {d["user_id"]: d for d in docs}
 
@@ -627,6 +629,8 @@ async def post_message(
         "room_id": room_id,
         "user_id": user.user_id,
         "user_name": user.name or user.email,
+        "user_username": user.username,
+        "user_previous_username": user.previous_username,
         "chapter_index": chapter_index,
         "body": body.body.strip(),
         "created_at": now,
