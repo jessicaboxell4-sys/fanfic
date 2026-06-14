@@ -22,7 +22,10 @@ export default function NotificationMuteMatrix() {
       const { data } = await api.get("/user/notification-mutes");
       setCatalog(data?.catalog || []);
       setMuted(new Set(data?.muted_kinds || []));
-    } catch { toast.error("Couldn't load notification preferences"); }
+    } catch (e) {
+      console.error("notification-mutes load failed", e);
+      toast.error("Couldn't load notification preferences");
+    }
     finally { setLoading(false); }
   };
   useEffect(() => { load(); }, []);
@@ -94,7 +97,7 @@ export default function NotificationMuteMatrix() {
 
       <div className="space-y-4">
         {groups.map(([groupName, rows]) => (
-          <div key={groupName} data-testid={`mute-group-${groupName.toLowerCase().replace(/\s+/g, "-")}`}>
+          <div key={groupName} data-testid={`mute-group-${groupName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`}>
             <p className="text-[10px] font-semibold uppercase tracking-wider text-[#6B705C] mb-1.5">{groupName}</p>
             <ul className="space-y-1">
               {rows.map((row) => {

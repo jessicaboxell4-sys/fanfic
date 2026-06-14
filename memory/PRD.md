@@ -1869,3 +1869,15 @@ Both upload sites (the regular EPUB upload pipeline + the URL-fetch path) now pe
 - Tests: `test_friends_finished_digest.py` rewritten — now 8 cases covering default-disabled-email, toggle roundtrip, in-app-always-fires (regardless of email pref), `send_email=true` exercises email path, no-finishes empty-state, owned-book filter, email-overview includes `from_friends`. **Combined regression with digest + recommendations + opds + bookclubs: 92/92 passing.**
 - Frontend e2e (iteration 16): 5/5 acceptance criteria pass. Initial regression caught a missing handler pair; main agent re-added them following the existing `updateFicEmail/sendFicPreview` pattern. Pre-existing minor: weekly-digest day/hour selects emit `<span> cannot be a child of <option>` hydration warning — unrelated to this change, parked.
 
+
+### Added 2026-06-14 (Per-kind in-app notification mute matrix)
+- Users can now mute specific notification kinds (e.g. "I want bookclub invites but not message pings") while keeping all others firing. Critical/actionable kinds (`friend_request`, `bookclub_invite`) are non-mutable and gracefully bypass the mute check even if a stale entry exists.
+- Backend: `routes/notifications.py` now exposes a static `NOTIFICATION_CATALOG` (9 kinds across Friends / Book clubs / Recommendations / Suggestions groups) with `{kind, group, label, description, mutable}` rows.
+  - `create_notification()` consults `user.notification_mutes` for mutable kinds; muted kinds are silently dropped at insert time (no DB row, no unread badge increment).
+  - `GET /api/user/notification-mutes` → `{muted_kinds, catalog}`
+  - `PUT /api/user/notification-mutes` body `{muted_kinds: [str]}` — strips unknown + non-mutable kinds, returns `ignored_unknown` and `ignored_non_mutable` lists for transparency.
+- Frontend: new **`NotificationMuteMatrix.jsx`** lives at the bottom of `/account/emails`. Groups by section, shows each row's label + description, renders mutable kinds with a red/grey pill toggle and non-mutable ones in a disabled gray state with a "Critical — can't be muted" tooltip. Header shows a "X muted" badge when at least one kind is silenced.
+- Tests: `backend/tests/test_notification_mutes.py` — 6 cases (auth, default-empty, roundtrip, unknown/non-mutable rejected, muted-kind skips insert via real friends-finished preview flow, non-mutable critical-kind always fires via real friend-request flow). 6/6 pass. Combined regression with notifications + friends + recs + opds + bookclubs + friends-finished = **104/104 passing**.
+- Reviewer micro-fixes applied: console.error in the load-error catch, regex tightening on group testid generation.
+- Out of scope (parked): potential debounce on rapid-toggle save() — server is idempotent so the final state always converges.
+
