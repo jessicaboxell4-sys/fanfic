@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Sparkles, Loader2, X as XIcon, ArrowRight, Users } from "lucide-react";
 import { api } from "../lib/api";
+import PrimaryCTAButton from "./PrimaryCTAButton";
 
 /**
  * Compact recommendations widget for the Dashboard — shows up to 3 books
@@ -54,13 +55,13 @@ export default function FriendRecsCard() {
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] inline-flex items-center gap-2">
           <Sparkles className="w-3 h-3" /> From your friends
         </p>
-        <Link
+        <PrimaryCTAButton
           to="/library/recommendations"
-          data-testid="recs-see-all"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#6B46C1] text-white text-xs font-semibold hover:bg-[#553B96] transition-colors"
+          size="sm"
+          testid="recs-see-all"
         >
           See all <ArrowRight className="w-3 h-3" />
-        </Link>
+        </PrimaryCTAButton>
       </div>
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {top.map((rec) => {

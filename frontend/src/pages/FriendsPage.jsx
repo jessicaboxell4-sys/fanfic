@@ -8,6 +8,7 @@ import {
 import Navbar from "../components/Navbar";
 import FriendLibraryModal from "../components/FriendLibraryModal";
 import DmDrawer from "../components/DmDrawer";
+import PrimaryCTAButton from "../components/PrimaryCTAButton";
 import { api } from "../lib/api";
 
 function PersonRow({ row, children, testid }) {
@@ -193,14 +194,14 @@ export default function FriendsPage() {
             <p className="text-sm text-[#6B705C]">
               Send friend requests, accept incoming ones, manage blocks. Click <strong>Message</strong> on any friend to chat inline.
             </p>
-            <Link
+            <PrimaryCTAButton
               to="/bookclubs"
-              data-testid="friends-to-bookclubs"
-              className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#6B46C1] text-white text-sm font-semibold hover:bg-[#553B96] transition-colors shadow-sm"
+              icon={Library}
+              testid="friends-to-bookclubs"
+              className="mt-3"
             >
-              <Library className="w-4 h-4" />
               Read a book together in a reading room
-            </Link>
+            </PrimaryCTAButton>
           </div>
         </div>
 
