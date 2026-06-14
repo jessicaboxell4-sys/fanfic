@@ -1802,3 +1802,42 @@ Both upload sites (the regular EPUB upload pipeline + the URL-fetch path) now pe
 - Notifications cover four kinds: `bookclub_invite`, `bookclub_joined`, `bookclub_message`, `bookclub_finished` — all link back to `/bookclubs[/{room_id}]` so the existing notifications bell surfaces them.
 - Tests: `backend/tests/test_bookclubs.py` — 29 cases across 6 classes (create + list, invite flow, edit + roles, messages, progress + milestones, transfer + leave). 29/29 pass. Full-flow agent verification 13/13 frontend flows pass against live preview.
 - Deliberately deferred: live cursor / typing indicators (would need websockets), public room discovery, voice/video, room-wide email digest of last week's messages.
+
+### Added 2026-06-14 (Friend-recommendations widget — P2)
+- New `routes/recommendations.py` exposes ranked book recs based on what your friends have read and loved. Only considers friends who opted into library sharing (`library_visible_to_friends: true`); private libraries stay private.
+- Scoring per book: `3 × finished_count + 1 × serious_readers_30min + min(total_minutes/60, 5)`. Tie-break on most-recent activity.
+- Grouping: identical books from multiple friends collapse into one rec via a canonical-URL-first key (`url:<canonical>` if any `fanfic_urls`/`source_url` matches; otherwise normalized `title|author`). Surfaces `friend_count`, `finished_count`, `total_minutes`, per-friend names.
+- Already-owned filter: matches caller's library by canonical URL or normalized title+author.
+- Endpoints:
+  - `GET /api/recommendations/friends?limit=N` → `{recommendations, friend_count, shared_friend_count}`
+  - `POST /api/recommendations/dismiss` / `POST /api/recommendations/undismiss` — body `{rec_key}`
+  - `GET /api/recommendations/dismissed` — list dismissals with title/author hints
+- New collection: `recommendation_dismissals {user_id, rec_key, title, author, dismissed_at}`.
+- Frontend:
+  - **`FriendRecsCard.jsx`** (`data-testid="friend-recs-card"`) — Dashboard widget (auto-hides if empty), shows top 3 with byline ("Alice, Bob +2 more") + finish count + per-card Hide + Open-source links. "See all" links to the full page.
+  - **`/library/recommendations`** (`RecommendationsPage.jsx`) — full list with rich rows, dismissed-list toggle + Restore action, meta strip showing total friends / sharing-friends count, contextual empty state pointing at /friends when no friends exist or no one shares.
+  - Wired into `App.js` route, Dashboard placement between Help+Suggestions and Pinned smart shelves.
+- Tests: `backend/tests/test_recommendations.py` — 7 cases (auth, sharing-only filter, owned filter, grouping, ranking, dismiss/undismiss roundtrip, no-friends empty state). 7/7 pass.
+
+### Added 2026-06-14 (OPDS catalog endpoint — P2 e-reader sync)
+- New `routes/opds.py` exposes the user's library as an OPDS 1.2 acquisition + navigation feed so standalone e-reader apps (KOReader, Moon+ Reader, Marvin, Foliate, Librera) can browse and download books offline.
+- HTTP Basic auth using a dedicated "catalog password" (separate from the user's primary login). Stored as bcrypt hash on the user doc; plaintext revealed exactly ONCE at generation. `opds_enabled` toggle gates access independently of the password (defence in depth).
+- Endpoints:
+  - `GET /api/user/catalog-credentials` — status (cookie/Bearer auth)
+  - `POST /api/user/catalog-credentials/regenerate` — issue fresh password (returns plaintext, hashes server-side)
+  - `PUT /api/user/catalog-credentials` — toggle on/off
+  - `GET /api/opds` — root navigation feed
+  - `GET /api/opds/all?page=N` · `/recent?page=N` — acquisition feeds (50/page, prev/next/first/last links)
+  - `GET /api/opds/fandoms` and `/api/opds/fandom/{name}?page=N`
+  - `GET /api/opds/authors` and `/api/opds/author/{name}?page=N`
+  - `GET /api/opds/cover/{book_id}` — JPEG bytes
+  - `GET /api/opds/download/{book_id}` — `application/epub+zip` stream
+- Atom XML rendered by hand (no extra dep); all entries carry `<dc:language>`, `<category>` for fandom + category, OPDS image + thumbnail rels, and a final `acquisition` rel pointing at the download endpoint. Archived ("Old stories"/Trash) books and `replaced_by`-linked entries are filtered out.
+- Public base URL derived from `X-Forwarded-Proto`/`X-Forwarded-Host` so feeds work behind the K8s ingress; can be overridden by `PUBLIC_BASE_URL` env.
+- Frontend: **`CatalogSyncCard.jsx`** lands in `/account` after the privacy card (`data-testid="opds-card"`) — generate-password button on first use, then exposes the catalog URL + one-shot plaintext credentials with copy buttons, a master enable/disable toggle, regenerate (with confirm), and an expandable setup-instructions block covering KOReader, Moon+ Reader, Marvin/Foliate/Librera.
+- Tests: `backend/tests/test_opds.py` — 15 cases (credentials lifecycle, basic-auth gating, root feed, all/fandoms/authors/fandom/author acquisition feeds, cover/download/404, disabled-blocks-access). 15/15 pass.
+
+### Combined verification 2026-06-14
+- `pytest tests/test_recommendations.py tests/test_opds.py tests/test_bookclubs.py` → **51/51 passing** on live preview URL.
+- testing_agent_v3_fork full e2e (backend + frontend): **100% on both** features. No bugs surfaced.
+

@@ -426,7 +426,7 @@ async def opds_fandom(request: Request, name: str, page: int = 1):
 async def opds_authors(request: Request):
     user = await _basic_auth_user(request)
     pipeline = [
-        {"$match": {"user_id": user.user_id, "author": {"$ne": None, "$ne": "", "$exists": True}, **_q_excluding_archived()}},
+        {"$match": {"user_id": user.user_id, "author": {"$nin": [None, ""]}, **_q_excluding_archived()}},
         {"$group": {"_id": "$author", "n": {"$sum": 1}}},
         {"$sort": {"_id": 1}},
     ]
