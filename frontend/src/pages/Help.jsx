@@ -48,7 +48,13 @@ const SECTIONS = [
   { id: "detection", label: "Detection & overrides" },
   { id: "data-safety", label: "Backup & restore" },
   { id: "reading", label: "Reader & stats" },
+  { id: "word-count", label: "Word count & reading time" },
   { id: "messages", label: "Messages & friends" },
+  { id: "bookclubs", label: "Book-club reading rooms" },
+  { id: "recommendations", label: "Friend recommendations" },
+  { id: "opds", label: "E-reader sync (OPDS)" },
+  { id: "notifications", label: "Notifications & mutes" },
+  { id: "auto-theme", label: "Scheduled auto-theme" },
   { id: "account", label: "Account & preferences" },
 ];
 
@@ -288,6 +294,21 @@ export default function Help() {
           </div>
         </aside>
 
+        {/* What's new strip — surfaces recent features so users can find them */}
+        <div className="mb-8 p-5 rounded-2xl border border-[#E5DDC5] bg-[#FDFBF7]" data-testid="whats-new-strip">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-2">What&apos;s new</p>
+          <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-1 text-sm text-[#2C2C2C] list-disc list-inside">
+            <li><a href="#bookclubs" className="hover:underline">Book-club reading rooms</a> — chat-style layout</li>
+            <li><a href="#word-count" className="hover:underline">Word count &amp; reading time</a> with WPM setting</li>
+            <li><a href="#recommendations" className="hover:underline">Friend recommendations</a> + weekly Sunday digest</li>
+            <li><a href="#auto-theme" className="hover:underline">Scheduled auto-theme</a> (light by day / dark by night)</li>
+            <li><a href="#opds" className="hover:underline">E-reader sync (OPDS)</a> for KOReader, Moon+, Marvin</li>
+            <li><a href="#notifications" className="hover:underline">Per-kind notification mutes</a></li>
+            <li><a href="#messages" className="hover:underline">Friends &amp; DMs unified</a> at /friends with inline chat drawer</li>
+            <li><a href="#bookclubs" className="hover:underline">Book-club weekly email digest</a> (opt-in)</li>
+          </ul>
+        </div>
+
         <div className="grid md:grid-cols-[200px,1fr] gap-10">
           <nav className="md:sticky md:top-24 self-start" data-testid="help-toc">
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-3">Sections</p>
@@ -359,7 +380,7 @@ export default function Help() {
             <Section id="discovery" icon={UserIcon} title="Browsing & discovery">
               <p>Shelfsort indexes your library by who wrote what and who is shipped with whom.</p>
               <ul>
-                <li><strong>Find-a-fandom search</strong> — when your library carries more than 10 fandoms, a search box appears above the Fandom rail on the <Link to="/library/all">All books</Link> page with one-click <em>Try:</em> chips for your top 5 biggest fandoms. Type "harry" and only the Harry Potter shelf surfaces; clear to bring everything back.</li>
+                <li><strong>Find-a-fandom search</strong> — when your library carries more than 10 fandoms, a search box appears above the Fandom rail on the <Link to="/library/all">All books</Link> page with one-click <em>Try:</em> chips for your top 5 biggest fandoms. Type &ldquo;harry&rdquo; and only the Harry Potter shelf surfaces; clear to bring everything back.</li>
                 <li><strong>Chip-icon shorthand</strong> — every chip rail uses a tiny glyph so you can read its type at a glance: <code>Aa</code> for a regular fandom, <code>⇄</code> for a crossover (with the joined-fandom count next to it), <code>♡</code> for a pairing/ship, <code>👤</code> for an author. The compact key at the top of this Help page is the official cheatsheet.</li>
                 <li><strong><Link to="/library/authors">Authors directory</Link></strong> — every author in your library with book counts, sorted by count. Click a name to see all their books with status badges. Reachable from the dashboard&apos;s Authors section via &ldquo;View all →&rdquo;.</li>
                 <li><strong><Link to="/library/pairings">Pairings browser</Link></strong> — every ship/relationship across your library with counts and sample titles. Click a pairing to see the books featuring it. Pairings are extracted from EPUB metadata at upload time and canonicalized (alphabetical order, slash delimiter) so identical ships from different sources group correctly.</li>
@@ -547,6 +568,75 @@ export default function Help() {
               <p className="text-xs text-[#6B705C] italic">
                 Phase 1c (one-click &ldquo;switch to open&rdquo; banner) and websockets for instant delivery are parked. Current 15-second poll is plenty for casual chat.
               </p>
+            </Section>
+
+            <Section id="word-count" icon={BookOpen} title="Word count & reading time">
+              <p>Every uploaded EPUB is indexed for full-text search at upload — the same pass also stamps a <strong>word count</strong> on the book. From that, Shelfsort computes a <strong>reading-time estimate</strong> using your personal reading speed (words-per-minute).</p>
+              <ul>
+                <li><strong>Per-book</strong>: open any book&apos;s detail page to see its word count and total reading time. For half-read books the estimate splits into &quot;<em>Xh Ym total · Zm left</em>&quot; based on your current progress.</li>
+                <li><strong>Dashboard tile</strong>: a &quot;<strong>Reading time</strong>&quot; card shows your full library at a glance — minutes left to read, minutes already read, library total. Hides automatically until at least one book has a word count.</li>
+                <li><strong>Reading speed</strong>: change yours at <Link to="/account/appearance">Appearance → Reading speed</Link>. Default is 250 wpm (average adult fiction); presets cover Slow (180), Average (250), Fast (350), Speed reader (500). Slider and number input go from 80 to 1500.</li>
+                <li><strong>Backfill</strong>: books uploaded before this feature shipped get their word count filled in lazily by an admin sweep, or instantly if an admin runs <code>POST /api/admin/wordcount/backfill</code>.</li>
+              </ul>
+            </Section>
+
+            <Section id="bookclubs" icon={MessageSquare} title="Book-club reading rooms">
+              <p>Private invite-only spaces where you and friends read the <em>same book</em> together. Find them at <Link to="/bookclubs">/bookclubs</Link>.</p>
+              <ul>
+                <li><strong>Chat-style layout</strong>: room list on the left, active conversation in the middle, members + progress + invites in a collapsible right rail. Mobile collapses the room list into a drawer.</li>
+                <li><strong>Chapter threads</strong>: every room has a <em>Lobby</em> plus one tab per chapter in the book. Pick a tab to scope your messages to that part of the book — perfect for spoiler-safe discussion.</li>
+                <li><strong>Progress slider</strong>: drag to mark your current chapter. When you cross the finish line, every other active member gets a notification (and a row in the Sunday digest if they&apos;ve opted in).</li>
+                <li><strong>Roles</strong>: Owner / Moderator / Member. Owners can edit, invite, promote, demote, remove, transfer ownership, or delete. Moderators can edit + invite + remove. Members read &amp; post.</li>
+                <li><strong>Friends-only invites</strong>: you can only invite accepted friends to a reading room. Use <Link to="/friends">/friends</Link> to add people first.</li>
+                <li><strong>Notifications</strong>: bookclub invites and per-message pings always fire in the bell. Optional <em>weekly email digest</em> ships every Monday at 08:00 UTC summarising the past week&apos;s activity across all your rooms — opt-in at <Link to="/account/emails">Account → Emails</Link>.</li>
+              </ul>
+            </Section>
+
+            <Section id="recommendations" icon={Sparkles} title="Friend recommendations">
+              <p>Once you&apos;ve added friends and at least one of them has opted to share their library, Shelfsort surfaces books they&apos;ve loved that you don&apos;t own yet.</p>
+              <ul>
+                <li><strong>Ranking</strong>: <code>3 × finishers + 1 × serious_readers + reading_minutes/60</code>, capped. A single very-invested friend can punch above multiple casual finishers.</li>
+                <li><strong>Grouping</strong>: when several friends have the same book, the rec collapses into one row showing the combined byline (&ldquo;Alice, Bob +2 more&rdquo;).</li>
+                <li><strong>Already-owned filter</strong>: anything matching by canonical URL or normalised title+author is hidden.</li>
+                <li><strong>Surfaces</strong>: top 3 on the Dashboard via the <em>From your friends</em> card (auto-hides when empty); full list at <Link to="/library/recommendations">/library/recommendations</Link> with hide / restore controls.</li>
+                <li><strong>Weekly &quot;From friends&quot; digest</strong>: an in-app notification lands every Sunday at 18:00 UTC summarising what your sharing friends finished. Opt in at <Link to="/account/emails">Account → Emails</Link> to also receive an email copy.</li>
+              </ul>
+            </Section>
+
+            <Section id="opds" icon={Globe} title="E-reader sync (OPDS catalog)">
+              <p>OPDS is the standard XML feed format that <strong>KOReader, Moon+ Reader, Marvin, Foliate</strong> and other standalone e-reader apps use to browse + download books from a server. Shelfsort serves a per-user OPDS catalog so you can point your e-reader at your library and read offline.</p>
+              <ul>
+                <li><strong>Setup</strong>: <Link to="/account">Account</Link> → <em>E-reader sync</em> card. Click <em>Generate catalog password</em>, save the username (your email) + password (shown once), and toggle the channel on.</li>
+                <li><strong>Catalog URL</strong>: ends with <code>/api/opds</code>, with HTTP Basic auth using the catalog password (separate from your primary login password).</li>
+                <li><strong>Feeds</strong>: root → All books / Recently added / By fandom / By author. Acquisition links download the EPUB; cover thumbnails included.</li>
+                <li><strong>Privacy</strong>: only your own books are served. The toggle gates access independently of the password — switch it off any time without re-rolling the password.</li>
+              </ul>
+            </Section>
+
+            <Section id="notifications" icon={Settings} title="Notifications & mutes">
+              <p>The bell icon in the navbar shows every kind of in-app ping — friend requests, accepted requests, friend uploads in fandoms you collect, bookclub invites + messages + finishers, weekly digests, suggestion status changes.</p>
+              <ul>
+                <li><strong>In-app notifications always fire</strong> — there&apos;s no master &quot;all on/off&quot; toggle. Emails are the only thing you opt into.</li>
+                <li><strong>Per-kind mute matrix</strong>: at <Link to="/account/emails">Account → Emails</Link>, scroll past the email channels to the <em>In-app notifications</em> card. Each kind has its own toggle so you can keep bookclub invites loud and silence chatty message pings.</li>
+                <li><strong>Critical kinds</strong> (friend requests, bookclub invites) cannot be muted — they&apos;re actionable and would silently disappear if turned off.</li>
+                <li><strong>Email channels</strong> (all opt-in, default OFF): Weekly digest, Fic updates, Year-in-Books recap, From-friends weekly, Book-club weekly. Each has a &quot;send sample&quot; button so you can preview before subscribing.</li>
+              </ul>
+            </Section>
+
+            <Section id="auto-theme" icon={Sparkles} title="Scheduled auto-theme">
+              <p>Three modes at <Link to="/account/appearance">Appearance → Theme</Link>:</p>
+              <ul>
+                <li><strong>Light</strong> — always.</li>
+                <li><strong>Dark</strong> — always.</li>
+                <li>
+                  <strong>Auto</strong> — switches based on a strategy you pick:
+                  <ul>
+                    <li><em>Time of day</em> (default): set a <strong>dark window</strong> (e.g. 19:00 → 07:00 local). Windows that span midnight work. Shelfsort re-evaluates every 60 seconds so the flip lands at the right minute without a page reload.</li>
+                    <li><em>Follow system</em>: tracks the OS / browser <code>prefers-color-scheme</code> media query. Live-reacts when you change the system theme.</li>
+                  </ul>
+                </li>
+              </ul>
+              <p className="text-xs text-[#6B705C]">Stored to localStorage only (per-browser).</p>
             </Section>
 
             <Section id="account" icon={Settings} title="Account & preferences">
