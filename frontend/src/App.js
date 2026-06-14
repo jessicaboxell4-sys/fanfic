@@ -35,6 +35,7 @@ import RecommendationsPage from "@/pages/RecommendationsPage";
 import SuggestionsPage from "@/pages/SuggestionsPage";
 import InviteAcceptPage from "@/pages/InviteAcceptPage";
 import Reader from "@/pages/Reader";
+import ReadOriginal from "@/pages/ReadOriginal";
 import CompareVersions from "@/pages/CompareVersions";
 import EmailPreferences from "@/pages/EmailPreferences";
 import FindDuplicates from "@/pages/FindDuplicates";
@@ -148,6 +149,7 @@ function AppRouter() {
       <Route path="/book/:id" element={<ProtectedRoute><BookDetail /></ProtectedRoute>} />
       <Route path="/book/:id/compare" element={<ProtectedRoute><CompareVersions /></ProtectedRoute>} />
       <Route path="/read/:id" element={<ProtectedRoute><Reader /></ProtectedRoute>} />
+      <Route path="/read-original/:id" element={<ProtectedRoute><ReadOriginal /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
     <TourMount />

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { FileText, AlertTriangle, ArrowLeft, Loader2, RefreshCw } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { FileText, AlertTriangle, ArrowLeft, Loader2, RefreshCw, BookOpen } from "lucide-react";
 import { api } from "../lib/api";
 import { toast } from "sonner";
 import Navbar from "../components/Navbar";
@@ -9,6 +9,7 @@ import Navbar from "../components/Navbar";
 // DOCX, etc.) without running Calibre conversion. They live here, away
 // from the main EPUB library, so the reader / shelves / stats stay clean.
 export default function OriginalsShelf() {
+  const navigate = useNavigate();
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [convertingId, setConvertingId] = useState(null);
@@ -177,6 +178,15 @@ export default function OriginalsShelf() {
                 </div>
                 <div className="flex gap-2 flex-shrink-0">
                   <button
+                    onClick={() => navigate(`/read-original/${b.book_id}`)}
+                    data-testid={`original-read-${b.book_id}`}
+                    title="Open this original in the smart viewer (PDF/TXT/HTML render in-app; Kindle/DOCX get a one-click convert-and-read)"
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-[#E5DDC5] text-[#6B705C] hover:border-[var(--primary)] hover:text-[var(--primary)] inline-flex items-center gap-1.5"
+                  >
+                    <BookOpen className="w-3.5 h-3.5" />
+                    Read
+                  </button>
+                  <button
                     onClick={() => convertOne(b)}
                     disabled={convertingId === b.book_id}
                     data-testid={`original-convert-${b.book_id}`}
@@ -187,7 +197,7 @@ export default function OriginalsShelf() {
                     Convert to EPUB
                   </button>
                   <a
-                    href={`${process.env.REACT_APP_BACKEND_URL}/api/books/${b.book_id}/download`}
+                    href={`${process.env.REACT_APP_BACKEND_URL}/api/books/${b.book_id}/download-original`}
                     download
                     data-testid={`original-download-${b.book_id}`}
                     className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[#E07A5F] text-white hover:bg-[#d06a4f]"

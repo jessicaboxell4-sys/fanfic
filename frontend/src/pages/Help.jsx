@@ -430,7 +430,14 @@ export default function Help() {
                 <li><strong><Link to="/library/ongoing">Ongoing</Link></strong> <Clock className="inline w-3 h-3" /> — WIPs, in-progress, hiatus, abandoned, or &quot;Chapter X of Y&quot; where X &lt; Y</li>
                 <li><strong><Link to="/library/linkless">Linkless</Link></strong> — books with no embedded source URL (originals, very old uploads, manuscripts). Lets you paste a source URL after the fact via the inline claim flow.</li>
                 <li><strong><Link to="/library/unreadable">Unreadable</Link></strong> <FileWarning className="inline w-3 h-3" /> — files that couldn&apos;t be parsed (corrupt EPUBs) or converted (Calibre rejected a PDF/Kindle/DOCX). Original bytes stay on disk so you can download a copy to inspect or delete it.</li>
-                <li><strong><Link to="/library/originals">Originals</Link></strong> — books you uploaded as PDF/MOBI/etc. while an EPUB version already exists</li>
+                <li><strong><Link to="/library/originals">Originals</Link></strong> — books you uploaded as PDF/MOBI/AZW/DOCX/etc. and chose to keep as-is (without running Calibre). Each row has three buttons:
+                  <ul>
+                    <li><strong>Read</strong> opens the smart in-app viewer at <code>/read-original/&lt;book_id&gt;</code>. PDF/HTML/HTM render via your browser&apos;s built-in viewer; TXT renders in a clean serif layout; DOCX is converted to HTML client-side via mammoth.js; everything else (MOBI, AZW, AZW3, KF8, KFX, FB2, LIT, LRF, PDB, DOC, RTF) gets a one-click <em>Convert to EPUB and read</em> button that runs Calibre and lands you in the regular reader.</li>
+                    <li><strong>Convert to EPUB</strong> runs Calibre and promotes the book into the main library — same flow as the bulk <em>Convert all</em> button at the top.</li>
+                    <li><strong>Download</strong> streams the raw original file so you can read it in an external app like Apple Books, Kindle, or Adobe Reader.</li>
+                  </ul>
+                  An <strong>Open in new tab</strong> link sits in the Read viewer&apos;s header too — it pops the raw file open in a fresh browser tab so you can use the browser&apos;s built-in viewer / save dialog.
+                </li>
                 <li><strong>Smart Shelves</strong> — saved filter combinations (fandom + tag + status + …); manage them on the Account page</li>
               </ul>
               <p>The Dashboard surfaces a count chip for any non-empty special shelf so you can see what needs attention.</p>
