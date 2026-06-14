@@ -191,8 +191,16 @@ export default function FriendsPage() {
           <div>
             <h1 className="font-serif text-3xl sm:text-4xl text-[#2C2C2C]">Friends</h1>
             <p className="text-sm text-[#6B705C]">
-              Send friend requests, accept incoming ones, manage blocks. Click <strong>Message</strong> on any friend to chat inline. Read a book together in a <Link to="/bookclubs" className="underline text-[#6B46C1]" data-testid="friends-to-bookclubs">reading room</Link>.
+              Send friend requests, accept incoming ones, manage blocks. Click <strong>Message</strong> on any friend to chat inline.
             </p>
+            <Link
+              to="/bookclubs"
+              data-testid="friends-to-bookclubs"
+              className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#6B46C1] text-white text-sm font-semibold hover:bg-[#553B96] transition-colors shadow-sm"
+            >
+              <Library className="w-4 h-4" />
+              Read a book together in a reading room
+            </Link>
           </div>
         </div>
 
