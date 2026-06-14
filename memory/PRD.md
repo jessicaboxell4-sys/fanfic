@@ -1929,3 +1929,17 @@ Both upload sites (the regular EPUB upload pipeline + the URL-fetch path) now pe
   - Tweaked the bookclub-digest preview toast copy to distinguish "delivered / error / not configured / no activity".
   - Other suggestions (debounce WPM slider, rename `progress_percent` semantics, audit cron TZ) parked as low-priority follow-ups.
 
+
+### Changed 2026-06-14 (Bookclub UX — single chat-style page)
+- User directive: "make it so that rooms and messages are all on one page."
+- Consolidated the previous two-page bookclub flow (`BookclubsListPage.jsx` + `BookclubRoomPage.jsx`) into a single chat-style page `BookclubsPage.jsx`:
+  - **Left rail** (`data-testid="bookclubs-left-rail"`, ≈288px): room cards with role badge, per-room progress bar, member count, and chapter status. Pending invites floated to the top with inline Accept/Decline. Client-side search filter (`room-search`) over name + book title + author. "+ New room" affordance always visible.
+  - **Main panel** (`data-testid="active-room-panel"`): condensed header (title + book link + edit/leave/delete icons), sticky chapter-tabs row, scrolling message thread, fixed composer at the bottom with ⌘/Ctrl+Enter shortcut.
+  - **Collapsible right rail** (`data-testid="right-rail"`, ≈288px): my-progress slider + members list with inline role-management + invite-friends block. Toggled by `data-testid="toggle-right-rail"`.
+  - **Mobile** (<lg): left rail collapses into a drawer (`data-testid="mobile-room-drawer-toggle"`); selecting a room auto-closes it.
+- Routing: both `/bookclubs` and `/bookclubs/:roomId` point at the same component. Bare `/bookclubs` auto-redirects (replace) to the first room when the user has at least one. Deep-links still work.
+- All previous `data-testid` attributes preserved (chapter-tab-N, message-input, send-message-btn, messages-list, progress-slider, members-card, edit-room-btn, etc.) so existing tests + downstream scripts keep working.
+- Removed files: `pages/BookclubsListPage.jsx`, `pages/BookclubRoomPage.jsx`.
+- testing_agent_v3_fork frontend e2e (iter19): **12/12 acceptance criteria pass**; one test-script race in T9 (not a product bug); reviewer flagged the single 773-line file as a candidate for future split into `/pages/bookclubs/*.jsx` (parked, low priority).
+- Backend regression: `pytest tests/test_bookclubs.py` → **29/29 pass** (no backend changes).
+
