@@ -1764,3 +1764,11 @@ Both upload sites (the regular EPUB upload pipeline + the URL-fetch path) now pe
   - Resend send goes through `asyncio.to_thread`, logged via the existing `log_email_send` helper so the Admin Console's Email-stats card shows the delivery.
 - Safety: missing `RESEND_API_KEY`/`SENDER_EMAIL` → silent no-op (logs once at info, no crash); admin lookup or Resend send exception → logged and swallowed so the cron telemetry write path is always safe.
 - Tests: 5 new pytests in `backend/tests/test_cron_failure_alerts.py` covering success email, debounce, feature-flag mute, missing-Resend no-op, and successful jobs producing no email. Monkey-patches `resend.Emails.send` so no real HTTP is fired. All 5 pass; existing cron-health + admin-db + linkless + dark-mode suites still green (29/29 across the day's work).
+
+
+### Updated 2026-06-13 (Help page — caught up with today's user-facing changes)
+- Refreshed `FALLBACK_WHATS_NEW` (in `pages/Help.jsx`) to today's actual fresh items: chip-icon key, Find-a-fandom search, Share-your-palette (Markdown + PNG), 1-click theme toggle, all-purple polish. Version string bumped to `2026-06-13-purple` so the localStorage-persisted "what's new" pulse re-triggers for everyone who already dismissed the prior version.
+- **Discovery section** rewritten with two new top bullet points: "Find-a-fandom search" (when the search box appears, how the suggestion chips work) and "Chip-icon shorthand" (documents the ⇄ / ♡ / 👤 glyph convention).
+- **Account section** brought up to date: Appearance description corrected to describe the **paired Sun/Moon + Palette icon group** ("flips light↔dark on a single click"); Share palette card lists all **three** options — Copy token, Copy as Markdown, Download PNG — with one-line descriptions each.
+- Verified via Playwright that all 5 documentation strings render on the live Help page.
+- Out-of-scope on purpose: admin-only features (Mongo inspector, cron-failure alerts, condensed Admin Console) aren't documented in the user-facing Help page — they're operator tooling.

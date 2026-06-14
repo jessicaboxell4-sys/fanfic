@@ -19,14 +19,14 @@ import {
 // deploy, POST to /api/announcements with a fresh `version` string.
 // `version` doubles as the per-user localStorage dismissal key.
 const FALLBACK_WHATS_NEW = {
-  version: "2026-06-13",
+  version: "2026-06-13-purple",
   title: "Fresh in Shelfsort",
   items: [
-    { to: "/library/unread", label: "Reader bookmarks", desc: "— save any page in the Reader, jump back from the bookmark panel, and see all your bookmarks across the library." },
-    { to: "/library/unread", label: "Books I haven't read shelf", desc: "— a one-click filter for everything in your library you haven't opened yet." },
-    { to: "/", label: "\u201CSurprise me\u201D random book", desc: "— Dashboard button that opens a random unread book." },
-    { to: "/", label: "Reading queue", desc: "— stack your next reads as an \u201CUp next\u201D list that follows you across devices." },
-    { to: "/friends", label: "Friend uploads pings", desc: "— get notified when friends add a book in a fandom you also collect." },
+    { to: "/help#chip-key", label: "Chip-icon key", desc: "— spot crossovers (⇄), pairings (♡), and authors (👤) from across the room without reading a single name." },
+    { to: "/library/all", label: "Find-a-fandom search", desc: "— when your library has more than 10 fandoms, a search box appears at the top of the Fandom rail with one-click suggestion chips for your biggest fandoms." },
+    { to: "/account/appearance", label: "Share your palette", desc: "— copy the full hex palette as a Markdown block (perfect for Discord/GitHub) or download a 800×420 PNG snapshot." },
+    { to: "/", label: "1-click theme toggle", desc: "— Sun/Moon icon in the navbar flips light↔dark on a single tap; the small palette icon next to it still opens the full accent-colour panel." },
+    { to: "/library/all", label: "All-purple polish", desc: "— the entire app now lives on one cohesive purple palette: Download page, crossovers, pairings, authors, and dark mode all unified." },
   ],
 };
 const WHATS_NEW_KEY = "shelfsort.whatsNewDismissed";
@@ -359,6 +359,8 @@ export default function Help() {
             <Section id="discovery" icon={UserIcon} title="Browsing & discovery">
               <p>Shelfsort indexes your library by who wrote what and who is shipped with whom.</p>
               <ul>
+                <li><strong>Find-a-fandom search</strong> — when your library carries more than 10 fandoms, a search box appears above the Fandom rail on the <Link to="/library/all">All books</Link> page with one-click <em>Try:</em> chips for your top 5 biggest fandoms. Type "harry" and only the Harry Potter shelf surfaces; clear to bring everything back.</li>
+                <li><strong>Chip-icon shorthand</strong> — every chip rail uses a tiny glyph so you can read its type at a glance: <code>Aa</code> for a regular fandom, <code>⇄</code> for a crossover (with the joined-fandom count next to it), <code>♡</code> for a pairing/ship, <code>👤</code> for an author. The compact key at the top of this Help page is the official cheatsheet.</li>
                 <li><strong><Link to="/library/authors">Authors directory</Link></strong> — every author in your library with book counts, sorted by count. Click a name to see all their books with status badges. Reachable from the dashboard&apos;s Authors section via &ldquo;View all →&rdquo;.</li>
                 <li><strong><Link to="/library/pairings">Pairings browser</Link></strong> — every ship/relationship across your library with counts and sample titles. Click a pairing to see the books featuring it. Pairings are extracted from EPUB metadata at upload time and canonicalized (alphabetical order, slash delimiter) so identical ships from different sources group correctly.</li>
                 <li><strong>Smart Shelves</strong> — combine filters into a saved view (Drarry-Complete-only, Sterek-WIPs, etc.).</li>
@@ -556,8 +558,9 @@ export default function Help() {
                 <li><strong>Fandom aliases</strong> — map your custom shorthand to canonical fandom names</li>
                 <li><strong>Format prefs</strong> for the Originals shelf</li>
                 <li>
-                  <strong>Appearance</strong> (theme + colour) — click the sun/moon icon in the Navbar.
-                  A small popover drops down with the Light/Dark toggle and the seven palette swatches
+                  <strong>Appearance</strong> (theme + colour) — the Navbar carries a paired button group:
+                  the <strong>Sun/Moon icon flips light↔dark on a single click</strong>, and the small
+                  palette icon next to it opens an Appearance popover with the seven palette swatches
                   (Peach, Purple, Forest, Ocean, Crimson, Charcoal, and Custom). Hover any swatch to see
                   its name in a live caption. Click a swatch to flip the accent colour site-wide instantly.
                   Tap <strong>More appearance options</strong> at the bottom of the popover to open the
@@ -567,7 +570,14 @@ export default function Help() {
                     <li><strong>The full Custom hex picker</strong> — four colour inputs for Primary, Primary hover, and two pale tints. Dark-mode variants are auto-derived via HSL math</li>
                     <li><strong>Live preview</strong> showing your active palette on a primary button, secondary button, NEW pill, and a pale-tint card with link</li>
                     <li><strong>Curated palettes gallery</strong> — six hand-picked named palettes (Cozy Library, Midnight Reader, Sun-bleached Paperback, AO3 Classic, Forest Floor, Vintage Ink) you can apply with one click and then tweak</li>
-                    <li><strong>Share palette</strong> card — copy your current palette as a short token (e.g. <code>ss-p-forest</code> for presets, longer <code>ss-c-…</code> base64 for Custom) and apply tokens others have shared with you</li>
+                    <li>
+                      <strong>Share palette</strong> card — three ways to share your current look:
+                      <ul>
+                        <li><strong>Copy token</strong> — a short string (e.g. <code>ss-p-forest</code> for presets, longer <code>ss-c-…</code> base64 for Custom) that someone else can paste to apply your palette in one tap.</li>
+                        <li><strong>Copy as Markdown</strong> — drops a formatted block with the palette name, theme, hex codes, and import token onto your clipboard. Pastes cleanly into Discord, GitHub, Notion, anywhere Markdown lives.</li>
+                        <li><strong>Download PNG</strong> — generates an 800×420 screenshot of the four swatches with hex labels and palette name; perfect for sharing on social.</li>
+                      </ul>
+                    </li>
                     <li><strong>Reset to defaults</strong> link at the bottom — two-click confirmation, restores the default Purple palette + default Custom hexes</li>
                   </ul>
                   Saved to this browser only.
