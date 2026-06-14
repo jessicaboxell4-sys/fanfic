@@ -10,6 +10,7 @@ import LibraryActivityWidgets from "../components/LibraryActivityWidgets";
 import UrlPasteCard from "../components/UrlPasteCard";
 import DashboardHelpCard from "../components/DashboardHelpCard";
 import DashboardSuggestionsBox from "../components/DashboardSuggestionsBox";
+import FriendRecsCard from "../components/FriendRecsCard";
 import DuplicateResolutionModal from "../components/DuplicateResolutionModal";
 import UrlListDedupeModal from "../components/UrlListDedupeModal";
 import { Library, ArrowRight, Pin, RotateCcw, BarChart3 } from "lucide-react";
@@ -151,6 +152,9 @@ export default function Dashboard() {
           <DashboardHelpCard />
           <DashboardSuggestionsBox />
         </section>
+
+        {/* Friend recommendations — auto-hides if there's nothing to show */}
+        <FriendRecsCard />
 
         {/* Pinned smart shelves — only when the user has some */}
         {pinnedShelves.length > 0 && (

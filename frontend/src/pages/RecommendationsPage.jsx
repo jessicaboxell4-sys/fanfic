@@ -1,0 +1,202 @@
+import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { toast } from "sonner";
+import {
+  ArrowLeft, Sparkles, Loader2, X as XIcon, Users, RotateCcw,
+  ExternalLink, BookOpen,
+} from "lucide-react";
+import Navbar from "../components/Navbar";
+import { api } from "../lib/api";
+
+function RecRow({ rec, onDismiss, busyKey }) {
+  const friendNames = rec.friends.slice(0, 5).map((f) => f.name);
+  const moreCount = Math.max(0, rec.friend_count - friendNames.length);
+  const byline = friendNames.join(", ") + (moreCount > 0 ? ` +${moreCount} more` : "");
+
+  return (
+    <li
+      data-testid={`rec-row-${rec.rec_key}`}
+      className="bg-white border border-[#E8E6E1] rounded-2xl p-5 flex flex-col md:flex-row md:items-start gap-4"
+    >
+      <div className="flex-shrink-0 w-12 h-16 bg-[#F5F3EC] rounded-md flex items-center justify-center">
+        <BookOpen className="w-6 h-6 text-[#E5DDC5]" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <h3 className="font-serif text-lg text-[#2C2C2C]">{rec.title}</h3>
+        <p className="text-sm text-[#6B705C]">{rec.author}{rec.fandom ? ` · ${rec.fandom}` : ""}</p>
+        {rec.description && (
+          <p className="text-xs text-[#6B705C] mt-2 line-clamp-3">{rec.description}</p>
+        )}
+        <p className="text-xs text-[#6B46C1] mt-2 flex items-center gap-1.5">
+          <Users className="w-3 h-3" /> {byline}
+        </p>
+        <div className="text-[11px] text-[#6B705C] mt-1 flex flex-wrap gap-3">
+          {rec.finished_count > 0 && <span className="text-[#1F4D2A]">{rec.finished_count} finished</span>}
+          {rec.total_minutes > 0 && <span>{Math.round(rec.total_minutes)} min combined reading time</span>}
+        </div>
+      </div>
+      <div className="flex items-center gap-2 flex-shrink-0 md:flex-col md:items-stretch">
+        {rec.source_url && (
+          <a
+            href={rec.source_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid={`rec-open-${rec.rec_key}`}
+            className="btn-secondary text-xs inline-flex items-center gap-1 justify-center"
+          >
+            <ExternalLink className="w-3 h-3" /> Open source
+          </a>
+        )}
+        <button
+          data-testid={`rec-hide-${rec.rec_key}`}
+          onClick={() => onDismiss(rec)}
+          disabled={busyKey === rec.rec_key}
+          className="btn-secondary text-xs inline-flex items-center gap-1 justify-center"
+        >
+          {busyKey === rec.rec_key ? <Loader2 className="w-3 h-3 animate-spin" /> : <XIcon className="w-3 h-3" />}
+          Hide
+        </button>
+      </div>
+    </li>
+  );
+}
+
+export default function RecommendationsPage() {
+  const [recs, setRecs] = useState([]);
+  const [meta, setMeta] = useState({ friend_count: 0, shared_friend_count: 0 });
+  const [dismissed, setDismissed] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busyKey, setBusyKey] = useState(null);
+  const [showDismissed, setShowDismissed] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const { data } = await api.get("/recommendations/friends?limit=100");
+      setRecs(data?.recommendations || []);
+      setMeta({
+        friend_count: data?.friend_count || 0,
+        shared_friend_count: data?.shared_friend_count || 0,
+      });
+    } catch { toast.error("Couldn't load recommendations"); }
+    finally { setLoading(false); }
+  };
+
+  const loadDismissed = async () => {
+    try {
+      const { data } = await api.get("/recommendations/dismissed");
+      setDismissed(data?.dismissed || []);
+    } catch { /* ignore */ }
+  };
+
+  useEffect(() => {
+    load();
+    loadDismissed();
+  }, []);
+
+  const dismiss = async (rec) => {
+    setBusyKey(rec.rec_key);
+    try {
+      await api.post("/recommendations/dismiss", { rec_key: rec.rec_key });
+      setRecs((prev) => prev.filter((r) => r.rec_key !== rec.rec_key));
+      await loadDismissed();
+      toast.success("Hidden — you won't see this again");
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't hide");
+    } finally { setBusyKey(null); }
+  };
+
+  const undismiss = async (rec) => {
+    setBusyKey(rec.rec_key);
+    try {
+      await api.post("/recommendations/undismiss", { rec_key: rec.rec_key });
+      setDismissed((prev) => prev.filter((r) => r.rec_key !== rec.rec_key));
+      toast.success("Restored — refresh to see it again");
+      await load();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't restore");
+    } finally { setBusyKey(null); }
+  };
+
+  return (
+    <div className="min-h-screen bg-paper">
+      <Navbar />
+      <main className="max-w-4xl mx-auto px-6 md:px-8 py-8 space-y-6" data-testid="recommendations-page">
+        <div>
+          <Link to="/library" className="text-xs text-[#6B705C] hover:text-[#2C2C2C] flex items-center gap-1">
+            <ArrowLeft className="w-3 h-3" /> Back to library
+          </Link>
+          <h1 className="font-serif text-4xl text-[#2C2C2C] flex items-center gap-3 mt-1">
+            <Sparkles className="w-7 h-7 text-[#6B46C1]" /> From your friends
+          </h1>
+          <p className="text-sm text-[#6B705C] mt-1">
+            Books your friends have read &amp; loved — ranked by finishers + reading time. Already-owned books are filtered out.
+          </p>
+        </div>
+
+        {/* Meta strip */}
+        <div className="text-xs text-[#6B705C] flex flex-wrap gap-3">
+          <span>You have <strong className="text-[#2C2C2C]">{meta.friend_count}</strong> friend{meta.friend_count === 1 ? "" : "s"}</span>
+          <span>·</span>
+          <span><strong className="text-[#2C2C2C]">{meta.shared_friend_count}</strong> share their libraries</span>
+          {meta.shared_friend_count < meta.friend_count && (
+            <Link to="/friends" className="text-[#6B46C1] underline">
+              Friends who haven&apos;t opted in see no books here
+            </Link>
+          )}
+        </div>
+
+        {/* Recs */}
+        {loading ? (
+          <div className="text-sm text-[#6B705C] flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading recommendations…</div>
+        ) : recs.length === 0 ? (
+          <div className="bg-[#FBFAF6] border border-dashed border-[#E5DDC5] rounded-2xl p-10 text-center" data-testid="recs-empty">
+            <Sparkles className="w-10 h-10 text-[#E5DDC5] mx-auto mb-2" />
+            <p className="text-sm text-[#6B705C]">
+              No recommendations yet.
+              {meta.friend_count === 0 && <> Add some <Link to="/friends" className="text-[#6B46C1] underline">friends</Link> first.</>}
+              {meta.friend_count > 0 && meta.shared_friend_count === 0 && <> None of your friends have shared their library yet.</>}
+              {meta.friend_count > 0 && meta.shared_friend_count > 0 && <> Your friends haven&apos;t finished any books that you don&apos;t already own.</>}
+            </p>
+          </div>
+        ) : (
+          <ul className="space-y-3" data-testid="recs-list">
+            {recs.map((rec) => (
+              <RecRow key={rec.rec_key} rec={rec} onDismiss={dismiss} busyKey={busyKey} />
+            ))}
+          </ul>
+        )}
+
+        {/* Dismissed list */}
+        <section className="pt-4 border-t border-[#E8E6E1]">
+          <button
+            data-testid="toggle-dismissed"
+            onClick={() => setShowDismissed((v) => !v)}
+            className="text-xs text-[#6B705C] hover:text-[#6B46C1] inline-flex items-center gap-1"
+          >
+            <RotateCcw className="w-3 h-3" /> {showDismissed ? "Hide" : "Show"} dismissed ({dismissed.length})
+          </button>
+          {showDismissed && (
+            <ul className="mt-3 space-y-1" data-testid="dismissed-list">
+              {dismissed.length === 0 ? (
+                <li className="text-xs text-[#6B705C] italic">Nothing dismissed yet.</li>
+              ) : dismissed.map((d) => (
+                <li key={d.rec_key} className="flex items-center gap-2 text-xs bg-[#FBFAF6] border border-[#E5DDC5] rounded-lg px-3 py-2">
+                  <span className="flex-1 truncate text-[#2C2C2C]">{d.title || d.rec_key} {d.author && <span className="text-[#6B705C]">— {d.author}</span>}</span>
+                  <button
+                    data-testid={`restore-${d.rec_key}`}
+                    onClick={() => undismiss(d)}
+                    disabled={busyKey === d.rec_key}
+                    className="text-[#6B46C1] hover:underline"
+                  >
+                    {busyKey === d.rec_key ? <Loader2 className="w-3 h-3 animate-spin inline" /> : "Restore"}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </main>
+    </div>
+  );
+}

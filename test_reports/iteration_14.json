@@ -1,0 +1,32 @@
+{
+  "summary": "E2E tested Friend-Recommendations widget + OPDS catalog (backend + frontend). All 22 backend pytest cases pass against the live preview. Frontend: FriendRecsCard renders on Dashboard, /library/recommendations page lists/dismisses/restores recs, Account CatalogSyncCard generates password, exposes URL, toggle works, regenerate confirm() dialog handled.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_recommendations.py",
+    "/app/backend/tests/test_opds.py",
+    "/app/test_reports/pytest/pytest_iter14.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "opds.py /opds/authors $ne filter uses two $ne values (line 429) — Mongo treats subsequent $ne as overwrite. Only the second ($ne: \"\") applies. Authors with null could still appear. Recommend using $nin: [null, \"\"] or {$exists:true,$ne:\"\"} with null guard.",
+    "recommendations.py _book_keys returns multiple keys per book, but _primary_rec_key returns only the first URL. If friends have the same book under different fanfic_urls (e.g. one has source_url, another has fanfic_urls[0]), they could fail to collapse into one rec — falls back to title+author only if no URL exists. Working as designed but worth noting.",
+    "CatalogSyncCard regenerate uses window.confirm() — works but blocks SSR/tests; consider a styled modal in future. The reviewer agent successfully handled it via page.on('dialog').",
+    "FriendRecsCard returns null on initial loading (line 42) — good UX, no flash. Also auto-hides correctly when recs.length === 0 — verified."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Seeded ephemeral users via /tmp/seed_for_ui.py (alice with Bob friend + 2 finished books). Cleaned after test.",
+  "seed_data_creation": "Seeded 2 test users + 1 friendship + 2 books for UI test; all cleaned afterwards. Pytest fixtures handle their own seed/teardown.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All 22 backend tests (7 recommendations + 15 OPDS) pass live. UI verified end-to-end: FriendRecsCard on /library, RecommendationsPage dismiss/undismiss, CatalogSyncCard generate/regenerate/toggle/help. data-testid coverage is complete: friend-recs-card, recs-see-all, recommendations-page, recs-list, rec-row-*, rec-hide-*, toggle-dismissed, restore-*, opds-card, opds-generate-btn, opds-password, opds-url, opds-toggle, opds-regen-btn, opds-help-toggle, opds-help. Storage path /app/uploads/{user_id}/{book_id}.epub|.cover confirmed working.",
+  "rca of the issue": "No bugs found."
+}
