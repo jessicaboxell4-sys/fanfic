@@ -331,7 +331,10 @@ export default function Help() {
         </div>
 
         <div className="grid md:grid-cols-[200px,minmax(0,1fr)] gap-10">
-          <nav className="md:sticky md:top-24 self-start min-w-0" data-testid="help-toc">
+          <nav
+            className="md:sticky md:top-24 self-start min-w-0 md:max-h-[calc(100vh-7rem)] md:overflow-y-auto md:pr-2 md:[scrollbar-width:thin]"
+            data-testid="help-toc"
+          >
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-3">Sections</p>
             <ul className="space-y-1.5 text-sm">
               {SECTIONS.filter((s) => matchingSectionIds.includes(s.id)).map((s) => (
