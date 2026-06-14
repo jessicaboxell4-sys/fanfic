@@ -516,7 +516,7 @@ export default function Help() {
 
             <Section id="messages" icon={MessageSquare} title="Messages & friends">
               <p>
-                Shelfsort has built-in direct messaging at <Link to="/messages">/messages</Link>. Three room types coexist:
+                Shelfsort has built-in direct messaging — click <strong>Message</strong> on any friend at <Link to="/friends">/friends</Link> to open an inline chat drawer. Three room types coexist:
               </p>
               <ul>
                 <li><strong>Admin-curated group rooms</strong> — an admin creates the room and picks members. Members chat freely inside.</li>

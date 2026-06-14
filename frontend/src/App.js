@@ -27,7 +27,6 @@ import TagShelfPage from "@/pages/TagShelfPage";
 import CantFindOnline from "@/pages/CantFindOnline";
 import Account from "@/pages/Account";
 import AppearancePage from "@/pages/AppearancePage";
-import MessagesPage from "@/pages/MessagesPage";
 import FriendsPage from "@/pages/FriendsPage";
 import BookclubsPage from "@/pages/BookclubsPage";
 import RecommendationsPage from "@/pages/RecommendationsPage";
@@ -115,8 +114,8 @@ function AppRouter() {
       <Route path="/bookmarks" element={<ProtectedRoute><BookmarksPage /></ProtectedRoute>} />
       <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
       <Route path="/account/appearance" element={<ProtectedRoute><AppearancePage /></ProtectedRoute>} />
-      <Route path="/messages" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
-      <Route path="/messages/:roomId" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
+      <Route path="/messages" element={<Navigate to="/friends" replace />} />
+      <Route path="/messages/:roomId" element={<Navigate to="/friends" replace />} />
       <Route path="/friends" element={<ProtectedRoute><FriendsPage /></ProtectedRoute>} />
       <Route path="/bookclubs" element={<ProtectedRoute><BookclubsPage /></ProtectedRoute>} />
       <Route path="/bookclubs/:roomId" element={<ProtectedRoute><BookclubsPage /></ProtectedRoute>} />

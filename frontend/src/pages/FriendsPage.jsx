@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import Navbar from "../components/Navbar";
 import FriendLibraryModal from "../components/FriendLibraryModal";
+import DmDrawer from "../components/DmDrawer";
 import { api } from "../lib/api";
 
 function PersonRow({ row, children, testid }) {
@@ -46,6 +47,7 @@ export default function FriendsPage() {
   // Per-friend mutual counts and the active library-viewer target
   const [mutualByFriend, setMutualByFriend] = useState({});
   const [libraryFriend, setLibraryFriend] = useState(null);
+  const [dmTarget, setDmTarget] = useState(null);  // {room_id, name}
 
   const load = async () => {
     setLoading(true);
@@ -165,11 +167,11 @@ export default function FriendsPage() {
     finally { setBusyId(null); }
   };
 
-  const openDM = async (uid) => {
+  const openDM = async (uid, name) => {
     setBusyId(uid);
     try {
       const { data } = await api.post(`/chat/dm/${uid}`);
-      window.location.href = `/messages/${data.room_id}`;
+      setDmTarget({ room_id: data.room_id, name: name || "Friend" });
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Couldn't open DM");
     } finally { setBusyId(null); }
@@ -189,7 +191,7 @@ export default function FriendsPage() {
           <div>
             <h1 className="font-serif text-3xl sm:text-4xl text-[#2C2C2C]">Friends</h1>
             <p className="text-sm text-[#6B705C]">
-              Send friend requests, accept incoming ones, manage blocks. Direct messages live at <Link to="/messages" className="underline">/messages</Link>. Read a book together in a <Link to="/bookclubs" className="underline text-[#6B46C1]" data-testid="friends-to-bookclubs">reading room</Link>.
+              Send friend requests, accept incoming ones, manage blocks. Click <strong>Message</strong> on any friend to chat inline. Read a book together in a <Link to="/bookclubs" className="underline text-[#6B46C1]" data-testid="friends-to-bookclubs">reading room</Link>.
             </p>
           </div>
         </div>
@@ -242,7 +244,7 @@ export default function FriendsPage() {
                   {u.relation === "friend" && (
                     <button
                       type="button"
-                      onClick={() => openDM(u.user_id)}
+                      onClick={() => openDM(u.user_id, u.name || u.email)}
                       className="text-[11px] px-2 py-1 rounded border border-[#6B46C1] text-[#6B46C1] inline-flex items-center gap-1"
                     >
                       <MessageSquare className="w-3 h-3" /> Message
@@ -384,7 +386,7 @@ export default function FriendsPage() {
                         >
                           <Library className="w-3 h-3" /> Library
                         </button>
-                        <button type="button" onClick={() => openDM(r.other_user_id)} data-testid={`friends-message-btn-${r.other_user_id}`} className="text-[11px] px-2 py-1 rounded border border-[#6B46C1] text-[#6B46C1] inline-flex items-center gap-1">
+                        <button type="button" onClick={() => openDM(r.other_user_id, r.name || r.email)} data-testid={`friends-message-btn-${r.other_user_id}`} className="text-[11px] px-2 py-1 rounded border border-[#6B46C1] text-[#6B46C1] inline-flex items-center gap-1">
                           <MessageSquare className="w-3 h-3" /> Message
                         </button>
                         <button type="button" onClick={() => block(r.other_user_id)} className="text-[11px] px-2 py-1 rounded text-[#B43F26]" title="Block">
@@ -435,6 +437,13 @@ export default function FriendsPage() {
         )}
         {libraryFriend && (
           <FriendLibraryModal friend={libraryFriend} onClose={() => setLibraryFriend(null)} />
+        )}
+        {dmTarget && (
+          <DmDrawer
+            roomId={dmTarget.room_id}
+            friendName={dmTarget.name}
+            onClose={() => setDmTarget(null)}
+          />
         )}
       </main>
     </div>

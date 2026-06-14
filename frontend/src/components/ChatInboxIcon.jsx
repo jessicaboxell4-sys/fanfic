@@ -36,7 +36,7 @@ export default function ChatInboxIcon() {
 
   return (
     <Link
-      to="/messages"
+      to="/friends"
       data-testid="navbar-messages"
       className="relative p-2 hover:bg-[#F5F3EC] rounded-lg"
       title={title}
