@@ -1855,3 +1855,17 @@ Both upload sites (the regular EPUB upload pipeline + the URL-fetch path) now pe
 - Tests: `backend/tests/test_friends_finished_digest.py` — 6 cases (auth, default-enabled, toggle roundtrip, payload filters out non-sharing friends + stale finishes, preview creates notification row, owned-book filter wipes the payload). 6/6 pass.
 - Combined live regression: `pytest test_friends_finished_digest test_recommendations test_opds test_bookclubs` → **57/57 passing**.
 
+
+### Changed 2026-06-14 (Notifications policy — in-app always, email opt-in)
+- User directive: "let user decide if they want any emails or not. Always do in app notifications."
+- **`friends_finished`** restructured: removed the in-app on/off toggle entirely. Schema now: `friends_finished: {email_enabled: bool=False, last_year_week, last_sent_at, last_email_sent_at}`. The in-app notification fires unconditionally when there are matches and the per-week cooldown hasn't fired; only the email copy is user-toggleable (default OFF).
+- Email build pipeline added (`_build_friends_finished_email_payload`, `_send_friends_finished_email`) — Resend-backed, mirrors the existing weekly-digest email style. Logs to `email_log`; surfaces `error` or `logged` on failure.
+- New endpoint param: `POST /api/recommendations/friends-finished/preview?send_email=true` lets users sample the email before opting in (bypasses the `email_enabled` pref). Default `?send_email=false` fires in-app only.
+- `GET /api/user/email-overview` now includes a 4th channel `from_friends: {email_enabled, last_email_sent_at, note}`.
+- **Audit of other notification flows**: confirmed every `create_notification(...)` call site (bookclubs, friends, suggestions, books fandom-share) already fires unconditionally — only `friends_finished` had a user-toggle gate, now removed.
+- Frontend:
+  - `/library/recommendations` card relabelled "Weekly From friends digest" with two preview buttons (in-app only, in-app + email) and an "Email me too" toggle (`data-testid="friends-finished-email-toggle"`).
+  - `/account/emails` gets a 4th channel card `data-testid="from-friends-card"` matching the Weekly-digest/Fic-updates/Year-recap pattern: toggle, "Send sample (in-app + email)" button, and last-sent timestamp.
+- Tests: `test_friends_finished_digest.py` rewritten — now 8 cases covering default-disabled-email, toggle roundtrip, in-app-always-fires (regardless of email pref), `send_email=true` exercises email path, no-finishes empty-state, owned-book filter, email-overview includes `from_friends`. **Combined regression with digest + recommendations + opds + bookclubs: 92/92 passing.**
+- Frontend e2e (iteration 16): 5/5 acceptance criteria pass. Initial regression caught a missing handler pair; main agent re-added them following the existing `updateFicEmail/sendFicPreview` pattern. Pre-existing minor: weekly-digest day/hour selects emit `<span> cannot be a child of <option>` hydration warning — unrelated to this change, parked.
+
