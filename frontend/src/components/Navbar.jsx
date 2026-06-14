@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   BookOpen, LogOut, BarChart3, Filter, HelpCircle, FileText, ShieldCheck,
   Target, Menu, X, Library, Download, ChevronDown, Link as LinkIcon,
+  Lightbulb, MessageCircleQuestion,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../lib/api";
@@ -86,6 +87,10 @@ function SecondaryLinks({ user, unknownFandomCount, onNavigate, inDrawer = false
     { to: "/library/download?kind=xlsx", label: "Library (.xlsx)", testid: "navbar-download-links", icon: LinkIcon, title: "Excel workbook with title + author + source link" },
     { to: "/library/download", label: "Download ZIP", testid: "navbar-download-zip", icon: Download, title: "Bulk-download EPUBs as a single ZIP" },
   ];
+  const helpItems = [
+    { to: "/help", label: "Help & guide", testid: "navbar-help", icon: HelpCircle, title: "Full Shelfsort guide — uploads, shelves, exports, everything" },
+    { to: "/suggestions", label: "Suggestions & feedback", testid: "navbar-suggestions", icon: Lightbulb, title: "Send feedback or request new features" },
+  ];
 
   if (inDrawer) {
     const close = () => { if (onNavigate) onNavigate(); };
@@ -104,9 +109,12 @@ function SecondaryLinks({ user, unknownFandomCount, onNavigate, inDrawer = false
             <it.icon className="w-4 h-4" /> {it.label}
           </Link>
         ))}
-        <p className="px-3 pt-2 pb-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B705C]">More</p>
+        <p className="px-3 pt-2 pb-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B705C]">Help &amp; feedback</p>
         <Link to="/help" data-testid="drawer-help" className={itemBase} onClick={close}>
           <HelpCircle className="w-4 h-4" /> Help &amp; guide
+        </Link>
+        <Link to="/suggestions" data-testid="drawer-suggestions" className={itemBase} onClick={close}>
+          <Lightbulb className="w-4 h-4" /> Suggestions &amp; feedback
         </Link>
         {user.is_admin && (
           <Link to="/admin" data-testid="drawer-admin" className={itemBase} onClick={close}>
@@ -126,15 +134,7 @@ function SecondaryLinks({ user, unknownFandomCount, onNavigate, inDrawer = false
     <div className="hidden lg:flex items-center gap-2">
       <NavDropdown label="Library" icon={Library} items={libraryItems} testid="navbar-library-menu" />
       <NavDropdown label="Export" icon={Download} items={exportItems} testid="navbar-export-menu" />
-      <Link
-        to="/help"
-        data-testid="navbar-help"
-        className="btn-secondary text-sm flex items-center gap-1.5"
-        title="Help & guide"
-      >
-        <HelpCircle className="w-4 h-4" />
-        <span>Help</span>
-      </Link>
+      <NavDropdown label="Help" icon={MessageCircleQuestion} items={helpItems} testid="navbar-help-menu" />
       {user.is_admin && (
         <Link
           to="/admin"
@@ -201,17 +201,18 @@ export default function Navbar() {
         {user && <div className="hidden md:block flex-1 max-w-sm"><BookQuickSearch /></div>}
 
         <div className="flex items-center gap-1.5 md:gap-2 lg:gap-3">
-          {/* Always-visible primary icons.  These stay in the bar at every
-              viewport because they're either status indicators (streak,
-              notifications) or theme controls users expect everywhere. */}
+          {/* Primary navigation dropdowns (Library / Export / Help) — on the
+              LEFT so users reach top-level destinations first. */}
+          <SecondaryLinks user={user} unknownFandomCount={unknownFandomCount} />
+
+          {/* Status & personal icons — theme, notifications, messages,
+              streak.  Sitting on the RIGHT keeps them near the account
+              avatar where users expect status / "me" controls. */}
           <AppearancePopover />
           {user && <NotificationsBell />}
           {user && <ChatInboxIcon />}
           {user && <StreakBadge />}
           {user && FETCHING_UI_ENABLED && <UpdatesBell />}
-
-          {/* Secondary links inline on lg+, hidden behind a hamburger below. */}
-          <SecondaryLinks user={user} unknownFandomCount={unknownFandomCount} />
 
           {user && (
             <>
