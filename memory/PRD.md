@@ -1752,3 +1752,15 @@ Both upload sites (the regular EPUB upload pipeline + the URL-fetch path) now pe
   2. **Download PNG** — generates a 800×420 PNG entirely client-side via the Canvas API (no html2canvas dependency). Theme-aware backdrop, 4 swatches in a row with hex labels below, palette name + theme caption, footer with the import token. Auto-triggers a browser download named `shelfsort-palette-{paletteId}-{theme}.png`. New testid `appearance-share-png-btn`.
 - Both buttons read directly from the active theme's swatches (`palette.light` vs `palette.dark`), so the exported assets always match what the user is currently seeing.
 - Verified end-to-end via Playwright: clipboard contained the full Markdown block; download event captured with the expected `.png` filename.
+
+
+### Added 2026-06-13 (P2: Cron-failure email alerts)
+- Extended `utils/cron_health.py` so every cron job that raises gets a debounced email out to all admins, on top of the existing `cron_runs` telemetry row.
+- New helper `_maybe_alert_admins(job_id, error)` invoked from `_record_run` whenever `status == "error"`:
+  - Reads the new `cron_failure_alerts` feature flag (added to `KNOWN_FLAGS` in `utils/feature_flags.py`, default ON) — operator can mute alerts during planned outages directly from the Admin Console.
+  - Debounce: skips if `db.cron_alerts` has a `{job_id, last_sent_at}` row within the last `ALERT_DEBOUNCE_MINUTES` (60 min). Prevents a job retrying every minute from nuking inboxes.
+  - Recipient set: every `users` doc with `is_admin: True` and non-empty `email`. Non-admins are never copied. Hard cap at 50 admins.
+  - Mail body: purple-branded HTML + plain-text fallback. Subject `[Shelfsort] Cron job failed: {job_id}`. Body contains the error stack-trace head (truncated at 4000 chars), the failure timestamp, and a link to `/admin → Scheduled jobs`.
+  - Resend send goes through `asyncio.to_thread`, logged via the existing `log_email_send` helper so the Admin Console's Email-stats card shows the delivery.
+- Safety: missing `RESEND_API_KEY`/`SENDER_EMAIL` → silent no-op (logs once at info, no crash); admin lookup or Resend send exception → logged and swallowed so the cron telemetry write path is always safe.
+- Tests: 5 new pytests in `backend/tests/test_cron_failure_alerts.py` covering success email, debounce, feature-flag mute, missing-Resend no-op, and successful jobs producing no email. Monkey-patches `resend.Emails.send` so no real HTTP is fired. All 5 pass; existing cron-health + admin-db + linkless + dark-mode suites still green (29/29 across the day's work).

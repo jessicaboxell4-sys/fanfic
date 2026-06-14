@@ -20,6 +20,7 @@ KNOWN_FLAGS: Dict[str, str] = {
     "ai_classify_enabled":  "Use Claude to classify books when metadata is ambiguous",
     "fichub_enabled":       "Fetch fic metadata + chapters via FicHub / FanFicFare",
     "calibre_convert_enabled": "Auto-convert PDF / MOBI / DOCX uploads via Calibre",
+    "cron_failure_alerts":  "Email all admins when a scheduled job fails (debounced, 60 min/job)",
 }
 
 DEFAULT_FLAGS: Dict[str, bool] = {k: True for k in KNOWN_FLAGS}
