@@ -166,16 +166,26 @@ export default function RecommendationsPage() {
     <div className="min-h-screen bg-paper">
       <Navbar />
       <main className="max-w-4xl mx-auto px-6 md:px-8 py-8 space-y-6" data-testid="recommendations-page">
-        <div>
-          <Link to="/library" className="text-xs text-[#6B705C] hover:text-[#2C2C2C] flex items-center gap-1">
-            <ArrowLeft className="w-3 h-3" /> Back to library
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <Link to="/library" className="text-xs text-[#6B705C] hover:text-[#2C2C2C] flex items-center gap-1">
+              <ArrowLeft className="w-3 h-3" /> Back to library
+            </Link>
+            <h1 className="font-serif text-4xl text-[#2C2C2C] flex items-center gap-3 mt-1">
+              <Sparkles className="w-7 h-7 text-[#6B46C1]" /> From your friends
+            </h1>
+            <p className="text-sm text-[#6B705C] mt-1 max-w-xl">
+              Books your friends have read &amp; loved — ranked by finishers + reading time. Already-owned books are filtered out.
+            </p>
+          </div>
+          <Link
+            to="/bookclubs"
+            data-testid="recs-to-bookclubs"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#6B46C1] text-white text-sm font-semibold hover:bg-[#553B96] transition-colors shadow-sm"
+          >
+            <Users className="w-4 h-4" />
+            Read together
           </Link>
-          <h1 className="font-serif text-4xl text-[#2C2C2C] flex items-center gap-3 mt-1">
-            <Sparkles className="w-7 h-7 text-[#6B46C1]" /> From your friends
-          </h1>
-          <p className="text-sm text-[#6B705C] mt-1">
-            Books your friends have read &amp; loved — ranked by finishers + reading time. Already-owned books are filtered out.
-          </p>
         </div>
 
         {/* Meta strip */}

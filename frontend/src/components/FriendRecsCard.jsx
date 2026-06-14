@@ -57,7 +57,7 @@ export default function FriendRecsCard() {
         <Link
           to="/library/recommendations"
           data-testid="recs-see-all"
-          className="text-xs text-[#6B46C1] hover:text-[#2C2C2C] font-semibold uppercase tracking-wider inline-flex items-center gap-1"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#6B46C1] text-white text-xs font-semibold hover:bg-[#553B96] transition-colors"
         >
           See all <ArrowRight className="w-3 h-3" />
         </Link>
