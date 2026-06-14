@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { BookOpen, LogOut, BarChart3, Filter, HelpCircle, FileText, ShieldCheck } from "lucide-react";
+import { BookOpen, LogOut, BarChart3, Filter, HelpCircle, FileText, ShieldCheck, Target } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../lib/api";
 import UpdatesBell from "./UpdatesBell";
@@ -70,6 +70,17 @@ export default function Navbar() {
             >
               <BarChart3 className="w-4 h-4" />
               <span className="hidden md:inline">Stats</span>
+            </Link>
+          )}
+          {user && (
+            <Link
+              to="/goals"
+              data-testid="navbar-goals"
+              className="btn-secondary text-sm flex items-center gap-2"
+              title="Reading goals"
+            >
+              <Target className="w-4 h-4" />
+              <span className="hidden md:inline">Goals</span>
             </Link>
           )}
           {user && <DownloadZipButton kind="xlsx" />}

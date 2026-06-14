@@ -311,6 +311,7 @@ export default function Help() {
             </button>
           </div>
           <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-1 text-sm text-[#2C2C2C] list-disc list-inside">
+            <li><Link to="/goals" className="hover:underline font-semibold">Reading goals</Link> — yearly &amp; monthly targets, confetti on hit</li>
             <li><a href="#bookclubs" className="hover:underline">Book-club reading rooms</a> — chat-style layout</li>
             <li><a href="#word-count" className="hover:underline">Word count &amp; reading time</a> with WPM setting</li>
             <li><a href="#recommendations" className="hover:underline">Friend recommendations</a> + weekly Sunday digest</li>

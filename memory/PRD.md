@@ -2025,3 +2025,38 @@ Backend-only change. The Monday-morning bookclub digest now skips users who've g
 - Existing 35 bookclub tests (`test_bookclubs.py` + `test_bookclub_digest.py`) all still pass.
 
 Side effect: users currently subscribed but inactive will simply stop receiving Monday emails until they post or move progress. They can immediately re-engage by visiting a room — no settings change needed.
+
+
+### Added 2026-06-14 (#2 — Reading goals with progress ring)
+
+Full feature delivered with all five product calls honoured:
+
+- **Three metrics**: `books`, `pages`, `words`. (Pages = `word_count // 250` since `page_count` isn't a real book field — standard typesetting estimate.)
+- **Two cadences**: `year` ("2026") and `month` ("2026-03"); multiple goals per user fully supported (unique on `(metric, period_type, period_value)`).
+- **Finished = either** `progress_percent >= 0.99` (auto from reader/progress slider) OR explicit `POST /books/{id}/mark`. Both stamp `last_opened_at` which is what the goal query indexes on.
+- **Confetti + toast + Year-in-Books link**: first time a user lands on `/goals` after crossing a target, an in-app notification (`reading_goal_hit`) is created server-side, the page fires a 90-piece CSS-only confetti burst, and a sonner toast offers a one-click jump to `/year-in-books` for yearly goals. `hit_celebrated_at` ensures one-shot behaviour.
+- **Multi-year history + retroactive goals**: year tabs auto-include any year that has a goal. User can freely create a 2024 / 2022 / etc. goal and current progress is computed from `last_opened_at` strings within that window.
+
+**Backend (`/app/backend/routes/goals.py`)** — new file, 220 lines.
+- Endpoints: `GET /api/goals`, `POST /api/goals`, `PATCH /api/goals/{id}`, `DELETE /api/goals/{id}`, `POST /api/goals/{id}/celebrate`.
+- Collection `reading_goals`: `{goal_id, user_id, metric, period_type, period_value, target, hit_at, hit_celebrated_at, created_at, updated_at}`.
+- `_maybe_mark_hit()` side-effect inside `list_goals` stamps `hit_at` + fires a one-time notification when computed progress first crosses the target.
+- New notification kind: `reading_goal_hit` (mutable, group "Reading goals"). Added to `routes/notifications.py` catalog.
+- Registered in `server.py` import line.
+- **9/9 pytest cases pass** (`tests/test_goals.py`): empty list, create year goal, duplicate→409, bad period→422, words+month, progress counts finished books in window (excluded out-of-period book), celebrate-before-hit→400, lower-target-triggers-hit flow + notification creation, delete.
+
+**Frontend (`/app/frontend/src/pages/GoalsPage.jsx`)** — new file, 380 lines.
+- SVG progress ring (140px) with smooth `stroke-dashoffset` 800ms transition + colour shift to green on hit.
+- CSS-only `<Confetti />` component (no new deps — `canvas-confetti` not added). Reseeds via `useEffect` on `active` flip; auto-clears after 4s.
+- Create/edit dialog with metric, cadence, period value, target.
+- Year-tab switcher (auto-derived from existing goals).
+- Empty state + retro-fill prompt.
+- Help page "What's new" now links to `/goals`.
+
+**Navbar (`Navbar.jsx`)** — added `<Target />` icon + "Goals" link between Stats and the download buttons. `data-testid="navbar-goals"`.
+
+**Router (`App.js`)** — `/goals` route added behind `ProtectedRoute`.
+
+E2E verified via Playwright: created 1 yearly + 1 monthly + 1 retroactive 2024 goal, switched tabs, edited target, all rendered without errors. `data-testid`s exposed for every interactive element: `goals-page`, `goals-empty-state`, `new-goal-btn`, `goals-empty-create-btn`, `goal-card-<id>`, `goal-edit-<id>`, `goal-delete-<id>`, `goal-progress-<id>`, `goal-target-<id>`, `goals-year-tab-<year>`, `goal-dialog`, `goal-dialog-close`, `goal-dialog-save`, `goal-metric-select`, `goal-period-type-select`, `goal-period-value-input`, `goal-target-input`, `confetti`.
+
+No backend regressions. No new dependencies. Browse `/goals` to use.

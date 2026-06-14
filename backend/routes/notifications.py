@@ -46,6 +46,10 @@ NOTIFICATION_CATALOG: List[Dict[str, Any]] = [
     {"kind": "friends_finished_digest", "group": "Recommendations",
      "label": "Weekly 'From friends' digest",
      "description": "Sunday rollup of books your sharing friends finished.", "mutable": True},
+    # --- Reading goals ---
+    {"kind": "reading_goal_hit", "group": "Reading goals",
+     "label": "Reading goal reached",
+     "description": "Pings you the first time you cross a yearly or monthly goal.", "mutable": True},
     # --- Other ---
     {"kind": "suggestion_status", "group": "Suggestions",
      "label": "Status change on your suggestion",

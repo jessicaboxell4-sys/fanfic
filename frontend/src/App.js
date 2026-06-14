@@ -17,6 +17,7 @@ import FandomShelf from "@/pages/FandomShelf";
 import SeriesShelf from "@/pages/SeriesShelf";
 import AuthorShelf from "@/pages/AuthorShelf";
 import StatsPage from "@/pages/StatsPage";
+import GoalsPage from "@/pages/GoalsPage";
 import YearInBooksPage from "@/pages/YearInBooksPage";
 import PublicYearInBooks from "@/pages/PublicYearInBooks";
 import SmartShelves from "@/pages/SmartShelves";
@@ -106,6 +107,7 @@ function AppRouter() {
       <Route path="/library/series/:name" element={<ProtectedRoute><SeriesShelf /></ProtectedRoute>} />
       <Route path="/library/author/:name" element={<ProtectedRoute><AuthorShelf /></ProtectedRoute>} />
       <Route path="/library/stats" element={<ProtectedRoute><StatsPage /></ProtectedRoute>} />
+      <Route path="/goals" element={<ProtectedRoute><GoalsPage /></ProtectedRoute>} />
       <Route path="/library/year/:year" element={<ProtectedRoute><YearInBooksPage /></ProtectedRoute>} />
       <Route path="/library/smart-shelves" element={<ProtectedRoute><SmartShelves /></ProtectedRoute>} />
       <Route path="/library/smart/:id" element={<ProtectedRoute><SmartShelfPage /></ProtectedRoute>} />
