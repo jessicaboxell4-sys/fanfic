@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-route
 import { Toaster } from "sonner";
 
 import { AuthProvider, useAuth } from "@/context/AuthContext";
+import TourOverlay, { hasSeenTour } from "@/components/TourOverlay";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { PaletteProvider } from "@/context/PaletteContext";
 import UrlPasteDetector from "@/components/UrlPasteDetector";
@@ -92,7 +93,8 @@ function AppRouter() {
     return <AuthCallback />;
   }
   return (
-    <Routes>
+    <>
+      <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/reset-password" element={<ResetPassword />} />
@@ -146,7 +148,27 @@ function AppRouter() {
       <Route path="/read/:id" element={<ProtectedRoute><Reader /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    <TourMount />
+    </>
   );
+}
+
+function TourMount() {
+  const { user, loading } = useAuth();
+  const [open, setOpen] = React.useState(false);
+  React.useEffect(() => {
+    if (loading || !user) return;
+    if (hasSeenTour()) return;
+    // Brief delay so the destination page mounts first.
+    const id = setTimeout(() => setOpen(true), 600);
+    return () => clearTimeout(id);
+  }, [loading, user]);
+  React.useEffect(() => {
+    const fn = () => setOpen(true);
+    window.addEventListener("shelfsort:replay-tour", fn);
+    return () => window.removeEventListener("shelfsort:replay-tour", fn);
+  }, []);
+  return <TourOverlay open={open} onClose={() => setOpen(false)} />;
 }
 
 function App() {

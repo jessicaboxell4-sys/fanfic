@@ -1,0 +1,35 @@
+{
+  "summary": "End-to-end frontend testing of the new First-Time Tour overlay (TourOverlay). All 9 acceptance criteria from the review request passed cleanly on a freshly registered user.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_21.json"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "TourOverlay.jsx navigation effect uses an eslint-disable for missing deps (location.pathname, step?.path, navigate). Intentional (only re-nav on step change), but a short comment explaining the omission would help future readers.",
+    "Final 'done' step has no `path`, so it inherits the previous step's URL (/account in our run). Matches the spec, but if product wants the last step to land users back on /dashboard, add a `path: '/dashboard'` to the done step.",
+    "Minor: TourMount registers the 'shelfsort:replay-tour' listener only once on mount and the open-after-auth effect depends on [loading, user]. Works fine, but if a user logs out and a different user logs in within the same SPA session without a refresh, the tour won't re-fire automatically for the new user unless their localStorage hasn't seen it. Not in scope of this review."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "100%"},
+  "test_credentials": "Registered fresh user per run: tour_test_<timestamp>@example.com / hunter2pw via POST /api/auth/register (cookie auth).",
+  "seed_data_creation": "One ephemeral test user (tour_test_1781411881971@example.com) created via live register endpoint to drive the tour. No other seed data.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "TourOverlay is fully working. Selectors verified: tour-overlay, tour-step-<id> (welcome|library|friends|bookclubs|recs|account|done), tour-next, tour-back, tour-skip, tour-dots. TOUR_STEPS length = 7. localStorage key 'shelfsort_tour_seen' set to '1' on both 'Got it' and skip(X). Replay via window.dispatchEvent(new Event('shelfsort:replay-tour')) confirmed to re-open the overlay even after the seen flag is set. The 600ms delay after auth is real — wait for it. Tour does NOT show on the unauthenticated landing (`/`).",
+  "verification_details": {
+    "auto_open_after_register": "PASS — overlay appeared on /dashboard within ~1s after fresh register",
+    "first_step_welcome_counter": "PASS — 'TOUR · 1 / 7' shown, welcome step visible",
+    "advance_through_all_steps_with_route_changes": "PASS — /dashboard -> /library/all -> /friends -> /bookclubs -> /library/recommendations -> /account, every tour-step-<id> visible at its step",
+    "last_step_got_it_label_and_close": "PASS — 'Got it' label on step 7; clicking removes overlay from DOM",
+    "localstorage_flag_set": "PASS — shelfsort_tour_seen === '1' after close",
+    "no_reopen_on_reload": "PASS — after reload, no overlay shown within 2.5s",
+    "step_dots_jump": "PASS — clicking dot 4 jumps to bookclubs step and URL becomes /bookclubs",
+    "skip_button_closes_and_persists": "PASS — X button closes and writes '1' to localStorage; no re-open on reload",
+    "replay_event": "PASS — window.dispatchEvent(new Event('shelfsort:replay-tour')) re-opens the overlay even with seen flag set",
+    "no_tour_for_unauthenticated": "PASS — after logout + localStorage clear, landing on `/` shows no tour-overlay within 2.5s"
+  }
+}

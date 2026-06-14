@@ -296,7 +296,20 @@ export default function Help() {
 
         {/* What's new strip — surfaces recent features so users can find them */}
         <div className="mb-8 p-5 rounded-2xl border border-[#E5DDC5] bg-[#FDFBF7]" data-testid="whats-new-strip">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-2">What&apos;s new</p>
+          <div className="flex items-start justify-between gap-3 mb-2">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1]">What&apos;s new</p>
+            <button
+              type="button"
+              data-testid="help-replay-tour"
+              onClick={() => {
+                try { window.localStorage.removeItem("shelfsort_tour_seen"); } catch (e) {/*ignore*/}
+                window.dispatchEvent(new Event("shelfsort:replay-tour"));
+              }}
+              className="text-[11px] font-semibold text-[#6B46C1] hover:text-[#553B96] underline"
+            >
+              Replay tour →
+            </button>
+          </div>
           <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-1 text-sm text-[#2C2C2C] list-disc list-inside">
             <li><a href="#bookclubs" className="hover:underline">Book-club reading rooms</a> — chat-style layout</li>
             <li><a href="#word-count" className="hover:underline">Word count &amp; reading time</a> with WPM setting</li>
