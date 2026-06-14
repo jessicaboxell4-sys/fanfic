@@ -189,7 +189,7 @@ export default function FriendsPage() {
           <div>
             <h1 className="font-serif text-3xl sm:text-4xl text-[#2C2C2C]">Friends</h1>
             <p className="text-sm text-[#6B705C]">
-              Send friend requests, accept incoming ones, manage blocks. Direct messages live at <Link to="/messages" className="underline">/messages</Link>.
+              Send friend requests, accept incoming ones, manage blocks. Direct messages live at <Link to="/messages" className="underline">/messages</Link>. Read a book together in a <Link to="/bookclubs" className="underline text-[#6B46C1]" data-testid="friends-to-bookclubs">reading room</Link>.
             </p>
           </div>
         </div>

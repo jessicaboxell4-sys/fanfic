@@ -168,6 +168,19 @@ function PrivacyMessagingCard({ navigate }) {
             </span>
           )}
         </button>
+
+        <button
+          type="button"
+          onClick={() => navigate("/bookclubs")}
+          data-testid="privacy-open-bookclubs-btn"
+          className="w-full flex items-center justify-between gap-2 px-4 py-3 rounded-lg border border-[#E5DDC5] bg-white hover:bg-[#FBFAF6] transition-colors text-sm text-[#2C2C2C]"
+        >
+          <span className="flex items-center gap-2">
+            <UsersIcon className="w-4 h-4 text-[#6B46C1]" />
+            Reading rooms
+          </span>
+          <span className="text-[10px] text-[#6B705C]">read a book with friends</span>
+        </button>
       </div>
     </section>
   );
