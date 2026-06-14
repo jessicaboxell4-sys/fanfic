@@ -251,6 +251,7 @@ export default function EmailPreferences() {
     weekly_digest,
     fic_updates,
     year_recap,
+    from_friends,
   } = overview;
 
   return (
@@ -441,6 +442,35 @@ export default function EmailPreferences() {
                   ? `Uses your ${Math.min(fic_updates.refreshed_book_count, 10)} most-recently refreshed fic${fic_updates.refreshed_book_count === 1 ? "" : "s"}.`
                   : "Refresh a fanfic first to enable the sample preview."}
               </p>
+            </>
+          }
+        />
+
+        {/* From-friends digest */}
+        <ChannelCard
+          icon={<Sparkles className="w-5 h-5" />}
+          iconBg="bg-[#EEF3EC]"
+          iconColor="text-[#6B46C1]"
+          title="From friends — weekly"
+          subtitle="What your sharing friends finished this week. The in-app notification always fires; toggle to also receive an email copy."
+          enabled={from_friends?.email_enabled || false}
+          onToggle={() => updateFromFriendsEmail(!from_friends?.email_enabled)}
+          saving={savingDigest}
+          testidPrefix="from-friends"
+          lastSent={from_friends?.last_email_sent_at}
+          previewBtn={
+            <>
+              <button
+                type="button"
+                onClick={sendFromFriendsPreview}
+                disabled={sendingDigestPreview}
+                data-testid="from-friends-preview-btn"
+                className="btn-secondary text-sm flex items-center gap-2 disabled:opacity-60"
+              >
+                {sendingDigestPreview ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                Send sample (in-app + email)
+              </button>
+              <p className="text-xs text-[#6B705C]">{from_friends?.note}</p>
             </>
           }
         />

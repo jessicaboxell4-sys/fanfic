@@ -68,35 +68,40 @@ export default function RecommendationsPage() {
   const [loading, setLoading] = useState(true);
   const [busyKey, setBusyKey] = useState(null);
   const [showDismissed, setShowDismissed] = useState(false);
-  const [digestEnabled, setDigestEnabled] = useState(true);
+  const [digestEmailEnabled, setDigestEmailEnabled] = useState(false);
   const [digestBusy, setDigestBusy] = useState(false);
 
   const loadDigestSettings = async () => {
     try {
       const { data } = await api.get("/recommendations/friends-finished/settings");
-      setDigestEnabled(!!data?.enabled);
+      setDigestEmailEnabled(!!data?.email_enabled);
     } catch { /* non-blocking */ }
   };
 
-  const toggleDigest = async () => {
-    const next = !digestEnabled;
-    setDigestEnabled(next);  // optimistic
+  const toggleDigestEmail = async () => {
+    const next = !digestEmailEnabled;
+    setDigestEmailEnabled(next);  // optimistic
     setDigestBusy(true);
     try {
-      await api.put("/recommendations/friends-finished/settings", { enabled: next });
-      toast.success(next ? "Weekly digest on" : "Weekly digest off");
+      await api.put("/recommendations/friends-finished/settings", { email_enabled: next });
+      toast.success(next ? "We'll email you a copy each Sunday" : "Email copy off — in-app notifications still fire");
     } catch (e) {
-      setDigestEnabled(!next);  // revert
+      setDigestEmailEnabled(!next);  // revert
       toast.error(e?.response?.data?.detail || "Couldn't save");
     } finally { setDigestBusy(false); }
   };
 
-  const sendDigestPreview = async () => {
+  const sendDigestPreview = async (withEmail = false) => {
     setDigestBusy(true);
     try {
-      const { data } = await api.post("/recommendations/friends-finished/preview");
+      const { data } = await api.post(
+        `/recommendations/friends-finished/preview${withEmail ? "?send_email=true" : ""}`,
+      );
       if (data?.fired) {
-        toast.success(`Sent — ${data.total} book${data.total === 1 ? "" : "s"} from your friends. Check the notifications bell.`);
+        const emailSuffix = withEmail
+          ? (data.email_sent ? " · Email sent." : data.email_error ? ` · Email error: ${data.email_error}` : "")
+          : "";
+        toast.success(`Sent — ${data.total} book${data.total === 1 ? "" : "s"} from your friends. Check the notifications bell.${emailSuffix}`);
       } else if (data?.reason === "no_new_finishes") {
         toast.info("No new finishes from your friends in the last week.");
       } else {
@@ -185,40 +190,53 @@ export default function RecommendationsPage() {
           )}
         </div>
 
-        {/* Weekly digest toggle */}
+        {/* Weekly digest — in-app always fires; email is opt-in */}
         <div
           data-testid="friends-finished-digest-card"
           className="bg-[#FDFBF7] border border-[#E8E6E1] rounded-2xl p-4 flex flex-wrap items-center gap-3"
         >
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-[#2C2C2C]">Weekly &quot;From friends&quot; notification</p>
+            <p className="text-sm font-semibold text-[#2C2C2C]">Weekly &quot;From friends&quot; digest</p>
             <p className="text-xs text-[#6B705C] mt-0.5">
-              Every Sunday at 18:00 UTC, get a single in-app notification listing the books your sharing friends finished that week.
+              Every Sunday at 18:00 UTC, we drop an in-app notification listing the books your sharing friends finished that week. The notification always fires — toggle below to also receive an email copy.
             </p>
           </div>
           <button
             data-testid="friends-finished-preview"
-            onClick={sendDigestPreview}
+            onClick={() => sendDigestPreview(false)}
             disabled={digestBusy}
             className="btn-secondary text-xs inline-flex items-center gap-1"
           >
             {digestBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
-            Send a sample now
+            Send in-app sample
           </button>
           <button
-            type="button"
-            data-testid="friends-finished-toggle"
-            onClick={toggleDigest}
+            data-testid="friends-finished-preview-email"
+            onClick={() => sendDigestPreview(true)}
             disabled={digestBusy}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ${
-              digestEnabled ? "bg-[#6B46C1]" : "bg-[#E8E6E1]"
-            }`}
-            title={digestEnabled ? "Disable weekly digest" : "Enable weekly digest"}
+            className="btn-secondary text-xs inline-flex items-center gap-1"
+            title="Fire the in-app notification AND send the email copy now (regardless of toggle below)"
           >
-            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-              digestEnabled ? "translate-x-6" : "translate-x-1"
-            }`} />
+            {digestBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+            Sample email
           </button>
+          <label className="flex items-center gap-2 text-xs text-[#6B705C]">
+            <span>Email me too</span>
+            <button
+              type="button"
+              data-testid="friends-finished-email-toggle"
+              onClick={toggleDigestEmail}
+              disabled={digestBusy}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ${
+                digestEmailEnabled ? "bg-[#6B46C1]" : "bg-[#E8E6E1]"
+              }`}
+              title={digestEmailEnabled ? "Disable email copy" : "Enable email copy"}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                digestEmailEnabled ? "translate-x-6" : "translate-x-1"
+              }`} />
+            </button>
+          </label>
         </div>
 
         {/* Recs */}

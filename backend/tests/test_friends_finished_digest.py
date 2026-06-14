@@ -1,11 +1,12 @@
 """E2E tests for the 'From friends' weekly notification digest.
 
 Covers:
-- GET /api/recommendations/friends-finished/settings returns enabled=True by default
-- PUT toggles the preference
-- POST .../preview fires immediately when there's data, returns fired=False with reason when none
-- The preview creates an actual notification row
+- GET /api/recommendations/friends-finished/settings returns email_enabled=False by default
+- PUT toggles the email_enabled preference
+- POST .../preview always fires in-app when there's data; ?send_email=true also fires email
+- The preview creates an actual notification row (always, regardless of email toggle)
 - _collect_friends_finished_payload filters out books I already own + non-sharing friends
+- /api/user/email-overview surfaces from_friends as a 4th channel
 """
 import os
 import uuid
@@ -111,19 +112,22 @@ class TestFriendsFinishedDigest:
         r = requests.get(f"{BASE}/api/recommendations/friends-finished/settings")
         assert r.status_code == 401
 
-    def test_default_enabled(self):
+    def test_default_email_disabled(self):
         r = requests.get(f"{BASE}/api/recommendations/friends-finished/settings", headers=H("alice"))
         assert r.status_code == 200
-        assert r.json()["enabled"] is True
+        data = r.json()
+        assert data["email_enabled"] is False
+        assert "email_configured" in data
 
-    def test_toggle_off_and_on(self):
-        r = requests.put(f"{BASE}/api/recommendations/friends-finished/settings", json={"enabled": False}, headers=H("alice"))
+    def test_toggle_email_on_and_off(self):
+        r = requests.put(f"{BASE}/api/recommendations/friends-finished/settings", json={"email_enabled": True}, headers=H("alice"))
         assert r.status_code == 200
-        assert r.json()["enabled"] is False
-        r = requests.put(f"{BASE}/api/recommendations/friends-finished/settings", json={"enabled": True}, headers=H("alice"))
-        assert r.json()["enabled"] is True
+        assert r.json()["email_enabled"] is True
+        r = requests.put(f"{BASE}/api/recommendations/friends-finished/settings", json={"email_enabled": False}, headers=H("alice"))
+        assert r.json()["email_enabled"] is False
 
-    def test_preview_returns_payload_with_bob_finish_only(self):
+    def test_preview_fires_in_app_regardless_of_email_pref(self):
+        # email is OFF by default — in-app should still fire.
         r = requests.post(f"{BASE}/api/recommendations/friends-finished/preview", headers=H("alice"))
         assert r.status_code == 200, r.text
         data = r.json()
@@ -132,9 +136,11 @@ class TestFriendsFinishedDigest:
         assert "Bob Stale Book" not in titles
         assert "Carol Private Finish" not in titles
         assert data["fired"] is True
+        # Email NOT sent because send_email=false (default).
+        assert data["email_sent"] is False
 
     def test_preview_creates_notification(self):
-        # The previous test fired it — verify the notification row exists.
+        # The previous test fired in-app — verify the notification row exists.
         n = db.notifications.find_one({
             "user_id": USERS["alice"]["user_id"],
             "kind": "friends_finished_digest",
@@ -142,6 +148,21 @@ class TestFriendsFinishedDigest:
         assert n is not None
         assert "your friends just finished" in n["title"].lower()
         assert n["link"] == "/library/recommendations"
+
+    def test_preview_with_send_email_attempts_email(self):
+        # send_email=true triggers email send even if email_enabled is OFF
+        # (so users can preview before opting in). Resend may either deliver,
+        # log (no API key), or error (domain not verified in this preview env);
+        # any of those proves the email path was exercised.
+        r = requests.post(
+            f"{BASE}/api/recommendations/friends-finished/preview?send_email=true",
+            headers=H("alice"),
+        )
+        assert r.status_code == 200
+        data = r.json()
+        assert data["fired"] is True
+        attempted = bool(data.get("email_sent")) or bool(data.get("email_logged")) or bool(data.get("email_error"))
+        assert attempted, f"email path was never reached: {data}"
 
     def test_preview_empty_when_no_finishes(self):
         # Bob is the only person who shared and his recent book gets owned by alice
@@ -165,3 +186,10 @@ class TestFriendsFinishedDigest:
             assert data["total"] == 0
         finally:
             db.books.delete_one({"book_id": own_id})
+
+    def test_email_overview_includes_from_friends(self):
+        r = requests.get(f"{BASE}/api/user/email-overview", headers=H("alice"))
+        assert r.status_code == 200
+        data = r.json()
+        assert "from_friends" in data
+        assert data["from_friends"]["email_enabled"] is False  # default off

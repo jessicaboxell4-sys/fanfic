@@ -505,19 +505,14 @@ async def _digest_tick():
         logger.warning("Trash sweep failed: %s", e)
 
     # "From friends" weekly notification digest — fires once per ISO-week
-    # for every user, gated by their friends_finished.enabled flag (default
-    # True). Independent of the email digest schedule: we fire on a fixed
-    # Sunday at 18:00 UTC sweep so it lands at a quiet, predictable time.
+    # for every user with sharing friends and at least one new finish.
+    # In-app notification ALWAYS fires (no user toggle); only the optional
+    # email copy is gated by `friends_finished.email_enabled`. Sweeps at a
+    # fixed Sunday 18:00 UTC for predictability.
     try:
         if weekday == 6 and hour == 18:
             from routes.recommendations import maybe_send_friends_finished_digest  # noqa: WPS433
-            ff_cursor = db.users.find(
-                {"$or": [
-                    {"friends_finished.enabled": True},
-                    {"friends_finished.enabled": {"$exists": False}},
-                ]},
-                {"_id": 0},
-            )
+            ff_cursor = db.users.find({}, {"_id": 0})
             ff_sent = 0
             async for ud in ff_cursor:
                 try:
@@ -846,6 +841,11 @@ async def email_overview(user: User = Depends(get_current_user)):
             "enabled": bool(digest_prefs.get("enabled")),
             "last_year_sent": last_year_sent,
             "note": "Fires automatically each Jan 1 at your chosen hour, while the weekly digest is on.",
+        },
+        "from_friends": {
+            "email_enabled": bool((user_doc.get("friends_finished") or {}).get("email_enabled", False)),
+            "last_email_sent_at": (user_doc.get("friends_finished") or {}).get("last_email_sent_at"),
+            "note": "In-app notifications always fire on Sunday 18:00 UTC; toggle to also receive an email copy.",
         },
     }
 

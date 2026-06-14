@@ -1,0 +1,42 @@
+{
+  "summary": "Verified the friends-finished digest backend changes (8 new tests) and full regression (digest 33 + recommendations 7 + opds 15 + bookclubs 29 + friends-finished 8 = 92/92 PASS). Frontend /library/recommendations card is correctly relabelled 'Weekly From friends digest' with both sample buttons + 'Email me too' toggle round-tripping to backend (toast 'We'll email you a copy each Sunday' confirmed). CRITICAL: /account/emails page crashes with ReferenceError 'sendFromFriendsPreview is not defined' — the JSX in EmailPreferences.jsx calls undefined handlers updateFromFriendsEmail and sendFromFriendsPreview, so the entire EmailPreferences page is broken (red error overlay).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "EmailPreferences (/account/emails)",
+        "issue": "Page crashes with ReferenceError: 'sendFromFriendsPreview is not defined'. JSX (line 457 & 465 of /app/frontend/src/pages/EmailPreferences.jsx) references updateFromFriendsEmail and sendFromFriendsPreview but neither function is defined in the component body (other handlers like sendFicPreview/updateFicEmail exist; these two were never written). React error overlay blocks the entire page, so from-friends-card / from-friends-toggle / from-friends-preview-btn never render.",
+        "selector": "[data-testid='from-friends-card']",
+        "priority": "CRITICAL"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_friends_finished_digest.py",
+    "/app/test_reports/pytest/pytest_iter15.xml",
+    "/app/test_reports/pytest/pytest_iter15_ff.xml"
+  ],
+  "action_items": [
+    "Add the two missing handlers in /app/frontend/src/pages/EmailPreferences.jsx (after sendFicPreview around line 232): (a) updateFromFriendsEmail(enabled) → PUT /api/recommendations/friends-finished/settings {email_enabled} and patch overview.from_friends, mirror updateFicEmail; (b) sendFromFriendsPreview() → POST /api/recommendations/friends-finished/preview?send_email=true and toast based on data.email_sent / data.email_error / data.email_logged. Without these, the entire /account/emails page is unusable, which falsifies the task claim 'EmailPreferences page renders without compile errors — verified fix'.",
+    "Cosmetic: in EmailPreferences.jsx line 218 there is a stray `try {` on the same line as setSendingUpdatePreview(false) — works but unreadable; reformat."
+  ],
+  "critical_code_review_comments": [
+    "EmailPreferences.jsx references two non-existent functions (sendFromFriendsPreview, updateFromFriendsEmail). React 18 hoisting doesn't help with const arrow functions, so the runtime throws on first render. This indicates the 'verified fix' mentioned in the task description was NOT actually applied to the live preview.",
+    "test_friends_finished_digest.py top-level MongoClient(MONGO_URL) means pytest collection fails immediately if env vars are missing — minor robustness issue, fine for CI.",
+    "RecommendationsPage.jsx custom toggle does not expose aria-checked on the same node as data-testid, so test assertions against state require reading children — consider adding aria-checked to the testid'd element for testability.",
+    "ChannelCard pattern is already reusable; the 'From friends' card is wired correctly aside from the missing handlers — once they're added the integration is one-line away."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (92/92)", "frontend": "50% — /library/recommendations PASS, /account/emails CRASH"},
+  "test_credentials": "Seeded ephemeral users (user_uiA_f1046888 alice + user_uiB_33c7e5e9 bob) via Mongo with friendship + 1 finished book; cleaned up after run. Backend pytest fixtures create/teardown their own users.",
+  "seed_data_creation": "Two ephemeral users + friendship + 1 finished book for UI test; cleanup script ran successfully.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend is 100% green (92 tests). Only frontend gap: EmailPreferences.jsx is missing updateFromFriendsEmail and sendFromFriendsPreview handlers — JSX references them on lines 457/465 of /app/frontend/src/pages/EmailPreferences.jsx. The pattern is identical to the existing sendFicPreview/updateFicEmail (lines 165 & 217). API endpoints: PUT/POST /api/recommendations/friends-finished/{settings,preview?send_email=true}. The card on /library/recommendations is fully working (verified toggle round-trips with backend, both buttons fire correctly).",
+  "rca of the issue": "EmailPreferences.jsx was edited to add the ChannelCard for 'From friends' (line ~456 with onToggle and onClick references), but the corresponding handler definitions were never added to the component body. Since they are referenced as bare identifiers (not optional-chained or wrapped in try/catch), React throws ReferenceError on first render. Reproduction: navigate to /account/emails while authenticated → red runtime-error overlay 'sendFromFriendsPreview is not defined'. Mitigation: define both handlers (~10 lines each) mirroring updateFicEmail/sendFicPreview but pointing at /api/recommendations/friends-finished/{settings,preview?send_email=true}, and patch overview.from_friends in setOverview."
+}

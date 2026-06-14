@@ -339,20 +339,24 @@ async def undismiss_rec(body: DismissBody, user: User = Depends(get_current_user
 
 
 # =====================================================================
-# Weekly "From friends" notification digest
+# Weekly "From friends" digest
 # =====================================================================
 #
 # Drops a single grouped in-app notification per user per week summarising
 # every book their sharing friends finished in the last 7 days that the
-# user doesn't already own.
+# user doesn't already own. The IN-APP notification ALWAYS fires when there
+# are matches — no user toggle. Only the OPTIONAL email copy is opt-in.
 #
-# Hooked from `routes/digest.py:_digest_tick` (same weekly schedule as
-# the email digest — fires on the user's selected day_of_week + hour).
+# Hooked from `routes/digest.py:_digest_tick` (fires on Sunday at 18:00 UTC).
 # Idempotent per ISO-year-week via `friends_finished.last_year_week`.
 #
 # Preferences live on the user doc:
-#   friends_finished: {enabled: bool=True, last_year_week: str|null,
-#                      last_sent_at: iso str|null}
+#   friends_finished: {
+#     email_enabled: bool=False,  # opt-in email copy (default OFF)
+#     last_year_week: str|null,
+#     last_sent_at: iso str|null,
+#     last_email_sent_at: iso str|null,
+#   }
 
 FRIENDS_FINISHED_LOOKBACK_DAYS = 7
 
@@ -364,10 +368,13 @@ def _year_week_key(dt: datetime) -> str:
 
 def _get_friends_finished_prefs(user_doc: Dict[str, Any]) -> Dict[str, Any]:
     p = user_doc.get("friends_finished") or {}
+    # Back-compat: older docs may have `enabled` from the first ship; we
+    # ignore that field now (in-app is unconditional). Email defaults to off.
     return {
-        "enabled": bool(p.get("enabled", True)),
+        "email_enabled": bool(p.get("email_enabled", False)),
         "last_year_week": p.get("last_year_week"),
         "last_sent_at": p.get("last_sent_at"),
+        "last_email_sent_at": p.get("last_email_sent_at"),
     }
 
 
@@ -468,22 +475,120 @@ async def _collect_friends_finished_payload(
     }
 
 
-async def maybe_send_friends_finished_digest(user_doc: Dict[str, Any]) -> bool:
-    """Called from the hourly digest tick. Returns True if a notification fired.
+def _build_friends_finished_email_payload(
+    user_doc: Dict[str, Any], payload: Dict[str, Any], base_url: str,
+) -> Dict[str, str]:
+    """Build the Resend email payload (subject + html + text) from the
+    collected books payload. Returns simple dict ready to splat into
+    Resend.Emails.send."""
+    total = payload["total"]
+    name = (user_doc.get("name") or user_doc.get("email", "").split("@")[0] or "there").split(" ")[0]
+    subject = f"{total} book{'s' if total != 1 else ''} your friends just finished"
+    text_lines = [
+        f"Hi {name},",
+        "",
+        "Here are the books your sharing friends finished this past week:",
+        "",
+    ]
+    html_rows = []
+    for b in payload["books"][:25]:
+        names = ", ".join(b["friend_names"][:3])
+        more = max(0, len(b["friend_names"]) - 3)
+        suffix = f" +{more} more" if more else ""
+        line = f"• {b['title']}"
+        if b.get("author"):
+            line += f" — {b['author']}"
+        line += f"  ({names}{suffix})"
+        text_lines.append(line)
+        html_rows.append(
+            f'<tr><td style="padding:8px 0;border-bottom:1px solid #EFEAE0;">'
+            f'<div style="font-weight:600;color:#2C2C2C;">{b["title"]}</div>'
+            f'<div style="font-size:13px;color:#6B705C;">{b.get("author") or ""}'
+            f'{" · " + b["fandom"] if b.get("fandom") else ""}</div>'
+            f'<div style="font-size:12px;color:#6B46C1;margin-top:2px;">{names}{suffix}</div>'
+            f'</td></tr>'
+        )
+    if total > 25:
+        text_lines.append(f"…and {total - 25} more.")
+    text_lines += [
+        "",
+        f"Open in Shelfsort: {base_url}/library/recommendations",
+        "",
+        "Manage email preferences:",
+        f"  {base_url}/account/emails",
+        "",
+        "— Shelfsort",
+    ]
+    text = "\n".join(text_lines)
+    html = (
+        '<div style="font-family:Georgia,serif;color:#2C2C2C;line-height:1.5;max-width:560px;">'
+        f'<h2 style="font-size:22px;color:#2C2C2C;margin:0 0 6px 0;">From your friends</h2>'
+        f'<p style="color:#6B705C;font-size:14px;margin:0 0 14px 0;">'
+        f'{total} book{"s" if total != 1 else ""} your sharing friends finished this past week.'
+        '</p>'
+        '<table style="width:100%;border-collapse:collapse;">'
+        + "".join(html_rows) +
+        '</table>'
+        f'<p style="margin:20px 0 0 0;"><a href="{base_url}/library/recommendations" '
+        'style="background:#6B46C1;color:white;text-decoration:none;padding:10px 18px;'
+        'border-radius:8px;font-weight:600;display:inline-block;">'
+        'See all in Shelfsort</a></p>'
+        f'<p style="font-size:11px;color:#6B705C;margin-top:24px;">'
+        f'You\'re getting this because you opted into the "From friends" email channel. '
+        f'<a href="{base_url}/account/emails" style="color:#6B46C1;">Manage email preferences</a>.'
+        '</p>'
+        '</div>'
+    )
+    return {"subject": subject, "html": html, "text": text}
 
-    Honours per-user enabled flag, idempotent per ISO-year-week, only fires
-    when there's at least one matching book.
+
+async def _send_friends_finished_email(user_doc: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Send the opt-in email. Best-effort; logs to email_log."""
+    from deps import RESEND_API_KEY, SENDER_EMAIL, FRONTEND_URL  # local import to avoid heavy startup deps
+    import asyncio
+    import resend
+    from utils.email_log import log_email_send
+
+    to_email = user_doc.get("email") or ""
+    if not to_email:
+        return {"delivered": False, "reason": "no_email"}
+    base = (FRONTEND_URL or "").rstrip("/")
+    msg = _build_friends_finished_email_payload(user_doc, payload, base)
+    if not RESEND_API_KEY:
+        logger.warning(
+            "RESEND_API_KEY not set — would have sent friends-finished email to %s (%d books)",
+            to_email, payload["total"],
+        )
+        return {"delivered": False, "logged": True}
+    try:
+        resend.api_key = RESEND_API_KEY
+        params = {"from": SENDER_EMAIL, "to": [to_email], **msg}
+        result = await asyncio.to_thread(resend.Emails.send, params)
+        await log_email_send("friends_finished", to_email, "ok", resend_id=(result or {}).get("id"))
+        return {"delivered": True, "id": (result or {}).get("id")}
+    except Exception as e:
+        logger.error("Friends-finished email send failed for %s: %s", to_email, e)
+        await log_email_send("friends_finished", to_email, "error", error=str(e))
+        return {"delivered": False, "error": str(e)}
+
+
+async def maybe_send_friends_finished_digest(user_doc: Dict[str, Any]) -> bool:
+    """Called from the weekly digest tick.
+
+    In-app notification ALWAYS fires when there are matches (no user toggle).
+    Email fires alongside if and only if `friends_finished.email_enabled=True`.
+    Idempotent per ISO-year-week.
+
+    Returns True if a notification fired (regardless of email outcome).
     """
     prefs = _get_friends_finished_prefs(user_doc)
-    if not prefs["enabled"]:
-        return False
     now = datetime.now(timezone.utc)
     yw = _year_week_key(now)
     if prefs.get("last_year_week") == yw:
         return False
     payload = await _collect_friends_finished_payload(user_doc["user_id"])
     if payload["total"] == 0:
-        # Still mark this week as "handled" so we don't re-check 24x the same day.
+        # Mark this week handled so we don't re-check 24x the same day.
         await db.users.update_one(
             {"user_id": user_doc["user_id"]},
             {"$set": {"friends_finished.last_year_week": yw}},
@@ -492,9 +597,7 @@ async def maybe_send_friends_finished_digest(user_doc: Dict[str, Any]) -> bool:
 
     total = payload["total"]
     sample = payload["books"][:3]
-    headline = (
-        f"{total} book{'s' if total != 1 else ''} your friends just finished"
-    )
+    headline = f"{total} book{'s' if total != 1 else ''} your friends just finished"
     body_lines = []
     for b in sample:
         names = ", ".join(b["friend_names"][:2])
@@ -505,6 +608,10 @@ async def maybe_send_friends_finished_digest(user_doc: Dict[str, Any]) -> bool:
         body_lines.append(f"…and {total - len(sample)} more.")
     body = " · ".join(body_lines)
 
+    set_updates: Dict[str, Any] = {
+        "friends_finished.last_year_week": yw,
+        "friends_finished.last_sent_at": now.isoformat(),
+    }
     try:
         await create_notification(
             user_doc["user_id"],
@@ -513,17 +620,24 @@ async def maybe_send_friends_finished_digest(user_doc: Dict[str, Any]) -> bool:
             body=body,
             link="/library/recommendations",
         )
-        await db.users.update_one(
-            {"user_id": user_doc["user_id"]},
-            {"$set": {
-                "friends_finished.last_year_week": yw,
-                "friends_finished.last_sent_at": now.isoformat(),
-            }},
-        )
-        return True
     except Exception as e:
-        logger.warning("Friends-finished digest failed for %s: %s", user_doc.get("email"), e)
+        logger.warning("Friends-finished in-app notification failed for %s: %s", user_doc.get("email"), e)
         return False
+
+    # Email is opt-in and runs only if the user explicitly enabled it.
+    if prefs.get("email_enabled"):
+        try:
+            result = await _send_friends_finished_email(user_doc, payload)
+            if result.get("delivered"):
+                set_updates["friends_finished.last_email_sent_at"] = now.isoformat()
+        except Exception as e:
+            logger.warning("Friends-finished email failed for %s: %s", user_doc.get("email"), e)
+
+    await db.users.update_one(
+        {"user_id": user_doc["user_id"]},
+        {"$set": set_updates},
+    )
+    return True
 
 
 # ---------------------------------------------------------------------
@@ -531,7 +645,7 @@ async def maybe_send_friends_finished_digest(user_doc: Dict[str, Any]) -> bool:
 # ---------------------------------------------------------------------
 
 class FriendsFinishedPrefsBody(BaseModel):
-    enabled: bool
+    email_enabled: bool
 
 
 @api_router.get("/recommendations/friends-finished/settings")
@@ -539,7 +653,10 @@ async def get_friends_finished_settings(user: User = Depends(get_current_user)):
     doc = await db.users.find_one(
         {"user_id": user.user_id}, {"_id": 0, "friends_finished": 1},
     ) or {}
-    return _get_friends_finished_prefs(doc)
+    from deps import RESEND_API_KEY  # local import
+    prefs = _get_friends_finished_prefs(doc)
+    prefs["email_configured"] = bool(RESEND_API_KEY)
+    return prefs
 
 
 @api_router.put("/recommendations/friends-finished/settings")
@@ -548,28 +665,46 @@ async def update_friends_finished_settings(
 ):
     await db.users.update_one(
         {"user_id": user.user_id},
-        {"$set": {"friends_finished.enabled": bool(body.enabled)}},
+        {"$set": {"friends_finished.email_enabled": bool(body.email_enabled)}},
     )
     return await get_friends_finished_settings(user)
 
 
 @api_router.post("/recommendations/friends-finished/preview")
-async def preview_friends_finished(user: User = Depends(get_current_user)):
+async def preview_friends_finished(
+    send_email: bool = False, user: User = Depends(get_current_user),
+):
     """Force-fire the digest right now (bypassing the per-week cooldown).
-    Used for the 'Send me a sample' button on the recs page."""
-    user_doc = await db.users.find_one(
-        {"user_id": user.user_id}, {"_id": 0},
-    )
+
+    Always sends the in-app notification when there's at least one matching
+    book. Set `?send_email=true` to also send the email — used by the
+    "Send sample email" button. Honours the email_enabled prefs irrelevant
+    of the send_email query (so users can preview emails before enabling).
+    """
+    user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
     if not user_doc:
         raise HTTPException(status_code=404, detail="User not found")
     payload = await _collect_friends_finished_payload(user.user_id)
     if payload["total"] == 0:
-        return {"fired": False, "reason": "no_new_finishes", **payload}
-    # Bypass cooldown by clearing the marker before firing.
+        return {"fired": False, "email_sent": False, "reason": "no_new_finishes", **payload}
+
+    # In-app: bypass weekly cooldown for previews.
     await db.users.update_one(
         {"user_id": user.user_id},
         {"$unset": {"friends_finished.last_year_week": ""}},
     )
     user_doc.pop("friends_finished", None)
     fired = await maybe_send_friends_finished_digest(user_doc)
-    return {"fired": fired, **payload}
+
+    email_result: Dict[str, Any] = {"delivered": False, "skipped": True}
+    if send_email:
+        # Direct call — don't gate on the user pref since this is an explicit preview action.
+        email_result = await _send_friends_finished_email(user_doc, payload)
+
+    return {
+        "fired": fired,
+        "email_sent": bool(email_result.get("delivered")),
+        "email_logged": bool(email_result.get("logged")),
+        "email_error": email_result.get("error"),
+        **payload,
+    }
