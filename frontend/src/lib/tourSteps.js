@@ -59,10 +59,10 @@ const TOUR_STEPS = [
   },
   {
     id: "appearance",
-    title: "Make it feel like home",
+    title: "Light, dark, and your favourite colour 🎨",
     body: [
-      "Tap the Sun/Moon icon in the top navbar to open the appearance popover. From there you can flip light ↔ dark and pick from seven curated colour schemes (Peach, Purple, Forest, Ocean, Crimson, Charcoal, Custom).",
-      "Want more? Account → Appearance gives you a full hex picker for Custom palettes, a live preview, and a scheduled auto-theme (e.g. dark from 19:00 to 07:00 local).",
+      "Look up at the navbar — see that Sun (or Moon) icon? Click it and a popover opens with two things: a one-tap light/dark toggle, and seven curated colour schemes (Peach, Purple, Forest, Ocean, Crimson, Charcoal, plus a fully Custom palette).",
+      "Pick whatever fits your mood. The whole app re-tints instantly — covers, links, buttons, the works. Want more control? Account → Appearance adds a full hex picker, live preview, and a scheduled auto-theme (e.g. dark from 19:00 to 07:00 local).",
     ],
     path: "/account/appearance",
   },
@@ -91,6 +91,7 @@ const TOUR_STEPS = [
       "Every feature has a section on the Help page (with a What's new strip showing the latest additions). Hit ? in the navbar any time.",
       "Happy reading.",
     ],
+    path: "/library",
   },
 ];
 
