@@ -163,42 +163,108 @@ function UsersCard() {
     } finally { setBusyId(null); }
   };
 
+  // Heuristic for "this is a developer/QA test account". Catches:
+  //   - any @example.com / @test.* / @localhost address
+  //   - emails containing the word "test" (e.g. testuser+1@gmail.com)
+  //   - "+test" plus-addressed mailboxes
+  //   - placeholder seed accounts like helptest@ / admin@example
+  // Real users almost never match any of these.
+  const isTestUser = (u) => {
+    const e = (u.email || "").toLowerCase();
+    if (!e) return false;
+    if (/@example\.com$/.test(e)) return true;
+    if (/@(test|localhost)(\.|$)/.test(e)) return true;
+    if (/\+test[\w-]*@/.test(e)) return true;
+    if (/(^|\b)test\d*@/.test(e)) return true;
+    if (/(^|[._-])(qa|qatest|helptest|seed|dummy)([._-]|@)/.test(e)) return true;
+    return false;
+  };
+
+  const realUsers = users.filter((u) => !isTestUser(u));
+  const testUsers = users.filter(isTestUser);
+
+  const renderRow = (u) => (
+    <li key={u.user_id} className="flex items-center justify-between gap-3 text-sm px-3 py-2 rounded-lg bg-[#FBFAF6] border border-[#E5DDC5]" data-testid={`admin-user-row-${u.user_id}`}>
+      <div className="min-w-0 flex-1">
+        <p className="font-semibold text-[#2C2C2C] truncate">
+          {u.name || u.email}
+          {u.is_admin && (
+            <span className="ml-2 inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.15em] text-[#6B46C1] font-bold">
+              <ShieldCheck className="w-3 h-3" /> Admin
+            </span>
+          )}
+          {isTestUser(u) && (
+            <span
+              className="ml-2 inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.15em] text-[#6B705C] font-bold bg-[#F2EDDF] px-1.5 py-0.5 rounded"
+              title="Heuristic match — looks like a test/QA account (example.com domain, test+ alias, etc.)"
+              data-testid={`admin-user-testbadge-${u.user_id}`}
+            >
+              Test
+            </span>
+          )}
+        </p>
+        <p className="text-xs text-[#6B705C] truncate">{u.email} · {u.book_count} book{u.book_count === 1 ? "" : "s"} · joined {fmtTime(u.created_at)}</p>
+      </div>
+      <button
+        type="button"
+        onClick={() => toggleAdmin(u)}
+        disabled={busyId === u.user_id}
+        data-testid={`admin-user-toggle-${u.user_id}`}
+        className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors flex items-center gap-1 ${
+          u.is_admin
+            ? "text-[#9B3531] hover:bg-[#FBE9E7]"
+            : "text-[#6B46C1] hover:bg-[#EEE9FB]"
+        }`}
+      >
+        {busyId === u.user_id ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+        {u.is_admin ? "Demote" : "Promote"}
+      </button>
+    </li>
+  );
+
   return (
     <Card icon={Users} title="Users & admins" subtitle="Promote or demote any account. The last admin cannot be demoted." testid="admin-users-card">
       {loading ? (
         <p className="text-sm text-[#6B705C] italic">Loading…</p>
       ) : (
-        <ul className="space-y-1.5" data-testid="admin-users-list">
-          {users.map((u) => (
-            <li key={u.user_id} className="flex items-center justify-between gap-3 text-sm px-3 py-2 rounded-lg bg-[#FBFAF6] border border-[#E5DDC5]" data-testid={`admin-user-row-${u.user_id}`}>
-              <div className="min-w-0 flex-1">
-                <p className="font-semibold text-[#2C2C2C] truncate">
-                  {u.name || u.email}
-                  {u.is_admin && (
-                    <span className="ml-2 inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.15em] text-[#6B46C1] font-bold">
-                      <ShieldCheck className="w-3 h-3" /> Admin
-                    </span>
-                  )}
-                </p>
-                <p className="text-xs text-[#6B705C] truncate">{u.email} · {u.book_count} book{u.book_count === 1 ? "" : "s"} · joined {fmtTime(u.created_at)}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => toggleAdmin(u)}
-                disabled={busyId === u.user_id}
-                data-testid={`admin-user-toggle-${u.user_id}`}
-                className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors flex items-center gap-1 ${
-                  u.is_admin
-                    ? "text-[#9B3531] hover:bg-[#FBE9E7]"
-                    : "text-[#6B46C1] hover:bg-[#EEE9FB]"
-                }`}
-              >
-                {busyId === u.user_id ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
-                {u.is_admin ? "Demote" : "Promote"}
-              </button>
-            </li>
-          ))}
-        </ul>
+        <>
+          {/* Real users — always visible.  This is the list admins
+              actually care about day-to-day. */}
+          <div className="flex items-baseline justify-between mb-2">
+            <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C]">
+              Real users
+              <span className="ml-2 font-normal normal-case text-[#9B9B8C]">({realUsers.length})</span>
+            </p>
+          </div>
+          <ul className="space-y-1.5" data-testid="admin-users-list">
+            {realUsers.map(renderRow)}
+            {realUsers.length === 0 && (
+              <li className="text-sm text-[#6B705C] italic px-3 py-2">No real users yet.</li>
+            )}
+          </ul>
+
+          {/* Test / QA accounts — folded into a <details> so they don't
+              clutter the main list.  Click to expand when you actually
+              need to demote or audit them. */}
+          {testUsers.length > 0 && (
+            <details className="mt-4 group" data-testid="admin-users-test-collapse">
+              <summary className="cursor-pointer select-none flex items-baseline justify-between px-1 py-1.5 text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C] hover:text-[#2C2C2C]">
+                <span>
+                  Test / QA accounts
+                  <span className="ml-2 font-normal normal-case text-[#9B9B8C]">({testUsers.length})</span>
+                </span>
+                <span className="text-[10px] font-semibold text-[#9B9B8C] group-open:hidden">expand ▾</span>
+                <span className="text-[10px] font-semibold text-[#9B9B8C] hidden group-open:inline">collapse ▴</span>
+              </summary>
+              <ul className="space-y-1.5 mt-2" data-testid="admin-users-test-list">
+                {testUsers.map(renderRow)}
+              </ul>
+              <p className="mt-2 text-[10px] text-[#9B9B8C] italic">
+                Matched by email pattern (example.com, test+, helptest@, etc.). False positives can&apos;t be moved out of this list yet — flag one and we&apos;ll add a per-user override.
+              </p>
+            </details>
+          )}
+        </>
       )}
     </Card>
   );
