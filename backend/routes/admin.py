@@ -132,20 +132,20 @@ async def _send_approval_email(
             f"Sign in to Shelfsort</a></p>"
             if approved
             else (
-                f"<p style='margin:0 0 12px;color:#2C2C2C'>We took a look at your "
-                f"Shelfsort sign-up but won't be approving the account at this time."
-                f"</p>"
+                "<p style='margin:0 0 12px;color:#2C2C2C'>We took a look at your "
+                "Shelfsort sign-up but won't be approving the account at this time."
+                "</p>"
                 + (
                     f"<p style='margin:0 0 12px;color:#2C2C2C'><strong>Reason from the admin:</strong> {reason}</p>"
                     if reason
                     else ""
                 )
-                + f"<p style='margin:0 0 12px;color:#6B705C;font-size:13px'>"
+                + "<p style='margin:0 0 12px;color:#6B705C;font-size:13px'>"
                 f"If you think this was a mistake, you're welcome to re-register at "
                 f"<a href='{FRONTEND_URL or ''}/signup' style='color:#6B46C1'>{FRONTEND_URL or ''}/signup</a>.</p>"
             )
         )
-        + f"</div>"
+        + "</div>"
     )
     body_text = (
         f"Hi {name or 'there'},\n\n"
@@ -376,6 +376,216 @@ async def get_today_pulse(user: User = Depends(require_admin)):
         "new_fandom_names": new_fandoms[:10],
         "pending_count": pending_count,
     }
+
+
+# ---------------------------------------------------------------------------
+# Per-user storage view (2026-06-15) — option (g): counts + titles + sizes
+# ---------------------------------------------------------------------------
+# Surfaces the top-N library owners by total uploaded bytes so the admin
+# can spot abandoned-but-huge accounts or power-users who might need their
+# own performance tweaks. NEVER returns file contents — only metadata
+# already visible in global stats (title, author, fandom, size_bytes).
+
+@api_router.get("/admin/storage-by-user")
+async def storage_by_user(
+    limit: int = 20,
+    user: User = Depends(require_admin),
+):
+    """Top N users ordered by ``sum(size_bytes)``. Books without
+    ``size_bytes`` (≈58% of historical rows) contribute 0 to the
+    user's total, which is good enough for triage — the largest
+    accounts virtually always have at least one sized book."""
+    limit = max(1, min(int(limit), 100))
+    pipeline = [
+        {"$match": {"size_bytes": {"$gt": 0}}},
+        {"$group": {
+            "_id": "$user_id",
+            "total_bytes": {"$sum": "$size_bytes"},
+            "book_count": {"$sum": 1},
+            "last_upload": {"$max": "$created_at"},
+        }},
+        {"$sort": {"total_bytes": -1}},
+        {"$limit": limit},
+    ]
+    rows = await db.books.aggregate(pipeline).to_list(length=limit)
+
+    # Enrich with display name / email so the admin doesn't have to
+    # cross-reference user_ids by hand.
+    uids = [r["_id"] for r in rows]
+    users_by_id = {}
+    if uids:
+        async for u in db.users.find(
+            {"user_id": {"$in": uids}},
+            {"_id": 0, "user_id": 1, "name": 1, "email": 1, "username": 1, "approval_status": 1},
+        ):
+            users_by_id[u["user_id"]] = u
+
+    enriched = []
+    for r in rows:
+        u = users_by_id.get(r["_id"], {})
+        last_upload = r.get("last_upload")
+        if isinstance(last_upload, datetime):
+            last_upload = last_upload.isoformat()
+        enriched.append({
+            "user_id": r["_id"],
+            "name": u.get("name") or "(unknown user)",
+            "email": u.get("email") or "",
+            "username": u.get("username"),
+            "approval_status": u.get("approval_status") or "approved",
+            "total_bytes": int(r["total_bytes"]),
+            "book_count": int(r["book_count"]),
+            "last_upload": last_upload,
+        })
+
+    # Global totals as a denominator so the FE can show "this user is
+    # X% of all storage".
+    grand_total_doc = await db.books.aggregate([
+        {"$match": {"size_bytes": {"$gt": 0}}},
+        {"$group": {"_id": None, "total": {"$sum": "$size_bytes"}, "count": {"$sum": 1}}},
+    ]).to_list(length=1)
+    grand_total = int(grand_total_doc[0]["total"]) if grand_total_doc else 0
+    grand_count = int(grand_total_doc[0]["count"]) if grand_total_doc else 0
+
+    return {
+        "users": enriched,
+        "limit": limit,
+        "grand_total_bytes": grand_total,
+        "grand_total_books_with_size": grand_count,
+    }
+
+
+@api_router.get("/admin/users/{target_user_id}/books")
+async def list_user_books(
+    target_user_id: str,
+    limit: int = 200,
+    user: User = Depends(require_admin),
+):
+    """Per-user book list for the storage-card drill-down. Returns ONLY
+    metadata (title, author, fandom, size_bytes, created_at). Reading
+    progress, bookmarks, fulltext, etc. are deliberately omitted — this
+    is storage triage, not impersonation."""
+    limit = max(1, min(int(limit), 1000))
+    target = await db.users.find_one(
+        {"user_id": target_user_id},
+        {"_id": 0, "user_id": 1, "name": 1, "email": 1},
+    )
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    rows = await db.books.find(
+        {"user_id": target_user_id},
+        {
+            "_id": 0, "book_id": 1, "title": 1, "author": 1, "fandom": 1,
+            "category": 1, "size_bytes": 1, "created_at": 1,
+        },
+    ).sort("size_bytes", -1).limit(limit).to_list(length=limit)
+    # Normalize created_at to ISO string for the FE.
+    for r in rows:
+        ts = r.get("created_at")
+        if isinstance(ts, datetime):
+            r["created_at"] = ts.isoformat()
+    total_books = await db.books.count_documents({"user_id": target_user_id})
+    return {
+        "user": target,
+        "books": rows,
+        "showing": len(rows),
+        "total_books": total_books,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Storage trend (2026-06-15) — 30-day chart
+# ---------------------------------------------------------------------------
+# No snapshot cron yet (would need infrastructure to run daily) — the
+# Year-1 implementation is **retroactive**: for each of the last N days,
+# sum ``size_bytes`` of every book whose ``created_at <= that day``.
+# That's a cheap aggregate against the books collection and produces a
+# perfectly accurate cumulative-storage curve from existing data, so the
+# chart works on day 1 instead of requiring 30 days of snapshots to build
+# up. We persist a snapshot row per-call to ``storage_snapshots`` as a
+# future-friendly side effect (the next round's cron will read this).
+
+@api_router.get("/admin/storage-trend")
+async def storage_trend(
+    days: int = 30,
+    user: User = Depends(require_admin),
+):
+    """Cumulative ``size_bytes`` over the last ``days`` days. Each point
+    is the total bytes of all books whose ``created_at`` is on or before
+    that day-end (UTC). The series is monotonically non-decreasing
+    because we don't delete book rows on user deletion — we soft-tomb
+    them via the trash shelf — so deletions don't show up as dips."""
+    days = max(1, min(int(days), 90))
+    now = datetime.now(timezone.utc)
+    today = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+
+    # Get ALL (created_at, size_bytes) tuples once, sort, then walk
+    # day-by-day from the oldest. Far cheaper than N aggregate queries.
+    rows = await db.books.find(
+        {"size_bytes": {"$gt": 0}},
+        {"_id": 0, "created_at": 1, "size_bytes": 1},
+    ).to_list(length=200000)
+
+    # Normalize each created_at to a UTC datetime.
+    normalized: list[tuple[datetime, int]] = []
+    for r in rows:
+        ts = r.get("created_at")
+        if isinstance(ts, str):
+            try:
+                ts = datetime.fromisoformat(ts)
+            except ValueError:
+                continue
+        if not isinstance(ts, datetime):
+            continue
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        normalized.append((ts, int(r.get("size_bytes") or 0)))
+    normalized.sort(key=lambda x: x[0])
+
+    # For each day in the window, compute cumulative bytes up to that
+    # day's end. Walk both pointers in lock-step (O(books + days)).
+    points = []
+    running_total = 0
+    running_count = 0
+    idx = 0
+    n = len(normalized)
+    for i in range(days, -1, -1):  # oldest → newest
+        cutoff = today - timedelta(days=i) + timedelta(days=1)  # day-end
+        while idx < n and normalized[idx][0] < cutoff:
+            running_total += normalized[idx][1]
+            running_count += 1
+            idx += 1
+        points.append({
+            "date": (cutoff - timedelta(days=1)).date().isoformat(),
+            "total_bytes": running_total,
+            "book_count": running_count,
+        })
+
+    # Best-effort snapshot persist for future cron to consume.
+    try:
+        await db.storage_snapshots.update_one(
+            {"date": points[-1]["date"]},
+            {"$set": {
+                "date": points[-1]["date"],
+                "total_bytes": points[-1]["total_bytes"],
+                "book_count": points[-1]["book_count"],
+                "snapshotted_at": datetime.now(timezone.utc),
+                "source": "lazy",  # vs. "cron" once we wire that up
+            }},
+            upsert=True,
+        )
+    except Exception:
+        pass  # non-critical
+
+    return {
+        "days": days,
+        "points": points,
+        "latest": points[-1] if points else None,
+        # Growth-rate hint: total over the window vs. starting total.
+        "growth_bytes": (points[-1]["total_bytes"] - points[0]["total_bytes"]) if len(points) > 1 else 0,
+    }
+
+
+
 
 
 

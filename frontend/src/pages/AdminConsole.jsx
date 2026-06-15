@@ -8,7 +8,7 @@ import {
   BarChart3, ToggleLeft, ClipboardList, Loader2, Plus, X as XIcon, Trash2,
   Check, ChevronRight, ChevronDown, Download, AlertOctagon, RotateCcw, Send,
   Mail, MessageSquare, Clock, CircleAlert, Route as RouteIcon, Search,
-  Inbox, Database, Siren,
+  Inbox, Database, Siren, HardDrive, TrendingUp,
 } from "lucide-react";
 import MongoInspectorCard from "../components/MongoInspectorCard";
 
@@ -36,6 +36,9 @@ const CARD_STATE_PREFIX = "shelfsort.admin.card.";
 const ADMIN_CARD_MANIFEST = [
   { testid: "admin-pending-users-card", title: "Pending sign-ups", subtitle: "Approve or reject new users.", keywords: "pending sign-up approval new user gate queue invite waitlist" },
   { testid: "admin-today-pulse-card", title: "Today · 24h pulse", subtitle: "Signups, uploads, errors at a glance.", keywords: "today pulse signups uploads errors fandoms 24h daily summary" },
+  { testid: "admin-feedback-inbox-card", title: "Feedback inbox", subtitle: "User-submitted bugs, ideas, and feature requests.", keywords: "feedback suggestions bug feature request inbox users reports tickets" },
+  { testid: "admin-storage-by-user-card", title: "Top storage users", subtitle: "Top 20 accounts by uploaded bytes.", keywords: "storage user disk bytes top biggest heavy quota power outliers abandoned" },
+  { testid: "admin-storage-trend-card", title: "Storage trend · 30 days", subtitle: "Cumulative bytes over time.", keywords: "storage trend disk growth chart graph history snapshot 30d size bytes" },
   { testid: "admin-users-card", title: "Users & admins", subtitle: "Promote or demote any account.", keywords: "users admins promote demote roles accounts" },
   { testid: "admin-chat-rooms-card", title: "Chat rooms", subtitle: "Direct-message rooms.", keywords: "chat rooms messages dm direct message conversations" },
   { testid: "admin-unknown-fandoms-card", title: "Unknown fandoms", subtitle: "Fandoms not yet in the keyword classifier.", keywords: "unknown fandoms classifier rescan dismiss missing tag" },
@@ -348,6 +351,405 @@ function TodayPulseCard() {
           >
             <RotateCcw className="w-3 h-3" /> Refresh
           </button>
+        </>
+      )}
+    </Card>
+  );
+}
+
+
+
+// ---------------------------------------------------------------------------
+// FeedbackInboxCard — admin view over user-submitted suggestions
+// ---------------------------------------------------------------------------
+// The /suggestions collection already powers the public Suggestions page
+// (`/suggestions` route). This card just surfaces the same data with an
+// admin-only filter and the existing status-update endpoint baked in.
+function FeedbackInboxCard() {
+  const [items, setItems] = useState([]);
+  const [filter, setFilter] = useState("open"); // open | under_review | planned | done | declined | all
+  const [loading, setLoading] = useState(true);
+  const [openCount, setOpenCount] = useState(0);
+  const [busyId, setBusyId] = useState(null);
+  const [expanded, setExpanded] = useState(null);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const params = filter === "all" ? {} : { status: filter };
+      const [{ data: list }, { data: count }] = await Promise.all([
+        api.get("/suggestions", { params }),
+        api.get("/admin/suggestions/open-count"),
+      ]);
+      setItems(list?.suggestions || []);
+      setOpenCount(count?.open || 0);
+    } catch { toast.error("Couldn't load feedback"); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [filter]);
+
+  const setStatus = async (sid, status) => {
+    setBusyId(sid);
+    try {
+      await api.put(`/admin/suggestions/${sid}`, { status });
+      toast.success(`Marked ${status.replace("_", " ")}`);
+      // Optimistic: drop the item from the current view if filter no longer matches
+      if (filter !== "all" && filter !== status) {
+        setItems(items.filter((i) => i.suggestion_id !== sid));
+        if (status !== "open") setOpenCount(Math.max(0, openCount - 1));
+      } else {
+        setItems(items.map((i) => i.suggestion_id === sid ? { ...i, status } : i));
+      }
+    } catch { toast.error("Couldn't update"); }
+    finally { setBusyId(null); }
+  };
+
+  const statusBadge = (s) => {
+    const map = {
+      open: { bg: "bg-[#FBE9E5]", fg: "text-[#B43F26]", label: "Open" },
+      under_review: { bg: "bg-[#F5F0E0]", fg: "text-[#8B4F00]", label: "Reviewing" },
+      planned: { bg: "bg-[#E8EEF5]", fg: "text-[#3A5A8C]", label: "Planned" },
+      done: { bg: "bg-[#EEF3EC]", fg: "text-[#1F4D2A]", label: "Done" },
+      declined: { bg: "bg-[#F5F3EC]", fg: "text-[#6B705C]", label: "Declined" },
+    };
+    const t = map[s] || map.open;
+    return <span className={`px-2 py-0.5 rounded-full ${t.bg} ${t.fg} text-xs font-medium`}>{t.label}</span>;
+  };
+
+  const cat = (c) => ({
+    bug: { fg: "text-[#B43F26]", label: "Bug" },
+    improvement: { fg: "text-[#3A5A8C]", label: "Tweak" },
+    feature: { fg: "text-[#6B46C1]", label: "Feature" },
+  }[c] || { fg: "text-[#6B705C]", label: c });
+
+  return (
+    <Card
+      icon={MessageSquare}
+      title={`Feedback inbox${openCount > 0 ? ` (${openCount} open)` : ""}`}
+      subtitle="Bugs, tweaks, and feature requests from your users."
+      testid="admin-feedback-inbox-card"
+    >
+      <div className="flex flex-wrap items-center gap-2 mb-4" data-testid="feedback-filter-row">
+        {[
+          ["open", "Open"],
+          ["under_review", "Reviewing"],
+          ["planned", "Planned"],
+          ["done", "Done"],
+          ["declined", "Declined"],
+          ["all", "All"],
+        ].map(([val, lbl]) => (
+          <button
+            key={val}
+            onClick={() => setFilter(val)}
+            data-testid={`feedback-filter-${val}`}
+            className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-[0.15em] transition-colors ${
+              filter === val ? "bg-[#6B46C1] text-white" : "bg-[#F5F3EC] text-[#6B705C] hover:bg-[#E8E2D4]"
+            }`}
+          >
+            {lbl}
+          </button>
+        ))}
+      </div>
+      {loading ? (
+        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+      ) : items.length === 0 ? (
+        <p className="text-sm text-[#1F8F4E] italic inline-flex items-center gap-1.5">
+          <Check className="w-3.5 h-3.5" /> No {filter === "all" ? "" : filter.replace("_", " ")} feedback right now.
+        </p>
+      ) : (
+        <ul className="space-y-2" data-testid="feedback-list">
+          {items.map((it) => {
+            const c = cat(it.category);
+            const open = expanded === it.suggestion_id;
+            return (
+              <li
+                key={it.suggestion_id}
+                className="rounded-xl border border-[#E5DDC5] bg-[#FBFAF6] p-3"
+                data-testid={`feedback-row-${it.suggestion_id}`}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-xs font-bold uppercase tracking-[0.15em] ${c.fg}`}>{c.label}</span>
+                      {statusBadge(it.status)}
+                      <span className="text-xs text-[#6B705C]">· {it.votes_count} vote{it.votes_count === 1 ? "" : "s"}</span>
+                    </div>
+                    <p className="font-medium text-[#2C2C2C] mt-1">{it.title}</p>
+                    <p className="text-xs text-[#6B705C] mt-0.5">
+                      {it.submitter_name || it.submitter_email || "Anonymous"} · {fmtTime(it.created_at)}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setExpanded(open ? null : it.suggestion_id)}
+                    data-testid={`feedback-expand-${it.suggestion_id}`}
+                    className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B46C1] hover:text-[#553B96]"
+                  >
+                    {open ? "Hide" : "Show"}
+                  </button>
+                </div>
+                {open && (
+                  <div className="mt-3 pt-3 border-t border-[#E5DDC5]">
+                    {it.body ? (
+                      <p className="text-sm text-[#2C2C2C] whitespace-pre-wrap mb-3">{it.body}</p>
+                    ) : (
+                      <p className="text-sm text-[#6B705C] italic mb-3">No description.</p>
+                    )}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {["under_review", "planned", "done", "declined", "open"]
+                        .filter((s) => s !== it.status)
+                        .map((s) => (
+                          <button
+                            key={s}
+                            onClick={() => setStatus(it.suggestion_id, s)}
+                            disabled={busyId === it.suggestion_id}
+                            data-testid={`feedback-status-${it.suggestion_id}-${s}`}
+                            className="px-2.5 py-1 rounded-full bg-[#F5F3EC] hover:bg-[#E8E2D4] text-[#2C2C2C] text-xs disabled:opacity-60 capitalize"
+                          >
+                            → {s.replace("_", " ")}
+                          </button>
+                        ))}
+                    </div>
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// StorageByUserCard — top 20 by uploaded bytes
+// ---------------------------------------------------------------------------
+function StorageByUserCard() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(null);
+  const [drilldown, setDrilldown] = useState({});
+  const [drillLoading, setDrillLoading] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const { data } = await api.get("/admin/storage-by-user", { params: { limit: 20 } });
+      setData(data);
+    } catch { toast.error("Couldn't load storage-by-user"); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, []);
+
+  const expand = async (uid) => {
+    if (expanded === uid) { setExpanded(null); return; }
+    setExpanded(uid);
+    if (drilldown[uid]) return;
+    setDrillLoading(true);
+    try {
+      const { data } = await api.get(`/admin/users/${uid}/books`, { params: { limit: 50 } });
+      setDrilldown((d) => ({ ...d, [uid]: data }));
+    } catch { toast.error("Couldn't load this user's books"); }
+    finally { setDrillLoading(false); }
+  };
+
+  return (
+    <Card
+      icon={HardDrive}
+      title="Top storage users"
+      subtitle="Top 20 accounts by total uploaded bytes. Storage triage only — no contents shown."
+      testid="admin-storage-by-user-card"
+    >
+      {loading || !data ? (
+        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+      ) : data.users.length === 0 ? (
+        <p className="text-sm text-[#6B705C] italic">No uploads with size_bytes yet.</p>
+      ) : (
+        <>
+          <p className="text-xs text-[#6B705C] mb-3">
+            Grand total: <strong className="font-bold text-[#2C2C2C]">{fmtBytes(data.grand_total_bytes)}</strong> across{" "}
+            <strong className="font-bold text-[#2C2C2C]">{data.grand_total_books_with_size.toLocaleString()}</strong> books.
+            <span className="block text-[#6B705C] italic mt-0.5">
+              (Books without ``size_bytes`` recorded contribute 0; about 58% of historical rows are missing this — they were uploaded before the field existed.)
+            </span>
+          </p>
+          <ul className="space-y-1.5" data-testid="storage-by-user-list">
+            {data.users.map((u, i) => {
+              const pct = data.grand_total_bytes > 0
+                ? (u.total_bytes / data.grand_total_bytes) * 100
+                : 0;
+              const open = expanded === u.user_id;
+              return (
+                <li
+                  key={u.user_id}
+                  className="rounded-xl border border-[#E5DDC5] bg-[#FBFAF6] hover:bg-[#F5F3EC] transition-colors"
+                  data-testid={`storage-row-${u.user_id}`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => expand(u.user_id)}
+                    className="w-full text-left p-3 flex items-center gap-3"
+                  >
+                    <span className="text-sm font-bold text-[#6B705C] tabular-nums w-7 text-right">{i + 1}.</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-baseline gap-2">
+                        <span className="font-medium text-[#2C2C2C] truncate">{u.name}</span>
+                        {u.username && <span className="text-xs text-[#6B46C1]">@{u.username}</span>}
+                      </div>
+                      <p className="text-xs text-[#6B705C] truncate">{u.email}</p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="font-mono text-sm text-[#2C2C2C]">{fmtBytes(u.total_bytes)}</p>
+                      <p className="text-xs text-[#6B705C]">
+                        {u.book_count.toLocaleString()} books · {pct.toFixed(1)}%
+                      </p>
+                    </div>
+                    <ChevronRight
+                      className={`w-4 h-4 text-[#6B705C] flex-shrink-0 transition-transform ${open ? "rotate-90" : ""}`}
+                    />
+                  </button>
+                  {open && (
+                    <div className="px-3 pb-3 border-t border-[#E5DDC5]" data-testid={`storage-drill-${u.user_id}`}>
+                      {drillLoading && !drilldown[u.user_id] ? (
+                        <p className="text-xs text-[#6B705C] italic py-2">Loading books…</p>
+                      ) : drilldown[u.user_id] ? (
+                        <>
+                          <p className="text-xs text-[#6B705C] py-2">
+                            Showing {drilldown[u.user_id].showing} of {drilldown[u.user_id].total_books.toLocaleString()} books, biggest first.
+                          </p>
+                          <ul className="space-y-1 max-h-72 overflow-y-auto">
+                            {drilldown[u.user_id].books.slice(0, 50).map((b) => (
+                              <li
+                                key={b.book_id}
+                                className="text-xs flex items-baseline justify-between gap-2 py-1 border-b border-[#F5F3EC] last:border-0"
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <span className="text-[#2C2C2C] truncate inline-block max-w-full">{b.title}</span>
+                                  {b.fandom && <span className="text-[#6B46C1] ml-2">· {b.fandom}</span>}
+                                </div>
+                                <span className="font-mono text-[#6B705C] flex-shrink-0">
+                                  {b.size_bytes ? fmtBytes(b.size_bytes) : "—"}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </>
+                      ) : null}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
+    </Card>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// StorageTrendCard — 30-day cumulative chart
+// ---------------------------------------------------------------------------
+// The backend computes the curve retroactively from books.created_at +
+// size_bytes (no need to wait 30 days for a snapshot cron to bootstrap).
+// Each call also writes a row to ``storage_snapshots`` so a future cron
+// can pick up cheaply.
+function StorageTrendCard() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [days, setDays] = useState(30);
+
+  const load = async (d) => {
+    setLoading(true);
+    try {
+      const { data } = await api.get("/admin/storage-trend", { params: { days: d } });
+      setData(data);
+    } catch { toast.error("Couldn't load storage trend"); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(days); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [days]);
+
+  const max = data?.points?.reduce((m, p) => Math.max(m, p.total_bytes), 0) || 1;
+  const min = data?.points?.[0]?.total_bytes || 0;
+  const range = Math.max(1, max - min);
+
+  // Build SVG path for the line.
+  const W = 600, H = 140, PAD = 8;
+  const pts = data?.points || [];
+  const xStep = pts.length > 1 ? (W - PAD * 2) / (pts.length - 1) : 0;
+  const yFor = (v) => H - PAD - ((v - min) / range) * (H - PAD * 2);
+  const linePath = pts
+    .map((p, i) => `${i === 0 ? "M" : "L"} ${PAD + i * xStep} ${yFor(p.total_bytes)}`)
+    .join(" ");
+  const areaPath = pts.length > 0
+    ? `${linePath} L ${PAD + (pts.length - 1) * xStep} ${H - PAD} L ${PAD} ${H - PAD} Z`
+    : "";
+
+  return (
+    <Card
+      icon={TrendingUp}
+      title="Storage trend"
+      subtitle="Cumulative bytes over time, computed from existing data."
+      testid="admin-storage-trend-card"
+    >
+      <div className="flex items-center gap-2 mb-3">
+        {[7, 14, 30, 60, 90].map((d) => (
+          <button
+            key={d}
+            onClick={() => setDays(d)}
+            data-testid={`storage-trend-days-${d}`}
+            className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-[0.15em] transition-colors ${
+              days === d ? "bg-[#6B46C1] text-white" : "bg-[#F5F3EC] text-[#6B705C] hover:bg-[#E8E2D4]"
+            }`}
+          >
+            {d}d
+          </button>
+        ))}
+      </div>
+      {loading || !data ? (
+        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+      ) : (
+        <>
+          <div className="flex items-baseline gap-4 mb-3">
+            <div>
+              <p className="text-xs uppercase tracking-wider text-[#6B705C]">Now</p>
+              <p className="font-mono text-lg text-[#2C2C2C]">{fmtBytes(data.latest?.total_bytes || 0)}</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wider text-[#6B705C]">Growth · {days}d</p>
+              <p className="font-mono text-lg text-[#1F8F4E]">+{fmtBytes(data.growth_bytes || 0)}</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wider text-[#6B705C]">Books</p>
+              <p className="font-mono text-lg text-[#2C2C2C]">{(data.latest?.book_count || 0).toLocaleString()}</p>
+            </div>
+          </div>
+          <svg
+            viewBox={`0 0 ${W} ${H}`}
+            className="w-full h-32"
+            data-testid="storage-trend-chart"
+            preserveAspectRatio="none"
+          >
+            <defs>
+              <linearGradient id="storage-trend-fill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#6B46C1" stopOpacity="0.35" />
+                <stop offset="100%" stopColor="#6B46C1" stopOpacity="0.05" />
+              </linearGradient>
+            </defs>
+            {areaPath && <path d={areaPath} fill="url(#storage-trend-fill)" />}
+            {linePath && (
+              <path d={linePath} fill="none" stroke="#6B46C1" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+            )}
+          </svg>
+          <div className="flex items-center justify-between text-xs text-[#6B705C] mt-1">
+            <span>{pts[0]?.date}</span>
+            <span>{pts[pts.length - 1]?.date}</span>
+          </div>
+          <p className="text-xs text-[#6B705C] italic mt-2">
+            Computed from books.created_at + size_bytes — no snapshot cron required.
+            Each call writes a snapshot row so a future daily cron can pick up cheaply.
+          </p>
         </>
       )}
     </Card>
@@ -2324,6 +2726,9 @@ export default function AdminConsole() {
             <>
               <PendingUsersCard />
               <TodayPulseCard />
+              <FeedbackInboxCard />
+              <StorageByUserCard />
+              <StorageTrendCard />
               <UsersCard />
               <ChatRoomsCard />
               <UnknownFandomsCard />

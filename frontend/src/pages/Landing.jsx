@@ -41,6 +41,17 @@ const SAMPLE_SHELVES = [
       { title: "Notes from a Tesseract", author: "P. Hartley" },
     ],
   },
+  {
+    name: "House M.D.",
+    accent: "#1F4D6B",
+    swatch: "linear-gradient(135deg, #1F4D6B 0%, #0E2C40 100%)",
+    books: [
+      { title: "Differential of the Heart", author: "Maddie Cuddy" },
+      { title: "The Last Vicodin", author: "G. Foreman" },
+      { title: "Everybody Lies, Quietly", author: "Wilson & House" },
+      { title: "Princeton-Plainsboro Nights", author: "A. Hadley" },
+    ],
+  },
 ];
 
 export default function Landing() {

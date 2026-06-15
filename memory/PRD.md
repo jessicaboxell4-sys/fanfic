@@ -2608,3 +2608,55 @@ backend/
 
 - **The 6-item admin batch** is still 1.5/6: **#1+#2** (view-as + timeline with consent), **#3** (feedback inbox), **#5g** (per-user storage), **#6** (storage trend) all remain.
 - **Pre-existing test failures: 0.**
+
+## 2026-06-15 — Admin batch: feedback inbox + per-user storage + storage trend (#3 + #5g + #6)
+
+Three more items from the 6-item admin batch ship in one go. **Batch progress now 4.5/6.**
+
+### House M.D. (drive-by)
+
+User noticed it wasn't surfaced anywhere user-facing. The keyword classifier already supported it — so the actual fix was visual:
+
+- Added a 4th panel to `Landing.jsx`'s `SAMPLE_SHELVES` showcase: ``House M.D.`` with a deep-navy gradient (`#1F4D6B → #0E2C40`) and four playful book titles (`Differential of the Heart`, `The Last Vicodin`, `Everybody Lies, Quietly`, `Princeton-Plainsboro Nights`).
+- Added it to `test_fandoms_known.py::test_endpoint_returns_hand_tuned_shelf_fandoms`'s `must_have` set as a regression guard so a future refactor can't quietly drop it from `/api/fandoms/known`.
+
+### #3 — Feedback inbox
+
+`/suggestions` endpoints already existed (public submit + admin-update + open-count). All this commit needed was a frontend surface — no backend changes:
+
+- **`<FeedbackInboxCard />`** at the top of /admin. Status-filter pills (`open` / `under_review` / `planned` / `done` / `declined` / `all`), open-count badge in the card title, per-row category chip (Bug / Tweak / Feature) + status badge + vote count + submitter name + relative time.
+- **One-click status transitions** inline — clicking `→ planned` etc. PUTs to `/admin/suggestions/{sid}` and optimistically removes the row from the current filtered view. Expand-to-show shows the full body + the full grid of transition buttons.
+
+### #5g — Per-user storage view
+
+- **Backend: `GET /api/admin/storage-by-user?limit=20`** — aggregate `sum(size_bytes)` per user, sort desc, enrich with name/email/username/approval_status, plus `grand_total_bytes` so the FE can show the per-user percentage. Books without `size_bytes` (≈58% of historical rows) contribute 0 — good enough for triage.
+- **Backend: `GET /api/admin/users/{uid}/books?limit=200`** — drill-down book list with `title / author / fandom / size_bytes / created_at` only. **Never returns file contents** — same access level as global stats. Sorted by size desc so the biggest offenders are visible first.
+- **`<StorageByUserCard />`** — ranked list (top 20), each row click-expands into a 50-book drill-down with sizes. Grand-total denominator + caveat about the 58% missing-size books.
+
+### #6 — Storage trend chart
+
+Skipped the daily-snapshot cron infrastructure entirely. Instead, the endpoint is **retroactive** — for each day in the window, sum `size_bytes` of all books whose `created_at <= day end`. That produces an accurate cumulative-storage curve on day 1 instead of requiring 30 days of snapshots to build up. We still write a row to `storage_snapshots` on each call so a future cron can pick up cheaply.
+
+- **Backend: `GET /api/admin/storage-trend?days=30`** — `points: [{date, total_bytes, book_count}, ...]` + `latest` + `growth_bytes`. Range 1–90 days.
+- **`<StorageTrendCard />`** — chip selector (`7d / 14d / 30d / 60d / 90d`), three big stats (Now / Growth / Books), inline pure-SVG area chart (single path with a purple gradient fill — no chart library dependency).
+
+### Files touched
+
+```
+backend/
+  routes/admin.py                 + 3 endpoints (~190 lines), 4 ruff cleanups in approval-email html
+  tests/test_fandoms_known.py     + House M.D. lock in must_have
+
+frontend/
+  src/pages/Landing.jsx           + House M.D. sample shelf
+  src/pages/AdminConsole.jsx      + 3 cards + 3 lucide icons + 3 manifest entries
+```
+
+### Verified
+
+- Live curl smoke: storage-by-user returns the expected top-20 with grand_total + per-user pct; storage-trend returns 8 points for `?days=7` with monotonic curve; storage_snapshots row written.
+- `pytest test_admin_console.py + test_approval_gate.py + test_alert_health.py + test_fandoms_known.py` → **49 passed, 1 skipped, 0 failed**.
+- Lint clean on backend; pre-existing-only warnings on FE (file already had 8); webpack compiles.
+
+### Backlog now standing
+- 🎯 **Admin batch: 4.5/6 done.** Only **#1+#2** (view-as-user + per-user activity timeline with per-admin user consent) remains — the largest item.

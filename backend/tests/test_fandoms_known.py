@@ -96,6 +96,10 @@ def test_endpoint_returns_hand_tuned_shelf_fandoms():
         "Naruto", "My Hero Academia", "BTS", "One Direction",
         "Stargate SG-1", "Stargate Atlantis", "Stargate Universe",
         "Stargate (Movies)",
+        # House M.D. — added to the Landing-page Sample Shelves preview
+        # 2026-06-15; the keyword classifier has supported it for ages but
+        # we lock it in here so a future refactor can't quietly drop it.
+        "House M.D.",
     }
     missing = must_have - fandoms
     assert not missing, f"Hand-tuned shelf fandoms missing from /api/fandoms/known: {sorted(missing)}"
