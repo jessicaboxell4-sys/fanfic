@@ -121,6 +121,40 @@ export default function Reader() {
     } catch (e) { toast.error("Couldn't remove bookmark"); }
   }, [id]);
 
+  // Inline-edit a bookmark's note from the panel.  Debounce-free on purpose:
+  // each note is short, blur fires once per edit, and the optimistic state
+  // means the user never sees a flicker.
+  const updateBookmarkNote = useCallback(async (bookmark_id, note) => {
+    setBookmarks((prev) => prev.map((b) =>
+      b.bookmark_id === bookmark_id ? { ...b, note } : b
+    ));
+    try {
+      await api.patch(`/books/${id}/bookmarks/${bookmark_id}`, { note });
+    } catch (e) { toast.error("Couldn't save note"); }
+  }, [id]);
+
+  // Is the user's current position already bookmarked? Used to flip the
+  // bookmark button between "Add" and "Saved" so they don't accidentally
+  // double-bookmark the exact same CFI.
+  const currentIsBookmarked = location
+    ? bookmarks.some((b) => b.cfi === location)
+    : false;
+
+  // Cmd/Ctrl+B keyboard shortcut to add (or focus the panel for editing)
+  // the current page.  Skips when an input is focused so we don't fight
+  // browser-native bold-text in textareas inside the bookmark panel.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "b") return;
+      const tag = (document.activeElement?.tagName || "").toLowerCase();
+      if (tag === "input" || tag === "textarea") return;
+      e.preventDefault();
+      addBookmark();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [addBookmark]);
+
   // Reading-time heartbeat: every 60s, if the tab is visible AND user is
   // active (mouse/scroll/key/touch in the last 90s), send a 60-second ping.
   useEffect(() => {
@@ -350,16 +384,25 @@ export default function Reader() {
             )}
           </div>
           <div className="flex items-center gap-2">
-            {/* Bookmark button */}
+            {/* Bookmark button — fills in (Saved) when the current CFI
+                already has a bookmark, so users know they don't need to
+                save again.  Keyboard shortcut: Cmd/Ctrl+B. */}
             <button
               data-testid="bookmark-add-btn"
               onClick={addBookmark}
               disabled={!location}
-              className="hidden sm:flex items-center gap-1.5 text-xs font-medium bg-white border border-[#E8E6E1] rounded-full px-3 py-1.5 hover:bg-[#F5F3EC] disabled:opacity-50"
-              title="Bookmark this page"
+              data-saved={currentIsBookmarked || undefined}
+              className={`hidden sm:flex items-center gap-1.5 text-xs font-medium border rounded-full px-3 py-1.5 disabled:opacity-50 ${
+                currentIsBookmarked
+                  ? "bg-[var(--primary)] text-white border-[var(--primary)] hover:opacity-90"
+                  : "bg-white text-[#2C2C2C] border-[#E8E6E1] hover:bg-[#F5F3EC]"
+              }`}
+              title={currentIsBookmarked
+                ? "This page is bookmarked — click to update note"
+                : "Bookmark this page (Cmd/Ctrl+B)"}
             >
               <BookmarkPlus className="w-3.5 h-3.5" />
-              <span>Bookmark</span>
+              <span>{currentIsBookmarked ? "Saved" : "Bookmark"}</span>
             </button>
 
             {/* Bookmark panel toggle */}
@@ -472,13 +515,28 @@ export default function Reader() {
                             {Math.round(bm.percent * 100)}% through
                           </p>
                         )}
-                        {bm.note && (
-                          <p className="text-sm text-[#6B46C1] mt-1 italic">&ldquo;{bm.note}&rdquo;</p>
-                        )}
                         <p className="text-xs text-[#9B9B8C] mt-1">
                           {new Date(bm.created_at).toLocaleDateString()}
                         </p>
                       </button>
+                      {/* Inline-editable note. Persists on blur so the user
+                          can type freely without hammering the network.
+                          280-char ceiling matches the backend cap. */}
+                      <textarea
+                        defaultValue={bm.note || ""}
+                        maxLength={280}
+                        placeholder="Add a note…"
+                        data-testid={`bookmark-note-${bm.bookmark_id}`}
+                        onBlur={(e) => {
+                          const next = (e.target.value || "").trim();
+                          if (next !== (bm.note || "")) {
+                            updateBookmarkNote(bm.bookmark_id, next);
+                          }
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        rows={2}
+                        className="mt-2 w-full text-sm text-[#2C2C2C] bg-[#FAF6EE] border border-[#E8E6E1] rounded p-2 focus:outline-none focus:border-[var(--primary)] resize-y italic"
+                      />
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); removeBookmark(bm.bookmark_id); }}

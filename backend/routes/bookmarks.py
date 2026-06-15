@@ -62,6 +62,13 @@ class BookmarkAddBody(BaseModel):
     percent: Optional[float] = None
 
 
+class BookmarkPatchBody(BaseModel):
+    """Editable fields for an existing bookmark.  Only ``note`` is exposed
+    today (chapter_label is computed server/client-side from the EPUB TOC
+    so users don't have to retype it)."""
+    note: Optional[str] = None
+
+
 @api_router.get("/books/{book_id}/bookmarks")
 async def list_book_bookmarks(book_id: str, user: User = Depends(get_current_user)):
     """List every bookmark the user has set on this book, oldest first
@@ -127,6 +134,34 @@ async def add_book_bookmark(
     }
     await db.bookmarks.insert_one(doc)
     return {"bookmark": _serialize(doc)}
+
+
+@api_router.patch("/books/{book_id}/bookmarks/{bookmark_id}")
+async def patch_book_bookmark(
+    book_id: str,
+    bookmark_id: str,
+    body: BookmarkPatchBody,
+    user: User = Depends(get_current_user),
+):
+    """Update an existing bookmark's note. Passing ``note=""`` clears it
+    (which the POST endpoint can't do — POST treats empty notes as
+    "keep the existing one" for legacy callers)."""
+    update: dict = {}
+    if body.note is not None:
+        update["note"] = body.note.strip()[:NOTE_MAX_LENGTH]
+    if not update:
+        return {"updated": 0}
+    res = await db.bookmarks.update_one(
+        {"bookmark_id": bookmark_id, "user_id": user.user_id, "book_id": book_id},
+        {"$set": update},
+    )
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Bookmark not found")
+    doc = await db.bookmarks.find_one(
+        {"bookmark_id": bookmark_id, "user_id": user.user_id},
+        {"_id": 0},
+    )
+    return {"bookmark": _serialize(doc), "updated": res.modified_count}
 
 
 @api_router.delete("/books/{book_id}/bookmarks/{bookmark_id}")

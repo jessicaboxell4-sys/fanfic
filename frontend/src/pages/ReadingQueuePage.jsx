@@ -1,10 +1,10 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import Navbar from "../components/Navbar";
 import BookCard from "../components/BookCard";
 import { toast } from "sonner";
-import { ArrowLeft, ListChecks, ChevronUp, ChevronDown, X, BookOpen } from "lucide-react";
+import { ArrowLeft, ListChecks, ChevronUp, ChevronDown, X, BookOpen, GripVertical } from "lucide-react";
 
 /**
  * Reading queue ("Up Next") page at /library/queue.
@@ -21,6 +21,12 @@ export default function ReadingQueuePage() {
   const [queue, setQueue] = useState([]);
   const [loading, setLoading] = useState(true);
   const [savingOrder, setSavingOrder] = useState(false);
+  // Native HTML5 drag-and-drop state. We track the index of the row
+  // currently being dragged + the row being hovered as a drop target so
+  // we can show a clean drop indicator instead of relying on the browser's
+  // default ghost rectangle alone.
+  const dragIndexRef = useRef(null);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -39,24 +45,14 @@ export default function ReadingQueuePage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const move = async (index, delta) => {
+  const move = (index, delta) => {
     if (savingOrder) return;
     const target = index + delta;
     if (target < 0 || target >= queue.length) return;
     const next = [...queue];
     [next[index], next[target]] = [next[target], next[index]];
     setQueue(next);
-    setSavingOrder(true);
-    try {
-      await api.post("/library/queue/reorder", {
-        book_ids: next.map((b) => b.book_id),
-      });
-    } catch (e) {
-      toast.error("Couldn't save the new order");
-      load();
-    } finally {
-      setSavingOrder(false);
-    }
+    saveOrder(next);
   };
 
   const removeAt = async (bookId, title) => {
@@ -68,6 +64,67 @@ export default function ReadingQueuePage() {
       toast.error("Couldn't remove from queue");
       load();
     }
+  };
+
+  // Persist a full ordering to the backend.  Used by both the up/down
+  // arrow buttons and the drag-and-drop handler so they share the same
+  // optimistic-update + rollback-on-error path.
+  const saveOrder = useCallback(async (nextQueue) => {
+    setSavingOrder(true);
+    try {
+      await api.post("/library/queue/reorder", {
+        book_ids: nextQueue.map((b) => b.book_id),
+      });
+    } catch (e) {
+      toast.error("Couldn't save the new order");
+      load();
+    } finally {
+      setSavingOrder(false);
+    }
+  }, [load]);
+
+  // Drag-and-drop ---------------------------------------------------------
+  // We use the native HTML5 DnD API directly rather than pulling in a
+  // library — the surface is small (one ordered list) and a 30-line
+  // implementation is plenty.  The data shape on the DataTransfer object
+  // is irrelevant since we keep the dragging index in a ref, but Firefox
+  // requires setData to be called for the drag to actually start.
+  const onDragStart = (idx) => (e) => {
+    dragIndexRef.current = idx;
+    try { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", String(idx)); } catch {}
+  };
+
+  const onDragOver = (idx) => (e) => {
+    // Must preventDefault so the drop event fires.
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (dragOverIndex !== idx) setDragOverIndex(idx);
+  };
+
+  const onDragLeave = () => setDragOverIndex(null);
+
+  const onDrop = (targetIdx) => (e) => {
+    e.preventDefault();
+    const fromIdx = dragIndexRef.current;
+    dragIndexRef.current = null;
+    setDragOverIndex(null);
+    if (fromIdx === null || fromIdx === targetIdx) return;
+    setQueue((prev) => {
+      const next = [...prev];
+      const [moved] = next.splice(fromIdx, 1);
+      // When dragging downward the target index shifts by one after the
+      // splice; account for that so the dropped row lands exactly where
+      // the user aimed.
+      const insertAt = fromIdx < targetIdx ? targetIdx - 1 : targetIdx;
+      next.splice(insertAt, 0, moved);
+      saveOrder(next);
+      return next;
+    });
+  };
+
+  const onDragEnd = () => {
+    dragIndexRef.current = null;
+    setDragOverIndex(null);
   };
 
   return (
@@ -93,7 +150,7 @@ export default function ReadingQueuePage() {
           </h1>
           {queue.length > 0 && (
             <p className="text-[#6B705C] mt-3">
-              Reorder with the arrows, remove with the × button, or hit a card to start reading.
+              Drag the <GripVertical className="inline w-4 h-4 -mt-0.5" /> handle to reorder, use the arrows for one-step nudges, the × to remove, or tap a card to start reading.
             </p>
           )}
         </header>
@@ -118,8 +175,24 @@ export default function ReadingQueuePage() {
               <li
                 key={book.book_id}
                 data-testid={`queue-row-${book.book_id}`}
-                className="shelf-card p-3 flex items-center gap-3"
+                draggable
+                onDragStart={onDragStart(i)}
+                onDragOver={onDragOver(i)}
+                onDragLeave={onDragLeave}
+                onDrop={onDrop(i)}
+                onDragEnd={onDragEnd}
+                className={`shelf-card p-3 flex items-center gap-3 transition-shadow ${
+                  dragOverIndex === i ? "ring-2 ring-[var(--primary)] ring-offset-2 ring-offset-[#FAF6EE]" : ""
+                }`}
               >
+                <span
+                  data-testid={`queue-grip-${book.book_id}`}
+                  title="Drag to reorder"
+                  className="text-[#6B705C] cursor-grab active:cursor-grabbing select-none"
+                  aria-hidden
+                >
+                  <GripVertical className="w-4 h-4" />
+                </span>
                 <span className="font-mono text-xs text-[#6B705C] w-6 text-right tabular-nums">{i + 1}.</span>
                 <div className="w-12 flex-shrink-0">
                   <div className="aspect-[2/3] rounded overflow-hidden bg-[#EDE7FB]">
