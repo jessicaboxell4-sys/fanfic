@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { ReactReader } from "react-reader";
 import { ArrowLeft, BookOpen, Minus, Plus, BookText, AlignLeft, Bookmark, BookmarkPlus, X as XIcon } from "lucide-react";
 import { api } from "../lib/api";
+import { pulseGoalsCheck } from "../lib/goalHitWatcher";
 import { toast } from "sonner";
 
 const FLOW_KEY = "shelfsort-flow"; // "paginated" | "scrolled"
@@ -40,6 +41,10 @@ export default function Reader() {
       if (progressTimerRef.current) clearTimeout(progressTimerRef.current);
       progressTimerRef.current = setTimeout(() => {
         api.post(`/books/${id}/progress`, { percent: pct, cfi }).catch(() => {});
+        // If the user just crossed 100% in this debounced save, check
+        // whether a Reading-goal flipped to hit — same trigger we use on
+        // the BookCard "Mark read" button.
+        if (pct >= 0.99) pulseGoalsCheck();
       }, 1200);
     } catch (e) {}
   }, [id]);

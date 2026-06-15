@@ -1,3 +1,56 @@
+"""``routes/books.py`` — core book lifecycle, upload pipeline, metadata.
+
+This file is the heart of Shelfsort. As the app grew, the more
+specialised endpoint clusters got peeled off into their own modules. The
+table below is the current map so future maintainers can find things
+fast (line numbers are approximate; sections move as code is added).
+
+================ STILL IN THIS FILE ================
+Section / lines
+  Upload & ingestion           : single-file + bulk POST /api/books/upload
+  EPUB metadata extraction     : extract_epub_metadata, extract_chapters,
+                                 diff_chapters, _normalize_title_for_match,
+                                 _updated_shelf_name, OLD_STORIES_SHELF
+  Fanfic detection             : detect_source_from_text, find_duplicate_candidates,
+                                 normalize_fanfic_url, fanfic-URL canonicalisation
+  Single-book CRUD             : GET/PATCH/DELETE /api/books/{book_id}
+  Reader assets                : GET /api/books/{book_id}/download
+                                 GET /api/books/{book_id}/cover/{filename}
+                                 GET /api/books/{book_id}/download-original
+                                 GET /api/books/{book_id}/diff (vs previous version)
+  Library listings & filters   : GET /api/library/all and friends (by category,
+                                 status, fandom, pairing, tag)
+  Categories / shelves         : POST/DELETE /api/categories,
+                                 POST /api/books/{book_id}/category
+  Cover regeneration           : POST /api/books/{book_id}/cover/regenerate
+  Manual status mutator        : PATCH /api/books/{book_id}/status
+  Trash                        : (extracted to routes/trash.py — pre Phase 5)
+  Relationships / pairings     : last block in the file, /api/relationships*
+
+================ EXTRACTED MODULES ================
+routes/refresh.py             : POST /api/books/{book_id}/refresh (Phase 4)
+routes/duplicates.py          : auto-pending-duplicate badge helpers (Phase 4)
+routes/duplicate_resolution.py: POST /api/books/{book_id}/resolve-duplicate
+                                POST /api/books/resolve-group
+                                GET  /api/library/duplicates(/count) (Phase 5D)
+routes/library_views.py       : GET /api/library/trends, status-counts,
+                                complete, ongoing, linkless, unreadable
+                                + _status_query / _list_status_shelf (Phase 5E)
+routes/reading_activity.py    : POST /api/books/{id}/mark, /heartbeat,
+                                /progress, /touch + _log_activity (Phase 5F)
+routes/url_lists.py           : POST /api/url-lists/scan + helpers (Phase 5A)
+routes/fandoms.py             : GET /api/fandoms (community list) (Phase 5B)
+routes/exports.py             : GET /api/library/download(?kind=xlsx)
+                                + ZIP/XLSX builders (Phase 5C)
+routes/conversions.py         : POST /api/library/originals/{id}/convert
+                                + bulk convert (Phase 1)
+routes/trash.py               : GET /api/library/trash, restore, empty (Phase 2)
+
+The shared helpers (extract_chapters, diff_chapters, OLD_STORIES_SHELF,
+_normalize_title_for_match, etc.) live HERE because the upload + refresh
+pipelines depend on them.  Extracted modules import them by name from
+``routes.books``; that import is one-way (no cycles).
+"""
 from fastapi import (
     APIRouter, UploadFile, File, HTTPException, Request, Response,
     Depends, Form, Query,

@@ -5,6 +5,7 @@ import { Toaster } from "sonner";
 
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import TourOverlay, { hasSeenTour } from "@/components/TourOverlay";
+import GlobalConfettiHost from "@/components/GlobalConfettiHost";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { PaletteProvider } from "@/context/PaletteContext";
 import UrlPasteDetector from "@/components/UrlPasteDetector";
@@ -195,6 +196,7 @@ function App() {
               <MaintenanceBanner />
               {FETCHING_UI_ENABLED && <UrlPasteDetector />}
               <AppRouter />
+              <GlobalConfettiHost />
               <Toaster position="top-center" richColors />
             </AuthProvider>
           </PaletteProvider>

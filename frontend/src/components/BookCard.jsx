@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Book, Check, CheckCircle2, Circle, ListPlus, ListChecks } from "lucide-react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
+import { pulseGoalsCheck } from "../lib/goalHitWatcher";
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
 
@@ -65,6 +66,9 @@ export default function BookCard({ book, selectMode, selected, onToggleSelect, o
       await api.post(`/books/${book.book_id}/mark`, { read: !isRead });
       toast.success(!isRead ? `Marked "${book.title}" as read` : `Marked "${book.title}" as unread`);
       onChanged && onChanged();
+      // If this mark just flipped a Reading-goal, fire global confetti.
+      // Only check when moving to "read" (unread never triggers a hit).
+      if (!isRead) pulseGoalsCheck();
     } catch (err) {
       toast.error("Couldn't update");
     } finally {
