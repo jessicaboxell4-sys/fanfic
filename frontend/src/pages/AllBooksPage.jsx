@@ -16,7 +16,7 @@ import BackupReminderBanner from "../components/BackupReminderBanner";
 import LibraryActivityWidgets from "../components/LibraryActivityWidgets";
 import Ao3FilterChips from "../components/Ao3FilterChips";
 import FandomFinder from "../components/FandomFinder";
-import { Search, X, Plus, ArrowRight, ArrowLeftRight, Heart, BookOpen, CheckSquare, Sparkles, Loader2, RefreshCw, Library, UserCircle2, Filter, Pin, FolderOpen, ArrowUpDown, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Trash2 } from "lucide-react";
+import { Search, X, Plus, ArrowRight, ArrowLeftRight, Heart, BookOpen, CheckSquare, Sparkles, Loader2, RefreshCw, Library, UserCircle2, Filter, Pin, FolderOpen, ArrowUpDown, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Trash2, LayoutGrid, List as ListIcon } from "lucide-react";
 import { toast } from "sonner";
 import { FETCHING_UI_ENABLED } from "../lib/featureFlags";
 
@@ -45,6 +45,17 @@ export default function AllBooksPage() {
   const [addingCat, setAddingCat] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
+  // Grid vs List view.  Persisted per-browser so each visit feels stable.
+  // List mode is the "declutter" answer for libraries with hundreds of
+  // books — single-line rows fit 4–5× more books per scroll.
+  const [viewMode, setViewMode] = useState(() => {
+    try { return window.localStorage.getItem("shelfsort_view_mode") || "grid"; }
+    catch { return "grid"; }
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem("shelfsort_view_mode", viewMode); }
+    catch { /* ignore */ }
+  }, [viewMode]);
   const [reclassifyingAll, setReclassifyingAll] = useState(false);
   const [refreshStatus, setRefreshStatus] = useState({ refreshable: 0, last_refreshed_at: null });
   const [refreshingAll, setRefreshingAll] = useState(false);
@@ -678,6 +689,46 @@ export default function AllBooksPage() {
                 <CheckSquare className="w-4 h-4" />
                 {selectMode ? "Done" : "Select"}
               </button>
+              {/* View-mode toggle — Grid (cards) vs List (compact rows).
+                  List mode dramatically reduces visual noise for libraries
+                  with hundreds of books. Persisted to localStorage. */}
+              <div
+                className="inline-flex border border-[#E8E6E1] rounded-lg overflow-hidden bg-white"
+                data-testid="view-mode-toggle"
+                role="radiogroup"
+                aria-label="View mode"
+              >
+                <button
+                  type="button"
+                  onClick={() => setViewMode("grid")}
+                  data-testid="view-mode-grid"
+                  aria-pressed={viewMode === "grid"}
+                  title="Card grid — see every cover"
+                  className={`flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-colors ${
+                    viewMode === "grid"
+                      ? "bg-[#2C2C2C] text-white"
+                      : "text-[#2C2C2C] hover:bg-[#F5F3EC]"
+                  }`}
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                  <span className="hidden sm:inline">Grid</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("list")}
+                  data-testid="view-mode-list"
+                  aria-pressed={viewMode === "list"}
+                  title="Compact list — fit more books on screen"
+                  className={`flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium border-l border-[#E8E6E1] transition-colors ${
+                    viewMode === "list"
+                      ? "bg-[#2C2C2C] text-white"
+                      : "text-[#2C2C2C] hover:bg-[#F5F3EC]"
+                  }`}
+                >
+                  <ListIcon className="w-4 h-4" />
+                  <span className="hidden sm:inline">List</span>
+                </button>
+              </div>
             </div>
 
             <div className="flex flex-wrap gap-2 mb-3">
@@ -1213,6 +1264,71 @@ export default function AllBooksPage() {
               <p className="text-[#6B705C] py-12 text-center">Loading…</p>
             ) : books.length === 0 ? (
               <p className="text-[#6B705C] py-12 text-center">No books match these filters.</p>
+            ) : viewMode === "list" ? (
+              // Compact list — single-line rows.  Way easier to scan for
+              // big libraries.  Cover thumb stays so books still feel
+              // book-shaped, but everything else collapses into one row.
+              <ul className="divide-y divide-[#E8E6E1] bg-white rounded-xl border border-[#E8E6E1] overflow-hidden" data-testid="books-list">
+                {books.map(b => (
+                  <li
+                    key={b.book_id}
+                    data-testid={`book-row-${b.book_id}`}
+                    className={`flex items-center gap-4 px-4 py-2.5 hover:bg-[#FAF6EE] transition-colors ${
+                      selectMode && selectedIds.has(b.book_id) ? "bg-[#EEE9FB]" : ""
+                    }`}
+                    onClick={() => {
+                      if (selectMode) {
+                        setSelectedIds((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(b.book_id)) next.delete(b.book_id); else next.add(b.book_id);
+                          return next;
+                        });
+                      } else {
+                        window.location.href = `/books/${b.book_id}`;
+                      }
+                    }}
+                    style={{ cursor: selectMode ? "pointer" : "pointer" }}
+                  >
+                    {selectMode && (
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(b.book_id)}
+                        onChange={() => {}}
+                        className="w-4 h-4 accent-[var(--primary)] shrink-0"
+                        data-testid={`book-row-checkbox-${b.book_id}`}
+                      />
+                    )}
+                    {b.has_cover ? (
+                      <img
+                        src={`${process.env.REACT_APP_BACKEND_URL}/api/books/${b.book_id}/cover`}
+                        alt=""
+                        className="w-8 h-11 rounded-sm shrink-0 object-cover shadow-sm"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="w-8 h-11 rounded-sm shrink-0 bg-gradient-to-br from-[#6B46C1] to-[#4C2A99] shadow-sm" />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-[#2C2C2C] truncate">{b.title || "Untitled"}</p>
+                      <p className="text-xs text-[#6B705C] truncate">
+                        {b.author || "Unknown"}
+                        {b.fandom && <span className="ml-2 text-[#6B46C1]">· {b.fandom}</span>}
+                        {b.category && <span className="ml-2">· {b.category}</span>}
+                      </p>
+                    </div>
+                    {b.progress_fraction != null && b.progress_fraction > 0 && b.progress_fraction < 0.99 && (
+                      <span className="text-[10px] font-mono text-[#6B705C] tabular-nums hidden md:inline">
+                        {Math.round(b.progress_fraction * 100)}%
+                      </span>
+                    )}
+                    {b.progress_fraction >= 0.99 && (
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#81B29A] hidden md:inline">
+                        Read
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6" data-testid="books-grid">
                 {books.map(b => (
