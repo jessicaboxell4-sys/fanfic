@@ -1,47 +1,20 @@
-import React, { useEffect, useState } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import React, { useEffect, useRef, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
-import Navbar from "../components/Navbar";
 import { toast } from "sonner";
-import { ArrowLeft, ArrowRight, BookOpen, Flame, Trophy, Calendar, Sparkles, UserCircle2, Mail, Loader2, Share2, Copy, Link as LinkIcon, Eye, X, Trash2 } from "lucide-react";
-
-function BigStat({ value, label, color }) {
-  return (
-    <div className="text-center">
-      <p
-        className="font-serif tabular-nums leading-none"
-        style={{ color, fontSize: "clamp(3rem, 8vw, 5.5rem)" }}
-      >
-        {value}
-      </p>
-      <p className="text-xs uppercase tracking-[0.2em] text-[#6B705C] mt-3 font-semibold">
-        {label}
-      </p>
-    </div>
-  );
-}
-
-function BarRow({ label, value, max, to, accent }) {
-  const pct = max > 0 ? Math.max(6, (value / max) * 100) : 0;
-  const inner = (
-    <>
-      <div className="flex items-center justify-between text-sm mb-1.5">
-        <span className="text-[#2C2C2C] truncate pr-3">{label}</span>
-        <span className="text-[#6B705C] tabular-nums font-semibold">{value}</span>
-      </div>
-      <div className="h-2 rounded-full bg-[#F5F3EC] overflow-hidden">
-        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: accent }} />
-      </div>
-    </>
-  );
-  return to ? (
-    <Link to={to} className="block hover:opacity-90 transition-opacity">
-      {inner}
-    </Link>
-  ) : (
-    <div>{inner}</div>
-  );
-}
+import {
+  X,
+  Mail,
+  Loader2,
+  Share2,
+  Copy,
+  Link as LinkIcon,
+  Eye,
+  Trash2,
+  ArrowRight,
+  ArrowLeft,
+} from "lucide-react";
+import YearInBooksWrapped, { YearInBooksEmpty } from "../components/YearInBooksWrapped";
 
 export default function YearInBooksPage() {
   const { year: yearParam } = useParams();
@@ -52,9 +25,13 @@ export default function YearInBooksPage() {
   const [sendingEmail, setSendingEmail] = useState(false);
 
   // Sharing
-  const [share, setShare] = useState(null); // {shared, token, url, view_count, ...}
+  const [share, setShare] = useState(null);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
+
+  // Progress dots
+  const scrollRef = useRef(null);
+  const [activeSlide, setActiveSlide] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -69,7 +46,9 @@ export default function YearInBooksPage() {
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [year]);
 
   useEffect(() => {
@@ -78,10 +57,26 @@ export default function YearInBooksPage() {
       try {
         const { data } = await api.get(`/year-in-books/${year}/share`);
         if (!cancelled) setShare(data);
-      } catch (e) { /* ignore — non-critical */ }
+      } catch (e) {
+        /* non-critical */
+      }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [year]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      const idx = Math.round(el.scrollTop / el.clientHeight);
+      setActiveSlide(idx);
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [loading, data]);
 
   const createShare = async () => {
     setSharing(true);
@@ -127,7 +122,8 @@ export default function YearInBooksPage() {
     try {
       const { data } = await api.post(`/year-in-books/${year}/email`);
       if (data.delivered) toast.success("Year recap emailed!");
-      else if (data.logged) toast.warning("Email isn't configured on this server — but the recap is right here on this page.");
+      else if (data.logged)
+        toast.warning("Email isn't configured on this server — but the recap is right here on this page.");
       else toast.error("Couldn't send email");
     } catch (e) {
       toast.error("Couldn't send email");
@@ -136,287 +132,140 @@ export default function YearInBooksPage() {
     }
   };
 
+  const scrollToSlide = (idx) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTo({ top: idx * el.clientHeight, behavior: "smooth" });
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-paper">
-        <Navbar />
-        <p className="text-[#6B705C] py-20 text-center">Reading your year…</p>
+      <div
+        className="min-h-screen w-full flex flex-col items-center justify-center"
+        style={{ background: "linear-gradient(135deg, #1B1240 0%, #6B46C1 100%)", color: "#fff" }}
+      >
+        <Loader2 className="w-10 h-10 animate-spin mb-4 opacity-90" />
+        <p className="font-serif text-2xl italic opacity-90">Reading your year…</p>
       </div>
     );
   }
 
   const s = data?.summary || {};
   const hasData = data?.has_data;
-  const maxMonthly = Math.max(1, ...(s.monthly || []).map(m => m.opens));
-  const maxFandom = Math.max(0, ...(s.top_fandoms || []).map(f => f.count));
-  const maxAuthor = Math.max(0, ...(s.top_authors || []).map(a => a.count));
   const currentYear = new Date().getFullYear();
 
-  return (
-    <div className="min-h-screen bg-paper">
-      <Navbar />
-      <main className="max-w-4xl mx-auto px-6 md:px-8 py-8 md:py-12 fade-in">
-        <div className="flex items-center justify-between flex-wrap gap-2 mb-8">
+  if (!hasData) {
+    return (
+      <YearInBooksEmpty
+        year={year}
+        currentYear={currentYear}
+        onPrev={() => navigate(`/library/year/${year - 1}`)}
+        closeButton={
           <button
             onClick={() => navigate("/library/stats")}
             data-testid="back-to-stats"
-            className="flex items-center gap-2 text-sm text-[#6B705C] hover:text-[#2C2C2C]"
+            className="absolute top-5 left-5 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur flex items-center justify-center"
+            aria-label="Back to stats"
           >
-            <ArrowLeft className="w-4 h-4" /> Back to stats
+            <ArrowLeft className="w-5 h-5" />
           </button>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => navigate(`/library/year/${year - 1}`)}
-              data-testid="prev-year"
-              className="btn-secondary text-xs flex items-center gap-1.5"
-            >
-              <ArrowLeft className="w-3 h-3" /> {year - 1}
-            </button>
-            {year < currentYear && (
-              <button
-                onClick={() => navigate(`/library/year/${year + 1}`)}
-                data-testid="next-year"
-                className="btn-secondary text-xs flex items-center gap-1.5"
-              >
-                {year + 1} <ArrowRight className="w-3 h-3" />
-              </button>
-            )}
-          </div>
-        </div>
+        }
+      />
+    );
+  }
 
-        {/* Hero */}
-        <header className="text-center py-12 md:py-16">
-          <p className="text-xs font-bold uppercase tracking-[0.25em] text-[#E07A5F] mb-4">
-            Shelfsort recap
-          </p>
-          <h1
-            className="font-serif text-[#2C2C2C] leading-[0.95] mb-3"
-            style={{ fontSize: "clamp(4rem, 12vw, 8rem)" }}
-            data-testid="year-in-books-title"
+  const footerCta = (
+    <>
+      <div className="flex flex-wrap items-center justify-center gap-3">
+        <button
+          onClick={emailMe}
+          disabled={sendingEmail}
+          data-testid="email-year-recap"
+          className="px-5 py-2.5 rounded-full bg-white text-[#2C2C2C] text-sm font-semibold hover:bg-white/90 inline-flex items-center gap-2 disabled:opacity-60"
+        >
+          {sendingEmail ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+          Email me this recap
+        </button>
+        <button
+          onClick={share?.shared ? () => setShareDialogOpen(true) : createShare}
+          disabled={sharing}
+          data-testid="share-year-recap"
+          className="px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur text-white text-sm font-semibold inline-flex items-center gap-2 disabled:opacity-60"
+        >
+          {sharing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
+          {share?.shared ? "Manage share link" : "Share my year"}
+        </button>
+      </div>
+      <p className="text-xs opacity-70 mt-4">
+        Public link works without a Shelfsort account — revoke any time.
+      </p>
+      <div className="mt-8">
+        <button
+          onClick={() => navigate("/library/stats")}
+          className="text-xs uppercase tracking-[0.25em] opacity-70 hover:opacity-100"
+        >
+          ← Back to stats
+        </button>
+      </div>
+    </>
+  );
+
+  return (
+    <div className="fixed inset-0 z-30 bg-black">
+      {/* Top bar — exit + year nav */}
+      <div className="absolute top-0 left-0 right-0 z-40 flex items-center justify-between px-5 py-4 pointer-events-none">
+        <button
+          onClick={() => navigate("/library/stats")}
+          data-testid="back-to-stats"
+          className="pointer-events-auto w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur flex items-center justify-center text-white"
+          aria-label="Close recap"
+        >
+          <X className="w-5 h-5" />
+        </button>
+        <div className="pointer-events-auto flex items-center gap-2">
+          <button
+            onClick={() => navigate(`/library/year/${year - 1}`)}
+            data-testid="prev-year"
+            className="px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur text-white text-xs font-medium inline-flex items-center gap-1.5"
           >
-            {year}
-          </h1>
-          <p className="font-serif text-2xl md:text-3xl text-[#6B46C1] italic">
-            {hasData ? "Your year in books." : "A quiet year on the shelf."}
-          </p>
-        </header>
+            <ArrowLeft className="w-3 h-3" /> {year - 1}
+          </button>
+          {year < currentYear && (
+            <button
+              onClick={() => navigate(`/library/year/${year + 1}`)}
+              data-testid="next-year"
+              className="px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur text-white text-xs font-medium inline-flex items-center gap-1.5"
+            >
+              {year + 1} <ArrowRight className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+      </div>
 
-        {!hasData ? (
-          <div className="shelf-card p-10 text-center">
-            <BookOpen className="w-12 h-12 text-[#E07A5F] mx-auto mb-4 opacity-70" />
-            <h2 className="font-serif text-2xl text-[#2C2C2C] mb-2">No reading recorded in {year}</h2>
-            <p className="text-[#6B705C] mb-6">
-              {year >= currentYear
-                ? "The year isn't over yet — come back when it is, or check a previous year."
-                : "Try a different year, or head back to your library."}
-            </p>
-            <Link to="/library" className="btn-primary text-sm inline-block">
-              Open library
-            </Link>
-          </div>
-        ) : (
-          <>
-            {/* Three big numbers */}
-            <section className="shelf-card p-8 md:p-12 mb-8" data-testid="year-headline-stats">
-              <div className="grid grid-cols-3 gap-4 md:gap-6">
-                <BigStat value={s.books_opened} label="Books opened" color="#E07A5F" />
-                <BigStat value={s.books_finished} label="Finished" color="#6B46C1" />
-                <BigStat value={s.longest_streak} label="Longest streak" color="#B87A00" />
-              </div>
-              <div className="grid grid-cols-2 gap-4 md:gap-6 mt-10 pt-8 border-t border-[#E8E6E1]">
-                <div className="text-center">
-                  <p className="font-serif text-4xl text-[#2C2C2C] tabular-nums">{s.active_days}</p>
-                  <p className="text-xs uppercase tracking-wider text-[#6B705C] mt-1 font-semibold">Active days</p>
-                </div>
-                <div className="text-center">
-                  <p className="font-serif text-4xl text-[#2C2C2C] tabular-nums">{(s.pages_read || 0).toLocaleString()}</p>
-                  <p className="text-xs uppercase tracking-wider text-[#6B705C] mt-1 font-semibold">Pages read</p>
-                </div>
-              </div>
-              {s.best_month && s.best_month.opens > 0 && (
-                <p className="text-center text-[#6B705C] mt-8 italic" data-testid="best-month-line">
-                  Your most active month was <strong className="text-[#6B46C1] not-italic font-semibold">{s.best_month.name}</strong>{" "}
-                  ({s.best_month.opens} book opens).
-                </p>
-              )}
-            </section>
-
-            {/* Monthly chart */}
-            <section className="shelf-card p-6 md:p-8 mb-8" data-testid="year-monthly-chart">
-              <div className="flex items-center gap-2 mb-5">
-                <Calendar className="w-4 h-4 text-[#6B46C1]" />
-                <h2 className="font-serif text-2xl text-[#2C2C2C]">Month by month</h2>
-              </div>
-              <div className="flex items-end gap-2 h-44">
-                {(s.monthly || []).map(m => {
-                  const pct = (m.opens / maxMonthly) * 100;
-                  return (
-                    <div key={m.month} className="flex-1 flex flex-col items-center justify-end" title={`${m.label}: ${m.opens} opens, ${m.finished} finished`}>
-                      <span className="text-[10px] text-[#6B705C] mb-1 tabular-nums">{m.opens || ""}</span>
-                      <div
-                        className="w-full rounded-t-md transition-all"
-                        style={{
-                          height: `${Math.max(2, pct)}%`,
-                          background: m.opens > 0 ? "#E07A5F" : "#E8E6E1",
-                          minHeight: "4px",
-                        }}
-                      />
-                      <span className="text-[10px] text-[#6B705C] mt-1.5">{m.label}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-
-            <div className="grid md:grid-cols-2 gap-6 mb-8">
-              {/* Top fandoms */}
-              {(s.top_fandoms || []).length > 0 && (
-                <section className="shelf-card p-6" data-testid="year-top-fandoms">
-                  <div className="flex items-center gap-2 mb-4">
-                    <Sparkles className="w-4 h-4 text-[#E07A5F]" />
-                    <h2 className="font-serif text-2xl text-[#2C2C2C]">Top fandoms</h2>
-                  </div>
-                  <div className="space-y-3">
-                    {s.top_fandoms.map(f => (
-                      <BarRow
-                        key={f.name}
-                        label={f.name}
-                        value={f.count}
-                        max={maxFandom}
-                        to={`/library/fandom/${encodeURIComponent(f.name)}`}
-                        accent="#E07A5F"
-                      />
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {/* Top authors */}
-              {(s.top_authors || []).length > 0 && (
-                <section className="shelf-card p-6" data-testid="year-top-authors">
-                  <div className="flex items-center gap-2 mb-4">
-                    <UserCircle2 className="w-4 h-4 text-[#6B46C1]" />
-                    <h2 className="font-serif text-2xl text-[#2C2C2C]">Most-read authors</h2>
-                  </div>
-                  <div className="space-y-3">
-                    {s.top_authors.map(a => (
-                      <BarRow
-                        key={a.name}
-                        label={a.name}
-                        value={a.count}
-                        max={maxAuthor}
-                        to={`/library/author/${encodeURIComponent(a.name)}`}
-                        accent="#6B46C1"
-                      />
-                    ))}
-                  </div>
-                </section>
-              )}
-            </div>
-
-            {/* Bookends */}
-            {(s.first_book || s.last_book) && (
-              <section className="shelf-card p-6 md:p-8 mb-8 bg-[#FDF3E1] border-[#B87A00]/20" data-testid="year-bookends">
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#B87A00] mb-4">Bookends</p>
-                <div className="grid sm:grid-cols-2 gap-6">
-                  {s.first_book && s.first_book.title && (
-                    <div>
-                      <p className="text-xs text-[#6B705C] mb-1">First book of the year</p>
-                      <p className="font-serif text-xl text-[#2C2C2C] leading-tight">{s.first_book.title}</p>
-                      <p className="text-sm text-[#6B705C] mt-1">
-                        {s.first_book.author} · {s.first_book.date}
-                      </p>
-                    </div>
-                  )}
-                  {s.last_book && s.last_book.title && (!s.first_book || s.last_book.book_id !== s.first_book.book_id) && (
-                    <div>
-                      <p className="text-xs text-[#6B705C] mb-1">Last book of the year</p>
-                      <p className="font-serif text-xl text-[#2C2C2C] leading-tight">{s.last_book.title}</p>
-                      <p className="text-sm text-[#6B705C] mt-1">
-                        {s.last_book.author} · {s.last_book.date}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </section>
-            )}
-
-            {/* Achievements row */}
-            <section className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-12" data-testid="year-achievements">
-              {s.longest_streak >= 7 && (
-                <div className="shelf-card p-4 flex items-center gap-3">
-                  <Flame className="w-8 h-8 text-[#E07A5F] flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-semibold text-[#2C2C2C]">On fire</p>
-                    <p className="text-xs text-[#6B705C]">{s.longest_streak}-day streak</p>
-                  </div>
-                </div>
-              )}
-              {s.books_finished >= 10 && (
-                <div className="shelf-card p-4 flex items-center gap-3">
-                  <Trophy className="w-8 h-8 text-[#B87A00] flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-semibold text-[#2C2C2C]">Finisher</p>
-                    <p className="text-xs text-[#6B705C]">{s.books_finished} books closed</p>
-                  </div>
-                </div>
-              )}
-              {(s.top_fandoms || []).length >= 3 && (
-                <div className="shelf-card p-4 flex items-center gap-3">
-                  <Sparkles className="w-8 h-8 text-[#6B46C1] flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-semibold text-[#2C2C2C]">Eclectic</p>
-                    <p className="text-xs text-[#6B705C]">{s.top_fandoms.length}+ fandoms</p>
-                  </div>
-                </div>
-              )}
-            </section>
-
-            {/* Email me + Share */}
-            <section className="text-center mb-16">
-              <div className="flex flex-wrap items-center justify-center gap-3">
-                <button
-                  onClick={emailMe}
-                  disabled={sendingEmail}
-                  data-testid="email-year-recap"
-                  className="btn-primary text-sm inline-flex items-center gap-2 disabled:opacity-60"
-                >
-                  {sendingEmail ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
-                  Email this recap to myself
-                </button>
-                <button
-                  onClick={share?.shared ? () => setShareDialogOpen(true) : createShare}
-                  disabled={sharing}
-                  data-testid="share-year-recap"
-                  className="btn-secondary text-sm inline-flex items-center gap-2 disabled:opacity-60"
-                >
-                  {sharing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
-                  {share?.shared ? "Manage share link" : "Share this recap"}
-                </button>
-              </div>
-              <p className="text-xs text-[#6B705C] mt-3">
-                Public link works without a Shelfsort account — revoke any time.
-              </p>
-            </section>
-          </>
-        )}
-      </main>
+      <YearInBooksWrapped
+        summary={s}
+        year={year}
+        scrollRef={scrollRef}
+        activeSlide={activeSlide}
+        onScrollToSlide={scrollToSlide}
+        footerCta={footerCta}
+      />
 
       {/* Share dialog */}
       {shareDialogOpen && share?.shared && (
         <div
-          className="fixed inset-0 z-[60] bg-[#2C2C2C]/40 flex items-center justify-center p-4"
+          className="fixed inset-0 z-[80] bg-black/70 flex items-center justify-center p-4"
           onClick={() => setShareDialogOpen(false)}
           data-testid="share-dialog-overlay"
         >
           <div
-            className="bg-white rounded-2xl shadow-2xl max-w-md w-full"
+            className="bg-white rounded-2xl shadow-2xl max-w-md w-full text-[#2C2C2C]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-6 border-b border-[#E8E6E1] flex items-center justify-between">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-1">Public link</p>
-                <h2 className="font-serif text-2xl text-[#2C2C2C]">Share your {year}</h2>
+                <h2 className="font-serif text-2xl">Share your {year}</h2>
               </div>
               <button
                 onClick={() => setShareDialogOpen(false)}
@@ -429,8 +278,7 @@ export default function YearInBooksPage() {
 
             <div className="p-6 space-y-4">
               <p className="text-sm text-[#6B705C]">
-                Anyone with this link can see your {year} recap — no Shelfsort account needed.
-                Your email and book IDs stay private.
+                Anyone with this link can see your {year} recap — no Shelfsort account needed. Your email and book IDs stay private.
               </p>
 
               <div className="relative">
@@ -441,7 +289,7 @@ export default function YearInBooksPage() {
                   readOnly
                   value={share.url || ""}
                   onClick={(e) => e.target.select()}
-                  className="w-full bg-[#F5F3EC] border border-[#E8E6E1] rounded-xl pl-10 pr-3 py-2.5 text-sm text-[#2C2C2C] font-mono"
+                  className="w-full bg-[#F5F3EC] border border-[#E8E6E1] rounded-xl pl-10 pr-3 py-2.5 text-sm font-mono"
                 />
               </div>
 
@@ -471,7 +319,7 @@ export default function YearInBooksPage() {
                   <Eye className="w-4 h-4" />
                   {share.view_count ?? 0} view{(share.view_count ?? 0) === 1 ? "" : "s"}
                   {share.last_viewed_at && (
-                    <span className="text-xs text-[#6B705C]">
+                    <span className="text-xs">
                       · last seen {new Date(share.last_viewed_at).toLocaleDateString()}
                     </span>
                   )}

@@ -2306,3 +2306,41 @@ E2E verified: typed `@findme...` → dropdown showed `@FindMe91443` → clicked 
 - Unread-DM backfill email directing to /friends?room=…
 - PRD.md is now >2200 lines — split into PRD / CHANGELOG / ROADMAP
 
+
+## 2026-06-15 — Year in Books: Spotify-Wrapped redesign
+
+User asked for a "Year in Books" recap page styled like Spotify Wrapped (option a — fullscreen scroll-snap cards, bold gradients, animated reveals). The backend endpoints and `/library/year/:year` + `/share/yib/:token` routes already existed; only the frontend visuals changed.
+
+### What changed
+- Replaced the traditional dashboard layout with a 9-slide cinematic recap:
+  1. **Cover** — deep purple gradient, massive year + "Your year in books."
+  2. **Books opened** — coral gradient, animated CountUp of `books_opened`
+  3. **Pages read** — gold gradient, formatted thousands, ≈ hours estimate
+  4. **Longest streak** — teal gradient, flame icon, animated streak number
+  5. **Best month + monthly bars** — purple gradient, animated mini bar chart
+  6. **Top fandoms** — forest-green gradient, hero #1 + animated bars 2–5
+  7. **Top author** — magenta gradient, hero author + supporting bars
+  8. **Bookends** — cream gradient (light fg), first/last book of the year
+  9. **Outro** — back to purple, achievement chips, Share + Email CTAs
+- Added scroll-snap fullscreen layout (`snap-y snap-mandatory`), animated reveal-on-view (framer-motion + IntersectionObserver), per-slide unique gradients, progress dots on the right, "Scroll ↓" hint on the cover.
+- `CountUp` component for animated stat reveals; `WrappedBar` for animated horizontal ranking bars.
+- Empty state: single calm purple slide ("A quiet year on the shelf") with prev-year + library CTAs.
+
+### Files
+- `/app/frontend/src/components/YearInBooksWrapped.jsx` (NEW — shared slide engine)
+- `/app/frontend/src/pages/YearInBooksPage.jsx` (rewritten — uses `YearInBooksWrapped`, keeps all share/email logic + share dialog + data-testids)
+- `/app/frontend/src/pages/PublicYearInBooks.jsx` (rewritten — uses `YearInBooksWrapped` with `ownerName` so copy reads "YiB Tester's year in books." instead of "Your"; adds a public "Try Shelfsort free" CTA on the outro)
+- `/app/frontend/src/index.css` (added `.scrollbar-hide` utility for snap container)
+
+### Backend
+- No backend changes — the existing `/api/year-in-books/{year}`, `/api/year-in-books/{year}/share`, `/api/year-in-books/{year}/email`, `/api/public/year/{token}` endpoints are unchanged.
+- 46/46 year-in-books + year-share unit tests still pass.
+
+### Testing
+- Lint: 3 new/edited files all clean.
+- Screenshots via the public share URL (`/share/yib/:token`) confirmed Cover, Books opened, Streak, Best month, Top author render as expected with correct gradients, animated numbers, monthly bars, and ranking bars.
+- Data-testids preserved (`year-in-books-title`, `year-in-books-recap`, `year-headline-stats`, `year-monthly-chart`, `year-top-fandoms`, `year-top-authors`, `year-bookends`, `year-achievements`, `share-year-recap`, `email-year-recap`, `share-dialog-*`, `share-url-input`, `share-copy-btn`, `share-open-btn`, `share-revoke-btn`, `share-view-count`, `back-to-stats`, `prev-year`, `next-year`).
+
+### Files added this session
+- `/app/frontend/src/components/YearInBooksWrapped.jsx`
+

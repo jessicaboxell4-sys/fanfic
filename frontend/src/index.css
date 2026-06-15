@@ -310,7 +310,8 @@
 :root[data-theme="dark"] .bg-\[\#FBFAF6\]\/80,
 :root[data-theme="dark"] .bg-white\/80 { background-color: rgba(38, 38, 43, 0.82); }
 :root[data-theme="dark"] .bg-\[\#FAF6EE\],
-:root[data-theme="dark"] .bg-\[\#FBF7EE\] { background-color: var(--bg); }
+:root[data-theme="dark"] .bg-\[\#FBF7EE\],
+:root[data-theme="dark"] .bg-\[\#F2EDDF\] { background-color: var(--bg); }
 :root[data-theme="dark"] .bg-\[\#F5F3EC\],
 :root[data-theme="dark"] .hover\:bg-\[\#F5F3EC\]:hover,
 :root[data-theme="dark"] .bg-\[\#FDF3E1\]\/60,
@@ -532,3 +533,13 @@
 /* their matching bg overrides. This section is reserved for any future    */
 /* light-border hexes the regression test surfaces.                        */
 
+
+
+/* Hide scrollbars for fullscreen scroll-snap experiences (e.g. Year in Books). */
+.scrollbar-hide {
+    scrollbar-width: none;          /* Firefox */
+    -ms-overflow-style: none;       /* IE 10+ */
+}
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;                  /* Chrome, Safari, Edge */
+}
