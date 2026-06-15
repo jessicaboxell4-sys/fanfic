@@ -124,7 +124,21 @@ async def auth_google(request: Request, response: Response):
         samesite=COOKIE_SAMESITE,
         path="/",
     )
-    return {"user_id": user_id, "email": email, "name": name, "picture": picture}
+    # Match /auth/me shape so AuthContext can ``setUser(data)`` directly
+    # without dropping is_admin / username / approval_status.
+    user_doc = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    return {
+        "user_id": user_id,
+        "email": email,
+        "name": name,
+        "username": (user_doc or {}).get("username"),
+        "previous_username": (user_doc or {}).get("previous_username"),
+        "picture": picture,
+        "is_admin": bool((user_doc or {}).get("is_admin", False)),
+        "approval_status": (user_doc or {}).get("approval_status") or "approved",
+        "approval_rejected_reason": (user_doc or {}).get("approval_rejected_reason"),
+        "scheduled_deletion_at": (user_doc or {}).get("scheduled_deletion_at"),
+    }
 
 
 @api_router.get("/auth/me")
@@ -292,7 +306,20 @@ async def auth_register(body: RegisterBody, response: Response):
         }
 
     await _issue_session(user_id, response)
-    return {"user_id": user_id, "email": email, "name": name, "username": username or None, "picture": ""}
+    # Match /auth/me shape so AuthContext gets the full picture on the
+    # first-user bootstrap path (where ``is_admin=True``) and beyond.
+    return {
+        "user_id": user_id,
+        "email": email,
+        "name": name,
+        "username": username or None,
+        "previous_username": None,
+        "picture": "",
+        "is_admin": is_first_user,
+        "approval_status": "approved",
+        "approval_rejected_reason": None,
+        "scheduled_deletion_at": None,
+    }
 
 
 @api_router.post("/auth/login")
@@ -340,11 +367,24 @@ async def auth_login(body: LoginBody, request: Request, response: Response):
 
     await _clear_failed_attempts(identifier)
     await _issue_session(user["user_id"], response)
+    # IMPORTANT: return the SAME shape as /auth/me so the React
+    # AuthContext (which calls ``setUser(data)`` straight from this
+    # response) doesn't lose ``is_admin``, ``username``, etc. on
+    # email/password sign-in. Pre-2026-06-15 this only returned
+    # ``{user_id, email, name, picture}``, which silently dropped the
+    # admin flag — the AdminConsole button disappeared until the next
+    # page refresh re-hit /auth/me.
     return {
         "user_id": user["user_id"],
         "email": user["email"],
         "name": user.get("name", ""),
+        "username": user.get("username"),
+        "previous_username": user.get("previous_username"),
         "picture": user.get("picture", ""),
+        "is_admin": bool(user.get("is_admin", False)),
+        "approval_status": user.get("approval_status") or "approved",
+        "approval_rejected_reason": user.get("approval_rejected_reason"),
+        "scheduled_deletion_at": user.get("scheduled_deletion_at"),
     }
 
 class UpdateProfileBody(BaseModel):
