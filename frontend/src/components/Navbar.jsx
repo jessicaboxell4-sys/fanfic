@@ -79,6 +79,7 @@ function SecondaryLinks({ user, unknownFandomCount, onNavigate, inDrawer = false
 
   // Items used in BOTH layouts — defining once keeps wording identical.
   const libraryItems = [
+    { to: "/library/all", label: "All books", testid: "navbar-all-books", icon: BookOpen, title: "Every book in your library, in one scrollable grid" },
     { to: "/library/smart-shelves", label: "Smart shelves", testid: "navbar-smart-shelves", icon: Filter, title: "Saved filter combinations" },
     { to: "/library/stats", label: "Reading stats", testid: "navbar-stats", icon: BarChart3, title: "Reading statistics" },
     { to: "/goals", label: "Reading goals", testid: "navbar-goals", icon: Target, title: "Yearly & monthly reading targets" },
