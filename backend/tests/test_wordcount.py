@@ -190,7 +190,13 @@ class TestBackfill:
             "text": text, "indexed_at": datetime.now(timezone.utc).isoformat(),
         })
         try:
-            r = requests.post(f"{BASE}/api/admin/wordcount/backfill", headers=H("admin"))
+            # Use the maximum scan window so the test's freshly-inserted
+            # fulltext row is guaranteed to be in the scanned set even on
+            # a shared dev DB that already has thousands of rows.
+            r = requests.post(
+                f"{BASE}/api/admin/wordcount/backfill?limit=20000",
+                headers=H("admin"),
+            )
             assert r.status_code == 200
             data = r.json()
             assert data["scanned"] >= 1

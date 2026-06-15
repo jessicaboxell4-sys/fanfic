@@ -233,6 +233,13 @@ class TestBulkMetadata:
 # ---------------------------------------------------------------------------
 class TestAuthRegression:
     def test_register_login_logout(self):
+        """Full register → me → logout → login flow.
+
+        2026-06-15: every new sign-up now lands in ``approval_status="pending"``
+        and the register response no longer issues a session — so we
+        approve the user directly in Mongo (mimicking the admin approval
+        step) before exercising the login path.
+        """
         email = f"test_reg_{uuid.uuid4().hex[:8]}@example.com"
         pwd = "hunter2pw"
         s = requests.Session()
@@ -240,8 +247,19 @@ class TestAuthRegression:
         r = s.post(f"{BASE}/api/auth/register",
                    json={"email": email, "password": pwd, "name": "Reg User"})
         assert r.status_code in (200, 201), r.text
-        # Cookie should be set
-        assert s.cookies.get("session_token"), "session_token cookie missing"
+        body = r.json()
+        # Pending sign-up: no session cookie, response is the pending placeholder.
+        assert body.get("pending") is True
+        assert not s.cookies.get("session_token")
+
+        # Simulate admin approval.
+        db.users.update_one({"email": email}, {"$set": {"approval_status": "approved"}})
+
+        # Now login should succeed and set the cookie.
+        li_first = s.post(f"{BASE}/api/auth/login", json={"email": email, "password": pwd})
+        assert li_first.status_code == 200, li_first.text
+        assert s.cookies.get("session_token"), "session_token cookie missing after approved login"
+
         # me
         me = s.get(f"{BASE}/api/auth/me")
         assert me.status_code == 200

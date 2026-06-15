@@ -24,6 +24,7 @@ from deps import db, api_router, logger
 from models import User
 from auth_dep import get_current_user
 from utils.constants import TRASH_SHELF
+from routes.duplicate_resolution import _parse_urls_from_sidecar  # noqa: E402
 from routes.books import (
     OLD_STORIES_SHELF,
     STORAGE_DIR,

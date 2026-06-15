@@ -1355,6 +1355,7 @@ from utils.url_canonical import (  # noqa: E402
     _URL_RE,
     _canonical_fanfic_url,
     _looks_like_url_list,
+    _source_for,  # test_new_features imports this via ``routes.books``
 )
 
 # Phase 5 cleanup: helpers that were extracted to other modules but are still
