@@ -401,6 +401,40 @@
 :root[data-theme="dark"] .bg-\[\#E8EEF5\] { background-color: rgba(110, 140, 200, 0.20); }
 :root[data-theme="dark"] .text-\[\#3A5A8C\] { color: #A8C0E8; }
 
+/* ── Recent additions (2026-06-15) — dark mode parity ───────────────── */
+/* Cream summary surface used by the Help-page "Show full fandom list"   */
+/* details/summary hover row — same family as `#F5F3EC`. Converge it on   */
+/* the surface-hover variable so the row still feels "tapped" on dark.   */
+:root[data-theme="dark"] .bg-\[\#F5F0E0\],
+:root[data-theme="dark"] .hover\:bg-\[\#F5F0E0\]:hover { background-color: var(--surface-hover); }
+
+/* Pale peach `#FBE9E5` — used by the "X muted" notification chip, the   */
+/* "Friend rec" callout, and the BookClub-room highlighted-message bg.   */
+/* Already-overridden `text-[#B43F26]` paired with it becomes invisible  */
+/* on cream-on-dark, so map both onto the dark coral accent family.      */
+:root[data-theme="dark"] .bg-\[\#FBE9E5\] { background-color: rgba(217, 83, 79, 0.18); }
+:root[data-theme="dark"] .text-\[\#B43F26\] { color: #FF9A85; }
+
+/* Light cream border `#EFEAE0` — disabled-row outline in the mute     */
+/* matrix. Converge on `--border` so the row outline blends with the   */
+/* rest of the dark surface.                                            */
+:root[data-theme="dark"] .border-\[\#EFEAE0\] { border-color: var(--border); }
+
+/* Dark greens used as supporting text on pale sage backgrounds:        */
+/*   - `#1F4D2A` — the deep forest "Recommendations / Catalog sync /    */
+/*     Friend recs" headers + status text on `bg-[#EEF3EC]`.            */
+/*   - `#1F8F4E` — the lighter "in-progress" green on Goals/Account.    */
+/* Both go invisible once the pale-sage bg gets remapped to a tinted    */
+/* purple surface; lift to bright sage variants that read well there.   */
+:root[data-theme="dark"] .text-\[\#1F4D2A\] { color: #A0E4B0; }
+:root[data-theme="dark"] .text-\[\#1F8F4E\] { color: #6EE7A8; }
+
+/* Hover state for the brand purple link `text-[#6B46C1]`. Original     */
+/* hover went *darker* (`#553B96`) — on dark mode we need it to go     */
+/* *lighter* instead so the hover still indicates a state change.       */
+:root[data-theme="dark"] .text-\[\#553B96\],
+:root[data-theme="dark"] .hover\:text-\[\#553B96\]:hover { color: #DDD6FE; }
+
 /* "Currently live" mini-card on the Announcements form — `#6B46C1` text */
 /* is already remapped but the small uppercase label was hard to read    */
 /* against the surface-hover bg; this is implicit in the existing         */

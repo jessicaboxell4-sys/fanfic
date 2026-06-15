@@ -2350,3 +2350,24 @@ User asked for a "Year in Books" recap page styled like Spotify Wrapped (option 
 - Added a Year in Books link to the "What's new" quick-link strip.
 - Removed the stale "(Reading streaks + word-count + per-month stats are on the upcoming list.)" note from the Reader & stats section — those are now shipped via Word count + Year in Books.
 
+## 2026-06-15 — Pre-existing test-failure mop-up (round 1)
+
+Cleared 4 of the 17 pre-existing failing backend tests (none caused by this session's work). 13 still remain (cron health/alerts × 7, friends fandom-notifications × 2, AO3/eFiction × 2, wordcount backfill × 1).
+
+### Fixed (4)
+- **`test_dark_mode_overrides.py` (3 tests)** — added dark-mode overrides in `/app/frontend/src/index.css` for the 7 stragglers introduced by recent components: `bg-[#F5F0E0]` (Help fandom-list hover row → surface-hover), `bg-[#FBE9E5]` (notification "muted" chip + bookclub-room highlights → coral-tinted dark surface), `text-[#B43F26]` (paired coral text), `border-[#EFEAE0]` (disabled mute-row outline → --border), `text-[#1F4D2A]` + `text-[#1F8F4E]` (dark forest/medium greens → bright sage `#A0E4B0`/`#6EE7A8` so they don't disappear on tinted purple bg), and `text-[#553B96]` (the hover variant of brand purple → `#DDD6FE` so hover gets *brighter* in dark mode instead of darker).
+- **`test_fandoms_known.py::test_endpoint_returns_hand_tuned_shelf_fandoms`** — bug was test-vs-code drift: on 2026-06-13 the codebase split the `"Percy Jackson"` umbrella into the granular Riordanverse sub-fandoms (`"Percy Jackson and the Olympians"`, `"Heroes of Olympus"`, `"Trials of Apollo"`, etc.) — the canonical-name change matches AO3's tag tree and is correct, but the test still expected the old short name. Updated the test's `must_have` set to the post-split canonical names.
+
+### Verified
+- `pytest tests/test_dark_mode_overrides.py tests/test_fandoms_known.py` → 12 passed.
+
+### Files touched
+- `/app/frontend/src/index.css` (+15 lines of dark-mode overrides)
+- `/app/backend/tests/test_fandoms_known.py` (must_have list)
+
+### Still failing (13) — by cluster, for future rounds
+- Cron infrastructure: `test_cron_failure_alerts.py` (4), `test_cron_health.py` (3) — wrap-cron-job success/failure tracking, alert emails on cron crashes.
+- Friend notifications: `test_friends.py::TestFriendUploadFandomNotifications` (2) — friend-of-friend fandom-match-on-upload notifications.
+- Word count: `test_wordcount.py::TestBackfill::test_backfill_from_fulltext_row` (1) — backfill endpoint returns `updated=0` when ≥1 expected (test-isolation or real bug).
+- Content recognition: `test_new_features.py::TestAo3UrlNormalization` (1), `test_new_features.py::TestEfictionSiteRecognition` (1).
+

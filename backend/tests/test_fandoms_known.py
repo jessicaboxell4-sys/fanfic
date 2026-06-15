@@ -79,13 +79,19 @@ def test_within_group_members_sorted_by_count_then_alpha():
 
 
 def test_endpoint_returns_hand_tuned_shelf_fandoms():
-    # These 20 fandoms live in ``routes.books.FANDOM_KEYWORDS`` and are
+    # These 20+ fandoms live in ``routes.books.FANDOM_KEYWORDS`` and are
     # what the keyword classifier actually routes shelf names from. They
     # were missing from the AO3-only seed before 2026-06-13.
     fandoms = set(_fetch()["fandoms"])
     must_have = {
         "Harry Potter", "Twilight", "Marvel", "DC Comics", "Star Wars",
-        "Lord of the Rings", "Sherlock Holmes", "Percy Jackson",
+        "Lord of the Rings", "Sherlock Holmes",
+        # Riordanverse split (2026-06-13): the umbrella "Percy Jackson"
+        # canonical was retired in favour of granular sub-fandoms that
+        # mirror AO3's tag tree.
+        "Percy Jackson and the Olympians", "Heroes of Olympus",
+        "Trials of Apollo", "Magnus Chase and the Gods of Asgard",
+        "The Kane Chronicles",
         "Doctor Who", "Supernatural", "Game of Thrones", "Hunger Games",
         "Naruto", "My Hero Academia", "BTS", "One Direction",
         "Stargate SG-1", "Stargate Atlantis", "Stargate Universe",
