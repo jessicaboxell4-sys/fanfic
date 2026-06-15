@@ -8,7 +8,7 @@ import {
   BarChart3, ToggleLeft, ClipboardList, Loader2, Plus, X as XIcon, Trash2,
   Check, ChevronRight, ChevronDown, Download, AlertOctagon, RotateCcw, Send,
   Mail, MessageSquare, Clock, CircleAlert, Route as RouteIcon, Search,
-  Inbox, Database,
+  Inbox, Database, Siren,
 } from "lucide-react";
 import MongoInspectorCard from "../components/MongoInspectorCard";
 
@@ -272,6 +272,130 @@ function UsersCard() {
 
 // ---------------------------------------------------------------------------
 // Maintenance banner card (b)
+// ---------------------------------------------------------------------------
+// AlertHealthBanner — surfaces silent cron-alert pipeline failures
+// ---------------------------------------------------------------------------
+// The cron-failure-alert path in ``utils/cron_health.py`` is intentionally
+// best-effort: any error in admin lookup, Resend config, or the Resend
+// API itself is swallowed so the alerting pipeline can never *itself*
+// crash the cron wrapper. That's safe but blind — silent drop-outs go
+// un-noticed until a human reads backend logs.
+//
+// This banner reads ``/admin/alert-health`` on mount and renders a
+// dismissable strip at the top of /admin if anything fired in the last
+// 24h that *should* have alerted but didn't. Two failure modes:
+//   • Red strip   — Resend returned an error mid-send.
+//   • Amber strip — A cron job errored but no alert row ever got written
+//                   for it (usually Resend isn't configured, the feature
+//                   flag is off, or no admin has an email set).
+//
+// Dismissal is intentionally local-only (sessionStorage) — the next page
+// load surfaces it again if it's still happening, so it can't be
+// silenced into permanent obscurity.
+const ALERT_HEALTH_DISMISS_KEY = "shelfsort.admin.alert-health-dismissed-at";
+
+function AlertHealthBanner() {
+  const [data, setData] = useState(null);
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await api.get("/admin/alert-health");
+        setData(data);
+      } catch { /* network/permissions — non-critical, just hide */ }
+    })();
+    // Restore in-session dismissal so re-renders don't flash it back.
+    const ts = sessionStorage.getItem(ALERT_HEALTH_DISMISS_KEY);
+    if (ts) setDismissed(true);
+  }, []);
+
+  const totalIssues = (data?.alert_send_failures_24h || 0)
+    + (data?.cron_failures_uncovered_24h || 0);
+  if (!data || totalIssues === 0 || dismissed) return null;
+
+  const isSendFailure = (data.alert_send_failures_24h || 0) > 0;
+  const tone = isSendFailure
+    ? { bg: "bg-[#FBE9E5]", border: "border-[#D9534F]", icon: "text-[#B43F26]", title: "text-[#7A2417]", body: "text-[#7A2417]" }
+    : { bg: "bg-[#FDF3E1]", border: "border-[#D49A1E]", icon: "text-[#8B4F00]", title: "text-[#5C3300]", body: "text-[#5C3300]" };
+
+  const dismiss = () => {
+    sessionStorage.setItem(ALERT_HEALTH_DISMISS_KEY, new Date().toISOString());
+    setDismissed(true);
+  };
+
+  const latest = data.latest_failure;
+  const latestWhen = latest?.at
+    ? new Date(latest.at).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })
+    : null;
+
+  return (
+    <div
+      className={`mb-6 rounded-2xl border-2 ${tone.border} ${tone.bg} p-4 md:p-5`}
+      data-testid="alert-health-banner"
+      role="status"
+    >
+      <div className="flex items-start gap-3">
+        <Siren className={`w-6 h-6 ${tone.icon} flex-shrink-0 mt-0.5`} aria-hidden="true" />
+        <div className="flex-1 min-w-0">
+          <p
+            className={`text-xs font-bold uppercase tracking-[0.2em] ${tone.icon} mb-1`}
+            data-testid="alert-health-banner-tag"
+          >
+            {isSendFailure ? "Cron alerts are misfiring" : "Cron failures going un-alerted"}
+          </p>
+          <h2 className={`font-serif text-lg md:text-xl ${tone.title} leading-tight mb-2`}>
+            {isSendFailure
+              ? `${data.alert_send_failures_24h} alert send${data.alert_send_failures_24h === 1 ? "" : "s"} failed in the last 24h`
+              : `${data.cron_failures_uncovered_24h} cron failure${data.cron_failures_uncovered_24h === 1 ? "" : "s"} in the last 24h with no alert email sent`}
+            {!isSendFailure && (data.alert_send_failures_24h || 0) > 0 && (
+              <> · plus {data.alert_send_failures_24h} Resend error{data.alert_send_failures_24h === 1 ? "" : "s"}</>
+            )}
+          </h2>
+          {latest && (
+            <p className={`text-sm ${tone.body} mb-2`} data-testid="alert-health-banner-latest">
+              Latest: <code className="px-1.5 py-0.5 rounded bg-white/60 font-mono text-xs">{latest.job_id}</code>
+              {latestWhen ? ` at ${latestWhen}` : ""}
+              {latest.error && <span className="opacity-80"> — {latest.error}</span>}
+            </p>
+          )}
+          {data.uncovered_job_ids && data.uncovered_job_ids.length > 0 && (
+            <p className={`text-xs ${tone.body} opacity-80 mb-2`} data-testid="alert-health-banner-jobs">
+              Uncovered jobs: {data.uncovered_job_ids.join(", ")}
+            </p>
+          )}
+          <div className="flex flex-wrap items-center gap-3 mt-2">
+            <a
+              href="#cron-health-card"
+              data-testid="alert-health-banner-open-cron"
+              className={`text-xs font-bold uppercase tracking-[0.15em] ${tone.title} underline-offset-2 hover:underline`}
+            >
+              Open scheduled jobs →
+            </a>
+            <a
+              href="#email-stats-card"
+              data-testid="alert-health-banner-open-email"
+              className={`text-xs font-bold uppercase tracking-[0.15em] ${tone.title} underline-offset-2 hover:underline`}
+            >
+              Open email stats →
+            </a>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={dismiss}
+          aria-label="Hide for this session"
+          data-testid="alert-health-banner-dismiss"
+          className={`flex-shrink-0 w-8 h-8 rounded-full ${tone.icon} hover:bg-white/60 inline-flex items-center justify-center transition-colors`}
+        >
+          <XIcon className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
 // ---------------------------------------------------------------------------
 function MaintenanceBannerCard() {
   const [enabled, setEnabled] = useState(false);
@@ -1899,6 +2023,8 @@ export default function AdminConsole() {
             </button>
           </div>
         </header>
+
+        <AlertHealthBanner />
 
         {/* Section search */}
         <div className="mb-4" data-testid="admin-section-search">

@@ -960,3 +960,112 @@ async def get_email_stats(user: User = Depends(require_admin)):
         "recent_failures": recent_failures,
         "last_send_at": last_ts.isoformat() if last_ts else None,
     }
+
+
+
+# ---------------------------------------------------------------------------
+# A3 — GET /api/admin/alert-health  (Cron-alert-failure banner)
+# ---------------------------------------------------------------------------
+# The cron-failure-alert path is best-effort: ``_maybe_alert_admins`` in
+# ``utils.cron_health`` swallows ``RuntimeError``s from Mongo, missing
+# Resend keys, and Resend 4xx/5xx responses so a flaky alerting pipeline
+# can't *itself* crash the cron wrapper. That's the right call in prod,
+# but it also means silent drop-outs go un-noticed until a human happens
+# to read backend logs.
+#
+# This endpoint surfaces those failures in two ways for the AdminConsole
+# top-of-page banner:
+#   • ``alert_send_failures_24h`` — count of ``email_logs`` rows where
+#     ``kind == "cron_failure_alert"`` AND ``status == "error"`` AND
+#     ``sent_at >= now - 24h``. The banner shows a red strip if ≥1.
+#   • ``cron_failures_uncovered_24h`` — count of ``cron_runs`` failures
+#     in the last 24h whose ``job_id`` does *not* appear in
+#     ``cron_alerts`` (i.e. an alert was never sent at all — usually
+#     because Resend wasn't configured, the feature flag was off, or no
+#     admin user has an email set). Shows an amber strip if ≥1.
+#   • ``latest_failure`` — the most recent of the two for the banner copy.
+
+@api_router.get("/admin/alert-health")
+async def get_alert_health(user: User = Depends(require_admin)):
+    """Surfaces silent cron-alert pipeline failures for the AdminConsole banner.
+
+    Two failure modes are tracked separately because they need different
+    operator actions:
+      1. *Send failed* — Resend returned an error or threw mid-send. Check
+         the Resend dashboard / API key.
+      2. *No alert ever sent* — the cron run errored but no row was ever
+         written to ``cron_alerts``. Usually Resend isn't configured at
+         all, the feature flag is off, or there are no admin users with
+         emails — none of which are visible from a single log line.
+    """
+    from datetime import timedelta as _td
+    now = datetime.now(timezone.utc)
+    window_start = now - _td(hours=24)
+
+    # 1) Send failures inside the 24h window.
+    send_failures_q = {
+        "kind": "cron_failure_alert",
+        "status": "error",
+        "sent_at": {"$gte": window_start},
+    }
+    send_failure_count = await db.email_logs.count_documents(send_failures_q)
+    latest_send_failure = await db.email_logs.find_one(
+        send_failures_q, sort=[("sent_at", -1)]
+    )
+
+    # 2) Cron runs that errored in the last 24h with no matching alert
+    #    row. We can't trust ``cron_alerts.last_sent_at`` >= the run's
+    #    finished_at directly because the alert is debounced 60 min/job,
+    #    so we instead check whether *any* alert row exists at all for
+    #    the failing job_id — if not, the alert path never fired (or
+    #    fired before the table existed, which is what we want to flag).
+    failing_runs_cursor = db.cron_runs.find(
+        {"status": "error", "finished_at": {"$gte": window_start}},
+        {"_id": 0, "job_id": 1, "finished_at": 1, "error": 1},
+    ).sort("finished_at", -1)
+    uncovered: list[dict] = []
+    seen_job_ids: set[str] = set()
+    async for run in failing_runs_cursor:
+        jid = run.get("job_id")
+        if not jid or jid in seen_job_ids:
+            continue
+        seen_job_ids.add(jid)
+        alert_row = await db.cron_alerts.find_one({"job_id": jid})
+        if alert_row is None:
+            ts = run.get("finished_at")
+            if ts and ts.tzinfo is None:
+                ts = ts.replace(tzinfo=timezone.utc)
+            uncovered.append({
+                "job_id": jid,
+                "finished_at": ts.isoformat() if ts else None,
+                "error": (run.get("error") or "")[:200],
+            })
+
+    latest = None
+    if latest_send_failure:
+        ts = latest_send_failure.get("sent_at")
+        if ts and ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        latest = {
+            "kind": "send_failed",
+            "job_id": (latest_send_failure.get("job_id")
+                       or (latest_send_failure.get("extra") or {}).get("job_id")
+                       or "unknown"),
+            "at": ts.isoformat() if ts else None,
+            "error": (latest_send_failure.get("error") or "")[:240],
+        }
+    elif uncovered:
+        latest = {
+            "kind": "no_alert_sent",
+            "job_id": uncovered[0]["job_id"],
+            "at": uncovered[0]["finished_at"],
+            "error": uncovered[0]["error"],
+        }
+
+    return {
+        "window_hours": 24,
+        "alert_send_failures_24h": send_failure_count,
+        "cron_failures_uncovered_24h": len(uncovered),
+        "uncovered_job_ids": [u["job_id"] for u in uncovered][:5],
+        "latest_failure": latest,
+    }

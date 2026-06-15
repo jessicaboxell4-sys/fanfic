@@ -155,7 +155,7 @@ async def _maybe_alert_admins(job_id: str, error: str | None) -> None:
                 "cron_failure_alert",
                 ", ".join(recipients),
                 "ok",
-                metadata={"job_id": job_id, "recipient_count": len(recipients)},
+                extra={"job_id": job_id, "recipient_count": len(recipients)},
             )
         except Exception:
             pass
@@ -169,7 +169,7 @@ async def _maybe_alert_admins(job_id: str, error: str | None) -> None:
                 ", ".join(recipients),
                 "error",
                 error=str(exc),
-                metadata={"job_id": job_id},
+                extra={"job_id": job_id},
             )
         except Exception:
             pass

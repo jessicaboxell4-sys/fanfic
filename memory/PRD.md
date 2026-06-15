@@ -2394,3 +2394,29 @@ Cleared the cron-infrastructure cluster. **What was actually broken wasn't the c
 - Content recognition: `test_new_features.py::TestAo3UrlNormalization` (1), `test_new_features.py::TestEfictionSiteRecognition` (1)
 - (One more from the original 17 — to be re-counted on next sweep)
 
+## 2026-06-15 — Admin alert-health banner + log_email_send kwarg fix
+
+Surfaces silent cron-alert pipeline failures on the AdminConsole so admins notice when alerts aren't going out — the lesson from the round-2 misdiagnosis.
+
+### Production bug fixed
+- **`utils/cron_health.py`** was calling `log_email_send(..., metadata=...)`, but `utils/email_log.py`'s function signature takes `extra=...`. The `TypeError: unexpected keyword argument 'metadata'` was silently swallowed by the surrounding `try/except`, so no cron-alert send (success OR failure) has ever been recorded in `db.email_logs` since this code was written. Renamed both call sites to `extra=`.
+
+### New endpoint
+- **`GET /api/admin/alert-health`** (admin-only) returns `{window_hours, alert_send_failures_24h, cron_failures_uncovered_24h, uncovered_job_ids[≤5], latest_failure}`. Two distinct failure modes because they need different operator actions: (1) *send_failed* — Resend returned an error, fix the API key; (2) *no_alert_sent* — cron errored but no `cron_alerts` row exists, usually Resend isn't configured / flag is off / no admin has email.
+
+### New UI
+- **`<AlertHealthBanner />`** at the top of `/admin` (between `<header>` and the section search). Renders nothing when quiet; red strip on send failures, amber strip on uncovered cron failures, links to `#cron-health-card` and `#email-stats-card`. Dismissable per-session only — *not* persistent, so a still-broken pipeline can't be silenced into permanent obscurity.
+
+### Tests (new)
+- **`tests/test_alert_health.py`** (5 cases): admin-only gating, quiet shape, send-failure counts (in/out of window, success ignored), uncovered cron failures (covered/ancient/ok all excluded), send-failure-takes-priority in `latest_failure`.
+
+### Verified
+- Combined run of `test_alert_health.py + test_cron_failure_alerts.py + test_cron_health.py + test_admin_console.py` → **44/44 passed**.
+- Curl smoke as a seeded admin → endpoint returns expected JSON with synthetic data.
+
+### Files touched
+- `/app/backend/utils/cron_health.py` (metadata= → extra= rename, 2 call sites)
+- `/app/backend/routes/admin.py` (new `/admin/alert-health` endpoint)
+- `/app/frontend/src/pages/AdminConsole.jsx` (`<AlertHealthBanner />` component + mount in header)
+- `/app/backend/tests/test_alert_health.py` (NEW — 5 cases)
+
