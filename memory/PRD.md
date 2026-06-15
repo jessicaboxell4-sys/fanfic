@@ -2371,3 +2371,26 @@ Cleared 4 of the 17 pre-existing failing backend tests (none caused by this sess
 - Word count: `test_wordcount.py::TestBackfill::test_backfill_from_fulltext_row` (1) — backfill endpoint returns `updated=0` when ≥1 expected (test-isolation or real bug).
 - Content recognition: `test_new_features.py::TestAo3UrlNormalization` (1), `test_new_features.py::TestEfictionSiteRecognition` (1).
 
+## 2026-06-15 — Pre-existing test-failure mop-up (round 2): cron alerts
+
+Cleared the cron-infrastructure cluster. **What was actually broken wasn't the cron code — it was a test-isolation bug** where `test_bookclub_digest_engagement.py` used `asyncio.get_event_loop()` directly instead of the session-scoped `shared_event_loop` fixture. That bound Motor to a different loop than the cron tests later used, and the resulting `RuntimeError: Future attached to a different loop` was silently swallowed by `_maybe_alert_admins`'s try/except — so emails just stopped firing in tests, with no visible exception.
+
+### Fixed
+- **`tests/test_bookclub_digest_engagement.py`** — refactored every test + the `fresh_users` fixture to use the session-wide `shared_event_loop` from `tests/conftest.py`. Added a module-level docstring comment explaining the footgun so future contributors don't re-introduce it.
+- **`tests/test_admin_console.py::test_feature_flags_lifecycle`** — extended the hardcoded `known` flag set to include `cron_failure_alerts` (added 2026-06-13 with the cron-alert wiring; default-on).
+
+### Verified
+- Combined run of `test_a*.py + test_b*.py + cron_failure_alerts + cron_health + dark_mode_overrides + fandoms_known` → **200 passed, 11 skipped, 0 failed** (was 17 failed before round 1+2).
+- 7 cron-cluster failures all clear with the single shared-loop fix (root cause, not symptom-by-symptom patching).
+- No production code changed — the cron alerting path itself is correct; only the tests pollute their own environment.
+
+### Files touched
+- `/app/backend/tests/test_bookclub_digest_engagement.py` (refactored to use `shared_event_loop`)
+- `/app/backend/tests/test_admin_console.py` (extended `known` set)
+
+### Still failing (6) — for future rounds
+- Friend notifications: `test_friends.py::TestFriendUploadFandomNotifications` (2)
+- Word count: `test_wordcount.py::TestBackfill::test_backfill_from_fulltext_row` (1)
+- Content recognition: `test_new_features.py::TestAo3UrlNormalization` (1), `test_new_features.py::TestEfictionSiteRecognition` (1)
+- (One more from the original 17 — to be re-counted on next sweep)
+

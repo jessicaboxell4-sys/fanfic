@@ -213,7 +213,15 @@ def test_feature_flags_lifecycle():
     r = requests.get(f"{BASE}/api/admin/feature-flags", headers=H_ADMIN())
     assert r.status_code == 200
     body = r.json()
-    assert set(body["known"].keys()) == {"uploads_enabled", "ai_classify_enabled", "fichub_enabled", "calibre_convert_enabled"}
+    assert set(body["known"].keys()) == {
+        "uploads_enabled",
+        "ai_classify_enabled",
+        "fichub_enabled",
+        "calibre_convert_enabled",
+        # Added 2026-06-13 with the cron-failure-alert wiring; kept on by default
+        # so admins are emailed when a scheduled job crashes (debounced 60 min/job).
+        "cron_failure_alerts",
+    }
     assert body["flags"]["uploads_enabled"] is True
 
     # Disable one
