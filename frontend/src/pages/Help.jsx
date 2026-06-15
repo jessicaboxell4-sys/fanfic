@@ -9,7 +9,7 @@ import {
   MessageSquare, Search, ListChecks, AtSign, Target, Compass,
 } from "lucide-react";
 
-// Help guide — kept current with the app. Last updated: 2026-06-14.
+// Help guide — kept current with the app. Last updated: 2026-06-15.
 // When you add a feature, drop a new <Section> here; the sticky table
 // of contents builds itself from each section's `id`.
 
@@ -22,11 +22,11 @@ const FALLBACK_WHATS_NEW = {
   version: "2026-06-14-handles",
   title: "Fresh in Shelfsort",
   items: [
-    { to: "/goals", label: "Reading goals", desc: "— set a yearly or monthly target (books or minutes), watch the SVG ring fill, and get confetti the moment you hit it." },
+    { to: "/goals", label: "Goal-hit confetti, everywhere", desc: "— when finishing a book flips a reading goal, confetti now fires anywhere in the app, not just on the Goals page. A celebration toast names the goal you hit." },
+    { to: "/library/originals", label: "Native PDF / TXT / DOCX viewer", desc: "— open any non-EPUB original directly in-app at /read-original/<id>. PDFs use the browser's PDF.js, TXT renders in a clean serif column, DOCX is converted by mammoth.js, and unsupported formats (MOBI/AZW/etc.) get a one-click Convert-to-EPUB button." },
+    { to: "/library/originals", label: "Bookmarks on PDFs & TXT", desc: "— save a page (PDF) or scroll position (TXT/DOCX), give it a note, jump back any time. Cmd/Ctrl+B works here too." },
+    { to: "/library/queue", label: "Drag-and-drop queue reorder", desc: "— grab the new ⋮⋮ handle on any Up-Next row to reorder. The arrow buttons still work for one-step nudges." },
     { to: "/account#username", label: "Public usernames", desc: "— claim a one-of-a-kind @handle (capital letters welcome) so friends can find you without sharing your email." },
-    { to: "/friends", label: "@handle autocomplete", desc: "— type `@` in the friend-invite or bookclub-invite box and pick from a live dropdown of usernames." },
-    { to: "/library/all", label: "Navbar book search", desc: "— a typeahead in the top bar jumps straight to any title or author in your library, no clicks required." },
-    { to: "/help#tour", label: "First-time tour", desc: "— the welcome overlay walks new accounts through Upload, Library, Friends, and Reading goals. Replay it anytime from the “Replay tour” link below." },
   ],
 };
 const WHATS_NEW_KEY = "shelfsort.whatsNewDismissed";
@@ -202,7 +202,7 @@ export default function Help() {
 
         <header className="mb-8">
           <h1 className="font-serif text-5xl md:text-6xl text-[#2C2C2C] leading-tight">Help</h1>
-          <p className="text-[#6B705C] mt-2">How to do everything in Shelfsort. Last updated 2026-06-14.</p>
+          <p className="text-[#6B705C] mt-2">How to do everything in Shelfsort. Last updated 2026-06-15.</p>
           <p className="text-sm text-[#6B705C] mt-3">
             Don&rsquo;t see what you&rsquo;re looking for? <Link to="/suggestions" className="text-[var(--primary)] font-semibold underline">Drop a suggestion →</Link> — bugs, tweaks, brand new ideas all welcome.
           </p>
@@ -432,7 +432,9 @@ export default function Help() {
                 <li><strong><Link to="/library/unreadable">Unreadable</Link></strong> <FileWarning className="inline w-3 h-3" /> — files that couldn&apos;t be parsed (corrupt EPUBs) or converted (Calibre rejected a PDF/Kindle/DOCX). Original bytes stay on disk so you can download a copy to inspect or delete it.</li>
                 <li><strong><Link to="/library/originals">Originals</Link></strong> — books you uploaded as PDF/MOBI/AZW/DOCX/etc. and chose to keep as-is (without running Calibre). Each row has three buttons:
                   <ul>
-                    <li><strong>Read</strong> opens the smart in-app viewer at <code>/read-original/&lt;book_id&gt;</code>. PDF/HTML/HTM render via your browser&apos;s built-in viewer; TXT renders in a clean serif layout; DOCX is converted to HTML client-side via mammoth.js; everything else (MOBI, AZW, AZW3, KF8, KFX, FB2, LIT, LRF, PDB, DOC, RTF) gets a one-click <em>Convert to EPUB and read</em> button that runs Calibre and lands you in the regular reader.</li>
+                    <li><strong>Read</strong> opens the smart in-app viewer at <code>/read-original/&lt;book_id&gt;</code>. PDF/HTML/HTM render via your browser&apos;s built-in viewer; TXT renders in a clean serif layout; DOCX is converted to HTML client-side via mammoth.js; everything else (MOBI, AZW, AZW3, KF8, KFX, FB2, LIT, LRF, PDB, DOC, RTF) gets a one-click <em>Convert to EPUB and read</em> button that runs Calibre and lands you in the regular reader.
+                      <br />
+                      Inside the viewer, PDFs and scroll-based formats (TXT/DOCX) support <strong>bookmarks</strong>: click <em>Bookmark</em> (or hit <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>B</kbd>) to save the current page (PDF — you&apos;ll be asked which page number) or scroll position (TXT/DOCX). The bookmark count chip opens a panel where you can jump back, type a note, and remove bookmarks. Same backend as EPUB bookmarks, so they show up on the <Link to="/bookmarks">Bookmarks page</Link> too.</li>
                     <li><strong>Convert to EPUB</strong> runs Calibre and promotes the book into the main library — same flow as the bulk <em>Convert all</em> button at the top.</li>
                     <li><strong>Download</strong> streams the raw original file so you can read it in an external app like Apple Books, Kindle, or Adobe Reader.</li>
                   </ul>
@@ -495,7 +497,7 @@ export default function Help() {
               <p>The reading queue is a personal stack of books you want to read next.</p>
               <ul>
                 <li><strong>Add to queue</strong>: hover any book card on <Link to="/library/all">All books</Link> and click the <ListChecks className="inline w-4 h-4 -mt-0.5" /> icon that appears (left of the read toggle). Click again to remove.</li>
-                <li><strong>View / reorder / remove</strong>: open the <Link to="/library/queue">Reading queue page</Link> from the dashboard&apos;s &ldquo;Up next&rdquo; rail. Each row shows index + cover + title/author; use the ▲▼ arrows to reorder or × to remove.</li>
+                <li><strong>View / reorder / remove</strong>: open the <Link to="/library/queue">Reading queue page</Link> from the dashboard&apos;s &ldquo;Up next&rdquo; rail. Each row shows index + cover + title/author. Reorder by <strong>dragging the ⋮⋮ handle</strong> at the left of each row, by the ▲▼ arrows for one-step nudges, or × to remove.</li>
                 <li><strong>Dashboard surfacing</strong>: while empty you see &ldquo;Up next: nothing queued.&rdquo; Once you add anything, the dashboard rail shows the top 5 with a count + a Manage → link.</li>
               </ul>
               <p>The queue is per-user and order is persisted server-side, so it follows you across devices.</p>
@@ -507,7 +509,7 @@ export default function Help() {
                 <li><strong>Two cadences</strong>: <em>Yearly</em> (e.g. &ldquo;52 books in 2026&rdquo;) and <em>Monthly</em> (e.g. &ldquo;5 books this June&rdquo;). You can keep one of each kind running at the same time.</li>
                 <li><strong>Two metrics</strong>: <em>Books finished</em> (counts any book you flip to Finished during the period) or <em>Minutes read</em> (sums actual time in the in-app reader plus any manual log entries).</li>
                 <li><strong>Live SVG progress ring</strong>: as you finish books or rack up minutes, the ring fills in real time. The fraction is recomputed server-side so it stays honest if you bulk-mark older books finished.</li>
-                <li><strong>Confetti on hit</strong>: the moment a goal crosses 100%, a CSS-only burst plays and the goal is stamped with a <code>hit_at</code> timestamp so it stays celebrated even if you re-edit the target later.</li>
+                <li><strong>Confetti on hit, anywhere</strong>: the moment a goal crosses 100%, a CSS-only burst plays and a &ldquo;🎉 You hit &hellip;&rdquo; toast fires — even if you&apos;re on the dashboard, in a reading room, or on a friend&apos;s library. The goal is stamped with a <code>hit_at</code> timestamp so it stays celebrated even if you re-edit the target later, and a localStorage list of celebrated goal-ids stops the same achievement from re-firing on every page load.</li>
                 <li><strong>History</strong>: closed-out periods stay listed below the active card with a tiny &ldquo;✓ hit&rdquo; or &ldquo;X / Y&rdquo; summary so you can see how this month compared to last.</li>
                 <li><strong>Edit or retire</strong>: bump the target up or down at any time. If you exceed the new target, the hit-state flips on retroactively.</li>
               </ul>
@@ -625,8 +627,8 @@ export default function Help() {
 
             <Section id="reading" icon={BookOpen} title="Reader & stats">
               <p>Click any book cover to open the in-browser EPUB Reader. Your reading position is saved per-book; come back to where you left off automatically.</p>
-              <p><strong>Bookmarks</strong>: while reading, tap the <em>Bookmark</em> button in the reader header to save your current page. Open the <em>Bookmark</em> panel (the icon next to it with the count) to see every saved spot for this book, jump to any of them, or remove one. Each bookmark stores the chapter title, your reading-progress percentage, and the date you saved it. Bookmarks sync to your account so they follow you across devices.</p>
-              <p>You can also see every bookmark across your whole library on the <Link to="/bookmarks">All bookmarks</Link> page.</p>
+              <p><strong>Bookmarks</strong>: while reading, tap the <em>Bookmark</em> button in the reader header to save your current page — or just press <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>B</kbd>. If the current page is already bookmarked, the button flips to a filled <em>Saved</em> chip so you don&apos;t accidentally save the same spot twice. Open the <em>Bookmark</em> panel (the icon next to it with the count) to see every saved spot for this book, jump to any of them, type or edit a free-form note (saved on blur), and remove on hover. Each bookmark stores the chapter title, your reading-progress percentage, and the date you saved it. Bookmarks sync to your account so they follow you across devices.</p>
+              <p>You can also see every bookmark across your whole library on the <Link to="/bookmarks">All bookmarks</Link> page. PDF and TXT/DOCX originals support bookmarks too — see the <Link to="/library/originals">Originals</Link> section above for how they work in the smart viewer.</p>
               <p><strong>Surprise me</strong>: on the Dashboard, the &ldquo;Surprise me&rdquo; button picks a random book you haven&apos;t opened yet and drops you straight into it — useful when decision fatigue strikes.</p>
               <p><strong>Books I haven&apos;t read</strong>: the dedicated <Link to="/library/unread">unread shelf</Link> lists every book you&apos;ve never opened, newest upload first.</p>
               <p><strong>Up next queue</strong>: build a personal reading order with the <em>Up next</em> widget on the Dashboard. Books in the queue persist across devices.</p>

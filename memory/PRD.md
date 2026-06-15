@@ -2199,3 +2199,110 @@ Discord/Twitter-style `@handle` typeahead on the friend-find input.
 **Test IDs** added: `friends-invite-suggestions`, `friends-invite-suggest-<username>`, `friends-invite-no-results`.
 
 E2E verified: typed `@findme...` → dropdown showed `@FindMe91443` → clicked → outgoing request created with `username=FindMe91443` → empty/no-match states render correctly. Screenshot snapshot saved.
+
+---
+
+## 2026-06-15 session — Polish, deploy-ready
+
+### Bug fixes
+- `/api/users/search` regression: re-broadened to `$or` over `username_lower`, `name`, `email`; removed duplicate endpoint in auth.py. Restored `test_friends.py` (39 tests) and `test_usernames.py` (13 tests) to green.
+
+### Help page overhaul
+- Wikipedia-style layout: TOC pinned to the far left, article centred with max-w-3xl, full-viewport flex on lg+
+- Sections menu independently scrollable (max-h-[calc(100vh-7rem)])
+- Fandoms list wrapped in `<details>` collapsible toggle
+- "Last updated 2026-06-15" header + refreshed What's-new card
+- 4 new dedicated sections: First-time tour, Navbar quick-search, Reading goals, Public usernames & @handles
+- Added documentation for: smart viewer (PDF/TXT/DOCX/MOBI/AZW handling), bookmark editable notes + Cmd-B + Saved indicator, global goal-hit confetti, drag-and-drop queue, Originals shelf Read button
+
+### Tour overlay
+- Added 2 new steps: **Appearance** (light/dark + colour scheme, navigates to /account/appearance) and **Suggestions & feedback** (navigates to /suggestions). Now 9 steps total.
+- Final "Done" step navigates to `/library` so finishing the tour lands at home.
+- Step IDs: welcome → library → friends → bookclubs → recs → appearance → account → feedback → done
+
+### Navbar redesign
+- Two-button popover split removed — single Sun/Moon icon now opens AppearancePopover (contains light/dark toggle + 7 palette swatches + link to Account → Appearance)
+- New responsive hamburger menu (drawer) on <lg viewports
+- Three dropdowns: **Library** (Smart shelves / Reading stats / Reading goals / Recommendations / Originals), **Export** (Library .xlsx / Download ZIP), **Help** (Help & guide / Suggestions & feedback)
+- New MessagesDropdown component (Messages / Friends / Reading rooms) replaces standalone ChatInboxIcon with unread + pending badges
+- New AccountDropdown component replaces raw avatar + sign-out icon
+- BookQuickSearch given max-w-sm + flex-1 (was 62px wide, now 384px)
+- Reordered: Brand | Search | Library▾ Export▾ Help▾ | Theme | Notifications | Messages▾ | Streak | Account▾
+
+### Native multi-format viewer (new /read-original/:id)
+- New `ReadOriginal.jsx` page + `mammoth` dep for DOCX
+- Format-aware rendering:
+  - PDF / HTML / HTM → browser-native iframe (uses Chrome/FF PDF.js)
+  - TXT → fetched + rendered in styled `<pre>` with scroll container
+  - DOCX → client-side mammoth.convertToHtml + scroll container
+  - MOBI / AZW / AZW3 / KF8 / KFX / FB2 / LIT / LRF / PDB / DOC / RTF → "Convert to EPUB and read" CTA via existing /library/originals/{id}/convert
+- "Open in new tab" button universally available
+- Auto-redirect to /read/:id if book is already EPUB
+- Originals shelf row gets a new green "Read" button + fixed broken `/download` link to use `/download-original`
+
+### Bookmark enhancements
+- Reader: Cmd/Ctrl+B keyboard shortcut, current-CFI "Saved" indicator (button flips colors), inline-editable notes via new `PATCH /api/books/{id}/bookmarks/{bm_id}` endpoint
+- ReadOriginal: PDF bookmarks (page-number prompt), scroll-based bookmarks for TXT/DOCX, jump back via iframe `#page=N` for PDF or `scrollTo` for others
+- Reuses the existing bookmarks backend (anchor stored opaquely in the `cfi` field as `"page:N"` or `"scroll:0.42"`)
+
+### Drag-and-drop queue reorder
+- Native HTML5 DnD on `ReadingQueuePage.jsx` (no library deps)
+- GripVertical handle per row; drop-target highlighted with ring
+- Existing up/down arrows still work — both paths share `saveOrder()` helper
+- Backend `/api/library/queue/reorder` unchanged
+
+### `progress_percent` → `progress_fraction` rename (P1 closed)
+- Renamed across 22 files (16 backend + 6 frontend)
+- One-shot DB migration `/app/backend/scripts/migrate_progress_field.py` (idempotent, ran cleanly on live DB)
+- Also renames `reading_events.meta.progress_percent`
+- 141 backend tests still pass
+
+### Phase 5 books.py refactor (P2 closed)
+- **Phase 5D — Duplicate resolution**: extracted 555 lines into `routes/duplicate_resolution.py` (resolve-duplicate, resolve-group, /library/duplicates and /count)
+- **Phase 5E — Library views**: extracted 293 lines into `routes/library_views.py` (trends, status-counts, complete, ongoing, linkless, unreadable + _status_query / _list_status_shelf helpers)
+- **Phase 5F — Reading activity**: extracted 148 lines into `routes/reading_activity.py` (mark, heartbeat, progress, touch + _log_activity helper)
+- books.py: 5759 → 4895 lines (-864 lines / -15% in this session; cumulatively -~2100 lines)
+- Cross-module imports one-way (no cycles): extracted modules import helpers from routes.books; books.py never reaches back
+- Added module-index docstring at the top of books.py mapping every section + every extracted module
+
+### OG / Twitter meta tags
+- Open Graph: og:type, og:site_name, og:title, og:description, og:image (1200×630 PNG generated with Shelfsort branding), og:image:width/height/alt, og:locale
+- Twitter: summary_large_image card with title/description/image
+- Updated theme-color to #6B46C1 (was #000000)
+- Replaced "A product of emergent.sh" description with the real Shelfsort pitch
+
+### Global goal-hit confetti
+- Extracted `Confetti.jsx` (was inline in GoalsPage), `goalHitWatcher.js` lib with `pulseGoalsCheck()` + `clearCelebratedGoals()` + `shelfsort:goal-hit` event
+- New `GlobalConfettiHost.jsx` mounted in App.js — listens for the event, fires confetti + celebration toast
+- Triggered by: BookCard mark-read, Reader progress >=99%, every 90s visibility-check
+- LocalStorage `shelfsort_goals_celebrated` set prevents re-firing on page reloads
+
+### Stats query optimization
+- Added field projection to `/api/stats/overview` (`progress_fraction`, `source_meta`, `size_bytes`)
+- Removed full-document fetch on large libraries
+
+### Deployment readiness
+- Removed `.env / .env.* / *.env` patterns from /app/.gitignore so Emergent can inject prod values
+- Deployment agent verified PASS with one optional optimization note (now addressed)
+
+### Files added this session
+- `/app/frontend/src/pages/ReadOriginal.jsx`
+- `/app/frontend/src/components/Confetti.jsx`
+- `/app/frontend/src/components/GlobalConfettiHost.jsx`
+- `/app/frontend/src/components/MessagesDropdown.jsx`
+- `/app/frontend/src/components/AccountDropdown.jsx`
+- `/app/frontend/src/lib/goalHitWatcher.js`
+- `/app/backend/routes/duplicate_resolution.py`
+- `/app/backend/routes/library_views.py`
+- `/app/backend/routes/reading_activity.py`
+- `/app/backend/scripts/migrate_progress_field.py`
+- `/app/frontend/public/og-image.png`
+
+### Backlog after this session
+- Extend keyboard shortcuts (J/K next-prev page) for ReadOriginal viewer
+- Webhook / Server-Sent Events for goal-hit instead of polling
+- Friends-page 30s background poll for unread DM dots
+- Engagement-gate hint UI in bookclub digest settings
+- Unread-DM backfill email directing to /friends?room=…
+- PRD.md is now >2200 lines — split into PRD / CHANGELOG / ROADMAP
+
