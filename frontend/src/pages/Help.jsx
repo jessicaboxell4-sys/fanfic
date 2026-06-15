@@ -19,9 +19,10 @@ import {
 // deploy, POST to /api/announcements with a fresh `version` string.
 // `version` doubles as the per-user localStorage dismissal key.
 const FALLBACK_WHATS_NEW = {
-  version: "2026-06-14-handles",
+  version: "2026-06-15-yib-wrapped",
   title: "Fresh in Shelfsort",
   items: [
+    { to: "/library/stats", label: "Year in Books — Wrapped redesign", desc: "— your yearly recap is now a Spotify-Wrapped style scroll-snap experience: nine cinematic full-screen slides covering books opened, pages turned, longest streak, best month, top fandoms, top author, bookends, and achievements. Email it to yourself or share a public link with one click." },
     { to: "/goals", label: "Goal-hit confetti, everywhere", desc: "— when finishing a book flips a reading goal, confetti now fires anywhere in the app, not just on the Goals page. A celebration toast names the goal you hit." },
     { to: "/library/originals", label: "Native PDF / TXT / DOCX viewer", desc: "— open any non-EPUB original directly in-app at /read-original/<id>. PDFs use the browser's PDF.js, TXT renders in a clean serif column, DOCX is converted by mammoth.js, and unsupported formats (MOBI/AZW/etc.) get a one-click Convert-to-EPUB button." },
     { to: "/library/originals", label: "Bookmarks on PDFs & TXT", desc: "— save a page (PDF) or scroll position (TXT/DOCX), give it a note, jump back any time. Cmd/Ctrl+B works here too." },
@@ -51,6 +52,7 @@ const SECTIONS = [
   { id: "detection", label: "Detection & overrides" },
   { id: "data-safety", label: "Backup & restore" },
   { id: "reading", label: "Reader & stats" },
+  { id: "year-in-books", label: "Year in Books (Wrapped recap)" },
   { id: "word-count", label: "Word count & reading time" },
   { id: "usernames", label: "Public usernames & @handles" },
   { id: "messages", label: "Messages & friends" },
@@ -348,6 +350,7 @@ export default function Help() {
           </div>
           <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-1 text-sm text-[#2C2C2C] list-disc list-inside">
             <li><Link to="/goals" className="hover:underline font-semibold">Reading goals</Link> — yearly &amp; monthly targets, confetti on hit</li>
+            <li><a href="#year-in-books" className="hover:underline font-semibold">Year in Books</a> — Spotify-Wrapped style yearly recap</li>
             <li><a href="#usernames" className="hover:underline font-semibold">Public usernames &amp; @handles</a> with autocomplete</li>
             <li><a href="#quick-search" className="hover:underline">Navbar book quick-search</a> — typeahead jumps</li>
             <li><a href="#tour" className="hover:underline">First-time tour</a> — replay any time</li>
@@ -632,8 +635,29 @@ export default function Help() {
               <p><strong>Surprise me</strong>: on the Dashboard, the &ldquo;Surprise me&rdquo; button picks a random book you haven&apos;t opened yet and drops you straight into it — useful when decision fatigue strikes.</p>
               <p><strong>Books I haven&apos;t read</strong>: the dedicated <Link to="/library/unread">unread shelf</Link> lists every book you&apos;ve never opened, newest upload first.</p>
               <p><strong>Up next queue</strong>: build a personal reading order with the <em>Up next</em> widget on the Dashboard. Books in the queue persist across devices.</p>
-              <p>The <Link to="/stats">Reading stats</Link> page covers your library shape, most-read fandoms, and pairing distribution. (Reading streaks + word-count + per-month stats are on the upcoming list.)</p>
+              <p>The <Link to="/stats">Reading stats</Link> page covers your library shape, most-read fandoms, and pairing distribution. For a more cinematic year-end view — books opened, pages turned, longest streak, top fandoms, top author, bookends — open <a href="#year-in-books">Year in Books</a> below.</p>
               <p><strong>Refresh fanfics</strong>: the URL-fetching feature (FanFicFare + FicHub) is intentionally hidden from the UI but the code is preserved for a future re-enable. No FAQ entry until then.</p>
+            </Section>
+
+            <Section id="year-in-books" icon={Sparkles} title="Year in Books (Wrapped recap)">
+              <p>
+                Every reading year gets its own <strong>Spotify-Wrapped style recap</strong> at <Link to="/library/stats">Reading stats → Year in Books</Link>, or directly at <code>/library/year/&lt;year&gt;</code>. It&apos;s a nine-slide scroll-snap experience — each slide is its own full-screen card with bold gradients and animated reveal-on-view.
+              </p>
+              <ul>
+                <li><strong>The slides:</strong> cover (the year in giant serif) → books opened → pages turned (with a rough hours estimate) → longest streak + active days → best month with a mini monthly bar chart → top fandoms (#1 hero + animated ranking bars 2–5) → most-read author (+ supporting authors) → first &amp; last books of the year (&ldquo;Bookends&rdquo;) → outro with achievement chips and the Share / Email buttons.</li>
+                <li><strong>Numbers animate</strong> with a CountUp effect when each slide scrolls into view, and bar charts grow horizontally from zero — the recap is meant to be watched, not just read.</li>
+                <li><strong>Navigate</strong>: scroll-snap pages forward, the progress dots on the right let you jump between slides, and prev/next-year chips in the top bar hop between years. The X in the top-left closes back to <Link to="/library/stats">/library/stats</Link>.</li>
+                <li><strong>Empty years</strong> show a single calm &ldquo;A quiet year on the shelf&rdquo; slide with a link back to the library — no data, no fake numbers.</li>
+              </ul>
+              <p>
+                <strong>Email it to yourself</strong> with the <em>Email me this recap</em> button on the final slide. The email uses the same numbers in a clean print-friendly layout (no scroll-snap there). It&apos;s also the email sent in early January if you turn on the Year-in-Books channel in <Link to="/account/emails">Email preferences</Link>.
+              </p>
+              <p>
+                <strong>Share publicly</strong> with the <em>Share my year</em> button — Shelfsort generates a token-protected public URL at <code>/share/yib/&lt;token&gt;</code>. Anyone with the link sees the same Wrapped experience (with your display name on the cover) — no Shelfsort account required. The public view never exposes your email or internal book IDs. Manage the link any time: copy it, open it in a new tab, or <em>Revoke</em> to kill it instantly. View counts and the last-seen date show up in the same dialog so you can see how many friends actually clicked.
+              </p>
+              <p className="text-xs text-[#6B705C] italic">
+                Stat source-of-truth: a book counts as &quot;opened&quot; if it appears in your <code>reading_activity</code> for that year, and as &quot;finished&quot; if its progress is ≥99% and the last-opened date falls inside the year. Pages are estimated from word count (250 wpm × ~250 words per page). Fanfics with no word-count yet contribute zero pages until backfill runs.
+              </p>
             </Section>
 
             <Section id="usernames" icon={AtSign} title="Public usernames &amp; @handles">

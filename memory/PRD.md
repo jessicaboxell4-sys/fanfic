@@ -2344,3 +2344,9 @@ User asked for a "Year in Books" recap page styled like Spotify Wrapped (option 
 ### Files added this session
 - `/app/frontend/src/components/YearInBooksWrapped.jsx`
 
+### Help page updated
+- Added a dedicated `year-in-books` section to `/app/frontend/src/pages/Help.jsx` covering the Wrapped recap (slides, animations, navigation, email, public sharing, stat source-of-truth).
+- Promoted "Year in Books — Wrapped redesign" to the top item of `FALLBACK_WHATS_NEW` (version `2026-06-15-yib-wrapped`) so returning users see the "New" banner.
+- Added a Year in Books link to the "What's new" quick-link strip.
+- Removed the stale "(Reading streaks + word-count + per-month stats are on the upcoming list.)" note from the Reader & stats section — those are now shipped via Word count + Year in Books.
+
