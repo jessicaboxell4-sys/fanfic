@@ -1,0 +1,8 @@
+Title:  Story A unique title
+Author: Author A
+Links:  1
+============================================================
+
+1. https://archiveofourown.org/works/12345678
+   ↳ https://archiveofourown.org/works/12345678
+
