@@ -14,7 +14,7 @@ function errMsg(detail) {
 
 export default function Login() {
   const navigate = useNavigate();
-  const { setUser } = useAuth();
+  const { loginSuccess } = useAuth();
   const [mode, setMode] = useState("login"); // "login" | "register" | "forgot"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -63,7 +63,11 @@ export default function Login() {
         return;
       }
 
-      setUser(data);
+      // Belt-and-suspenders: ``loginSuccess`` does ``setUser(data)``
+      // immediately AND re-fetches /auth/me so any field the login
+      // response dropped (e.g. ``is_admin`` pre-2026-06-15) self-heals
+      // before the FE renders auth-gated UI like the AdminConsole button.
+      loginSuccess(data);
       toast.success(mode === "login" ? "Welcome back" : "Account created");
       navigate("/library");
     } catch (err) {

@@ -5,7 +5,7 @@ import { useAuth } from "../context/AuthContext";
 
 export default function AuthCallback() {
   const navigate = useNavigate();
-  const { setUser } = useAuth();
+  const { loginSuccess } = useAuth();
   const hasProcessed = useRef(false);
 
   useEffect(() => {
@@ -23,7 +23,10 @@ export default function AuthCallback() {
     (async () => {
       try {
         const { data } = await api.post("/auth/google", { session_id });
-        setUser(data);
+        // Use loginSuccess so the /auth/me re-fetch picks up anything
+        // the OAuth response shape doesn't carry (e.g. approval_status,
+        // username, future fields).
+        loginSuccess(data);
         // Clean URL & go to library
         window.history.replaceState({}, document.title, "/library");
         navigate("/library", { replace: true, state: { user: data } });
@@ -32,7 +35,7 @@ export default function AuthCallback() {
         navigate("/login", { replace: true });
       }
     })();
-  }, [navigate, setUser]);
+  }, [navigate, loginSuccess]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-paper">

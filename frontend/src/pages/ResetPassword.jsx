@@ -15,7 +15,7 @@ function errMsg(detail) {
 export default function ResetPassword() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const { setUser } = useAuth();
+  const { loginSuccess } = useAuth();
   const token = params.get("token") || "";
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -32,7 +32,10 @@ export default function ResetPassword() {
     setBusy(true);
     try {
       const { data } = await api.post("/auth/reset-password", { token, password });
-      setUser({
+      // Use loginSuccess so /auth/me is re-fetched in the background —
+      // backfills is_admin / username / approval_status which this
+      // endpoint doesn't currently echo back.
+      loginSuccess({
         user_id: data.user_id,
         email: data.email,
         name: data.name,
