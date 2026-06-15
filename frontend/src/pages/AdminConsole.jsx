@@ -34,6 +34,8 @@ const CARD_STATE_PREFIX = "shelfsort.admin.card.";
 // below; extra `keywords` make the search forgiving (e.g. "outage" matches
 // the Maintenance banner card whose title doesn't contain that word).
 const ADMIN_CARD_MANIFEST = [
+  { testid: "admin-pending-users-card", title: "Pending sign-ups", subtitle: "Approve or reject new users.", keywords: "pending sign-up approval new user gate queue invite waitlist" },
+  { testid: "admin-today-pulse-card", title: "Today · 24h pulse", subtitle: "Signups, uploads, errors at a glance.", keywords: "today pulse signups uploads errors fandoms 24h daily summary" },
   { testid: "admin-users-card", title: "Users & admins", subtitle: "Promote or demote any account.", keywords: "users admins promote demote roles accounts" },
   { testid: "admin-chat-rooms-card", title: "Chat rooms", subtitle: "Direct-message rooms.", keywords: "chat rooms messages dm direct message conversations" },
   { testid: "admin-unknown-fandoms-card", title: "Unknown fandoms", subtitle: "Fandoms not yet in the keyword classifier.", keywords: "unknown fandoms classifier rescan dismiss missing tag" },
@@ -132,6 +134,227 @@ function Card({ icon: Icon, title, subtitle, children, testid }) {
     </section>
   );
 }
+
+// ---------------------------------------------------------------------------
+// PendingUsersCard — approval queue for new sign-ups (2026-06-15)
+// ---------------------------------------------------------------------------
+// Every new sign-up (email/password OR Google OAuth) lands in
+// ``approval_status="pending"`` and can't use the API. This card shows
+// FIFO of pending users and lets the admin Approve (sets ``"approved"``,
+// emails the user) or Reject with a reason (sets ``"rejected"``, emails
+// the reason). The very first user ever auto-approves so the install
+// bootstraps itself — see ``routes/auth.py``.
+function PendingUsersCard() {
+  const [pending, setPending] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState(null);
+  const [rejectingId, setRejectingId] = useState(null);
+  const [rejectReason, setRejectReason] = useState("");
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const { data } = await api.get("/admin/pending-users");
+      setPending(data?.users || []);
+    } catch { toast.error("Couldn't load pending sign-ups"); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, []);
+
+  const approve = async (u) => {
+    if (!window.confirm(`Approve ${u.email}? They'll be emailed and can sign in immediately.`)) return;
+    setBusyId(u.user_id);
+    try {
+      await api.post(`/admin/users/${u.user_id}/approve`);
+      toast.success(`Approved ${u.email}`);
+      setPending(pending.filter((p) => p.user_id !== u.user_id));
+    } catch { toast.error("Couldn't approve"); }
+    finally { setBusyId(null); }
+  };
+
+  const openReject = (u) => {
+    setRejectingId(u.user_id);
+    setRejectReason("");
+  };
+
+  const submitReject = async (u) => {
+    setBusyId(u.user_id);
+    try {
+      await api.post(`/admin/users/${u.user_id}/reject`, { reason: rejectReason.trim() });
+      toast.success(`Rejected ${u.email}`);
+      setPending(pending.filter((p) => p.user_id !== u.user_id));
+      setRejectingId(null);
+      setRejectReason("");
+    } catch { toast.error("Couldn't reject"); }
+    finally { setBusyId(null); }
+  };
+
+  return (
+    <Card
+      icon={Inbox}
+      title={`Pending sign-ups${pending.length > 0 ? ` (${pending.length})` : ""}`}
+      subtitle="New users sit here until you approve or reject them. They get an email either way."
+      testid="admin-pending-users-card"
+    >
+      {loading ? (
+        <p className="text-sm text-[#6B705C] italic" data-testid="admin-pending-loading">Loading…</p>
+      ) : pending.length === 0 ? (
+        <p className="text-sm text-[#1F8F4E] italic inline-flex items-center gap-1.5" data-testid="admin-pending-empty">
+          <Check className="w-3.5 h-3.5" /> No one waiting. The queue is empty.
+        </p>
+      ) : (
+        <ul className="space-y-2" data-testid="admin-pending-list">
+          {pending.map((u) => (
+            <li
+              key={u.user_id}
+              className="rounded-xl border border-[#E5DDC5] bg-[#FBFAF6] p-3"
+              data-testid={`admin-pending-row-${u.user_id}`}
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-[#2C2C2C]">{u.name || u.email}</p>
+                  <p className="text-xs text-[#6B705C]">{u.email}</p>
+                  <p className="text-xs text-[#6B705C] mt-0.5">
+                    Signed up {fmtTime(u.created_at)}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => approve(u)}
+                    disabled={busyId === u.user_id}
+                    data-testid={`admin-approve-${u.user_id}`}
+                    className="px-3 py-1.5 rounded-full bg-[#1F8F4E] text-white text-xs font-bold uppercase tracking-[0.15em] hover:bg-[#176D3A] transition-colors inline-flex items-center gap-1.5 disabled:opacity-60"
+                  >
+                    {busyId === u.user_id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                    Approve
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openReject(u)}
+                    disabled={busyId === u.user_id || rejectingId === u.user_id}
+                    data-testid={`admin-reject-${u.user_id}`}
+                    className="px-3 py-1.5 rounded-full border border-[#D9534F] text-[#D9534F] text-xs font-bold uppercase tracking-[0.15em] hover:bg-[#FBE9E5] transition-colors disabled:opacity-60"
+                  >
+                    Reject
+                  </button>
+                </div>
+              </div>
+              {rejectingId === u.user_id && (
+                <div className="mt-3 pt-3 border-t border-[#E5DDC5]" data-testid={`admin-reject-form-${u.user_id}`}>
+                  <label className="text-xs uppercase tracking-wider text-[#B43F26] mb-1.5 block">
+                    Reason (sent to the user)
+                  </label>
+                  <textarea
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value.slice(0, 500))}
+                    placeholder="Optional. e.g. Sign-up looks automated, please re-register from a personal email."
+                    rows={2}
+                    data-testid={`admin-reject-reason-${u.user_id}`}
+                    className="w-full text-sm bg-white border border-[#E5DDC5] rounded-lg px-3 py-2 focus:outline-none focus:border-[#D9534F] focus:ring-2 focus:ring-[#FBE9E5]"
+                  />
+                  <div className="flex items-center gap-2 mt-2">
+                    <button
+                      type="button"
+                      onClick={() => submitReject(u)}
+                      disabled={busyId === u.user_id}
+                      data-testid={`admin-reject-confirm-${u.user_id}`}
+                      className="px-3 py-1.5 rounded-full bg-[#D9534F] text-white text-xs font-bold uppercase tracking-[0.15em] hover:bg-[#a83a36] disabled:opacity-60"
+                    >
+                      {busyId === u.user_id ? <Loader2 className="w-3 h-3 animate-spin inline" /> : "Confirm reject"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setRejectingId(null); setRejectReason(""); }}
+                      className="px-3 py-1.5 rounded-full text-[#6B705C] text-xs font-medium hover:text-[#2C2C2C]"
+                    >
+                      Cancel
+                    </button>
+                    <span className="text-xs text-[#6B705C] ml-auto">{rejectReason.length}/500</span>
+                  </div>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// TodayPulseCard — 24h mini-dashboard (2026-06-15)
+// ---------------------------------------------------------------------------
+// First-thing-in-the-morning glance: signups, uploads, Resend errors, and
+// brand-new fandoms (first appearance in the last 24h). Plus a permanent
+// pending-queue counter so the admin can see "you have N waiting" even
+// when the PendingUsersCard is collapsed.
+function TodayPulseCard() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const { data } = await api.get("/admin/today-pulse");
+      setData(data);
+    } catch { /* non-critical */ }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, []);
+
+  return (
+    <Card
+      icon={Activity}
+      title="Today · 24h pulse"
+      subtitle="What happened in the last 24 hours."
+      testid="admin-today-pulse-card"
+    >
+      {loading || !data ? (
+        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3" data-testid="admin-today-pulse-tiles">
+            <StatTile label="Sign-ups" value={data.signups_24h} />
+            <StatTile label="Uploads" value={data.uploads_24h} />
+            <StatTile label="Resend errors" value={data.resend_errors_24h} />
+            <StatTile label="New fandoms" value={data.new_fandoms_24h} />
+            <StatTile label="Pending queue" value={data.pending_count} />
+          </div>
+          {data.new_fandom_names && data.new_fandom_names.length > 0 && (
+            <details className="mt-4 group" data-testid="admin-today-new-fandoms">
+              <summary className="cursor-pointer text-xs font-bold uppercase tracking-[0.15em] text-[#6B46C1] inline-flex items-center gap-1.5">
+                <ChevronRight className="w-3 h-3 transition-transform group-open:rotate-90" />
+                New fandom names ({data.new_fandom_names.length} of {data.new_fandoms_24h})
+              </summary>
+              <ul className="mt-2 flex flex-wrap gap-1.5">
+                {data.new_fandom_names.map((f) => (
+                  <li
+                    key={f}
+                    className="px-2 py-0.5 rounded-full bg-[#EEE9FB] text-[#6B46C1] text-xs"
+                  >
+                    {f}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+          <button
+            type="button"
+            onClick={load}
+            data-testid="admin-today-pulse-refresh"
+            className="mt-4 text-xs font-bold uppercase tracking-[0.15em] text-[#6B46C1] hover:text-[#553397] inline-flex items-center gap-1.5"
+          >
+            <RotateCcw className="w-3 h-3" /> Refresh
+          </button>
+        </>
+      )}
+    </Card>
+  );
+}
+
+
 
 // ---------------------------------------------------------------------------
 // Users card (a)
@@ -2099,6 +2322,8 @@ export default function AdminConsole() {
             </div>
           ) : (
             <>
+              <PendingUsersCard />
+              <TodayPulseCard />
               <UsersCard />
               <ChatRoomsCard />
               <UnknownFandomsCard />

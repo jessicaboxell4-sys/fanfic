@@ -1,14 +1,28 @@
-"""Auth dependency: get_current_user. Used by every router."""
+"""Auth dependency: get_current_user + variants. Used by every router.
+
+Approval gate
+-------------
+Every API call goes through ``get_current_user``. As of 2026-06-15 we also
+gate on ``approval_status`` here so a pending or rejected user can't act
+on the API even if they hold a valid session cookie (the Google-OAuth
+path issues a session before approval, so the cookie alone isn't enough).
+
+Two flavours:
+  • ``get_current_user`` — strict, the default. Refuses pending/rejected
+    users with a structured 403 the frontend can detect and show the
+    pending screen for.
+  • ``get_current_user_any_status`` — for ``/auth/me`` and ``/auth/logout``
+    only, where the FE needs to read the user's approval status without
+    being booted off the API.
+"""
 from fastapi import HTTPException, Request
 from datetime import datetime, timezone
 from deps import db
 from models import User
 
-# ============================================================
-# AUTH HELPERS
-# ============================================================
-async def get_current_user(request: Request) -> User:
-    # Try cookie first, then Authorization header
+
+async def _resolve_session_user(request: Request) -> User:
+    """Cookie/Bearer → session → user. No approval-status check."""
     session_token = request.cookies.get('session_token')
     if not session_token:
         auth = request.headers.get('Authorization', '')
@@ -33,6 +47,40 @@ async def get_current_user(request: Request) -> User:
     if not user_doc:
         raise HTTPException(status_code=401, detail="User not found")
     return User(**user_doc)
+
+
+async def get_current_user(request: Request) -> User:
+    """Strict dep: refuses pending or rejected accounts with 403.
+
+    Returns a structured detail so the FE can branch:
+      ``{"code": "pending_approval"}`` — sign-up awaiting admin review.
+      ``{"code": "rejected", "reason": str}`` — sign-up was rejected.
+    """
+    user = await _resolve_session_user(request)
+    status = (user.approval_status or "approved").lower()
+    if status == "pending":
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "pending_approval", "message": "Your account is pending admin approval."},
+        )
+    if status == "rejected":
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "rejected",
+                "message": "Your sign-up was not approved.",
+                "reason": user.approval_rejected_reason or "",
+            },
+        )
+    return user
+
+
+async def get_current_user_any_status(request: Request) -> User:
+    """Lenient dep for the very few endpoints (``auth/me``, ``auth/logout``)
+    that must work for users in any approval state — so the frontend can
+    read the status and show the right screen without being kicked off
+    the API entirely."""
+    return await _resolve_session_user(request)
 
 
 async def require_admin(request: Request) -> User:

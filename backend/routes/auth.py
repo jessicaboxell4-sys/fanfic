@@ -31,7 +31,7 @@ from deps import (
     COOKIE_SECURE, COOKIE_SAMESITE,
 )
 from models import User, BookOut
-from auth_dep import get_current_user
+from auth_dep import get_current_user, get_current_user_any_status
 from utils.email_log import log_email_send
 from utils.usernames import (
     normalize_username,
@@ -76,12 +76,21 @@ async def auth_google(request: Request, response: Response):
             {"$set": {"name": name, "picture": picture}}
         )
     else:
+        # Bootstrap: very first user ever is auto-approved + admin so the
+        # install isn't locked out. All subsequent OAuth sign-ups land in
+        # ``"pending"`` until an existing admin approves them. The session
+        # IS issued so the FE can read ``/auth/me`` and route them to the
+        # pending-approval screen (lenient dep there).
+        is_first_user = (await db.users.count_documents({}, limit=1)) == 0
+        approval_status = "approved" if is_first_user else "pending"
         user_id = f"user_{uuid.uuid4().hex[:12]}"
         await db.users.insert_one({
             "user_id": user_id,
             "email": email,
             "name": name,
             "picture": picture,
+            "is_admin": is_first_user,
+            "approval_status": approval_status,
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
 
@@ -119,7 +128,7 @@ async def auth_google(request: Request, response: Response):
 
 
 @api_router.get("/auth/me")
-async def auth_me(user: User = Depends(get_current_user)):
+async def auth_me(user: User = Depends(get_current_user_any_status)):
     return {
         "user_id": user.user_id,
         "email": user.email,
@@ -128,6 +137,8 @@ async def auth_me(user: User = Depends(get_current_user)):
         "previous_username": user.previous_username,
         "picture": user.picture,
         "is_admin": user.is_admin,
+        "approval_status": user.approval_status or "approved",
+        "approval_rejected_reason": user.approval_rejected_reason,
         "scheduled_deletion_at": user.scheduled_deletion_at.isoformat() if user.scheduled_deletion_at else None,
     }
 
@@ -248,18 +259,38 @@ async def auth_register(body: RegisterBody, response: Response):
             raise HTTPException(status_code=409, detail="That username is taken")
 
     user_id = f"user_{uuid.uuid4().hex[:12]}"
+    # New-user approval gate (2026-06-15) — the very first user ever to
+    # register is auto-approved AND made admin so the install bootstraps
+    # itself; everyone after that lands in ``"pending"`` until an
+    # existing admin approves them from /admin → Pending sign-ups.
+    is_first_user = (await db.users.count_documents({}, limit=1)) == 0
+    approval_status = "approved" if is_first_user else "pending"
     user_doc = {
         "user_id": user_id,
         "email": email,
         "name": name,
         "picture": "",
         "password_hash": _hash_password(password),
+        "is_admin": is_first_user,
+        "approval_status": approval_status,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     if username:
         user_doc["username"] = username
         user_doc["username_lower"] = username.lower()
     await db.users.insert_one(user_doc)
+
+    if approval_status == "pending":
+        # Do NOT issue a session — the user can't act until an admin
+        # approves them. The frontend shows a "pending approval" screen
+        # from this response shape.
+        return {
+            "pending": True,
+            "email": email,
+            "name": name,
+            "message": "Your account is pending admin approval. You'll get an email when it's reviewed.",
+        }
+
     await _issue_session(user_id, response)
     return {"user_id": user_id, "email": email, "name": name, "username": username or None, "picture": ""}
 
@@ -287,6 +318,25 @@ async def auth_login(body: LoginBody, request: Request, response: Response):
     if not _verify_password(password, user["password_hash"]):
         await _record_failed_attempt(identifier)
         raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    # Approval gate — pending/rejected users get a structured 403 so the
+    # frontend can show the right screen (waiting vs. rejected with reason)
+    # instead of treating it as a generic auth failure.
+    status = (user.get("approval_status") or "approved").lower()
+    if status == "pending":
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "pending_approval", "message": "Your account is pending admin approval. You'll get an email when it's reviewed."},
+        )
+    if status == "rejected":
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "rejected",
+                "message": "Your sign-up was not approved.",
+                "reason": user.get("approval_rejected_reason") or "",
+            },
+        )
 
     await _clear_failed_attempts(identifier)
     await _issue_session(user["user_id"], response)

@@ -24,7 +24,7 @@ import os
 import asyncio
 import resend
 
-from deps import db, api_router, logger, RESEND_API_KEY, SENDER_EMAIL, EMERGENT_LLM_KEY, STORAGE_DIR
+from deps import db, api_router, logger, RESEND_API_KEY, SENDER_EMAIL, EMERGENT_LLM_KEY, STORAGE_DIR, FRONTEND_URL
 from models import User
 from auth_dep import require_admin
 from utils.admin_audit import record_admin_action
@@ -88,6 +88,297 @@ async def demote_user(target_user_id: str, user: User = Depends(require_admin)):
     await db.users.update_one({"user_id": target_user_id}, {"$set": {"is_admin": False}})
     await record_admin_action(user, "user.demote", target=target_user_id, metadata={"email": target.get("email")})
     return {"ok": True, "user_id": target_user_id, "is_admin": False}
+
+
+# ---------------------------------------------------------------------------
+# New-user approval gate (2026-06-15)
+# ---------------------------------------------------------------------------
+# Every new sign-up — email/password OR Google OAuth — lands in
+# ``approval_status="pending"`` and cannot use the API. Admins triage from
+# /admin → Pending sign-ups. Approve flips status to ``"approved"`` and
+# emails the user; reject flips to ``"rejected"`` with a reason and emails
+# the user. The very first user ever to register is auto-approved + made
+# admin so the install bootstraps itself (logic in ``routes/auth.py``).
+
+class RejectUserBody(BaseModel):
+    reason: str = Field(default="", max_length=500)
+
+
+async def _send_approval_email(
+    *,
+    to: str,
+    name: str,
+    approved: bool,
+    reason: str = "",
+) -> None:
+    """Best-effort approval / rejection email. Never raises."""
+    if not RESEND_API_KEY or not SENDER_EMAIL or not to:
+        # Resend not configured — log and move on. The user can still log
+        # in once approved (login checks status, not the email arrival).
+        return
+    subject = (
+        "Welcome to Shelfsort — your account is approved"
+        if approved
+        else "Your Shelfsort sign-up wasn't approved"
+    )
+    body_html = (
+        f"<div style='font-family:system-ui,sans-serif;max-width:560px;line-height:1.6'>"
+        f"<h2 style='color:#6B46C1;margin:0 0 12px'>Hi {name or 'there'},</h2>"
+        + (
+            f"<p style='margin:0 0 12px;color:#2C2C2C'>Your Shelfsort account has been "
+            f"approved. You can sign in now and start uploading your library.</p>"
+            f"<p style='margin:0 0 12px'><a href='{FRONTEND_URL or ''}/login' "
+            f"style='background:#6B46C1;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;display:inline-block'>"
+            f"Sign in to Shelfsort</a></p>"
+            if approved
+            else (
+                f"<p style='margin:0 0 12px;color:#2C2C2C'>We took a look at your "
+                f"Shelfsort sign-up but won't be approving the account at this time."
+                f"</p>"
+                + (
+                    f"<p style='margin:0 0 12px;color:#2C2C2C'><strong>Reason from the admin:</strong> {reason}</p>"
+                    if reason
+                    else ""
+                )
+                + f"<p style='margin:0 0 12px;color:#6B705C;font-size:13px'>"
+                f"If you think this was a mistake, you're welcome to re-register at "
+                f"<a href='{FRONTEND_URL or ''}/signup' style='color:#6B46C1'>{FRONTEND_URL or ''}/signup</a>.</p>"
+            )
+        )
+        + f"</div>"
+    )
+    body_text = (
+        f"Hi {name or 'there'},\n\n"
+        + (
+            "Your Shelfsort account has been approved. You can sign in now and start uploading your library.\n\n"
+            f"Sign in: {FRONTEND_URL or ''}/login\n"
+            if approved
+            else (
+                "We took a look at your Shelfsort sign-up but won't be approving the account at this time.\n\n"
+                + (f"Reason from the admin: {reason}\n\n" if reason else "")
+                + f"If you think this was a mistake, you're welcome to re-register at {FRONTEND_URL or ''}/signup.\n"
+            )
+        )
+    )
+    kind = "approval_approved" if approved else "approval_rejected"
+    try:
+        from utils.email_log import log_email_send as _log
+        resend.api_key = RESEND_API_KEY
+        params = {
+            "from": SENDER_EMAIL,
+            "to": [to],
+            "subject": subject,
+            "html": body_html,
+            "text": body_text,
+        }
+        await asyncio.to_thread(resend.Emails.send, params)
+        await _log(kind, to, "ok")
+    except Exception as exc:
+        logger.error("approval email failed for %s: %s", to, exc)
+        try:
+            from utils.email_log import log_email_send as _log
+            await _log(kind, to, "error", error=str(exc))
+        except Exception:
+            pass
+
+
+# `FRONTEND_URL` is imported at the top with the other deps; this block is
+# intentionally left as a defensive shim in case the import ever moves out
+# of ``deps`` so the approval-email helper degrades to "no link" rather
+# than crashing the approval endpoint.
+if "FRONTEND_URL" not in globals():
+    FRONTEND_URL = ""  # pragma: no cover
+
+
+@api_router.get("/admin/pending-users")
+async def list_pending_users(user: User = Depends(require_admin)):
+    """List every user whose ``approval_status == "pending"`` so admins
+    can triage them on the AdminConsole. Sorted oldest-first so the queue
+    is FIFO — the user who has been waiting longest is at the top."""
+    rows = await (
+        db.users.find(
+            {"approval_status": "pending"},
+            {
+                "_id": 0,
+                "user_id": 1,
+                "email": 1,
+                "name": 1,
+                "username": 1,
+                "picture": 1,
+                "created_at": 1,
+            },
+        )
+        .sort("created_at", 1)
+        .to_list(length=500)
+    )
+    return {"users": rows, "count": len(rows)}
+
+
+@api_router.post("/admin/users/{target_user_id}/approve")
+async def approve_user(target_user_id: str, user: User = Depends(require_admin)):
+    """Flip a pending sign-up to ``"approved"`` so they can log in.
+    Emails the user (best-effort). Idempotent on already-approved users."""
+    target = await db.users.find_one(
+        {"user_id": target_user_id},
+        {"_id": 0, "email": 1, "name": 1, "approval_status": 1},
+    )
+    if target is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    current_status = (target.get("approval_status") or "approved").lower()
+    if current_status == "approved":
+        return {"ok": True, "user_id": target_user_id, "approval_status": "approved"}
+    await db.users.update_one(
+        {"user_id": target_user_id},
+        {
+            "$set": {
+                "approval_status": "approved",
+                "approved_by": user.user_id,
+                "approved_at": datetime.now(timezone.utc).isoformat(),
+            },
+            "$unset": {"approval_rejected_reason": ""},
+        },
+    )
+    await record_admin_action(
+        user,
+        "user.approve",
+        target=target_user_id,
+        metadata={"email": target.get("email"), "from_status": current_status},
+    )
+    await _send_approval_email(
+        to=target.get("email") or "",
+        name=target.get("name") or "",
+        approved=True,
+    )
+    return {"ok": True, "user_id": target_user_id, "approval_status": "approved"}
+
+
+@api_router.post("/admin/users/{target_user_id}/reject")
+async def reject_user(
+    target_user_id: str,
+    body: RejectUserBody,
+    user: User = Depends(require_admin),
+):
+    """Flip a pending sign-up to ``"rejected"`` with an optional reason.
+    Emails the user the reason so they know whether to re-register."""
+    target = await db.users.find_one(
+        {"user_id": target_user_id},
+        {"_id": 0, "email": 1, "name": 1, "approval_status": 1},
+    )
+    if target is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    current_status = (target.get("approval_status") or "approved").lower()
+    if current_status == "approved":
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot reject an already-approved user. Use the user-management UI to remove them instead.",
+        )
+    reason = (body.reason or "").strip()
+    await db.users.update_one(
+        {"user_id": target_user_id},
+        {
+            "$set": {
+                "approval_status": "rejected",
+                "approval_rejected_reason": reason,
+                "rejected_by": user.user_id,
+                "rejected_at": datetime.now(timezone.utc).isoformat(),
+            }
+        },
+    )
+    await record_admin_action(
+        user,
+        "user.reject",
+        target=target_user_id,
+        metadata={"email": target.get("email"), "reason": reason[:120]},
+    )
+    await _send_approval_email(
+        to=target.get("email") or "",
+        name=target.get("name") or "",
+        approved=False,
+        reason=reason,
+    )
+    return {"ok": True, "user_id": target_user_id, "approval_status": "rejected"}
+
+
+# ---------------------------------------------------------------------------
+# Today pulse (mini-dashboard, 24-hour window)
+# ---------------------------------------------------------------------------
+
+@api_router.get("/admin/today-pulse")
+async def get_today_pulse(user: User = Depends(require_admin)):
+    """First-thing-in-the-morning glance: what happened in the last 24h.
+
+    Returns:
+      • ``signups_24h`` — users with ``created_at`` inside the window.
+      • ``uploads_24h`` — books with ``created_at`` inside the window.
+      • ``resend_errors_24h`` — failed Resend sends from ``email_logs``.
+      • ``new_fandoms_24h`` — fandoms first seen inside the window
+        (a fandom that appeared in any book before the window is NOT new).
+      • ``pending_count`` — total users currently in ``"pending"``.
+    """
+    now = datetime.now(timezone.utc)
+    window_start = now - timedelta(hours=24)
+    win_iso = window_start.isoformat()
+
+    # 1) Signups in the last 24h. ``created_at`` is stored as ISO string
+    # at the moment, so we compare lexicographically — safe for ISO 8601.
+    signups_24h = await db.users.count_documents({"created_at": {"$gte": win_iso}})
+
+    # 2) Uploads. Some old books store ``created_at`` as datetime, newer
+    # ones as ISO string — handle both with $or.
+    uploads_24h = await db.books.count_documents({
+        "$or": [
+            {"created_at": {"$gte": window_start}},
+            {"created_at": {"$gte": win_iso}},
+        ]
+    })
+
+    # 3) Resend errors (any kind, not just cron-alerts).
+    resend_errors_24h = await db.email_logs.count_documents({
+        "status": "error",
+        "sent_at": {"$gte": window_start},
+    })
+
+    # 4) New fandoms — fandoms whose earliest appearance is inside the
+    # window. Aggregate min(created_at) per fandom across all books, then
+    # filter to those whose minimum is inside the 24h window.
+    fandom_pipeline = [
+        {"$match": {"fandom": {"$exists": True, "$nin": [None, ""]}}},
+        {"$group": {"_id": "$fandom", "first_seen": {"$min": "$created_at"}}},
+    ]
+    fandom_rows = await db.books.aggregate(fandom_pipeline).to_list(length=2000)
+    new_fandoms: list[str] = []
+    for r in fandom_rows:
+        fs = r.get("first_seen")
+        if isinstance(fs, str):
+            try:
+                fs_dt = datetime.fromisoformat(fs)
+            except ValueError:
+                continue
+            if fs_dt.tzinfo is None:
+                fs_dt = fs_dt.replace(tzinfo=timezone.utc)
+        elif isinstance(fs, datetime):
+            fs_dt = fs if fs.tzinfo else fs.replace(tzinfo=timezone.utc)
+        else:
+            continue
+        if fs_dt >= window_start:
+            new_fandoms.append(r["_id"])
+
+    # 5) Pending count — independent of the 24h window because the queue
+    # is the queue.
+    pending_count = await db.users.count_documents({"approval_status": "pending"})
+
+    return {
+        "window_hours": 24,
+        "signups_24h": signups_24h,
+        "uploads_24h": uploads_24h,
+        "resend_errors_24h": resend_errors_24h,
+        "new_fandoms_24h": len(new_fandoms),
+        "new_fandom_names": new_fandoms[:10],
+        "pending_count": pending_count,
+    }
+
+
+
 
 
 # ---------------------------------------------------------------------------

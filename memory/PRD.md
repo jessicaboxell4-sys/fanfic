@@ -2420,3 +2420,156 @@ Surfaces silent cron-alert pipeline failures on the AdminConsole so admins notic
 - `/app/frontend/src/pages/AdminConsole.jsx` (`<AlertHealthBanner />` component + mount in header)
 - `/app/backend/tests/test_alert_health.py` (NEW — 5 cases)
 
+
+## 2026-06-15 — Admin batch: approval gate + Today pulse (#4 of 6)
+
+User asked for 6 admin features in one batch. This commit lands **#4** (the
+most disruptive piece — affects every new user from now on) plus the
+**Today pulse** card. The other 5 items (view-as-consent / per-user
+activity timeline / feedback inbox / per-user storage / storage trend) are
+still pending and listed at the end.
+
+### What's now in place
+
+**New-user approval gate.** Every new sign-up — email/password OR Google
+OAuth — lands in `approval_status="pending"` and cannot use the API. Login
+returns a structured `403 {code: "pending_approval"}` so the frontend can
+show a calm "your account is pending admin approval — we'll email you"
+screen instead of toasting a confusing error.
+
+- **Bootstrap** — the very first user to ever register is auto-approved
+  AND made admin so the install doesn't lock itself out. Logic in
+  `routes/auth.py::auth_register` and `auth_google`.
+- **Approve** writes the audit row, clears any stale rejected reason,
+  and emails the user (best-effort; degrades silently if Resend isn't
+  configured).
+- **Reject** stores a 500-char reason, audits, and emails the user. Login
+  surfaces the reason as `403 {code: "rejected", reason: ...}` so the
+  user knows whether to re-register.
+- **Re-register** is allowed if the email no longer exists in the users
+  collection (admin deletion of a rejected row makes the email free again).
+
+### New endpoints
+
+- `GET  /api/admin/pending-users` — FIFO list of pending sign-ups for the
+  AdminConsole queue.
+- `POST /api/admin/users/{uid}/approve` — flips to approved + emails.
+- `POST /api/admin/users/{uid}/reject` body `{reason}` — flips to rejected
+  + emails.
+- `GET  /api/admin/today-pulse` — 24h counts of signups, uploads,
+  Resend errors, new fandoms (with first-10 names), plus the permanent
+  pending-queue depth.
+
+### Auth dependency split
+
+`auth_dep.py` was refactored into three flavours:
+
+- `_resolve_session_user(request)` — internal cookie/session lookup.
+- `get_current_user` (strict, the default everywhere) — refuses pending
+  & rejected accounts with the same structured 403 shape the login path
+  uses. So even if a Google-OAuth user has a fresh session cookie before
+  approval, they can't call protected endpoints.
+- `get_current_user_any_status` — lenient, used by `/auth/me` and
+  `/auth/logout` so the FE can read the user's status to render the
+  pending screen without being kicked off the API.
+- `require_admin` builds on `get_current_user`.
+
+### User model
+
+`models.User` gained two fields with safe defaults (no migration needed —
+existing users without the field default to `"approved"`):
+
+```
+approval_status: str = "approved"   # "approved" | "pending" | "rejected"
+approval_rejected_reason: Optional[str] = None
+```
+
+### Frontend
+
+- **`Login.jsx`** detects `{pending: true}` register responses AND
+  `403 {code: "pending_approval"|"rejected", reason?}` login errors,
+  and swaps the entire right-hand panel for a dedicated screen — no
+  more vanishing toasts. Re-register link from the rejected screen
+  jumps straight back to the register form.
+- **`AdminConsole`** gains two cards at the very top of the page:
+  - **`PendingUsersCard`** — FIFO list, Approve + Reject buttons,
+    inline Reject form with a 500-char reason textarea and a sent-to-user
+    preview. Approve confirms before firing because it's idempotent.
+  - **`TodayPulseCard`** — 5 stat tiles (sign-ups, uploads, Resend
+    errors, new fandoms, pending queue depth), collapsible "new fandom
+    names" detail, manual refresh.
+
+### Tests
+
+- **`tests/test_approval_gate.py`** (10 cases): register-lands-in-pending,
+  no session issued, login-pending-returns-structured-403, admin approve
+  unblocks login + writes audit, approve idempotent, approve unknown 404,
+  reject persists reason + blocks login with reason, reject of approved
+  user → 400, pending list filters, today-pulse shape, today-pulse
+  admin-gated. Bootstrap test skips gracefully on a non-empty DB.
+
+### Production bug surfaced
+
+While building the Today pulse I noticed `email_logs` had zero rows
+older than today even though the cron-alert path has been live for two
+days. Root cause: `utils/cron_health.py` was calling
+`log_email_send(..., metadata=...)` but the function signature is
+`extra=...`. The `TypeError` was swallowed by `try/except`, so no
+cron-alert send had ever been recorded. Fixed in the *previous* commit
+(see "Admin alert-health banner" entry above) but worth flagging here
+because the Today pulse's `resend_errors_24h` was returning 0 before
+that fix.
+
+### CSS dark-mode parity
+
+Added 3 new dark-mode overrides to `index.css` for the
+`text-[#7A2417]` / `text-[#5C3300]` / `text-[#8B4F00]` colours
+introduced by the rejection panel + alert-health banner — they were
+unreadable on the dark surface without remap.
+
+### Files touched
+
+```
+backend/
+  models.py                        + approval_status fields
+  auth_dep.py                      refactored 3-tier deps
+  routes/auth.py                   register/login/google gates + me/logout dep swap
+  routes/admin.py                  + pending-users / approve / reject / today-pulse
+  tests/test_approval_gate.py      NEW — 11 cases (10 pass + 1 skipped bootstrap)
+  tests/test_alert_health.py       cross-test pollution sweep
+  tests/test_year_in_books.py      regression test updated for pending-gate flow
+
+frontend/
+  src/pages/Login.jsx              pending + rejected panels
+  src/pages/AdminConsole.jsx       PendingUsersCard + TodayPulseCard + manifest entries
+  src/index.css                    3 dark-mode overrides for rejection-text colours
+```
+
+### Verified
+
+- Combined run of `test_approval_gate + admin_console + alert_health +
+  cron_failure_alerts + cron_health + dark_mode_overrides + fandoms_known +
+  year_in_books + year_share` → **112 passed, 1 skipped, 0 failed**.
+- Curl smoke against the live preview: register → 200 `{pending: true}`,
+  login → 403 pending, approve → 200, login again → 200, today-pulse →
+  expected shape.
+
+### Still pending from the 6-item admin batch
+
+- **#1 + #2 — View-as-user + per-user activity timeline with per-admin
+  user consent.** New `view_consents` collection, consent request/accept
+  flow on Account page, admin "Request view access" button per user
+  row, time-bound impersonation session with audit, per-user timeline
+  endpoint. Medium-large.
+- **#3 — Feedback inbox.** Build an admin view over the existing
+  `suggestions` collection (it already exists, just not surfaced for
+  admins). Small.
+- **#5 — Per-user storage view (option g).** Top-20 users by total
+  uploaded bytes; click-through to per-user book list with sizes (no
+  contents — same access level as global stats). Small-medium.
+- **#6 — Storage trend chart.** Daily snapshot cron + 30-day chart;
+  initial population can be estimated retroactively from
+  `books.created_at + size_bytes`. Small.
+
+These would be the natural next session. Roughly the same total effort
+as today's batch combined.

@@ -21,6 +21,12 @@ export default function Login() {
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [busy, setBusy] = useState(false);
+  // Approval-gate states (2026-06-15). When the backend tells us the
+  // sign-up is pending or rejected we swap the whole right-hand panel
+  // for a calm explainer instead of just toast-ing — toasts vanish and
+  // users panic. ``rejected`` includes the admin's reason.
+  const [pendingNotice, setPendingNotice] = useState(null);
+  const [rejectedNotice, setRejectedNotice] = useState(null);
 
   const handleGoogle = () => {
     // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
@@ -44,11 +50,36 @@ export default function Login() {
         ? { email, password }
         : { email, password, name: name || undefined };
       const { data } = await api.post(url, body);
+
+      // Register may have completed with the user landing in the
+      // pending-approval queue; the backend signals that with
+      // ``{pending: true, email, name, message}`` instead of a session.
+      if (data?.pending) {
+        setPendingNotice({
+          email: data.email || email,
+          name: data.name || name,
+          message: data.message || "Your account is pending admin approval.",
+        });
+        return;
+      }
+
       setUser(data);
       toast.success(mode === "login" ? "Welcome back" : "Account created");
       navigate("/library");
-    } catch (e) {
-      toast.error(errMsg(e?.response?.data?.detail) || e.message);
+    } catch (err) {
+      // 403 with structured detail = approval-gate refusal (login path).
+      const detail = err?.response?.data?.detail;
+      if (err?.response?.status === 403 && detail && typeof detail === "object") {
+        if (detail.code === "pending_approval") {
+          setPendingNotice({ email, name: "", message: detail.message });
+          return;
+        }
+        if (detail.code === "rejected") {
+          setRejectedNotice({ email, reason: detail.reason || "" });
+          return;
+        }
+      }
+      toast.error(errMsg(detail) || err.message);
     } finally {
       setBusy(false);
     }
@@ -77,6 +108,72 @@ export default function Login() {
             <BookOpen className="w-7 h-7 text-[#E07A5F]" />
             <span className="font-serif text-2xl">Shelfsort</span>
           </div>
+
+          {pendingNotice ? (
+            <div data-testid="pending-approval-panel">
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-3">
+                Almost there
+              </p>
+              <h1 className="font-serif text-4xl text-[#2C2C2C] mb-3">Pending admin approval.</h1>
+              <p className="text-[#6B705C] mb-6">
+                Shelfsort is invite-only right now. We&apos;ve queued your sign-up{pendingNotice.email ? ` for ${pendingNotice.email}` : ""} for an admin to review.
+                You&apos;ll get an email at that address once it&apos;s approved — usually within a day.
+              </p>
+              <div className="rounded-2xl border border-[#E5DDC5] bg-[#FBFAF6] p-4 mb-6">
+                <p className="text-xs uppercase tracking-wider text-[#6B705C] mb-1">What happens next</p>
+                <ol className="text-sm text-[#2C2C2C] space-y-1.5 list-decimal list-inside">
+                  <li>An admin reviews your sign-up.</li>
+                  <li>You get an email with the result.</li>
+                  <li>If approved, sign in here with your password.</li>
+                </ol>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setPendingNotice(null); setMode("login"); }}
+                data-testid="pending-back-to-login"
+                className="text-sm font-semibold text-[#6B46C1] hover:text-[#553397]"
+              >
+                ← Back to sign in
+              </button>
+            </div>
+          ) : rejectedNotice ? (
+            <div data-testid="rejected-panel">
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#D9534F] mb-3">
+                Not approved
+              </p>
+              <h1 className="font-serif text-4xl text-[#2C2C2C] mb-3">Sign-up declined.</h1>
+              <p className="text-[#6B705C] mb-4">
+                The admin team reviewed{rejectedNotice.email ? ` ${rejectedNotice.email}` : " your sign-up"} and decided not to approve the account.
+              </p>
+              {rejectedNotice.reason ? (
+                <div className="rounded-2xl border border-[#D9534F]/40 bg-[#FBE9E5] p-4 mb-6" data-testid="rejected-reason">
+                  <p className="text-xs uppercase tracking-wider text-[#B43F26] mb-1">Reason</p>
+                  <p className="text-sm text-[#7A2417]">{rejectedNotice.reason}</p>
+                </div>
+              ) : (
+                <p className="text-sm text-[#6B705C] italic mb-6">No reason was provided.</p>
+              )}
+              <p className="text-sm text-[#6B705C] mb-6">
+                If you think this was a mistake, you can{" "}
+                <button
+                  type="button"
+                  onClick={() => { setRejectedNotice(null); setMode("register"); setPassword(""); }}
+                  data-testid="rejected-reregister"
+                  className="font-semibold text-[#6B46C1] hover:text-[#553397] underline-offset-2 hover:underline"
+                >
+                  re-register here
+                </button>.
+              </p>
+              <button
+                type="button"
+                onClick={() => { setRejectedNotice(null); setMode("login"); }}
+                className="text-sm font-semibold text-[#6B705C] hover:text-[#2C2C2C]"
+              >
+                ← Back to sign in
+              </button>
+            </div>
+          ) : (
+          <>
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-3">
             {mode === "login" ? "Welcome back" : mode === "register" ? "Make a shelf" : "Forgot your password?"}
           </p>
@@ -87,7 +184,7 @@ export default function Login() {
             {mode === "login"
               ? "Sign in to save your sorted shelves across devices."
               : mode === "register"
-              ? "Create an account or sign in with Google."
+              ? "Create an account or sign in with Google. Sign-ups are reviewed before activation."
               : "Enter the email on your account and we'll send a one-hour reset link."}
           </p>
 
@@ -229,6 +326,8 @@ export default function Login() {
               </>
             )}
           </p>
+          </>
+          )}
         </div>
       </div>
     </div>

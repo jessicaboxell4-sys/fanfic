@@ -72,14 +72,30 @@ def seed():
 
 @pytest.fixture
 def clean_alert_state():
-    """Wipe the alert + cron telemetry rows owned by this test module."""
-    db.email_logs.delete_many({"kind": "cron_failure_alert", "to": {"$regex": "alerttest"}})
-    db.cron_runs.delete_many({"job_id": {"$regex": f"^{JOB_PREFIX}"}})
-    db.cron_alerts.delete_many({"job_id": {"$regex": f"^{JOB_PREFIX}"}})
+    """Wipe the alert + cron telemetry rows owned by this test module.
+
+    Other test files (notably ``test_cron_failure_alerts.py``) write
+    ``cron_failure_alert`` rows with job IDs like ``test_job_err_<hex>``
+    and don't always clean up — sweep those out too so our "latest
+    failure" assertion isn't trumped by a fresher unrelated row.
+    """
+    def _wipe():
+        db.email_logs.delete_many({
+            "kind": "cron_failure_alert",
+            "$or": [
+                {"to": {"$regex": "alerttest"}},
+                {"job_id": {"$regex": "^test_job_"}},
+                {"job_id": {"$regex": f"^{JOB_PREFIX}"}},
+                {"error": {"$regex": "synthetic preview-banner seed"}},
+            ],
+        })
+        db.cron_runs.delete_many({"job_id": {"$regex": f"^{JOB_PREFIX}"}})
+        db.cron_runs.delete_many({"job_id": {"$regex": "^test_job_"}})
+        db.cron_alerts.delete_many({"job_id": {"$regex": f"^{JOB_PREFIX}"}})
+        db.cron_alerts.delete_many({"job_id": {"$regex": "^test_job_"}})
+    _wipe()
     yield
-    db.email_logs.delete_many({"kind": "cron_failure_alert", "to": {"$regex": "alerttest"}})
-    db.cron_runs.delete_many({"job_id": {"$regex": f"^{JOB_PREFIX}"}})
-    db.cron_alerts.delete_many({"job_id": {"$regex": f"^{JOB_PREFIX}"}})
+    _wipe()
 
 
 def _get():

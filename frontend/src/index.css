@@ -435,6 +435,14 @@
 :root[data-theme="dark"] .text-\[\#553B96\],
 :root[data-theme="dark"] .hover\:text-\[\#553B96\]:hover { color: #DDD6FE; }
 
+/* Dark amber / dark coral text used by the AdminConsole alert-health    */
+/* and pending-rejection banners. On dark-mode the banner bg already    */
+/* gets remapped to a lighter tinted strip, so the body text needs to   */
+/* lift to a readable tone in the same family instead of staying dark.  */
+:root[data-theme="dark"] .text-\[\#5C3300\] { color: #FFD89A; }
+:root[data-theme="dark"] .text-\[\#7A2417\] { color: #FFB7A8; }
+:root[data-theme="dark"] .text-\[\#8B4F00\] { color: #FFC872; }
+
 /* "Currently live" mini-card on the Announcements form — `#6B46C1` text */
 /* is already remapped but the small uppercase label was hard to read    */
 /* against the surface-hover bg; this is implicit in the existing         */

@@ -18,6 +18,13 @@ class User(BaseModel):
     previous_username: Optional[str] = None
     picture: Optional[str] = None
     is_admin: bool = False
+    # New-user gate (2026-06-15): every new sign-up lands in ``"pending"`` and
+    # cannot log in until an admin approves them from /admin → Pending
+    # sign-ups. Existing users without the field default to ``"approved"``
+    # so the rollout doesn't lock anyone out. Admins can also ``"reject"``
+    # a sign-up with a reason — those users get an email + can re-register.
+    approval_status: str = "approved"  # "approved" | "pending" | "rejected"
+    approval_rejected_reason: Optional[str] = None
     scheduled_deletion_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
