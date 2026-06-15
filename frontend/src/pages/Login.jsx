@@ -219,7 +219,7 @@ export default function Login() {
                 <input
                   data-testid="auth-name-input"
                   type="text"
-                  placeholder="Display name (optional)"
+                  placeholder="Display name (optional, e.g. Beatrix Quill)"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="w-full bg-white border border-[#E8E6E1] rounded-xl pl-10 pr-3 py-2.5 text-sm focus:outline-none focus:border-[#E07A5F] focus:ring-2 focus:ring-[#E07A5F]/20"
