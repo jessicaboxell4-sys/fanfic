@@ -13,8 +13,12 @@ import {
   Trash2,
   ArrowRight,
   ArrowLeft,
+  ImageDown,
+  ClipboardCopy,
 } from "lucide-react";
+import { toPng, toBlob } from "html-to-image";
 import YearInBooksWrapped, { YearInBooksEmpty } from "../components/YearInBooksWrapped";
+import YearInBooksShareCard from "../components/YearInBooksShareCard";
 
 export default function YearInBooksPage() {
   const { year: yearParam } = useParams();
@@ -32,6 +36,17 @@ export default function YearInBooksPage() {
   // Progress dots
   const scrollRef = useRef(null);
   const [activeSlide, setActiveSlide] = useState(0);
+
+  // PNG export
+  const cardRef = useRef(null);
+  const [downloading, setDownloading] = useState(false);
+  const [copying, setCopying] = useState(false);
+  const canCopyImage =
+    typeof window !== "undefined" &&
+    typeof window.ClipboardItem !== "undefined" &&
+    typeof navigator !== "undefined" &&
+    navigator.clipboard &&
+    typeof navigator.clipboard.write === "function";
 
   useEffect(() => {
     let cancelled = false;
@@ -138,6 +153,54 @@ export default function YearInBooksPage() {
     el.scrollTo({ top: idx * el.clientHeight, behavior: "smooth" });
   };
 
+  const downloadPng = async () => {
+    const node = cardRef.current;
+    if (!node) return;
+    setDownloading(true);
+    try {
+      const dataUrl = await toPng(node, {
+        cacheBust: true,
+        pixelRatio: 2,
+        width: 1080,
+        height: 1350,
+        backgroundColor: "#1B1240",
+      });
+      const link = document.createElement("a");
+      link.download = `shelfsort-wrapped-${year}.png`;
+      link.href = dataUrl;
+      link.click();
+      toast.success("Saved! Share it anywhere.");
+    } catch (e) {
+      toast.error("Couldn't generate image — please try again");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const copyPng = async () => {
+    const node = cardRef.current;
+    if (!node) return;
+    setCopying(true);
+    try {
+      const blob = await toBlob(node, {
+        cacheBust: true,
+        pixelRatio: 2,
+        width: 1080,
+        height: 1350,
+        backgroundColor: "#1B1240",
+      });
+      if (!blob) throw new Error("blob_null");
+      await navigator.clipboard.write([
+        new window.ClipboardItem({ "image/png": blob }),
+      ]);
+      toast.success("Image copied — paste into Instagram, Threads, anywhere");
+    } catch (e) {
+      toast.error("Couldn't copy — try Download as PNG instead");
+    } finally {
+      setCopying(false);
+    }
+  };
+
   if (loading) {
     return (
       <div
@@ -178,10 +241,30 @@ export default function YearInBooksPage() {
     <>
       <div className="flex flex-wrap items-center justify-center gap-3">
         <button
+          onClick={downloadPng}
+          disabled={downloading}
+          data-testid="download-year-png"
+          className="px-5 py-2.5 rounded-full bg-white text-[#2C2C2C] text-sm font-semibold hover:bg-white/90 inline-flex items-center gap-2 disabled:opacity-60"
+        >
+          {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageDown className="w-4 h-4" />}
+          Download as PNG
+        </button>
+        {canCopyImage && (
+          <button
+            onClick={copyPng}
+            disabled={copying}
+            data-testid="copy-year-png"
+            className="px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur text-white text-sm font-semibold inline-flex items-center gap-2 disabled:opacity-60"
+          >
+            {copying ? <Loader2 className="w-4 h-4 animate-spin" /> : <ClipboardCopy className="w-4 h-4" />}
+            Copy image
+          </button>
+        )}
+        <button
           onClick={emailMe}
           disabled={sendingEmail}
           data-testid="email-year-recap"
-          className="px-5 py-2.5 rounded-full bg-white text-[#2C2C2C] text-sm font-semibold hover:bg-white/90 inline-flex items-center gap-2 disabled:opacity-60"
+          className="px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur text-white text-sm font-semibold inline-flex items-center gap-2 disabled:opacity-60"
         >
           {sendingEmail ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
           Email me this recap
@@ -197,7 +280,7 @@ export default function YearInBooksPage() {
         </button>
       </div>
       <p className="text-xs opacity-70 mt-4">
-        Public link works without a Shelfsort account — revoke any time.
+        PNG works great on Instagram & Twitter. Share link works without an account — revoke any time.
       </p>
       <div className="mt-8">
         <button
@@ -250,6 +333,21 @@ export default function YearInBooksPage() {
         onScrollToSlide={scrollToSlide}
         footerCta={footerCta}
       />
+
+      {/* Off-screen share card used for PNG export */}
+      <div
+        aria-hidden
+        style={{
+          position: "fixed",
+          left: -99999,
+          top: 0,
+          width: 1080,
+          height: 1350,
+          pointerEvents: "none",
+        }}
+      >
+        <YearInBooksShareCard ref={cardRef} summary={s} year={year} />
+      </div>
 
       {/* Share dialog */}
       {shareDialogOpen && share?.shared && (
