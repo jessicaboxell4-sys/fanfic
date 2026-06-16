@@ -8,6 +8,23 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-16 — Friends DM polling for unread dots ✅ (P3)
+
+The Friends page used to load DM unread counts once on mount, then never
+refresh until the user manually navigated or opened/closed a DM drawer.
+Switched-back-tab scenario meant the red dot never appeared on new DMs.
+
+- New `useEffect` in `pages/FriendsPage.jsx`: polls `loadDmUnread()` every
+  **20 seconds**, but only when:
+  - the tab is visible (`document.hidden === false`)
+  - no DM drawer is open (the user is already reading the messages)
+- Also re-fetches **immediately on `visibilitychange`** so coming back from
+  another tab updates the dots without waiting for the next tick.
+- Cleans up the interval + listener on unmount and on auth-user change.
+
+**Verified e2e** with screenshot tool + request-counter: 2 `/chat/rooms`
+calls on initial mount, +1 call after a 25-second idle wait → polling fires.
+
 ## 2026-06-16 — Rate limiting on OG share endpoints ✅
 
 Token enumeration defense for `/api/og/yib/{token}` and `/api/og/yib/{token}/image.png`.

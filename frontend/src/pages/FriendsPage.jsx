@@ -107,6 +107,29 @@ export default function FriendsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authedUser?.user_id]);
 
+  // Poll for new DMs every 20s while the tab is visible and no drawer is open.
+  // Refetch immediately on tab refocus so the unread dot appears without
+  // needing a manual reload after switching back from another tab.
+  useEffect(() => {
+    if (!authedUser?.user_id) return;
+    let interval = null;
+    const tick = () => {
+      if (document.hidden) return;
+      if (dmTarget) return; // skip — drawer is open, user is actively reading
+      loadDmUnread();
+    };
+    interval = setInterval(tick, 20000);
+    const onVisibility = () => {
+      if (!document.hidden && !dmTarget) loadDmUnread();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      if (interval) clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authedUser?.user_id, dmTarget]);
+
   // Honour `?room=<roomId>` deep links (legacy /messages/:roomId redirects).
   // Look the room up in /chat/rooms, find the other member, open the drawer,
   // then strip the param so it doesn't re-trigger on every state change.
