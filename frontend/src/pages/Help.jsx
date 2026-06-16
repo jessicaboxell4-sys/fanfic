@@ -19,14 +19,15 @@ import {
 // deploy, POST to /api/announcements with a fresh `version` string.
 // `version` doubles as the per-user localStorage dismissal key.
 const FALLBACK_WHATS_NEW = {
-  version: "2026-06-15-yib-wrapped",
+  version: "2026-06-16-png-share",
   title: "Fresh in Shelfsort",
   items: [
-    { to: "/library/stats", label: "Year in Books — Wrapped redesign", desc: "— your yearly recap is now a Spotify-Wrapped style scroll-snap experience: nine cinematic full-screen slides covering books opened, pages turned, longest streak, best month, top fandoms, top author, bookends, and achievements. Email it to yourself or share a public link with one click." },
+    { to: "/library/stats", label: "Download your Year in Books as a PNG", desc: "— the Wrapped outro now has Download as PNG and Copy image buttons. Get a 1080×1350 Instagram-ready portrait of your year in one tap. Browsers that support image-clipboard also get a Copy button — paste straight into Threads / iMessage stories." },
+    { to: "/library/stats", label: "Share links now unfurl rich previews", desc: "— pasting a /share/yib/<token> link into Twitter, iMessage, Slack or Discord now shows your year as a proper card with the recap image, not bare text. Old links keep working." },
+    { to: "/friends", label: "Friends DM dots auto-refresh", desc: "— the unread-message dot on each friend now updates every 20 seconds (and immediately when you switch back to the tab) without needing a manual reload." },
+    { to: "/library/stats", label: "Year in Books — Wrapped redesign", desc: "— your yearly recap is a Spotify-Wrapped style scroll-snap experience: nine cinematic full-screen slides covering books opened, pages turned, longest streak, best month, top fandoms, top author, bookends, and achievements." },
     { to: "/goals", label: "Goal-hit confetti, everywhere", desc: "— when finishing a book flips a reading goal, confetti now fires anywhere in the app, not just on the Goals page. A celebration toast names the goal you hit." },
     { to: "/library/originals", label: "Native PDF / TXT / DOCX viewer", desc: "— open any non-EPUB original directly in-app at /read-original/<id>. PDFs use the browser's PDF.js, TXT renders in a clean serif column, DOCX is converted by mammoth.js, and unsupported formats (MOBI/AZW/etc.) get a one-click Convert-to-EPUB button." },
-    { to: "/library/originals", label: "Bookmarks on PDFs & TXT", desc: "— save a page (PDF) or scroll position (TXT/DOCX), give it a note, jump back any time. Cmd/Ctrl+B works here too." },
-    { to: "/library/queue", label: "Drag-and-drop queue reorder", desc: "— grab the new ⋮⋮ handle on any Up-Next row to reorder. The arrow buttons still work for one-step nudges." },
     { to: "/account#username", label: "Public usernames", desc: "— claim a one-of-a-kind @handle (capital letters welcome) so friends can find you without sharing your email." },
   ],
 };
@@ -653,7 +654,10 @@ export default function Help() {
                 <strong>Email it to yourself</strong> with the <em>Email me this recap</em> button on the final slide. The email uses the same numbers in a clean print-friendly layout (no scroll-snap there). It&apos;s also the email sent in early January if you turn on the Year-in-Books channel in <Link to="/account/emails">Email preferences</Link>.
               </p>
               <p>
-                <strong>Share publicly</strong> with the <em>Share my year</em> button — Shelfsort generates a token-protected public URL at <code>/share/yib/&lt;token&gt;</code>. Anyone with the link sees the same Wrapped experience (with your display name on the cover) — no Shelfsort account required. The public view never exposes your email or internal book IDs. Manage the link any time: copy it, open it in a new tab, or <em>Revoke</em> to kill it instantly. View counts and the last-seen date show up in the same dialog so you can see how many friends actually clicked.
+                <strong>Download as PNG</strong> grabs the whole year as a 1080×1350 Instagram-friendly portrait card — purple gradient, big serif year, your top world &amp; top voice, reading peak. It saves locally as <code>shelfsort-wrapped-&lt;year&gt;.png</code>. On browsers that support image-clipboard (Chrome, Edge, modern Safari) a sister <em>Copy image</em> button puts the same PNG straight on your clipboard so you can paste into Threads, iMessage, or Instagram Stories with no save-then-attach dance. Firefox / older Safari users only see the Download button (graceful fallback).
+              </p>
+              <p>
+                <strong>Share publicly</strong> with the <em>Share my year</em> button — Shelfsort generates a token-protected public URL. Anyone with the link sees the same Wrapped experience (with your display name on the cover) — no Shelfsort account required. The public view never exposes your email or internal book IDs. The link is engineered to <strong>unfurl as a rich preview</strong> when pasted into Twitter, iMessage, Slack, Discord, or LinkedIn: a server-side 1200×630 card with your year, books, streak, and top fandom shows up as the link preview, with full Open Graph + Twitter Card meta tags. Manage the link any time: copy it, open it in a new tab, or <em>Revoke</em> to kill it instantly. View counts and the last-seen date show up in the same dialog so you can see how many friends actually clicked.
               </p>
               <p className="text-xs text-[#6B705C] italic">
                 Stat source-of-truth: a book counts as &quot;opened&quot; if it appears in your <code>reading_activity</code> for that year, and as &quot;finished&quot; if its progress is ≥99% and the last-opened date falls inside the year. Pages are estimated from word count (250 wpm × ~250 words per page). Fanfics with no word-count yet contribute zero pages until backfill runs.
@@ -701,7 +705,7 @@ export default function Help() {
                 On the Friends page, each accepted friend&rsquo;s row also shows a <strong>🤝 mutual count</strong> — the number of books that appear in both of your libraries (matched on lowercase title + author, ignoring &ldquo;the/a/an&rdquo; prefixes).
               </p>
               <p>
-                <strong>Notifications</strong>: the chat-bubble icon in the Navbar shows one combined badge — unread messages + pending friend requests added together. Hover for the breakdown.
+                <strong>Notifications</strong>: the chat-bubble icon in the Navbar shows one combined badge — unread messages + pending friend requests added together. Hover for the breakdown. Inside <Link to="/friends">/friends</Link>, each friend&apos;s row gets a red unread-message dot that <strong>auto-refreshes every 20 seconds</strong> (and instantly when you tab back to Shelfsort) — no manual reload needed to see new DMs.
               </p>
               <p className="text-xs text-[#6B705C] italic">
                 Phase 1c (one-click &ldquo;switch to open&rdquo; banner) and websockets for instant delivery are parked. Current 15-second poll is plenty for casual chat.

@@ -8,6 +8,17 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-16 — Help page refreshed for the session ✅
+
+`pages/Help.jsx`:
+- Bumped What's-new version to `2026-06-16-png-share` (re-prompts dismissed users)
+- New What's-new items: "Download your Year in Books as a PNG", "Share links now unfurl rich previews", "Friends DM dots auto-refresh"
+- Year-in-Books section now documents the Download-as-PNG + Copy-image buttons, the 1080×1350 portrait format, the browser-support fallback, and the rich-preview unfurl story (server-side 1200×630 OG card on Twitter / iMessage / Slack / Discord / LinkedIn)
+- Messages section adds a line about the 20-second auto-refresh of unread dots
+
+Verified e2e: navigated to `/help#year-in-books`, confirmed "Download as PNG",
+"Copy image", and "unfurl" copy all rendered.
+
 ## 2026-06-16 — Friends DM polling for unread dots ✅ (P3)
 
 The Friends page used to load DM unread counts once on mount, then never
