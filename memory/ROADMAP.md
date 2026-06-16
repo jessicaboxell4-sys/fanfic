@@ -12,11 +12,10 @@
 
 ## P3 — nice-to-have
 - Keyboard shortcuts (J/K next/prev) for ReadOriginal viewer
-- Friends DM polling for unread dots on the Friends page
 - Engagement-gate hint UI in bookclub digest settings
 - SSE-based goal-hit confetti (replace 30s polling)
 - Phase 6 refactor of `books.py` (~4949 lines)
-- EPUB metadata in-place editing (not just bulk)
+- EPUB metadata in-place editing ✅ (shipped 2026-06-16)
 - Recommendations based on top fandoms/authors
 
 ## Deferred / Declined

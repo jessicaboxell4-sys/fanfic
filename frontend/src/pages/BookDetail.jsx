@@ -22,6 +22,10 @@ export default function BookDetail() {
   const [newSourceUrl, setNewSourceUrl] = useState("");
   const [editCategory, setEditCategory] = useState("");
   const [editFandom, setEditFandom] = useState("");
+  const [editTitle, setEditTitle] = useState("");
+  const [editAuthor, setEditAuthor] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
   const [allCategories, setAllCategories] = useState(DEFAULT_CATEGORIES);
   const [allTags, setAllTags] = useState([]);
   const [savingTags, setSavingTags] = useState(false);
@@ -39,6 +43,9 @@ export default function BookDetail() {
       setAllTags((tagRes.data.tags || []).map((t) => t.name));
       setEditCategory(bookRes.data.category);
       setEditFandom(bookRes.data.fandom || "");
+      setEditTitle(bookRes.data.title || "");
+      setEditAuthor(bookRes.data.author || "");
+      setEditDescription(bookRes.data.description || "");
       const merged = [...DEFAULT_CATEGORIES, ...(catRes.data.custom || [])];
       // Make sure the current category is in the list even if unknown
       if (bookRes.data.category && !merged.includes(bookRes.data.category)) {
@@ -172,13 +179,38 @@ export default function BookDetail() {
   };
 
   const saveEdit = async () => {
+    if (savingEdit) return;
+    setSavingEdit(true);
     try {
-      await api.patch(`/books/${id}`, { category: editCategory, fandom: editFandom || null });
-      toast.success("Updated");
+      // Only send fields the user actually changed — avoids needlessly
+      // rewriting the EPUB file on disk for category-only edits.
+      const payload = {};
+      if (editCategory !== book.category) payload.category = editCategory;
+      if ((editFandom || null) !== (book.fandom || null)) {
+        payload.fandom = editFandom || null;
+      }
+      if (editTitle !== (book.title || "")) payload.title = editTitle;
+      if (editAuthor !== (book.author || "")) payload.author = editAuthor;
+      if (editDescription !== (book.description || "")) {
+        payload.description = editDescription;
+      }
+      if (Object.keys(payload).length === 0) {
+        toast("No changes");
+        setEditing(false);
+        return;
+      }
+      const { data } = await api.patch(`/books/${id}`, payload);
+      if (data.epub_updated === false) {
+        toast.success("Updated — note: EPUB file couldn't be re-saved with new metadata");
+      } else {
+        toast.success("Updated");
+      }
       setEditing(false);
       await load();
     } catch (e) {
       toast.error("Couldn't update");
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -461,7 +493,41 @@ export default function BookDetail() {
 
             {editing ? (
               <div className="shelf-card p-5 mb-6">
-                <p className="text-sm font-semibold text-[#2C2C2C] mb-3">Edit classification</p>                <div className="grid sm:grid-cols-2 gap-3 mb-3">
+                <p className="text-sm font-semibold text-[#2C2C2C] mb-3">Edit book details</p>
+                <div className="grid sm:grid-cols-2 gap-3 mb-3">
+                  <div className="sm:col-span-2">
+                    <label className="text-xs text-[#6B705C] mb-1 block">Title</label>
+                    <input
+                      data-testid="edit-title"
+                      type="text"
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      maxLength={500}
+                      className="w-full bg-white border border-[#E8E6E1] rounded-lg px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="text-xs text-[#6B705C] mb-1 block">Author</label>
+                    <input
+                      data-testid="edit-author"
+                      type="text"
+                      value={editAuthor}
+                      onChange={(e) => setEditAuthor(e.target.value)}
+                      maxLength={500}
+                      className="w-full bg-white border border-[#E8E6E1] rounded-lg px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="text-xs text-[#6B705C] mb-1 block">Description</label>
+                    <textarea
+                      data-testid="edit-description"
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      maxLength={5000}
+                      rows={4}
+                      className="w-full bg-white border border-[#E8E6E1] rounded-lg px-3 py-2 text-sm resize-y"
+                    />
+                  </div>
                   <div>
                     <label className="text-xs text-[#6B705C] mb-1 block">Category</label>
                     <select
@@ -485,9 +551,14 @@ export default function BookDetail() {
                     />
                   </div>
                 </div>
+                <p className="text-xs text-[#6B705C] mb-3">
+                  Title, author and description are rewritten into the EPUB file itself — so when you re-download or send the book to another reader, your edits travel with it.
+                </p>
                 <div className="flex gap-2">
-                  <button data-testid="edit-save" onClick={saveEdit} className="btn-primary text-sm">Save</button>
-                  <button onClick={() => setEditing(false)} className="btn-secondary text-sm">Cancel</button>
+                  <button data-testid="edit-save" onClick={saveEdit} disabled={savingEdit} className="btn-primary text-sm disabled:opacity-60">
+                    {savingEdit ? "Saving…" : "Save"}
+                  </button>
+                  <button onClick={() => setEditing(false)} disabled={savingEdit} className="btn-secondary text-sm">Cancel</button>
                 </div>
               </div>
             ) : (

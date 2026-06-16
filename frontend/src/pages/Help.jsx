@@ -19,9 +19,10 @@ import {
 // deploy, POST to /api/announcements with a fresh `version` string.
 // `version` doubles as the per-user localStorage dismissal key.
 const FALLBACK_WHATS_NEW = {
-  version: "2026-06-16-png-share",
+  version: "2026-06-16-inplace-meta",
   title: "Fresh in Shelfsort",
   items: [
+    { to: "/library", label: "Edit title / author / description in place", desc: "— the Edit button on any book now lets you fix the title, author, and description. Edits are rewritten into the EPUB file itself, so when you re-download or share the book, your corrections travel with it. Chapters and covers stay byte-identical." },
     { to: "/library/stats", label: "Download your Year in Books as a PNG", desc: "— the Wrapped outro now has Download as PNG and Copy image buttons. Get a 1080×1350 Instagram-ready portrait of your year in one tap. Browsers that support image-clipboard also get a Copy button — paste straight into Threads / iMessage stories." },
     { to: "/library/stats", label: "Share links now unfurl rich previews", desc: "— pasting a /share/yib/<token> link into Twitter, iMessage, Slack or Discord now shows your year as a proper card with the recap image, not bare text. Old links keep working." },
     { to: "/friends", label: "Friends DM dots auto-refresh", desc: "— the unread-message dot on each friend now updates every 20 seconds (and immediately when you switch back to the tab) without needing a manual reload." },
@@ -617,6 +618,9 @@ export default function Help() {
               <p>If none match → defaults to <strong>Finished</strong> (sensible for original novels). Override on any book&apos;s detail page via the status badge dropdown — your override lives in <code>manual_status</code> separate from the auto value.</p>
               <p><strong>Category &amp; fandom</strong> are auto-classified using EPUB metadata + a {knownFandoms.length || "150+"}-fandom canonical list + a Claude AI fallback for ambiguous cases. Confidence is shown on the book detail page; correct it manually any time.</p>
               <p><strong>Pairings/relationships</strong> are extracted directly from EPUB metadata, canonicalized (alphabetical order, slash delimiter) so Harry/Draco and Draco/Harry group together.</p>
+              <p>
+                <strong>In-place metadata editing</strong> — the <em>Edit</em> button on any book&apos;s detail page now lets you fix the <strong>title</strong>, <strong>author</strong>, and <strong>description</strong> alongside category and fandom. Edits land in the database immediately, and if the original EPUB is still on disk, the OPF metadata is rewritten <em>inside the file</em> too — so when you re-download the book or send it to a friend, your corrections travel with it. Chapters, covers, and every other byte in the EPUB stay untouched (we surgically replace only the <code>&lt;dc:title&gt;</code> / <code>&lt;dc:creator&gt;</code> / <code>&lt;dc:description&gt;</code> tags). If the rewrite ever fails (some malformed EPUBs can&apos;t round-trip), the DB save still goes through and a toast lets you know.
+              </p>
             </Section>
 
             <Section id="data-safety" icon={Shield} title="Backup &amp; restore">

@@ -8,6 +8,48 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-16 — In-place EPUB metadata editing ✅ (P3)
+
+The Edit button on a book detail page now lets users fix **title / author /
+description** alongside category and fandom. Edits are written into the
+EPUB file itself — so when the book is downloaded or shared, the corrections
+travel with it.
+
+**Backend** (`routes/books.py`):
+- Extended `UpdateBookBody` with `title`, `author`, `description` (length-capped
+  at 500/500/5000 chars to keep paste-bombs from blowing up docs).
+- `PATCH /api/books/{book_id}` now updates DB first, then calls the new
+  `update_epub_metadata(filepath, title=..., author=..., description=...)`
+  helper if any user-visible metadata field changed AND the EPUB exists on
+  disk. Response includes `epub_updated: True|False|None`.
+- Helper works by surgically rewriting the OPF XML (lxml + zipfile) — not
+  via ebooklib's flaky `write_epub`. Chapters, covers, NCX, and every other
+  byte stay identical. Only `<dc:title>` / `<dc:creator>` / `<dc:description>`
+  get replaced. Atomic .tmp → rename so a crash mid-write can't corrupt.
+- Classification fields (category/fandom) are now optional — sending a payload
+  with only `{title: "..."}` no longer flips `classifier: manual` falsely.
+
+**Frontend** (`pages/BookDetail.jsx`):
+- Edit panel grew Title / Author / Description fields (description is a 4-row
+  textarea with `maxLength={5000}`).
+- `saveEdit` is diff-aware: only sends fields the user actually changed, so a
+  category-only edit doesn't trigger an EPUB rewrite.
+- Toast surfaces the rare "EPUB file couldn't be re-saved" case so the user
+  knows the DB is updated but the file wasn't.
+
+**Tests** — new `tests/test_inplace_metadata.py`:
+- Round-trip: PATCH → download EPUB → ebooklib reads back the new metadata
+- Partial edit: only `title` changes, author/description preserved
+- `{}` payload returns `noop: true`
+- Category-only PATCH leaves `epub_updated: null` (file untouched)
+- Length caps enforced at 500/500/5000 chars
+- Unauthenticated PATCH → 401/403
+- **6/6 passing.**
+
+**Help page** — bumped What's-new (re-prompts users), added a paragraph in
+"Detection & overrides" explaining the in-file rewrite and the chapter-safety
+guarantee.
+
 ## 2026-06-16 — Help page refreshed for the session ✅
 
 `pages/Help.jsx`:

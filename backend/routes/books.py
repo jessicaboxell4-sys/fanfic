@@ -913,6 +913,125 @@ def extract_epub_metadata(filepath: Path) -> Dict[str, Any]:
     }
 
 
+def update_epub_metadata(
+    filepath: Path,
+    *,
+    title: Optional[str] = None,
+    author: Optional[str] = None,
+    description: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Rewrite DC:title / DC:creator / DC:description on an EPUB in place.
+
+    Returns ``{"ok": True}`` on success or ``{"ok": False, "error": ...}`` if
+    the parse / rewrite failed — callers should fall back to a DB-only edit.
+
+    Only the supplied fields are touched; ``None`` means "leave alone". The
+    file is overwritten atomically (.tmp → rename) so a crash mid-write
+    can't corrupt the user's library.
+
+    Implementation note: we treat the EPUB as a zip + edit the OPF XML
+    directly with lxml. ebooklib's ``write_epub`` is fragile on the wild
+    variety of EPUBs we ingest (AO3 / FFNet / Calibre / publisher exports
+    all differ slightly), and it eagerly rewrites items it doesn't fully
+    understand. Direct OPF surgery keeps everything else byte-identical.
+    """
+    if not filepath.exists():
+        return {"ok": False, "error": "file_missing"}
+
+    import zipfile
+    from lxml import etree
+
+    DC_NS = "http://purl.org/dc/elements/1.1/"
+    OPF_NS = "http://www.idpf.org/2007/opf"
+    nsmap = {"dc": DC_NS, "opf": OPF_NS}
+
+    tmp = filepath.with_suffix(filepath.suffix + ".tmp")
+    try:
+        with zipfile.ZipFile(filepath, "r") as zin:
+            # The OPF path is declared in META-INF/container.xml
+            try:
+                container = zin.read("META-INF/container.xml")
+            except KeyError:
+                return {"ok": False, "error": "no_container_xml"}
+            croot = etree.fromstring(container)
+            rootfile = croot.find(
+                ".//{urn:oasis:names:tc:opendocument:xmlns:container}rootfile"
+            )
+            if rootfile is None:
+                return {"ok": False, "error": "no_rootfile"}
+            opf_path = rootfile.get("full-path")
+            if not opf_path:
+                return {"ok": False, "error": "no_opf_path"}
+
+            try:
+                opf_bytes = zin.read(opf_path)
+            except KeyError:
+                return {"ok": False, "error": "opf_missing"}
+
+            parser = etree.XMLParser(remove_blank_text=False, recover=True)
+            opf = etree.fromstring(opf_bytes, parser=parser)
+            metadata = opf.find("opf:metadata", nsmap)
+            if metadata is None:
+                # Some EPUB 2 files use plain <metadata> in default ns
+                metadata = opf.find("{*}metadata")
+            if metadata is None:
+                return {"ok": False, "error": "no_metadata_block"}
+
+            def _replace_dc(tag: str, value: str) -> None:
+                """Remove all <dc:{tag}> children, append one fresh entry."""
+                for el in metadata.findall(f"dc:{tag}", nsmap):
+                    metadata.remove(el)
+                new = etree.SubElement(metadata, f"{{{DC_NS}}}{tag}")
+                new.text = value
+
+            if title is not None:
+                _replace_dc("title", title)
+            if author is not None:
+                _replace_dc("creator", author)
+            if description is not None:
+                _replace_dc("description", description)
+
+            new_opf_bytes = etree.tostring(
+                opf,
+                xml_declaration=True,
+                encoding="UTF-8",
+                standalone=False,
+            )
+
+            # Write everything out preserving original ordering.
+            with zipfile.ZipFile(tmp, "w", compression=zipfile.ZIP_DEFLATED) as zout:
+                # mimetype must be first + STORED per EPUB spec
+                if "mimetype" in zin.namelist():
+                    info = zin.getinfo("mimetype")
+                    zout.writestr(info, zin.read("mimetype"), compress_type=zipfile.ZIP_STORED)
+                for name in zin.namelist():
+                    if name == "mimetype":
+                        continue
+                    info = zin.getinfo(name)
+                    if name == opf_path:
+                        zout.writestr(info, new_opf_bytes)
+                    else:
+                        zout.writestr(info, zin.read(name))
+    except Exception as e:
+        logger.warning(f"EPUB in-place edit failed for {filepath}: {e}")
+        try:
+            tmp.unlink(missing_ok=True)
+        except Exception:
+            pass
+        return {"ok": False, "error": f"rewrite_failed: {e}"}
+
+    try:
+        tmp.replace(filepath)
+    except Exception as e:
+        logger.warning(f"EPUB swap failed for {filepath}: {e}")
+        try:
+            tmp.unlink(missing_ok=True)
+        except Exception:
+            pass
+        return {"ok": False, "error": f"swap_failed: {e}"}
+    return {"ok": True}
+
+
 # ---------------------------------------------------------------------------
 # Relationship canonicalization
 # ---------------------------------------------------------------------------
@@ -3754,6 +3873,9 @@ async def reclassify_book(book_id: str, body: ReclassifyBody, user: User = Depen
 class UpdateBookBody(BaseModel):
     category: Optional[str] = None
     fandom: Optional[str] = None
+    title: Optional[str] = None
+    author: Optional[str] = None
+    description: Optional[str] = None
 
 
 # NOTE: The block of fanfic-refresh endpoints + the health-probe / sweep
@@ -4603,13 +4725,48 @@ async def update_book(book_id: str, body: UpdateBookBody, user: User = Depends(g
     book = await db.books.find_one({"book_id": book_id, "user_id": user.user_id}, {"_id": 0})
     if not book:
         raise HTTPException(status_code=404, detail="Not found")
-    update: Dict[str, Any] = {"classifier": "manual", "confidence": 1.0}
+    update: Dict[str, Any] = {}
+    classifier_touched = False
     if body.category is not None:
         update['category'] = body.category
+        classifier_touched = True
     if body.fandom is not None:
         update['fandom'] = _canonicalize_fandom(body.fandom) if body.fandom else None
+        classifier_touched = True
+    # Length-limited so a paste-bomb description can't blow up our docs.
+    if body.title is not None:
+        update['title'] = body.title.strip()[:500]
+    if body.author is not None:
+        update['author'] = body.author.strip()[:500]
+    if body.description is not None:
+        update['description'] = body.description.strip()[:5000]
+    if classifier_touched:
+        update['classifier'] = 'manual'
+        update['confidence'] = 1.0
+
+    if not update:
+        return {"ok": True, "noop": True}
+
     await db.books.update_one({"book_id": book_id, "user_id": user.user_id}, {"$set": update})
-    return {"ok": True}
+
+    # If any user-visible metadata field changed AND we still have the EPUB on
+    # disk (i.e. not a link-only ingest), rewrite the EPUB so downloads stay
+    # consistent. DB always wins — EPUB failures don't fail the request.
+    epub_written = None
+    file_only_fields = any(v is not None for v in (body.title, body.author, body.description))
+    if file_only_fields:
+        fp = STORAGE_DIR / user.user_id / f"{book_id}.epub"
+        if fp.exists():
+            result = update_epub_metadata(
+                fp,
+                title=body.title,
+                author=body.author,
+                description=body.description,
+            )
+            epub_written = bool(result.get("ok"))
+            if not epub_written:
+                logger.info(f"In-place EPUB metadata write skipped for {book_id}: {result.get('error')}")
+    return {"ok": True, "epub_updated": epub_written}
 
 
 # NOTE: /api/books/export/zip + _safe_folder helper were moved to
