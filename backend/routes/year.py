@@ -2,7 +2,7 @@ from fastapi import (
     APIRouter, UploadFile, File, HTTPException, Request, Response,
     Depends, Form,
 )
-from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
+from fastapi.responses import FileResponse, StreamingResponse, JSONResponse, HTMLResponse
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone, timedelta, date
@@ -32,6 +32,8 @@ from deps import (
 from models import User, BookOut
 from auth_dep import get_current_user
 from utils.email_log import log_email_send
+from utils.og_image import render_og_card
+import html as html_escape_mod
 
 
 async def _build_year_payload(user_doc: Dict[str, Any], year: int) -> Dict[str, Any]:
@@ -372,8 +374,12 @@ async def send_year_in_books_email(year: int, user: User = Depends(get_current_u
 
 # ---- Public sharing ----
 def _share_public_url(token: str) -> str:
+    """Public share URL — now points at the OG-preview endpoint so links unfurl
+    with a rich preview on Twitter, Discord, iMessage, Slack, etc. Browsers
+    follow a meta-refresh from there to the React route at /share/yib/{token}.
+    """
     base = FRONTEND_URL or os.environ.get("REACT_APP_BACKEND_URL", "")
-    return f"{base}/share/yib/{token}" if base else f"/share/yib/{token}"
+    return f"{base}/api/og/yib/{token}" if base else f"/api/og/yib/{token}"
 
 
 @api_router.get("/year-in-books/{year}/share")
@@ -470,4 +476,133 @@ async def get_public_year(token: str):
         "display_name": display_name,
         "year": int(doc["year"]),
     }
+
+
+# ---- OG / social-share previews ----
+# Crawlers (Twitter, Facebook, Discord, Slack, iMessage) don't execute JS, so
+# the React route at /share/yib/{token} can't surface meta tags to them. These
+# two endpoints serve the SAME token via the FastAPI side: the HTML one with
+# OG + Twitter Card meta + a meta-refresh / JS redirect to the real React
+# route (so humans land on the Wrapped experience), and the image one with a
+# Pillow-rendered 1200×630 PNG.
+
+async def _load_share_summary(token: str) -> Optional[Dict[str, Any]]:
+    doc = await db.year_in_books_shares.find_one({"share_token": token})
+    if not doc:
+        return None
+    user_doc = await db.users.find_one({"user_id": doc["user_id"]})
+    if not user_doc:
+        return None
+    payload = await _build_year_payload(user_doc, int(doc["year"]))
+    display_name = (user_doc.get("name") or "").strip() or user_doc.get("email", "").split("@")[0]
+    return {
+        "summary": payload.get("summary", {}),
+        "has_data": payload.get("has_data", False),
+        "display_name": display_name,
+        "year": int(doc["year"]),
+    }
+
+
+@api_router.get("/og/yib/{token}/image.png")
+async def og_share_image(token: str):
+    """1200×630 PNG used as og:image / twitter:image for a year-in-books share."""
+    info = await _load_share_summary(token)
+    if not info:
+        raise HTTPException(status_code=404, detail="Share link not found or revoked")
+    s = info["summary"] or {}
+    top_fandoms = s.get("top_fandoms") or []
+    top_authors = s.get("top_authors") or []
+    png = render_og_card(
+        year=info["year"],
+        display_name=info["display_name"],
+        books_opened=int(s.get("books_opened") or 0),
+        longest_streak=int(s.get("longest_streak") or 0),
+        top_fandom=(top_fandoms[0]["name"] if top_fandoms else None),
+        top_author=(top_authors[0]["name"] if top_authors else None),
+    )
+    # 5-min CDN cache so the same share doesn't re-render on every crawler ping.
+    return Response(
+        content=png,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=300"},
+    )
+
+
+@api_router.get("/og/yib/{token}")
+async def og_share_preview(token: str):
+    """HTML stub with full OG + Twitter Card meta tags, plus a meta-refresh
+    and JS redirect to the real React route at /share/yib/{token}.
+
+    Crawlers parse the meta tags and ignore the redirect; browsers redirect
+    transparently and the user lands on the Wrapped experience.
+    """
+    info = await _load_share_summary(token)
+    if not info:
+        raise HTTPException(status_code=404, detail="Share link not found or revoked")
+    s = info["summary"] or {}
+    year = info["year"]
+    name = info["display_name"]
+    top_fandoms = s.get("top_fandoms") or []
+    books = int(s.get("books_opened") or 0)
+    streak = int(s.get("longest_streak") or 0)
+    title = f"{name}'s {year} year in books · Shelfsort"
+    desc_bits = []
+    if books:
+        desc_bits.append(f"{books} book{'' if books == 1 else 's'}")
+    if streak:
+        desc_bits.append(f"{streak}-day streak")
+    if top_fandoms:
+        desc_bits.append(f"top world: {top_fandoms[0]['name']}")
+    description = " · ".join(desc_bits) if desc_bits else "A year of reading on Shelfsort."
+
+    base = FRONTEND_URL or os.environ.get("REACT_APP_BACKEND_URL", "")
+    canonical = f"{base}/share/yib/{token}" if base else f"/share/yib/{token}"
+    image_url = f"{base}/api/og/yib/{token}/image.png" if base else f"/api/og/yib/{token}/image.png"
+
+    esc = html_escape_mod.escape
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{esc(title)}</title>
+<meta name="description" content="{esc(description)}">
+<link rel="canonical" href="{esc(canonical)}">
+
+<!-- Open Graph -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Shelfsort">
+<meta property="og:title" content="{esc(title)}">
+<meta property="og:description" content="{esc(description)}">
+<meta property="og:url" content="{esc(canonical)}">
+<meta property="og:image" content="{esc(image_url)}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="{esc(name + chr(39) + 's')} Shelfsort Wrapped {year}">
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{esc(title)}">
+<meta name="twitter:description" content="{esc(description)}">
+<meta name="twitter:image" content="{esc(image_url)}">
+
+<!-- Redirect humans to the real React experience -->
+<meta http-equiv="refresh" content="0;url={esc(canonical)}">
+<script>window.location.replace({json.dumps(canonical)});</script>
+<style>
+  body{{margin:0;background:#1B1240;color:#fff;font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center;padding:24px;}}
+  a{{color:#fff;text-decoration:underline;}}
+</style>
+</head>
+<body>
+<div>
+  <h1 style="font-family:Georgia,serif;font-size:64px;margin:0 0 16px 0;">{year}</h1>
+  <p style="opacity:.85;margin:0 0 24px 0;">{esc(title)}</p>
+  <p><a href="{esc(canonical)}">Open the recap →</a></p>
+</div>
+</body>
+</html>"""
+    return HTMLResponse(
+        content=html,
+        headers={"Cache-Control": "public, max-age=300"},
+    )
 

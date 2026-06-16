@@ -133,7 +133,9 @@ class TestShareLifecycle:
         body = r.json()
         assert body["shared"] is True
         assert isinstance(body["token"], str) and len(body["token"]) >= 16
-        assert body["url"].endswith(f"/share/yib/{body['token']}")
+        # As of 2026-06-16 the share URL points at the crawler-friendly OG
+        # preview endpoint, which meta-refreshes to /share/yib/{token}.
+        assert body["url"].endswith(f"/api/og/yib/{body['token']}")
         assert body["view_count"] == 0
         # stash for module reuse via module-level dict
         TestShareLifecycle._token = body["token"]

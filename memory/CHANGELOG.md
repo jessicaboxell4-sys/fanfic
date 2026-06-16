@@ -1,0 +1,97 @@
+# Shelfsort — Changelog
+
+Append-only log of dated work entries. Newest at the top.
+
+For static product context see [PRD.md](./PRD.md).
+For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
+The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
+
+---
+
+## 2026-06-16 — OG/Twitter card meta tags for `/share/yib/:token` ✅ (P2)
+
+Public share links now unfurl with a rich preview in Twitter / iMessage /
+Slack / Discord / LinkedIn instead of plain text.
+
+- New backend route `GET /api/og/yib/{token}` returns a tiny HTML stub with
+  full OG + Twitter `summary_large_image` meta tags **plus** a `<meta http-equiv="refresh">`
+  + JS redirect to the real React route `/share/yib/{token}`. Crawlers ignore
+  the redirect and parse the meta; browsers redirect transparently.
+- New backend route `GET /api/og/yib/{token}/image.png` returns a 1200×630 PNG
+  drawn server-side with Pillow (gradient bg, large serif year, "Your year in books."
+  subtitle, "{N} books · {streak}-day streak · in {top_fandom}" tagline).
+- `_share_public_url()` now points to `/api/og/yib/{token}` so newly-created
+  share URLs are crawler-friendly out of the box. Direct visits to
+  `/share/yib/{token}` still work for users who already copied old links.
+
+## 2026-06-16 — PRD split → PRD + CHANGELOG + ROADMAP ✅ (P2)
+
+Old 2820-line `PRD.md` reduced to ~70 lines of static product context, with
+all dated work moved here. Full original preserved in `PRD.md.bak`.
+
+## 2026-06-16 — AuthContext `refresh()` alias ✅ (P1)
+
+One-liner: `AuthContext.Provider` value now also includes `refresh: checkAuth`.
+Any component that wants to heal stale user state (e.g. after granting an
+admin consent, after a manual approval, after an account flag flip) can now
+`const { refresh } = useAuth(); await refresh();` without importing the
+internal `checkAuth` name. No breaking change.
+
+## 2026-06-16 — Copy-to-clipboard companion to PNG export ✅
+
+Added a "Copy image" pill next to "Download as PNG" on the Wrapped outro,
+using `html-to-image#toBlob` + `navigator.clipboard.write([ClipboardItem])`.
+One-tap paste into Instagram / Threads / iMessage stories.
+
+Capability-gated via a `canCopyImage` boolean (checks `window.ClipboardItem` +
+`navigator.clipboard.write`) so the button is **never** rendered in Firefox or
+older Safari that can't actually copy images. Failure path toasts a friendly
+"try Download as PNG instead" hint instead of throwing.
+
+**Verified e2e**: clicked Copy → success toast shown → `navigator.clipboard.read()`
+inside the page confirmed `image/png` payload present.
+
+## 2026-06-16 — PNG export of Year in Books (Wrapped) ✅
+
+**Why**: Year in Books is the most shareable thing Shelfsort produces, but
+sharing a 9-slide scroll-jacked recap on social is awkward. A single Instagram-
+friendly portrait (1080×1350 @ 2× = 2160×2700) lets users post their year in
+one tap — high-leverage organic growth surface.
+
+**What shipped**
+- New `frontend/src/components/YearInBooksShareCard.jsx` — purely-inline-styled
+  forwardRef component, sized 1080×1350, designed for `html-to-image` capture
+  (no Tailwind class deps that could fail to serialize, no images, system+
+  Georgia fallback fonts so a Google-fonts CORS hiccup never produces an ugly
+  fallback).
+- `YearInBooksPage.jsx` now renders the card off-screen
+  (`position:fixed; left:-99999px`), exposes a "Download as PNG" button on the
+  outro slide (alongside Email / Share), and downloads via
+  `html-to-image#toPng(..., { pixelRatio: 2, cacheBust: true })` →
+  `shelfsort-wrapped-{year}.png`.
+- Toast feedback ("Saved! Share it anywhere.") and disabled state during render.
+- Public share surface (`/share/yib/:token`) intentionally **not** exposing the
+  download — only the owner can grab their own card.
+
+**Card content (single tasteful default, no multi-slide montage)**
+- Header: "Shelfsort wrapped" + year
+- Hero: huge serif `{year}` + "Your year in books." italic subtitle
+- Stats row: Books · Pages · Streak
+- Highlights: Top world (top fandom), Top voice (top author), Reading peak (best month)
+- Footer: from shelfsort.app · SHELFSORT brandmark
+
+**Verified e2e via screenshot tool**: button visible → click triggers download →
+2160×2700 PNG (8.3 MB) saved with correct filename. Image-analyze pass confirmed
+all elements rendered, no glitches, layout clean.
+
+**Dependencies**: `html-to-image@1.11.13` added via yarn.
+
+---
+
+## Pre-2026-06-16 history
+
+All sessions from 2026-02-28 through 2026-06-15 (Year-in-Books Wrapped redesign,
+Admin Approval Gate, View-As-User consent flow, test-failure mop-up, 22 ghost
+user purge, ACOTAR/Friends/House M.D. fandoms, etc.) are preserved verbatim in
+`PRD.md.bak`. They were folded out of the live PRD on 2026-06-16 to keep this
+document scannable.
