@@ -8,6 +8,42 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-16 — Landing page: recolored hero + welcoming feature reveal ✅
+
+The unauthenticated `/` Landing page got a coat of paint:
+
+**New hero illustration** — Gemini Nano Banana (`gemini-3.1-flash-image-preview`)
+recolored the existing reading-nook image with the original as a reference,
+keeping the EXACT same composition (window, armchair, throw, side table with
+mug + glasses, framed art, book stacks). New palette:
+- Armchair: deep sage / forest green
+- Pillow: plum (#6B46C1, brand-tied)
+- Throw: cream linen with plum stripes
+- Wall: warm off-white, floor: walnut
+- Books on the floor: mixed burgundy / plum / sage / cream spines
+
+Image saved to `frontend/public/landing-hero.png` (1024×1024 PNG, 900 KB) so it
+travels with the app's static assets — no external CDN dependency.
+
+**New "More than a sorter" section** — sits between the 3-feature "How it works"
+trio and the Sample Shelves preview. Six brand-tinted cards introduce visitors
+to features that live behind the sign-in wall:
+1. Year in Books, Wrapped — emphasizes PNG download / social share
+2. A reader that respects your eyes — EPUB / PDF / TXT / DOCX, dark mode, zero ads
+3. Goals & streaks (gently) — confetti language, anti-guilt framing
+4. Friends who actually read — @handle, library overlap, opt-in shares
+5. Book clubs, with chapters — auto-prompts, weekly digest emails
+6. Fix messy metadata, in place — ties back to the just-shipped in-place EPUB editing
+
+Plus a richer hero subtitle ("…a clean reader, a year-end recap, friends to talk
+about them with, the works.") and a tighter bottom-CTA blurb that name-checks
+Year in Books and book clubs explicitly.
+
+**Light/dark mode** — Landing is theme-aware via the global `ThemeContext`
+(default `mode: auto`, follows OS `prefers-color-scheme`). Both versions verified
+via screenshot; the new image and all 6 cards render cleanly on cream and on
+deep-slate backgrounds.
+
 ## 2026-06-16 — In-place EPUB metadata editing ✅ (P3)
 
 The Edit button on a book detail page now lets users fix **title / author /

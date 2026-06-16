@@ -1,6 +1,18 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { BookOpen, Sparkles, FolderTree, Download, Wand2 } from "lucide-react";
+import {
+  BookOpen,
+  Sparkles,
+  FolderTree,
+  Download,
+  Wand2,
+  PartyPopper,
+  Users,
+  MessagesSquare,
+  Target,
+  Tablet,
+  PencilLine,
+} from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import PrimaryCTAButton from "../components/PrimaryCTAButton";
 import SecondaryCTAButton from "../components/SecondaryCTAButton";
@@ -92,8 +104,9 @@ export default function Landing() {
           </h1>
           <p className="text-base sm:text-lg text-[#6B705C] leading-relaxed mb-8 max-w-lg">
             Drop in a folder of EPUBs. Shelfsort reads the metadata and uses AI to file
-            them by Harry Potter, Twilight, Marvel, original fiction, and anything else hiding
-            in your downloads.
+            them by Harry Potter, Twilight, Marvel, original fiction, and anything else
+            hiding in your downloads. Then it gives them a home — a clean reader, a
+            year-end recap, friends to talk about them with, the works.
           </p>
           <div className="flex flex-wrap gap-3">
             <PrimaryCTAButton
@@ -112,14 +125,14 @@ export default function Landing() {
         </div>
         <div className="relative">
           <img
-            src="https://static.prod-images.emergentagent.com/jobs/a7cbf064-1bb1-48e6-b642-01b29d2915a4/images/69b714e80ad3526797631c1c9c820d1ffe10c66de28dc4bc99a11bde433fe454.png"
-            alt="A cozy reading corner"
+            src="/landing-hero.png"
+            alt="A cozy reading nook with a sage-green armchair, plum cushion, and books stacked on a sunlit wood floor"
             className="rounded-2xl shadow-[0_24px_60px_rgba(0,0,0,0.12)] w-full"
           />
         </div>
       </section>
 
-      <section id="features" className="max-w-6xl mx-auto px-6 md:px-8 pb-24 grid md:grid-cols-3 gap-6">
+      <section id="features" className="max-w-6xl mx-auto px-6 md:px-8 pb-12 grid md:grid-cols-3 gap-6">
         <Feature
           icon={<Sparkles className="w-5 h-5" />}
           title="AI + metadata"
@@ -135,6 +148,67 @@ export default function Landing() {
           title="Take it with you"
           body="Download a perfectly organized ZIP — your library, on any device, anywhere."
         />
+      </section>
+
+      {/* "What's inside" — the welcoming reveal.  Sorting is the door, but the
+          stuff happening after a user signs in is what keeps them around.
+          Six warm cards, mixed accent colors, no screenshots needed. */}
+      <section id="inside" className="max-w-6xl mx-auto px-6 md:px-8 pb-24">
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-3">
+          More than a sorter
+        </p>
+        <h2 className="font-serif text-3xl sm:text-4xl text-[#2C2C2C] mb-3">
+          A whole little world for your <span className="italic text-[#E07A5F]">reading life</span>.
+        </h2>
+        <p className="text-base text-[#6B705C] max-w-2xl mb-10">
+          Shelfsort is built for people who read the way you do — bouncing between
+          a 200k-word AO3 fic, a non-fic on the nightstand, and three half-read
+          novels. Here&apos;s what you get the second you sign in.
+        </p>
+        <div className="grid md:grid-cols-3 gap-6">
+          <InsideCard
+            icon={<PartyPopper className="w-5 h-5" />}
+            accent="#6B46C1"
+            tint="bg-[#EDE7FB]"
+            title="Year in Books, Wrapped"
+            body="A nine-slide cinematic recap at the end of every year — books opened, pages turned, longest streak, top fandom, top author, bookends. Download it as a PNG, paste it into Threads or iMessage, watch friends ask what you've been reading."
+          />
+          <InsideCard
+            icon={<Tablet className="w-5 h-5" />}
+            accent="#E07A5F"
+            tint="bg-[#FBE7DF]"
+            title="A reader that respects your eyes"
+            body="EPUB, PDF, TXT and DOCX all open inline. Reading position syncs across devices, bookmarks remember the chapter you loved, dark mode follows your OS, and there are zero ads. Ever."
+          />
+          <InsideCard
+            icon={<Target className="w-5 h-5" />}
+            accent="#1F4D6B"
+            tint="bg-[#DCE8EF]"
+            title="Goals & streaks (gently)"
+            body="Set a goal of 30 books, or 200 hours, or a fandom marathon. We track quietly, fire confetti when you hit it, and never guilt-trip you on a Tuesday."
+          />
+          <InsideCard
+            icon={<Users className="w-5 h-5" />}
+            accent="#B43F26"
+            tint="bg-[#F9DED5]"
+            title="Friends who actually read"
+            body="Pick a one-of-a-kind @handle, add friends by username, see how many books overlap with theirs, send recs, share a peek at your shelf — all opt-in, all revocable."
+          />
+          <InsideCard
+            icon={<MessagesSquare className="w-5 h-5" />}
+            accent="#6B46C1"
+            tint="bg-[#EDE7FB]"
+            title="Book clubs, with chapters"
+            body="Spin up a private room, pick the book, set a chapter-per-week pace. We auto-post discussion prompts, members chat inline, and a weekly digest email keeps the slow readers in the loop."
+          />
+          <InsideCard
+            icon={<PencilLine className="w-5 h-5" />}
+            accent="#E07A5F"
+            tint="bg-[#FBE7DF]"
+            title="Fix messy metadata, in place"
+            body="Title got mangled by an AO3 export? Author shows as &ldquo;Unknown&rdquo;? Edit it in two clicks — corrections are rewritten into the EPUB itself, so when you re-download or send to a friend, the fix travels with the file."
+          />
+        </div>
       </section>
 
       {/* Sample shelves — the conversion punch.  Shows visitors exactly
@@ -170,7 +244,8 @@ export default function Landing() {
           Ready to see your library, sorted?
         </h2>
         <p className="text-base text-[#6B705C] mb-8 max-w-xl mx-auto">
-          Free to try with up to 50 books. AI sorting, in-app reader, reading goals, friends, and book clubs included.
+          Free to try with up to 50 books. AI sorting, in-app reader, Year in Books recap,
+          reading goals, friends, and book clubs — all included from day one.
         </p>
         <PrimaryCTAButton testid="footer-cta-start" onClick={handleStart}>
           Start sorting — it&apos;s free
@@ -224,6 +299,21 @@ function Feature({ icon, title, body }) {
         {icon}
       </div>
       <h3 className="font-serif text-xl text-[#2C2C2C] mb-2">{title}</h3>
+      <p className="text-sm text-[#6B705C] leading-relaxed">{body}</p>
+    </div>
+  );
+}
+
+function InsideCard({ icon, accent, tint, title, body }) {
+  return (
+    <div className="shelf-card p-6 hover:shadow-lg transition-shadow">
+      <div
+        className={`w-11 h-11 rounded-xl ${tint} flex items-center justify-center mb-4`}
+        style={{ color: accent }}
+      >
+        {icon}
+      </div>
+      <h3 className="font-serif text-xl text-[#2C2C2C] mb-2 leading-snug">{title}</h3>
       <p className="text-sm text-[#6B705C] leading-relaxed">{body}</p>
     </div>
   );
