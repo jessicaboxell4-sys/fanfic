@@ -20,6 +20,198 @@ function errMsg(d) {
 
 // Privacy & messaging — combines the DM privacy toggle (Phase 1a),
 // the "hide me from user search" toggle (Phase 1b), and a deep-link to
+
+// ---------------------------------------------------------------------------
+// AdminAccessCard — incoming view-access consent requests from admins
+// ---------------------------------------------------------------------------
+// Admins can request READ-ONLY access to your library to help diagnose
+// issues you report. They never assume your session — this is purely
+// "look but don't touch". You can grant 24h / 7d / 30d, deny, or revoke
+// at any time. Every read writes an audit row, so you can always see
+// who looked and when via /admin/audit (if you're also an admin).
+function AdminAccessCard() {
+  const [consents, setConsents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState(null);
+  const [grantingId, setGrantingId] = useState(null);
+  const [grantHours, setGrantHours] = useState(24 * 7);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const { data } = await api.get("/account/view-requests");
+      setConsents(data?.consents || []);
+    } catch { /* non-critical */ }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, []);
+
+  const grant = async (cid) => {
+    setBusyId(cid);
+    try {
+      await api.post(`/account/view-requests/${cid}/respond`, { accept: true, hours: grantHours });
+      toast.success("Access granted");
+      setGrantingId(null);
+      load();
+    } catch { toast.error("Couldn't grant"); }
+    finally { setBusyId(null); }
+  };
+
+  const deny = async (cid) => {
+    if (!window.confirm("Deny this request? The admin will be told you said no.")) return;
+    setBusyId(cid);
+    try {
+      await api.post(`/account/view-requests/${cid}/respond`, { accept: false, hours: 24 });
+      toast.success("Request denied");
+      load();
+    } catch { toast.error("Couldn't deny"); }
+    finally { setBusyId(null); }
+  };
+
+  const revoke = async (cid) => {
+    if (!window.confirm("Revoke this grant? The admin loses access immediately.")) return;
+    setBusyId(cid);
+    try {
+      await api.delete(`/account/view-consents/${cid}`);
+      toast.success("Revoked");
+      load();
+    } catch { toast.error("Couldn't revoke"); }
+    finally { setBusyId(null); }
+  };
+
+  if (loading) return null;
+  if (consents.length === 0) return null;  // hide entirely when nothing to show
+
+  const pending = consents.filter((c) => c.status === "pending");
+  const active = consents.filter((c) => c.status === "granted");
+
+  return (
+    <section className="shelf-card p-6 mb-6" id="admin-access" data-testid="admin-access-card">
+      <h2 className="font-serif text-2xl text-[#2C2C2C] mb-1">Admin access</h2>
+      <p className="text-sm text-[#6B705C] mb-4">
+        An admin has asked to <strong>look at your library, read-only</strong>, to help diagnose something. They will never log in as you or make changes; reads are audit-logged.
+      </p>
+
+      {pending.length > 0 && (
+        <div className="mb-4">
+          <p className="text-xs uppercase tracking-wider text-[#8B4F00] mb-2 font-bold">
+            {pending.length} pending request{pending.length === 1 ? "" : "s"}
+          </p>
+          <ul className="space-y-2">
+            {pending.map((c) => (
+              <li
+                key={c.consent_id}
+                className="rounded-xl border-2 border-[#D49A1E] bg-[#FDF3E1] p-3"
+                data-testid={`admin-access-pending-${c.consent_id}`}
+              >
+                <p className="text-sm text-[#2C2C2C]">
+                  <strong>{c.admin_name || c.admin_email}</strong> wants read-only access to your library.
+                </p>
+                {c.reason && <p className="text-sm text-[#5C3300] italic mt-1">"{c.reason}"</p>}
+                {grantingId === c.consent_id ? (
+                  <div className="mt-3 pt-3 border-t border-[#D49A1E]/40">
+                    <p className="text-xs uppercase tracking-wider text-[#8B4F00] mb-2">Grant for how long?</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {[
+                        { h: 24, lbl: "24 hours" },
+                        { h: 24 * 7, lbl: "7 days" },
+                        { h: 24 * 30, lbl: "30 days" },
+                      ].map((opt) => (
+                        <button
+                          key={opt.h}
+                          onClick={() => setGrantHours(opt.h)}
+                          data-testid={`admin-access-duration-${opt.h}`}
+                          className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-[0.15em] ${
+                            grantHours === opt.h ? "bg-[#1F8F4E] text-white" : "bg-white text-[#1F4D2A] border border-[#1F8F4E]/40"
+                          }`}
+                        >
+                          {opt.lbl}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2 mt-3">
+                      <button
+                        onClick={() => grant(c.consent_id)}
+                        disabled={busyId === c.consent_id}
+                        data-testid={`admin-access-grant-confirm-${c.consent_id}`}
+                        className="px-3 py-1.5 rounded-full bg-[#1F8F4E] text-white text-xs font-bold uppercase tracking-[0.15em] hover:bg-[#176D3A] disabled:opacity-60"
+                      >
+                        Grant access
+                      </button>
+                      <button
+                        onClick={() => setGrantingId(null)}
+                        className="px-3 py-1.5 rounded-full text-[#6B705C] text-xs font-medium hover:text-[#2C2C2C]"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 mt-3">
+                    <button
+                      onClick={() => { setGrantHours(24 * 7); setGrantingId(c.consent_id); }}
+                      data-testid={`admin-access-grant-${c.consent_id}`}
+                      className="px-3 py-1.5 rounded-full bg-[#1F8F4E] text-white text-xs font-bold uppercase tracking-[0.15em] hover:bg-[#176D3A]"
+                    >
+                      Grant…
+                    </button>
+                    <button
+                      onClick={() => deny(c.consent_id)}
+                      disabled={busyId === c.consent_id}
+                      data-testid={`admin-access-deny-${c.consent_id}`}
+                      className="px-3 py-1.5 rounded-full border border-[#D9534F] text-[#D9534F] text-xs font-bold uppercase tracking-[0.15em] hover:bg-[#FBE9E5] disabled:opacity-60"
+                    >
+                      Deny
+                    </button>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {active.length > 0 && (
+        <div>
+          <p className="text-xs uppercase tracking-wider text-[#1F4D2A] mb-2 font-bold">
+            {active.length} active grant{active.length === 1 ? "" : "s"}
+          </p>
+          <ul className="space-y-2">
+            {active.map((c) => (
+              <li
+                key={c.consent_id}
+                className="rounded-xl border border-[#1F8F4E]/40 bg-[#EEF3EC] p-3 flex flex-wrap items-center gap-2"
+                data-testid={`admin-access-active-${c.consent_id}`}
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-[#2C2C2C]">
+                    <strong>{c.admin_name || c.admin_email}</strong>
+                  </p>
+                  {c.expires_at && (
+                    <p className="text-xs text-[#1F4D2A]">
+                      Expires {new Date(c.expires_at).toLocaleString(undefined, {dateStyle:"medium", timeStyle:"short"})}
+                      {c.last_used_at && <> · last viewed {new Date(c.last_used_at).toLocaleString(undefined, {dateStyle:"short", timeStyle:"short"})}</>}
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => revoke(c.consent_id)}
+                  disabled={busyId === c.consent_id}
+                  data-testid={`admin-access-revoke-${c.consent_id}`}
+                  className="px-3 py-1.5 rounded-full border border-[#D9534F] text-[#D9534F] text-xs font-bold uppercase tracking-[0.15em] hover:bg-[#FBE9E5] disabled:opacity-60"
+                >
+                  Revoke
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
+  );
+}
+
+
 // the Friends page. Anchored at id="privacy" so banners can scroll here.
 function PrivacyMessagingCard({ navigate }) {
   const [privacy, setPrivacy] = useState({ message_privacy: "friends_only", hidden_from_search: false });
@@ -1147,6 +1339,7 @@ export default function Account() {
 
         {/* Privacy & messaging */}
         <PrivacyMessagingCard navigate={navigate} />
+        <AdminAccessCard />
 
         {/* E-reader sync (OPDS catalog) */}
         <CatalogSyncCard />

@@ -57,6 +57,7 @@ import RestoreBackupPage from "@/pages/RestoreBackupPage";
 import OriginalsShelf from "@/pages/OriginalsShelf";
 import Help from "@/pages/Help";
 import AdminConsole from "@/pages/AdminConsole";
+import AdminViewAs from "@/pages/AdminViewAs";
 import AuthCallback from "@/pages/AuthCallback";
 import ResetPassword from "@/pages/ResetPassword";
 import MaintenanceBanner from "@/components/MaintenanceBanner";
@@ -147,6 +148,7 @@ function AppRouter() {
       <Route path="/library/originals" element={<ProtectedRoute><OriginalsShelf /></ProtectedRoute>} />
       <Route path="/help" element={<ProtectedRoute><Help /></ProtectedRoute>} />
       <Route path="/admin" element={<AdminRoute><AdminConsole /></AdminRoute>} />
+      <Route path="/admin/view/:uid" element={<AdminRoute><AdminViewAs /></AdminRoute>} />
       <Route path="/book/:id" element={<ProtectedRoute><BookDetail /></ProtectedRoute>} />
       <Route path="/book/:id/compare" element={<ProtectedRoute><CompareVersions /></ProtectedRoute>} />
       <Route path="/read/:id" element={<ProtectedRoute><Reader /></ProtectedRoute>} />

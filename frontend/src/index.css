@@ -443,6 +443,11 @@
 :root[data-theme="dark"] .text-\[\#7A2417\] { color: #FFB7A8; }
 :root[data-theme="dark"] .text-\[\#8B4F00\] { color: #FFC872; }
 
+/* Cream "subtle separator" border `#F5F3EC` used by table-row dividers  */
+/* in the feedback inbox + the view-as recent-uploads/timeline rows.    */
+/* Same surface-on-surface trick — converge on `--border`.              */
+:root[data-theme="dark"] .border-\[\#F5F3EC\] { border-color: var(--border); }
+
 /* "Currently live" mini-card on the Announcements form — `#6B46C1` text */
 /* is already remapped but the small uppercase label was hard to read    */
 /* against the surface-hover bg; this is implicit in the existing         */

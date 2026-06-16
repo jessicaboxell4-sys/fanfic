@@ -8,7 +8,7 @@ import {
   BarChart3, ToggleLeft, ClipboardList, Loader2, Plus, X as XIcon, Trash2,
   Check, ChevronRight, ChevronDown, Download, AlertOctagon, RotateCcw, Send,
   Mail, MessageSquare, Clock, CircleAlert, Route as RouteIcon, Search,
-  Inbox, Database, Siren, HardDrive, TrendingUp,
+  Inbox, Database, Siren, HardDrive, TrendingUp, Eye,
 } from "lucide-react";
 import MongoInspectorCard from "../components/MongoInspectorCard";
 
@@ -39,6 +39,7 @@ const ADMIN_CARD_MANIFEST = [
   { testid: "admin-feedback-inbox-card", title: "Feedback inbox", subtitle: "User-submitted bugs, ideas, and feature requests.", keywords: "feedback suggestions bug feature request inbox users reports tickets" },
   { testid: "admin-storage-by-user-card", title: "Top storage users", subtitle: "Top 20 accounts by uploaded bytes.", keywords: "storage user disk bytes top biggest heavy quota power outliers abandoned" },
   { testid: "admin-storage-trend-card", title: "Storage trend · 30 days", subtitle: "Cumulative bytes over time.", keywords: "storage trend disk growth chart graph history snapshot 30d size bytes" },
+  { testid: "admin-view-consents-card", title: "View-as-user consents", subtitle: "Request read-only access to a user's library.", keywords: "view as user impersonate consent privacy access permission timeline" },
   { testid: "admin-users-card", title: "Users & admins", subtitle: "Promote or demote any account.", keywords: "users admins promote demote roles accounts" },
   { testid: "admin-chat-rooms-card", title: "Chat rooms", subtitle: "Direct-message rooms.", keywords: "chat rooms messages dm direct message conversations" },
   { testid: "admin-unknown-fandoms-card", title: "Unknown fandoms", subtitle: "Fandoms not yet in the keyword classifier.", keywords: "unknown fandoms classifier rescan dismiss missing tag" },
@@ -759,6 +760,163 @@ function StorageTrendCard() {
 
 
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// ViewConsentsCard — admin-side surface for per-admin user-consented view-as
+// ---------------------------------------------------------------------------
+// Surfaces outgoing requests for THIS admin. Active grants show a
+// "View now" link to /admin/view/<uid>. Pending requests show "Waiting
+// on user". Expired/revoked/denied are listed for the last 30d so the
+// admin knows why a previously-working link stopped working.
+// New requests go through the storage-by-user / users-list cards (which
+// know the target user_id); this card just shows the resulting state.
+function ViewConsentsCard() {
+  const [consents, setConsents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [targetUid, setTargetUid] = useState("");
+  const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const { data } = await api.get("/admin/view-requests/mine");
+      setConsents(data?.consents || []);
+    } catch { /* non-critical */ }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, []);
+
+  const submitRequest = async (e) => {
+    e?.preventDefault?.();
+    if (!targetUid.trim()) { toast.error("Enter a user_id"); return; }
+    setSubmitting(true);
+    try {
+      const { data } = await api.post(
+        `/admin/users/${targetUid.trim()}/view-request`,
+        { reason: reason.trim() },
+      );
+      if (data?.created) {
+        toast.success("Request sent. The user will see it on their Account page.");
+      } else {
+        toast.message("A pending or active request already exists for this user.");
+      }
+      setTargetUid("");
+      setReason("");
+      load();
+    } catch (e) {
+      const msg = e?.response?.data?.detail || "Couldn't send request";
+      toast.error(typeof msg === "string" ? msg : "Couldn't send request");
+    } finally { setSubmitting(false); }
+  };
+
+  const tone = (status) => ({
+    pending: { bg: "bg-[#F5F0E0]", fg: "text-[#8B4F00]", label: "Waiting on user" },
+    granted: { bg: "bg-[#EEF3EC]", fg: "text-[#1F4D2A]", label: "Active" },
+    denied: { bg: "bg-[#FBE9E5]", fg: "text-[#B43F26]", label: "Denied" },
+    revoked: { bg: "bg-[#FBE9E5]", fg: "text-[#B43F26]", label: "Revoked" },
+    expired: { bg: "bg-[#F5F3EC]", fg: "text-[#6B705C]", label: "Expired" },
+  }[status] || { bg: "bg-[#F5F3EC]", fg: "text-[#6B705C]", label: status });
+
+  const active = consents.filter((c) => c.status === "granted");
+  const pending = consents.filter((c) => c.status === "pending");
+  const past = consents.filter((c) => !["granted", "pending"].includes(c.status));
+
+  return (
+    <Card
+      icon={Eye}
+      title={`View-as-user consents${active.length > 0 ? ` (${active.length} active)` : ""}`}
+      subtitle="Read-only access to a user's library — requires their explicit consent. All reads are audit-logged."
+      testid="admin-view-consents-card"
+    >
+      <form onSubmit={submitRequest} className="mb-4 rounded-xl border border-[#E5DDC5] bg-[#FBFAF6] p-3" data-testid="view-consent-request-form">
+        <p className="text-xs uppercase tracking-wider text-[#6B46C1] mb-2 font-bold">Request access</p>
+        <input
+          type="text" value={targetUid}
+          onChange={(e) => setTargetUid(e.target.value)}
+          placeholder="user_id (find via Top storage users card)"
+          data-testid="view-consent-uid-input"
+          className="w-full text-sm bg-white border border-[#E5DDC5] rounded-lg px-3 py-1.5 focus:outline-none focus:border-[#6B46C1] mb-2 font-mono"
+        />
+        <textarea
+          value={reason}
+          onChange={(e) => setReason(e.target.value.slice(0, 500))}
+          rows={2}
+          placeholder="Why? (shown to the user)"
+          data-testid="view-consent-reason-input"
+          className="w-full text-sm bg-white border border-[#E5DDC5] rounded-lg px-3 py-1.5 focus:outline-none focus:border-[#6B46C1]"
+        />
+        <div className="flex items-center gap-2 mt-2">
+          <button
+            type="submit" disabled={submitting || !targetUid.trim()}
+            data-testid="view-consent-submit"
+            className="px-3 py-1.5 rounded-full bg-[#6B46C1] text-white text-xs font-bold uppercase tracking-[0.15em] hover:bg-[#553B96] disabled:opacity-60"
+          >
+            {submitting ? "Sending…" : "Send request"}
+          </button>
+          <span className="text-xs text-[#6B705C] ml-auto">{reason.length}/500</span>
+        </div>
+      </form>
+
+      {loading ? (
+        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+      ) : consents.length === 0 ? (
+        <p className="text-sm text-[#6B705C] italic">No view requests yet.</p>
+      ) : (
+        <div className="space-y-3">
+          {[
+            { label: "Active grants", rows: active },
+            { label: "Pending", rows: pending },
+            { label: "Past 30 days", rows: past },
+          ].filter((g) => g.rows.length > 0).map((g) => (
+            <div key={g.label}>
+              <p className="text-xs uppercase tracking-wider text-[#6B705C] mb-1.5">{g.label}</p>
+              <ul className="space-y-1.5" data-testid={`view-consent-group-${g.label.toLowerCase().replace(/\s+/g, "-")}`}>
+                {g.rows.map((c) => {
+                  const t = tone(c.status);
+                  return (
+                    <li
+                      key={c.consent_id}
+                      className="rounded-lg border border-[#E5DDC5] bg-[#FBFAF6] px-3 py-2 flex flex-wrap items-center gap-3"
+                      data-testid={`view-consent-row-${c.consent_id}`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-[#2C2C2C] truncate">{c.user_name || c.user_email}</p>
+                        <p className="text-xs text-[#6B705C] truncate">{c.user_email}</p>
+                        {c.reason && <p className="text-xs text-[#6B705C] italic mt-0.5">"{c.reason}"</p>}
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-full ${t.bg} ${t.fg} text-xs font-medium flex-shrink-0`}>
+                        {t.label}
+                      </span>
+                      {c.status === "granted" && (
+                        <>
+                          <Link
+                            to={`/admin/view/${c.user_id}`}
+                            data-testid={`view-consent-open-${c.consent_id}`}
+                            className="px-3 py-1 rounded-full bg-[#6B46C1] text-white text-xs font-bold uppercase tracking-[0.15em] hover:bg-[#553B96] flex-shrink-0"
+                          >
+                            View now
+                          </Link>
+                          {c.expires_at && (
+                            <span className="text-xs text-[#6B705C] flex-shrink-0">
+                              expires {new Date(c.expires_at).toLocaleString(undefined, {dateStyle:"short",timeStyle:"short"})}
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+
+
 // Users card (a)
 // ---------------------------------------------------------------------------
 function UsersCard() {
@@ -2729,6 +2887,7 @@ export default function AdminConsole() {
               <FeedbackInboxCard />
               <StorageByUserCard />
               <StorageTrendCard />
+              <ViewConsentsCard />
               <UsersCard />
               <ChatRoomsCard />
               <UnknownFandomsCard />

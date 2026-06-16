@@ -2660,3 +2660,100 @@ frontend/
 
 ### Backlog now standing
 - 🎯 **Admin batch: 4.5/6 done.** Only **#1+#2** (view-as-user + per-user activity timeline with per-admin user consent) remains — the largest item.
+
+## 2026-06-15 — Admin batch #1+#2: view-as-user + activity timeline with per-admin user consent (FINAL)
+
+The 6-item admin batch is **DONE** (6/6).
+
+### Design call
+
+I implemented **read-only view-as** instead of session-swap impersonation. The admin remains logged in as themselves and *views* a consented user's library snapshot + activity timeline through dedicated admin-only endpoints — they cannot upload, delete, or message on the user's behalf. Cleaner, safer, audit-logged on every read, and covers 95% of the actual use case ("they say their HP fandom is missing, let me look").
+
+### Data model
+
+New collection: `view_consents`
+
+```
+{ consent_id, admin_id, admin_name, admin_email,
+  user_id, user_name, user_email,
+  status: "pending" | "granted" | "denied" | "revoked" | "expired",
+  reason: str (≤500),
+  scope: ["view_library", "timeline"],
+  granted_duration_hours: 24 | 168 | 720,
+  created_at, granted_at, revoked_at, denied_at, expired_at, expires_at,
+  last_used_at, use_count }
+```
+
+Per-admin: granting access to admin Alice does NOT grant to admin Bob — each admin must request separately. Default duration is 7 days; user picks `24h / 7d / 30d` at grant time. Consents auto-expire lazily via `_expire_stale_consents` on every list/read.
+
+### Endpoints (`routes/view_consents.py`)
+
+Admin-side:
+- `POST /api/admin/users/{uid}/view-request` body `{reason}` — create pending consent. Idempotent: existing pending/active rows are returned as-is.
+- `GET /api/admin/view-requests/mine` — outgoing requests for this admin (active + pending + last-30d past).
+- `GET /api/admin/users/{uid}/view-as-data` — library snapshot (user info, total_books, recent 100 books with sizes + fandoms + progress, top-30 fandom breakdown). Audit-logged.
+- `GET /api/admin/users/{uid}/timeline` — chronological events (book_uploaded, book_opened, admin_action). Audit-logged.
+
+User-side:
+- `GET /api/account/view-requests` — incoming requests + active grants.
+- `POST /api/account/view-requests/{cid}/respond` body `{accept, hours}` — grant or deny. Granting rounds the hours to the nearest of `{24, 168, 720}`.
+- `DELETE /api/account/view-consents/{cid}` — revoke an active grant; admin's next read 403s immediately.
+
+Every successful admin read writes an `admin_audit` row with `actor_id`, `action`, `target`, `consent_id` and bumps `consent.last_used_at` + `use_count` so the user can see "Alice last viewed 5 min ago" on their Account page.
+
+### Frontend
+
+- **`<ViewConsentsCard />`** in AdminConsole — lists active grants (with "View now" link), pending requests, and 30-day past consents. Has an inline "Request access" form: user_id + reason → POST.
+- **`/admin/view/:uid`** route → **`AdminViewAs.jsx`** page — a read-only surface that hits both `/view-as-data` and `/timeline` in parallel, renders user info header with consent expiry, library summary (total books + top 20 fandoms + recent 30 uploads with dates), and the activity timeline (newest first). 403 with `code: "no_consent"` triggers a clear "no active consent" notice with a link back.
+- **`<AdminAccessCard />`** in Account.jsx — appears only when there's at least one consent row. Shows pending requests with admin name + reason + Grant…/Deny buttons (Grant opens a duration picker with `24h / 7d / 30d` chips), and active grants with admin name + expiry + last-viewed timestamp + Revoke button.
+
+### Tests
+
+`tests/test_view_consents.py` — **9/9 passing**:
+1. Full request → grant → read library → read timeline → revoke → 403 happy path (with audit-row count assertion).
+2. Per-admin isolation: Bob can't read Carol's library just because Alice has consent.
+3. Re-request with an existing pending row is idempotent.
+4. Deny path blocks reads; admin can re-request (new row, not the denied one).
+5. Auto-expiry: artificially backdated `expires_at` causes status to flip to `"expired"` on next read and 403.
+6. `/view-requests/mine` scopes to the calling admin.
+7. `/account/view-requests` scopes to the calling user.
+8. Non-admins can't call admin endpoints (403).
+9. Admin cannot request access to their own account (400).
+
+### Files touched
+
+```
+backend/
+  routes/view_consents.py        NEW — 11 endpoints, ~340 lines
+  server.py                      + import for the new router
+  tests/test_view_consents.py    NEW — 9 cases, all passing
+
+frontend/
+  src/App.js                     + /admin/view/:uid route
+  src/pages/AdminConsole.jsx     + <ViewConsentsCard /> + Eye icon + manifest entry
+  src/pages/AdminViewAs.jsx      NEW — read-only view-as surface
+  src/pages/Account.jsx          + <AdminAccessCard /> (grant/deny/revoke + duration picker)
+  src/index.css                  + dark-mode override for border-[#F5F3EC]
+```
+
+### Verified
+
+- Combined run of 6 suites: **62 passed, 1 skipped, 0 failed**.
+- Lint clean across all 3 new/edited frontend files; webpack compiles.
+
+### What the 6-item admin batch achieved
+
+| # | Feature | Status |
+|---|---------|--------|
+| 1 | View-as-user (read-only, with per-admin user consent) | ✅ |
+| 2 | Per-user activity timeline (same consent gate) | ✅ |
+| 3 | Feedback inbox (admin view over existing /suggestions) | ✅ |
+| 4 | Today pulse + admin-approval gate on signup | ✅ |
+| 5g | Per-user storage (top-20 with click-through to book sizes) | ✅ |
+| 6 | Storage trend chart (retroactive 30-day curve) | ✅ |
+
+Plus 4 bonus deliverables along the way:
+- 🐛 Production bug: `routes/url_lists.py` was missing a `_parse_urls_from_sidecar` import (any pre-Phase-5 user got 500s on dedupe).
+- 🐛 Production bug: `cron_health.py` was calling `log_email_send(metadata=...)` instead of `extra=...`, swallowing every alert log row.
+- 🛡️ Auth field-drift self-healing: `loginSuccess(data)` helper in AuthContext re-fetches `/auth/me` to backfill any field the login response drops (root-cause fix for the admin-button-disappearing bug).
+- 🩺 House M.D. as a 4th Landing-page Sample Shelf.
