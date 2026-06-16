@@ -2809,3 +2809,12 @@ older Safari that can't actually copy images. Failure path toasts a friendly
 
 **Verified e2e**: clicked Copy → success toast shown → `navigator.clipboard.read()`
 inside the page confirmed `image/png` payload present.
+
+## 2026-06-16 — AuthContext `refresh()` alias ✅ (P1)
+
+One-liner: `AuthContext.Provider` now also exposes `refresh: checkAuth`.
+Any component that wants to heal stale user state (e.g. after granting an
+admin consent, after a manual approval, after an account flag flip) can now
+`const { refresh } = useAuth(); await refresh();` without importing the
+internal `checkAuth` name. No breaking change — `checkAuth` still exported
+for existing callers.
