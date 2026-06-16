@@ -8,6 +8,22 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-16 — Landing hero: animated fandom ticker ✅
+
+Tiny welcoming flourish below the hero subtitle: a pill that says
+**"150+ fandoms · {cycling name}"** where the name fades through a curated
+list of well-known fandoms (Harry Potter, ACOTAR, Marvel, Twilight, Star Wars,
+Hunger Games, Percy Jackson, Bridgerton, Stranger Things, Doctor Who, Sherlock,
+Good Omens, Lord of the Rings, House M.D., Friends, Avatar) every 2.4s with a
+fade-in animation. Pulsing purple dot on the left for that "live" feel.
+
+- Static list (no API call) so the unauthenticated Landing paints instantly
+- Fixed `min-width` on the name slot prevents the surrounding line from jittering
+  as short/long fandom names swap in
+- Hover **pauses** the rotation so a visitor reading a specific name can finish
+- Verified e2e: ticker advances ACOTAR → Marvel → Twilight on a 3s wait, and
+  stays put for 3.5s while the cursor hovers
+
 ## 2026-06-16 — Landing page: recolored hero + welcoming feature reveal ✅
 
 The unauthenticated `/` Landing page got a coat of paint:

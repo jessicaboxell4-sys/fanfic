@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   BookOpen,
@@ -16,6 +16,29 @@ import {
 import { useAuth } from "../context/AuthContext";
 import PrimaryCTAButton from "../components/PrimaryCTAButton";
 import SecondaryCTAButton from "../components/SecondaryCTAButton";
+
+// A curated rotation of well-known fandoms we already sort into. Stays static
+// (no API call from the unauthenticated Landing) so the page paints instantly.
+// Order matters: Harry Potter first because that's how a lot of visitors
+// arrive ("does this thing sort my HP fic?"), then the rest cycle.
+const FANDOM_TICKER = [
+  "Harry Potter",
+  "ACOTAR",
+  "Marvel",
+  "Twilight",
+  "Star Wars",
+  "Hunger Games",
+  "Percy Jackson",
+  "Bridgerton",
+  "Stranger Things",
+  "Doctor Who",
+  "Sherlock",
+  "Good Omens",
+  "Lord of the Rings",
+  "House M.D.",
+  "Friends",
+  "Avatar",
+];
 
 // Three fandoms with believable-but-fake titles to showcase what an
 // auto-sorted Shelfsort library actually looks like.  These are not real
@@ -102,12 +125,13 @@ export default function Landing() {
             Your EPUBs,<br/>
             sorted by <span className="italic text-[#E07A5F]">fandom</span>.
           </h1>
-          <p className="text-base sm:text-lg text-[#6B705C] leading-relaxed mb-8 max-w-lg">
+          <p className="text-base sm:text-lg text-[#6B705C] leading-relaxed mb-6 max-w-lg">
             Drop in a folder of EPUBs. Shelfsort reads the metadata and uses AI to file
             them by Harry Potter, Twilight, Marvel, original fiction, and anything else
             hiding in your downloads. Then it gives them a home — a clean reader, a
             year-end recap, friends to talk about them with, the works.
           </p>
+          <FandomTicker className="mb-8" />
           <div className="flex flex-wrap gap-3">
             <PrimaryCTAButton
               testid="hero-cta-start"
@@ -315,6 +339,44 @@ function InsideCard({ icon, accent, tint, title, body }) {
       </div>
       <h3 className="font-serif text-xl text-[#2C2C2C] mb-2 leading-snug">{title}</h3>
       <p className="text-sm text-[#6B705C] leading-relaxed">{body}</p>
+    </div>
+  );
+}
+
+// Tiny live-feeling marquee — "150+ fandoms · {rotating name}" that fades
+// through real fandoms. Pure React state + a 2.4s interval. The fading text
+// has a fixed inline-block min-width so the surrounding line doesn't jitter
+// as fandom names of different lengths swap in. Pauses on hover so visitors
+// who want to read a specific name can.
+function FandomTicker({ className = "" }) {
+  const [idx, setIdx] = useState(0);
+  const [paused, setPaused] = useState(false);
+
+  useEffect(() => {
+    if (paused) return undefined;
+    const id = setInterval(() => {
+      setIdx((i) => (i + 1) % FANDOM_TICKER.length);
+    }, 2400);
+    return () => clearInterval(id);
+  }, [paused]);
+
+  return (
+    <div
+      className={`inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#EDE7FB]/60 border border-[#6B46C1]/15 text-sm text-[#4C2A99] ${className}`}
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      data-testid="fandom-ticker"
+    >
+      <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#6B46C1] animate-pulse" />
+      <span className="font-semibold">150+ fandoms</span>
+      <span aria-hidden className="opacity-50">·</span>
+      <span
+        key={idx}
+        className="font-serif italic text-[#2C2C2C] min-w-[8.5rem] inline-block fade-in"
+        data-testid="fandom-ticker-name"
+      >
+        {FANDOM_TICKER[idx]}
+      </span>
     </div>
   );
 }
