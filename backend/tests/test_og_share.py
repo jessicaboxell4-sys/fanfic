@@ -133,3 +133,25 @@ class TestOgPreview:
         assert r2.status_code == 404
         r3 = requests.get(f"{BASE}/api/og/yib/{token}")
         assert r3.status_code == 404
+
+
+class TestOgRateLimit:
+    """30 req/60s sliding window per client IP. Token enumeration defense."""
+
+    def test_rate_limit_triggers_429_after_burst(self):
+        # Use a one-off X-Forwarded-For so we don't poison the limiter for
+        # other tests or real preview traffic. Any random IP works since the
+        # limiter keys off the FIRST entry in X-Forwarded-For.
+        fake_ip = f"203.0.113.{uuid.uuid4().int % 254 + 1}"
+        headers = {"X-Forwarded-For": fake_ip}
+        # 30 should pass, 31st should be a 429
+        statuses = []
+        for _ in range(33):
+            r = requests.get(f"{BASE}/api/og/yib/nonexistent_token_xx", headers=headers)
+            statuses.append(r.status_code)
+        # Below the limit: 404 (token not found, but the rate-limit check came first
+        # so we'd see 429 if exceeded, otherwise 404)
+        # At least one 429 in the tail
+        assert 429 in statuses[-5:], f"Expected 429 once over limit, got tail: {statuses[-5:]}"
+        # First 30 should not be 429
+        assert 429 not in statuses[:30], f"Rate limit fired too early: {statuses[:30]}"

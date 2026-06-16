@@ -33,7 +33,14 @@ from models import User, BookOut
 from auth_dep import get_current_user
 from utils.email_log import log_email_send
 from utils.og_image import render_og_card
+from utils.ratelimit import SimpleRateLimiter, client_ip
 import html as html_escape_mod
+
+# Token-enumeration defense for unauthenticated OG endpoints — 30 req/min/IP
+# is generous for crawlers (Twitter, Slack, Discord ping at most a few times
+# per share-link unfurl) but tight enough that brute-force enumeration of
+# 128-bit tokens is hopeless.
+_og_limiter = SimpleRateLimiter(max_requests=30, window_seconds=60)
 
 
 async def _build_year_payload(user_doc: Dict[str, Any], year: int) -> Dict[str, Any]:
@@ -504,8 +511,9 @@ async def _load_share_summary(token: str) -> Optional[Dict[str, Any]]:
 
 
 @api_router.get("/og/yib/{token}/image.png")
-async def og_share_image(token: str):
+async def og_share_image(token: str, request: Request):
     """1200×630 PNG used as og:image / twitter:image for a year-in-books share."""
+    _og_limiter.check(client_ip(request))
     info = await _load_share_summary(token)
     if not info:
         raise HTTPException(status_code=404, detail="Share link not found or revoked")
@@ -529,13 +537,14 @@ async def og_share_image(token: str):
 
 
 @api_router.get("/og/yib/{token}")
-async def og_share_preview(token: str):
+async def og_share_preview(token: str, request: Request):
     """HTML stub with full OG + Twitter Card meta tags, plus a meta-refresh
     and JS redirect to the real React route at /share/yib/{token}.
 
     Crawlers parse the meta tags and ignore the redirect; browsers redirect
     transparently and the user lands on the Wrapped experience.
     """
+    _og_limiter.check(client_ip(request))
     info = await _load_share_summary(token)
     if not info:
         raise HTTPException(status_code=404, detail="Share link not found or revoked")

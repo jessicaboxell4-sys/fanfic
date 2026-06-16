@@ -8,6 +8,21 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-16 — Rate limiting on OG share endpoints ✅
+
+Token enumeration defense for `/api/og/yib/{token}` and `/api/og/yib/{token}/image.png`.
+Both are unauthenticated, so without a limit someone could brute-force the
+128-bit token space. (Still hopeless, but it's free to make it impossible.)
+
+- New `backend/utils/ratelimit.py` — zero-dep sliding-window limiter, threading.Lock
+  guarded, plus a `client_ip()` helper that respects X-Forwarded-For / X-Real-IP.
+- Both OG routes now call `_og_limiter.check(client_ip(request))` first.
+- Limit: 30 requests per 60s per client IP. Crawlers (Twitter, Slack, Discord,
+  Facebook) only ping a few times per unfurl, so this is invisible to real users.
+  Excess requests return 429 + `Retry-After` header.
+- Test coverage: new `TestOgRateLimit` case in `tests/test_og_share.py` uses a
+  one-off X-Forwarded-For so it doesn't poison the limiter for other tests.
+
 ## 2026-06-16 — OG/Twitter card meta tags for `/share/yib/:token` ✅ (P2)
 
 Public share links now unfurl with a rich preview in Twitter / iMessage /
