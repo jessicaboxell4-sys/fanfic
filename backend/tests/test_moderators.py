@@ -317,3 +317,127 @@ def test_admin_user_list_includes_is_moderator():
         assert row["is_moderator"] is True
     finally:
         _cleanup_user(target)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Moderation log — append-only history of every mod action
+# ──────────────────────────────────────────────────────────────────────
+
+def test_moderation_log_records_every_action():
+    """Promote → approve a pending user → lock a room → all three land in
+    the log, and the targets are hydrated to human-readable names."""
+    import asyncio
+
+    admin = _login_admin()
+    pending_uid = _make_test_user(approved=False)
+    owner_uid = _make_test_user()
+    room_id = f"club_{uuid.uuid4().hex[:10]}"
+    try:
+        # Seed a room so we can lock it.
+        asyncio.get_event_loop().run_until_complete(db.bookclubs.insert_one({
+            "room_id": room_id,
+            "name": "Modlog test room",
+            "owner_user_id": owner_uid,
+            "book_total_chapters": 1,
+        }))
+
+        # Three actions.
+        assert admin.post(f"{BASE}/api/admin/users/{owner_uid}/promote-mod").status_code == 200
+        assert admin.post(f"{BASE}/api/admin/users/{pending_uid}/approve").status_code == 200
+        assert admin.post(f"{BASE}/api/bookclubs/{room_id}/lock").status_code == 200
+
+        # Fetch the log.
+        r = admin.get(f"{BASE}/api/admin/moderation-log", params={"limit": 50})
+        assert r.status_code == 200
+        body = r.json()
+        assert isinstance(body["entries"], list)
+        assert body["count"] >= 3
+
+        # Map to verify the three actions all appear.
+        actions = [e["action"] for e in body["entries"]]
+        assert "user.promote_mod" in actions
+        assert "user.approve" in actions
+        assert "bookclub.lock" in actions
+
+        # Target hydration — find the lock row and verify the room name is
+        # echoed back so the UI doesn't need a second fetch.
+        lock_row = next((e for e in body["entries"]
+                         if e["action"] == "bookclub.lock" and e["target"] == room_id), None)
+        assert lock_row is not None
+        assert lock_row.get("target_display") == "Modlog test room"
+
+        # Filter by action.
+        r = admin.get(f"{BASE}/api/admin/moderation-log",
+                      params={"action": "bookclub.lock", "limit": 50})
+        assert r.status_code == 200
+        for e in r.json()["entries"]:
+            assert e["action"] == "bookclub.lock"
+
+        # Filter by actor.
+        admin_me = admin.get(f"{BASE}/api/auth/me").json()
+        r = admin.get(f"{BASE}/api/admin/moderation-log",
+                      params={"actor_id": admin_me["user_id"], "limit": 200})
+        for e in r.json()["entries"]:
+            assert e["actor_id"] == admin_me["user_id"]
+
+        # Bad filter → 400.
+        r = admin.get(f"{BASE}/api/admin/moderation-log",
+                      params={"action": "user.banhammer"})
+        assert r.status_code == 400
+
+        # Cleanup the room.
+        asyncio.get_event_loop().run_until_complete(
+            db.bookclubs.delete_one({"room_id": room_id}),
+        )
+    finally:
+        _cleanup_user(pending_uid)
+        _cleanup_user(owner_uid)
+
+
+def test_moderation_log_pagination():
+    """``limit`` and ``offset`` slice the result and the ``count`` field
+    reports the total across all pages."""
+    admin = _login_admin()
+    r1 = admin.get(f"{BASE}/api/admin/moderation-log",
+                   params={"limit": 1, "offset": 0}).json()
+    r2 = admin.get(f"{BASE}/api/admin/moderation-log",
+                   params={"limit": 1, "offset": 1}).json()
+    assert r1["count"] == r2["count"]  # total doesn't change between pages
+    assert r1["limit"] == 1
+    assert r1["offset"] == 0
+    assert r2["offset"] == 1
+    if r1["count"] >= 2:
+        # The two pages should be disjoint and ordered newest-first, so the
+        # first row of page 1 should be newer than page 2.
+        assert r1["entries"][0]["ts"] >= r2["entries"][0]["ts"]
+
+
+def test_moderation_log_mod_can_access_own_history():
+    """Mods can fetch the log (scoped to themselves via the
+    ``actor_id`` query param)."""
+    mod = _make_test_user(is_mod=True)
+    s = _login_user(mod)
+    try:
+        # Mod has done nothing yet — endpoint should still return 200.
+        r = s.get(f"{BASE}/api/admin/moderation-log",
+                  params={"actor_id": mod})
+        assert r.status_code == 200, r.text
+        body = r.json()
+        # Empty (or whatever they've done, but at least valid shape).
+        assert "entries" in body
+        assert "count" in body
+        for e in body["entries"]:
+            assert e["actor_id"] == mod
+    finally:
+        _cleanup_user(mod)
+
+
+def test_moderation_log_regular_user_blocked():
+    """Regular users can't read the moderation log."""
+    uid = _make_test_user()
+    s = _login_user(uid)
+    try:
+        r = s.get(f"{BASE}/api/admin/moderation-log")
+        assert r.status_code == 403, r.text
+    finally:
+        _cleanup_user(uid)

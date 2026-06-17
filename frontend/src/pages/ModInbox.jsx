@@ -4,9 +4,10 @@ import Navbar from "../components/Navbar";
 import { api } from "../lib/api";
 import { toast } from "sonner";
 import {
-  ArrowLeft, ShieldCheck, Inbox, Check, X as XIcon, Loader2,
+  ArrowLeft, ShieldCheck, Inbox, Check, X as XIcon, Loader2, History,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import ModerationLogCard from "../components/ModerationLogCard";
 
 // Helpful little formatter — copies the convention from AdminConsole so
 // signup timestamps read the same on both pages ("2 hours ago" / "yesterday").
@@ -190,6 +191,25 @@ export default function ModInbox() {
                 </li>
               ))}
             </ul>
+          )}
+        </section>
+
+        {/* My own moderation history — same data as the AdminConsole's
+            Moderation log card, but scoped to actions THIS mod took so
+            they can verify their own paper trail without scanning
+            everyone else's. */}
+        <section
+          className="mt-6 bg-white border border-[#E5DDC5] rounded-2xl p-5 shadow-sm"
+          data-testid="mod-history-card"
+        >
+          <header className="flex items-center gap-2 mb-4">
+            <History className="w-4 h-4 text-[#6B705C]" />
+            <h2 className="font-serif text-lg text-[#2C2C2C]">My moderation history</h2>
+          </header>
+          {user?.user_id ? (
+            <ModerationLogCard pageSize={20} actorId={user.user_id} />
+          ) : (
+            <p className="text-sm text-[#6B705C] italic">Loading user…</p>
           )}
         </section>
 

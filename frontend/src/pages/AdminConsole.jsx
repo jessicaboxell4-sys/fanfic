@@ -11,6 +11,7 @@ import {
   Inbox, Database, Siren, HardDrive, TrendingUp, Eye,
 } from "lucide-react";
 import MongoInspectorCard from "../components/MongoInspectorCard";
+import ModerationLogCard from "../components/ModerationLogCard";
 
 // ---------------------------------------------------------------------------
 // Page-level "Expand all / Collapse all" broadcast
@@ -54,6 +55,7 @@ const ADMIN_CARD_MANIFEST = [
   { testid: "admin-stats-card", title: "Global stats", subtitle: "Tenant-wide rollup.", keywords: "stats global rollup books users storage signups categories fandoms" },
   { testid: "admin-flags-card", title: "Feature flags", subtitle: "Runtime kill switches.", keywords: "feature flags toggles kill switch runtime config" },
   { testid: "admin-audit-card", title: "Audit log", subtitle: "Every admin write action.", keywords: "audit log history admin actions write changes" },
+  { testid: "admin-moderation-log-card", title: "Moderation log", subtitle: "All-time history of mod actions.", keywords: "moderation log mod history actions approvals rejections locks bookclub" },
   { testid: "admin-mongo-inspector-card", title: "Mongo inspector", subtitle: "Read-only browse of every collection.", keywords: "mongo db database collections docs raw browse inspect" },
   { testid: "admin-fulltext-card", title: "Full-text index", subtitle: "Backfill EPUB body text for search.", keywords: "fulltext full-text search epub index backfill body" },
 ];
@@ -3026,6 +3028,18 @@ export default function AdminConsole() {
               <GlobalStatsCard />
               <FeatureFlagsCard />
               <AuditLogCard />
+              {/* All-time append-only history of moderation actions.
+                  Distinct from the broader admin Audit Log above —
+                  scoped to the action slugs in the new
+                  /admin/moderation-log endpoint. */}
+              <Card
+                icon={ShieldCheck}
+                title="Moderation log"
+                subtitle="All-time, append-only history of every mod action: approvals, rejections, room locks, and mod promotions."
+                testid="admin-moderation-log-card"
+              >
+                <ModerationLogCard pageSize={25} />
+              </Card>
               <MongoInspectorCardWrap />
               <FulltextBackfillCard />
             </>

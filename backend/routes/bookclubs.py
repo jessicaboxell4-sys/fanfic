@@ -42,6 +42,7 @@ from pydantic import BaseModel, Field
 from deps import db, api_router, logger
 from models import User
 from auth_dep import get_current_user, require_moderator_or_admin
+from utils.admin_audit import record_admin_action
 from routes.notifications import create_notification
 
 
@@ -466,6 +467,12 @@ async def lock_bookclub(
             "updated_at": now,
         }},
     )
+    await record_admin_action(
+        user,
+        "bookclub.lock",
+        target=room_id,
+        metadata={"room_name": room.get("name") or ""},
+    )
     logger.info("bookclub %s locked by %s (%s)", room_id, user.user_id, "admin" if user.is_admin else "mod")
     return {"ok": True, "room_id": room_id, "is_locked": True}
 
@@ -488,6 +495,11 @@ async def unlock_bookclub(
             "$set": {"is_locked": False, "updated_at": now},
             "$unset": {"locked_by": "", "locked_by_name": "", "locked_at": ""},
         },
+    )
+    await record_admin_action(
+        user,
+        "bookclub.unlock",
+        target=room_id,
     )
     logger.info("bookclub %s unlocked by %s", room_id, user.user_id)
     return {"ok": True, "room_id": room_id, "is_locked": False}

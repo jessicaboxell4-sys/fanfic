@@ -927,6 +927,119 @@ async def get_audit_log(
 
 
 # ---------------------------------------------------------------------------
+# Moderation log (2026-06-17) — append-only history of every mod / approval
+# / room-lock action ever taken on the platform.  Backed by the same
+# ``admin_audit`` collection as the broader audit log, but scoped to the
+# actions a moderator (or admin) can perform, with pagination so the UI
+# can scroll the entire history rather than capping at 100.
+# ---------------------------------------------------------------------------
+
+# Action slugs that count as "moderation".  Kept as a single source of
+# truth so the frontend filter pills and the backend query stay in sync.
+# Order is intentional — most-likely-clicked filters first.
+MODERATION_ACTION_SLUGS = [
+    "user.approve",
+    "user.reject",
+    "bookclub.lock",
+    "bookclub.unlock",
+    "user.promote_mod",
+    "user.demote_mod",
+]
+
+
+@api_router.get("/admin/moderation-log")
+async def get_moderation_log(
+    limit: int = 50,
+    offset: int = 0,
+    actor_id: Optional[str] = None,
+    action: Optional[str] = None,
+    user: User = Depends(require_moderator_or_admin),
+):
+    """Paginated, all-time history of moderator actions.
+
+    Open to mods AND admins — mods need to see (at minimum) their own
+    history.  Server-side pagination: ``offset`` + ``limit`` so the UI
+    can scroll back to day-0 without us shipping megabytes per request.
+
+    Query params:
+        limit       1-200, default 50
+        offset      ≥ 0, default 0
+        actor_id    optional — show only actions by this user
+        action      optional — exact match against ``MODERATION_ACTION_SLUGS``
+
+    Returns:
+        {
+          "entries": [...],
+          "count":   total number of matching rows (for pagination UI),
+          "limit":   echoed back,
+          "offset":  echoed back,
+        }
+    """
+    limit = max(1, min(int(limit), 200))
+    offset = max(0, int(offset))
+    query: Dict[str, Any] = {"action": {"$in": MODERATION_ACTION_SLUGS}}
+    if actor_id:
+        query["actor_id"] = actor_id
+    if action:
+        if action not in MODERATION_ACTION_SLUGS:
+            raise HTTPException(status_code=400, detail=f"Unknown moderation action: {action}")
+        query["action"] = action  # narrow from the $in to a single value
+    total = await db.admin_audit.count_documents(query)
+    cursor = (
+        db.admin_audit.find(query, {"_id": 0})
+        .sort("ts", -1)
+        .skip(offset)
+        .limit(limit)
+    )
+    rows = await cursor.to_list(length=limit)
+    # Hydrate target identifiers so the UI doesn't render a wall of
+    # opaque uuids.  Two passes: collect user/room ids referenced by the
+    # rows, fetch their display names in one round-trip each.
+    user_targets = [r["target"] for r in rows
+                    if r.get("target") and r["action"].startswith("user.")]
+    room_targets = [r["target"] for r in rows
+                    if r.get("target") and r["action"].startswith("bookclub.")]
+    user_names: Dict[str, str] = {}
+    room_names: Dict[str, str] = {}
+    if user_targets:
+        ucur = db.users.find(
+            {"user_id": {"$in": user_targets}},
+            {"_id": 0, "user_id": 1, "name": 1, "email": 1},
+        )
+        async for u in ucur:
+            user_names[u["user_id"]] = u.get("name") or u.get("email") or u["user_id"]
+    if room_targets:
+        rcur = db.bookclubs.find(
+            {"room_id": {"$in": room_targets}},
+            {"_id": 0, "room_id": 1, "name": 1},
+        )
+        async for r in rcur:
+            room_names[r["room_id"]] = r.get("name") or r["room_id"]
+    for r in rows:
+        ts = r.get("ts")
+        if isinstance(ts, datetime):
+            r["ts"] = ts.isoformat()
+        tgt = r.get("target")
+        if tgt:
+            if r["action"].startswith("user.") and tgt in user_names:
+                r["target_display"] = user_names[tgt]
+            elif r["action"].startswith("bookclub.") and tgt in room_names:
+                r["target_display"] = room_names[tgt]
+            else:
+                # Fall back to the raw id — better than nothing for a
+                # since-deleted user / room.
+                r["target_display"] = tgt
+    return {
+        "entries": rows,
+        "count": total,
+        "limit": limit,
+        "offset": offset,
+    }
+
+
+
+
+# ---------------------------------------------------------------------------
 # Unknown fandoms — fandoms in `books` that aren't in the keyword classifier
 # ---------------------------------------------------------------------------
 

@@ -8,7 +8,12 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
-## 2026-06-17 — Moderators role ✅
+## 2026-06-17 — Moderators role ✅ + Moderation log
+
+Third permission tier between regular users and full admins, plus an
+append-only history surface so every mod action is auditable forever.
+
+### Moderators role
 
 Third permission tier between regular users and full admins.  Mods can
 approve/reject pending sign-ups and lock/unlock bookclub rooms, but
@@ -69,6 +74,52 @@ uploads, or run any destructive admin action.
 
 All 8 moderator tests + 4 dark-mode override tests + the full goals /
 digest / bookclub regression suite pass.
+
+### Moderation log
+
+**Backend** (`routes/admin.py`, `routes/bookclubs.py`):
+- `lock_bookclub` + `unlock_bookclub` now call `record_admin_action`
+  (action slugs `bookclub.lock` / `bookclub.unlock`), so every freeze
+  / thaw lands in the same `admin_audit` collection as user.approve
+  / user.promote / etc.
+- New `GET /admin/moderation-log` endpoint:
+    * Open to mods AND admins (uses `require_moderator_or_admin`).
+    * Query params: `limit` (1-200), `offset` (≥0), optional `actor_id`,
+      optional `action` (must be one of the `MODERATION_ACTION_SLUGS`).
+    * Append-only — entries live forever in `admin_audit`.  Pagination
+      is server-side so the UI can scroll back to day-0 without us
+      shipping megabytes per request.
+    * Targets are hydrated (`target_display`) so the UI shows real names
+      instead of opaque uuids; gracefully falls back to the raw id for
+      since-deleted users / rooms.
+    * Returns `{entries, count, limit, offset}` — `count` is the total
+      across all pages so the pager can render "Page X of Y".
+
+**Frontend** (`components/ModerationLogCard.jsx`, `AdminConsole.jsx`,
+`ModInbox.jsx`):
+- New `ModerationLogCard` component — accepts `pageSize`, `actorId`
+  (scope to one mod), and `showFilter` props.  Filter pills for each
+  action slug, Prev/Next pagination, action-tinted badges, and target
+  hydration with reject-reason in-line for `user.reject` rows.
+- AdminConsole gains a new "Moderation log" card surfacing the full
+  platform history (all mods, all actions).
+- Mod Inbox (`/admin/pending`) gains a "My moderation history" section
+  scoped to the logged-in mod's own actions via `actorId={user.user_id}`,
+  so they can verify their own paper trail without scanning everyone
+  else's.
+
+**Tests** (`tests/test_moderators.py` — 4 added):
+- `test_moderation_log_records_every_action` — promote, approve, lock
+  all land in the log with hydrated target_display.
+- `test_moderation_log_pagination` — `limit`/`offset` slice correctly,
+  total count stable across pages, newest-first ordering.
+- `test_moderation_log_mod_can_access_own_history` — mods can read the
+  log (scoped to themselves).
+- `test_moderation_log_regular_user_blocked` — non-mod, non-admin gets
+  403.
+
+Total: **12 moderator tests passing**, all-time log retention confirmed
+(no pruning logic — entries live as long as the collection does).
 
 ---
 
