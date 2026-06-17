@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
-import { ArrowLeft, Loader2, ExternalLink, RefreshCw, AlertTriangle, FileText, BookmarkPlus, Bookmark } from "lucide-react";
+import { ArrowLeft, Loader2, ExternalLink, RefreshCw, AlertTriangle, FileText, BookmarkPlus, Bookmark, Keyboard, X } from "lucide-react";
 import mammoth from "mammoth/mammoth.browser";
 import Navbar from "../components/Navbar";
 import { api } from "../lib/api";
@@ -43,6 +43,9 @@ export default function ReadOriginal() {
   // scroll-based viewers (TXT / DOCX / HTML).
   const [bookmarks, setBookmarks] = useState([]);
   const [showBookmarkPanel, setShowBookmarkPanel] = useState(false);
+  // Cheatsheet overlay — togglable via `?` shortcut and the keyboard
+  // icon in the header strip.  Pure CSS modal so no extra dep.
+  const [showCheatsheet, setShowCheatsheet] = useState(false);
   // Ref to the scrollable inner viewer so we can read / set scrollTop
   // without polluting window-scroll (the page itself can still scroll).
   const scrollRef = useRef(null);
@@ -221,6 +224,29 @@ export default function ReadOriginal() {
     return () => window.removeEventListener("keydown", onKey);
   }, [book, ext, isScrollViewer]);
 
+  // `?` opens the keyboard-shortcuts cheatsheet, Escape closes it (or any
+  // other open panel).  We deliberately key off `e.key === "?"` rather
+  // than `Shift + /` so layouts where `?` is reachable without Shift
+  // (Dvorak, French AZERTY) still work.
+  useEffect(() => {
+    if (!book || !ext) return;
+    const onKey = (e) => {
+      const tag = (document.activeElement?.tagName || "").toLowerCase();
+      if (tag === "input" || tag === "textarea") return;
+      if (e.key === "?") {
+        e.preventDefault();
+        setShowCheatsheet((v) => !v);
+        return;
+      }
+      if (e.key === "Escape" && showCheatsheet) {
+        e.preventDefault();
+        setShowCheatsheet(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [book, ext, showCheatsheet]);
+
   // Plaintext loader — kept tiny on purpose, just stream the bytes and
   // hand them to <pre>.
   useEffect(() => {
@@ -343,6 +369,17 @@ export default function ReadOriginal() {
           >
             <ExternalLink className="w-3.5 h-3.5" /> Open in new tab
           </a>
+          {/* Keyboard cheatsheet trigger — also opens via `?` keypress. */}
+          <button
+            onClick={() => setShowCheatsheet(true)}
+            data-testid="readoriginal-cheatsheet-open"
+            title="Keyboard shortcuts (?)"
+            aria-label="Show keyboard shortcuts"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-[#E5DDC5] text-[#6B705C] hover:border-[var(--primary)] hover:text-[var(--primary)]"
+          >
+            <Keyboard className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Shortcuts</span>
+          </button>
           {(isPdf || isScrollViewer) && (
             <>
               <button
@@ -539,10 +576,90 @@ export default function ReadOriginal() {
             )}
           </aside>
         )}
+
+        {/* Keyboard cheatsheet modal — toggled by `?` shortcut or the
+            header button.  Escape (handled by the global keydown effect)
+            and the close button both dismiss it.  Click on the backdrop
+            also closes; the inner card swallows clicks so they don't
+            bubble.  Rows are scoped to the current viewer kind so we
+            don't promise J/K paging in a PDF or DOCX-Convert state. */}
+        {showCheatsheet && (
+          <div
+            onClick={() => setShowCheatsheet(false)}
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
+            data-testid="readoriginal-cheatsheet"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl border border-[#E5DDC5] shadow-xl max-w-md w-full p-6"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="cheatsheet-title"
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Keyboard className="w-5 h-5 text-[#6B46C1]" />
+                  <h3 id="cheatsheet-title" className="font-serif text-xl text-[#2C2C2C]">
+                    Keyboard shortcuts
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowCheatsheet(false)}
+                  data-testid="readoriginal-cheatsheet-close"
+                  aria-label="Close shortcuts"
+                  className="text-[#6B705C] hover:text-[#2C2C2C]"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <ul className="space-y-2.5 text-sm">
+                {isScrollViewer && (
+                  <>
+                    <Shortcut keys={["J"]} label="Next page (scroll forward)" />
+                    <Shortcut keys={["K"]} label="Previous page (scroll back)" />
+                  </>
+                )}
+                {(isPdf || isScrollViewer) && (
+                  <Shortcut keys={["Cmd / Ctrl", "B"]} label={
+                    isPdf ? "Bookmark a page" : "Bookmark this scroll position"
+                  } />
+                )}
+                <Shortcut keys={["?"]} label="Toggle this cheatsheet" />
+                <Shortcut keys={["Esc"]} label="Close the cheatsheet" />
+              </ul>
+              {!isScrollViewer && !isPdf && (
+                <p className="mt-4 text-xs text-[#6B705C] italic">
+                  This file format doesn&apos;t support paging or bookmarks —
+                  the viewer hands rendering off to your browser or to Calibre.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
 }
+
+// Tiny row helper for the cheatsheet — renders a label and one or more
+// keycap pills.  Kept inline (rather than its own file) because nothing
+// else in the app currently needs a keycap component.
+const Shortcut = ({ keys, label }) => (
+  <li className="flex items-center justify-between gap-3">
+    <span className="text-[#2C2C2C]">{label}</span>
+    <span className="flex items-center gap-1 flex-shrink-0">
+      {keys.map((k, i) => (
+        <React.Fragment key={k}>
+          {i > 0 && <span className="text-[#9B9B8C] text-xs">+</span>}
+          <kbd className="inline-flex items-center justify-center min-w-[1.75rem] h-7 px-2 rounded-md bg-[#F5F3EC] border border-[#E5DDC5] text-[#2C2C2C] font-mono text-xs font-semibold shadow-[0_1px_0_#D5D2CC]">
+            {k}
+          </kbd>
+        </React.Fragment>
+      ))}
+    </span>
+  </li>
+);
 
 const LoadingBlock = ({ label }) => (
   <div className="py-20 text-center text-[#6B705C]">

@@ -13,7 +13,9 @@
 ## P3 — nice-to-have
 - Keyboard shortcuts (J/K next/prev) for ReadOriginal viewer ✅ (shipped 2026-06-17)
 - Engagement-gate hint UI in bookclub digest settings ✅ (shipped 2026-06-17)
-- SSE-based goal-hit confetti (replace 30s polling)
+- `?` keyboard-cheatsheet overlay for ReadOriginal viewer ✅ (shipped 2026-06-17)
+- SSE-based goal-hit confetti (replace 30s polling) ✅ (shipped 2026-06-17)
+- Landing page dynamic stats ✅ (shipped 2026-06-17)
 - Phase 6 refactor of `books.py` (~5300 lines)
 - EPUB metadata in-place editing ✅ (shipped 2026-06-16)
 - "Polish my library" bulk metadata cleanup ✅ (shipped 2026-06-16)

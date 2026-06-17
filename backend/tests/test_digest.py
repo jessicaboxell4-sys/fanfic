@@ -16,7 +16,7 @@ import requests
 from datetime import datetime, timezone, timedelta
 from pymongo import MongoClient
 
-BASE = os.environ.get("REACT_APP_BACKEND_URL").rstrip("/")
+BASE = os.environ.get("REACT_APP_BACKEND_URL", "https://genre-sort.preview.emergentagent.com").rstrip("/")
 MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
 DB_NAME = os.environ.get("DB_NAME", "test_database")
 
@@ -323,21 +323,26 @@ class TestRegression:
         assert r.json()["email"] == seeded_user["email"]
 
     def test_auth_register_login_logout(self):
+        # New-user approval gate (added 2026-06-15) — every signup after the
+        # very first one lands in `"pending"` and does NOT get a session
+        # cookie until an admin approves them.  This regression check now
+        # asserts the gate is in place and the response shape matches what
+        # the frontend's "pending approval" screen reads.
         email = f"test_reg_{uuid.uuid4().hex[:8]}@example.com"
         pwd = "hunter2pw"
         s = requests.Session()
         r = s.post(f"{BASE}/api/auth/register",
                    json={"email": email, "password": pwd, "name": "Reg"})
         assert r.status_code in (200, 201), r.text
-        assert s.cookies.get("session_token")
-        me = s.get(f"{BASE}/api/auth/me")
-        assert me.status_code == 200
-        lo = s.post(f"{BASE}/api/auth/logout")
-        assert lo.status_code == 200
-        # Login
-        s2 = requests.Session()
-        li = s2.post(f"{BASE}/api/auth/login", json={"email": email, "password": pwd})
-        assert li.status_code == 200, li.text
+        body = r.json()
+        assert body.get("pending") is True, body
+        assert body.get("email") == email
+        assert s.cookies.get("session_token") is None
+        # Login should be blocked while pending — backend returns 403 with
+        # an approval-status detail so the frontend can route to the right
+        # screen instead of a generic "wrong password" toast.
+        li = s.post(f"{BASE}/api/auth/login", json={"email": email, "password": pwd})
+        assert li.status_code in (401, 403), li.text
         # Cleanup
         db.users.delete_many({"email": email})
 

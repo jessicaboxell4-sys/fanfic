@@ -351,6 +351,10 @@ function InsideCard({ icon, accent, tint, title, body }) {
 function FandomTicker({ className = "" }) {
   const [idx, setIdx] = useState(0);
   const [paused, setPaused] = useState(false);
+  // Live counters — fetched once from the public /landing/stats endpoint.
+  // Falls back to the curated "150+ fandoms" copy until the request lands
+  // (or forever if the request fails) so the marquee never renders empty.
+  const [stats, setStats] = useState(null);
 
   useEffect(() => {
     if (paused) return undefined;
@@ -360,6 +364,37 @@ function FandomTicker({ className = "" }) {
     return () => clearInterval(id);
   }, [paused]);
 
+  // One-shot fetch.  Use the bare backend URL (no axios auth header)
+  // because the endpoint is unauthenticated.  Silently swallow failures.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `${process.env.REACT_APP_BACKEND_URL}/api/landing/stats`,
+          { credentials: "omit" },
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setStats(data);
+      } catch {
+        /* keep the static fallback copy */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Format with thousands separators for the books number — keeps the
+  // pill aesthetic intact even when the library hits five+ digits.
+  const books = stats?.books_sorted;
+  const fandoms = stats?.fandoms_recognized;
+  const fandomLabel = (typeof fandoms === "number" && fandoms > 0)
+    ? `${fandoms}+ fandoms`
+    : "150+ fandoms";
+  const booksLabel = (typeof books === "number" && books > 0)
+    ? `${books.toLocaleString()} books sorted`
+    : null;
+
   return (
     <div
       className={`inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#EDE7FB]/60 border border-[#6B46C1]/15 text-sm text-[#4C2A99] ${className}`}
@@ -368,7 +403,20 @@ function FandomTicker({ className = "" }) {
       data-testid="fandom-ticker"
     >
       <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#6B46C1] animate-pulse" />
-      <span className="font-semibold">150+ fandoms</span>
+      <span className="font-semibold" data-testid="fandom-ticker-fandoms">
+        {fandomLabel}
+      </span>
+      {booksLabel && (
+        <>
+          <span aria-hidden className="opacity-50">·</span>
+          <span
+            className="text-[#4C2A99]/80"
+            data-testid="fandom-ticker-books"
+          >
+            {booksLabel}
+          </span>
+        </>
+      )}
       <span aria-hidden className="opacity-50">·</span>
       <span
         key={idx}

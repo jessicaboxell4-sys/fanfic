@@ -8,6 +8,57 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-17 — Reader cheatsheet, dynamic landing stats, SSE goal-hit stream + 2 regression fixes ✅
+
+Polish sprint that knocked out 4 P2/P3 items + 2 P0 test regressions.
+
+**Backend** (`routes/goals.py`, `routes/stats.py`, `utils/goal_events.py`):
+- New `utils/goal_events.py` — in-memory async pub/sub keyed by user_id.
+  Bounded queue per subscriber (max 16) so a stuck client can't OOM the
+  worker. Fan-out via `publish_goal_hit(user_id, goal)`.
+- `_maybe_mark_hit` in `routes/goals.py` now calls `publish_goal_hit`
+  after stamping `hit_at` — every connected tab gets the celebration
+  instantly without any polling.
+- New `GET /api/goals/stream` SSE endpoint. 25s keepalive heartbeat,
+  cleans up on disconnect, emits `event: goal-hit` frames with the
+  goal payload as JSON.
+- New `GET /api/landing/stats` (public, unauth) — returns
+  `{books_sorted, fandoms_recognized, as_of}`. 5-minute in-memory cache
+  so a viral landing-page moment can't hammer the books collection.
+
+**Frontend** (`components/GlobalConfettiHost.jsx`, `pages/Landing.jsx`,
+`pages/ReadOriginal.jsx`):
+- `GlobalConfettiHost` replaces 90s polling with an `EventSource`
+  connection. Still pulses `/goals` once on mount for cross-device
+  catch-up + de-dupes against `shelfsort_goals_celebrated` localStorage
+  so the same goal doesn't celebrate twice.
+- Landing page `FandomTicker` fetches `/landing/stats` and renders the
+  real numbers — "64+ fandoms · 6,607 books sorted · Harry Potter".
+  Falls back to the static "150+ fandoms" copy if the fetch fails.
+- ReadOriginal viewer gains a `?` keyboard cheatsheet overlay
+  (also openable via a `<Keyboard>` icon button in the header).
+  Lists J/K paging, Cmd/Ctrl+B bookmark, `?` toggle, Esc close. Modal
+  with backdrop dismiss + Escape handling.
+
+**Regression fixes**:
+- `tests/test_dark_mode_overrides.py` — added missing overrides for
+  `bg-[#FBE7DF]` (Landing inline-card peach tint) and `text-[#4C2A99]`
+  (deep brand purple used by the fandom-ticker pill and PolishLibrary
+  banner) in `frontend/src/index.css`.
+- `tests/test_digest.py::TestRegression::test_auth_register_login_logout`
+  — modernized to assert the post-approval-gate behavior:
+  `register` returns `{"pending": true}` with no session cookie,
+  `login` is blocked while pending.  Also added a `REACT_APP_BACKEND_URL`
+  fallback so the test no longer crashes at collection time.
+
+**New tests** (`tests/test_goal_events_and_landing.py`):
+- Pub/sub: no-subscriber publish is silent, single receive, fan-out
+  to multiple subs for the same user, isolation between users.
+- HTTP: SSE endpoint 401s unauth, landing stats return correct shape +
+  identical `as_of` on cache hit.
+
+---
+
 ## 2026-06-17 — Reader J/K shortcuts + bookclub engagement-gate hint ✅
 
 Two quick-win P3 polish items knocked out:

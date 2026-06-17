@@ -19,17 +19,21 @@ its period iff ``progress_fraction >= 0.99`` AND ``last_opened_at`` falls inside
 the period.  This mirrors the heuristic already used by ``stats.py`` and
 ``year.py``, so a single source of truth.
 """
+import asyncio
+import json
 import uuid
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any, Literal
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 
 from deps import db, api_router, logger
 from models import User
-from auth_dep import get_current_user
+from auth_dep import get_current_user, _resolve_session_user
 from routes.notifications import create_notification
+from utils.goal_events import publish_goal_hit, subscribe as subscribe_goal_events
 
 
 # Words per page — the canonical typesetting estimate used by Kindle and most
@@ -194,6 +198,18 @@ async def _maybe_mark_hit(goal_doc: Dict[str, Any], current: int) -> Optional[Di
         body=f"{target:,} {unit} — congrats! Confetti is waiting on the goals page.",
         link="/goals",
     )
+    # Fan the hit out to every open SSE connection for this user so any
+    # tabs currently mounted on the app get instant confetti without
+    # waiting for the next /goals poll.  Best-effort — see goal_events.py.
+    await publish_goal_hit(goal_doc["user_id"], {
+        "goal_id": goal_doc["goal_id"],
+        "metric": metric,
+        "period_label": label,
+        "period_type": goal_doc.get("period_type"),
+        "period_value": goal_doc.get("period_value"),
+        "target": target,
+        "hit_at": now_iso,
+    })
     return {"hit_at": now_iso}
 
 
@@ -296,3 +312,84 @@ async def mark_goal_celebrated(goal_id: str, user: User = Depends(get_current_us
     )
     doc["hit_celebrated_at"] = now
     return await _serialize_goal(doc)
+
+
+# ---------------------------------------------------------------------
+# SSE: live goal-hit stream
+# ---------------------------------------------------------------------
+# Why SSE and not WebSockets?
+#   Goal-hit events are server → client only, very low volume, and we
+#   want the connection to survive flaky networks and tunnels (Cloudflare
+#   tolerates SSE happily; WS through ingress is fussier).  EventSource
+#   also auto-reconnects with `Last-Event-ID` support so we don't need
+#   client-side reconnect logic.
+#
+# Why ``_resolve_session_user`` and not ``get_current_user``?
+#   ``get_current_user`` rejects pending/rejected users, but the SSE
+#   endpoint should also reject them — same effect, but going through
+#   the unwrapped resolver lets us return a 401 *before* opening the
+#   stream so the EventSource doesn't sit there retrying forever.
+
+@api_router.get("/goals/stream")
+async def stream_goal_hits(request: Request):
+    """Server-Sent Events stream that fires whenever the authenticated
+    user's reading goals flip to "hit".  Replaces 90-second polling in
+    ``GlobalConfettiHost``.
+
+    Frame format::
+
+        : keepalive\\n\\n            (every 25s — comment line, ignored by EventSource)
+        event: goal-hit\\n
+        data: {json}\\n\\n           (when a goal is hit)
+    """
+    user = await _resolve_session_user(request)
+    user_id = user.user_id
+
+    async def event_generator():
+        # Yield an initial comment so the browser knows the connection is
+        # open immediately (some proxies buffer until the first byte).
+        yield ": connected\n\n"
+        sub = subscribe_goal_events(user_id)
+        try:
+            while True:
+                # Race the next event against a 25s heartbeat so an idle
+                # tunnel doesn't get reaped by Cloudflare (it kills
+                # connections after ~100s of silence).
+                next_evt = asyncio.create_task(sub.__anext__())
+                sleeper = asyncio.create_task(asyncio.sleep(25))
+                try:
+                    done, pending = await asyncio.wait(
+                        {next_evt, sleeper},
+                        return_when=asyncio.FIRST_COMPLETED,
+                    )
+                    for p in pending:
+                        p.cancel()
+                    if next_evt in done:
+                        payload = next_evt.result()
+                        yield f"event: goal-hit\ndata: {json.dumps(payload)}\n\n"
+                    else:
+                        # heartbeat
+                        yield ": keepalive\n\n"
+                except asyncio.CancelledError:
+                    raise
+                except Exception:  # noqa: BLE001 — defensive, never crash the stream
+                    logger.exception("goal-hit SSE iteration failed")
+                    break
+                # Stop cleanly when the HTTP request goes away.
+                if await request.is_disconnected():
+                    break
+        finally:
+            try:
+                await sub.aclose()  # type: ignore[attr-defined]
+            except Exception:
+                pass
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "X-Accel-Buffering": "no",  # disable any proxy buffering
+            "Connection": "keep-alive",
+        },
+    )

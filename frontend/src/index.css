@@ -412,8 +412,16 @@
 /* "Friend rec" callout, and the BookClub-room highlighted-message bg.   */
 /* Already-overridden `text-[#B43F26]` paired with it becomes invisible  */
 /* on cream-on-dark, so map both onto the dark coral accent family.      */
-:root[data-theme="dark"] .bg-\[\#FBE9E5\] { background-color: rgba(217, 83, 79, 0.18); }
+:root[data-theme="dark"] .bg-\[\#FBE9E5\],
+:root[data-theme="dark"] .bg-\[\#FBE7DF\] { background-color: rgba(217, 83, 79, 0.18); }
 :root[data-theme="dark"] .text-\[\#B43F26\] { color: #FF9A85; }
+
+/* Deep brand purple text `#4C2A99` — used by the Landing-page "150+    */
+/* fandoms" pill and the PolishLibraryPage banner copy. Same family as  */
+/* the regular `text-[#6B46C1]` link, just one shade darker — lift it   */
+/* to the same dark-mode lavender so it stays legible on the tinted    */
+/* purple surfaces.                                                     */
+:root[data-theme="dark"] .text-\[\#4C2A99\] { color: #DDD6FE; }
 
 /* Light cream border `#EFEAE0` — disabled-row outline in the mute     */
 /* matrix. Converge on `--border` so the row outline blends with the   */

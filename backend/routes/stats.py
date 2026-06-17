@@ -33,6 +33,53 @@ from models import User, BookOut
 from auth_dep import get_current_user
 
 
+# Cache the public landing-stats result for a few minutes so a viral
+# moment can't hammer the books collection.  Tuple of (cached_at, payload).
+_LANDING_STATS_CACHE: Optional[Dict[str, Any]] = None
+_LANDING_STATS_CACHE_AT: Optional[datetime] = None
+_LANDING_STATS_TTL_SECONDS = 300  # 5 minutes
+
+
+@api_router.get("/landing/stats")
+async def landing_public_stats():
+    """Public, unauthenticated counts for the marketing landing page.
+
+    Returns:
+        {
+          "books_sorted":         int,  # total books ever processed
+          "fandoms_recognized":   int,  # distinct non-empty fandom values
+          "as_of":                str,  # ISO timestamp when last computed
+        }
+
+    Cached for ``_LANDING_STATS_TTL_SECONDS`` seconds so the public
+    Landing page can be pre-warmed under load without one query per
+    visitor.  No PII leaves the DB — both numbers are scalar aggregates.
+    """
+    global _LANDING_STATS_CACHE, _LANDING_STATS_CACHE_AT
+    now = datetime.now(timezone.utc)
+    if (
+        _LANDING_STATS_CACHE is not None
+        and _LANDING_STATS_CACHE_AT is not None
+        and (now - _LANDING_STATS_CACHE_AT).total_seconds() < _LANDING_STATS_TTL_SECONDS
+    ):
+        return _LANDING_STATS_CACHE
+    books_sorted = await db.books.count_documents({})
+    # Distinct non-empty fandoms.  ``distinct`` skips null but we still
+    # filter the empty string just in case.
+    fandoms_raw = await db.books.distinct("fandom", {"fandom": {"$nin": [None, ""]}})
+    fandoms_recognized = len([f for f in fandoms_raw if f and str(f).strip()])
+    payload = {
+        "books_sorted": int(books_sorted),
+        "fandoms_recognized": int(fandoms_recognized),
+        "as_of": now.isoformat(),
+    }
+    _LANDING_STATS_CACHE = payload
+    _LANDING_STATS_CACHE_AT = now
+    return payload
+
+
+
+
 @api_router.get("/stats/overview")
 async def stats_overview(user: User = Depends(get_current_user)):
     """Aggregate reading stats for the dashboard / stats card."""
