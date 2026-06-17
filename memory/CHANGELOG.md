@@ -99,6 +99,47 @@ Same flow, applied to the whole library in batches.
   "Looking to fix missing cover art? → Polish my covers" link in its
   header.
 
+### Cover variants gallery
+
+Don't throw away an old cover when the user generates a new one — keep
+up to 5 per book so they can switch back without re-paying for
+generation.
+
+**Backend** (`routes/books.py`):
+- `apply-cover` now stores the bytes under `{book_id}.cover-v-{nonce}`
+  alongside the existing `{book_id}.cover` (which still acts as the
+  served file).  Book doc grows a `cover_variants: [...]` array.  Cap
+  at 5 variants per book — when full, the oldest inactive variant is
+  FIFO-dropped from both disk and the array.
+- `GET /api/books/{id}/cover-variants` — returns every variant inline
+  as base64 PNG plus the `active_variant_id`.  Inline base64 means the
+  modal can render the thumbnail strip with zero extra round-trips.
+- `POST /api/books/{id}/cover-variants/{variant_id}/activate` —
+  rewrites `{book_id}.cover` to point at the chosen variant.
+- `DELETE /api/books/{id}/cover-variants/{variant_id}` — refuses to
+  delete the currently active variant (would leave `has_cover: true`
+  with no file).
+
+**Frontend** (`components/RegenerateCoverButton.jsx`):
+- "Previous covers (N)" drawer at the bottom of the existing modal.
+  Renders only once we know there are variants (no flash of empty UI).
+- Click any thumbnail to switch the active cover — purple ring marks
+  active.  Click the X on an inactive thumbnail to delete it.
+- After "Use this cover", the variants drawer refreshes in-place so
+  the newly-applied cover appears immediately without closing the
+  modal.
+
+**Tests** (`tests/test_cover_regen.py`):
+- `test_cover_variants_listed_activated_and_deleted` — applies two
+  covers in a row, verifies the list has both with the second active,
+  activates the first, verifies deleting the active one 400s and
+  deleting the inactive one 200s.  Uses 2 real nano-banana calls.
+
+Full suite: **4/4 cover tests pass**, ~42 s including 4 live nano-
+banana generations.  Storage cost: ~1 MB × 5 variants × N books = ~30
+MB per heavy user.  FIFO cap prevents runaway growth from
+"Try-again-50-times" users.
+
 ---
 
 

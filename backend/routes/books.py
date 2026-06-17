@@ -5333,27 +5333,196 @@ async def apply_book_cover(
     body: CoverApplyBody,
     user: User = Depends(get_current_user),
 ):
-    """Persist the previewed cover bytes to disk + DB.  Doesn't touch
-    the EPUB file itself — covers are served from `{book_id}.cover`
-    alongside the EPUB so the original file stays bit-for-bit clean."""
+    """Persist the previewed cover bytes to disk + DB.  Stores up to
+    ``_COVER_VARIANT_CAP`` historic variants per book so the user can
+    switch back without re-paying for generation.
+
+    Layout on disk:
+        {user_dir}/{book_id}.cover             ← active cover (served)
+        {user_dir}/{book_id}.cover-v-{nonce}   ← inactive variants
+
+    Original EPUB is never touched.
+    """
     entry = _COVER_PREVIEW_CACHE.get(body.preview_id)
     if not entry or entry["book_id"] != book_id or entry["user_id"] != user.user_id:
         raise HTTPException(status_code=404, detail="Preview expired or unknown")
     user_dir = STORAGE_DIR / user.user_id
     user_dir.mkdir(parents=True, exist_ok=True)
-    cover_path = user_dir / f"{book_id}.cover"
-    cover_path.write_bytes(entry["png_bytes"])
+
+    # 1. Fetch the current variant list so we can append and FIFO-trim.
+    book_doc = await db.books.find_one(
+        {"book_id": book_id, "user_id": user.user_id},
+        {"_id": 0, "cover_variants": 1, "has_cover": 1},
+    )
+    if book_doc is None:
+        raise HTTPException(status_code=404, detail="Book not found")
+    variants = list(book_doc.get("cover_variants") or [])
+
+    # 2. Mint a nonce for the new variant file.  Keeping a stable
+    # filename on disk so the variant can be switched-to without
+    # re-encoding.
+    variant_id = uuid.uuid4().hex[:12]
+    variant_filename = f"{book_id}.cover-v-{variant_id}"
+    (user_dir / variant_filename).write_bytes(entry["png_bytes"])
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    # 3. Mark every existing variant as inactive, append the new one,
+    # FIFO-drop the oldest if we'd exceed the cap.
+    for v in variants:
+        v["active"] = False
+    variants.append({
+        "variant_id": variant_id,
+        "file": variant_filename,
+        "generated_at": now_iso,
+        "active": True,
+        "prompt": entry.get("prompt", "")[:500],  # truncate for storage
+    })
+    if len(variants) > _COVER_VARIANT_CAP:
+        # FIFO-drop the oldest INACTIVE variant — the active one we just
+        # added is at the end so trimming from the front is safe.
+        dropped = variants[: len(variants) - _COVER_VARIANT_CAP]
+        variants = variants[len(variants) - _COVER_VARIANT_CAP:]
+        for d in dropped:
+            try:
+                (user_dir / d["file"]).unlink(missing_ok=True)
+            except Exception:
+                logger.exception("failed to unlink dropped cover variant %s", d.get("file"))
+
+    # 4. Refresh the active "served" file to point at the new variant
+    # bytes (we just write them again — cheap, ~1 MB, avoids symlink
+    # quirks on some filesystems).
+    (user_dir / f"{book_id}.cover").write_bytes(entry["png_bytes"])
+
+    # 5. Persist.
     await db.books.update_one(
         {"book_id": book_id, "user_id": user.user_id},
         {"$set": {
             "has_cover": True,
             "cover_source": "ai_generated",
-            "cover_generated_at": datetime.now(timezone.utc).isoformat(),
+            "cover_generated_at": now_iso,
+            "cover_active_variant": variant_id,
+            "cover_variants": variants,
         }},
     )
-    # One-shot — drop the preview so a second apply can't re-write.
     _COVER_PREVIEW_CACHE.pop(body.preview_id, None)
-    return {"ok": True, "book_id": book_id, "has_cover": True}
+    return {
+        "ok": True,
+        "book_id": book_id,
+        "has_cover": True,
+        "active_variant": variant_id,
+        "variant_count": len(variants),
+    }
+
+
+# Per-book cap on stored cover variants.  Each variant is ~1 MB so 5
+# variants × 6,600 books × 100 % saturation would be ~33 GB — but
+# realistic usage is more like 10-20 books × 2-3 variants = ~50 MB.
+# The cap is here so a user clicking "Try again" 50 times can't
+# fill the disk.
+_COVER_VARIANT_CAP = 5
+
+
+@api_router.get("/books/{book_id}/cover-variants")
+async def list_cover_variants(
+    book_id: str,
+    user: User = Depends(get_current_user),
+):
+    """Return every stored variant for this book + the active one's id.
+    The thumbnails are base64'd inline because the page only needs them
+    when the user explicitly opens the variants drawer — no need for a
+    separate `/cover-variants/{id}.png` endpoint just for previews."""
+    doc = await db.books.find_one(
+        {"book_id": book_id, "user_id": user.user_id},
+        {"_id": 0, "cover_variants": 1, "cover_active_variant": 1},
+    )
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Book not found")
+    variants = list(doc.get("cover_variants") or [])
+    active_id = doc.get("cover_active_variant")
+    user_dir = STORAGE_DIR / user.user_id
+    out: List[Dict[str, Any]] = []
+    for v in variants:
+        path = user_dir / v["file"]
+        if not path.exists():
+            continue  # variant file was deleted on disk — skip silently
+        out.append({
+            "variant_id":   v["variant_id"],
+            "generated_at": v["generated_at"],
+            "active":       v["variant_id"] == active_id,
+            "image_base64": base64.b64encode(path.read_bytes()).decode("ascii"),
+            "mime_type":    "image/png",
+        })
+    return {"variants": out, "active_variant_id": active_id}
+
+
+@api_router.post("/books/{book_id}/cover-variants/{variant_id}/activate")
+async def activate_cover_variant(
+    book_id: str,
+    variant_id: str,
+    user: User = Depends(get_current_user),
+):
+    """Switch the active cover to a previously generated variant."""
+    doc = await db.books.find_one(
+        {"book_id": book_id, "user_id": user.user_id},
+        {"_id": 0, "cover_variants": 1},
+    )
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Book not found")
+    variants = list(doc.get("cover_variants") or [])
+    target = next((v for v in variants if v["variant_id"] == variant_id), None)
+    if not target:
+        raise HTTPException(status_code=404, detail="Variant not found")
+    user_dir = STORAGE_DIR / user.user_id
+    src = user_dir / target["file"]
+    if not src.exists():
+        raise HTTPException(status_code=410, detail="Variant file missing on disk")
+    (user_dir / f"{book_id}.cover").write_bytes(src.read_bytes())
+    for v in variants:
+        v["active"] = (v["variant_id"] == variant_id)
+    await db.books.update_one(
+        {"book_id": book_id, "user_id": user.user_id},
+        {"$set": {
+            "cover_active_variant": variant_id,
+            "cover_variants": variants,
+            "cover_generated_at": target["generated_at"],
+        }},
+    )
+    return {"ok": True, "active_variant": variant_id}
+
+
+@api_router.delete("/books/{book_id}/cover-variants/{variant_id}")
+async def delete_cover_variant(
+    book_id: str,
+    variant_id: str,
+    user: User = Depends(get_current_user),
+):
+    """Drop a stored variant.  Refuses to delete the currently active
+    variant (the user must activate a different one first) so the book
+    never ends up with `has_cover: True` and no file on disk."""
+    doc = await db.books.find_one(
+        {"book_id": book_id, "user_id": user.user_id},
+        {"_id": 0, "cover_variants": 1, "cover_active_variant": 1},
+    )
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Book not found")
+    if doc.get("cover_active_variant") == variant_id:
+        raise HTTPException(status_code=400, detail="Activate another variant first")
+    variants = list(doc.get("cover_variants") or [])
+    target = next((v for v in variants if v["variant_id"] == variant_id), None)
+    if not target:
+        raise HTTPException(status_code=404, detail="Variant not found")
+    user_dir = STORAGE_DIR / user.user_id
+    try:
+        (user_dir / target["file"]).unlink(missing_ok=True)
+    except Exception:
+        logger.exception("failed to delete cover variant %s", target.get("file"))
+    new_variants = [v for v in variants if v["variant_id"] != variant_id]
+    await db.books.update_one(
+        {"book_id": book_id, "user_id": user.user_id},
+        {"$set": {"cover_variants": new_variants}},
+    )
+    return {"ok": True, "remaining": len(new_variants)}
 
 
 

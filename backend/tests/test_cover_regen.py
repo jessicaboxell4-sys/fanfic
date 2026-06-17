@@ -161,3 +161,59 @@ def test_apply_cover_persists_and_flips_has_cover():
         assert r3.status_code == 404
     finally:
         _cleanup(uid, book_id)
+
+
+def test_cover_variants_listed_activated_and_deleted():
+    """Apply two covers in a row → both stored as variants, second is
+    active.  Switching back makes the first active.  Deleting active
+    variant is refused; deleting inactive succeeds."""
+    import requests
+
+    uid, email, pw, book_id = _seed_user_and_book()
+    s = requests.Session()
+    s.post(f"{BASE}/api/auth/login", json={"email": email, "password": pw})
+    try:
+        # First gen + apply.
+        r = s.post(f"{BASE}/api/books/{book_id}/preview-cover", json={})
+        if r.status_code != 200:
+            pytest.skip(f"preview-cover smoke skipped: {r.status_code}")
+        pid_a = r.json()["preview_id"]
+        assert s.post(
+            f"{BASE}/api/books/{book_id}/apply-cover",
+            json={"preview_id": pid_a},
+        ).status_code == 200
+        # Second gen + apply.
+        r = s.post(f"{BASE}/api/books/{book_id}/preview-cover",
+                   json={"nudge": "more moody"})
+        pid_b = r.json()["preview_id"]
+        assert s.post(
+            f"{BASE}/api/books/{book_id}/apply-cover",
+            json={"preview_id": pid_b},
+        ).status_code == 200
+        # Variants list should have 2 entries, second active.
+        r = s.get(f"{BASE}/api/books/{book_id}/cover-variants")
+        assert r.status_code == 200
+        body = r.json()
+        variants = body["variants"]
+        assert len(variants) == 2
+        active_ids = [v["variant_id"] for v in variants if v["active"]]
+        assert len(active_ids) == 1
+        active_id = active_ids[0]
+        inactive_id = [v["variant_id"] for v in variants if not v["active"]][0]
+        assert body["active_variant_id"] == active_id
+        # Activate the inactive one.
+        r = s.post(f"{BASE}/api/books/{book_id}/cover-variants/{inactive_id}/activate")
+        assert r.status_code == 200
+        assert r.json()["active_variant"] == inactive_id
+        # Deleting the now-active one should 400.
+        r = s.delete(f"{BASE}/api/books/{book_id}/cover-variants/{inactive_id}")
+        assert r.status_code == 400
+        # Deleting the now-inactive (formerly active) one should work.
+        r = s.delete(f"{BASE}/api/books/{book_id}/cover-variants/{active_id}")
+        assert r.status_code == 200
+        # And the list now has 1.
+        r = s.get(f"{BASE}/api/books/{book_id}/cover-variants")
+        assert r.status_code == 200
+        assert len(r.json()["variants"]) == 1
+    finally:
+        _cleanup(uid, book_id)

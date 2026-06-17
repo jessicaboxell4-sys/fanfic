@@ -22,6 +22,22 @@ export default function RegenerateCoverButton({ book, onCoverChanged }) {
   const [imageDataUrl, setImageDataUrl] = useState(null);
   const [nudge, setNudge] = useState("");
   const [applying, setApplying] = useState(false);
+  // Variants drawer state — fetched lazily when the modal opens so
+  // the cover-less browse experience isn't slowed down by a per-card
+  // GET on every render.
+  const [variants, setVariants] = useState([]);
+  const [variantsLoaded, setVariantsLoaded] = useState(false);
+
+  const loadVariants = async () => {
+    try {
+      const { data } = await api.get(`/books/${book.book_id}/cover-variants`);
+      setVariants(data?.variants || []);
+      setVariantsLoaded(true);
+    } catch {
+      // Quiet fail — variants drawer just stays empty.
+      setVariantsLoaded(true);
+    }
+  };
 
   const generate = async () => {
     setLoading(true);
@@ -45,7 +61,32 @@ export default function RegenerateCoverButton({ book, onCoverChanged }) {
     setNudge("");
     setPreviewId(null);
     setImageDataUrl(null);
+    setVariants([]);
+    setVariantsLoaded(false);
+    // Fire variants fetch in parallel with the generation.
+    loadVariants();
     await generate();
+  };
+
+  const activateVariant = async (variantId) => {
+    try {
+      await api.post(`/books/${book.book_id}/cover-variants/${variantId}/activate`);
+      toast.success("Switched to that cover");
+      setVariants((vs) => vs.map((v) => ({ ...v, active: v.variant_id === variantId })));
+      onCoverChanged && onCoverChanged();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't switch cover");
+    }
+  };
+
+  const deleteVariant = async (variantId) => {
+    if (!window.confirm("Remove this cover variant?  This can't be undone.")) return;
+    try {
+      await api.delete(`/books/${book.book_id}/cover-variants/${variantId}`);
+      setVariants((vs) => vs.filter((v) => v.variant_id !== variantId));
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't delete variant");
+    }
   };
 
   const apply = async () => {
@@ -54,7 +95,11 @@ export default function RegenerateCoverButton({ book, onCoverChanged }) {
     try {
       await api.post(`/books/${book.book_id}/apply-cover`, { preview_id: previewId });
       toast.success("New cover saved");
-      setOpen(false);
+      // Refresh variants in-place so the newly-applied cover appears
+      // in the drawer without closing the modal.
+      await loadVariants();
+      setPreviewId(null);
+      setImageDataUrl(null);
       onCoverChanged && onCoverChanged();
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Couldn't save cover");
@@ -186,6 +231,51 @@ export default function RegenerateCoverButton({ book, onCoverChanged }) {
               <p className="text-[11px] text-[#6B705C] italic">
                 Original EPUB file is never touched — only the displayed cover changes.
               </p>
+
+              {/* Previous variants drawer — only renders once we know
+                  what's there (avoids a flash of empty UI).  Each
+                  variant is a 2:3 thumbnail; the active one has a ring,
+                  inactive ones can be activated or deleted. */}
+              {variantsLoaded && variants.length > 0 && (
+                <div data-testid="cover-variants-drawer" className="pt-3 mt-2 border-t border-[#E5DDC5]">
+                  <p className="text-xs font-bold uppercase tracking-wider text-[#6B705C] mb-2">
+                    Previous covers ({variants.length})
+                  </p>
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {variants.map((v) => (
+                      <div
+                        key={v.variant_id}
+                        data-testid={`cover-variant-${v.variant_id}`}
+                        className={`relative flex-shrink-0 w-16 rounded-md overflow-hidden border-2 ${
+                          v.active ? "border-[#6B46C1] ring-2 ring-[#6B46C1]/30" : "border-[#E5DDC5]"
+                        }`}
+                      >
+                        <img
+                          src={`data:${v.mime_type};base64,${v.image_base64}`}
+                          alt="Variant"
+                          className="aspect-[2/3] w-full object-cover cursor-pointer"
+                          onClick={() => !v.active && activateVariant(v.variant_id)}
+                          title={v.active ? "Active" : "Switch to this cover"}
+                        />
+                        {!v.active && (
+                          <button
+                            type="button"
+                            onClick={() => deleteVariant(v.variant_id)}
+                            data-testid={`cover-variant-delete-${v.variant_id}`}
+                            title="Remove this variant"
+                            className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-white/90 border border-[#E5DDC5] flex items-center justify-center text-[#6B705C] hover:text-[#C04A3F]"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-[#6B705C] mt-1 italic">
+                    Click a thumbnail to switch.  Up to 5 variants stored per book.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>
