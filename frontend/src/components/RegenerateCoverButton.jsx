@@ -272,7 +272,7 @@ export default function RegenerateCoverButton({ book, onCoverChanged }) {
                     ))}
                   </div>
                   <p className="text-[10px] text-[#6B705C] mt-1 italic">
-                    Click a thumbnail to switch.  Up to 5 variants stored per book.
+                    Click a thumbnail to switch.  Up to 20 variants stored per book.
                   </p>
                 </div>
               )}

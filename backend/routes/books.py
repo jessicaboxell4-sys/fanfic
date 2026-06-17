@@ -5415,12 +5415,12 @@ async def apply_book_cover(
     }
 
 
-# Per-book cap on stored cover variants.  Each variant is ~1 MB so 5
-# variants × 6,600 books × 100 % saturation would be ~33 GB — but
-# realistic usage is more like 10-20 books × 2-3 variants = ~50 MB.
-# The cap is here so a user clicking "Try again" 50 times can't
-# fill the disk.
-_COVER_VARIANT_CAP = 5
+# Per-book cap on stored cover variants.  Each variant is ~1 MB so 20
+# variants × ~50 actively-iterated books = ~1 GB max disk footprint per
+# heavy user.  20 is the right ceiling: enough to keep iterations + a
+# handful of community-imported covers without growing unboundedly.
+# Bumped from 5 → 20 on 2026-06-17.
+_COVER_VARIANT_CAP = 20
 
 
 @api_router.get("/books/{book_id}/cover-variants")
