@@ -18,6 +18,11 @@ class User(BaseModel):
     previous_username: Optional[str] = None
     picture: Optional[str] = None
     is_admin: bool = False
+    # Moderators role (2026-06-17): a permission tier between regular users
+    # and full admins. Mods can approve / reject pending sign-ups and lock
+    # bookclub rooms, but cannot ban users, demote admins, set feature
+    # flags, or run destructive admin actions. Promoted by admins only.
+    is_moderator: bool = False
     # New-user gate (2026-06-15): every new sign-up lands in ``"pending"`` and
     # cannot log in until an admin approves them from /admin → Pending
     # sign-ups. Existing users without the field default to ``"approved"``

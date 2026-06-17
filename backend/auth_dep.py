@@ -95,3 +95,19 @@ async def require_admin(request: Request) -> User:
     if not user.is_admin:
         raise HTTPException(status_code=403, detail="Admin only")
     return user
+
+
+async def require_moderator_or_admin(request: Request) -> User:
+    """Permissive sibling of ``require_admin``: passes for either flag.
+
+    Use for endpoints that should be open to moderators in addition to
+    admins — pending-signup triage, bookclub room locking, etc. Mods
+    inherit nothing from admins (no implicit promotion); both flags are
+    independent columns on the user document, and an admin promotion
+    intentionally does NOT also set ``is_moderator`` so the audit trail
+    stays clean.
+    """
+    user = await get_current_user(request)
+    if not (user.is_admin or user.is_moderator):
+        raise HTTPException(status_code=403, detail="Moderator or admin only")
+    return user

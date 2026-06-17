@@ -138,6 +138,16 @@ function SecondaryLinks({ user, unknownFandomCount, onNavigate, inDrawer = false
             )}
           </Link>
         )}
+        {/* Moderators get the Pending sign-ups inbox without the full admin
+            console (they wouldn't have permission to use most of it
+            anyway).  Admins already hit it through the AdminConsole link
+            above, so we only show this for mod-but-not-admin users. */}
+        {user.is_moderator && !user.is_admin && (
+          <Link to="/admin/pending" data-testid="drawer-mod-inbox" className={itemBase} onClick={close}>
+            <ShieldCheck className="w-4 h-4 text-[#3D8B79]" />
+            Mod inbox
+          </Link>
+        )}
       </div>
     );
   }
@@ -162,6 +172,17 @@ function SecondaryLinks({ user, unknownFandomCount, onNavigate, inDrawer = false
               className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#E07A5F] ring-2 ring-[#FDFBF7]"
             />
           )}
+        </Link>
+      )}
+      {/* Mod-but-not-admin: shortcut to the pending sign-up queue. */}
+      {user.is_moderator && !user.is_admin && (
+        <Link
+          to="/admin/pending"
+          data-testid="navbar-mod-inbox"
+          className="p-2 hover:bg-[#F5F3EC] rounded-lg"
+          title="Mod inbox — pending sign-ups"
+        >
+          <ShieldCheck className="w-4 h-4 text-[#3D8B79]" />
         </Link>
       )}
     </div>

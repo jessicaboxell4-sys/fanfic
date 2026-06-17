@@ -947,6 +947,21 @@ function UsersCard() {
     } finally { setBusyId(null); }
   };
 
+  // Mod-flag toggle — independent column from admin.  Admins are NOT
+  // implicitly mods; promoting to mod doesn't touch admin and vice
+  // versa (so the audit log stays clean and the powers are scoped).
+  const toggleMod = async (u) => {
+    setBusyId(u.user_id);
+    try {
+      const endpoint = u.is_moderator ? "demote-mod" : "promote-mod";
+      await api.post(`/admin/users/${u.user_id}/${endpoint}`);
+      toast.success(u.is_moderator ? "Mod role removed" : "Promoted to moderator");
+      await load();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't update");
+    } finally { setBusyId(null); }
+  };
+
   // Heuristic for "this is a developer/QA test account". Catches:
   //   - any @example.com / @test.* / @localhost address
   //   - emails containing the word "test" (e.g. testuser+1@gmail.com)
@@ -977,6 +992,15 @@ function UsersCard() {
               <ShieldCheck className="w-3 h-3" /> Admin
             </span>
           )}
+          {u.is_moderator && (
+            <span
+              data-testid={`admin-user-mod-badge-${u.user_id}`}
+              className="ml-2 inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.15em] text-[#3D8B79] font-bold bg-[#E0F0EA] px-1.5 py-0.5 rounded"
+              title="Moderator — can approve sign-ups and lock bookclub rooms"
+            >
+              <ShieldCheck className="w-3 h-3" /> Mod
+            </span>
+          )}
           {isTestUser(u) && (
             <span
               className="ml-2 inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.15em] text-[#6B705C] font-bold bg-[#F2EDDF] px-1.5 py-0.5 rounded"
@@ -989,20 +1013,37 @@ function UsersCard() {
         </p>
         <p className="text-xs text-[#6B705C] truncate">{u.email} · {u.book_count} book{u.book_count === 1 ? "" : "s"} · joined {fmtTime(u.created_at)}</p>
       </div>
-      <button
-        type="button"
-        onClick={() => toggleAdmin(u)}
-        disabled={busyId === u.user_id}
-        data-testid={`admin-user-toggle-${u.user_id}`}
-        className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors flex items-center gap-1 ${
-          u.is_admin
-            ? "text-[#9B3531] hover:bg-[#FBE9E7]"
-            : "text-[#6B46C1] hover:bg-[#EEE9FB]"
-        }`}
-      >
-        {busyId === u.user_id ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
-        {u.is_admin ? "Demote" : "Promote"}
-      </button>
+      <div className="flex items-center gap-1.5 flex-shrink-0">
+        {/* Mod toggle — distinct from the admin toggle on its right. */}
+        <button
+          type="button"
+          onClick={() => toggleMod(u)}
+          disabled={busyId === u.user_id}
+          data-testid={`admin-user-mod-toggle-${u.user_id}`}
+          className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors flex items-center gap-1 ${
+            u.is_moderator
+              ? "text-[#9B3531] hover:bg-[#FBE9E7]"
+              : "text-[#3D8B79] hover:bg-[#E0F0EA]"
+          }`}
+          title={u.is_moderator ? "Remove the moderator flag" : "Make this user a moderator"}
+        >
+          {u.is_moderator ? "Unmod" : "Mod"}
+        </button>
+        <button
+          type="button"
+          onClick={() => toggleAdmin(u)}
+          disabled={busyId === u.user_id}
+          data-testid={`admin-user-toggle-${u.user_id}`}
+          className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors flex items-center gap-1 ${
+            u.is_admin
+              ? "text-[#9B3531] hover:bg-[#FBE9E7]"
+              : "text-[#6B46C1] hover:bg-[#EEE9FB]"
+          }`}
+        >
+          {busyId === u.user_id ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+          {u.is_admin ? "Demote" : "Promote"}
+        </button>
+      </div>
     </li>
   );
 

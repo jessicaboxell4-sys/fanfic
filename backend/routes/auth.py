@@ -135,6 +135,7 @@ async def auth_google(request: Request, response: Response):
         "previous_username": (user_doc or {}).get("previous_username"),
         "picture": picture,
         "is_admin": bool((user_doc or {}).get("is_admin", False)),
+        "is_moderator": bool((user_doc or {}).get("is_moderator", False)),
         "approval_status": (user_doc or {}).get("approval_status") or "approved",
         "approval_rejected_reason": (user_doc or {}).get("approval_rejected_reason"),
         "scheduled_deletion_at": (user_doc or {}).get("scheduled_deletion_at"),
@@ -151,6 +152,7 @@ async def auth_me(user: User = Depends(get_current_user_any_status)):
         "previous_username": user.previous_username,
         "picture": user.picture,
         "is_admin": user.is_admin,
+        "is_moderator": user.is_moderator,
         "approval_status": user.approval_status or "approved",
         "approval_rejected_reason": user.approval_rejected_reason,
         "scheduled_deletion_at": user.scheduled_deletion_at.isoformat() if user.scheduled_deletion_at else None,
@@ -382,6 +384,7 @@ async def auth_login(body: LoginBody, request: Request, response: Response):
         "previous_username": user.get("previous_username"),
         "picture": user.get("picture", ""),
         "is_admin": bool(user.get("is_admin", False)),
+        "is_moderator": bool(user.get("is_moderator", False)),
         "approval_status": user.get("approval_status") or "approved",
         "approval_rejected_reason": user.get("approval_rejected_reason"),
         "scheduled_deletion_at": user.get("scheduled_deletion_at"),
@@ -801,6 +804,8 @@ async def grace_tick_manual(user: User = Depends(get_current_user)):
 # ============================================================
 # EPUB PARSING & CLASSIFICATION
 # ============================================================
+
+
 
 
 

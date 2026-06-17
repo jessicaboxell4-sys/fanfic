@@ -2,8 +2,8 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
-  BookOpen, Check, Clock, Crown, Eye, Loader2, LogOut, MessageSquare, Send,
-  Settings, ShieldCheck, ShieldOff, Trash2, UserPlus, Users, X as XIcon,
+  BookOpen, Check, Clock, Crown, Eye, Loader2, Lock, LogOut, MessageSquare,
+  Send, Settings, ShieldCheck, ShieldOff, Trash2, Unlock, UserPlus, Users, X as XIcon,
 } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
@@ -34,6 +34,12 @@ export default function ActiveRoomPanel({ roomId, onRoomChanged, onRoomGone }) {
 
   const isOwner = room?.my_role === "owner";
   const isStaff = isOwner || room?.my_role === "moderator";
+  // Platform-mod / admin can freeze any room (the "Always-On Admin
+  // Oversight" feature from 2026-06-16 already gave them read access;
+  // this adds the write-freeze power).  Distinct from `isStaff` (room
+  // owner / room moderator), which is a per-room role.
+  const canLock = !!(user?.is_moderator || user?.is_admin);
+  const isLocked = !!room?.is_locked;
 
   const loadRoom = useCallback(async () => {
     try {
@@ -150,6 +156,20 @@ export default function ActiveRoomPanel({ roomId, onRoomChanged, onRoomGone }) {
     catch (e) { toast.error(e?.response?.data?.detail || "Couldn't delete"); }
   };
 
+  // Mod / admin freeze + thaw.  Idempotent on the server so we don't need
+  // to gate the click — just call and refresh the snapshot.
+  const toggleLock = async () => {
+    const verb = isLocked ? "Unlock" : "Lock";
+    if (!window.confirm(`${verb} this room? ${isLocked ? "Members will be able to post again." : "Members will be unable to post until you unlock."}`)) return;
+    try {
+      await api.post(`/bookclubs/${roomId}/${isLocked ? "unlock" : "lock"}`);
+      toast.success(isLocked ? "Room unlocked" : "Room locked");
+      await loadRoom();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || `Couldn't ${verb.toLowerCase()}`);
+    }
+  };
+
   if (loading || !room) {
     return (
       <div className="flex-1 flex items-center justify-center text-sm text-[#6B705C]">
@@ -181,6 +201,18 @@ export default function ActiveRoomPanel({ roomId, onRoomChanged, onRoomGone }) {
           </p>
         </div>
         <div className="flex flex-wrap gap-1 flex-shrink-0">
+          {canLock && (
+            <button
+              data-testid={isLocked ? "unlock-room-btn" : "lock-room-btn"}
+              onClick={toggleLock}
+              className="p-1.5 hover:bg-[#F5F3EC] rounded"
+              title={isLocked ? "Unlock room (mod / admin)" : "Lock room — freeze writes (mod / admin)"}
+            >
+              {isLocked
+                ? <Unlock className="w-4 h-4 text-[#3D8B79]" />
+                : <Lock className="w-4 h-4 text-[#6B705C]" />}
+            </button>
+          )}
           {isStaff && (<button data-testid="edit-room-btn" onClick={() => setEditing(true)} className="p-1.5 hover:bg-[#F5F3EC] rounded" title="Edit"><Settings className="w-4 h-4 text-[#6B705C]" /></button>)}
           {!isOwner && (<button data-testid="leave-room-btn" onClick={leaveRoom} className="p-1.5 hover:bg-[#F5F3EC] rounded" title="Leave"><LogOut className="w-4 h-4 text-[#6B705C]" /></button>)}
           {isOwner && (<button data-testid="delete-room-btn" onClick={deleteRoom} className="p-1.5 hover:bg-[#FBE9E5] rounded" title="Delete"><Trash2 className="w-4 h-4 text-[#B43F26]" /></button>)}
@@ -193,6 +225,25 @@ export default function ActiveRoomPanel({ roomId, onRoomChanged, onRoomGone }) {
       <div className="flex-1 flex min-h-0">
         {/* Conversation column */}
         <div className="flex-1 flex flex-col min-w-0">
+          {/* Locked banner — high-visibility so members aren't confused by
+              a missing composer.  Renders above the chapter tabs so it's
+              the first thing visible when entering the room. */}
+          {isLocked && (
+            <div
+              data-testid="room-locked-banner"
+              className="bg-[#FDF3E1] border-b border-[#E5DDC5] px-4 md:px-6 py-2.5 flex items-start gap-2 text-sm text-[#B87A00]"
+            >
+              <Lock className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <div className="min-w-0">
+                <p className="font-medium">This room is locked.</p>
+                <p className="text-xs text-[#6B705C]">
+                  {room.locked_by_name ? `Frozen by ${room.locked_by_name}. ` : ""}
+                  Reading remains open, but new messages are paused
+                  {canLock ? " — unlock from the header when you're ready to resume." : "."}
+                </p>
+              </div>
+            </div>
+          )}
           {/* Chapter tabs */}
           <div className="bg-white border-b border-[#E8E6E1] px-3 py-2 flex flex-wrap gap-1.5 overflow-x-auto" data-testid="chapter-tabs">
             {chapters.map((c) => (
@@ -276,6 +327,18 @@ export default function ActiveRoomPanel({ roomId, onRoomChanged, onRoomGone }) {
                           <DisplayName user={m} />
                           {m.role === "owner" && <Crown className="w-3 h-3 text-[#B87A00]" title="Owner" />}
                           {m.role === "moderator" && <ShieldCheck className="w-3 h-3 text-[#6B46C1]" title="Moderator" />}
+                          {/* Platform-wide flags — separate from the per-room role. Admin wins
+                              over Mod if a user is somehow both.  Tiny pill, fits next to
+                              the username without breaking the line. */}
+                          {m.is_admin ? (
+                            <span data-testid={`platform-admin-badge-${m.user_id}`} className="text-[9px] font-bold uppercase tracking-wider text-[#6B46C1] bg-[#EDE7FB] px-1.5 py-0.5 rounded" title="Platform admin">
+                              Admin
+                            </span>
+                          ) : m.is_moderator && (
+                            <span data-testid={`platform-mod-badge-${m.user_id}`} className="text-[9px] font-bold uppercase tracking-wider text-[#3D8B79] bg-[#E0F0EA] px-1.5 py-0.5 rounded" title="Platform moderator">
+                              Mod
+                            </span>
+                          )}
                           {isOversight && (
                             <span data-testid={`oversight-badge-${m.user_id}`} className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#6B46C1] bg-[#EDE7FB] px-1.5 py-0.5 rounded" title="Platform admin with read access for safety + moderation. Never receives notifications.">
                               <Eye className="w-3 h-3" /> Admin (oversight)

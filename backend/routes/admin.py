@@ -26,7 +26,7 @@ import resend
 
 from deps import db, api_router, logger, RESEND_API_KEY, SENDER_EMAIL, EMERGENT_LLM_KEY, STORAGE_DIR, FRONTEND_URL
 from models import User
-from auth_dep import require_admin
+from auth_dep import require_admin, require_moderator_or_admin
 from utils.admin_audit import record_admin_action
 from utils.email_log import log_email_send
 from utils.feature_flags import KNOWN_FLAGS, get_flags, set_flag
@@ -41,7 +41,7 @@ async def list_users(user: User = Depends(require_admin)):
     """Return every user with admin badge + book/storage stats."""
     rows = await db.users.find(
         {},
-        {"_id": 0, "user_id": 1, "email": 1, "name": 1, "is_admin": 1, "created_at": 1},
+        {"_id": 0, "user_id": 1, "email": 1, "name": 1, "is_admin": 1, "is_moderator": 1, "created_at": 1},
     ).sort("created_at", 1).to_list(length=2000)
     # Annotate with book counts (single aggregation, not per-row).
     counts_cursor = db.books.aggregate([
@@ -53,6 +53,7 @@ async def list_users(user: User = Depends(require_admin)):
     for r in rows:
         r["book_count"] = counts.get(r["user_id"], 0)
         r["is_admin"] = bool(r.get("is_admin"))
+        r["is_moderator"] = bool(r.get("is_moderator"))
         ts = r.get("created_at")
         if isinstance(ts, datetime):
             r["created_at"] = ts.isoformat()
@@ -88,6 +89,68 @@ async def demote_user(target_user_id: str, user: User = Depends(require_admin)):
     await db.users.update_one({"user_id": target_user_id}, {"$set": {"is_admin": False}})
     await record_admin_action(user, "user.demote", target=target_user_id, metadata={"email": target.get("email")})
     return {"ok": True, "user_id": target_user_id, "is_admin": False}
+
+
+# ---------------------------------------------------------------------------
+# Moderator promotion (2026-06-17)
+# ---------------------------------------------------------------------------
+# Mods are a permission tier between regular users and full admins. They
+# can approve / reject pending sign-ups and lock bookclub rooms, but
+# CANNOT ban users, demote admins, set feature flags, or run destructive
+# actions.  Promotion is admin-only.  ``is_moderator`` is independent
+# from ``is_admin`` — promoting to mod doesn't touch admin, and an admin
+# isn't auto-considered a mod (they bypass the ``require_moderator_or_admin``
+# dep via their admin flag instead, see auth_dep.py).
+
+@api_router.post("/admin/users/{target_user_id}/promote-mod")
+async def promote_moderator(target_user_id: str, user: User = Depends(require_admin)):
+    """Flag the target user as a moderator. Idempotent — re-promoting an
+    existing mod is a no-op so the UI can be optimistic."""
+    target = await db.users.find_one(
+        {"user_id": target_user_id},
+        {"_id": 0, "email": 1, "is_moderator": 1},
+    )
+    if target is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    if target.get("is_moderator"):
+        return {"ok": True, "user_id": target_user_id, "is_moderator": True}
+    await db.users.update_one(
+        {"user_id": target_user_id},
+        {"$set": {"is_moderator": True}},
+    )
+    await record_admin_action(
+        user,
+        "user.promote_mod",
+        target=target_user_id,
+        metadata={"email": target.get("email")},
+    )
+    return {"ok": True, "user_id": target_user_id, "is_moderator": True}
+
+
+@api_router.post("/admin/users/{target_user_id}/demote-mod")
+async def demote_moderator(target_user_id: str, user: User = Depends(require_admin)):
+    """Remove the moderator flag. Idempotent. Unlike admin demotion this
+    has no "last mod" guard — admins can always cover the mod surface,
+    so it's safe to drop to zero mods."""
+    target = await db.users.find_one(
+        {"user_id": target_user_id},
+        {"_id": 0, "email": 1, "is_moderator": 1},
+    )
+    if target is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not target.get("is_moderator"):
+        return {"ok": True, "user_id": target_user_id, "is_moderator": False}
+    await db.users.update_one(
+        {"user_id": target_user_id},
+        {"$set": {"is_moderator": False}},
+    )
+    await record_admin_action(
+        user,
+        "user.demote_mod",
+        target=target_user_id,
+        metadata={"email": target.get("email")},
+    )
+    return {"ok": True, "user_id": target_user_id, "is_moderator": False}
 
 
 # ---------------------------------------------------------------------------
@@ -191,7 +254,7 @@ if "FRONTEND_URL" not in globals():
 
 
 @api_router.get("/admin/pending-users")
-async def list_pending_users(user: User = Depends(require_admin)):
+async def list_pending_users(user: User = Depends(require_moderator_or_admin)):
     """List every user whose ``approval_status == "pending"`` so admins
     can triage them on the AdminConsole. Sorted oldest-first so the queue
     is FIFO — the user who has been waiting longest is at the top."""
@@ -215,7 +278,7 @@ async def list_pending_users(user: User = Depends(require_admin)):
 
 
 @api_router.post("/admin/users/{target_user_id}/approve")
-async def approve_user(target_user_id: str, user: User = Depends(require_admin)):
+async def approve_user(target_user_id: str, user: User = Depends(require_moderator_or_admin)):
     """Flip a pending sign-up to ``"approved"`` so they can log in.
     Emails the user (best-effort). Idempotent on already-approved users."""
     target = await db.users.find_one(
@@ -256,7 +319,7 @@ async def approve_user(target_user_id: str, user: User = Depends(require_admin))
 async def reject_user(
     target_user_id: str,
     body: RejectUserBody,
-    user: User = Depends(require_admin),
+    user: User = Depends(require_moderator_or_admin),
 ):
     """Flip a pending sign-up to ``"rejected"`` with an optional reason.
     Emails the user the reason so they know whether to re-register."""

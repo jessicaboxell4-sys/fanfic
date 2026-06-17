@@ -59,6 +59,7 @@ import OriginalsShelf from "@/pages/OriginalsShelf";
 import Help from "@/pages/Help";
 import AdminConsole from "@/pages/AdminConsole";
 import AdminViewAs from "@/pages/AdminViewAs";
+import ModInbox from "@/pages/ModInbox";
 import AuthCallback from "@/pages/AuthCallback";
 import ResetPassword from "@/pages/ResetPassword";
 import MaintenanceBanner from "@/components/MaintenanceBanner";
@@ -88,6 +89,24 @@ function AdminRoute({ children }) {
   }
   if (!user) return <Navigate to="/login" replace />;
   if (!user.is_admin) return <Navigate to="/library" replace />;
+  return children;
+}
+
+// ModeratorRoute — passes for mods OR admins so the Mod Inbox is reachable
+// by either role.  Mods who try to hit /admin (the full console) still
+// bounce back to /library via AdminRoute above; this gate exists so
+// /admin/pending and similar focused pages aren't admin-exclusive.
+function ModeratorRoute({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-paper">
+        <div className="h-8 w-8 border-2 border-[#E07A5F] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+  if (!user) return <Navigate to="/login" replace />;
+  if (!user.is_admin && !user.is_moderator) return <Navigate to="/library" replace />;
   return children;
 }
 
@@ -150,6 +169,7 @@ function AppRouter() {
       <Route path="/library/originals" element={<ProtectedRoute><OriginalsShelf /></ProtectedRoute>} />
       <Route path="/help" element={<ProtectedRoute><Help /></ProtectedRoute>} />
       <Route path="/admin" element={<AdminRoute><AdminConsole /></AdminRoute>} />
+      <Route path="/admin/pending" element={<ModeratorRoute><ModInbox /></ModeratorRoute>} />
       <Route path="/admin/view/:uid" element={<AdminRoute><AdminViewAs /></AdminRoute>} />
       <Route path="/book/:id" element={<ProtectedRoute><BookDetail /></ProtectedRoute>} />
       <Route path="/book/:id/compare" element={<ProtectedRoute><CompareVersions /></ProtectedRoute>} />

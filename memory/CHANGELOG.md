@@ -8,6 +8,72 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-17 — Moderators role ✅
+
+Third permission tier between regular users and full admins.  Mods can
+approve/reject pending sign-ups and lock/unlock bookclub rooms, but
+**cannot** ban users, demote admins, set feature flags, delete EPUB
+uploads, or run any destructive admin action.
+
+**Backend** (`models.py`, `auth_dep.py`, `routes/admin.py`,
+`routes/bookclubs.py`, `routes/auth.py`):
+- `User.is_moderator: bool = False` — independent from `is_admin`.
+- `auth_dep.require_moderator_or_admin` — new dependency, returns the
+  user if EITHER flag is set, else 403.
+- `POST /admin/users/{id}/promote-mod` + `/demote-mod` — admin-only,
+  idempotent, audit-logged.
+- `GET /admin/pending-users`, `POST /admin/users/{id}/approve`, and
+  `POST /admin/users/{id}/reject` — relaxed from `require_admin` to
+  `require_moderator_or_admin` so mods can triage the queue.
+- `POST /bookclubs/{room_id}/lock` + `/unlock` — new mod/admin endpoints.
+  Locking writes `is_locked: True` plus `locked_by`, `locked_by_name`,
+  `locked_at` onto the bookclubs doc.  `post_message` now refuses with
+  `423 Locked` when the room is frozen; reads remain open.
+- `_serialize_room` exposes `is_locked` / `locked_by_name` / `locked_at`
+  so the frontend can render the banner without an extra fetch.
+- `_hydrate_users` + `_serialize_member` now return `is_moderator` /
+  `is_admin` so chat bubbles can render the platform badge inline.
+- `/auth/me`, `/auth/login`, `/auth/register`, `/profile` all echo
+  `is_moderator` alongside `is_admin` so frontend role checks work
+  immediately after login.
+
+**Frontend** (`App.js`, `Navbar.jsx`, `AdminConsole.jsx`,
+`pages/ModInbox.jsx`, `pages/bookclubs/ActiveRoomPanel.jsx`):
+- New `ModeratorRoute` guard — admins or mods pass, everyone else
+  bounces to `/library`.
+- New `/admin/pending` page (`ModInbox.jsx`) — focused dashboard for
+  mods who don't have full admin access.  Reuses the approve/reject
+  flow from AdminConsole.
+- `Navbar` shows a Mod-inbox shortcut for mods-who-aren't-admins (sea-
+  green ShieldCheck).  Admins continue to see the purple Admin button.
+- `AdminConsole > Users & admins` card grows a green "Mod" pill next to
+  the existing "Admin" pill, plus a "Mod" / "Unmod" toggle button next
+  to the existing "Promote" / "Demote".
+- `ActiveRoomPanel`:
+    * Lock/Unlock icon button in the room header for any user with
+      `is_moderator` or `is_admin`.
+    * `room-locked-banner` above the chapter tabs when locked, naming
+      the mod who froze it (visible to everyone).
+    * Message composer is hidden when the room is locked.
+    * Per-member "Mod" / "Admin" pill rendered next to the username so
+      moderation interventions look authoritative.
+
+**Tests** (`tests/test_moderators.py`):
+- `/auth/me` echoes `is_moderator`.
+- Promote/demote-mod is admin-only and idempotent.
+- Mods can approve pending sign-ups; regular users get 403.
+- End-to-end lock test: mod locks → owner can't post (423) → mod
+  unlocks → owner posts successfully.
+- Regular users can't lock rooms (403).
+- `/admin/users` carries the `is_moderator` field for the toggle column.
+
+All 8 moderator tests + 4 dark-mode override tests + the full goals /
+digest / bookclub regression suite pass.
+
+---
+
+
+
 ## 2026-06-17 — Reader cheatsheet, dynamic landing stats, SSE goal-hit stream + 2 regression fixes ✅
 
 Polish sprint that knocked out 4 P2/P3 items + 2 P0 test regressions.

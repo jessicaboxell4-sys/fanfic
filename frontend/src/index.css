@@ -423,6 +423,14 @@
 /* purple surfaces.                                                     */
 :root[data-theme="dark"] .text-\[\#4C2A99\] { color: #DDD6FE; }
 
+/* Moderator role (2026-06-17) — three new accent colors used by the   */
+/* "Mod" badge, the Mod inbox page header, and the lock/unlock         */
+/* reject-reason error CTA.  Sea-green family for mod tints, deep coral */
+/* for the destructive "Reject & email" button.                        */
+:root[data-theme="dark"] .bg-\[\#E0F0EA\] { background-color: rgba(125, 217, 195, 0.14); }
+:root[data-theme="dark"] .text-\[\#3D8B79\] { color: #7DD9C3; }
+:root[data-theme="dark"] .text-\[\#C04A3F\] { color: #FF7A6F; }
+
 /* Light cream border `#EFEAE0` — disabled-row outline in the mute     */
 /* matrix. Converge on `--border` so the row outline blends with the   */
 /* rest of the dark surface.                                            */

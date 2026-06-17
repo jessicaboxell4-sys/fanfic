@@ -3,27 +3,14 @@
 > Active backlog. Items move to [CHANGELOG.md](./CHANGELOG.md) when shipped.
 
 ## P1 — high value, ready to pull
-- **Moderators role** — third role between regular user and admin. Mod-level
-  permissions: review reported messages / books, hide bookclub posts, mark
-  feedback as resolved, view (but not edit) admin console. Implementation
-  notes:
-    * Add `is_moderator: bool` flag on `User` model (alongside the existing
-      `is_admin`).
-    * New `auth_dep.get_current_moderator_or_admin` dependency.
-    * Backend: gate the existing report/feedback/abuse routes on mod OR admin.
-    * Frontend: surface a "Mod inbox" link in the Navbar dropdown for users
-      with the flag; reuse `AdminConsole` shell with a feature-flag prop so
-      mods see only the moderation tabs.
-    * Promote/demote mods from the existing Admin Console user-list, same
-      UI pattern as the admin promotion flow.
-    * Decide: can mods promote other mods? Default = NO, admin-only.
-    * **Open questions to confirm with user before implementing:**
-        - Should mods be able to ban users? (default proposal: no — admin-only)
-        - Can mods lock bookclub rooms? (default proposal: yes)
-        - Can mods approve pending sign-ups? (default proposal: yes —
-          frees up the admin for everything else)
-        - Should mods be able to hide/delete EPUB uploads they consider
-          abusive, or just flag them for admin review?
+- **Moderators role** ✅ (shipped 2026-06-17 — see CHANGELOG).  Default
+  scope shipped: approve/reject sign-ups + lock/unlock bookclub rooms.
+  Future expansions parked for later sessions:
+    * Mods banning users (currently admin-only)
+    * Mods deleting abusive EPUB uploads (currently flag-for-admin-only)
+    * Mods locking entire chapters within a room (vs whole-room lock)
+    * Hide/delete individual messages (vs lock all writes)
+    * Self-nominate-to-mod flow (currently admin-promotes only)
 
 - **Unified `/api/events/stream` SSE channel** — extend the goal-hit SSE
   endpoint shipped 2026-06-17 into a single multiplexed stream that

@@ -41,7 +41,7 @@ from pydantic import BaseModel, Field
 
 from deps import db, api_router, logger
 from models import User
-from auth_dep import get_current_user
+from auth_dep import get_current_user, require_moderator_or_admin
 from routes.notifications import create_notification
 
 
@@ -102,6 +102,11 @@ def _serialize_room(doc: Dict[str, Any]) -> Dict[str, Any]:
         "book_total_chapters": int(doc.get("book_total_chapters", 0) or 0),
         "owner_user_id": doc.get("owner_user_id"),
         "schedule": doc.get("schedule", ""),
+        # Lock state (mod/admin freezes writes — reads still work). The
+        # frontend surfaces a banner + hides the compose box when true.
+        "is_locked": bool(doc.get("is_locked", False)),
+        "locked_by_name": doc.get("locked_by_name"),
+        "locked_at": _iso(doc.get("locked_at")) if doc.get("locked_at") else None,
         "created_at": _iso(doc.get("created_at")),
         "updated_at": _iso(doc.get("updated_at")),
     }
@@ -120,6 +125,11 @@ def _serialize_member(doc: Dict[str, Any], user_meta: Dict[str, Any] = None) -> 
         "name": user_meta.get("name", ""),
         "email": user_meta.get("email", ""),
         "picture": user_meta.get("picture", ""),
+        # Surface the platform-wide moderator / admin flags so chat
+        # bubbles can render a "Mod" / "Admin" badge inline.  Visibility
+        # decision (2026-06-17): public — helps users trust intervention.
+        "is_moderator": bool(user_meta.get("is_moderator", False)),
+        "is_admin": bool(user_meta.get("is_admin", False)),
     }
 
 
@@ -142,7 +152,8 @@ async def _hydrate_users(user_ids: List[str]) -> Dict[str, Dict[str, Any]]:
         return {}
     docs = await db.users.find(
         {"user_id": {"$in": list(set(user_ids))}},
-        {"_id": 0, "user_id": 1, "email": 1, "name": 1, "username": 1, "previous_username": 1, "picture": 1},
+        {"_id": 0, "user_id": 1, "email": 1, "name": 1, "username": 1,
+         "previous_username": 1, "picture": 1, "is_moderator": 1, "is_admin": 1},
     ).to_list(length=500)
     return {d["user_id"]: d for d in docs}
 
@@ -423,6 +434,68 @@ async def delete_bookclub(room_id: str, user: User = Depends(get_current_user)):
 
 
 # ---------------------------------------------------------------------
+# Moderation: lock / unlock a room
+# ---------------------------------------------------------------------
+# A locked room is read-only — existing members can still read every
+# message but cannot post.  Used by moderators / admins to freeze a
+# discussion that has gone off the rails without nuking the room
+# outright.  Setting ``is_locked`` lives on the bookclubs document so
+# the existing membership / invite flows don't need to know about it.
+
+@api_router.post("/bookclubs/{room_id}/lock")
+async def lock_bookclub(
+    room_id: str,
+    user: User = Depends(require_moderator_or_admin),
+):
+    """Freeze writes on this room.  Idempotent — locking an already-locked
+    room is a no-op so the UI can fire-and-forget.  Returns the updated
+    room snapshot so the frontend can rerender without a second fetch."""
+    room = await db.bookclubs.find_one({"room_id": room_id}, {"_id": 0, "name": 1, "is_locked": 1})
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    if room.get("is_locked"):
+        return {"ok": True, "room_id": room_id, "is_locked": True}
+    now = datetime.now(timezone.utc)
+    await db.bookclubs.update_one(
+        {"room_id": room_id},
+        {"$set": {
+            "is_locked": True,
+            "locked_by": user.user_id,
+            "locked_by_name": user.name or user.email,
+            "locked_at": now,
+            "updated_at": now,
+        }},
+    )
+    logger.info("bookclub %s locked by %s (%s)", room_id, user.user_id, "admin" if user.is_admin else "mod")
+    return {"ok": True, "room_id": room_id, "is_locked": True}
+
+
+@api_router.post("/bookclubs/{room_id}/unlock")
+async def unlock_bookclub(
+    room_id: str,
+    user: User = Depends(require_moderator_or_admin),
+):
+    """Reopen writes on this room.  Idempotent."""
+    room = await db.bookclubs.find_one({"room_id": room_id}, {"_id": 0, "is_locked": 1})
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    if not room.get("is_locked"):
+        return {"ok": True, "room_id": room_id, "is_locked": False}
+    now = datetime.now(timezone.utc)
+    await db.bookclubs.update_one(
+        {"room_id": room_id},
+        {
+            "$set": {"is_locked": False, "updated_at": now},
+            "$unset": {"locked_by": "", "locked_by_name": "", "locked_at": ""},
+        },
+    )
+    logger.info("bookclub %s unlocked by %s", room_id, user.user_id)
+    return {"ok": True, "room_id": room_id, "is_locked": False}
+
+
+
+
+# ---------------------------------------------------------------------
 # POST /api/bookclubs/{room_id}/invite
 # ---------------------------------------------------------------------
 
@@ -694,10 +767,19 @@ async def post_message(
 ):
     await _require_active_member(room_id, user.user_id)
     room = await db.bookclubs.find_one(
-        {"room_id": room_id}, {"_id": 0, "name": 1, "book_total_chapters": 1},
+        {"room_id": room_id},
+        {"_id": 0, "name": 1, "book_total_chapters": 1, "is_locked": 1},
     )
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
+    if room.get("is_locked"):
+        # Mods / admins use the lock endpoint to freeze a room when a
+        # discussion goes off the rails.  Everyone can still READ — we
+        # only block writes.
+        raise HTTPException(
+            status_code=423,
+            detail="This room has been locked by a moderator.",
+        )
     chapter_index = int(body.chapter_index)
     total = int(room.get("book_total_chapters", 0) or 0)
     if total and chapter_index > total:
