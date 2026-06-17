@@ -1570,3 +1570,85 @@ async def get_alert_health(user: User = Depends(require_admin)):
         "uncovered_job_ids": [u["job_id"] for u in uncovered][:5],
         "latest_failure": latest,
     }
+
+
+# ---------------------------------------------------------------------------
+# Oversight tray — bookclub rooms the platform owner is auto-watching
+# ---------------------------------------------------------------------------
+# The platform owner is auto-added to every bookclub as role "oversight". This
+# endpoint lists those rooms with enough context for a "Rooms I'm watching"
+# admin card: room name, owner, real member count, last-message-at, and the
+# deep-link straight into the room.
+
+@api_router.get("/admin/bookclubs/watching")
+async def list_watched_bookclubs(user: User = Depends(require_admin)):
+    """Return rooms where the *requesting admin* is a member with role
+    ``oversight`` OR ``owner``. We let any admin call this — but unless they
+    are the platform owner, they'll usually see an empty list."""
+    rows = await db.bookclub_members.find(
+        {"user_id": user.user_id, "role": {"$in": ["oversight", "owner"]}, "status": "active"},
+        {"_id": 0, "room_id": 1, "role": 1},
+    ).to_list(length=2000)
+    if not rows:
+        return {"rooms": [], "total": 0}
+
+    room_ids = [r["room_id"] for r in rows]
+    role_by_room = {r["room_id"]: r["role"] for r in rows}
+
+    rooms = await db.bookclubs.find(
+        {"room_id": {"$in": room_ids}}, {"_id": 0},
+    ).to_list(length=2000)
+    owner_ids = list({r.get("owner_user_id") for r in rooms if r.get("owner_user_id")})
+    owners_meta = {}
+    if owner_ids:
+        owner_docs = await db.users.find(
+            {"user_id": {"$in": owner_ids}},
+            {"_id": 0, "user_id": 1, "email": 1, "name": 1, "username": 1},
+        ).to_list(length=2000)
+        owners_meta = {d["user_id"]: d for d in owner_docs}
+
+    # Member-count agg (real members, excludes oversight) + last-message-at.
+    count_agg = db.bookclub_members.aggregate([
+        {"$match": {"room_id": {"$in": room_ids}, "status": "active", "role": {"$ne": "oversight"}}},
+        {"$group": {"_id": "$room_id", "n": {"$sum": 1}}},
+    ])
+    member_counts: Dict[str, int] = {}
+    async for row in count_agg:
+        member_counts[row["_id"]] = int(row["n"])
+
+    msg_agg = db.bookclub_messages.aggregate([
+        {"$match": {"room_id": {"$in": room_ids}}},
+        {"$group": {"_id": "$room_id", "last_at": {"$max": "$created_at"}, "total": {"$sum": 1}}},
+    ])
+    msg_meta: Dict[str, Dict[str, Any]] = {}
+    async for row in msg_agg:
+        msg_meta[row["_id"]] = {"last_at": row["last_at"], "total": int(row["total"])}
+
+    out = []
+    for r in rooms:
+        room_id = r["room_id"]
+        owner_uid = r.get("owner_user_id")
+        owner = owners_meta.get(owner_uid, {}) if owner_uid else {}
+        m = msg_meta.get(room_id, {})
+        last_at = m.get("last_at")
+        out.append({
+            "room_id": room_id,
+            "name": r.get("name", ""),
+            "book_title": r.get("book_title", ""),
+            "book_author": r.get("book_author", ""),
+            "owner_user_id": owner_uid,
+            "owner_name": owner.get("name") or owner.get("username") or owner.get("email") or "",
+            "owner_email": owner.get("email", ""),
+            "my_role": role_by_room.get(room_id, "oversight"),
+            "member_count": member_counts.get(room_id, 0),
+            "message_count": int(m.get("total", 0) or 0),
+            "last_message_at": last_at.isoformat() if hasattr(last_at, "isoformat") else last_at,
+            "created_at": (
+                r.get("created_at").isoformat()
+                if hasattr(r.get("created_at"), "isoformat") else r.get("created_at")
+            ),
+        })
+    # Sort: rooms with recent activity first, then rooms with any messages,
+    # then by creation date.
+    out.sort(key=lambda x: (x.get("last_message_at") or x.get("created_at") or ""), reverse=True)
+    return {"rooms": out, "total": len(out)}

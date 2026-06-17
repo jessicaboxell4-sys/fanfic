@@ -41,6 +41,7 @@ const ADMIN_CARD_MANIFEST = [
   { testid: "admin-storage-trend-card", title: "Storage trend · 30 days", subtitle: "Cumulative bytes over time.", keywords: "storage trend disk growth chart graph history snapshot 30d size bytes" },
   { testid: "admin-view-consents-card", title: "View-as-user consents", subtitle: "Request read-only access to a user's library.", keywords: "view as user impersonate consent privacy access permission timeline" },
   { testid: "admin-users-card", title: "Users & admins", subtitle: "Promote or demote any account.", keywords: "users admins promote demote roles accounts" },
+  { testid: "admin-watching-bookclubs-card", title: "Rooms I'm watching", subtitle: "Every bookclub the platform owner has been auto-added to.", keywords: "bookclubs rooms watching oversight admin auto-join clubs moderate" },
   { testid: "admin-chat-rooms-card", title: "Chat rooms", subtitle: "Direct-message rooms.", keywords: "chat rooms messages dm direct message conversations" },
   { testid: "admin-unknown-fandoms-card", title: "Unknown fandoms", subtitle: "Fandoms not yet in the keyword classifier.", keywords: "unknown fandoms classifier rescan dismiss missing tag" },
   { testid: "admin-banner-card", title: "Maintenance banner", subtitle: "Site-wide announcement banner.", keywords: "maintenance banner outage announcement downtime planned heads-up" },
@@ -2050,6 +2051,88 @@ function EmailDiagnosticCard() {
 }
 
 // ---------------------------------------------------------------------------
+// Watching Bookclubs card — every room the oversight admin is auto-joined to.
+// ---------------------------------------------------------------------------
+function WatchingBookclubsCard() {
+  const [rooms, setRooms] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const load = async () => {
+    setLoading(true);
+    try {
+      const { data } = await api.get("/admin/bookclubs/watching");
+      setRooms(data?.rooms || []);
+    } catch { toast.error("Couldn't load watched rooms"); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, []);
+  return (
+    <Card
+      icon={Eye}
+      testid="admin-watching-bookclubs-card"
+      title={`Rooms I'm watching${rooms.length > 0 ? ` (${rooms.length})` : ""}`}
+      subtitle="Every bookclub the platform owner is auto-added to as Admin (oversight). Includes any club you own outright."
+    >
+      {loading ? (
+        <p className="text-sm text-[#6B705C]">Loading…</p>
+      ) : rooms.length === 0 ? (
+        <p className="text-sm text-[#6B705C]">
+          You aren&apos;t in any bookclubs yet. As soon as someone creates one,
+          it&apos;ll appear here with an <em>Admin (oversight)</em> badge in
+          the room&apos;s member list.
+        </p>
+      ) : (
+        <ul className="space-y-2" data-testid="watched-rooms-list">
+          {rooms.map((r) => (
+            <li
+              key={r.room_id}
+              data-testid={`watched-room-${r.room_id}`}
+              className="flex items-start gap-3 p-3 rounded-lg border border-[#E8E6E1] bg-[#FDFBF7] hover:bg-white"
+            >
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-sm font-semibold text-[#2C2C2C] truncate">{r.name || "(untitled)"}</p>
+                  {r.my_role === "owner" ? (
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-[#B87A00] bg-[#FDF3E1] px-1.5 py-0.5 rounded">Owner</span>
+                  ) : (
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-[#6B46C1] bg-[#EDE7FB] px-1.5 py-0.5 rounded inline-flex items-center gap-1">
+                      <Eye className="w-3 h-3" /> Oversight
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-[#6B705C] truncate mt-0.5">
+                  <span className="italic">{r.book_title || "(no book)"}</span>
+                  {r.book_author ? <span> · {r.book_author}</span> : null}
+                </p>
+                <p className="text-xs text-[#6B705C] mt-1">
+                  Owner: <strong>{r.owner_name || r.owner_email || "—"}</strong>
+                  <span className="mx-1">·</span>
+                  {r.member_count} member{r.member_count === 1 ? "" : "s"}
+                  <span className="mx-1">·</span>
+                  {r.message_count} message{r.message_count === 1 ? "" : "s"}
+                  {r.last_message_at && (
+                    <>
+                      <span className="mx-1">·</span>
+                      last activity {fmtTime(r.last_message_at)}
+                    </>
+                  )}
+                </p>
+              </div>
+              <Link
+                to={`/bookclubs/${r.room_id}`}
+                data-testid={`open-room-${r.room_id}`}
+                className="text-xs font-semibold text-[#6B46C1] hover:underline whitespace-nowrap inline-flex items-center gap-1 self-center"
+              >
+                Open <ChevronRight className="w-3 h-3" />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Chat Rooms card (admin-curated direct messaging)
 // ---------------------------------------------------------------------------
 function ChatRoomsCard() {
@@ -2889,6 +2972,7 @@ export default function AdminConsole() {
               <StorageTrendCard />
               <ViewConsentsCard />
               <UsersCard />
+              <WatchingBookclubsCard />
               <ChatRoomsCard />
               <UnknownFandomsCard />
               <MaintenanceBannerCard />

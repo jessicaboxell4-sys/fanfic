@@ -8,6 +8,39 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-16 — "Rooms I'm watching" admin card ✅
+
+Companion to the oversight feature: the Admin Console now has a top-level
+**"Rooms I'm watching"** card that lists every bookclub the platform owner
+has been auto-added to (plus any club they own outright). Solves the "how do
+I find a room I'm in without poking around" problem before it shows up.
+
+**Backend** (`routes/admin.py`):
+- New `GET /api/admin/bookclubs/watching` — returns rooms where the calling
+  admin holds `role: oversight` or `role: owner`, with: room name, book
+  title + author, owner display name + email, real member count
+  (oversight-excluded), message count, last-message-at, my_role, created_at.
+- Sort: most recent activity first; rooms with no messages fall back to
+  creation date.
+- Any admin can call it — but non-platform-owners will usually see an empty
+  list (only platform-owner is auto-joined as oversight).
+
+**Frontend** (`pages/AdminConsole.jsx`):
+- New `WatchingBookclubsCard` (Eye icon, manifest entry with keywords
+  "oversight clubs moderate watching"). Empty state explains where the data
+  will come from. Each row shows the OWNER vs OVERSIGHT badge so it's clear
+  which rooms you're moderating vs running.
+- "Open" link goes straight to `/bookclubs/{room_id}` so you can read the
+  thread without opening the regular bookclub list.
+- Card slotted between Users & Admins and Chat rooms in the cards stack.
+
+**Verified e2e** — temporarily flagged the tester as platform_owner, seeded
+a demo bookclub with a message, hit `/api/admin/bookclubs/watching` (returned
+the seeded room correctly), then opened `/admin` in a browser, expanded the
+card, confirmed the room rendered with badge + member count + message count
++ last activity timestamp + working Open link. Restored production state
+(platform_owner back on Jessica, demo room deleted).
+
 ## 2026-06-16 — Always-on Admin Oversight in bookclub rooms ✅
 
 User decision: the single original platform owner should be in **every** bookclub
