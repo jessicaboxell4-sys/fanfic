@@ -5,6 +5,7 @@ import { api } from "../lib/api";
 import { pulseGoalsCheck } from "../lib/goalHitWatcher";
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
+import RegenerateCoverButton from "./RegenerateCoverButton";
 
 const categoryBadgeClass = (category) => {
   if (category === "Fanfiction") return "badge-fandom";
@@ -131,6 +132,11 @@ export default function BookCard({ book, selectMode, selected, onToggleSelect, o
         )}
         {selectMode && selected && (
           <div className="absolute inset-0 ring-4 ring-[#E07A5F] rounded-t-xl pointer-events-none" />
+        )}
+
+        {/* AI cover regenerator — hover-revealed top-left overlay. */}
+        {!selectMode && (
+          <RegenerateCoverButton book={book} onCoverChanged={onChanged} />
         )}
 
         {/* Read indicator: persistent badge on finished books */}

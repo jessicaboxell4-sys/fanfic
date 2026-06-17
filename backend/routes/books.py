@@ -66,6 +66,7 @@ import io
 import re
 import json
 import uuid
+import base64
 import zipfile
 import asyncio
 import tempfile
@@ -5253,3 +5254,103 @@ async def polish_apply(
 
     return {"updated": updated, "skipped": skipped, "details": details}
 
+
+
+# ---------------------------------------------------------------------
+# AI cover regeneration (2026-06-17)
+# ---------------------------------------------------------------------
+# Two-phase flow so the user previews before committing:
+#   1. POST /api/books/{book_id}/preview-cover    → returns base64 PNG
+#      + a short-lived preview_id stored in memory
+#   2. POST /api/books/{book_id}/apply-cover      → persists the
+#      previewed image to disk + flips has_cover on the doc
+# Keeping the preview in memory (vs. on disk) means a rejected
+# regeneration leaves zero artifacts.
+
+from utils.cover_gen import generate_cover as _generate_cover
+
+# Per-user preview cache.  Bounded to ~1 hr by storing the timestamp.
+# Trimmed lazily on each apply / on backend restart.  In a multi-worker
+# deploy we'd need Redis — single-worker is fine for now.
+_COVER_PREVIEW_CACHE: Dict[str, Dict[str, Any]] = {}
+_COVER_PREVIEW_TTL_SECONDS = 60 * 60  # 1 hour
+
+
+class CoverPreviewBody(BaseModel):
+    nudge: Optional[str] = None
+
+
+@api_router.post("/books/{book_id}/preview-cover")
+async def preview_book_cover(
+    book_id: str,
+    body: CoverPreviewBody,
+    user: User = Depends(get_current_user),
+):
+    """Generate a cover image via nano-banana and return it as base64 PNG.
+    Does NOT persist anything — the user must call ``apply-cover`` to
+    keep it.  Holds the bytes in memory keyed by a preview_id so the
+    apply step doesn't re-bill another generation."""
+    doc = await db.books.find_one(
+        {"book_id": book_id, "user_id": user.user_id},
+        {"_id": 0, "book_id": 1, "title": 1, "author": 1, "fandom": 1,
+         "tags": 1, "description": 1, "summary": 1},
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail="Book not found")
+    try:
+        png_bytes, prompt = await _generate_cover(doc, nudge=body.nudge)
+    except Exception as e:  # noqa: BLE001 — surface as 502 with detail
+        logger.exception("cover_gen failed for %s", book_id)
+        raise HTTPException(status_code=502, detail=f"Cover generation failed: {e}")
+    preview_id = uuid.uuid4().hex
+    _COVER_PREVIEW_CACHE[preview_id] = {
+        "book_id": book_id,
+        "user_id": user.user_id,
+        "png_bytes": png_bytes,
+        "prompt": prompt,
+        "created_at": datetime.now(timezone.utc),
+    }
+    # Trim expired entries opportunistically so the cache doesn't grow
+    # unbounded if users abandon previews.
+    now = datetime.now(timezone.utc)
+    for pid, entry in list(_COVER_PREVIEW_CACHE.items()):
+        if (now - entry["created_at"]).total_seconds() > _COVER_PREVIEW_TTL_SECONDS:
+            _COVER_PREVIEW_CACHE.pop(pid, None)
+    return {
+        "preview_id": preview_id,
+        "image_base64": base64.b64encode(png_bytes).decode("ascii"),
+        "mime_type": "image/png",
+    }
+
+
+class CoverApplyBody(BaseModel):
+    preview_id: str
+
+
+@api_router.post("/books/{book_id}/apply-cover")
+async def apply_book_cover(
+    book_id: str,
+    body: CoverApplyBody,
+    user: User = Depends(get_current_user),
+):
+    """Persist the previewed cover bytes to disk + DB.  Doesn't touch
+    the EPUB file itself — covers are served from `{book_id}.cover`
+    alongside the EPUB so the original file stays bit-for-bit clean."""
+    entry = _COVER_PREVIEW_CACHE.get(body.preview_id)
+    if not entry or entry["book_id"] != book_id or entry["user_id"] != user.user_id:
+        raise HTTPException(status_code=404, detail="Preview expired or unknown")
+    user_dir = STORAGE_DIR / user.user_id
+    user_dir.mkdir(parents=True, exist_ok=True)
+    cover_path = user_dir / f"{book_id}.cover"
+    cover_path.write_bytes(entry["png_bytes"])
+    await db.books.update_one(
+        {"book_id": book_id, "user_id": user.user_id},
+        {"$set": {
+            "has_cover": True,
+            "cover_source": "ai_generated",
+            "cover_generated_at": datetime.now(timezone.utc).isoformat(),
+        }},
+    )
+    # One-shot — drop the preview so a second apply can't re-write.
+    _COVER_PREVIEW_CACHE.pop(body.preview_id, None)
+    return {"ok": True, "book_id": book_id, "has_cover": True}

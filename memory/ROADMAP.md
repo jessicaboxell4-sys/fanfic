@@ -33,7 +33,7 @@
 
 ## P2 — polish & infrastructure
 - OG/Twitter card meta tags for `/share/yib/:token` ✅ (shipped 2026-06-16, see CHANGELOG)
-- Cover regeneration via AI when EPUB has no cover image
+- Cover regeneration via AI when EPUB has no cover image ✅ (shipped 2026-06-17 — nano-banana)
 - Move from local FS to object storage when scaling
 
 ## P3 — nice-to-have

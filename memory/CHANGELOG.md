@@ -8,6 +8,72 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-17 — AI cover regeneration (nano-banana) ✅
+
+EPUBs without their own cover image used to render as a flat brand-
+coloured "book spine" placeholder.  Users can now regenerate any
+cover via AI — Gemini Nano Banana
+(`gemini-3.1-flash-image-preview`) through the Emergent Universal
+LLM key.
+
+**Design constraints baked into the prompt** (locked in after user
+sign-off):
+- 2:3 vertical book-cover aspect (~600×900, model returns ~912 KB PNG)
+- Sage / cream / warm palette matching the Shelfsort aesthetic
+- Symbolic / atmospheric — *not* fan-art photorealism
+- No human faces (sidesteps real-person ship issues + uncanny valley)
+- No copyrighted character designs — fandoms evoked through props /
+  symbols / atmosphere (lanterns, moths, runes, dusk gradients, …)
+- Title + author rendered directly onto the cover in serif typography
+- No watermarks / fictional publisher marks
+
+**Backend** (`backend/utils/cover_gen.py`, `backend/routes/books.py`):
+- `utils/cover_gen.py::generate_cover(book, nudge=None)` — single-call,
+  single-image coroutine.  Composes a structured prompt from title /
+  author / fandom / tags / description + optional free-text nudge.
+  Returns `(png_bytes, prompt)` for the audit log.
+- Two-phase endpoint flow so the user previews before committing:
+    * `POST /api/books/{book_id}/preview-cover` → generates, caches
+      bytes in memory under a one-shot `preview_id` (TTL 1 hour),
+      returns base64 PNG.  DB untouched.
+    * `POST /api/books/{book_id}/apply-cover` → persists the cached
+      bytes to `{user_dir}/{book_id}.cover`, sets `has_cover: True`
+      + `cover_source: "ai_generated"` + `cover_generated_at` on the
+      book doc, pops the cache entry (one-shot).
+- Original EPUB file is NEVER touched — cover lives alongside as a
+  sibling `.cover` file.
+- Preview cache enforces book_id + user_id ownership on apply.
+
+**Frontend** (`components/RegenerateCoverButton.jsx`, integrated into
+`components/BookCard.jsx`):
+- Hover-revealed sparkles icon top-left of every book card.  Opens
+  a modal with:
+    * 2:3 aspect preview frame (always sized so loading doesn't jank).
+    * Loading spinner ("Designing your cover…") while the model runs.
+    * Free-text "Optional direction" nudge field
+      (`e.g. "more moody" or "include a lantern motif"`, max 120 chars).
+    * **Try again** button — regenerates with the current nudge.
+    * **Use this cover** button — calls apply, toasts, closes,
+      refetches the parent card.
+- All testids prefixed `regen-cover-*` so the testing agent can drive
+  the flow.
+
+**Tests** (`tests/test_cover_regen.py` — 3 tests, ~30 s, includes 2 real
+nano-banana calls):
+- `test_preview_cover_returns_base64_and_preview_id` — endpoint smoke.
+- `test_apply_cover_rejects_wrong_user` — user B can't apply A's
+  preview_id (cross-user ownership check).
+- `test_apply_cover_persists_and_flips_has_cover` — end-to-end: cover
+  file lands on disk, `has_cover` flips, `cover_source` is recorded,
+  second apply with the same preview_id is rejected (one-shot).
+
+Verified live: 912 KB PNG generated in ~9 s for a Twilight-style sample
+book.  Full regression suite still green.
+
+---
+
+
+
 ## 2026-06-17 — Mobile site-wide fix ✅
 
 Reported issue: site horizontally overflows on Android phones, making
