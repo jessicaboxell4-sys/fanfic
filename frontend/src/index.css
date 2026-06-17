@@ -251,6 +251,46 @@ html, body {
     [data-radix-popper-content-wrapper] > * {
         max-width: calc(100vw - 1rem);
     }
+
+    /* ---------------------------------------------------------------- */
+    /* Tap targets (2026-06-17)                                          */
+    /* Apple HIG: 44pt minimum.  Material: 48dp.  Many of our inline    */
+    /* icon-only buttons compile to ~28-32px — too small to hit         */
+    /* reliably on a phone.  Two complementary rules:                   */
+    /*  1. ``.tap-min`` — opt-in utility for buttons we explicitly      */
+    /*     promote (chevrons, toast close, chapter tabs).               */
+    /*  2. Global floor — ANY <button> or role=button that has only an  */
+    /*     SVG icon child (no text) gets a 40px minimum on phones.      */
+    /*     Generous enough to fix the offenders without bloating        */
+    /*     textual buttons (which are already comfortable).             */
+    /* ---------------------------------------------------------------- */
+    .tap-min,
+    button.tap-min,
+    a.tap-min {
+        min-width: 44px;
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    /* Catch-all for the icon-only buttons that didn't get explicit     */
+    /* ``.tap-min``.  ``:has()`` is supported in every evergreen        */
+    /* browser as of 2024 (Chrome 105+, Safari 15.4+, Firefox 121+).    */
+    /* Targets buttons/links whose ONLY visible child is an <svg> —    */
+    /* heuristic for "icon button".                                    */
+    button:has(> svg:only-child),
+    a:has(> svg:only-child) {
+        min-width: 40px;
+        min-height: 40px;
+    }
+    /* Chapter-tab pills in bookclub rooms (`text-xs px-2.5 py-1`)      */
+    /* compile to ~28px tall.  Bump tap height without changing the    */
+    /* desktop styling.                                                */
+    [data-testid^="chapter-tab-"] {
+        min-height: 36px;
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+    }
 }
 
 /* One-shot attention pulse for the new navbar appearance icon.

@@ -80,6 +80,42 @@ Lint clean, webpack compiles, regression suite still green.
 
 ---
 
+## 2026-06-17 — Mobile tap-target sizing ✅
+
+Apple HIG specifies 44pt minimum tap targets; Material recommends 48dp.
+Several inline icon-only buttons (toast close, pagination chevrons,
+chapter-tab pills, ~32px `p-1.5`-padded icons) were below that floor,
+making them hard to hit reliably on Android.
+
+**`frontend/src/index.css`** (inside the existing mobile safety-net
+block — `@media (max-width: 640px)`):
+- `.tap-min` utility — explicit opt-in for buttons we want bumped to
+  44×44 with centred icon content.
+- **Global icon-only floor** — any `<button>` or `<a>` whose only child
+  is an `<svg>` gets a 40×40 minimum via the CSS `:has()` selector
+  (supported in every evergreen browser since 2024).  Catches every
+  icon button we didn't manually update without bloating textual
+  buttons.
+- **Chapter-tab pills** (`[data-testid^="chapter-tab-"]`) — bumped to
+  36px tall with extra horizontal padding so the row of chapter
+  numbers in a bookclub room stops being a precision-tap exercise.
+
+**Component edits**:
+- `components/ui/toast.jsx` — added `tap-min` to the absolute-positioned
+  close X (was `p-1`, ~24px).
+- `components/ModerationLogCard.jsx` — added `tap-min` to the Prev /
+  Next pagination buttons.
+
+**Verification** (Playwright + CDP at 412px viewport):
+- Audited all icon-only `<button>` / `<a>` elements on the post-login
+  page.  Result: **0 elements below 40×40**.  3 icon buttons measured
+  (tour close, tour back, tour next) — all exactly 40×40 thanks to the
+  new floor.
+
+Lint clean, webpack compiles, 56-test regression suite still green.
+
+---
+
 
 
 ## 2026-06-17 — Moderators role ✅ + Moderation log

@@ -205,7 +205,7 @@ export default function ModerationLogCard({ pageSize = 25, actorId = null, showF
               onClick={() => setOffset(Math.max(0, offset - limit))}
               disabled={!canPrev || loading}
               data-testid="moderation-log-prev"
-              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg bg-white border border-[#E5DDC5] text-[#6B705C] hover:border-[#6B46C1] disabled:opacity-50"
+              className="tap-min inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg bg-white border border-[#E5DDC5] text-[#6B705C] hover:border-[#6B46C1] disabled:opacity-50"
             >
               <ChevronLeft className="w-3 h-3" /> Prev
             </button>
@@ -214,7 +214,7 @@ export default function ModerationLogCard({ pageSize = 25, actorId = null, showF
               onClick={() => setOffset(offset + limit)}
               disabled={!canNext || loading}
               data-testid="moderation-log-next"
-              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg bg-white border border-[#E5DDC5] text-[#6B705C] hover:border-[#6B46C1] disabled:opacity-50"
+              className="tap-min inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg bg-white border border-[#E5DDC5] text-[#6B705C] hover:border-[#6B46C1] disabled:opacity-50"
             >
               Next <ChevronRight className="w-3 h-3" />
             </button>
