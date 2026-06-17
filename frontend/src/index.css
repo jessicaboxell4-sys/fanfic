@@ -296,6 +296,40 @@ html, body {
         padding-left: 0.75rem;
         padding-right: 0.75rem;
     }
+
+    /* ---------------------------------------------------------------- */
+    /* Universal "icon + title + CTA" card wrap (2026-06-17)            */
+    /* Almost every settings / dashboard card on the site follows the   */
+    /* same header pattern: an icon block, a flex-1 title+description   */
+    /* column, and a `flex-shrink-0` action button on the right.        */
+    /* On phones the CTA crushes the text column down to ~80-150px and  */
+    /* either the description wraps one word per line or the button     */
+    /* itself gets clipped.  Solving each card individually is a long   */
+    /* slog; instead we target the common `.shelf-card` wrapper class   */
+    /* (used by Account, PrivacyMessaging, PolishLibrary, FindDup,      */
+    /* CrossoverShelf, etc.) and any direct-child flex-row that uses    */
+    /* `justify-between`.  On phones those rows wrap, and the trailing  */
+    /* `<button>` / `<a class="btn-…">` claims a full row so the title  */
+    /* gets all the horizontal space.                                   */
+    /* ---------------------------------------------------------------- */
+    .shelf-card .flex.justify-between,
+    .shelf-card > div > .flex.justify-between,
+    section.shelf-card .flex.items-start.justify-between {
+        flex-wrap: wrap;
+    }
+    .shelf-card .flex.justify-between > button:last-child,
+    .shelf-card .flex.items-start.justify-between > button:last-child,
+    .shelf-card .flex.justify-between > a.btn-primary:last-child,
+    .shelf-card .flex.justify-between > a.btn-secondary:last-child {
+        width: 100%;
+    }
+    /* Card titles within `.shelf-card` step down one size on phones so */
+    /* "Privacy & messaging" / "Polish my library" wrap to 2 lines max  */
+    /* (rather than 3 because text-2xl is too greedy at 360px).        */
+    .shelf-card h2 {
+        font-size: 1.25rem;     /* text-xl */
+        line-height: 1.75rem;
+    }
 }
 
 /* One-shot attention pulse for the new navbar appearance icon.

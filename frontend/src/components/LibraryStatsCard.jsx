@@ -52,7 +52,12 @@ export default function LibraryStatsCard() {
     { d: 365, label: "Year" },
   ];
   const windowLabel = (WINDOWS.find((w) => w.d === windowDays) || WINDOWS[1]).label.toLowerCase();
-  const delta = (n) => (n > 0 ? `+${n} this ${windowLabel}` : `no change this ${windowLabel}`);
+  // Short on mobile (`+3 this wk` / `no change`) so the trend doesn't
+  // wrap to 4 lines inside a 2-col grid tile on phones.  We render both
+  // strings and let CSS show the right one via Tailwind's responsive
+  // `hidden`/`sm:inline` classes.
+  const delta = (n) => (n > 0 ? `+${n}` : `no change`);
+  const deltaLong = (n) => (n > 0 ? `+${n} this ${windowLabel}` : `no change this ${windowLabel}`);
   const items = [
     { icon: BookOpen, label: "Books", value: stats.total, trend: trends?.books, testId: "lib-stat-books" },
     { icon: Tag, label: "Fandoms", value: fandomTotal ?? "—", trend: trends?.fandoms, testId: "lib-stat-fandoms" },
@@ -89,23 +94,24 @@ export default function LibraryStatsCard() {
           ))}
         </div>
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
         {items.map(({ icon: Icon, label, value, trend, testId }) => (
           <div
             key={label}
             data-testid={testId}
-            className="rounded-lg border border-[#E5DDC5] bg-white p-3 flex items-start gap-3"
+            className="rounded-lg border border-[#E5DDC5] bg-white p-2.5 sm:p-3 flex items-start gap-2 sm:gap-3"
           >
-            <Icon className="w-5 h-5 text-[#6B705C] flex-shrink-0 mt-0.5" />
-            <div className="min-w-0">
-              <div className="text-2xl font-serif text-[#2C2C2C] leading-none">{value}</div>
-              <div className="text-xs uppercase tracking-wide text-[#6B705C] mt-1">{label}</div>
+            <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-[#6B705C] flex-shrink-0 mt-0.5" />
+            <div className="min-w-0 flex-1">
+              <div className="text-xl sm:text-2xl font-serif text-[#2C2C2C] leading-none">{value}</div>
+              <div className="text-[10px] sm:text-xs uppercase tracking-wide text-[#6B705C] mt-1 truncate" title={label}>{label}</div>
               {trend != null && (
                 <div
                   className={`text-[10px] mt-1 ${trend > 0 ? "text-[#6B46C1] font-semibold" : "text-[#6B705C]/70"}`}
                   data-testid={`${testId}-trend`}
                 >
-                  {delta(trend)}
+                  <span className="sm:hidden">{delta(trend)}</span>
+                  <span className="hidden sm:inline">{deltaLong(trend)}</span>
                 </div>
               )}
             </div>

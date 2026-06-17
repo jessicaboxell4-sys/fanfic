@@ -163,6 +163,37 @@ on the button + `text-xl sm:text-2xl` shrink on the heading so the
 the old `overflow-wrap: anywhere` until their phone hard-refreshes
 the stylesheet.
 
+**Follow-up: Site-wide `.shelf-card` CTA wrap** — user reported the same
+crushed-column issue on 5+ pages (Polish my library, Find duplicates,
+Merge crossover fandoms, Privacy & messaging, Library by the numbers).
+Single root cause: cards use a `.shelf-card` wrapper with a `flex
+justify-between` header pairing title + CTA button, and the CTA
+`flex-shrink-0` was crushing the title column at <640px.
+
+Fixed in `frontend/src/index.css` with a universal CSS rule scoped to
+`.shelf-card` (so other layouts are untouched):
+- `.shelf-card .flex.justify-between` → `flex-wrap: wrap` on phones,
+  so the CTA stacks below the title automatically.
+- Trailing `<button>` / `<a class="btn-…">` inside that flex → full
+  width on phones so the button looks intentional rather than orphaned.
+- `.shelf-card h2` → `text-xl` (1.25rem) on phones instead of
+  `text-2xl`, so titles like "Privacy & messaging" wrap to 2 lines
+  max rather than ballooning to 3.
+
+Also tightened `LibraryStatsCard` inner tiles
+(`grid-cols-2 md:grid-cols-4` of stat cells):
+- Icon shrinks `w-5 h-5 → w-4 h-4` on phones.
+- Number font shrinks `text-2xl → text-xl` on phones.
+- Label gets `truncate` with `title` attribute hover-tooltip so
+  "CROSSOVERS" no longer wraps + gets clipped to "CROSSOV".
+- Trend copy switches from "no change this week" / "+3 this week" to
+  the short "no change" / "+3" on phones (full string still shown at
+  ≥ sm via Tailwind responsive `<span>` pair), so the tile no longer
+  wraps to 4-6 lines.
+
+Verified: `/library`, `/account`, `/find-duplicates`, `/polish-library`
+all `overflows: false` at 412px Android viewport.
+
 ---
 
 
