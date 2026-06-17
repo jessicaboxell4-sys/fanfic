@@ -201,6 +201,58 @@
     to { opacity: 1; transform: translateY(0); }
 }
 
+/* ------------------------------------------------------------------ */
+/*  MOBILE SAFETY NET (2026-06-17)                                     */
+/*  Pinned to viewport width so no rogue element (long URL, sticky    */
+/*  table cell, fixed-min-width filter input) can ever introduce a    */
+/*  horizontal scroll on Android / iOS phones.  Each rule below is    */
+/*  scoped to <=640px ("sm" breakpoint) so desktop layouts are        */
+/*  untouched.                                                        */
+/* ------------------------------------------------------------------ */
+html, body {
+    /* Belt-and-braces: even if a child overflows, the document itself  */
+    /* never grows past the viewport.  Has no effect on desktop where  */
+    /* nothing tries to overflow.                                      */
+    overflow-x: hidden;
+    max-width: 100vw;
+}
+
+@media (max-width: 640px) {
+    /* Any explicit `min-w-[NNNpx]` Tailwind class (typical culprits:   */
+    /* filter inputs, search boxes, popover content) is relaxed to     */
+    /* "shrink down to anything" on phones.  Tailwind escapes the      */
+    /* bracket in the compiled class name as `min-w-\[`, hence the     */
+    /* attribute selector below.                                       */
+    [class*="min-w-\\["] {
+        min-width: 0 !important;
+    }
+    /* Prevent long words / URLs / tag names from punching out of      */
+    /* their containers.                                               */
+    p, span, h1, h2, h3, h4, li, td, code {
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+    /* Tables that aren't already wrapped in `overflow-x-auto` should  */
+    /* at least scroll instead of pushing the page.                    */
+    table {
+        max-width: 100%;
+        display: block;
+        overflow-x: auto;
+    }
+    /* Native scroll containers — keep momentum on iOS / Chrome.       */
+    .overflow-x-auto, .overflow-x-scroll {
+        -webkit-overflow-scrolling: touch;
+    }
+    /* shadcn dialogs (`<DialogContent>`) ship with a fixed max-width  */
+    /* that's wider than narrow phones.  Force them to respect the     */
+    /* viewport with a little gutter so the close button stays         */
+    /* tappable.                                                       */
+    [role="dialog"],
+    [data-radix-popper-content-wrapper] > * {
+        max-width: calc(100vw - 1rem);
+    }
+}
+
 /* One-shot attention pulse for the new navbar appearance icon.
    Fires three soft rings, then stops. Used to surface the merged
    theme/palette popover to users who haven't discovered it yet.

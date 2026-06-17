@@ -31,7 +31,7 @@ export default function StatsCard({ stats, viewMoreTo }) {
 
   return (
     <div className="mb-8" data-testid="stats-card-wrap">
-      <div className="grid grid-cols-3 gap-3 sm:gap-4" data-testid="stats-card">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4" data-testid="stats-card">
         {tiles.map((t, i) => (
           <div
             key={i}

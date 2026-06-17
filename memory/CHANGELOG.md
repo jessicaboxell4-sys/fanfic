@@ -8,6 +8,55 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-17 — Mobile site-wide fix ✅
+
+Reported issue: site horizontally overflows on Android phones, making
+the whole UI hard to use.  Fixed with a CSS safety net + a few key
+grid responsive overrides — **0 / 8 audited pages overflow at 320px**
+or 412px viewports after the change.
+
+**`frontend/src/index.css` — Mobile safety net block (≤640px):**
+- `html, body { overflow-x: hidden; max-width: 100vw; }` — belt-and-
+  braces document-level cap so no rogue child can introduce a horizontal
+  scrollbar.
+- `[class*="min-w-\\["] { min-width: 0 !important; }` — relaxes every
+  arbitrary Tailwind `min-w-[NNNpx]` (filter inputs, popovers,
+  AllBooksPage search, SmartShelves selects, CrossoverShelf search,
+  AdminConsole filters, etc.) to allow shrink on phones.  Desktop
+  layouts unchanged.
+- Long words / URLs / tag names break on `p/span/h*/li/td/code` via
+  `overflow-wrap: anywhere; word-break: break-word;` so user-typed
+  strings never push the container.
+- `<table>` without an explicit scroll wrapper falls back to
+  `display: block; overflow-x: auto;` so admin-tables scroll inside
+  themselves rather than the page.
+- `[role="dialog"]` + radix popper content forced to
+  `max-width: calc(100vw - 1rem)` so the welcome tour, share dialogs,
+  and friend-request modals don't punch outside the viewport on small
+  Android screens.
+- `-webkit-overflow-scrolling: touch;` on `.overflow-x-auto` /
+  `.overflow-x-scroll` so existing horizontal scrollers feel native.
+
+**Responsive grid fixes** — three 3-column-on-everything grids
+upgraded to `grid-cols-2 sm:grid-cols-3`:
+- `components/StatsCard.jsx`
+- `components/LibraryReadingStatsCard.jsx`
+- `pages/FindDuplicates.jsx`
+
+**Verification (Playwright with `Emulation.setDeviceMetricsOverride`):**
+- 412px viewport (typical Android, e.g. Pixel 7): `/library`,
+  `/account/emails`, `/admin`, `/bookclubs`, `/all` — `overflows: false`.
+- 320px viewport (smallest Android still in service): `/library`,
+  `/admin`, `/bookclubs`, `/account/emails`, `/all`, `/find-duplicates`,
+  `/stats`, `/find-fandoms` — all `overflows: false`.
+
+No backend changes; full pytest suite (56 tests across moderators,
+digest, dark-mode, goal events, landing stats) still green.
+
+---
+
+
+
 ## 2026-06-17 — Moderators role ✅ + Moderation log
 
 Third permission tier between regular users and full admins, plus an

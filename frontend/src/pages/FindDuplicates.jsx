@@ -133,7 +133,7 @@ function GroupCard({ group, onResolved }) {
                 </div>
               </div>
               {!isKeeper && (
-                <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Pick an action">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2" role="radiogroup" aria-label="Pick an action">
                   {[
                     { val: "keep", label: "Keep alongside", desc: "Leave it." },
                     { val: "archive", label: "Archive as old", desc: "Move to Old stories." },

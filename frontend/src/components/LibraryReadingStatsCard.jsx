@@ -56,7 +56,7 @@ export default function LibraryReadingStatsCard() {
         </Link>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <Stat
           label="Left to read"
           value={fmtMinutes(data.unfinished_minutes)}
