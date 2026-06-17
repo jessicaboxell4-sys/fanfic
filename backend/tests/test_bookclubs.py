@@ -206,8 +206,11 @@ class TestBookclubInviteFlow:
         )
         assert r.status_code == 200
         data = r.json()
-        assert len(data["members"]) == 2
-        roles = {m["user_id"]: m["role"] for m in data["members"]}
+        # Platform-owner oversight is auto-added to every bookclub as of
+        # 2026-06-16 — exclude it for this "real members" headcount.
+        real_members = [m for m in data["members"] if m["role"] != "oversight"]
+        assert len(real_members) == 2
+        roles = {m["user_id"]: m["role"] for m in real_members}
         assert roles[USERS["owner"]["user_id"]] == "owner"
         assert roles[USERS["friend"]["user_id"]] == "member"
         assert data["my_role"] == "member"
