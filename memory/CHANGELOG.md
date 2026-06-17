@@ -8,6 +8,59 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-16 — "Polish my library" bulk metadata cleanup ✅
+
+Ride on the in-place EPUB writer we shipped earlier today: scan the user's
+library for books whose title still looks like a filename or whose author is
+"Unknown"/blank, suggest cleaned values inferred from the file or source URL,
+and apply per-field with one click — writing into both the DB and the EPUB.
+
+**Backend** (`utils/polish.py`, `routes/books.py`):
+- New `utils/polish.py` — pure-function heuristics for `suggest_polish(book)`
+  and `polishable_mongo_filter()`. Errs on the side of NOT suggesting a change
+  to keep false-positives near zero.
+- Title heuristics: empty / "Unknown" / "Untitled" / equal-to-book_id / ending
+  in `.epub` / heavy underscores / all-caps-and-digits. Cleanup strips `.epub`,
+  swaps underscores for spaces, smart-title-cases (keeps small words lowercase,
+  preserves all-caps tokens like POV / AU).
+- Author heuristics: empty / "Unknown" / "Unknown Author" / "anonymous".
+  Inferred from `source_url` — AO3 (`/users/{handle}/...`) and FFNet
+  (`/u/{id}/{handle}`) handles, with `_` → space normalization.
+- New endpoints:
+  - `GET /api/books/polish/preview?limit=N` — returns suggestions + a global
+    candidate count.
+  - `POST /api/books/polish/apply` — accepts `{items: [{book_id, apply_title,
+    apply_author}]}`. Re-runs `suggest_polish` server-side on every item
+    (defence in depth against tampered payloads). For each applied item,
+    updates DB and calls `update_epub_metadata()` if the file exists.
+
+**Frontend** (`pages/PolishLibraryPage.jsx`, `App.js`, `Account.jsx`):
+- New route `/library/polish` with the cleanup UI:
+  - Per-book card showing `old → new` diff for title and author, each with its
+    own checkbox so users can accept one and reject the other
+  - "Select all / none / Rescan" bulk controls
+  - "Apply N changes" pill that updates live
+  - Empty-state when library is already clean ("Your library looks great!")
+- Account page gets a `Polish my library` shelf-card pointing at the new route
+  (purple `Wand2` icon, slotted above Find Duplicates).
+
+**Tests** — new `tests/test_polish.py` with 9 cases:
+- Preview: clean library returns nothing
+- Preview: messy title (`.epub` filename) gets clean suggestion
+- Preview: Unknown author gets AO3 handle inferred from source_url
+- Preview: book_id-as-title gets a cleanup
+- Apply: writes DB
+- Apply: respects per-field opt-in (title-only or author-only)
+- Apply: skips books that are no-longer-polishable
+- Apply: refuses to touch another user's books even if the id is known
+- Apply: empty payload → no-op
+
+**All 9 passing.** Smoke-tested e2e — seeded 3 messy books for the tester
+account, opened `/library/polish`, confirmed 3 rows rendered with correct
+suggestions, verified Select all / Select none toggles update the "Apply N"
+count correctly. Cleanup ran post-test to restore tester library to its
+seed state.
+
 ## 2026-06-16 — "Rooms I'm watching" admin card ✅
 
 Companion to the oversight feature: the Admin Console now has a top-level

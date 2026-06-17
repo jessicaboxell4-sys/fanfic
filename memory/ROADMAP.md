@@ -14,8 +14,9 @@
 - Keyboard shortcuts (J/K next/prev) for ReadOriginal viewer
 - Engagement-gate hint UI in bookclub digest settings
 - SSE-based goal-hit confetti (replace 30s polling)
-- Phase 6 refactor of `books.py` (~4949 lines)
+- Phase 6 refactor of `books.py` (~5300 lines)
 - EPUB metadata in-place editing ✅ (shipped 2026-06-16)
+- "Polish my library" bulk metadata cleanup ✅ (shipped 2026-06-16)
 - Recommendations based on top fandoms/authors
 
 ## Deferred / Declined

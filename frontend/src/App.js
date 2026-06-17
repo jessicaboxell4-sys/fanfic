@@ -48,6 +48,7 @@ import FilterUrlList from "@/pages/FilterUrlList";
 import DownloadPage from "@/pages/DownloadPage";
 import CrossoverShelf from "@/pages/CrossoverShelf";
 import LinklessShelf from "@/pages/LinklessShelf";
+import PolishLibraryPage from "@/pages/PolishLibraryPage";
 import UnreadableShelf from "@/pages/UnreadableShelf";
 import UnknownSourcesPage from "@/pages/UnknownSourcesPage";
 import { CompleteShelf, OngoingShelf } from "@/pages/StatusShelves";
@@ -118,6 +119,7 @@ function AppRouter() {
       <Route path="/library/tag/:name" element={<ProtectedRoute><TagShelfPage /></ProtectedRoute>} />
       <Route path="/library/cant-find-online" element={<ProtectedRoute><CantFindOnline /></ProtectedRoute>} />
       <Route path="/library/unread" element={<ProtectedRoute><UnreadLibraryPage /></ProtectedRoute>} />
+      <Route path="/library/polish" element={<ProtectedRoute><PolishLibraryPage /></ProtectedRoute>} />
       <Route path="/bookmarks" element={<ProtectedRoute><BookmarksPage /></ProtectedRoute>} />
       <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
       <Route path="/account/appearance" element={<ProtectedRoute><AppearancePage /></ProtectedRoute>} />

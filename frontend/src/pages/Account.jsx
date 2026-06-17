@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
-import { User as UserIcon, Mail, Lock, Loader2, Mail as MailIcon, Settings2, AlertTriangle, Layers, Plus, X as XIcon, Download, Sparkles, Trash2, Users as UsersIcon, ShieldCheck as ShieldCheckIcon } from "lucide-react";
+import { User as UserIcon, Mail, Lock, Loader2, Mail as MailIcon, Settings2, AlertTriangle, Layers, Plus, X as XIcon, Download, Sparkles, Trash2, Users as UsersIcon, ShieldCheck as ShieldCheckIcon, Wand2 } from "lucide-react";
 import LibraryStatsCard from "../components/LibraryStatsCard";
 import FandomTreemap from "../components/FandomTreemap";
 import CatalogSyncCard from "../components/CatalogSyncCard";
@@ -1670,6 +1670,31 @@ export default function Account() {
                 </div>
               );
             })}
+          </div>
+        </section>
+
+        {/* Polish my library — bulk metadata cleanup, runs on the EPUB file too */}
+        <section className="shelf-card p-6 mb-6" data-testid="polish-library-card">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#EDE7FB] text-[#6B46C1] flex items-center justify-center flex-shrink-0">
+              <Wand2 className="w-5 h-5" />
+            </div>
+            <div className="flex-1">
+              <h2 className="font-serif text-2xl text-[#2C2C2C]">Polish my library</h2>
+              <p className="text-sm text-[#6B705C] mt-1">
+                Scan for books whose title still looks like a filename or whose author is&nbsp;
+                <em>Unknown</em>, and suggest cleaner values inferred from the file or source URL.
+                You preview every change before applying — corrections are written into the EPUB
+                itself, so they travel with the file.
+              </p>
+            </div>
+            <button
+              data-testid="polish-library-btn"
+              onClick={() => navigate("/library/polish")}
+              className="px-4 py-2 rounded-lg text-sm font-medium bg-[#6B46C1] text-white hover:bg-[#5b3aa5] flex-shrink-0"
+            >
+              Scan library
+            </button>
           </div>
         </section>
 
