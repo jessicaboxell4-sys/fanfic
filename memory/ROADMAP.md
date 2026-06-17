@@ -17,6 +17,32 @@
     * Promote/demote mods from the existing Admin Console user-list, same
       UI pattern as the admin promotion flow.
     * Decide: can mods promote other mods? Default = NO, admin-only.
+    * **Open questions to confirm with user before implementing:**
+        - Should mods be able to ban users? (default proposal: no — admin-only)
+        - Can mods lock bookclub rooms? (default proposal: yes)
+        - Can mods approve pending sign-ups? (default proposal: yes —
+          frees up the admin for everything else)
+        - Should mods be able to hide/delete EPUB uploads they consider
+          abusive, or just flag them for admin review?
+
+- **Unified `/api/events/stream` SSE channel** — extend the goal-hit SSE
+  endpoint shipped 2026-06-17 into a single multiplexed stream that
+  broadcasts every transient user event:
+    * `goal-hit` (already shipped) — keep as-is
+    * `friend-started-reading` — when a sharing friend opens a book that
+      matches the user's top-fandom list
+    * `bookclub-message` — replace the per-message bell-ping polling
+    * `bookclub-finished` — when a room-mate finishes the shared book
+    * `friend-finished` — when a sharing friend marks anything finished
+    * `notification` — generic catch-all so new notification kinds don't
+      need a new endpoint
+  Migration plan: ship the new endpoint alongside the existing
+  `/api/goals/stream` (it stays as a thin alias), retire the various
+  60-90s polling loops in `MessagesDropdown.jsx`, `FriendsPage.jsx`,
+  `ActiveRoomPanel.jsx`, `NotificationsBell.jsx` one at a time, then
+  eventually delete `/api/goals/stream` once all clients have moved.
+  Single SSE connection per tab = lower DB load, instant updates,
+  simpler client code.
 
 ## P2 — polish & infrastructure
 - OG/Twitter card meta tags for `/share/yib/:token` ✅ (shipped 2026-06-16, see CHANGELOG)
