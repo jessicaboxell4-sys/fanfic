@@ -116,6 +116,45 @@ Lint clean, webpack compiles, 56-test regression suite still green.
 
 ---
 
+## 2026-06-17 — Mobile hotfix: vertical-letter heading bug ✅
+
+User reported every page showing the title rendering ONE LETTER PER
+LINE (e.g. "Library by the numbers" stacked vertically as L-i-b-r-a-
+r-y-…).  Two compounding causes, both shipped earlier today:
+
+1. **Too-aggressive overflow-wrap** — the mobile safety-net block had
+   `overflow-wrap: anywhere; word-break: break-word;` on `p, span,
+   h1, h2, h3, h4, li, td, code`.  `anywhere` lets the browser break
+   between any two characters even mid-word, which is correct for
+   60-char tags but catastrophic for a heading squeezed into a 30px
+   flex column.
+2. **Crushed flex column** — `LibraryStatsCard` had a 3-button period
+   selector (Day / Week / Month) sharing a row with the heading, with
+   the heading on `flex-1` (no `min-w-0`) and the buttons on
+   `flex-shrink-0`.  At narrow widths the heading's column shrank to
+   ~30px, so the buttons demanded all the space and the heading
+   wrapped at every character.
+
+**Fixes** (`frontend/src/index.css`, `components/LibraryStatsCard.jsx`):
+- Replaced `overflow-wrap: anywhere; word-break: break-word;` with
+  the milder `overflow-wrap: break-word;` — breaks only when a single
+  word would overflow the container, never mid-word for normal prose.
+  Also dropped the rule from `h1/h2/h3/h4/span` (headings rarely
+  contain user-supplied runaway strings; let them be).
+- Added `.break-anywhere` opt-in utility for places that DO need the
+  aggressive break (long URLs, tag clouds).
+- `LibraryStatsCard` header now uses `flex-wrap sm:flex-nowrap`,
+  `flex-1 min-w-0` on the title column, and `w-full sm:w-auto` on the
+  button group — so on phones the Day/Week/Month tabs wrap to a new
+  line below the title with full breathing room.
+- Title also shrinks from `text-2xl` → `text-xl` on phones.
+
+Verified at 412px: heading renders normally, 364px wide × 72px tall
+(2 lines), zero one-letter wrapping.  No backend changes; full regression
+suite (16 dark-mode + moderator tests) still green.
+
+---
+
 
 
 ## 2026-06-17 — Moderators role ✅ + Moderation log

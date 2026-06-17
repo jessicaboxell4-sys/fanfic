@@ -62,17 +62,17 @@ export default function LibraryStatsCard() {
 
   return (
     <section className="shelf-card p-6 mb-6" data-testid="library-stats-card">
-      <div className="flex items-start gap-3 mb-4">
+      <div className="flex items-start gap-3 mb-4 flex-wrap sm:flex-nowrap">
         <div className="w-10 h-10 rounded-xl bg-[#6B46C1]/10 text-[#6B46C1] flex items-center justify-center flex-shrink-0">
           <BookOpen className="w-5 h-5" />
         </div>
-        <div className="flex-1">
-          <h2 className="font-serif text-2xl text-[#2C2C2C]">Library by the numbers</h2>
+        <div className="flex-1 min-w-0">
+          <h2 className="font-serif text-xl sm:text-2xl text-[#2C2C2C]">Library by the numbers</h2>
           <p className="text-sm text-[#6B705C] mt-1">
             What Shelfsort is currently sorting for you.
           </p>
         </div>
-        <div className="flex gap-1 flex-shrink-0" role="radiogroup" aria-label="Trend window">
+        <div className="flex gap-1 flex-shrink-0 w-full sm:w-auto" role="radiogroup" aria-label="Trend window">
           {WINDOWS.map((w) => (
             <button
               key={w.d}

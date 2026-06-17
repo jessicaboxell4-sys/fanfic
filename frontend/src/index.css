@@ -227,10 +227,15 @@ html, body {
         min-width: 0 !important;
     }
     /* Prevent long words / URLs / tag names from punching out of      */
-    /* their containers.                                               */
-    p, span, h1, h2, h3, h4, li, td, code {
-        overflow-wrap: anywhere;
-        word-break: break-word;
+    /* their containers — but ONLY where the runaway string is the     */
+    /* sole reason an element overflows (e.g. a 60-char tag name).     */
+    /* ``break-word`` keeps normal prose wrapping at spaces; only as a */
+    /* last resort does it split mid-word.  We deliberately DO NOT use */
+    /* ``anywhere`` here (it would shatter "Library by the numbers"    */
+    /* into vertical letters when a sibling flex item forces the       */
+    /* heading into a narrow column).                                  */
+    p, li, td, code, .break-anywhere {
+        overflow-wrap: break-word;
     }
     /* Tables that aren't already wrapped in `overflow-x-auto` should  */
     /* at least scroll instead of pushing the page.                    */
