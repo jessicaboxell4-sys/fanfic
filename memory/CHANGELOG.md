@@ -55,6 +55,31 @@ digest, dark-mode, goal events, landing stats) still green.
 
 ---
 
+## 2026-06-17 — Mobile slim navbar (follow-up) ✅
+
+Follow-up to the mobile overflow fix.  The navbar was rendering 7-8
+icon buttons in a row (Appearance, Notifications, Messages, Streak,
+Updates, Avatar, Menu) which got tap-blurry and visually noisy on
+Android.
+
+**`frontend/src/components/Navbar.jsx`**:
+- Wrapped Appearance / Messages / Streak / Updates in a single
+  `<div className="hidden sm:flex ...">` container, so they only
+  render at ≥ 640px viewports.  Tablet & desktop unchanged.
+- Notifications bell + Avatar + Menu hamburger stay visible on phones
+  — the three most-tapped controls.
+- Drawer (`SecondaryLinks` with `inDrawer`) grows a "Personal" section
+  (mobile-only via `sm:hidden`) with:
+    * "Appearance" → `/account/appearance`
+    * "Reading streak & goals" → `/goals`
+  so the hidden-on-mobile destinations remain reachable in one tap.
+- Drawer already had "Messages" so no change needed there.
+
+Phone navbar is now 4 elements wide (brand → Bell → Avatar → Menu).
+Lint clean, webpack compiles, regression suite still green.
+
+---
+
 
 
 ## 2026-06-17 — Moderators role ✅ + Moderation log

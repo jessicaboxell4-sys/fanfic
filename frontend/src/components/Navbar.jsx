@@ -4,6 +4,7 @@ import {
   BookOpen, LogOut, BarChart3, Filter, HelpCircle, FileText, ShieldCheck,
   Target, Menu, X, Library, Download, ChevronDown, Link as LinkIcon,
   Lightbulb, MessageCircleQuestion, Sparkles, Users, MessageSquare,
+  Palette, Flame,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../lib/api";
@@ -121,6 +122,17 @@ function SecondaryLinks({ user, unknownFandomCount, onNavigate, inDrawer = false
         </Link>
         <Link to="/bookclubs" data-testid="drawer-bookclubs" className={itemBase} onClick={close}>
           <BookOpen className="w-4 h-4" /> Reading rooms
+        </Link>
+        {/* Mobile-only shortcuts to the controls we hide from the navbar
+            row on <sm screens (Appearance, Streak/Goals).  ``sm:hidden``
+            keeps the drawer clean on tablet+ where the icons live in
+            the navbar already. */}
+        <p className="px-3 pt-2 pb-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B705C] sm:hidden">Personal</p>
+        <Link to="/account/appearance" data-testid="drawer-appearance" className={`${itemBase} sm:hidden`} onClick={close}>
+          <Palette className="w-4 h-4" /> Appearance
+        </Link>
+        <Link to="/goals" data-testid="drawer-streak" className={`${itemBase} sm:hidden`} onClick={close}>
+          <Flame className="w-4 h-4 text-[#E07A5F]" /> Reading streak &amp; goals
         </Link>
         <p className="px-3 pt-2 pb-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B705C]">Help &amp; feedback</p>
         <Link to="/help" data-testid="drawer-help" className={itemBase} onClick={close}>
@@ -241,12 +253,22 @@ export default function Navbar() {
 
           {/* Status & personal icons — theme, notifications, messages,
               streak.  Sitting on the RIGHT keeps them near the account
-              avatar where users expect status / "me" controls. */}
-          <AppearancePopover />
+              avatar where users expect status / "me" controls.
+
+              Mobile slim-down (2026-06-17): on viewports < sm (640px)
+              we hide the secondary widgets (Appearance, Messages,
+              Streak, Updates) because the row was 7-8 icons wide and
+              tap-targets bled into each other on Android.  Their
+              destinations are reachable via the hamburger drawer
+              below.  Notifications + Avatar + Menu stay visible — the
+              three most-tapped controls. */}
+          <div className="hidden sm:flex items-center gap-1.5 md:gap-2 lg:gap-3" data-testid="navbar-secondary-icons">
+            <AppearancePopover />
+            {user && <MessagesDropdown />}
+            {user && <StreakBadge />}
+            {user && FETCHING_UI_ENABLED && <UpdatesBell />}
+          </div>
           {user && <NotificationsBell />}
-          {user && <MessagesDropdown />}
-          {user && <StreakBadge />}
-          {user && FETCHING_UI_ENABLED && <UpdatesBell />}
 
           {user && (
             <>
