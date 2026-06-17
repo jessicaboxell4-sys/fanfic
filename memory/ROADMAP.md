@@ -3,7 +3,20 @@
 > Active backlog. Items move to [CHANGELOG.md](./CHANGELOG.md) when shipped.
 
 ## P1 — high value, ready to pull
-- *(empty as of 2026-06-16 — all P1 items done in this sprint: PNG export + Copy image + AuthContext refresh helper)*
+- **Moderators role** — third role between regular user and admin. Mod-level
+  permissions: review reported messages / books, hide bookclub posts, mark
+  feedback as resolved, view (but not edit) admin console. Implementation
+  notes:
+    * Add `is_moderator: bool` flag on `User` model (alongside the existing
+      `is_admin`).
+    * New `auth_dep.get_current_moderator_or_admin` dependency.
+    * Backend: gate the existing report/feedback/abuse routes on mod OR admin.
+    * Frontend: surface a "Mod inbox" link in the Navbar dropdown for users
+      with the flag; reuse `AdminConsole` shell with a feature-flag prop so
+      mods see only the moderation tabs.
+    * Promote/demote mods from the existing Admin Console user-list, same
+      UI pattern as the admin promotion flow.
+    * Decide: can mods promote other mods? Default = NO, admin-only.
 
 ## P2 — polish & infrastructure
 - OG/Twitter card meta tags for `/share/yib/:token` ✅ (shipped 2026-06-16, see CHANGELOG)
