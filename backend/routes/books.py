@@ -5354,3 +5354,48 @@ async def apply_book_cover(
     # One-shot — drop the preview so a second apply can't re-write.
     _COVER_PREVIEW_CACHE.pop(body.preview_id, None)
     return {"ok": True, "book_id": book_id, "has_cover": True}
+
+
+
+# ---------------------------------------------------------------------
+# "Polish my covers" — list cover-less books so the frontend can run
+# the existing preview-cover / apply-cover flow against each one
+# without polling every book in the library client-side.
+# ---------------------------------------------------------------------
+
+@api_router.get("/books/cover-less")
+async def list_cover_less_books(
+    limit: int = 100,
+    user: User = Depends(get_current_user),
+):
+    """Return books owned by the caller that don't have a cover yet.
+
+    Result is intentionally small (id + title + author + fandom + tags)
+    — the bulk page renders them as placeholder tiles and lets the user
+    kick off cover generation per-book.  Cap at 200 because generating
+    a cover is a paid LLM call; we don't want the UI promising "all
+    300" if it'll cost the user too much.
+    """
+    limit = max(1, min(int(limit), 200))
+    cursor = db.books.find(
+        {
+            "user_id": user.user_id,
+            "$or": [
+                {"has_cover": {"$exists": False}},
+                {"has_cover": False},
+                {"has_cover": None},
+            ],
+        },
+        {"_id": 0, "book_id": 1, "title": 1, "author": 1, "fandom": 1,
+         "tags": 1, "category": 1},
+    ).sort("title", 1).limit(limit)
+    rows = await cursor.to_list(length=limit)
+    total = await db.books.count_documents({
+        "user_id": user.user_id,
+        "$or": [
+            {"has_cover": {"$exists": False}},
+            {"has_cover": False},
+            {"has_cover": None},
+        ],
+    })
+    return {"books": rows, "total": total, "limit": limit}

@@ -119,7 +119,7 @@ export default function PolishLibraryPage() {
           <div className="w-11 h-11 rounded-xl bg-[#EDE7FB] text-[#6B46C1] flex items-center justify-center">
             <Wand2 className="w-5 h-5" />
           </div>
-          <div>
+          <div className="min-w-0 flex-1">
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1]">Bulk cleanup</p>
             <h1 className="font-serif text-3xl text-[#2C2C2C]">Polish my library</h1>
             <p className="text-sm text-[#6B705C] mt-2 max-w-2xl">
@@ -128,6 +128,16 @@ export default function PolishLibraryPage() {
               <strong>author</strong> is <em>Unknown</em>, blank, or anonymous. Where we can guess a
               cleaner value (from the file or the source URL), we&apos;ve queued it below. You stay
               in control — uncheck anything that looks wrong before applying.
+            </p>
+            <p className="text-xs text-[#6B705C] mt-3">
+              Looking to fix missing cover art instead?{" "}
+              <Link
+                to="/library/polish-covers"
+                className="font-semibold text-[#6B46C1] hover:underline"
+                data-testid="polish-library-covers-link"
+              >
+                Polish my covers →
+              </Link>
             </p>
           </div>
         </div>

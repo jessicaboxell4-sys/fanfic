@@ -70,6 +70,35 @@ nano-banana calls):
 Verified live: 912 KB PNG generated in ~9 s for a Twilight-style sample
 book.  Full regression suite still green.
 
+### Bulk "Polish my covers" page
+
+Same flow, applied to the whole library in batches.
+
+**Backend** (`routes/books.py`):
+- `GET /api/books/cover-less?limit=100` — returns books owned by the
+  caller that don't yet have a cover (id + title + author + fandom +
+  tags + category).  Capped at 200 because each cover generation is a
+  paid LLM call.
+
+**Frontend** (`pages/PolishCoversPage.jsx`, new route
+`/library/polish-covers`):
+- Status strip: how many books lack covers, how many previews are
+  queued, how many were applied this session.
+- Batch selector — 1 / 3 / 5 / 10 / 20 at a time.  "Generate next N"
+  fires all in parallel via `Promise.all` (nano-banana handles
+  concurrent calls fine).
+- Per-tile state machine: idle → loading → preview (Keep / Try again
+  / Skip) → applying → applied.  Each transition is testid'd so the
+  testing agent can drive the full flow.
+- "Apply all kept" — sequentially applies every previewed cover with
+  one click.
+- Empty-state celebrates the "every book has a cover" outcome.
+
+**Discoverability**:
+- `PolishLibraryPage` (the metadata-cleanup peer) gets a small
+  "Looking to fix missing cover art? → Polish my covers" link in its
+  header.
+
 ---
 
 
