@@ -31,7 +31,31 @@
   Single SSE connection per tab = lower DB load, instant updates,
   simpler client code.
 
-## P2 — polish & infrastructure
+## P2 — polish
+
+- **Cover ecosystem — Tier 2, 3, 4** (Tier 1 shipped 2026-06-17 as the
+  community cover pool).  Future expansions parked:
+    * **Tier 2 — Style as a first-class concept**
+        - Style packs (Minimalist, Gothic, Watercolour, Pulp, Cyberpunk,
+          Vintage 70s sci-fi, etc.)
+        - "Generate in this style" — swap aesthetic, keep guardrails
+        - "Apply this style to my whole library" — bulk-regen for a
+          cohesive shelf
+        - Custom user styles (save your prompt as a named style)
+    * **Tier 3 — Discovery & social**
+        - Cover voting / 🤍 like
+        - Featured covers of the week (homepage spotlight)
+        - Style remix (start from someone else's cover as a seed)
+        - Style trending feed ("dark academia is having a moment")
+        - Public profile gallery ("covers by @username")
+        - Cover challenges (themed monthly contests)
+    * **Tier 4 — Pro / advanced**
+        - Reference image upload ("make it look like THIS painting")
+        - Series consistency (auto-coordinated covers per series)
+        - Cover history timeline (visual evolution of your library)
+        - A/B test in public (voters pick which variant becomes active)
+
+ & infrastructure
 - OG/Twitter card meta tags for `/share/yib/:token` ✅ (shipped 2026-06-16, see CHANGELOG)
 - Cover regeneration via AI when EPUB has no cover image ✅ (shipped 2026-06-17 — nano-banana)
 - Move from local FS to object storage when scaling

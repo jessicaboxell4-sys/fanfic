@@ -163,6 +163,84 @@ def test_apply_cover_persists_and_flips_has_cover():
         _cleanup(uid, book_id)
 
 
+def test_community_share_browse_and_import():
+    """Sharer publishes a variant → browser sees it → other user imports
+    → import_count increments and a new variant lands in the importer's
+    library.  Then sharer unshares; browser no longer sees it."""
+    import requests
+
+    a_uid, a_email, a_pw, a_book = _seed_user_and_book()
+    b_uid, b_email, b_pw, b_book = _seed_user_and_book()
+    sa = requests.Session()
+    sb = requests.Session()
+    sa.post(f"{BASE}/api/auth/login", json={"email": a_email, "password": a_pw})
+    sb.post(f"{BASE}/api/auth/login", json={"email": b_email, "password": b_pw})
+    try:
+        r = sa.post(f"{BASE}/api/books/{a_book}/preview-cover", json={})
+        if r.status_code != 200:
+            pytest.skip(f"preview-cover skipped: {r.status_code}")
+        pid = r.json()["preview_id"]
+        assert sa.post(
+            f"{BASE}/api/books/{a_book}/apply-cover", json={"preview_id": pid},
+        ).status_code == 200
+        vlist = sa.get(f"{BASE}/api/books/{a_book}/cover-variants").json()
+        vid = vlist["variants"][0]["variant_id"]
+        sr = sa.post(f"{BASE}/api/books/{a_book}/cover-variants/{vid}/share")
+        assert sr.status_code == 200, sr.text
+        cover_id = sr.json()["community_cover_id"]
+        # Idempotent re-share.
+        sr2 = sa.post(f"{BASE}/api/books/{a_book}/cover-variants/{vid}/share")
+        assert sr2.status_code == 200
+        assert sr2.json()["community_cover_id"] == cover_id
+        assert sr2.json().get("deduped") is True
+        # Browse + import.
+        br = sb.get(f"{BASE}/api/community-covers", params={"title": "Test Book"})
+        assert br.status_code == 200, br.text
+        assert any(c["cover_id"] == cover_id for c in br.json()["covers"])
+        ir = sb.post(f"{BASE}/api/books/{b_book}/import-community-cover/{cover_id}")
+        assert ir.status_code == 200, ir.text
+        bdoc = asyncio.get_event_loop().run_until_complete(
+            db.books.find_one(
+                {"book_id": b_book, "user_id": b_uid},
+                {"_id": 0, "has_cover": 1, "cover_source": 1, "cover_variants": 1},
+            )
+        )
+        assert bdoc["has_cover"] is True
+        assert bdoc["cover_source"] == "community_imported"
+        assert len(bdoc["cover_variants"]) == 1
+        # import_count incremented.
+        br2 = sb.get(f"{BASE}/api/community-covers", params={"title": "Test Book"})
+        c2 = next(c for c in br2.json()["covers"] if c["cover_id"] == cover_id)
+        assert c2["import_count"] == 1
+        # Only sharer can unshare.
+        bad = sb.delete(f"{BASE}/api/community-covers/{cover_id}")
+        assert bad.status_code == 403
+        ok = sa.delete(f"{BASE}/api/community-covers/{cover_id}")
+        assert ok.status_code == 200
+        br3 = sb.get(f"{BASE}/api/community-covers", params={"title": "Test Book"})
+        assert not any(c["cover_id"] == cover_id for c in br3.json()["covers"])
+    finally:
+        asyncio.get_event_loop().run_until_complete(
+            db.community_covers.delete_many({"shared_by_user_id": {"$in": [a_uid, b_uid]}})
+        )
+        _cleanup(a_uid, a_book)
+        _cleanup(b_uid, b_book)
+
+
+def test_community_browse_requires_title():
+    """Empty title query → 400."""
+    import requests
+    uid, email, pw, book_id = _seed_user_and_book()
+    s = requests.Session()
+    s.post(f"{BASE}/api/auth/login", json={"email": email, "password": pw})
+    try:
+        r = s.get(f"{BASE}/api/community-covers", params={"title": ""})
+        assert r.status_code == 400
+    finally:
+        _cleanup(uid, book_id)
+
+
+
 def test_cover_variants_listed_activated_and_deleted():
     """Apply two covers in a row → both stored as variants, second is
     active.  Switching back makes the first active.  Deleting active

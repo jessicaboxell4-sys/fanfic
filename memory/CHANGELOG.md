@@ -8,6 +8,76 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-17 — Community covers + variant cap bumped to 20 ✅
+
+### Variant cap raised
+
+`_COVER_VARIANT_CAP` 5 → **20** so users have room to iterate +
+adopt community covers without losing earlier work.  FIFO still
+trims oldest-inactive when full.
+
+### Community cover pool (Tier 1 of the cover-ecosystem roadmap)
+
+Opt-in sharing.  A user publishes one of their variants to a public
+pool keyed by normalized `(title, author, fandom)`; other users
+importing the same fic can browse + adopt the shared cover with zero
+LLM cost.
+
+**Backend** (`routes/books.py`):
+- New on-disk dir `/app/uploads/community_covers/` for shared cover
+  bytes (decoupled from per-user storage so they survive user delete).
+- New Mongo collection `community_covers`:
+  `{cover_id, title_key, author_key, fandom_key, title, author, fandom,
+   file, source_book_id, source_variant_id, shared_by_user_id,
+   shared_by_username, shared_at, import_count}`.
+- Endpoints:
+    * `POST /books/{id}/cover-variants/{vid}/share` — publish a variant.
+      Idempotent: re-share returns the existing community_cover_id with
+      `deduped: true`.  Sharer's `username` (fallback: email local-part)
+      is stamped for attribution.
+    * `GET /community-covers?title=…&author=…&fandom=…` — browse by
+      normalized title (required) + optional author / fandom refinement.
+      Returns inline base64 PNGs sorted by `import_count` desc then
+      `shared_at` desc (popularity-weighted).  Capped at 60.
+    * `POST /books/{id}/import-community-cover/{cover_id}` — adopt a
+      community cover as a new variant in the caller's library (no LLM
+      call).  Sets `cover_source: "community_imported"`, increments
+      `import_count` on the source record.
+    * `DELETE /community-covers/{cover_id}` — unshare.  Only the
+      original sharer, an admin, or a moderator can call it.  Doesn't
+      touch any already-imported copies in other users' libraries.
+
+**Frontend** (`components/RegenerateCoverButton.jsx`):
+- Each variant thumbnail in the "Previous covers" drawer gets a small
+  purple "Share2" button bottom-right that publishes it to the
+  community pool (one click, idempotent, toast confirms).
+- New "Browse community covers" section below the variants drawer.
+  Lazy-loaded (only fetches when the user clicks the button) so the
+  modal stays snappy.  Renders a 3-column grid of community covers
+  with the sharer's @handle + import count overlaid, and a "Use this"
+  CTA that imports the cover as a new variant.
+- After share / import, the variants drawer reloads in-place so the
+  user sees the result immediately.
+
+**Tests** (`tests/test_cover_regen.py`, +2 new tests, 6/6 pass):
+- `test_community_share_browse_and_import` — end-to-end: A shares,
+  re-share is idempotent, B browses + imports, `import_count` goes to
+  1, non-sharer unshare is 403, sharer unshare is 200, then the cover
+  vanishes from the browse list.
+- `test_community_browse_requires_title` — empty title 400s.
+
+**Parked for later sessions** (the rest of the cover-ecosystem roadmap):
+- Tier 2: Style packs / "generate in this style" / "apply style across
+  library" / custom user styles
+- Tier 3: Voting / featured / style trending / public profile gallery
+  / cover challenges
+- Tier 4: Reference image upload / series consistency / A/B vote pick
+  / cover history timeline
+
+---
+
+
+
 ## 2026-06-17 — AI cover regeneration (nano-banana) ✅
 
 EPUBs without their own cover image used to render as a flat brand-

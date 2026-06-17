@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Sparkles, Loader2, X, RotateCw, Check } from "lucide-react";
+import { Sparkles, Loader2, X, RotateCw, Check, Share2, Users, Download } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../lib/api";
 
@@ -86,6 +86,50 @@ export default function RegenerateCoverButton({ book, onCoverChanged }) {
       setVariants((vs) => vs.filter((v) => v.variant_id !== variantId));
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Couldn't delete variant");
+    }
+  };
+
+  const shareVariant = async (variantId) => {
+    try {
+      const { data } = await api.post(
+        `/books/${book.book_id}/cover-variants/${variantId}/share`,
+      );
+      toast.success(data.deduped ? "Already shared" : "Shared to community");
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't share");
+    }
+  };
+
+  // Community covers — lazy loaded when the user clicks "Browse".
+  // Stored separately from `variants` so the Previous-covers drawer
+  // stays focused on the user's own work.
+  const [community, setCommunity] = useState([]);
+  const [communityLoading, setCommunityLoading] = useState(false);
+  const [communityOpen, setCommunityOpen] = useState(false);
+
+  const loadCommunity = async () => {
+    setCommunityLoading(true);
+    setCommunityOpen(true);
+    try {
+      const { data } = await api.get("/community-covers", {
+        params: { title: book.title, author: book.author || "", fandom: book.fandom || "" },
+      });
+      setCommunity(data?.covers || []);
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't load community covers");
+    } finally {
+      setCommunityLoading(false);
+    }
+  };
+
+  const importCommunity = async (coverId) => {
+    try {
+      await api.post(`/books/${book.book_id}/import-community-cover/${coverId}`);
+      toast.success("Imported as new variant");
+      await loadVariants();
+      onCoverChanged && onCoverChanged();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't import");
     }
   };
 
@@ -268,6 +312,15 @@ export default function RegenerateCoverButton({ book, onCoverChanged }) {
                             <X className="w-3 h-3" />
                           </button>
                         )}
+                        <button
+                          type="button"
+                          onClick={() => shareVariant(v.variant_id)}
+                          data-testid={`cover-variant-share-${v.variant_id}`}
+                          title="Share to community"
+                          className="absolute bottom-0.5 right-0.5 w-5 h-5 rounded-full bg-white/90 border border-[#E5DDC5] flex items-center justify-center text-[#6B46C1] hover:bg-[#6B46C1] hover:text-white"
+                        >
+                          <Share2 className="w-3 h-3" />
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -276,6 +329,62 @@ export default function RegenerateCoverButton({ book, onCoverChanged }) {
                   </p>
                 </div>
               )}
+
+              {/* Community covers — lazy-loaded.  Renders a button until
+                  the user opens the drawer, then a grid of imported
+                  community covers for the same title. */}
+              <div data-testid="community-covers-section" className="pt-3 mt-2 border-t border-[#E5DDC5]">
+                {!communityOpen ? (
+                  <button
+                    type="button"
+                    onClick={loadCommunity}
+                    data-testid="community-covers-browse"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-white border border-[#E5DDC5] text-[#6B705C] hover:border-[#6B46C1] hover:text-[#6B46C1]"
+                  >
+                    <Users className="w-3.5 h-3.5" /> Browse community covers
+                  </button>
+                ) : (
+                  <>
+                    <p className="text-xs font-bold uppercase tracking-wider text-[#6B705C] mb-2 flex items-center gap-1.5">
+                      <Users className="w-3 h-3" /> Community covers
+                      {communityLoading && <Loader2 className="w-3 h-3 animate-spin" />}
+                    </p>
+                    {!communityLoading && community.length === 0 ? (
+                      <p className="text-[11px] text-[#6B705C] italic">
+                        No community covers yet for this book.  Be the first — share
+                        any of your variants with the Share button above.
+                      </p>
+                    ) : (
+                      <div className="grid grid-cols-3 gap-2">
+                        {community.map((c) => (
+                          <div
+                            key={c.cover_id}
+                            data-testid={`community-cover-${c.cover_id}`}
+                            className="relative rounded-md overflow-hidden border border-[#E5DDC5]"
+                          >
+                            <img
+                              src={`data:${c.mime_type};base64,${c.image_base64}`}
+                              alt={`Cover by ${c.shared_by}`}
+                              className="aspect-[2/3] w-full object-cover"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => importCommunity(c.cover_id)}
+                              data-testid={`community-cover-import-${c.cover_id}`}
+                              className="absolute inset-x-0 bottom-0 bg-[#6B46C1]/90 text-white text-[10px] py-1 flex items-center justify-center gap-1 hover:bg-[#6B46C1]"
+                            >
+                              <Download className="w-3 h-3" /> Use this
+                            </button>
+                            <p className="absolute top-0.5 left-0.5 text-[9px] bg-white/85 text-[#6B705C] px-1.5 py-0.5 rounded">
+                              @{c.shared_by} · {c.import_count}×
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>

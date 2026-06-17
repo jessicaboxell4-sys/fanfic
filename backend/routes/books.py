@@ -5526,6 +5526,235 @@ async def delete_cover_variant(
 
 
 
+
+# ---------------------------------------------------------------------
+# Community cover pool (2026-06-17)
+# ---------------------------------------------------------------------
+# Opt-in sharing: a user publishes one of their variants to a public
+# pool keyed by normalized (title, author, fandom).  Other users
+# importing the same fic can browse and adopt without re-paying for
+# AI generation.  Bytes live in /app/uploads/community_covers/{id} so
+# they're decoupled from per-user storage and survive user deletion.
+
+_COMMUNITY_COVERS_DIR = STORAGE_DIR.parent / "community_covers"
+_COMMUNITY_COVERS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _norm_book_key(title: str, author: str, fandom: str) -> Dict[str, str]:
+    """Normalize the book identity for community pool lookups: lower,
+    strip, collapse whitespace.  Two books that match on this triple
+    are treated as the same work for cover-sharing purposes."""
+    def clean(s):
+        return " ".join((s or "").strip().lower().split())
+    return {
+        "title_key":  clean(title),
+        "author_key": clean(author),
+        "fandom_key": clean(fandom),
+    }
+
+
+@api_router.post("/books/{book_id}/cover-variants/{variant_id}/share")
+async def share_cover_to_community(
+    book_id: str,
+    variant_id: str,
+    user: User = Depends(get_current_user),
+):
+    """Publish a variant to the public community cover pool.  Idempotent:
+    re-sharing the same variant returns the existing community_cover_id."""
+    doc = await db.books.find_one(
+        {"book_id": book_id, "user_id": user.user_id},
+        {"_id": 0, "title": 1, "author": 1, "fandom": 1, "cover_variants": 1},
+    )
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Book not found")
+    target = next(
+        (v for v in (doc.get("cover_variants") or []) if v["variant_id"] == variant_id),
+        None,
+    )
+    if not target:
+        raise HTTPException(status_code=404, detail="Variant not found")
+    src = STORAGE_DIR / user.user_id / target["file"]
+    if not src.exists():
+        raise HTTPException(status_code=410, detail="Variant file missing on disk")
+
+    # Dedupe on (variant_id, sharer) so re-clicking is a no-op.
+    existing = await db.community_covers.find_one(
+        {"source_variant_id": variant_id, "shared_by_user_id": user.user_id},
+        {"_id": 0, "cover_id": 1},
+    )
+    if existing:
+        return {"ok": True, "community_cover_id": existing["cover_id"], "deduped": True}
+
+    cover_id = uuid.uuid4().hex[:14]
+    dest = _COMMUNITY_COVERS_DIR / cover_id
+    dest.write_bytes(src.read_bytes())
+
+    # Pull the sharer's username for attribution.  Fallback to email
+    # local-part if they don't have a public handle yet.
+    user_doc = await db.users.find_one(
+        {"user_id": user.user_id},
+        {"_id": 0, "username": 1, "email": 1, "name": 1},
+    ) or {}
+    shared_by = (
+        user_doc.get("username")
+        or (user_doc.get("email") or "").split("@", 1)[0]
+        or "anon"
+    )
+
+    keys = _norm_book_key(doc.get("title", ""), doc.get("author", ""), doc.get("fandom", ""))
+    record = {
+        "cover_id": cover_id,
+        **keys,
+        "title":             doc.get("title", ""),
+        "author":            doc.get("author", ""),
+        "fandom":            doc.get("fandom", ""),
+        "file":              cover_id,                       # bare filename in community_covers/
+        "source_book_id":    book_id,
+        "source_variant_id": variant_id,
+        "shared_by_user_id": user.user_id,
+        "shared_by_username": shared_by,
+        "shared_at":         datetime.now(timezone.utc).isoformat(),
+        "import_count":      0,
+    }
+    await db.community_covers.insert_one(record)
+    return {"ok": True, "community_cover_id": cover_id, "shared_by": shared_by}
+
+
+@api_router.get("/community-covers")
+async def browse_community_covers(
+    title: str,
+    author: str = "",
+    fandom: str = "",
+    limit: int = 24,
+    user: User = Depends(get_current_user),
+):
+    """Browse community-shared covers for a given (title, author, fandom).
+    Matching is case-insensitive on title (required); author + fandom are
+    refinements that narrow when supplied.  Returns thumbnails inline
+    so the frontend can render a grid in one round-trip."""
+    limit = max(1, min(int(limit), 60))
+    keys = _norm_book_key(title, author, fandom)
+    if not keys["title_key"]:
+        raise HTTPException(status_code=400, detail="title query is required")
+    query: Dict[str, Any] = {"title_key": keys["title_key"]}
+    if keys["author_key"]:
+        query["author_key"] = keys["author_key"]
+    if keys["fandom_key"]:
+        query["fandom_key"] = keys["fandom_key"]
+    cursor = (
+        db.community_covers.find(query, {"_id": 0})
+        .sort([("import_count", -1), ("shared_at", -1)])
+        .limit(limit)
+    )
+    rows: List[Dict[str, Any]] = []
+    async for r in cursor:
+        path = _COMMUNITY_COVERS_DIR / r["file"]
+        if not path.exists():
+            continue
+        rows.append({
+            "cover_id":     r["cover_id"],
+            "shared_by":    r.get("shared_by_username", "anon"),
+            "shared_at":    r.get("shared_at"),
+            "import_count": int(r.get("import_count", 0)),
+            "image_base64": base64.b64encode(path.read_bytes()).decode("ascii"),
+            "mime_type":    "image/png",
+        })
+    return {"covers": rows, "count": len(rows)}
+
+
+@api_router.post("/books/{book_id}/import-community-cover/{cover_id}")
+async def import_community_cover(
+    book_id: str,
+    cover_id: str,
+    user: User = Depends(get_current_user),
+):
+    """Adopt a community cover as a new variant for the caller's book.
+    Doesn't re-pay any LLM cost — bytes copied directly.  Increments
+    the community cover's import_count for popularity sorting."""
+    src = _COMMUNITY_COVERS_DIR / cover_id
+    if not src.exists():
+        raise HTTPException(status_code=404, detail="Community cover not found")
+    book = await db.books.find_one(
+        {"book_id": book_id, "user_id": user.user_id},
+        {"_id": 0, "cover_variants": 1},
+    )
+    if book is None:
+        raise HTTPException(status_code=404, detail="Book not found")
+    user_dir = STORAGE_DIR / user.user_id
+    user_dir.mkdir(parents=True, exist_ok=True)
+    variant_id = uuid.uuid4().hex[:12]
+    variant_filename = f"{book_id}.cover-v-{variant_id}"
+    bytes_ = src.read_bytes()
+    (user_dir / variant_filename).write_bytes(bytes_)
+    (user_dir / f"{book_id}.cover").write_bytes(bytes_)
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    variants = list(book.get("cover_variants") or [])
+    for v in variants:
+        v["active"] = False
+    variants.append({
+        "variant_id":   variant_id,
+        "file":         variant_filename,
+        "generated_at": now_iso,
+        "active":       True,
+        "source":       f"community:{cover_id}",
+    })
+    # FIFO cap (same logic as apply-cover).
+    if len(variants) > _COVER_VARIANT_CAP:
+        dropped = variants[: len(variants) - _COVER_VARIANT_CAP]
+        variants = variants[len(variants) - _COVER_VARIANT_CAP:]
+        for d in dropped:
+            try:
+                (user_dir / d["file"]).unlink(missing_ok=True)
+            except Exception:
+                logger.exception("failed to unlink dropped variant %s", d.get("file"))
+
+    await db.books.update_one(
+        {"book_id": book_id, "user_id": user.user_id},
+        {"$set": {
+            "has_cover": True,
+            "cover_source": "community_imported",
+            "cover_generated_at": now_iso,
+            "cover_active_variant": variant_id,
+            "cover_variants": variants,
+        }},
+    )
+    await db.community_covers.update_one(
+        {"cover_id": cover_id},
+        {"$inc": {"import_count": 1}},
+    )
+    return {"ok": True, "variant_id": variant_id, "active_variant": variant_id}
+
+
+@api_router.delete("/community-covers/{cover_id}")
+async def unshare_community_cover(
+    cover_id: str,
+    user: User = Depends(get_current_user),
+):
+    """Remove a cover from the community pool — only the original sharer
+    (or an admin / moderator) may unshare.  Doesn't touch any users who
+    already imported the cover; those copies remain in their libraries."""
+    record = await db.community_covers.find_one(
+        {"cover_id": cover_id},
+        {"_id": 0, "shared_by_user_id": 1, "file": 1},
+    )
+    if not record:
+        raise HTTPException(status_code=404, detail="Community cover not found")
+    if (
+        record["shared_by_user_id"] != user.user_id
+        and not getattr(user, "is_admin", False)
+        and not getattr(user, "is_moderator", False)
+    ):
+        raise HTTPException(status_code=403, detail="Not your cover to unshare")
+    try:
+        (_COMMUNITY_COVERS_DIR / record["file"]).unlink(missing_ok=True)
+    except Exception:
+        logger.exception("failed to unlink community cover %s", record["file"])
+    await db.community_covers.delete_one({"cover_id": cover_id})
+    return {"ok": True}
+
+
+
 # ---------------------------------------------------------------------
 # "Polish my covers" — list cover-less books so the frontend can run
 # the existing preview-cover / apply-cover flow against each one
