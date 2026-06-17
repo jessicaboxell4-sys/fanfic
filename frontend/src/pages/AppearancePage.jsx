@@ -210,7 +210,7 @@ export default function AppearancePage() {
               </p>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-3" data-testid="appearance-theme-options">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" data-testid="appearance-theme-options">
             <button
               type="button"
               onClick={() => setMode("light")}

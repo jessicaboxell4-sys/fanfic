@@ -104,7 +104,7 @@ export default function LibraryStatsCard() {
             <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-[#6B705C] flex-shrink-0 mt-0.5" />
             <div className="min-w-0 flex-1">
               <div className="text-xl sm:text-2xl font-serif text-[#2C2C2C] leading-none">{value}</div>
-              <div className="text-[10px] sm:text-xs uppercase tracking-wide text-[#6B705C] mt-1 truncate" title={label}>{label}</div>
+              <div className="text-[10px] sm:text-xs uppercase tracking-wide text-[#6B705C] mt-1 leading-tight">{label}</div>
               {trend != null && (
                 <div
                   className={`text-[10px] mt-1 ${trend > 0 ? "text-[#6B46C1] font-semibold" : "text-[#6B705C]/70"}`}

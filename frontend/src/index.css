@@ -298,37 +298,61 @@ html, body {
     }
 
     /* ---------------------------------------------------------------- */
-    /* Universal "icon + title + CTA" card wrap (2026-06-17)            */
-    /* Almost every settings / dashboard card on the site follows the   */
-    /* same header pattern: an icon block, a flex-1 title+description   */
-    /* column, and a `flex-shrink-0` action button on the right.        */
-    /* On phones the CTA crushes the text column down to ~80-150px and  */
-    /* either the description wraps one word per line or the button     */
-    /* itself gets clipped.  Solving each card individually is a long   */
-    /* slog; instead we target the common `.shelf-card` wrapper class   */
-    /* (used by Account, PrivacyMessaging, PolishLibrary, FindDup,      */
-    /* CrossoverShelf, etc.) and any direct-child flex-row that uses    */
-    /* `justify-between`.  On phones those rows wrap, and the trailing  */
-    /* `<button>` / `<a class="btn-…">` claims a full row so the title  */
-    /* gets all the horizontal space.                                   */
+    /* Universal "icon + title + CTA" card wrap (2026-06-17 v2)         */
+    /* Original rule was scoped to `.shelf-card` parents, but several   */
+    /* page-level headers (GoalsPage, FriendRecsPage, ReadingStats,     */
+    /* Appearance, FromFriends digest preview) use the same crushed-   */
+    /* column pattern OUTSIDE a `.shelf-card`.  Broadened the selector  */
+    /* so the rule catches every `flex justify-between` row on phones, */
+    /* and any trailing button or link stacks full-width.              */
+    /* Risk: catches navbar / footer-style rows too.  Mitigated by     */
+    /* explicit `[data-testid*="navbar"]` / `[data-testid*="footer"]`  */
+    /* opt-outs below.                                                 */
     /* ---------------------------------------------------------------- */
-    .shelf-card .flex.justify-between,
-    .shelf-card > div > .flex.justify-between,
-    section.shelf-card .flex.items-start.justify-between {
+    .flex.justify-between {
         flex-wrap: wrap;
     }
-    .shelf-card .flex.justify-between > button:last-child,
-    .shelf-card .flex.items-start.justify-between > button:last-child,
-    .shelf-card .flex.justify-between > a.btn-primary:last-child,
-    .shelf-card .flex.justify-between > a.btn-secondary:last-child {
+    .flex.justify-between > button:last-child,
+    .flex.justify-between > a.btn-primary:last-child,
+    .flex.justify-between > a.btn-secondary:last-child,
+    .flex.justify-between > .btn-primary:last-child,
+    .flex.justify-between > .btn-secondary:last-child {
         width: 100%;
     }
-    /* Card titles within `.shelf-card` step down one size on phones so */
-    /* "Privacy & messaging" / "Polish my library" wrap to 2 lines max  */
-    /* (rather than 3 because text-2xl is too greedy at 360px).        */
-    .shelf-card h2 {
-        font-size: 1.25rem;     /* text-xl */
-        line-height: 1.75rem;
+    /* Opt-outs — navbar + footer + small inline rows that must stay  */
+    /* single-line and aren't crushing anything.                       */
+    nav .flex.justify-between,
+    header .flex.justify-between,
+    footer .flex.justify-between,
+    [data-testid^="navbar"] .flex.justify-between {
+        flex-wrap: nowrap;
+    }
+    /* Card titles step down one size on phones so headlines wrap     */
+    /* to 2 lines instead of 3 (was scoped to .shelf-card h2 only).   */
+    .shelf-card h2,
+    main h1 {
+        font-size: 1.5rem;     /* text-2xl mobile cap */
+        line-height: 2rem;
+    }
+
+    /* Theme picker (`AppearancePage.jsx`) renders Light/Dark/Auto as */
+    /* a 3-column grid even at 360px.  Each column ends up ~80px wide */
+    /* and the body copy breaks one letter per line.  Force single-  */
+    /* column on phones.                                              */
+    [data-testid="appearance-theme-grid"],
+    [data-testid="theme-picker-grid"] {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* StatsCard label truncate (added earlier) is now relaxed —      */
+    /* truncating produced "B…" / "PA…" / "D…" which is worse than    */
+    /* a clean 2-line wrap.  Restore wrap, but with smaller line-     */
+    /* height so the tile stays compact.                              */
+    [data-testid="stats-card"] .truncate {
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+        line-height: 1.1;
     }
 }
 

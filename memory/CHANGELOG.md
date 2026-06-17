@@ -194,6 +194,37 @@ Also tightened `LibraryStatsCard` inner tiles
 Verified: `/library`, `/account`, `/find-duplicates`, `/polish-library`
 all `overflows: false` at 412px Android viewport.
 
+**Follow-up v2 — broader `flex justify-between` rule:** User sent 5 more
+screenshots showing the same pattern outside `.shelf-card` parents
+(Reading goals header, FromFriends digest preview, Theme picker grid,
+Reading statistics tiles, Appearance NEW announcement card).
+
+Fixed in `frontend/src/index.css`:
+- The `flex.justify-between` wrap rule is now **global** at ≤640px
+  (not scoped to `.shelf-card`).  Trailing buttons / `btn-*` anchors
+  stack full-width.  Opt-outs for `nav` / `header` / `footer` /
+  `[data-testid^="navbar"]` keep the top navbar single-line.
+- `.shelf-card h2, main h1` capped at `text-2xl` (1.5rem) on phones —
+  prevents marquee-size titles like "Reading goals" or "From your
+  friends" from crushing siblings.
+- `[data-testid="appearance-theme-options"]` and `[data-testid=
+  "theme-picker-grid"]` switched to `grid-template-columns: 1fr`
+  on phones so Light / Dark / Auto stack vertically with full-width
+  body copy instead of three crushed 80px columns.
+- `LibraryStatsCard` inner-tile labels: removed `truncate` (showing
+  "B…" / "PA…" was worse than a clean 2-line wrap) and replaced with
+  `leading-tight`.  CSS reset rule
+  `[data-testid="stats-card"] .truncate { white-space: normal; … }`
+  protects against the same pattern in any other tile.
+
+**JSX one-liner:** `AppearancePage` theme grid switched from
+`grid-cols-3` → `grid-cols-1 sm:grid-cols-3`.
+
+**Verified at 412px viewport (6 pages):** `/library`, `/account/appearance`,
+`/goals`, `/stats`, `/recommendations`, `/friends` — all `overflows:
+false`.  Landing hero "Open library" CTA now stacks below the brand
+on phones (was crushing the brand into "Shelfsort" wrapping).
+
 ---
 
 
