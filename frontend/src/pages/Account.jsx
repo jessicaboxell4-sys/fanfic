@@ -1314,13 +1314,13 @@ export default function Account() {
 
         {/* Email preferences link */}
         <section className="shelf-card p-6 mb-6" data-testid="email-prefs-link-card">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-start gap-3 min-w-0">
+          <div className="flex items-start justify-between gap-3 flex-wrap sm:flex-nowrap">
+            <div className="flex items-start gap-3 min-w-0 w-full sm:flex-1">
               <div className="w-10 h-10 rounded-xl bg-[#FDF3E1] text-[#B87A00] flex items-center justify-center flex-shrink-0">
                 <MailIcon className="w-5 h-5" />
               </div>
               <div className="min-w-0">
-                <h2 className="font-serif text-2xl text-[#2C2C2C]">Email preferences</h2>
+                <h2 className="font-serif text-xl sm:text-2xl text-[#2C2C2C]">Email preferences</h2>
                 <p className="text-sm text-[#6B705C] mt-0.5">
                   Manage your weekly digest, fic-update alerts, and yearly recap — all in one place.
                 </p>
@@ -1329,7 +1329,7 @@ export default function Account() {
             <button
               type="button"
               onClick={() => navigate("/account/emails")}
-              className="btn-secondary text-sm whitespace-nowrap flex-shrink-0 self-center"
+              className="btn-secondary text-sm whitespace-nowrap flex-shrink-0 self-center w-full sm:w-auto"
               data-testid="email-prefs-open-btn"
             >
               Manage

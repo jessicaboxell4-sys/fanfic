@@ -153,6 +153,16 @@ Verified at 412px: heading renders normally, 364px wide × 72px tall
 (2 lines), zero one-letter wrapping.  No backend changes; full regression
 suite (16 dark-mode + moderator tests) still green.
 
+**Follow-up: Account page Email preferences card** — same pattern
+as LibraryStatsCard.  Title + subtitle squeezed by the right-aligned
+"Manage" button.  Applied `flex-wrap sm:flex-nowrap` + `w-full sm:w-auto`
+on the button + `text-xl sm:text-2xl` shrink on the heading so the
+"Manage" CTA stacks below the description on phones.
+
+**Note:** Browsers cache CSS aggressively.  Existing users may see
+the old `overflow-wrap: anywhere` until their phone hard-refreshes
+the stylesheet.
+
 ---
 
 
