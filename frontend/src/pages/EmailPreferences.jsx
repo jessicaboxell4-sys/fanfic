@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   AlertCircle,
   PartyPopper,
+  Info,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -580,7 +581,25 @@ export default function EmailPreferences() {
               <p className="text-xs text-[#6B705C]">{bookclub_digest?.note}</p>
             </>
           }
-        />
+        >
+          {/* Engagement-gate hint — explains why a "quiet" reader can stop
+              receiving the email even with the toggle ON. The actual gate
+              (28 days of silence) is enforced server-side in
+              backend/routes/bookclubs.py :: _user_recently_engaged. */}
+          <div
+            data-testid="bookclub-digest-engagement-hint"
+            className="flex items-start gap-2 text-xs text-[#6B705C] bg-[#FBFAF6] border border-[#E8E6E1] rounded-lg p-3"
+            title="The weekly digest pauses automatically after 28 days of silence. Post a message or update your progress to resume."
+          >
+            <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-[#6B46C1]" />
+            <span>
+              <strong className="text-[#2C2C2C]">Engagement gate:</strong>{" "}
+              if you haven&apos;t posted a message or updated your reading progress in any room for 28 days,
+              we quietly pause this email so it doesn&apos;t become noise. Drop a reaction or move your
+              progress marker and the next Monday rollup will arrive normally.
+            </span>
+          </div>
+        </ChannelCard>
 
         {/* Year-in-Books recap */}        <ChannelCard
           icon={<PartyPopper className="w-5 h-5" />}

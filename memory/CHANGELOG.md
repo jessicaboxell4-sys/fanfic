@@ -8,6 +8,32 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-17 — Reader J/K shortcuts + bookclub engagement-gate hint ✅
+
+Two quick-win P3 polish items knocked out:
+
+**Frontend** (`pages/ReadOriginal.jsx`):
+- Added Vim-style `J` / `K` page-flip keyboard shortcuts to the scroll-based
+  Originals viewer (TXT, DOCX). Skips when typing in a form field, ignores
+  meta/ctrl/alt/shift combos, and scrolls by 85% of viewport height with
+  smooth behaviour for context preservation across jumps.
+- PDFs intentionally excluded — the iframe owns its own paging.
+- Visible affordance via the scroll container's `title` attribute
+  ("Press J / K to page forward and back") so it's discoverable without
+  cluttering the UI.
+
+**Frontend** (`pages/EmailPreferences.jsx`):
+- Added an Engagement-gate hint card to the Book-club weekly digest section
+  (`data-testid="bookclub-digest-engagement-hint"`). Explains the 28-day
+  silent-pause rule enforced server-side by `_user_recently_engaged()` in
+  `backend/routes/bookclubs.py`, so users no longer assume the toggle is
+  broken when their inbox goes quiet.
+- Pure copy + `<Info>` icon; no new dependency, no backend changes.
+
+---
+
+
+
 ## 2026-06-16 — "Polish my library" bulk metadata cleanup ✅
 
 Ride on the in-place EPUB writer we shipped earlier today: scan the user's

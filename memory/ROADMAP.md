@@ -11,8 +11,8 @@
 - Move from local FS to object storage when scaling
 
 ## P3 — nice-to-have
-- Keyboard shortcuts (J/K next/prev) for ReadOriginal viewer
-- Engagement-gate hint UI in bookclub digest settings
+- Keyboard shortcuts (J/K next/prev) for ReadOriginal viewer ✅ (shipped 2026-06-17)
+- Engagement-gate hint UI in bookclub digest settings ✅ (shipped 2026-06-17)
 - SSE-based goal-hit confetti (replace 30s polling)
 - Phase 6 refactor of `books.py` (~5300 lines)
 - EPUB metadata in-place editing ✅ (shipped 2026-06-16)

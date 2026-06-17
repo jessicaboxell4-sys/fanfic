@@ -197,6 +197,30 @@ export default function ReadOriginal() {
     return () => window.removeEventListener("keydown", onKey);
   }, [addBookmark, book, ext]);
 
+  // J / K page-flip shortcuts for scroll-based viewers (TXT / DOCX).
+  // Mirrors Vim/Gmail conventions: j = next page (scroll forward),
+  // k = previous page (scroll back). PDFs handle their own paging inside
+  // the iframe, so we deliberately skip them here.
+  useEffect(() => {
+    if (!book || !ext || !isScrollViewer) return;
+    const onKey = (e) => {
+      const key = e.key.toLowerCase();
+      if (key !== "j" && key !== "k") return;
+      if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+      const tag = (document.activeElement?.tagName || "").toLowerCase();
+      if (tag === "input" || tag === "textarea") return;
+      const el = scrollRef.current;
+      if (!el) return;
+      e.preventDefault();
+      // Page-size = 85% of viewport so the reader keeps a few lines of
+      // context across the jump and never feels jarring.
+      const delta = Math.max(200, el.clientHeight * 0.85);
+      el.scrollBy({ top: key === "j" ? delta : -delta, behavior: "smooth" });
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [book, ext, isScrollViewer]);
+
   // Plaintext loader — kept tiny on purpose, just stream the bytes and
   // hand them to <pre>.
   useEffect(() => {
@@ -384,7 +408,9 @@ export default function ReadOriginal() {
                   <div
                     ref={scrollRef}
                     data-testid="viewer-text-scroll"
-                    className="overflow-y-auto"
+                    tabIndex={0}
+                    title="Press J / K to page forward and back"
+                    className="overflow-y-auto focus:outline-none"
                     style={{ height: "calc(100vh - 200px)", minHeight: "600px" }}
                   >
                     <pre
@@ -406,7 +432,9 @@ export default function ReadOriginal() {
                   <div
                     ref={scrollRef}
                     data-testid="viewer-docx-scroll"
-                    className="overflow-y-auto"
+                    tabIndex={0}
+                    title="Press J / K to page forward and back"
+                    className="overflow-y-auto focus:outline-none"
                     style={{ height: "calc(100vh - 200px)", minHeight: "600px" }}
                   >
                     <div
