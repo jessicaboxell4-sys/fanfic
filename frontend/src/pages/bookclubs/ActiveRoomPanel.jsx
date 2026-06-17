@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
-  BookOpen, Check, Clock, Crown, Loader2, LogOut, MessageSquare, Send,
+  BookOpen, Check, Clock, Crown, Eye, Loader2, LogOut, MessageSquare, Send,
   Settings, ShieldCheck, ShieldOff, Trash2, UserPlus, Users, X as XIcon,
 } from "lucide-react";
 import { api } from "../../lib/api";
@@ -160,6 +160,9 @@ export default function ActiveRoomPanel({ roomId, onRoomChanged, onRoomGone }) {
 
   const total = room.book_total_chapters || 0;
   const activeMembers = (room.members || []).filter((m) => m.status === "active");
+  // "Real" member count for the header — excludes platform-owner oversight,
+  // which is auto-added to every room and shouldn't inflate the visible count.
+  const realActiveCount = activeMembers.filter((m) => m.role !== "oversight").length;
   const invitedMembers = (room.members || []).filter((m) => m.status === "invited");
   const memberIdsSet = new Set((room.members || []).map((m) => m.user_id));
   const chapters = [0, ...Array.from({ length: total }, (_, i) => i + 1)];
@@ -259,24 +262,30 @@ export default function ActiveRoomPanel({ roomId, onRoomChanged, onRoomGone }) {
 
             <div data-testid="members-card">
               <p className="text-xs font-semibold uppercase tracking-wider text-[#6B705C] mb-2 flex items-center gap-1">
-                <Users className="w-3 h-3" /> Members · {activeMembers.length}
+                <Users className="w-3 h-3" /> Members · {realActiveCount}
               </p>
               <ul className="space-y-1">
                 {activeMembers.map((m) => {
                   const isMe = m.user_id === user?.user_id;
+                  const isOversight = m.role === "oversight";
                   return (
-                    <li key={m.user_id} data-testid={`member-${m.user_id}`} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white">
+                    <li key={m.user_id} data-testid={`member-${m.user_id}`} className={`flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white ${isOversight ? "bg-[#EDE7FB]/40" : ""}`}>
                       {m.picture ? <img src={m.picture} alt={m.name} className="w-6 h-6 rounded-full flex-shrink-0" /> : <div className="w-6 h-6 rounded-full bg-[#E5DDC5] flex-shrink-0" />}
                       <div className="min-w-0 flex-1">
                         <p className="text-sm text-[#2C2C2C] truncate flex items-center gap-1">
                           <DisplayName user={m} />
                           {m.role === "owner" && <Crown className="w-3 h-3 text-[#B87A00]" title="Owner" />}
                           {m.role === "moderator" && <ShieldCheck className="w-3 h-3 text-[#6B46C1]" title="Moderator" />}
+                          {isOversight && (
+                            <span data-testid={`oversight-badge-${m.user_id}`} className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#6B46C1] bg-[#EDE7FB] px-1.5 py-0.5 rounded" title="Platform admin with read access for safety + moderation. Never receives notifications.">
+                              <Eye className="w-3 h-3" /> Admin (oversight)
+                            </span>
+                          )}
                           {isMe && <span className="text-[10px] text-[#6B705C]">(you)</span>}
                         </p>
-                        {total > 0 && (<p className="text-[10px] text-[#6B705C]">ch. {m.current_chapter} / {total}</p>)}
+                        {total > 0 && !isOversight && (<p className="text-[10px] text-[#6B705C]">ch. {m.current_chapter} / {total}</p>)}
                       </div>
-                      {isOwner && !isMe && m.role !== "owner" && (
+                      {isOwner && !isMe && m.role !== "owner" && !isOversight && (
                         <div className="flex items-center gap-0.5 flex-shrink-0">
                           {m.role === "member" ? (
                             <button data-testid={`promote-${m.user_id}`} title="Promote" onClick={() => setRole(m.user_id, "moderator")} className="p-1 hover:bg-[#EEF3EC] rounded"><ShieldCheck className="w-3 h-3 text-[#6B46C1]" /></button>
@@ -287,7 +296,7 @@ export default function ActiveRoomPanel({ roomId, onRoomChanged, onRoomGone }) {
                           <button data-testid={`remove-${m.user_id}`} title="Remove" onClick={() => removeMember(m.user_id, m.name || m.email)} className="p-1 hover:bg-[#FBE9E5] rounded"><XIcon className="w-3 h-3 text-[#B43F26]" /></button>
                         </div>
                       )}
-                      {isStaff && !isOwner && !isMe && m.role !== "owner" && m.role !== "moderator" && (
+                      {isStaff && !isOwner && !isMe && m.role !== "owner" && m.role !== "moderator" && !isOversight && (
                         <button data-testid={`remove-${m.user_id}`} title="Remove" onClick={() => removeMember(m.user_id, m.name || m.email)} className="p-1 hover:bg-[#FBE9E5] rounded"><XIcon className="w-3 h-3 text-[#B43F26]" /></button>
                       )}
                     </li>

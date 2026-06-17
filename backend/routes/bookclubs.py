@@ -153,6 +153,69 @@ async def _get_member(room_id: str, user_id: str) -> Optional[Dict[str, Any]]:
     )
 
 
+# ---------------------------------------------------------------------
+# Platform-owner oversight ("Admin (oversight)" auto-membership)
+# ---------------------------------------------------------------------
+# Policy decided 2026-06-16: the original platform owner is automatically
+# added as a silent-but-visible member of every book-club room so they can
+# moderate abuse without needing to ask each owner for consent. The owner
+# is shown to other members as role "oversight" (badge: "Admin (oversight)")
+# and is explicitly excluded from kick / role-change / promote endpoints,
+# from notification fan-outs, and from the weekly digest email opt-in flow.
+# Friend DMs are NOT touched — only bookclubs (group rooms).
+
+_PLATFORM_OWNER_ID_CACHE: Dict[str, Optional[str]] = {"v": None}
+
+
+async def _get_platform_owner_id() -> Optional[str]:
+    """Return the single ``is_platform_owner: true`` user_id, or None.
+
+    Cached in-process; cache is cleared on server restart. If you ever
+    transfer the platform-owner flag at runtime, restart the backend.
+    """
+    if _PLATFORM_OWNER_ID_CACHE["v"]:
+        return _PLATFORM_OWNER_ID_CACHE["v"]
+    doc = await db.users.find_one(
+        {"is_platform_owner": True}, {"_id": 0, "user_id": 1},
+    )
+    uid = doc["user_id"] if doc else None
+    _PLATFORM_OWNER_ID_CACHE["v"] = uid
+    return uid
+
+
+async def _ensure_oversight_member(room_id: str, *, creator_user_id: str) -> None:
+    """Add the platform owner as an oversight member of the given room.
+
+    No-op if (a) there is no platform-owner flagged user, (b) the creator
+    IS the platform owner, or (c) the oversight member already exists.
+    """
+    owner_id = await _get_platform_owner_id()
+    if not owner_id or owner_id == creator_user_id:
+        return
+    existing = await db.bookclub_members.find_one(
+        {"room_id": room_id, "user_id": owner_id}, {"_id": 0, "role": 1, "status": 1},
+    )
+    if existing:
+        # If they were previously removed / left, re-add them with the
+        # oversight role and active status. The platform owner is sticky.
+        await db.bookclub_members.update_one(
+            {"room_id": room_id, "user_id": owner_id},
+            {"$set": {"role": "oversight", "status": "active"}},
+        )
+        return
+    now = datetime.now(timezone.utc)
+    await db.bookclub_members.insert_one({
+        "room_id": room_id,
+        "user_id": owner_id,
+        "role": "oversight",
+        "status": "active",
+        "invited_by": owner_id,
+        "invited_at": now,
+        "joined_at": now,
+        "current_chapter": 0,
+    })
+
+
 async def _require_active_member(room_id: str, user_id: str) -> Dict[str, Any]:
     m = await _get_member(room_id, user_id)
     if not m or m.get("status") != "active":
@@ -200,8 +263,10 @@ async def list_my_bookclubs(user: User = Depends(get_current_user)):
     # Count active members per room — single aggregation for cheap counts.
     active_counts: Dict[str, int] = {}
     if room_ids:
+        # Member-count UX displays "real" members, not the platform-owner
+        # oversight row that's auto-added to every room.
         agg = db.bookclub_members.aggregate([
-            {"$match": {"room_id": {"$in": room_ids}, "status": "active"}},
+            {"$match": {"room_id": {"$in": room_ids}, "status": "active", "role": {"$ne": "oversight"}}},
             {"$group": {"_id": "$room_id", "n": {"$sum": 1}}},
         ])
         async for row in agg:
@@ -278,6 +343,7 @@ async def create_bookclub(body: BookclubCreate, user: User = Depends(get_current
         "joined_at": now,
         "current_chapter": 0,
     })
+    await _ensure_oversight_member(room_id, creator_user_id=user.user_id)
     return _serialize_room(room)
 
 
@@ -304,9 +370,11 @@ async def get_bookclub(room_id: str, user: User = Depends(get_current_user)):
         _serialize_member(m, user_meta.get(m["user_id"], {}))
         for m in member_rows
     ]
-    # Sort: owner first, then moderators, then members alpha by name.
-    order = {"owner": 0, "moderator": 1, "member": 2}
-    members.sort(key=lambda m: (order.get(m["role"], 9), (m.get("name") or m.get("email") or "").lower()))
+    # Sort: owner first, then moderators, then members alpha by name; the
+    # platform-owner oversight row pins to the bottom so the member-list
+    # visual hierarchy still reads "this room's people, then platform oversight".
+    order = {"owner": 0, "moderator": 1, "member": 2, "oversight": 9}
+    members.sort(key=lambda m: (order.get(m["role"], 5), (m.get("name") or m.get("email") or "").lower()))
 
     out = _serialize_room(room)
     out["members"] = members
@@ -445,6 +513,13 @@ async def leave_bookclub(room_id: str, user: User = Depends(get_current_user)):
     me = await _get_member(room_id, user.user_id)
     if not me or me.get("status") != "active":
         raise HTTPException(status_code=404, detail="You are not a member of this room")
+    if me.get("role") == "oversight":
+        # Platform-owner oversight is sticky — deleting the room is the
+        # only way to drop it.
+        raise HTTPException(
+            status_code=400,
+            detail="Platform oversight can't leave a room; delete the room instead.",
+        )
     if me.get("role") == "owner":
         # The owner can't leave without transferring (or deleting) first.
         # Count other active members.
@@ -485,6 +560,8 @@ async def set_member_role(
         raise HTTPException(status_code=404, detail="Member not found")
     if target.get("role") == "owner":
         raise HTTPException(status_code=400, detail="Use transfer to change the owner")
+    if target.get("role") == "oversight":
+        raise HTTPException(status_code=400, detail="Platform oversight role is fixed and cannot be changed")
     await db.bookclub_members.update_one(
         {"room_id": room_id, "user_id": target_user_id},
         {"$set": {"role": body.role}},
@@ -502,6 +579,8 @@ async def remove_member(room_id: str, target_user_id: str, user: User = Depends(
         raise HTTPException(status_code=404, detail="Member not found")
     if target.get("role") == "owner":
         raise HTTPException(status_code=400, detail="The owner can't be removed")
+    if target.get("role") == "oversight":
+        raise HTTPException(status_code=400, detail="Platform oversight can't be removed from a room")
     await db.bookclub_members.delete_one({"room_id": room_id, "user_id": target_user_id})
     return {"removed": target_user_id}
 
@@ -571,6 +650,7 @@ async def set_my_progress(
                 "room_id": room_id,
                 "status": "active",
                 "user_id": {"$ne": user.user_id},
+                "role": {"$ne": "oversight"},
             },
             {"_id": 0, "user_id": 1},
         ).to_list(length=200)
@@ -640,12 +720,15 @@ async def post_message(
         {"room_id": room_id}, {"$set": {"updated_at": now}},
     )
 
-    # Fan-out notifications to every OTHER active member.
+    # Fan-out notifications to every OTHER active member, EXCEPT the
+    # platform-owner oversight role — we promised that auto-membership
+    # wouldn't drown the platform owner's inbox.
     others = await db.bookclub_members.find(
         {
             "room_id": room_id,
             "status": "active",
             "user_id": {"$ne": user.user_id},
+            "role": {"$ne": "oversight"},
         },
         {"_id": 0, "user_id": 1},
     ).to_list(length=200)

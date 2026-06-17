@@ -8,6 +8,59 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-16 — Always-on Admin Oversight in bookclub rooms ✅
+
+User decision: the single original platform owner should be in **every** bookclub
+room automatically, no matter how many rooms exist. Privacy-respecting defaults
+on every dimension (chose: bookclubs only / visible badge / single owner /
+both backfill + going-forward / no notifications).
+
+**Backend** (`routes/bookclubs.py`):
+- New `is_platform_owner: true` flag on the users collection (set on the real
+  primary admin row). Other `is_admin` rows are untouched.
+- New `_get_platform_owner_id()` + `_ensure_oversight_member()` helpers
+  (in-process cache, requires restart to pick up flag transfers).
+- `create_bookclub` auto-adds the platform owner with `role: "oversight"` and
+  `status: "active"`. Idempotent — re-create / re-grant safe.
+- Guards added to `remove_member`, `change_role`, `transfer_ownership`,
+  and `leave_bookclub` so the oversight row is sticky.
+- Notification fan-outs (`bookclub_message`, `bookclub_finished` milestones)
+  exclude `role: oversight` — the platform owner's inbox stays clean.
+- "Member count" aggregation filters out oversight so room cards don't show
+  inflated counts.
+- Sort order: owner → moderators → members → oversight (pinned to bottom).
+
+**Backfill**: ran a one-shot mongosh script to add oversight rows into every
+existing bookclub. (0 rooms existed at time of rollout, but the script is
+documented here for the next time it's needed.)
+
+**Frontend** (`pages/bookclubs/ActiveRoomPanel.jsx`):
+- Members panel now renders an **Admin (oversight)** pill (purple-tinted, Eye
+  icon) next to the platform owner's name. Title-tooltip explains: "Platform
+  admin with read access for safety + moderation. Never receives notifications."
+- Oversight row gets a subtle `bg-[#EDE7FB]/40` highlight and no chapter-progress
+  line (they aren't reading along).
+- Promote / Demote / Transfer / Kick action buttons are hidden for the
+  oversight row regardless of who's viewing — even the room owner can't act
+  on it.
+- "Members · N" header now uses `realActiveCount` (excludes oversight).
+
+**Tests** — new `tests/test_oversight_membership.py` with 7 cases:
+1. Oversight added on create
+2. Visible in member list as role "oversight"
+3. Member count excludes oversight
+4. Kick attempt → 400
+5. Promote attempt → 400
+6. When platform-owner IS the creator, no duplicate row — they're "owner" not "oversight"
+7. Platform-owner can't self-leave → 400
+
+**All 7 passing.**
+
+**Scope notes (do not regress)**:
+- Friend **DMs are NOT affected** (`view_consents` flow still required).
+- Only the single `is_platform_owner: true` user — not every admin.
+- No email digests / push notifications fan out to the oversight role.
+
 ## 2026-06-16 — Landing hero: animated fandom ticker ✅
 
 Tiny welcoming flourish below the hero subtitle: a pill that says
