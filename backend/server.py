@@ -248,4 +248,11 @@ async def on_startup():
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
+    # Stop the APScheduler BEFORE closing the Mongo client so in-flight
+    # cron jobs don't try to read/write to a closed connection (was
+    # spamming "Cannot use MongoClient after close" on every reload).
+    try:
+        digest.stop_digest_scheduler()
+    except Exception as e:
+        logger.warning("Scheduler shutdown raised: %s", e)
     client.close()

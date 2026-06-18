@@ -1034,5 +1034,27 @@ def start_digest_scheduler():
     logger.info("Schedulers started (weekly digest + daily account grace tick).")
 
 
+def stop_digest_scheduler():
+    """Cleanly shut the APScheduler down on app shutdown.
+
+    Without this, jobs that fire mid-shutdown try to hit Mongo after
+    ``client.close()`` and noisy ``Cannot use MongoClient after close``
+    errors flood the logs (cron_health.py also tries to record the
+    failure to ``cron_runs``, which itself fails for the same reason).
+    """
+    global _scheduler
+    if _scheduler is None:
+        return
+    try:
+        # ``wait=False`` so we don't block FastAPI's shutdown on an
+        # in-flight 10-minute backfill — APScheduler will cancel
+        # pending jobs and let running ones finish in the background.
+        _scheduler.shutdown(wait=False)
+    except Exception as e:
+        logger.warning("Digest scheduler shutdown raised: %s", e)
+    _scheduler = None
+
+
+
 # ============================================================
 # YEAR IN BOOKS

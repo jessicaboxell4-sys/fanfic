@@ -75,7 +75,12 @@ async def list_suggestions(
     mine_only: bool = False,
     user: User = Depends(get_current_user),
 ):
-    query: Dict[str, Any] = {}
+    # The ``suggestions`` collection is shared with the newer
+    # Help-page feedback writer (which stores ``{text, page,
+    # photo_b64}`` and has no ``suggestion_id``).  Scope this product
+    # board to its own shape so the legacy serializer doesn't crash
+    # on KeyError: 'suggestion_id' when the two streams co-exist.
+    query: Dict[str, Any] = {"suggestion_id": {"$exists": True}}
     if status and status in STATUSES:
         query["status"] = status
     if category and category in CATEGORIES:

@@ -8,6 +8,35 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-18 — Pre-deploy bug cleanup ✅
+
+Three pre-existing minor issues fixed before deploy:
+
+1. **`/api/suggestions` `KeyError: 'suggestion_id'`** — the legacy
+   product-board endpoint now scopes its query to
+   `{suggestion_id: {$exists: true}}` so the shared `suggestions`
+   collection's newer Help-page feedback rows (different schema)
+   don't crash the serializer. Endpoint returns 200 with 3 entries.
+
+2. **Button-nested-in-button hydration warning** in `AccountDropdown.jsx`
+   — the `<button data-testid="backup-fresh-badge">` lived inside
+   the outer navbar-account button. Converted the inner to a
+   `<span role="button" tabIndex={0}>` with onKeyDown handler so
+   it stays keyboard-accessible without nesting interactive elements.
+   Console verified zero button-in-button warnings post-fix.
+   (Also fixed unrelated `HelpCircle` missing import in the same file.)
+
+3. **APScheduler "Cannot use MongoClient after close"** — added
+   `stop_digest_scheduler()` to `routes/digest.py` and wired it
+   into `server.py`'s shutdown handler so the scheduler stops
+   BEFORE the Mongo client closes. Two test restarts produced
+   zero new MongoClient-after-close errors.
+
+All deployment-readiness checks green.
+
+---
+
+
 ## 2026-06-18 — Admin sign-up controls + community rules ✅
 
 Three new admin-controllable knobs for new-user onboarding:

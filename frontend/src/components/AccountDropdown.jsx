@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { User as UserIcon, LogOut, Settings, ShieldCheck, Loader2, ArrowRight } from "lucide-react";
+import { User as UserIcon, LogOut, Settings, ShieldCheck, Loader2, ArrowRight, HelpCircle } from "lucide-react";
 import DisplayName from "./DisplayName";
 import { toast } from "sonner";
 import { api } from "../lib/api";
@@ -111,18 +111,29 @@ export default function AccountDropdown({ user, onLogout }) {
             )
           }
           {backupFresh && (
-            <button
-              type="button"
+            <span
+              role="button"
+              tabIndex={0}
               data-testid="backup-fresh-badge"
               title={`Library backed up ${backupAgo}`}
               onClick={(e) => {
                 e.stopPropagation();
                 setBackupOpen((v) => !v);
               }}
-              className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-[#3B5B3F] border-2 border-white flex items-center justify-center hover:bg-[#2c4530]"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setBackupOpen((v) => !v);
+                }
+              }}
+              // Lives inside the navbar-account button, so it must NOT be a
+              // <button> itself — nested interactive elements fire a React
+              // hydration warning and break some screen-reader flows.
+              className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-[#3B5B3F] border-2 border-white flex items-center justify-center hover:bg-[#2c4530] cursor-pointer"
             >
               <ShieldCheck className="w-2 h-2 text-white" strokeWidth={3} />
-            </button>
+            </span>
           )}
         </span>
         <DisplayName
