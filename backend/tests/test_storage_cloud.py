@@ -110,3 +110,22 @@ def test_backfill_idempotent(tmp_path: Path):
     # treat as success because the existing bytes are what we wanted).
     assert second["scanned"] == 1
     assert second["uploaded"] == 1
+
+
+def test_backfill_user_id_filter_scopes_to_one_directory(tmp_path: Path):
+    """The per-user "Back up my library" button passes user_id_filter
+    so the walk skips every other user's sub-dir."""
+    target_user = f"target_{uuid.uuid4().hex[:6]}"
+    other_user  = f"other_{uuid.uuid4().hex[:6]}"
+    (tmp_path / target_user).mkdir()
+    (tmp_path / target_user / f"book_{uuid.uuid4().hex[:8]}.epub").write_bytes(b"PK\x03\x04t")
+    (tmp_path / other_user).mkdir()
+    (tmp_path / other_user / f"book_{uuid.uuid4().hex[:8]}.epub").write_bytes(b"PK\x03\x04o")
+    (tmp_path / other_user / f"book_{uuid.uuid4().hex[:8]}.cover").write_bytes(b"jpeg-bytes")
+
+    stats = storage_cloud.backfill_storage_dir(tmp_path, user_id_filter=target_user)
+    # Should have scanned exactly the ONE file in target_user/, not the
+    # other_user/ files.
+    assert stats["scanned"] == 1
+    assert stats["uploaded"] == 1
+    assert stats["errors"] == 0

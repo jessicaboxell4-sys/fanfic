@@ -660,6 +660,97 @@ function BackupCard() {
 }
 
 
+// Cloud-backup card — durable mirror of the user's EPUB + cover files
+// to Emergent Object Storage so a redeploy can't wipe the library.
+// Hits ``POST /api/account/backup-library`` (per-user slice of the
+// admin backfill); the same files are also picked up automatically
+// by the 10-min cron tick — this button is the visible reassurance.
+function CloudBackupCard() {
+  const [state, setState] = useState({ enabled: true, last_run_at: null, stats: {} });
+  const [busy, setBusy] = useState(false);
+
+  const load = async () => {
+    try {
+      const { data } = await api.get("/account/backup-library");
+      setState(data || {});
+    } catch { /* non-fatal */ }
+  };
+  useEffect(() => { load(); }, []);
+
+  const run = async () => {
+    setBusy(true);
+    try {
+      const { data } = await api.post("/account/backup-library");
+      if (data?.ok) {
+        const s = data.stats || {};
+        toast.success(
+          s.uploaded
+            ? `Backed up ${s.uploaded} file${s.uploaded === 1 ? "" : "s"} to durable storage.`
+            : "Your library is already fully backed up."
+        );
+        setState((prev) => ({
+          ...prev,
+          last_run_at: data.last_run_at,
+          stats: s,
+        }));
+      } else {
+        toast.warning("Cloud backup isn't configured on this deployment.");
+      }
+    } catch {
+      toast.error("Cloud backup failed — try again in a minute.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const fmt = (iso) => {
+    if (!iso) return "never";
+    try {
+      const d = new Date(iso);
+      const diffH = (Date.now() - d.getTime()) / 1000 / 3600;
+      if (diffH < 1) return `${Math.max(1, Math.floor(diffH * 60))} min ago`;
+      if (diffH < 24) return `${Math.floor(diffH)}h ago`;
+      const diffD = diffH / 24;
+      if (diffD < 14) return `${Math.floor(diffD)}d ago`;
+      return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+    } catch { return ""; }
+  };
+
+  if (state.enabled === false) {
+    // Object storage disabled on this deployment — silently skip the card
+    // rather than confuse the user.
+    return null;
+  }
+
+  const s = state.stats || {};
+  const summary = s.scanned
+    ? `${s.scanned} file${s.scanned === 1 ? "" : "s"} checked · ${s.uploaded || 0} newly mirrored`
+    : null;
+
+  return (
+    <section className="shelf-card p-6 mb-6" data-testid="cloud-backup-card" id="cloud-backup-card">
+      <h2 className="font-serif text-2xl text-[#2C2C2C] mb-1 flex items-center gap-2">
+        <Download className="w-5 h-5 text-[#3B5B3F]" /> Cloud library mirror
+      </h2>
+      <p className="text-sm text-[#6B705C] mb-5">
+        Your EPUBs and covers are continuously mirrored to durable cloud storage so a server redeploy can&apos;t wipe them. Click below to trigger an immediate mirror — usually it runs in the background every 10 minutes.
+      </p>
+      <button
+        onClick={run}
+        disabled={busy}
+        data-testid="cloud-backup-trigger-btn"
+        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#3B5B3F] text-white hover:bg-[#2c4530] disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+      >
+        {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+        {busy ? "Backing up…" : "Back up my library now"}
+      </button>
+      <div className="mt-4 text-xs text-[#6B705C]" data-testid="cloud-backup-status">
+        Last backup: <span className="font-semibold text-[#2C2C2C]" data-testid="cloud-backup-last">{fmt(state.last_run_at)}</span>
+        {summary && <span> · {summary}</span>}
+      </div>
+    </section>
+  );
+}
 // Announcements card — publishes the "What's new" card shown on the Help
 // page. Server endpoints live in /app/backend/routes/announcements.py.
 // `version` doubles as the per-user dismissal key on the client, so any
@@ -1209,6 +1300,7 @@ export default function Account() {
         </div>
 
         <BackupCard />
+        <CloudBackupCard />
 
         {/* Profile info */}
         <section className="shelf-card p-6 mb-6">

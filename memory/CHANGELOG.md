@@ -8,6 +8,26 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-18 — "Back up my library" one-click for users ✅
+
+Turns the invisible cloud-mirror into a visible trust signal.
+
+- **`POST /api/account/backup-library`** — per-user backfill. Reuses
+  `backfill_storage_dir(STORAGE_DIR, user_id_filter=user.user_id)`
+  so a single click mirrors the caller's EPUBs + covers in one
+  call.  Saves `last_run_at` + `stats` on the user doc so the UI
+  can show "Last backup: 12 min ago".
+- **`GET /api/account/backup-library`** — returns the saved state
+  for the Account page card on every mount.
+- **`CloudBackupCard`** on `/account` — green "Back up my library
+  now" button + "Last backup: NN ago · X files checked · Y newly
+  mirrored" status line.  Hides cleanly when object storage is
+  disabled (no scary "not configured" warnings for users).
+- Two new tests in `test_storage_cloud.py` lock the `user_id_filter`
+  behaviour (8/8 storage tests green).
+
+---
+
 ## 2026-06-18 — Object storage migration (Phase A: Emergent backend) ✅
 
 Shelfsort EPUBs + covers are now mirrored to durable Emergent Object

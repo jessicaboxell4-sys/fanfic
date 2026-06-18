@@ -274,7 +274,7 @@ def _last_backfill_stats() -> dict:
     return dict(_LAST_BACKFILL_STATS)
 
 
-def backfill_storage_dir(storage_dir: Path, limit: Optional[int] = None) -> dict:
+def backfill_storage_dir(storage_dir: Path, limit: Optional[int] = None, user_id_filter: Optional[str] = None) -> dict:
     """Walk ``storage_dir`` and mirror every book asset to object
     storage.  Idempotent — Emergent returns 409 on re-uploads which
     we treat as success.
@@ -282,6 +282,11 @@ def backfill_storage_dir(storage_dir: Path, limit: Optional[int] = None) -> dict
     ``limit`` caps the number of files processed in a single call so
     a 100k-file library doesn't deadlock a single tick.  The cron
     scheduler calls this every 10 min until everything is mirrored.
+
+    ``user_id_filter`` scopes the walk to a single ``{user_id}``
+    sub-directory — used by the per-user "Back up my library" button
+    so a single user can self-trigger a mirror without waiting for
+    the next tick or admin involvement.
 
     Returns: ``{scanned, uploaded, skipped, errors}``.
     """
@@ -293,9 +298,13 @@ def backfill_storage_dir(storage_dir: Path, limit: Optional[int] = None) -> dict
         return stats
     suffixes_of_interest = (".epub", ".cover", ".cover.png", ".links.txt", ".pdf")
     count = 0
-    for user_dir in storage_dir.iterdir():
-        if not user_dir.is_dir():
-            continue
+    # Per-user filter restricts the iterator to exactly one sub-dir.
+    if user_id_filter:
+        target = storage_dir / user_id_filter
+        user_dirs = [target] if target.is_dir() else []
+    else:
+        user_dirs = [d for d in storage_dir.iterdir() if d.is_dir()]
+    for user_dir in user_dirs:
         user_id = user_dir.name
         for f in user_dir.iterdir():
             if not f.is_file():
