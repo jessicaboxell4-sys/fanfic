@@ -59,6 +59,11 @@
 - Move from local FS to object storage when scaling
 
 ## P3 — nice-to-have
+- **Weekly Operator Digest email** *(remind-later, parked 2026-06-18)*
+  — Sunday rollup email to admin users surfacing the funnel + top
+  covers + referrer distribution from `/api/analytics/summary`.
+  Uses the existing Resend integration + Sunday digest scheduler
+  tick.  ~50 lines on top of the existing digest infrastructure.
 - **Heatmap extensions deferred from the analytics+heatmap batch**
   *(parked 2026-06-18)*:
   * Re-reading detection (multiple backward jumps surfaced as a "must
