@@ -5743,7 +5743,7 @@ async def browse_community_covers(
         query["fandom_key"] = keys["fandom_key"]
     cursor = (
         db.community_covers.find(query, {"_id": 0})
-        .sort([("import_count", -1), ("shared_at", -1)])
+        .sort([("votes", -1), ("import_count", -1), ("shared_at", -1)])
         .limit(limit)
     )
     rows: List[Dict[str, Any]] = []
@@ -5756,6 +5756,8 @@ async def browse_community_covers(
             "shared_by":    r.get("shared_by_username", "anon"),
             "shared_at":    r.get("shared_at"),
             "import_count": int(r.get("import_count", 0)),
+            "votes":        int(r.get("votes", 0)),
+            "voted_by_me":  user.user_id in (r.get("voters") or []),
             "image_base64": base64.b64encode(path.read_bytes()).decode("ascii"),
             "mime_type":    "image/png",
         })
@@ -5852,6 +5854,79 @@ async def unshare_community_cover(
         logger.exception("failed to unlink community cover %s", record["file"])
     await db.community_covers.delete_one({"cover_id": cover_id})
     return {"ok": True}
+
+
+# ---------------------------------------------------------------------
+# Community covers — voting + featured (Tier 3, 2026-06-17)
+# ---------------------------------------------------------------------
+
+@api_router.post("/community-covers/{cover_id}/vote")
+async def vote_community_cover(
+    cover_id: str,
+    user: User = Depends(get_current_user),
+):
+    """Toggle the caller's heart on a community cover.  One vote per
+    user — re-voting un-hearts it.  Voters are tracked in a per-cover
+    list so we can show the user their current state on browse."""
+    record = await db.community_covers.find_one(
+        {"cover_id": cover_id},
+        {"_id": 0, "voters": 1, "votes": 1},
+    )
+    if not record:
+        raise HTTPException(status_code=404, detail="Community cover not found")
+    voters = set(record.get("voters") or [])
+    if user.user_id in voters:
+        voters.discard(user.user_id)
+        action = "unvoted"
+    else:
+        voters.add(user.user_id)
+        action = "voted"
+    new_count = len(voters)
+    await db.community_covers.update_one(
+        {"cover_id": cover_id},
+        {"$set": {"voters": list(voters), "votes": new_count}},
+    )
+    return {"ok": True, "votes": new_count, "voted_by_me": action == "voted"}
+
+
+@api_router.get("/community-covers/featured")
+async def featured_community_covers(
+    limit: int = 12,
+    days: int = 7,
+    user: User = Depends(get_current_user),
+):
+    """Top-voted community covers across the whole pool, lifetime
+    (``days=0``) or scoped to the recent ``days`` window.  Used by a
+    "Featured this week" homepage strip + the dedicated discovery page."""
+    limit = max(1, min(int(limit), 60))
+    days = max(0, min(int(days), 365))
+    query: Dict[str, Any] = {}
+    if days > 0:
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        query["shared_at"] = {"$gte": cutoff}
+    cursor = (
+        db.community_covers.find(query, {"_id": 0})
+        .sort([("votes", -1), ("import_count", -1), ("shared_at", -1)])
+        .limit(limit)
+    )
+    rows: List[Dict[str, Any]] = []
+    async for r in cursor:
+        path = _COMMUNITY_COVERS_DIR / r["file"]
+        if not path.exists():
+            continue
+        rows.append({
+            "cover_id":     r["cover_id"],
+            "title":        r.get("title", ""),
+            "author":       r.get("author", ""),
+            "fandom":       r.get("fandom", ""),
+            "shared_by":    r.get("shared_by_username", "anon"),
+            "votes":        int(r.get("votes", 0)),
+            "import_count": int(r.get("import_count", 0)),
+            "voted_by_me":  user.user_id in (r.get("voters") or []),
+            "image_base64": base64.b64encode(path.read_bytes()).decode("ascii"),
+            "mime_type":    "image/png",
+        })
+    return {"covers": rows, "window_days": days}
 
 
 

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Sparkles, Loader2, X, RotateCw, Check, Share2, Users, Download } from "lucide-react";
+import { Sparkles, Loader2, X, RotateCw, Check, Share2, Users, Download, Heart } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../lib/api";
 
@@ -144,6 +144,19 @@ export default function RegenerateCoverButton({ book, onCoverChanged }) {
       onCoverChanged && onCoverChanged();
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Couldn't import");
+    }
+  };
+
+  const voteCommunity = async (coverId) => {
+    try {
+      const { data } = await api.post(`/community-covers/${coverId}/vote`);
+      setCommunity((cs) => cs.map(c =>
+        c.cover_id === coverId
+          ? { ...c, votes: data.votes, voted_by_me: data.voted_by_me }
+          : c,
+      ));
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't vote");
     }
   };
 
@@ -421,6 +434,20 @@ export default function RegenerateCoverButton({ book, onCoverChanged }) {
                             <p className="absolute top-0.5 left-0.5 text-[9px] bg-white/85 text-[#6B705C] px-1.5 py-0.5 rounded">
                               @{c.shared_by} · {c.import_count}×
                             </p>
+                            <button
+                              type="button"
+                              onClick={() => voteCommunity(c.cover_id)}
+                              data-testid={`community-cover-vote-${c.cover_id}`}
+                              className="absolute top-0.5 right-0.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] bg-white/85 hover:bg-white"
+                              title={c.voted_by_me ? "Remove your heart" : "Heart this cover"}
+                            >
+                              <Heart
+                                className={`w-3 h-3 ${c.voted_by_me ? "fill-[#C04A3F] text-[#C04A3F]" : "text-[#6B705C]"}`}
+                              />
+                              <span className={c.voted_by_me ? "text-[#C04A3F] font-semibold" : "text-[#6B705C]"}>
+                                {c.votes || 0}
+                              </span>
+                            </button>
                           </div>
                         ))}
                       </div>

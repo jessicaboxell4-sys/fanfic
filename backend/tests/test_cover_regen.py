@@ -280,6 +280,63 @@ def test_cover_styles_catalog_and_custom_crud():
         assert r4.status_code == 200
         # Second delete → 404.
         r5 = s.delete(f"{BASE}/api/cover-styles/custom/{custom_uuid}")
+
+
+def test_community_cover_voting_and_featured():
+    """A shares a cover, B votes → vote count goes to 1 and the cover
+    surfaces in /featured.  Re-voting toggles back to 0.  Browse
+    endpoint also reports vote count + voted_by_me flag."""
+    import requests
+
+    a_uid, a_email, a_pw, a_book = _seed_user_and_book()
+    b_uid, b_email, b_pw, b_book = _seed_user_and_book()
+    sa = requests.Session()
+    sb = requests.Session()
+    sa.post(f"{BASE}/api/auth/login", json={"email": a_email, "password": a_pw})
+    sb.post(f"{BASE}/api/auth/login", json={"email": b_email, "password": b_pw})
+    try:
+        r = sa.post(f"{BASE}/api/books/{a_book}/preview-cover", json={})
+        if r.status_code != 200:
+            pytest.skip(f"preview-cover skipped: {r.status_code}")
+        pid = r.json()["preview_id"]
+        sa.post(f"{BASE}/api/books/{a_book}/apply-cover", json={"preview_id": pid})
+        vlist = sa.get(f"{BASE}/api/books/{a_book}/cover-variants").json()
+        vid = vlist["variants"][0]["variant_id"]
+        sr = sa.post(f"{BASE}/api/books/{a_book}/cover-variants/{vid}/share")
+        cover_id = sr.json()["community_cover_id"]
+
+        # B votes — votes goes to 1, voted_by_me True.
+        vr = sb.post(f"{BASE}/api/community-covers/{cover_id}/vote")
+        assert vr.status_code == 200
+        assert vr.json()["votes"] == 1
+        assert vr.json()["voted_by_me"] is True
+
+        # Browse from B's view → vote count + voted_by_me flag echo back.
+        br = sb.get(f"{BASE}/api/community-covers", params={"title": "Test Book"})
+        c = next(x for x in br.json()["covers"] if x["cover_id"] == cover_id)
+        assert c["votes"] == 1
+        assert c["voted_by_me"] is True
+
+        # Featured includes it (within 7-day window default).
+        fr = sb.get(f"{BASE}/api/community-covers/featured")
+        assert fr.status_code == 200
+        assert any(x["cover_id"] == cover_id for x in fr.json()["covers"])
+
+        # Re-vote toggles off.
+        vr2 = sb.post(f"{BASE}/api/community-covers/{cover_id}/vote")
+        assert vr2.json()["votes"] == 0
+        assert vr2.json()["voted_by_me"] is False
+
+        # Vote on a missing cover → 404.
+        bad = sb.post(f"{BASE}/api/community-covers/does-not-exist/vote")
+        assert bad.status_code == 404
+    finally:
+        asyncio.get_event_loop().run_until_complete(
+            db.community_covers.delete_many({"shared_by_user_id": {"$in": [a_uid, b_uid]}})
+        )
+        _cleanup(a_uid, a_book)
+        _cleanup(b_uid, b_book)
+
         assert r5.status_code == 404
     finally:
         # Clean up any leaked custom styles for this user.
