@@ -85,7 +85,7 @@ from deps import (
     SENDER_EMAIL, FRONTEND_URL,
 )
 from models import User, BookOut
-from auth_dep import get_current_user, require_admin
+from auth_dep import get_current_user, get_current_user_or_none, require_admin
 from utils.admin_audit import record_admin_action
 
 
@@ -5940,7 +5940,7 @@ async def vote_community_cover(
 async def featured_community_covers(
     limit: int = 12,
     days: int = 7,
-    user: User = Depends(get_current_user),
+    user: Optional[User] = Depends(get_current_user_or_none),
 ):
     """Top-voted community covers across the whole pool, lifetime
     (``days=0``) or scoped to the recent ``days`` window.  Used by a
@@ -5978,7 +5978,7 @@ async def featured_community_covers(
             "shared_by_user_id": r.get("shared_by_user_id", ""),
             "votes":        votes,
             "import_count": int(r.get("import_count", 0)),
-            "voted_by_me":  user.user_id in (r.get("voters") or []),
+            "voted_by_me":  bool(user) and user.user_id in (r.get("voters") or []),
             "trending":     votes >= 3 and shared_at >= trending_cutoff,
             "parent_cover_id": r.get("parent_cover_id", ""),
             "image_base64": base64.b64encode(path.read_bytes()).decode("ascii"),
@@ -5995,7 +5995,7 @@ async def featured_community_covers(
 @api_router.get("/users/{username}/cover-profile")
 async def public_cover_profile(
     username: str,
-    user: User = Depends(get_current_user),  # noqa: ARG001 — auth-gate only
+    user: Optional[User] = Depends(get_current_user_or_none),  # noqa: ARG001 — public
 ):
     """Public-but-auth-gated profile page powering `/u/{username}`.
     Surfaces lifetime cover stats, the trophies the user has unlocked
@@ -6062,7 +6062,7 @@ async def public_cover_profile(
 @api_router.get("/community-covers/{cover_id}/lineage")
 async def community_cover_lineage(
     cover_id: str,
-    user: User = Depends(get_current_user),  # noqa: ARG001 — auth-gate only
+    user: Optional[User] = Depends(get_current_user_or_none),  # noqa: ARG001 — public
 ):
     """Returns the parent (if this cover was imported + re-shared) and
     the direct children (covers downstream that name this one as

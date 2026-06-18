@@ -696,3 +696,191 @@ def test_featured_endpoint_marks_trending():
             db.community_covers.delete_many({"shared_by_user_id": a_uid})
         )
         _cleanup(a_uid, a_book)
+
+
+
+# ---------------------------------------------------------------------
+# Tier 5 — public surfaces (2026-06-18)
+# ---------------------------------------------------------------------
+
+def test_public_cover_endpoints_no_auth():
+    """`/community-covers/{id}`, `/community-covers/explore`,
+    `/og/cover/{id}.png`, `/share/cover/{id}`, `/share/u/{handle}`
+    and the RSS / sitemap feeds all work for a brand-new unauthed
+    requests.Session — no cookie, no Bearer."""
+    import requests
+    a_uid, a_email, a_pw, a_book = _seed_user_and_book()
+    handle = f"public_{a_uid[-6:]}"
+    asyncio.get_event_loop().run_until_complete(
+        db.users.update_one({"user_id": a_uid}, {"$set": {"username": handle}})
+    )
+    sa = requests.Session()
+    sa.post(f"{BASE}/api/auth/login", json={"email": a_email, "password": a_pw})
+    try:
+        r = sa.post(f"{BASE}/api/books/{a_book}/preview-cover", json={})
+        if r.status_code != 200:
+            pytest.skip(f"preview-cover skipped: {r.status_code}")
+        pid = r.json()["preview_id"]
+        sa.post(f"{BASE}/api/books/{a_book}/apply-cover", json={"preview_id": pid})
+        vlist = sa.get(f"{BASE}/api/books/{a_book}/cover-variants").json()
+        vid = vlist["variants"][0]["variant_id"]
+        sr = sa.post(f"{BASE}/api/books/{a_book}/cover-variants/{vid}/share")
+        cover_id = sr.json()["community_cover_id"]
+
+        # Brand new unauth client — must NOT carry the auth cookie.
+        anon = requests.Session()
+
+        # Single cover JSON works unauth.
+        single = anon.get(f"{BASE}/api/community-covers/{cover_id}")
+        assert single.status_code == 200, single.text
+        assert single.json()["cover_id"] == cover_id
+
+        # Explore aggregate works unauth and includes a `recent` rail.
+        ex = anon.get(f"{BASE}/api/community-covers/explore")
+        assert ex.status_code == 200
+        assert any(c["cover_id"] == cover_id for c in ex.json().get("recent", []))
+
+        # OG image is a PNG or JPEG (matches whatever the model returned).
+        og = anon.get(f"{BASE}/api/og/cover/{cover_id}.png")
+        assert og.status_code == 200
+        assert og.headers["content-type"] in ("image/png", "image/jpeg")
+        assert og.content[:4] in (b"\x89PNG", b"\xff\xd8\xff\xe0", b"\xff\xd8\xff\xe1")
+
+        # Per-user OG card renders on-the-fly.
+        ogu = anon.get(f"{BASE}/api/og/user/{handle}.png")
+        assert ogu.status_code == 200
+        assert ogu.headers["content-type"] == "image/png"
+
+        # Share HTML pages embed proper OG meta tags.
+        sh = anon.get(f"{BASE}/api/share/cover/{cover_id}")
+        assert sh.status_code == 200
+        assert "og:image" in sh.text
+        assert cover_id in sh.text
+
+        shu = anon.get(f"{BASE}/api/share/u/{handle}")
+        assert shu.status_code == 200
+        assert handle in shu.text
+
+        # Sitemap lists the cover URL.
+        sm = anon.get(f"{BASE}/api/sitemap.xml")
+        assert sm.status_code == 200
+        assert f"/cover/{cover_id}" in sm.text
+        assert f"/u/{handle}" in sm.text
+
+        # Trending RSS feed.
+        trss = anon.get(f"{BASE}/api/feeds/covers/trending.rss")
+        assert trss.status_code == 200
+        assert "<rss" in trss.text
+
+        # Per-user RSS.
+        urss = anon.get(f"{BASE}/api/feeds/covers/user/{handle}.rss")
+        assert urss.status_code == 200
+        assert handle in urss.text
+    finally:
+        asyncio.get_event_loop().run_until_complete(
+            db.community_covers.delete_many({"shared_by_user_id": a_uid})
+        )
+        _cleanup(a_uid, a_book)
+
+
+def test_anonymous_vote_pins_to_cookie_and_toggles():
+    """`POST /community-covers/{id}/vote-anon` sets the `sscv` cookie
+    on first call, returns ``signup_prompt: true`` on the up-vote, and
+    a second call toggles the vote off."""
+    import requests
+    a_uid, a_email, a_pw, a_book = _seed_user_and_book()
+    sa = requests.Session()
+    sa.post(f"{BASE}/api/auth/login", json={"email": a_email, "password": a_pw})
+    try:
+        r = sa.post(f"{BASE}/api/books/{a_book}/preview-cover", json={})
+        if r.status_code != 200:
+            pytest.skip(f"preview-cover skipped: {r.status_code}")
+        pid = r.json()["preview_id"]
+        sa.post(f"{BASE}/api/books/{a_book}/apply-cover", json={"preview_id": pid})
+        vlist = sa.get(f"{BASE}/api/books/{a_book}/cover-variants").json()
+        vid = vlist["variants"][0]["variant_id"]
+        sr = sa.post(f"{BASE}/api/books/{a_book}/cover-variants/{vid}/share")
+        cover_id = sr.json()["community_cover_id"]
+
+        anon = requests.Session()
+        v1 = anon.post(f"{BASE}/api/community-covers/{cover_id}/vote-anon")
+        assert v1.status_code == 200, v1.text
+        assert v1.json()["votes"] == 1
+        assert v1.json()["voted_by_me"] is True
+        assert v1.json()["signup_prompt"] is True
+        # The cookie should now be stamped on the session for next time.
+        assert anon.cookies.get("sscv"), "sscv cookie was not set"
+
+        # Toggle off.
+        v2 = anon.post(f"{BASE}/api/community-covers/{cover_id}/vote-anon")
+        assert v2.status_code == 200
+        assert v2.json()["votes"] == 0
+        assert v2.json()["voted_by_me"] is False
+        assert v2.json()["signup_prompt"] is False
+    finally:
+        asyncio.get_event_loop().run_until_complete(
+            db.community_covers.delete_many({"shared_by_user_id": a_uid})
+        )
+        _cleanup(a_uid, a_book)
+
+
+def test_cover_archive_index_and_week_lookup():
+    """Leaderboard tick writes one row per ISO-week to ``cover_archive``;
+    `/cover-archive` lists them and `/cover-archive/{year}/{week}`
+    returns the specific row."""
+    import requests
+    from utils.cover_notifications import cover_leaderboard_tick
+    from datetime import datetime, timezone
+    a_uid, a_email, a_pw, a_book = _seed_user_and_book()
+    sa = requests.Session()
+    sa.post(f"{BASE}/api/auth/login", json={"email": a_email, "password": a_pw})
+    try:
+        r = sa.post(f"{BASE}/api/books/{a_book}/preview-cover", json={})
+        if r.status_code != 200:
+            pytest.skip(f"preview-cover skipped: {r.status_code}")
+        pid = r.json()["preview_id"]
+        sa.post(f"{BASE}/api/books/{a_book}/apply-cover", json={"preview_id": pid})
+        vlist = sa.get(f"{BASE}/api/books/{a_book}/cover-variants").json()
+        vid = vlist["variants"][0]["variant_id"]
+        sr = sa.post(f"{BASE}/api/books/{a_book}/cover-variants/{vid}/share")
+        cover_id = sr.json()["community_cover_id"]
+
+        sa.post(f"{BASE}/api/community-covers/{cover_id}/vote")
+        asyncio.get_event_loop().run_until_complete(
+            db.system_state.delete_many({"_id": "cover_ecosystem_state"})
+        )
+        asyncio.get_event_loop().run_until_complete(cover_leaderboard_tick())
+
+        iso_year, iso_week, _ = datetime.now(timezone.utc).isocalendar()
+        anon = requests.Session()
+        idx = anon.get(f"{BASE}/api/cover-archive")
+        assert idx.status_code == 200
+        weeks = idx.json()["weeks"]
+        match = next(
+            (w for w in weeks if w["iso_year"] == iso_year and w["iso_week"] == iso_week),
+            None,
+        )
+        assert match is not None
+        assert match["cover_id"] == cover_id
+
+        wk = anon.get(f"{BASE}/api/cover-archive/{iso_year}/{iso_week}")
+        assert wk.status_code == 200
+        assert wk.json()["cover_id"] == cover_id
+
+        # Future week → 404.
+        nf = anon.get(f"{BASE}/api/cover-archive/{iso_year + 5}/1")
+        assert nf.status_code == 404
+    finally:
+        asyncio.get_event_loop().run_until_complete(
+            db.cover_archive.delete_many({})
+        )
+        asyncio.get_event_loop().run_until_complete(
+            db.community_covers.delete_many({"shared_by_user_id": a_uid})
+        )
+        asyncio.get_event_loop().run_until_complete(
+            db.notifications.delete_many({"user_id": a_uid})
+        )
+        asyncio.get_event_loop().run_until_complete(
+            db.system_state.delete_many({"_id": "cover_ecosystem_state"})
+        )
+        _cleanup(a_uid, a_book)

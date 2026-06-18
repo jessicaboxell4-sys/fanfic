@@ -22,6 +22,10 @@ import GoalsPage from "@/pages/GoalsPage";
 import YearInBooksPage from "@/pages/YearInBooksPage";
 import PublicYearInBooks from "@/pages/PublicYearInBooks";
 import PublicCoverProfile from "@/pages/PublicCoverProfile";
+import PublicCoverDetail from "@/pages/PublicCoverDetail";
+import ExploreCoversPage from "@/pages/ExploreCoversPage";
+import CoverArchivePage from "@/pages/CoverArchivePage";
+import VanityRedirect from "@/pages/VanityRedirect";
 import SmartShelves from "@/pages/SmartShelves";
 import SmartShelfPage from "@/pages/SmartShelfPage";
 import AllBooksPage from "@/pages/AllBooksPage";
@@ -125,7 +129,11 @@ function AppRouter() {
       <Route path="/login" element={<Login />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/share/yib/:token" element={<PublicYearInBooks />} />
-      <Route path="/u/:username" element={<ProtectedRoute><PublicCoverProfile /></ProtectedRoute>} />
+      <Route path="/u/:username" element={<PublicCoverProfile />} />
+      <Route path="/cover/:coverId" element={<PublicCoverDetail />} />
+      <Route path="/explore/covers" element={<ExploreCoversPage />} />
+      <Route path="/cover-archive" element={<CoverArchivePage />} />
+      <Route path="/@:username" element={<VanityRedirect />} />
       <Route path="/library" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/library/all" element={<ProtectedRoute><AllBooksPage /></ProtectedRoute>} />
       <Route path="/library/queue" element={<ProtectedRoute><ReadingQueuePage /></ProtectedRoute>} />

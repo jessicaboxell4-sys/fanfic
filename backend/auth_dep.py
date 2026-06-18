@@ -83,6 +83,18 @@ async def get_current_user_any_status(request: Request) -> User:
     return await _resolve_session_user(request)
 
 
+async def get_current_user_or_none(request: Request) -> "User | None":
+    """Public-with-context dependency: returns the logged-in user if a
+    valid session is present, else ``None``.  Use on endpoints that are
+    publicly readable but want to personalise the response when the
+    caller happens to be signed in (e.g. ``voted_by_me`` flag on the
+    public covers feed)."""
+    try:
+        return await _resolve_session_user(request)
+    except HTTPException:
+        return None
+
+
 async def require_admin(request: Request) -> User:
     """Like `get_current_user`, but 403s if the user isn't flagged `is_admin`.
 

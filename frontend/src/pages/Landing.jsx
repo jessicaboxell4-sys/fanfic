@@ -16,6 +16,7 @@ import {
 import { useAuth } from "../context/AuthContext";
 import PrimaryCTAButton from "../components/PrimaryCTAButton";
 import SecondaryCTAButton from "../components/SecondaryCTAButton";
+import CommunityShowcase from "../components/CommunityShowcase";
 
 // A curated rotation of well-known fandoms we already sort into. Stays static
 // (no API call from the unauthenticated Landing) so the page paints instantly.
@@ -263,6 +264,7 @@ export default function Landing() {
       </section>
 
       {/* Bottom CTA — last push before the visitor leaves. */}
+      <CommunityShowcase />
       <section className="max-w-4xl mx-auto px-6 md:px-8 py-24 text-center">
         <h2 className="font-serif text-3xl sm:text-4xl text-[#2C2C2C] mb-4">
           Ready to see your library, sorted?

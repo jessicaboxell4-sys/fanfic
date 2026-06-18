@@ -8,6 +8,67 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-18 — Cover ecosystem Tier 5: public surfaces & discoverability ✅
+
+Turned the cover ecosystem outward.  Anyone can now browse, vote, and
+share community covers without an account; everything is indexable,
+RSS-able, and carries proper OG/Twitter meta tags for social previews.
+
+**New backend module** `routes/cover_public.py`:
+- `GET /api/community-covers/{cover_id}`              — single cover JSON (public)
+- `GET /api/community-covers/explore`                 — discovery feed with three rails (top of week, trending, recent)
+- `POST /api/community-covers/{cover_id}/vote-anon`   — cookie-pinned anonymous vote with `signup_prompt` flag
+- `GET /api/og/cover/{cover_id}.png`                  — raw cover image with PNG/JPEG content-type detection
+- `GET /api/og/user/{username}.png`                   — pure-PIL profile card (1200×630) with handle, stats, and #1 cover thumbnail
+- `GET /api/share/cover/{cover_id}`                   — HTML page with OG / Twitter meta + JS redirect to the SPA
+- `GET /api/share/u/{username}`                       — same for profiles
+- `GET /api/cover-archive` + `/cover-archive/{year}/{week}` — historic #1 winners
+- `GET /api/sitemap.xml`                              — sitemap listing public profile + cover URLs
+- `GET /api/feeds/covers/trending.rss`                — RSS feed of trending covers
+- `GET /api/feeds/covers/user/{username}.rss`         — per-user RSS feed
+
+**Auth helper** `auth_dep.get_current_user_or_none`:
+- New dep returning the user if signed in, else `None`.  Used by the
+  formerly-auth-gated profile / featured / lineage endpoints so they
+  now serve unauth visitors but still personalise `voted_by_me` for
+  signed-in callers.
+
+**Cover archive write hook** in `cover_leaderboard_tick`:
+- Daily leaderboard tick now upserts a row into `cover_archive` keyed
+  on ISO `(year, week)` so past winners stay visible long after the
+  7-day featured window has closed.
+
+**New frontend pages + routes**:
+- `/u/:username`              — `PublicCoverProfile` is now unauth and includes
+                                JSON-LD ProfilePage + Person schema, share
+                                buttons (X / Bluesky / Copy link), and an RSS
+                                link.
+- `/cover/:coverId`           — `PublicCoverDetail` with JSON-LD CreativeWork
+                                schema, anonymous-vote flow, remix lineage
+                                display, share buttons, and a sign-up CTA for
+                                unauth viewers after they heart a cover.
+- `/explore/covers`           — `ExploreCoversPage` (unauth) with three rails.
+- `/cover-archive`            — `CoverArchivePage` showing every past week's
+                                #1 cover.
+- `/@username`                — Twitter-style vanity redirect to `/u/{username}`.
+
+**Marketing landing page**:
+- New `CommunityShowcase` strip surfaces the current top-of-week
+  thumbnails on `/` as live social proof — auto-hides on quiet weeks.
+
+**New tests** (`tests/test_cover_regen.py`) — 3 new:
+- `test_public_cover_endpoints_no_auth` exercises every public surface
+  (single cover, explore, OG image, share HTML, sitemap, RSS) with a
+  brand-new unauth `requests.Session` to prove none of them require
+  a session cookie.
+- `test_anonymous_vote_pins_to_cookie_and_toggles` checks the
+  `sscv` cookie is stamped on first vote, `signup_prompt: true` fires,
+  and a second call toggles the vote back off.
+- `test_cover_archive_index_and_week_lookup` validates the daily tick
+  writes one row per ISO-week and the index / per-week lookups work.
+
+Total: **17/17 tests passing.**
+
 ## 2026-06-18 — Cover ecosystem Tier 4: notifications, trophies, lineage ✅
 
 Turned the cover ecosystem into a full social loop.  Sharers now get

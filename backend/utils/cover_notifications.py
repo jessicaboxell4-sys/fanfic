@@ -256,6 +256,28 @@ async def cover_leaderboard_tick() -> Dict[str, Any]:
         except Exception as e:
             logger.exception("cover_leaderboard_tick notify failed: %s", e)
 
+    # Persistent archive — one row per ISO-week so a public archive
+    # page can show the leaderboard going backwards in time even after
+    # the original cover scrolls out of the 7-day window.
+    now = datetime.now(timezone.utc)
+    iso_year, iso_week, _ = now.isocalendar()
+    try:
+        await db.cover_archive.update_one(
+            {"iso_year": iso_year, "iso_week": iso_week},
+            {"$set": {
+                "iso_year":     iso_year,
+                "iso_week":     iso_week,
+                "cover_id":     top["cover_id"],
+                "title":        top.get("title", ""),
+                "votes":        int(top.get("votes", 0)),
+                "shared_by_user_id": sharer or "",
+                "archived_at":  now.isoformat(),
+            }},
+            upsert=True,
+        )
+    except Exception as e:
+        logger.exception("cover archive write failed: %s", e)
+
     return {"top": top["cover_id"], "changed": True, "sharer": sharer}
 
 

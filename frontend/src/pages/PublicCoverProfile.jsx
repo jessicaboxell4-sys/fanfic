@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { Heart, Download, Trophy, ArrowLeft, Sparkles } from "lucide-react";
+import { Heart, Download, Trophy, ArrowLeft, Sparkles, Rss } from "lucide-react";
 import { api } from "../lib/api";
 import Navbar from "../components/Navbar";
 import { toast } from "sonner";
+import { ShareButtons } from "../components/ShareButtons";
 
 /**
  * Public-but-auth-gated profile page surfacing a user's community
@@ -21,21 +22,50 @@ export default function PublicCoverProfile() {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [me, setMe] = useState(null);
 
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
         const { data } = await api.get(`/users/${username}/cover-profile`);
-        if (alive) setProfile(data);
+        if (alive) {
+          setProfile(data);
+          document.title = `@${data.username} · Shelfsort covers`;
+          // JSON-LD structured data so search engines surface the
+          // profile page with a rich Person + CreativeWork preview.
+          try {
+            const old = document.getElementById("shelfsort-ld");
+            if (old) old.remove();
+            const s = document.createElement("script");
+            s.type = "application/ld+json";
+            s.id = "shelfsort-ld";
+            s.text = JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "ProfilePage",
+              mainEntity: {
+                "@type": "Person",
+                name: data.display_name || `@${data.username}`,
+                alternateName: `@${data.username}`,
+                url: `${window.location.origin}/u/${data.username}`,
+                image: `${process.env.REACT_APP_BACKEND_URL}/api/og/user/${data.username}.png`,
+              },
+            });
+            document.head.appendChild(s);
+          } catch { /* JSON-LD is non-critical */ }
+        }
       } catch (e) {
         if (e?.response?.status === 404) setNotFound(true);
         else toast.error(e?.response?.data?.detail || "Couldn't load profile");
       } finally {
         if (alive) setLoading(false);
       }
+      try {
+        const r = await api.get("/auth/me");
+        if (alive) setMe(r.data);
+      } catch { /* unauth — fine */ }
     })();
-    return () => { alive = false; };
+    return () => { alive = false; document.getElementById("shelfsort-ld")?.remove(); };
   }, [username]);
 
   if (loading) {
@@ -78,11 +108,11 @@ export default function PublicCoverProfile() {
         data-testid="public-cover-profile"
       >
         <Link
-          to="/library"
+          to={me ? "/library" : "/explore/covers"}
           className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-6 hover:text-[#553397]"
           data-testid="profile-back-link"
         >
-          <ArrowLeft className="w-3 h-3" /> Back
+          <ArrowLeft className="w-3 h-3" /> {me ? "Back" : "Explore"}
         </Link>
 
         <header className="mb-10" data-testid="profile-header">
@@ -110,6 +140,19 @@ export default function PublicCoverProfile() {
               <strong>{profile.totals?.imports || 0}</strong>{" "}
               <span className="text-[#6B705C]">imports</span>
             </span>
+          </div>
+          <div className="mt-5 flex items-center gap-3 flex-wrap">
+            <ShareButtons
+              shareUrl={`${process.env.REACT_APP_BACKEND_URL}/api/share/u/${profile.username}`}
+              title={`@${profile.username}'s AI book covers on Shelfsort`}
+            />
+            <a
+              href={`${process.env.REACT_APP_BACKEND_URL}/api/feeds/covers/user/${profile.username}.rss`}
+              className="inline-flex items-center gap-1 text-xs font-semibold text-[#6B705C] hover:text-[#6B46C1]"
+              data-testid="profile-rss-link"
+            >
+              <Rss className="w-3 h-3" /> RSS
+            </a>
           </div>
         </header>
 
@@ -148,8 +191,9 @@ export default function PublicCoverProfile() {
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
               {profile.covers.map((c) => (
-                <article
+                <Link
                   key={c.cover_id}
+                  to={`/cover/${c.cover_id}`}
                   className="bg-white rounded-lg border border-[#E8E6E1] overflow-hidden shadow-sm hover:shadow-md transition-shadow"
                   data-testid={`profile-cover-${c.cover_id}`}
                 >
@@ -182,7 +226,7 @@ export default function PublicCoverProfile() {
                       </span>
                     </div>
                   </div>
-                </article>
+                </Link>
               ))}
             </div>
           )}
