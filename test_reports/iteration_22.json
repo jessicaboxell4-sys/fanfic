@@ -1,0 +1,65 @@
+{
+  "summary": "Backend pytest sweep (13/13 PASS) + Playwright sweep of the 10-feature batch (public surfaces, consent banner, anon vote, dashboard resume + cover-of-the-week strip, stuck books, account toggles, affinity rail, landing showcase). Two real bugs surfaced: /@username vanity redirect lands on / instead of /u/:username, and the anon vote flow shows NO transient sign-up toast (only the static page-bottom CTA). Reader fullscreen/tap-edge zones could NOT be verified because the seeded book has no backing EPUB file (spec said skip uploads).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/analytics/reading-data-sharing", "issue": "Payload uses `reading_data_shared` not `opt_in`; works but worth flagging for FE call sites (current toggle component appears correct, but any external doc/curl example saying `opt_in` will 422)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "VanityRedirect (/@:username route)", "issue": "Hard navigation to /@tester lands on the marketing landing `/` instead of redirecting to /u/tester. Same on encoded /%40tester. VanityRedirect.jsx is wired correctly in App.js, so this is likely a Kubernetes ingress / SPA fallback path-rewrite swallowing the `@`. Repro: open a fresh incognito tab and visit https://genre-sort.preview.emergentagent.com/@tester — observe landing page renders, URL is rewritten to /.", "selector": "/@tester", "priority": "HIGH"},
+      {"component": "PublicCoverDetail anon vote toast", "issue": "Clicking [data-testid=cover-vote-btn] increments the count from 0 → 1 and the sscv cookie is set (vote does persist on refresh), but NO transient toast/snackbar appears offering 'Sign up to save the vote'. Spec explicitly required this toast. Only the static bottom-of-page 'Sign up' CTA is shown.", "selector": "[data-testid=cover-vote-btn]", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [
+      {"flow": "Anon GET /api/auth/me on public pages", "issue": "Every unauth page load fires several /api/auth/me requests that 401 (visible as 8-10 red console errors on /explore/covers, /cover/:id, /u/:username, /). Functional impact none, but noisy in DevTools and inflates analytics noise.", "affected_selectors": []}
+    ],
+    "design_issues": []
+  },
+  "verification_passes": {
+    "explore_covers_anon_renders_header_and_rails": "PASS",
+    "consent_banner_accept_decline_testids_and_persistence": "PASS (decline persists `shelfsort-analytics-consent` in localStorage; banner gone on reload)",
+    "single_cover_page_unauth_renders_title_share_signup_cta": "PASS",
+    "vanity_redirect_at_/@username": "FAIL — lands on `/`",
+    "resume_reading_card_on_/library_with_seeded_progress": "PASS — text 'TEST Stuck HP Book · Tester · 42% in', href=/read/bk_tester_0",
+    "cover_of_the_week_strip_with_gold_ribbon_on_#1": "PASS — first card has Trophy ribbon + '#1 THIS WEEK' label; only first carries it; second carries 'TRENDING' pill (votes >= 3 and < 48h)",
+    "anon_vote_flow_increment_and_cookie_persistence": "PARTIAL — count increments, sscv cookie set, persists on reload, BUT no sign-up toast",
+    "stuck_books_page_/library/stuck": "PASS — empty-state correctly shown (no books match window)",
+    "account_push_handoff_card_+_reading_privacy_card_testids": "PASS — both present",
+    "reading_privacy_toggle_persists_via_POST": "PASS (verified at API layer; UI click not asserted)",
+    "reader_fullscreen_toggle_and_tap_edge_zones": "INCONCLUSIVE — bk_tester_0 has no backing EPUB; Reader shows 'Couldn't open this book'. Could not verify fullscreen-toggle / reader-tap-prev / reader-tap-next without a real uploaded EPUB (spec said skip uploads).",
+    "affinity_rail_auto_hides_on_empty": "PASS — [data-testid=affinity-rail] absent because tester has no community-cover matches",
+    "analytics_anon_view_endpoint": "PASS (POST /api/analytics/view → 200 {ok:true})",
+    "analytics_public_stats_endpoint": "PASS (returns total_users, monthly_signups, total_covers as ints)",
+    "admin_summary_403_for_tester": "PASS",
+    "landing_community_showcase_and_landing_public_counter": "PASS once featured-eligible covers exist (showcase + data-testid=landing-public-counter both render; counter reads '246 readers · 3 AI covers shared · 241 signed up this month'). Showcase auto-hides on empty pool per CommunityShowcase.jsx:37 — confirmed documented behaviour, NOT a bug."
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter22_review_sweep.py",
+    "/app/test_reports/pytest/pytest_iter22.xml"
+  ],
+  "action_items": [
+    "HIGH: Fix /@:username route — investigate whether the Kubernetes ingress is rewriting `@` out of the path or returning 404 to a non-SPA fallback. If ingress is fine, verify the React Router pattern works on hard-reload (try `/%40tester` SPA fallback). Without this, every shared `@username` link from RSS/og-share dies.",
+    "MEDIUM: Surface a transient toast (sonner / your toast system) after anon vote click that offers 'Sign up to save your vote across devices.' Spec called this out explicitly.",
+    "LOW: Suppress or silence the unauth /api/auth/me 401 noise on public pages — either gate the call on a presence-of-cookie check, or return a 200 with `{ user: null }` instead of 401."
+  ],
+  "critical_code_review_comments": [
+    "routes/cover_public.py uses ISO-string comparisons for `shared_at` (`{$gte: cutoff}` against an isoformat string). This works ONLY because every writer also writes isoformat. Any future writer that stores BSON Date will silently disappear from the explore/featured rails. Consider standardising on BSON Date with `$gte: datetime` everywhere, or wrap writers in a single helper.",
+    "CommunityShowcase.jsx hides itself if `covers.length === 0`, which means the landing-public-counter ALSO hides when there are no featured covers — even though `stats.total_users` is non-zero. Probably acceptable, but if product wants the counter line to always show on landing once stats exist, lift the counter out of the conditional.",
+    "ResumeReadingCard.jsx filters in-progress by `0.01 < p < 0.99`. A book at exactly 0.99 or higher hides — fine for finished books, but a near-finished book (98.5%) won't show in resume, which may be confusing UX.",
+    "books.py:5982 — `shared_at >= trending_cutoff` uses string comparison; works for ISO 8601 UTC strings but fragile if any future writer omits the Z/offset."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter22_review_sweep.py (new — 13 tests, all passing)"
+  ],
+  "success_rate": {"backend": "100% (13/13)", "frontend": "9/11 verified passing, 1 inconclusive (Reader EPUB), 2 with bugs (vanity redirect + missing vote toast)"},
+  "test_credentials": "shelfsort-tester@example.com / tester123! (user_a18dde45958d, username `tester`, non-admin). Used as documented.",
+  "seed_data_creation": "Seeded into MongoDB `test_database`: (1) 3 community_covers rows (cover_id TEST_cover_1781750581_0..2, all owned by tester, votes 8/9/10, fandom Harry Potter, shared_at as ISO string for the featured filter), with matching 1x1 PNG files under /app/community_covers/. (2) Upsert of books row bk_tester_0 for the tester (progress_fraction=0.42, last_opened_at=now, format=epub) so ResumeReadingCard renders. Note: bk_tester_0 has no backing EPUB on disk so Reader can't open it — fine for dashboard testing, blocks Reader UI verification.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend test file /app/backend/tests/test_iter22_review_sweep.py is the canonical regression for this batch — runs in <2s, no external deps beyond the tester login. Seed cover IDs `TEST_cover_1781750581_{0,1,2}` are persisted in DB and have matching PNG files at /app/community_covers/. To re-run UI dashboard tests, set localStorage `shelfsort_tour_seen=1` first or the tour overlay will block. Reader tap-edge + fullscreen testids are unverified — you'd need to actually upload a small EPUB (or pre-populate /app/storage/<user_id>/bk_xxx with a real EPUB) to load the reader.",
+  "rca_of_the_issues": {
+    "vanity_redirect": "Symptom: GET /@tester returns marketing landing. Hypothesis A (most likely): the ingress / SPA fallback layer treats `@` in the path as a userinfo delimiter and rewrites to `/`. Hypothesis B: nginx/static server is returning a 404 instead of serving index.html for paths containing `@`, so React Router never sees the route. Repro from terminal: `curl -sI https://genre-sort.preview.emergentagent.com/@tester | head` — check if the response is index.html or a redirect. Fix: ensure SPA fallback rule covers all non-`/api/*` paths including `@`. If that's not possible, change the route shape (e.g., `/u/@username`) or have the backend explicitly 302 `/@:username` → `/u/:username` server-side.",
+    "missing_anon_vote_toast": "PublicCoverDetail.jsx vote handler updates the count + cookie but does not call toast.success/toast.message. Spec requires a transient prompt. Fix: import { toast } from 'sonner' and on first successful vote-anon response (`signup_prompt: true`), `toast(<>Vote saved. <Link to=/auth/signup>Sign up</Link> to keep it across devices.</>)`."
+  }
+}
