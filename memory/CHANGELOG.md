@@ -8,6 +8,21 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-18 — CI verification ✅
+
+User asked for CI wiring; turned out the GitHub Actions workflow
+(`.github/workflows/backend-tests.yml`) was already in place from a
+prior session.  It runs `./scripts/run_coverage.sh --fail-under=75`
+which executes `pytest tests/ -v --tb=short` against a coverage-
+instrumented uvicorn — so the new test files from this session
+(`test_event_bus`, `test_push`, `test_reading_sync`, `test_analytics`,
+`test_timestamp_convention`) are picked up automatically.
+
+Verified locally: `pytest tests/ --collect-only -q` collects
+**1,018 tests** including every file added this session.  No CI
+wiring change needed; the new tests will run on the next push to
+the connected GitHub repo.
+
 ## 2026-06-18 — Timestamp convention locked in ✅
 
 After the testing-agent sweep flagged the ISO-string `$gte` pattern as
