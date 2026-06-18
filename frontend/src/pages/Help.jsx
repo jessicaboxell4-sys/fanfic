@@ -99,6 +99,40 @@ export default function Help() {
   const [query, setQuery] = useState("");
   const [matchingSectionIds, setMatchingSectionIds] = useState(SECTIONS.map((s) => s.id));
 
+  // Popular-section ordering: fetch click counts from /api/help/popular
+  // and re-rank the TOC by genuine engagement. The top 5 most-clicked
+  // sections jump to the top of the list (visually highlighted with a
+  // small "popular" pill); the rest preserve the curated order so
+  // newer users still get a logical reading flow.
+  const [popular, setPopular] = useState([]);   // [{section, hits}]
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get("/help/popular", { params: { days: 30, limit: 5 } });
+        if (!cancelled) setPopular(data?.rows || []);
+      } catch { /* non-fatal */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+  const popularIds = popular.map((p) => p.section);
+
+  // Re-order: popular ids first (in their hit-count order), then the
+  // remaining curated order.  Filter step still applies on top.
+  const orderedSections = (() => {
+    if (!popularIds.length) return SECTIONS;
+    const seen = new Set();
+    const out = [];
+    for (const pid of popularIds) {
+      const s = SECTIONS.find((x) => x.id === pid);
+      if (s) { out.push(s); seen.add(pid); }
+    }
+    for (const s of SECTIONS) {
+      if (!seen.has(s.id)) out.push(s);
+    }
+    return out;
+  })();
+
   // After the article renders, recompute matches whenever query changes.
   // Reads DOM text directly, so it must run after layout.
   useEffect(() => {
@@ -188,11 +222,29 @@ export default function Help() {
                 Sections
               </p>
               <ul className="space-y-1.5 text-sm pt-2 lg:pt-0">
-                {SECTIONS.filter((s) => matchingSectionIds.includes(s.id)).map((s) => (
-                  <li key={s.id}>
-                    <a href={`#${s.id}`} className="text-[#6B705C] hover:text-[#E07A5F]">{s.label}</a>
-                  </li>
-                ))}
+                {orderedSections.filter((s) => matchingSectionIds.includes(s.id)).map((s) => {
+                  const popIdx = popularIds.indexOf(s.id);
+                  return (
+                    <li key={s.id} className="flex items-center gap-1.5">
+                      <a
+                        href={`#${s.id}`}
+                        onClick={() => { try { api.post("/help/track", { section: s.id }); } catch {} }}
+                        className="text-[#6B705C] hover:text-[#E07A5F] flex-1"
+                      >
+                        {s.label}
+                      </a>
+                      {popIdx >= 0 && popIdx < 3 && (
+                        <span
+                          title={`Popular this month — ${popular[popIdx]?.hits || 0} clicks`}
+                          data-testid={`toc-popular-${s.id}`}
+                          className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-[#FDF3E1] text-[#8C5C00] border border-[#F5E0A8]"
+                        >
+                          popular
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
                 {SECTIONS.length > 0 && matchingSectionIds.length === 0 && (
                   <li className="text-[10px] italic text-[#6B705C]">no matches — clear search to see all</li>
                 )}
