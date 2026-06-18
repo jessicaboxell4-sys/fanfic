@@ -59,6 +59,12 @@
 - Move from local FS to object storage when scaling
 
 ## P3 — nice-to-have
+- **"You started this on iPhone — pick up?" passive banner on BookCard**
+  *(remind-later, parked 2026-06-18)* — for books with a stale local
+  cursor but a fresh cloud cursor, show a small badge on the card
+  itself.  Doesn't need notification permission, helps users
+  discover cross-device sync even before enabling push.  Small
+  frontend-only change (~30 lines on BookCard.jsx).
 - **Cover ecosystem visitor analytics** *(remind-later, parked 2026-06-18)*
   — anonymous traffic + heart + signup-conversion counter on
   /explore/covers, /u/:username and /cover/:cover_id pages, surfaced
