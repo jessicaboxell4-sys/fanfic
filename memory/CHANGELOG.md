@@ -8,6 +8,33 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-18 — Phase 6 continued: metadata + classifier extracted ✅
+
+Two more shim-pattern splits, each reducing ``books.py`` without
+breaking any caller:
+
+- **`utils/epub_metadata.py`** (~430 LOC) — moved
+  `extract_epub_metadata`, `update_epub_metadata`, `_canonicalize_relationship`,
+  `_canonicalize_fandom`, `_suggest_fandom_merges`, `detect_series_from_title`,
+  `extract_urls_from_epub`, `format_links_txt`, and `_clean_author_string`
+  out of `routes/books.py`.  Plus the constants
+  `NONFICTION_SIGNALS`, `SERIES_TITLE_PATTERNS`, `_FANDOM_SPLIT_RE`.
+  Zero call-site changes — every consumer (tags route, fandoms route,
+  exports, refresh helper, upload pipeline) reaches through the
+  re-export shim in `routes/books.py`.
+- **`utils/classifier.py`** (~135 LOC) — moved `classify_by_metadata`,
+  `classify_with_ai`, and `classify_book`.  Uses a late-bound
+  `_get_fandom_keywords()` accessor so the keyword bank can keep
+  living in `routes/books.py` (where it's also referenced by the
+  admin fandom-merge tooling) without an import cycle.
+
+Footprint: `routes/books.py` 6,140 → 5,391 lines (749-line cut).
+Six new shim tests in `test_p3_batch.py` lock the re-export
+contract (27/27 in the file passing, 221/221 across the new-features
++ P3 suites combined).
+
+---
+
 ## 2026-06-18 — Tiny insights wave: re-read nudge, projected hours, cohort progress bar ✅
 
 The "tiny wins" picked from the post-P3 ideas menu — three ~30-LOC

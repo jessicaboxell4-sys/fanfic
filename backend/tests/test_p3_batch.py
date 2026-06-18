@@ -682,3 +682,99 @@ class TestPhase6ChapterHelpersShim:
         assert d["summary"]["chapters_unchanged"] == 1
         assert d["summary"]["words_delta"] == 350
         assert d["first_changed_chapter"] is not None
+
+
+# =====================================================================
+# Phase-6 #2 — EPUB metadata + relationship/fandom shim
+# =====================================================================
+
+class TestPhase6MetadataShim:
+    def test_metadata_helpers_reexported_from_books(self):
+        from routes.books import (
+            extract_epub_metadata, update_epub_metadata, extract_urls_from_epub,
+            format_links_txt, _canonicalize_relationship, _canonicalize_fandom,
+            _suggest_fandom_merges, detect_series_from_title, SERIES_TITLE_PATTERNS,
+        )
+        from utils.epub_metadata import (
+            extract_epub_metadata as _ext, update_epub_metadata as _upd,
+            extract_urls_from_epub as _eu, format_links_txt as _flt,
+            _canonicalize_relationship as _cr, _canonicalize_fandom as _cf,
+            _suggest_fandom_merges as _sm, detect_series_from_title as _ds,
+            SERIES_TITLE_PATTERNS as _stp,
+        )
+        assert extract_epub_metadata is _ext
+        assert update_epub_metadata is _upd
+        assert extract_urls_from_epub is _eu
+        assert format_links_txt is _flt
+        assert _canonicalize_relationship is _cr
+        assert _canonicalize_fandom is _cf
+        assert _suggest_fandom_merges is _sm
+        assert detect_series_from_title is _ds
+        assert SERIES_TITLE_PATTERNS is _stp
+
+    def test_canonicalize_fandom_crossover_alpha_sorted(self):
+        from utils.epub_metadata import _canonicalize_fandom
+        assert _canonicalize_fandom("Twilight & Harry Potter") == "Harry Potter / Twilight"
+        assert _canonicalize_fandom("Harry Potter/Twilight") == "Harry Potter / Twilight"
+        assert _canonicalize_fandom("Marvel") == "Marvel"
+        assert _canonicalize_fandom("") is None
+        assert _canonicalize_fandom(None) is None
+
+    def test_canonicalize_relationship_dedup_and_drop_disamb(self):
+        from utils.epub_metadata import _canonicalize_relationship
+        assert _canonicalize_relationship("Hermione/Harry (Harry Potter)") == "Harry / Hermione"
+        assert _canonicalize_relationship("Sherlock") is None
+        assert _canonicalize_relationship("Draco/Harry - past") == "Draco / Harry"
+
+    def test_detect_series_from_title_basic(self):
+        from utils.epub_metadata import detect_series_from_title
+        s, idx = detect_series_from_title("The Final Empire (Mistborn #1)")
+        assert s == "Mistborn"
+        assert idx == 1.0
+
+    def test_clean_author_string_unknown_sentinels(self):
+        from utils.epub_metadata import _clean_author_string
+        assert _clean_author_string("by John Smith") == "John Smith"
+        assert _clean_author_string("Anonymous") == "Unknown"
+        assert _clean_author_string("") == "Unknown"
+        assert _clean_author_string("Various") == "Various"
+
+
+# =====================================================================
+# Phase-6 #3 — classifier shim
+# =====================================================================
+
+class TestPhase6ClassifierShim:
+    def test_classifier_reexported_from_books(self):
+        from routes.books import classify_by_metadata, classify_with_ai, classify_book
+        from utils.classifier import (
+            classify_by_metadata as _cbm,
+            classify_with_ai as _cwa,
+            classify_book as _cb,
+        )
+        assert classify_by_metadata is _cbm
+        assert classify_with_ai is _cwa
+        assert classify_book is _cb
+
+    def test_classify_by_metadata_matches_known_fandom(self):
+        from utils.classifier import classify_by_metadata
+        result = classify_by_metadata({
+            "title": "The Half Blood Prince Reimagined",
+            "author": "fanwriter42",
+            "description": "Drarry slow-burn slytherin AU hogwarts romance",
+            "publisher": "",
+            "sample_text": "harry potter hermione granger ron weasley dumbledore",
+        })
+        assert result["category"] == "Fanfiction"
+        assert "Harry Potter" in (result["fandom"] or "")
+        assert result["classifier"] == "metadata"
+        assert result["confidence"] >= 0.6
+
+    def test_classify_by_metadata_returns_unclassified_for_blank(self):
+        from utils.classifier import classify_by_metadata
+        result = classify_by_metadata({
+            "title": "", "author": "", "description": "",
+            "publisher": "", "sample_text": "",
+        })
+        assert result["category"] == "Unclassified"
+        assert result["fandom"] is None

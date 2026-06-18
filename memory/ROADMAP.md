@@ -94,15 +94,22 @@
   whenever another device saves a cursor.)
 
 ### Parked / remind-later
-- **Phase 6 — full `books.py` split** (still ~5 900 lines after the
-  chapter-helper extraction on 2026-06-18).  Next clean cuts:
-  metadata helpers (`extract_epub_metadata`, `update_epub_metadata`,
-  `extract_urls_from_epub`, `format_links_txt`) → `utils/epub_metadata.py`;
-  fanfic refresh + URL canonicalization → already partially extracted
-  to `utils/url_canonical`, finish the move; classifier helpers
-  (`classify_by_metadata`, `classify_with_ai`, `classify_book`) →
-  `utils/classifier.py`.  Each extraction follows the same
-  re-export shim pattern proven on 2026-06-18.
+- **Phase 6 — continued `books.py` splits** (now ~5 391 lines after
+  the 2026-06-18 metadata + classifier extractions).  Remaining
+  candidates:
+  * Upload pipeline (`upload_books`, `_convert_to_epub_sync`,
+    `_templated_filename`, `apply_template_to_epub`) → `utils/upload.py`
+  * Fanfic refresh (`fetch_fanfic_with_fallback`,
+    `normalize_fanfic_url`, `_source_for`, `FanficNotFoundError`) →
+    already half-extracted to `utils/url_canonical`; finish the move
+    into `utils/fanfic_refresh.py`
+  * Bulk-edit pipelines (move/delete/edit by tag/fandom) → split
+    into a dedicated `routes/books_bulk.py` sub-module via FastAPI
+    `APIRouter.include_router`
+  * Conversion-visibility + indexes (`_ensure_conversion_index`,
+    `CONVERSION_VISIBILITY_HOURS`) → `utils/conversion_index.py`
+  Each follows the same `from utils.X import …` shim pattern proven
+  three times now (chapters, metadata, classifier).
 - **Homepage "social proof" strip** (remind-later, parked 2026-06-18)
   — surface today's top community cover + total signups this week
   using `/api/cover/leaderboard` + the new analytics aggregations.
