@@ -18,9 +18,10 @@ title + author, the sharer's `@handle`, and a red Heart vote-toggle
 backed by the same `POST /community-covers/{id}/vote` endpoint as the
 regenerate-cover modal.  Voting is optimistic with a rollback on
 failure.  Strip auto-hides on fresh installs / quiet weeks so the
-lean dashboard stays lean.  Verified end-to-end via screenshot once
-real community covers existed (login → tour → /library → strip renders
-with two cards in the expected position above the quick-action chips).
+lean dashboard stays lean.  Top-voted card carries a small amber
+"🏆 #1 this week" ribbon (only when votes > 0 so a 0-vote week
+doesn't crown an empty winner) to make the leaderboard feeling
+visible and reinforce the upload→share→vote social loop.
 
 
 

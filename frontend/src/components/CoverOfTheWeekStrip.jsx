@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Heart, Sparkles } from "lucide-react";
+import { Heart, Sparkles, Trophy } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../lib/api";
 
@@ -85,12 +85,26 @@ export default function CoverOfTheWeekStrip() {
         className="flex gap-3 overflow-x-auto pb-2 -mx-2 px-2 snap-x snap-mandatory"
         data-testid="cover-of-the-week-scroll"
       >
-        {covers.map((c) => (
+        {covers.map((c, idx) => {
+          // Sort comes back votes-desc from the backend, so idx 0 is #1.
+          // Only show the ribbon when the top card has actual votes —
+          // otherwise "#1 with 0 votes" feels silly on a quiet week.
+          const isTop = idx === 0 && (c.votes || 0) > 0;
+          return (
           <article
             key={c.cover_id}
-            className="snap-start shrink-0 w-[148px] sm:w-[164px] bg-white rounded-lg border border-[#E8E6E1] overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+            className="snap-start shrink-0 w-[148px] sm:w-[164px] bg-white rounded-lg border border-[#E8E6E1] overflow-hidden shadow-sm hover:shadow-md transition-shadow relative"
             data-testid={`cover-of-week-${c.cover_id}`}
           >
+            {isTop && (
+              <div
+                className="absolute top-2 left-2 z-10 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#B87A00] text-white text-[10px] font-bold uppercase tracking-wider shadow-md"
+                data-testid="cover-of-week-top-ribbon"
+              >
+                <Trophy className="w-3 h-3 fill-current" />
+                #1 this week
+              </div>
+            )}
             <div className="aspect-[2/3] bg-[#F5F2EA] overflow-hidden">
               {c.image_base64 && (
                 <img
@@ -140,7 +154,8 @@ export default function CoverOfTheWeekStrip() {
               </div>
             </div>
           </article>
-        ))}
+          );
+        })}
       </div>
     </section>
   );
