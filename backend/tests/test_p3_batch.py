@@ -469,6 +469,180 @@ class TestReadingInsights:
 
 
 # =====================================================================
+# Re-read rabbit-hole nudge — POST /api/books/{id}/cursor fires a
+# one-shot notification when backward_jumps >= 4 in the last 30 days.
+# =====================================================================
+
+class TestRereadRabbitHoleNudge:
+    TOK = f"sess_rr_{uuid.uuid4().hex}"
+    UID = f"user_rr_{uuid.uuid4().hex[:8]}"
+    BOOK = f"book_rr_{uuid.uuid4().hex[:6]}"
+
+    @pytest.fixture(autouse=True, scope="class")
+    def seed(self):
+        now = datetime.now(timezone.utc)
+        db.users.insert_one({
+            "user_id": self.UID, "email": f"{self.UID}@ex.com",
+            "name": "RR Tester", "is_admin": False,
+            "created_at": now.isoformat(),
+        })
+        db.user_sessions.insert_one({
+            "user_id": self.UID, "session_token": self.TOK,
+            "expires_at": now + timedelta(days=7), "created_at": now,
+        })
+        db.books.insert_one({
+            "book_id": self.BOOK, "user_id": self.UID,
+            "title": "Comfort Re-read Test",
+            "author": "RR Author", "category": "Fanfiction",
+            "progress_fraction": 0.0, "created_at": now,
+        })
+        # Pre-seed cursor_history with 4 prior backward jumps so the
+        # next backward-jump push trips the >=4 threshold.
+        hist = []
+        ts0 = now - timedelta(days=28)
+        # peaks then drops: 4 cycles of (0.9 -> 0.1)
+        for i, p in enumerate([0.1, 0.5, 0.9, 0.1,
+                                0.5, 0.9, 0.1,
+                                0.5, 0.9, 0.1,
+                                0.5, 0.9, 0.1]):
+            hist.append({
+                "user_id": self.UID, "book_id": self.BOOK,
+                "percent": p, "prev_pct": 0,
+                "delta": 0, "device_id": "test",
+                "ts": (ts0 + timedelta(days=i * 2)).isoformat(),
+            })
+        # Final cursor row reflecting the latest state (at 0.9 so the
+        # next push down to 0.05 counts as a fresh backward jump).
+        db.cursor_history.insert_many(hist)
+        db.reading_cursors.insert_one({
+            "user_id": self.UID, "book_id": self.BOOK,
+            "cfi": "x", "percent": 0.9, "chapter_label": "Ch 9",
+            "device_id": "test", "device_label": "Test",
+            "updated_at": now.isoformat(),
+        })
+        yield
+        db.users.delete_many({"user_id": self.UID})
+        db.user_sessions.delete_many({"user_id": self.UID})
+        db.books.delete_many({"user_id": self.UID})
+        db.cursor_history.delete_many({"user_id": self.UID})
+        db.reading_cursors.delete_many({"user_id": self.UID})
+        db.notifications.delete_many({"user_id": self.UID})
+
+    def test_backward_jump_fires_notification(self):
+        # Now POST /cursor with percent=0.05 (jump from 0.9) — should
+        # cross the 4-jump threshold and create a one-shot notification.
+        r = requests.post(
+            f"{BASE}/api/books/{self.BOOK}/cursor",
+            json={"cfi": "x", "percent": 0.05, "device_id": "test"},
+            headers=_h(self.TOK),
+        )
+        assert r.status_code == 200, r.text
+
+        # Give the SSE publish a tick to settle (sync-await in the
+        # endpoint should already have written the notification).
+        notif = db.notifications.find_one({
+            "user_id": self.UID, "kind": "reread_rabbit_hole",
+        })
+        assert notif is not None
+        assert "Comfort Re-read Test" in notif["body"]
+        assert notif["link"].endswith(f"/book/{self.BOOK}")
+
+    def test_idempotent_within_30_days(self):
+        # Second backward jump in the same 30-day window — should NOT
+        # double-fire a notification.
+        prev_count = db.notifications.count_documents({
+            "user_id": self.UID, "kind": "reread_rabbit_hole",
+        })
+        # Bump the cursor back to 0.9 then back to 0.05 once more.
+        requests.post(
+            f"{BASE}/api/books/{self.BOOK}/cursor",
+            json={"cfi": "x", "percent": 0.9, "device_id": "test"},
+            headers=_h(self.TOK),
+        )
+        requests.post(
+            f"{BASE}/api/books/{self.BOOK}/cursor",
+            json={"cfi": "x", "percent": 0.05, "device_id": "test"},
+            headers=_h(self.TOK),
+        )
+        new_count = db.notifications.count_documents({
+            "user_id": self.UID, "kind": "reread_rabbit_hole",
+        })
+        assert new_count == prev_count, "Should not double-fire"
+
+
+# =====================================================================
+# Pace endpoint projected_hours_to_finish field
+# =====================================================================
+
+class TestProjectedHoursToFinish:
+    TOK = f"sess_phf_{uuid.uuid4().hex}"
+    UID = f"user_phf_{uuid.uuid4().hex[:8]}"
+    BOOK_NEW = f"book_phf_new_{uuid.uuid4().hex[:6]}"
+    BOOK_OLD = f"book_phf_old_{uuid.uuid4().hex[:6]}"
+
+    @pytest.fixture(autouse=True, scope="class")
+    def seed(self):
+        now = datetime.now(timezone.utc)
+        db.users.insert_one({
+            "user_id": self.UID, "email": f"{self.UID}@ex.com",
+            "name": "PHF Tester", "is_admin": False,
+            "created_at": now.isoformat(),
+        })
+        db.user_sessions.insert_one({
+            "user_id": self.UID, "session_token": self.TOK,
+            "expires_at": now + timedelta(days=7), "created_at": now,
+        })
+        db.books.insert_one({
+            "book_id": self.BOOK_NEW, "user_id": self.UID,
+            "title": "Fresh Book", "author": "A",
+            "category": "Fanfiction", "progress_fraction": 0.0,
+            "created_at": now,
+        })
+        # Baseline book: finished, with cursor_history + reading_activity
+        # for the pace-rate computation.
+        db.books.insert_one({
+            "book_id": self.BOOK_OLD, "user_id": self.UID,
+            "title": "Baseline Book", "author": "A",
+            "category": "Fanfiction", "progress_fraction": 1.0,
+            "created_at": now,
+        })
+        ts0 = now - timedelta(days=160)
+        db.cursor_history.insert_many([
+            {"user_id": self.UID, "book_id": self.BOOK_OLD,
+             "percent": 0.1, "prev_pct": 0, "delta": 0,
+             "device_id": "t", "ts": ts0.isoformat()},
+            {"user_id": self.UID, "book_id": self.BOOK_OLD,
+             "percent": 1.0, "prev_pct": 0.1, "delta": 0.9,
+             "device_id": "t",
+             "ts": (ts0 + timedelta(days=5)).isoformat()},
+        ])
+        db.reading_activity.insert_one({
+            "user_id": self.UID, "book_id": self.BOOK_OLD,
+            "day": (ts0 + timedelta(days=2)).date().isoformat(),
+            "minutes": 600,   # 10 hours total → 9 %pts/hr
+        })
+        yield
+        db.users.delete_many({"user_id": self.UID})
+        db.user_sessions.delete_many({"user_id": self.UID})
+        db.books.delete_many({"user_id": self.UID})
+        db.cursor_history.delete_many({"user_id": self.UID})
+        db.reading_activity.delete_many({"user_id": self.UID})
+
+    def test_projected_hours_present_for_unstarted_book(self):
+        r = requests.get(
+            f"{BASE}/api/books/{self.BOOK_NEW}/pace-percentile",
+            headers=_h(self.TOK),
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        # User has a baseline book → median_rate populated → projection.
+        assert body.get("median_rate") is not None
+        assert body.get("projected_hours_to_finish") is not None
+        # Sanity check: ~ 100 / 9 ≈ 11 hours for the 100% remaining book.
+        assert 5 < body["projected_hours_to_finish"] < 30
+
+
+# =====================================================================
 # Phase-6 module split — chapter helpers moved to utils/epub_chapters.
 # Backward-compat shim: routes.books still exposes the names.
 # =====================================================================

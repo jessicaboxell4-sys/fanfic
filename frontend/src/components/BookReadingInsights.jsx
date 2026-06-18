@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { api } from "../lib/api";
-import { BookOpen, Zap, Users, Repeat } from "lucide-react";
+import { BookOpen, Zap, Users, Repeat, Hourglass } from "lucide-react";
 
 /**
  * Three-pill strip on BookDetail surfacing the new heatmap signals:
@@ -37,6 +37,7 @@ export default function BookReadingInsights({ bookId }) {
 
   const showAny = (reread?.is_reread) ||
                   (pace?.have_data && pace.median_rate) ||
+                  (pace?.projected_hours_to_finish) ||
                   (cohort?.have_data);
   if (!showAny) return null;
 
@@ -54,7 +55,20 @@ export default function BookReadingInsights({ bookId }) {
           <Repeat className="w-3 h-3" /> Re-read
         </span>
       )}
-      {pace?.have_data && pace.median_rate && (
+      {/* Projected finish time — most engaging for first-time opens.
+          Shown when we have a usable median pace but the user hasn't
+          made enough recent progress for a current-vs-median compare. */}
+      {pace?.projected_hours_to_finish && !pace?.relative && (
+        <span
+          data-testid="projected-finish-pill"
+          title={`Based on your median pace of ${pace.median_rate}% per hour`}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider px-3 py-1.5 rounded-full bg-[#EDE7FB] text-[#5A38A8] border border-[#D5C9F0]"
+        >
+          <Hourglass className="w-3 h-3" />
+          ~{pace.projected_hours_to_finish}h to finish
+        </span>
+      )}
+      {pace?.have_data && pace.median_rate && pace.relative && (
         <span
           data-testid="pace-pill"
           title={`${pace.current_rate}% / hr vs your usual ${pace.median_rate}% / hr`}

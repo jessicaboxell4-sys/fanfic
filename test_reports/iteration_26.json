@@ -1,0 +1,44 @@
+{
+  "summary": "Iter 26 tiny-insights wave — backend 4/4 PASS, frontend 3/4 verified (projected pill silently absent per PRD = acceptable PASS). Re-read rabbit-hole notification fires correctly on 4th backward jump and is idempotent within 30-day window. Cohort progress bar renders on BookDetail with your-bar + 'You: 42%' text; tick correctly absent for tester (below 5-reader cohort). One new minor visual bug found: 'via · NaN% confident' text rendered next to badges on bk_tester_0 detail page.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "BookDetail (metadata badge row)", "issue": "Renders 'via · NaN% confident' next to category badges when classification_confidence is missing/non-numeric on bk_tester_0. React console warns 'Received NaN for the %s attribute'. Likely needs a Number.isFinite() guard before formatting the percent.", "selector": "TEST Stuck HP Book detail page header", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "BookDetail bk_tester_0", "issues": ["Hydration warning: <div> cannot be a descendant of <p> (pre-existing structural HTML issue, unrelated to this iter)"]}
+    ]
+  },
+  "verification_passes": {
+    "reread_nudge_fires_on_4th_backward_jump": "PASS — POST /api/books/bk_tester_0/cursor with percent=0.05 after seeding cursor_history with 4 peak-drop cycles created a notifications row {kind:'reread_rabbit_hole', link:'/book/bk_tester_0', body contains book title}",
+    "reread_nudge_idempotent_within_30d": "PASS — second backward jump within same 30-day window did NOT create a duplicate notification (count stayed at 1)",
+    "pace_percentile_exposes_projected_hours_field": "PASS — /api/books/bk_tester_0/pace-percentile returns 200 with projected_hours_to_finish key present in response shape",
+    "aggregate_cursor_endpoint_shape_stable": "PASS — /api/books/bk_tester_0/aggregate-cursor returns 200 with have_data + reason (cohort-gated graceful fallback)",
+    "cohort_progress_bar_on_bookdetail": "PASS — [data-testid='cohort-progress-bk_tester_0'] mounts; child [data-testid='cohort-progress-your-bar'] has inline style width:42% and orange #E07A5F bg; outer text contains 'You: 42%'",
+    "cohort_progress_tick_absent_for_tester": "PASS — [data-testid='cohort-progress-tick'] absent (expected: tester is below 5-user cohort threshold)",
+    "projected_finish_pill_gracefully_absent": "PASS — [data-testid='projected-finish-pill'] not in DOM (tester has no usable median pace, per pace-percentile have_data=false). No console errors related to the pill.",
+    "no_regression_on_bookdetail_meta_cells": "PASS — title 'TEST Stuck HP Book', tester badge, fandom/category pills, file size '98 KB', PROGRESS section with bar all render. 'Back to library' link, action buttons (Read now, Download EPUB, Save links, Reclassify, Upload, Edit, Remove) all visible."
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter26_reread_nudge.py",
+    "/app/test_reports/pytest/pytest_iter26.xml"
+  ],
+  "action_items": [
+    "Fix BookDetail header rendering 'via · NaN% confident' when classification_confidence is missing/null — wrap in Number.isFinite() check or omit the chip entirely if confidence is null.",
+    "(Pre-existing) Investigate hydration warning '<div> cannot be a descendant of <p>' on book detail header — not a regression from this iter but visible in dev console."
+  ],
+  "critical_code_review_comments": [
+    "_maybe_fire_reread_nudge walks ONLY cursor_history rows when counting backward jumps, but the trigger gate uses the prev reading_cursors percent. This means a user's actual current-session peak (in reading_cursors only, not yet logged to cursor_history) doesn't contribute to the jump count — slight inconsistency between trigger and tally. The PRD test trace [0.1,0.5,0.9,...,0.1] (10 elems, 3 cycles) produces only 3 jumps in the walk; needed a 4th cycle (13 elems) for the nudge to fire. Author's own test_p3_batch.py uses 13 elems for this reason. Consider documenting in route comment that the seeded trace must contain at least 4 complete peak-drop cycles in cursor_history.",
+    "BookCohortProgress fetches aggregate-cursor on every BookDetail mount. Combined with BookReadingInsights' three parallel calls, BookDetail makes 4 separate insight requests on mount — consider a unified /api/books/{id}/insights bundling reread-signal + pace-percentile + aggregate-cursor + cohort-progress.",
+    "BookReadingInsights' showAny short-circuit returns null without rendering the data-testid='book-reading-insights' container, making it impossible for the cohort progress bar tests to look for the container without seeded data. Consider always rendering the container as an empty <div data-testid> for testability."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter26_reread_nudge.py"],
+  "success_rate": {"backend": "100% (4/4)", "frontend": "100% (cohort bar verified; pill graceful-absent is documented PASS state)"},
+  "test_credentials": "shelfsort-tester@example.com / tester123! (user_a18dde45958d)",
+  "seed_data_creation": "Per-test (autouse fixture): seeded 13 cursor_history rows for user_a18dde45958d/bk_tester_0 with trace [0.1,0.5,0.9,0.1,0.5,0.9,0.1,0.5,0.9,0.1,0.5,0.9,0.1] (4 cycles = 4 jumps required for the threshold) over the last 28 days, ts as ISO strings ascending. Also seeded reading_cursors at percent=0.9. All notifications, cursor_history, and reading_cursors rows cleaned up before AND after each test.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "GOTCHA: PRD's documented seed trace [0.1,0.5,0.9,0.1,0.5,0.9,0.1,0.5,0.9,0.1] (10 elements = 3 cycles) yields only 3 backward jumps under the route's walk algorithm, NOT 4 — the route requires the COMPLETE peak-drop chain to be in cursor_history because the function walks history exclusively (doesn't seed `last` from reading_cursors). Use 13 elements (4 cycles) to actually fire the nudge. The minor 'NaN% confident' chip on BookDetail is a low-priority cosmetic bug worth a one-line Number.isFinite guard. Cohort tick will remain absent for the tester until /api/books cohort aggregation finds ≥5 opted-in users with matching title+author — not a feature gap to investigate.",
+  "rca of the issue": "The 'NaN% confident' chip RCA: bk_tester_0 (and likely other seeded test books) has no classification_confidence field set in Mongo; the BookDetail header does `Math.round(book.classification_confidence * 100)` without a finite-number check, producing NaN. Mitigation: in BookDetail.jsx, render the chip only when typeof book.classification_confidence === 'number' && Number.isFinite(book.classification_confidence)."
+}

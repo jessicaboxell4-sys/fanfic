@@ -5,6 +5,7 @@ import Navbar from "../components/Navbar";
 import TagInput from "../components/TagInput";
 import ReadingStatsCard from "../components/ReadingStatsCard";
 import BookReadingInsights from "../components/BookReadingInsights";
+import BookCohortProgress from "../components/BookCohortProgress";
 import { ArrowLeft, Download, Trash2, Sparkles, Book, Edit3, Heart, Link as LinkIcon, BookOpen, RefreshCw, Tag as TagIcon, Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { FETCHING_UI_ENABLED } from "../lib/featureFlags";
@@ -733,7 +734,10 @@ export default function BookDetail() {
                 />
               )}
               {typeof book.progress_fraction === "number" && book.progress_fraction > 0 && (
-                <Meta label="Progress" value={`${Math.round(book.progress_fraction * 100)}%`} />
+                <Meta
+                  label="Progress"
+                  value={<BookCohortProgress bookId={book.book_id} yourPercent={book.progress_fraction} />}
+                />
               )}
               {book.word_count > 0 && (
                 <Meta

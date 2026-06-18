@@ -8,6 +8,86 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-18 — Tiny insights wave: re-read nudge, projected hours, cohort progress bar ✅
+
+The "tiny wins" picked from the post-P3 ideas menu — three ~30-LOC
+additions that turn the existing reading-insights signal into
+something the user actually notices in flight.
+
+- **Re-read rabbit-hole notification** — `push_reading_cursor` now
+  checks for a meaningful backward jump (prev ≥ 80 %, current < 30 %)
+  and tallies the trailing 30 days of `cursor_history`.  When the
+  user crosses 4 backward jumps on the same book, fires a one-shot
+  `reread_rabbit_hole` notification: "You've kept coming back to
+  *Title* — want to add it to a Cosy Comforts shelf?"  Deep-links
+  to `/book/{id}`.  Idempotent per (user, book, 30-day window).
+- **"~Nh to finish" pill** — `/api/books/{id}/pace-percentile` now
+  returns a `projected_hours_to_finish` field whenever the user has
+  a usable median pace, computed from their median %/hr × the
+  remaining fraction of THIS book.  Best signal we have for books
+  the user hasn't started.  Surfaces as a purple Hourglass pill on
+  the BookDetail BookReadingInsights strip.
+- **Cohort-aware progress bar** — new `BookCohortProgress` component
+  replaces the text-only "Progress" cell on BookDetail with a slim
+  bar showing the user's percent + a purple tick at the
+  community-average percent (cohort-gated at 5 opted-in readers).
+  Two pixels of CSS, big social-presence payoff.
+
+All three covered by `test_p3_batch.py` (19 tests now green).
+`TestRereadRabbitHoleNudge` exercises the cursor → notification
+trip and the 30-day idempotency guard; `TestProjectedHoursToFinish`
+asserts the new pace field is present and unit-correct.
+
+---
+
+## 2026-06-18 — P3 wave 2: Reading insights, SSE refresh, Phase-6 split ✅
+
+Cleared the remaining P3 stack the user had on remind-later.  All
+shipped behind a new 16-test regression in `test_p3_batch.py`
+(green) plus testing-agent verification (iteration_25.json — 100%
+PASS on 7 verification points).
+
+- **`cursor_history` schema + write path** — every
+  `/api/books/{id}/cursor` push now appends an
+  `{user_id, book_id, percent, prev_pct, delta, device_id, ts}` row
+  to the new `cursor_history` collection (jitter filter at
+  0.2pp to keep the collection slim).  Powers re-read detection +
+  pace percentile.  Append is best-effort and never blocks the
+  cursor upsert.
+- **`GET /api/books/{id}/reread-signal`** — counts backward jumps
+  (current percent < 60% of running peak after we were near the
+  peak) over a 90-day window.  ≥3 jumps ⇒ `is_reread: true`.
+- **`GET /api/books/{id}/pace-percentile`** — user's recent
+  %pts/hour rate (from cursor_history × reading_activity minutes)
+  divided by their own median across other read books.  Returns a
+  `relative` multiplier with graceful `not_enough_data` shape
+  when there's no baseline.
+- **`GET /api/books/{id}/aggregate-cursor`** — cohort-gated
+  (≥5 opted-in readers) average completion percent for the same
+  canonical (title, author) pair.  Surfaces "you: 45% · community:
+  62%" pill on the book detail page.
+- **`BookReadingInsights.jsx`** — new component on `/book/<id>`
+  rendering up to three pills (re-read / pace / cohort).  Each
+  pill independently short-circuits if its endpoint can't return
+  useful data; the strip silently hides when none qualify.
+- **SSE-driven Resume badge refresh** — `push_reading_cursor` now
+  publishes a `reading_cursor` event on the unified SSE bus.  The
+  library page (`AllBooksPage`) subscribes via `useEventStream`
+  and re-fetches `/api/reading-sync/hints` whenever a different
+  device saves a cursor.  Closes the "stale badge until next
+  remount" loophole called out in iter23.
+- **Phase-6 module split (first slice)** — extracted
+  `_normalize_chapter_title`, `extract_chapters`, `diff_chapters`
+  (plus the two compile-once regexes) from the 6 140-line
+  `routes/books.py` into a new dependency-free
+  `utils/epub_chapters.py`.  `routes/books.py` keeps the same
+  public surface via a `from utils.epub_chapters import …`
+  re-export so existing call sites (refresh helper, diff route,
+  tags route, tests) work unchanged.  Knocks ~210 lines off
+  `books.py` and establishes the template for future P3 splits.
+
+---
+
 ## 2026-06-18 — P3 batch: Operator digest, Resume badge, Buddy-pacing, Leaderboard ✅
 
 Cleared four P3 items in one batch — three product features and one

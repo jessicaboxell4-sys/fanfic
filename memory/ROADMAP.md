@@ -88,7 +88,25 @@
   ✅ (shipped 2026-06-18 — yellow "Resume" pill on the library grid
   for any unfinished book with a fresh cloud cursor from a different
   device.  Powered by `GET /api/reading-sync/hints` + the existing
-  `shelfsort-device-id` localStorage stamp.)
+  `shelfsort-device-id` localStorage stamp.  SSE-driven live refresh
+  added 2026-06-18: `push_reading_cursor` now publishes a
+  `reading_cursor` event and `AllBooksPage` re-fetches hints
+  whenever another device saves a cursor.)
+
+### Parked / remind-later
+- **Phase 6 — full `books.py` split** (still ~5 900 lines after the
+  chapter-helper extraction on 2026-06-18).  Next clean cuts:
+  metadata helpers (`extract_epub_metadata`, `update_epub_metadata`,
+  `extract_urls_from_epub`, `format_links_txt`) → `utils/epub_metadata.py`;
+  fanfic refresh + URL canonicalization → already partially extracted
+  to `utils/url_canonical`, finish the move; classifier helpers
+  (`classify_by_metadata`, `classify_with_ai`, `classify_book`) →
+  `utils/classifier.py`.  Each extraction follows the same
+  re-export shim pattern proven on 2026-06-18.
+- **Homepage "social proof" strip** (remind-later, parked 2026-06-18)
+  — surface today's top community cover + total signups this week
+  using `/api/cover/leaderboard` + the new analytics aggregations.
+  <100 LOC.
 - ✅ ~~Cover ecosystem visitor analytics~~ — superseded by the
   `AdminAnalyticsCard` widget shipped in the
   visitor-analytics+heatmap batch on 2026-06-18.

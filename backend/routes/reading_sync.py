@@ -61,7 +61,7 @@ async def push_reading_cursor(
     # Confirm the book belongs to the caller — no cross-user writes.
     own = await db.books.find_one(
         {"book_id": book_id, "user_id": user.user_id},
-        {"_id": 0, "book_id": 1},
+        {"_id": 0, "book_id": 1, "title": 1},
     )
     if own is None:
         raise HTTPException(status_code=404, detail="Book not found")
@@ -118,7 +118,77 @@ async def push_reading_cursor(
     except Exception as e:
         logger.debug("SSE reading_cursor publish failed (non-fatal): %s", e)
 
+    # Re-read rabbit-hole detection — only runs when the cursor took
+    # a meaningful backward jump (last save was near the peak, this
+    # save is way below).  Cheap: at most one extra Mongo query per
+    # backward-jump event, which is rare.  Fires a one-shot
+    # notification when the user crosses 4 backward jumps in 30 days
+    # so they can be nudged to add the book to a "Cosy comfort
+    # reads" shelf — idempotent via the kind+book_id+30-day window.
+    try:
+        prev_pct = float((prev or {}).get("percent") or 0)
+        new_pct  = float(body.percent or 0)
+        if prev_pct >= 0.8 and new_pct < 0.3:
+            await _maybe_fire_reread_nudge(user.user_id, book_id, own.get("title", ""))
+    except Exception as e:
+        logger.debug("Re-read nudge check failed (non-fatal): %s", e)
+
     return {"ok": True, "updated_at": now_iso}
+
+
+async def _maybe_fire_reread_nudge(user_id: str, book_id: str, title: str) -> None:
+    """Send a one-shot in-app notification when the user has racked
+    up >=4 backward jumps on this book over the last 30 days.
+
+    The threshold is intentionally a *month*-scale signal (the
+    Re-read pill uses 90 days + 3 jumps) so this nudge only fires
+    for genuine "rabbit hole" patterns, not first-week re-skims.
+    Idempotent: at most one notification per book per 30-day window.
+    """
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    # Walk the trailing 30-day window of cursor_history for this book
+    # and tally backward jumps using the same rule as the reread
+    # endpoint (last >= 80 % of peak, current < 60 % of peak).
+    rows = await db.cursor_history.find(
+        {"user_id": user_id, "book_id": book_id, "ts": {"$gte": cutoff}},
+        {"_id": 0, "percent": 1, "ts": 1},
+    ).sort("ts", 1).to_list(length=400)
+    peak = 0.0
+    last = 0.0
+    jumps = 0
+    for r in rows:
+        p = float(r.get("percent") or 0)
+        if peak >= 0.5 and last >= peak * 0.8 and p < peak * 0.6:
+            jumps += 1
+        peak = max(peak, p)
+        last = p
+    if jumps < 4:
+        return
+    # Skip if we already nudged about this book within the same window.
+    # `notifications.created_at` is a BSON datetime (see
+    # routes.notifications.create_notification), so the cutoff for
+    # this query must also be a datetime, not an ISO string.
+    cutoff_dt = datetime.now(timezone.utc) - timedelta(days=30)
+    existing = await db.notifications.find_one(
+        {
+            "user_id":    user_id,
+            "kind":       "reread_rabbit_hole",
+            "link":       f"/book/{book_id}",
+            "created_at": {"$gte": cutoff_dt},
+        },
+        {"_id": 1},
+    )
+    if existing is not None:
+        return
+    from routes.notifications import create_notification
+    nice_title = (title or "this book").strip()
+    await create_notification(
+        user_id,
+        kind="reread_rabbit_hole",
+        title="A re-read rabbit hole",
+        body=f"You've kept coming back to \"{nice_title}\" — want to add it to a Cosy Comforts shelf?",
+        link=f"/book/{book_id}",
+    )
 
 
 @api_router.get("/books/{book_id}/cursor")
@@ -385,10 +455,15 @@ async def pace_percentile(
     history.  Returns a ``relative`` multiplier (1.0 = exactly their
     usual pace, 1.5 = 50 % faster) so the BookDetail surface can
     show "You're 50% faster than your usual pace" or fall back to
-    "not enough data" gracefully."""
+    "not enough data" gracefully.
+
+    Also returns ``projected_hours_to_finish`` whenever the user has
+    a usable median rate — for books they haven't opened yet this is
+    THE most engaging signal ("you usually finish books like this in
+    6 hours") so we compute it unconditionally."""
     own = await db.books.find_one(
         {"book_id": book_id, "user_id": user.user_id},
-        {"_id": 0, "book_id": 1},
+        {"_id": 0, "book_id": 1, "progress_fraction": 1},
     )
     if own is None:
         raise HTTPException(status_code=404, detail="Book not found")
@@ -420,11 +495,11 @@ async def pace_percentile(
         return pct_delta / (mins / 60.0)   # %pts per hour
 
     current = await _rate_for_book(book_id, days=14)
-    if current is None:
-        return {"have_data": False, "reason": "not_enough_data"}
 
     # Median over the user's other books that have any activity.  Cap
-    # at 30 books for fairness.
+    # at 30 books for fairness.  Computed unconditionally because the
+    # "projected finish time" pill needs it even when the user hasn't
+    # opened this book yet (current=None case).
     other_rates: List[float] = []
     finished_ids = await db.books.find(
         {
@@ -440,23 +515,51 @@ async def pace_percentile(
         if r is not None:
             other_rates.append(r)
 
+    median: Optional[float] = None
+    if other_rates:
+        other_rates.sort()
+        median = other_rates[len(other_rates) // 2]
+
+    # Projected hours to finish based on the user's own median rate
+    # (fraction of book per hour, as returned by _rate_for_book ÷ 100)
+    # × remaining fraction of THIS book.  Best signal we have for
+    # books the user hasn't started.
+    own_pct = float(own.get("progress_fraction") or 0)
+    remaining_fraction = max(0.0, 1.0 - own_pct)
+    projected_hours: Optional[float] = None
+    if median and median > 0 and remaining_fraction > 0:
+        projected_hours = round(remaining_fraction / median, 1)
+
+    if current is None:
+        return {
+            "have_data":                 median is not None,
+            "current_rate":              None,
+            "median_rate":               round(median, 3) if median else None,
+            "relative":                  None,
+            "cohort_size":               len(other_rates),
+            "projected_hours_to_finish": projected_hours,
+            "remaining_percent":         round(own_pct, 3),
+            "reason":                    "not_enough_data" if median is None else "no_recent_progress",
+        }
+
     if not other_rates:
         return {
-            "have_data":      True,
-            "current_rate":   round(current, 3),
-            "median_rate":    None,
-            "relative":       1.0,
-            "reason":         "no_baseline_books",
+            "have_data":                 True,
+            "current_rate":              round(current, 3),
+            "median_rate":               None,
+            "relative":                  1.0,
+            "projected_hours_to_finish": None,
+            "reason":                    "no_baseline_books",
         }
-    other_rates.sort()
-    median = other_rates[len(other_rates) // 2]
-    relative = current / median if median > 0 else 1.0
+
+    relative = current / median if median and median > 0 else 1.0
     return {
-        "have_data":     True,
-        "current_rate":  round(current, 3),
-        "median_rate":   round(median, 3),
-        "relative":      round(relative, 2),
-        "cohort_size":   len(other_rates),
+        "have_data":                 True,
+        "current_rate":              round(current, 3),
+        "median_rate":               round(median, 3) if median else None,
+        "relative":                  round(relative, 2),
+        "cohort_size":               len(other_rates),
+        "projected_hours_to_finish": projected_hours,
     }
 
 
