@@ -58,6 +58,8 @@
 - `GET  /api/analytics/summary` (admin visitor analytics + funnel)
 - `POST /api/feedback` (Help-page short-form feedback + optional 5MB photo upload)
 - `GET  /api/admin/feedback` · `GET /api/admin/feedback/by-page` (admin triage + per-page friction aggregation)
+- `GET  /api/signup/config` · `GET /api/rules` (public — drives register form + /rules page)
+- `GET  /api/admin/signup-config` · `PUT /api/admin/signup-config` · `GET /api/admin/onboarding-stats` (admin sign-up controls)
 
 ## 3rd-Party Integrations
 - **Emergent LLM Key** — Claude Sonnet 4.6 for classification + tag suggestions

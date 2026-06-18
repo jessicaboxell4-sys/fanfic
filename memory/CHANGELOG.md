@@ -8,6 +8,51 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-18 — Admin sign-up controls + community rules ✅
+
+Three new admin-controllable knobs for new-user onboarding:
+
+- **Approval gate toggle** (`approval_gate_enabled`): when OFF, new
+  accounts skip the pending queue and land in the library
+  immediately. When ON (default), existing behavior — admin reviews
+  every sign-up.
+- **Onboarding questions toggle** (`questions_enabled`): when ON,
+  the register form gates on four questions (referral source,
+  favorite fanfic fandom, reader type, 13+ confirmation) and a
+  community-rules acceptance checkbox. Admin can turn this off at
+  any time without affecting already-signed-up users' answers.
+- **Editable community rules** (`rules_md`): markdown surfaced on a
+  new public `/rules` page and linked from the register checkbox.
+  Default rules drafted: no spam · no politics · no hate speech /
+  bullying · no piracy promotion · respect IP · be kind.
+
+Implementation:
+
+- New backend file `/app/backend/routes/signup_config.py`:
+  - `GET /api/signup/config` (public — drives the register form)
+  - `GET /api/rules` (public — drives the /rules page)
+  - `GET /api/admin/signup-config` · `PUT /api/admin/signup-config`
+  - `GET /api/admin/onboarding-stats` (referral · reader_type ·
+    favorite_fandoms top-15 · age_13_plus / under_13 counts)
+- `/api/auth/register` now reads the config and:
+  - Auto-approves new accounts when the gate is OFF.
+  - Enforces accepted_rules + at least one onboarding answer when
+    questions are ON. Under-13 sign-ups return 403.
+- New `/app/frontend/src/pages/Rules.jsx` — public markdown
+  renderer with a tiny inline parser (#, ##, paragraphs).
+- New `<Route path="/rules">` in App.js.
+- `Login.jsx` register flow is now multi-step when questions are
+  enabled (email/pw → onboarding questions + rules accept).
+- New `SignupRulesCard` in `AdminConsole.jsx` with both toggles,
+  inline aggregated-answer stats, and a rules markdown editor.
+
+Testing agent iter 29: **13/13 backend endpoint tests PASS**, public
+`/rules` page + register multi-step flow verified end-to-end via
+Playwright. Admin card visually confirmed via self-test screenshot.
+
+---
+
+
 ## 2026-06-18 — Help-page feedback: admin aggregation widget ✅
 
 Completed the user's last request from iter-26: the new Help-page
