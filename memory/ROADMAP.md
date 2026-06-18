@@ -64,6 +64,13 @@
   covers + referrer distribution from `/api/analytics/summary`.
   Uses the existing Resend integration + Sunday digest scheduler
   tick.  ~50 lines on top of the existing digest infrastructure.
+- **Twitter-style vanity URL** *(dropped 2026-06-18 after testing-
+  agent sweep)* — the `/@:username` route was removed because the
+  Kubernetes ingress / SPA fallback eats the `@` character and
+  redirects to the marketing landing page.  If you ever want this
+  back, route it via the backend instead (e.g.,
+  `GET /api/share/at/:username` → 302 to `/u/:username`) so the
+  ingress never sees the `@`.
 - **Heatmap extensions deferred from the analytics+heatmap batch**
   *(parked 2026-06-18)*:
   * Re-reading detection (multiple backward jumps surfaced as a "must

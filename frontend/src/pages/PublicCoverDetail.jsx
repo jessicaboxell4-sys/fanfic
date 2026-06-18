@@ -78,12 +78,20 @@ export default function PublicCoverDetail() {
                       : `/community-covers/${cover.cover_id}/vote-anon`;
       const { data } = await api.post(path);
       setCover((c) => ({ ...c, votes: data.votes, voted_by_me: data.voted_by_me }));
-      if (data.signup_prompt && !me) {
-        toast("Save your vote", {
-          description: "Sign up to keep your hearts when you switch devices.",
-          action: { label: "Sign up", onClick: () => navigate("/login") },
-          duration: 8000,
-        });
+      if (!me) {
+        if (data.signup_prompt) {
+          // First-time anonymous up-vote — high-intent moment to
+          // pitch the sign-up.
+          toast("Save your vote", {
+            description: "Sign up to keep your hearts when you switch devices.",
+            action: { label: "Sign up", onClick: () => navigate("/login") },
+            duration: 8000,
+          });
+        } else {
+          // Toggle-off path — give the user a quiet acknowledgement
+          // so the click never feels silent.
+          toast(data.voted_by_me ? "Vote saved" : "Vote removed");
+        }
       }
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Couldn't vote");

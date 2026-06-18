@@ -25,7 +25,6 @@ import PublicCoverProfile from "@/pages/PublicCoverProfile";
 import PublicCoverDetail from "@/pages/PublicCoverDetail";
 import ExploreCoversPage from "@/pages/ExploreCoversPage";
 import CoverArchivePage from "@/pages/CoverArchivePage";
-import VanityRedirect from "@/pages/VanityRedirect";
 import StuckBooksPage from "@/pages/StuckBooksPage";
 import SmartShelves from "@/pages/SmartShelves";
 import SmartShelfPage from "@/pages/SmartShelfPage";
@@ -134,7 +133,6 @@ function AppRouter() {
       <Route path="/cover/:coverId" element={<PublicCoverDetail />} />
       <Route path="/explore/covers" element={<ExploreCoversPage />} />
       <Route path="/cover-archive" element={<CoverArchivePage />} />
-      <Route path="/@:username" element={<VanityRedirect />} />
       <Route path="/library/stuck" element={<ProtectedRoute><StuckBooksPage /></ProtectedRoute>} />
       <Route path="/library" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/library/all" element={<ProtectedRoute><AllBooksPage /></ProtectedRoute>} />

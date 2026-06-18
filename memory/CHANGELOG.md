@@ -8,6 +8,29 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-18 — Testing-agent sweep fixes ✅
+
+Ran the testing agent across the 10-feature batch.  Backend pytest
+13/13 PASS; frontend 9/11 verified, 1 inconclusive (Reader needs
+a real EPUB), 2 bugs found and fixed:
+
+- **HIGH — `/@username` vanity URL dropped.**  The K8s ingress / SPA
+  fallback was rewriting paths containing `@` to `/`, killing the
+  route before React Router could see it.  Removed the route from
+  `App.js`, deleted `VanityRedirect.jsx`, documented the failure
+  mode in ROADMAP so any future vanity-URL attempt routes through
+  the backend (`/api/share/at/:username` → 302).
+- **MEDIUM — Anonymous vote toast.**  Original code only fired the
+  sign-up toast when `signup_prompt: true` (i.e. the up-vote).
+  Toggle-off case showed nothing, making the click feel silent.
+  Fixed: always show a small "Vote saved" / "Vote removed"
+  acknowledgement to unauth voters, with the bigger sign-up CTA
+  still scoped to the high-intent first-vote moment.
+
+The LOW-priority `/api/auth/me 401` noise on public pages was
+intentionally not fixed — it's a documented behaviour of the
+optional auth pattern and only visible in DevTools.
+
 ## 2026-06-18 — Visitor analytics + Reader heatmap + Privacy guardrails ✅
 
 Two adjacent surfaces shipped in one batch.
