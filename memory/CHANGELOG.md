@@ -8,6 +8,23 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-18 — Backup-fresh navbar badge ✅
+
+Tiny but high-impact: the AccountDropdown avatar now wears a green
+ShieldCheck badge whenever the user's library was backed up within
+the last 24 h.  Constant reassurance signal that doesn't require
+visiting Settings.
+
+- **`AccountDropdown.jsx`** — fetches `GET /api/account/backup-library`
+  on mount.  When `last_run_at` is within 24 h, renders a 14 px
+  green badge over the avatar (bottom-right corner) with a hover
+  tooltip "Library backed up X min/h ago".
+- Reuses the existing endpoint — no backend changes.
+- Hides cleanly when the user has never backed up or storage is
+  disabled.
+
+---
+
 ## 2026-06-18 — "Back up my library" one-click for users ✅
 
 Turns the invisible cloud-mirror into a visible trust signal.
