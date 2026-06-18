@@ -8,6 +8,46 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-18 — `/api/health` + ClamAV antivirus integration ✅
+
+### Health endpoint
+- New public `GET /api/health` returns JSON with status of Mongo,
+  scheduler (job IDs + count), Emergent Object Storage, and ClamAV.
+  Always 200 OK; the `status` field is `ok` / `degraded` / `down` for
+  uptime monitors to branch on.
+
+### Antivirus
+- **ClamAV in-pod** via `clamd` daemon (~10-50 ms per scan vs ~7s
+  cold-start CLI).  3.6M+ signatures auto-downloaded by `freshclam`.
+- **Self-heal**: backend startup hook installs ClamAV + downloads
+  signatures + starts `clamd` if missing.  Idempotent — no-ops once
+  healthy.  Mirrors the existing Calibre self-heal pattern.
+- **Sync scan + reject** on:
+  - `POST /api/books/upload` (single + bulk)
+  - `POST /api/books/{book_id}/upload-new-version`
+  - `POST /api/feedback` (photo attachments)
+  - `POST /api/library/restore/preview` + `/library/restore/apply`
+- **Lazy JIT scan** on `GET /api/books/{book_id}/download` (catches
+  the "old file, new signature" case after a ClamAV sig DB update).
+  Result cached on the book doc as `av_status: clean | infected`.
+- **Quarantine log**: every flag persists to `av_quarantine` with
+  user, signature, source, filename, timestamp, elapsed_ms.
+- **Admin UI**: new `AntivirusCard` in AdminConsole with EICAR
+  liveness banner, source filter, and quarantine list.
+- **Admin endpoints**: `GET /api/admin/antivirus/status` (live EICAR
+  probe + counters) and `GET /api/admin/antivirus/quarantine?source=…`.
+- **Fail-open** policy: if ClamAV is unavailable, uploads succeed but
+  the AdminConsole banner turns red so it's spot-fixable.
+
+End-to-end verified:
+- EICAR-as-EPUB → HTTP 400 with `"<file>" appears unsafe (Eicar-Test-Signature). Upload blocked.`
+- EICAR-as-feedback-photo → HTTP 400 with `photo_unsafe`
+- Both events landed in `av_quarantine` with correct metadata
+- AdminConsole Antivirus card renders correctly with HEALTHY banner
+
+---
+
+
 ## 2026-06-18 — Pre-deploy bug cleanup ✅
 
 Three pre-existing minor issues fixed before deploy:

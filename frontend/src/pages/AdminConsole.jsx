@@ -8,7 +8,7 @@ import {
   BarChart3, ToggleLeft, ClipboardList, Loader2, Plus, X as XIcon, Trash2,
   Check, ChevronRight, ChevronDown, Download, AlertOctagon, RotateCcw, Send,
   Mail, MessageSquare, Clock, CircleAlert, Route as RouteIcon, Search,
-  Inbox, Database, Siren, HardDrive, TrendingUp, Eye, BookOpen, Sparkles,
+  Inbox, Database, Siren, HardDrive, TrendingUp, Eye, BookOpen, Sparkles, ShieldAlert,
 } from "lucide-react";
 import MongoInspectorCard from "../components/MongoInspectorCard";
 import ModerationLogCard from "../components/ModerationLogCard";
@@ -41,6 +41,7 @@ const ADMIN_CARD_MANIFEST = [
   { testid: "admin-feedback-inbox-card", title: "Feedback inbox", subtitle: "User-submitted bugs, ideas, and feature requests.", keywords: "feedback suggestions bug feature request inbox users reports tickets" },
   { testid: "admin-help-feedback-card", title: "Help-page feedback", subtitle: "Per-page friction reports with screenshots.", keywords: "help suggestion friction page screenshot photo feedback short-form by-page" },
   { testid: "admin-signup-rules-card", title: "Sign-up rules & questions", subtitle: "Approval gate, onboarding questions, community rules.", keywords: "signup register approval gate onboarding questions rules community moderation referral fandom reader type" },
+  { testid: "admin-antivirus-card", title: "Antivirus", subtitle: "ClamAV scanner status + recent flags.", keywords: "antivirus clamav virus malware scan quarantine infected eicar signature" },
   { testid: "admin-storage-by-user-card", title: "Top storage users", subtitle: "Top 20 accounts by uploaded bytes.", keywords: "storage user disk bytes top biggest heavy quota power outliers abandoned" },
   { testid: "admin-storage-trend-card", title: "Storage trend · 30 days", subtitle: "Cumulative bytes over time.", keywords: "storage trend disk growth chart graph history snapshot 30d size bytes" },
   { testid: "admin-view-consents-card", title: "View-as-user consents", subtitle: "Request read-only access to a user's library.", keywords: "view as user impersonate consent privacy access permission timeline" },
@@ -947,6 +948,147 @@ function StatList({ title, rows, testid }) {
         </ul>
       )}
     </div>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// AntivirusCard — ClamAV scanner status + recent quarantine entries
+// ---------------------------------------------------------------------------
+// Health probe uses an EICAR liveness scan (real test signature all AV
+// vendors flag, no actual threat) so we know the daemon AND the
+// signature DB are functioning, not just installed.  Quarantine
+// list shows every flagged file with the source endpoint, signature,
+// user, and timestamp so admins can audit what got through (or didn't).
+function AntivirusCard() {
+  const [status, setStatus] = useState(null);
+  const [rows, setRows] = useState([]);
+  const [sourceFilter, setSourceFilter] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [{ data: s }, { data: q }] = await Promise.all([
+        api.get("/admin/antivirus/status"),
+        api.get("/admin/antivirus/quarantine", {
+          params: { limit: 100, source: sourceFilter || undefined },
+        }),
+      ]);
+      setStatus(s);
+      setRows(q?.rows || []);
+    } catch { toast.error("Couldn't load antivirus status"); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, [sourceFilter]);
+
+  return (
+    <Card
+      icon={ShieldAlert}
+      title="Antivirus"
+      subtitle="ClamAV scans every upload, restore, and cached download."
+      testid="admin-antivirus-card"
+    >
+      {loading || !status ? (
+        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+      ) : (
+        <div className="space-y-5">
+          {/* Scanner status banner */}
+          <div
+            className={`rounded-xl border p-4 ${
+              status.available && status.eicar_test_ok
+                ? "bg-[#E8F3EC] border-[#2C7A3E]"
+                : "bg-[#FDECE6] border-[#B43F26]"
+            }`}
+            data-testid="av-status-banner"
+          >
+            <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C] mb-1">
+              Scanner status
+            </p>
+            <p className="font-medium text-[#2C2C2C]">
+              {!status.available
+                ? "DOWN — clamd unreachable; uploads currently UNSCANNED"
+                : !status.eicar_test_ok
+                ? "DEGRADED — daemon up but EICAR test failed"
+                : `HEALTHY — EICAR test passed in ${status.scan_ms} ms`}
+            </p>
+            {status.available && status.signature && (
+              <p className="text-xs text-[#6B705C] mt-1">
+                Liveness signature: <code className="font-mono">{status.signature}</code>
+              </p>
+            )}
+            <div className="flex gap-4 mt-2 text-xs text-[#6B705C]">
+              <span>
+                Total quarantined: <strong className="text-[#2C2C2C]">{status.quarantine_total}</strong>
+              </span>
+              <span>
+                Last 24 h: <strong className="text-[#2C2C2C]">{status.quarantine_last_24h}</strong>
+              </span>
+            </div>
+          </div>
+
+          {/* Source filter */}
+          <div className="flex flex-wrap items-center gap-2" data-testid="av-source-filter">
+            {[
+              ["", "All"],
+              ["upload", "Uploads"],
+              ["restore", "Restores"],
+              ["share", "Shares"],
+              ["backfill", "Backfill"],
+            ].map(([val, lbl]) => (
+              <button
+                key={val || "all"}
+                onClick={() => setSourceFilter(val)}
+                data-testid={`av-source-${val || "all"}`}
+                className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-[0.15em] transition-colors ${
+                  sourceFilter === val
+                    ? "bg-[#B43F26] text-white"
+                    : "bg-[#F5F3EC] text-[#6B705C] hover:bg-[#E8E2D4]"
+                }`}
+              >
+                {lbl}
+              </button>
+            ))}
+          </div>
+
+          {/* Quarantine list */}
+          {rows.length === 0 ? (
+            <p className="text-sm text-[#1F8F4E] italic inline-flex items-center gap-1.5" data-testid="av-quarantine-empty">
+              <Check className="w-3.5 h-3.5" />
+              No flagged files{sourceFilter ? ` in ${sourceFilter}` : ""} yet.
+            </p>
+          ) : (
+            <ul className="space-y-2" data-testid="av-quarantine-list">
+              {rows.map((r, idx) => (
+                <li
+                  key={`${r.ts}-${idx}`}
+                  className="rounded-xl border border-[#E5DDC5] bg-[#FBFAF6] p-3"
+                  data-testid={`av-quarantine-row-${idx}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-[#2C2C2C] truncate">
+                        {r.filename || "(unnamed)"}
+                      </p>
+                      <p className="text-xs text-[#B43F26] font-mono mt-0.5">
+                        {r.signature || "(no signature)"}
+                      </p>
+                      <p className="text-xs text-[#6B705C] mt-1">
+                        {r.user_id} · {r.source} · {fmtTime(r.ts)}
+                        {r.elapsed_ms > 0 && <> · {r.elapsed_ms} ms</>}
+                      </p>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full bg-[#FDECE6] text-[#B43F26] text-xs font-bold uppercase tracking-[0.1em] flex-shrink-0">
+                      {r.infected ? "infected" : "error"}
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </Card>
   );
 }
 
@@ -3439,6 +3581,7 @@ export default function AdminConsole() {
               <FeedbackInboxCard />
               <HelpFeedbackCard />
               <SignupRulesCard />
+              <AntivirusCard />
               <StorageByUserCard />
               <StorageTrendCard />
               <ViewConsentsCard />

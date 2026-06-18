@@ -60,6 +60,8 @@
 - `GET  /api/admin/feedback` · `GET /api/admin/feedback/by-page` (admin triage + per-page friction aggregation)
 - `GET  /api/signup/config` · `GET /api/rules` (public — drives register form + /rules page)
 - `GET  /api/admin/signup-config` · `PUT /api/admin/signup-config` · `GET /api/admin/onboarding-stats` (admin sign-up controls)
+- `GET  /api/health` (public — Mongo · scheduler · object storage · antivirus liveness for monitors)
+- `GET  /api/admin/antivirus/status` · `GET /api/admin/antivirus/quarantine` (ClamAV health + flagged-file audit)
 
 ## 3rd-Party Integrations
 - **Emergent LLM Key** — Claude Sonnet 4.6 for classification + tag suggestions

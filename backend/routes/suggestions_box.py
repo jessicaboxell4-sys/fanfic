@@ -47,6 +47,21 @@ async def submit_suggestion(
         if raw and not (photo.content_type or "").startswith("image/"):
             raise HTTPException(status_code=400, detail="not_an_image")
         if raw:
+            # Antivirus pre-scan — same policy as /books/upload (2026-06-18).
+            # Disguised executables sometimes ride in as image/jpeg, so we
+            # don't trust the content-type alone.
+            from utils.antivirus import scan_bytes, record_quarantine
+            import asyncio as _asyncio
+            _av = await _asyncio.to_thread(scan_bytes, raw, hint_name=photo.filename or "feedback.bin")
+            if _av.get("infected"):
+                await record_quarantine(
+                    user_id=user.user_id,
+                    filename=photo.filename or "",
+                    scan=_av,
+                    source="upload",
+                    extra={"endpoint": "feedback", "size_bytes": len(raw)},
+                )
+                raise HTTPException(status_code=400, detail="photo_unsafe")
             photo_b64 = base64.b64encode(raw).decode()
             photo_mime = photo.content_type
 

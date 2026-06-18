@@ -1758,6 +1758,34 @@ async def upload_books(
         lower = (f.filename or "").lower()
         ext = "." + lower.rsplit(".", 1)[-1] if "." in lower else ""
 
+        # ---- Antivirus pre-scan (2026-06-18) --------------------------
+        # Synchronous ClamAV scan before ANY other processing — anything
+        # the scanner flags is rejected with a hard 400 and recorded in
+        # the ``av_quarantine`` collection for admin review.  Read once,
+        # rewind, then proceed; downstream branches all re-read ``f`` or
+        # use the buffered bytes.  Failing to run the scanner (daemon
+        # not up, sig DB missing) returns ok=False and we fail-open so
+        # uploads keep working — the missing-AV state surfaces in the
+        # admin Health card instead of breaking user uploads.
+        from utils.antivirus import scan_bytes, record_quarantine
+        import asyncio as _asyncio
+        _av_bytes = await f.read()
+        await f.seek(0)
+        _av_result = await _asyncio.to_thread(scan_bytes, _av_bytes, hint_name=(f.filename or "upload.bin"))
+        if _av_result.get("infected"):
+            await record_quarantine(
+                user_id=user.user_id,
+                filename=f.filename or "",
+                scan=_av_result,
+                source="upload",
+                extra={"size_bytes": len(_av_bytes)},
+            )
+            raise HTTPException(
+                status_code=400,
+                detail=f"\"{f.filename or 'this file'}\" appears unsafe ({_av_result.get('signature') or 'flagged by antivirus'}). Upload blocked.",
+            )
+        # -------------------------------------------------------------
+
         # `.txt` is a special case — it could be a plain-text manuscript
         # (Calibre-convertible) OR a wishlist of fanfic URLs. If it's
         # dominantly URLs we route it through the dedupe pipeline instead of
@@ -2673,6 +2701,35 @@ async def download_book(book_id: str, user: User = Depends(get_current_user)):
         from utils.storage_cloud import ensure_local_cached
         if not await asyncio.to_thread(ensure_local_cached, fp, user.user_id, book_id, ".epub"):
             raise HTTPException(status_code=404, detail="File missing")
+    # AV pre-flight on download — catches the "old file, new signature"
+    # scenario where a book that was clean at upload time gets flagged
+    # by an updated ClamAV signature DB.  Cheap when clamd is running
+    # (~10-50 ms).  Cache the result on the book doc so we don't rescan
+    # the same file on every subsequent download.
+    if book.get("av_status") != "clean":
+        from utils.antivirus import scan_path, record_quarantine
+        _av = await asyncio.to_thread(scan_path, fp)
+        if _av.get("infected"):
+            await record_quarantine(
+                user_id=user.user_id,
+                filename=f"{book_id}.epub",
+                scan=_av,
+                source="restore",
+                extra={"book_id": book_id},
+            )
+            await db.books.update_one(
+                {"book_id": book_id, "user_id": user.user_id},
+                {"$set": {"av_status": "infected", "av_signature": _av.get("signature", "")}},
+            )
+            raise HTTPException(
+                status_code=403,
+                detail=f"This file was flagged by antivirus ({_av.get('signature') or 'unknown signature'}) and can no longer be downloaded.",
+            )
+        if _av.get("ok"):
+            await db.books.update_one(
+                {"book_id": book_id, "user_id": user.user_id},
+                {"$set": {"av_status": "clean"}},
+            )
     download_name = _templated_filename(book.get('title'), book.get('author'), book_id)
     return FileResponse(str(fp), media_type="application/epub+zip", filename=download_name)
 
@@ -4135,6 +4192,23 @@ async def upload_new_version(
         raise HTTPException(status_code=400, detail="That file is empty or too small to be an EPUB")
     if not raw.startswith(b"PK\x03\x04"):
         raise HTTPException(status_code=400, detail="That doesn't look like a valid EPUB (zip header missing)")
+
+    # Antivirus pre-scan — same policy as /books/upload (2026-06-18).
+    from utils.antivirus import scan_bytes, record_quarantine
+    import asyncio as _asyncio
+    _av = await _asyncio.to_thread(scan_bytes, raw, hint_name=file.filename or "version.epub")
+    if _av.get("infected"):
+        await record_quarantine(
+            user_id=user.user_id,
+            filename=file.filename or "",
+            scan=_av,
+            source="upload",
+            extra={"book_id": book_id, "size_bytes": len(raw)},
+        )
+        raise HTTPException(
+            status_code=400,
+            detail=f"\"{file.filename or 'this file'}\" appears unsafe ({_av.get('signature') or 'flagged by antivirus'}). Upload blocked.",
+        )
 
     # Apply the house template (idempotent — noop if already templated)
     user_dir = STORAGE_DIR / user.user_id

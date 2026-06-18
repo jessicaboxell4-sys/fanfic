@@ -618,6 +618,13 @@ function BackupCard() {
       >
         Restore from backup
       </a>
+      <a
+        href="/account/safety"
+        data-testid="safety-report-link"
+        className="ml-3 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white border border-[#6B46C1]/30 text-[#6B46C1] hover:bg-[#6B46C1] hover:text-white transition-colors text-sm font-medium"
+      >
+        Library safety report
+      </a>
 
       {/* Backup history — chronological list so the user can answer
           "did I back up before <bad date>?" at a glance. */}

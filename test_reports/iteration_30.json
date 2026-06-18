@@ -1,0 +1,39 @@
+{
+  "summary": "Tested Shelfsort Library safety report feature end-to-end. Backend: 7/7 pytest cases pass (GET /api/account/safety shape + user isolation + auth gate, POST /api/account/safety/rescan persists last_rescan_at, recent_infected empty for clean library, /api/health regression with antivirus.available=true under .checks.antivirus). Frontend: /account/safety page renders fully — three stat cards with counts + percentages, safety-rescan-btn triggers rescan + safety-last-rescan label updates with timestamp/summary, safety-recent-infected correctly hidden for clean library. /account page now exposes data-testid='safety-report-link' (href=/account/safety) next to backup-restore-link. ClamAV daemon healthy in pod (av_available=true). Tester library shows 4 books, all unscanned in this preview pod (the live rescan reported scanned=0 because the user's STORAGE_DIR has no on-disk files — files live in emergent_object_storage and rescan only walks the local cache, as documented in the route's docstring; main agent's curl on its run scanned 2 because the cache was warm then).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/account/safety/rescan", "issue": "By design scans only files present in STORAGE_DIR/<user_id> on local disk; with emergent_object_storage as the active storage backend the user_dir is often empty after a pod recycle, so scanned=0 and unscanned books stay unscanned. Not a bug per the docstring, but worth surfacing as a known UX gap if the team expects rescan to also touch cloud-stored files."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_account_safety.py",
+    "/app/test_reports/pytest/pytest_iter30.xml"
+  ],
+  "action_items": [
+    "(Optional, scope-call) Decide whether 'Rescan my library' should also fetch from cloud storage instead of only walking the local STORAGE_DIR cache — current behaviour leaves cloud-resident files perpetually 'Awaiting first scan' for users whose pod hasn't downloaded their files yet."
+  ],
+  "critical_code_review_comments": [
+    "routes/account_safety.py — clean separation from admin antivirus surface, auth via get_current_user, ObjectId stripped from av_quarantine + user_rescans projections, 503 path correctly surfaces antivirus.is_available()=false.",
+    "Rescan caps at 500 files per call to prevent worker pinning — good. asyncio.to_thread(antivirus.scan_path, fp) keeps the event loop healthy during ClamAV calls.",
+    "Per-file book lookup uses {book_id, user_id} compound filter on db.books update_one — correctly scoped (a malicious book_id collision across users can't flip another user's av_status).",
+    "AccountSafety.jsx — proper loading/error/success states, percentages computed safely (total>0 guard), recent_infected list conditionally rendered, rescan button disabled when rescanning OR av_available=false, toast error falls back to err.response.data.detail.",
+    "STORAGE_DIR is read from env at import-time (good — matches every other storage-aware module). Local copy comment in source explains the circular-import dodge clearly.",
+    "Minor nit: routes/account_safety.py uses `import os as _os` solely for one env lookup — could be hoisted to a module-level `_STORAGE_DIR` constant for symmetry with utils.config, but harmless."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_account_safety.py"
+  ],
+  "success_rate": {"backend": "100% (7/7)", "frontend": "100% — all required data-testids render, rescan flow + last-rescan label verified, account-page link verified"},
+  "test_credentials": "shelfsort-tester@example.com / tester123! (per /app/memory/test_credentials.md)",
+  "seed_data_creation": "None. user_rescans collection now has one document for user_a18dde45958d (created by the rescan test) — idempotent upsert so re-runs reuse the same row.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend WatchFiles reloader is very sensitive to any edit under /app/backend/tests/ — wait ~15s after touching a test file or restart backend before running pytest, otherwise calls time out for ~2min while uvicorn reloads. Tests use TEST_BASE_URL=http://localhost:8001 fallback when REACT_APP_BACKEND_URL is set to the preview URL but the SSL handshake stalls; both work. Frontend /account requires waiting for AuthContext to hydrate before goto('/account') — pattern: login via context.request.post → goto('/') → wait 3s → skip tour → goto('/account') → wait 3-4s. The tester library currently has 4 books and 0 files in STORAGE_DIR/<user_id>, so rescan returns scanned=0; this is expected with emergent_object_storage active.",
+  "rca of the issue": "N/A — no functional bugs."
+}

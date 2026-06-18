@@ -331,6 +331,23 @@ async def restore_preview(
     content = await file.read()
     if not content:
         raise HTTPException(status_code=400, detail="File is empty.")
+    # Antivirus pre-scan — backup ZIPs are user-supplied like any other
+    # upload (2026-06-18).
+    from utils.antivirus import scan_bytes, record_quarantine
+    import asyncio as _asyncio
+    _av = await _asyncio.to_thread(scan_bytes, content, hint_name=file.filename or "backup.zip")
+    if _av.get("infected"):
+        await record_quarantine(
+            user_id=user.user_id,
+            filename=file.filename or "",
+            scan=_av,
+            source="upload",
+            extra={"endpoint": "restore/preview", "size_bytes": len(content)},
+        )
+        raise HTTPException(
+            status_code=400,
+            detail=f"That backup file appears unsafe ({_av.get('signature') or 'flagged by antivirus'}). Restore blocked.",
+        )
     manifest = _read_backup_manifest(content)
 
     books = manifest.get("books") or []
@@ -410,6 +427,22 @@ async def restore_apply(
     content = await file.read()
     if not content:
         raise HTTPException(status_code=400, detail="File is empty.")
+    # Antivirus pre-scan — same policy as the preview endpoint (2026-06-18).
+    from utils.antivirus import scan_bytes, record_quarantine
+    import asyncio as _asyncio
+    _av = await _asyncio.to_thread(scan_bytes, content, hint_name=file.filename or "backup.zip")
+    if _av.get("infected"):
+        await record_quarantine(
+            user_id=user.user_id,
+            filename=file.filename or "",
+            scan=_av,
+            source="upload",
+            extra={"endpoint": "restore/apply", "size_bytes": len(content)},
+        )
+        raise HTTPException(
+            status_code=400,
+            detail=f"That backup file appears unsafe ({_av.get('signature') or 'flagged by antivirus'}). Restore blocked.",
+        )
     manifest = _read_backup_manifest(content)
     zf = _zipfile.ZipFile(_io.BytesIO(content))
     names = set(zf.namelist())

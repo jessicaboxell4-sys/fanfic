@@ -64,6 +64,7 @@ import RestoreBackupPage from "@/pages/RestoreBackupPage";
 import OriginalsShelf from "@/pages/OriginalsShelf";
 import Help from "@/pages/Help";
 import Rules from "@/pages/Rules";
+import AccountSafety from "@/pages/AccountSafety";
 import AdminConsole from "@/pages/AdminConsole";
 import AdminViewAs from "@/pages/AdminViewAs";
 import ModInbox from "@/pages/ModInbox";
@@ -182,6 +183,7 @@ function AppRouter() {
       <Route path="/library/originals" element={<ProtectedRoute><OriginalsShelf /></ProtectedRoute>} />
       <Route path="/help" element={<ProtectedRoute><Help /></ProtectedRoute>} />
       <Route path="/rules" element={<Rules />} />
+      <Route path="/account/safety" element={<ProtectedRoute><AccountSafety /></ProtectedRoute>} />
       <Route path="/admin" element={<AdminRoute><AdminConsole /></AdminRoute>} />
       <Route path="/admin/pending" element={<ModeratorRoute><ModInbox /></ModeratorRoute>} />
       <Route path="/admin/view/:uid" element={<AdminRoute><AdminViewAs /></AdminRoute>} />

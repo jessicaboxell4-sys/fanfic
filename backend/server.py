@@ -12,7 +12,7 @@ import os
 from deps import app, api_router, db, logger, client
 
 # Import each routes module so its @api_router decorators register.
-from routes import root, auth, books, conversions, user_prefs, library_backup, tags, authors, pairings, trash, bookmarks, library_discovery, stats, series_categories, digest, year, smart_shelves, announcements, admin, admin_db, fulltext, chat, friends, invites, friend_library, suggestions, notifications, bookclubs, recommendations, opds, wordcount, goals, refresh, duplicates, url_lists, fandoms, exports, reading_activity, library_views, duplicate_resolution, view_consents, cover_public, reading_sync, push, analytics, operator_digest, storage_admin, help_analytics, suggestions_box, signup_config, health  # noqa: F401
+from routes import root, auth, books, conversions, user_prefs, library_backup, tags, authors, pairings, trash, bookmarks, library_discovery, stats, series_categories, digest, year, smart_shelves, announcements, admin, admin_db, fulltext, chat, friends, invites, friend_library, suggestions, notifications, bookclubs, recommendations, opds, wordcount, goals, refresh, duplicates, url_lists, fandoms, exports, reading_activity, library_views, duplicate_resolution, view_consents, cover_public, reading_sync, push, analytics, operator_digest, storage_admin, help_analytics, suggestions_box, signup_config, health, admin_antivirus, account_safety  # noqa: F401
 
 # Some static-path routes (e.g. /api/books/refresh-status, /api/books/recent)
 # live in route modules that are imported *after* books.py, which means
@@ -222,15 +222,20 @@ async def on_startup():
     except Exception as e:
         logger.warning("Admin-bootstrap migration: %s", e)
 
-    # Calibre self-heal — the pod environment occasionally recycles apt packages.
-    # If `ebook-convert` isn't on PATH, fire a background `apt-get install` so
-    # PDF/MOBI/AZW uploads keep auto-converting without manual intervention.
+    # Calibre + ClamAV self-heal pipeline (2026-06-18) — chained
+    # sequentially via a single task because apt-get holds an
+    # exclusive lock; running both installs concurrently caused
+    # the second to fail with "Could not get lock /var/lib/dpkg/
+    # lock-frontend" in the first deploy attempt.
     try:
         import shutil
-        if not shutil.which("ebook-convert"):
-            import asyncio
-            async def _ensure_calibre():
-                logger.info("Calibre missing on startup — running `apt-get install -y calibre` in background")
+        import asyncio
+        from pathlib import Path as _Path
+
+        async def _self_heal_binaries():
+            # ---- Step 1: Calibre (for PDF/MOBI/AZW conversion) -----------
+            if not shutil.which("ebook-convert"):
+                logger.info("Calibre missing — running `apt-get install -y calibre` in background")
                 proc = await asyncio.create_subprocess_exec(
                     "apt-get", "install", "-y", "calibre",
                     stdout=asyncio.subprocess.DEVNULL,
@@ -238,12 +243,75 @@ async def on_startup():
                 )
                 _, stderr = await proc.communicate()
                 if proc.returncode == 0 and shutil.which("ebook-convert"):
-                    logger.info("Calibre installed successfully — uploads will auto-convert from now on")
+                    logger.info("Calibre installed — uploads will auto-convert from now on")
                 else:
                     logger.warning("Calibre install failed (rc=%s): %s", proc.returncode, (stderr or b"").decode()[-300:])
-            asyncio.create_task(_ensure_calibre())
+
+            # ---- Step 2: ClamAV (uploads/restores/downloads scanner) ------
+            if not shutil.which("clamscan"):
+                logger.info("ClamAV missing — installing clamav + clamav-daemon")
+                proc = await asyncio.create_subprocess_exec(
+                    "apt-get", "install", "-y", "clamav", "clamav-daemon",
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                _, stderr = await proc.communicate()
+                if proc.returncode != 0:
+                    logger.warning("ClamAV install failed (rc=%s): %s", proc.returncode, (stderr or b"").decode()[-300:])
+                    return
+                # Bump scan size caps so larger EPUB/PDF uploads scan
+                # in full instead of being truncated by clamd's 100M default.
+                try:
+                    cfg = _Path("/etc/clamav/clamd.conf")
+                    if cfg.exists():
+                        txt = cfg.read_text()
+                        txt = txt.replace("MaxScanSize 100M", "MaxScanSize 500M")
+                        txt = txt.replace("MaxFileSize 25M", "MaxFileSize 500M")
+                        cfg.write_text(txt)
+                except Exception as e:
+                    logger.warning("clamd.conf cap bump failed: %s", e)
+
+            # ---- Step 3: download virus signatures (~200 MB) --------------
+            sig_dir = _Path("/var/lib/clamav")
+            if not any(sig_dir.glob("*.c?d")):
+                logger.info("ClamAV signatures missing — running freshclam")
+                proc = await asyncio.create_subprocess_exec(
+                    "freshclam",
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                _, stderr = await proc.communicate()
+                if proc.returncode != 0:
+                    logger.warning("freshclam failed (rc=%s): %s", proc.returncode, (stderr or b"").decode()[-300:])
+
+            # ---- Step 4: start clamd as a background daemon ---------------
+            sock = _Path("/var/run/clamav/clamd.ctl")
+            if not sock.exists() and shutil.which("clamd"):
+                logger.info("clamd not running — starting in background")
+                _Path("/var/run/clamav").mkdir(parents=True, exist_ok=True)
+                try:
+                    import subprocess as _sp
+                    _sp.run(["chown", "clamav:clamav", "/var/run/clamav"], check=False)
+                except Exception:
+                    pass
+                await asyncio.create_subprocess_exec(
+                    "clamd",
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.DEVNULL,
+                )
+                # Wait up to 60 s for the socket — clamd loads ~3.6M
+                # signatures on boot.
+                for _ in range(60):
+                    if sock.exists():
+                        logger.info("clamd ready — uploads scan from now on")
+                        break
+                    await asyncio.sleep(1)
+                else:
+                    logger.warning("clamd socket never appeared — antivirus will fail open")
+
+        asyncio.create_task(_self_heal_binaries())
     except Exception as e:
-        logger.warning(f"Calibre self-heal failed to schedule: {e}")
+        logger.warning(f"Binary self-heal failed to schedule: {e}")
 
 
 @app.on_event("shutdown")
