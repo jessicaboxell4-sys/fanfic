@@ -7,6 +7,7 @@ import OnboardingPrompt from "../components/OnboardingPrompt";
 import HelpNudge from "../components/HelpNudge";
 import BackupReminderBanner from "../components/BackupReminderBanner";
 import LibraryActivityWidgets from "../components/LibraryActivityWidgets";
+import ResumeReadingCard from "../components/ResumeReadingCard";
 import UrlPasteCard from "../components/UrlPasteCard";
 import DashboardHelpCard from "../components/DashboardHelpCard";
 import DashboardSuggestionsBox from "../components/DashboardSuggestionsBox";
@@ -106,6 +107,11 @@ export default function Dashboard() {
             </p>
           )}
         </header>
+
+        {/* Resume reading hero — single-card prompt to jump back into
+            the most-recently-opened in-progress book.  Auto-hides for
+            users with nothing in progress. */}
+        <ResumeReadingCard />
 
         {/* Activity ribbon — includes "Since you were last here" alert,
             Surprise-me + Books-I-haven't-read pills, and the "Up next"

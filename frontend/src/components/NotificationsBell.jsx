@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { useEventStream } from "../hooks/useEventStream";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Bell, CheckCheck, BellOff } from "lucide-react";
@@ -72,9 +73,21 @@ export default function NotificationsBell() {
 
   useEffect(() => {
     loadCount();
-    const id = setInterval(loadCount, 15000);
+    // Keep the slow 60s safety-poll as a fallback in case the SSE
+    // connection drops (some proxies aggressively kill long-lived
+    // streams).  The SSE bump below covers the fast path.
+    const id = setInterval(loadCount, 60000);
     return () => clearInterval(id);
   }, []);
+
+  // Live-update the bell badge the instant any notification kind
+  // fires server-side, no polling latency.
+  useEventStream({
+    notification: (n) => {
+      setUnread((u) => (u || 0) + 1);
+      setItems((prev) => [{ ...n, read: false }, ...prev].slice(0, 50));
+    },
+  });
 
   useEffect(() => {
     if (!open) return;

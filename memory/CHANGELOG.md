@@ -8,6 +8,95 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-18 — Reading sync + stuck books + DNF + Resume hero ✅
+
+Six tightly-coupled features that build the cross-device reading
+state plus the re-engagement loop on top of it.
+
+**Backend** — new `routes/reading_sync.py` + `utils/engagement.py`:
+- `POST/GET /api/books/{id}/cursor` — per-(user, book) cursor upsert
+  carrying CFI, percent, chapter label, device_id, device_label.
+- `GET /api/books/{id}/active-devices` — recent-window query (10
+  min) so a "Now reading on iPhone" indicator can render.
+- `GET /api/books/stuck` — books opened >30d ago AND <30% read,
+  sorted most-stuck first.  Powers the new Stuck-books smart shelf.
+- `GET /api/books/{id}/pace` — projects days-to-finish using the
+  last-14-days reading_activity minutes and a lifetime-pace
+  approximation; returns `reason: "not_enough_data"` for cold
+  books so the UI knows to suppress the forecast.
+- `POST /api/books/{id}/dnf` — flag a book Did-Not-Finish.  The
+  affinity-recommendations endpoint now excludes DNF authors so the
+  rec engine stops nagging.
+- `GET /api/books/{id}/friends-reading` — privacy-preserving count
+  of accepted friends with a recent cursor on the same canonical
+  book (only friends with `library_visible_to_friends == True`).
+- New `reengagement_stuck` notification kind + Sunday 17:00 UTC
+  `stuck_books_reengagement_tick` that fires one in-app ping per
+  user listing their 3 worst stuck books (silent on clean weeks).
+
+**Frontend**:
+- `Reader.jsx` now POSTs cursor to the cloud on every debounced
+  progress save AND fetches the latest cursor on mount.  If the
+  cloud copy was written by a *different* device within the last
+  6 h, a Sonner toast offers a one-tap jump to that spot
+  ("Resume there").  Device ID is minted into localStorage on
+  first read (`shelfsort-device-id`); a UA-derived label
+  ("iPhone", "Mac", "Android") gives the prompt natural copy.
+- New `ResumeReadingCard` hero on the dashboard — amber card with
+  cover thumb, title, % progress, and progress bar.  Clicks straight
+  into `/read/{book_id}`.  Auto-hides when nothing is in progress.
+- New page `StuckBooksPage` at `/library/stuck` — lists stuck books
+  with Resume + DNF action buttons.  Linked from the Sunday
+  re-engagement notification's deep link.
+
+**Tests** — new `tests/test_reading_sync.py` (5 tests, all passing):
+cursor push/pull/overwrite, ownership 404, stuck-shelf filter,
+DNF removing authors from affinity recs, and the Sunday tick
+generating notifications only for users with stuck books.
+
+## 2026-06-18 — Mobile reading + Unified SSE + Affinity recs ✅
+
+Three roadmap items in one batch:
+
+**1. Mobile reading mode** (`pages/Reader.jsx`):
+- Fullscreen toggle button in the reader header (Maximize / Minimize
+  icons; reflects ESC-driven state via `fullscreenchange` listener).
+- Tap-edge page-flip zones — 12% wide invisible buttons on the left
+  and right edges of the reader area that call `rendition.prev()` /
+  `rendition.next()` in paginated flow.  Existing react-reader
+  `swipeable` prop already handles touch swipes, so this adds the
+  tap-to-page interaction common to Kindle / Apple Books.
+
+**2. Unified SSE channel** — new `utils/event_bus.py` + new endpoint
+`GET /api/events/stream`:
+- Generic per-user pub/sub keyed on `(user_id, kind, data)`.
+- `create_notification` now publishes to the bus so any open tab
+  gets an instant bell-bump (no more 15-60s polling latency).
+- `publish_goal_hit` also publishes to the bus so the unified
+  endpoint can deliver goal-hit events without a second listener.
+- New `useEventStream(handlers, enabled)` React hook holds a single
+  `EventSource` per tab and dispatches typed events.
+- `NotificationsBell` migrated as the first consumer — polling
+  interval relaxed from 15 s → 60 s safety-poll while SSE handles
+  the fast path.  Other clients (`MessagesDropdown`,
+  `FriendsPage`, `ActiveRoomPanel`) can migrate incrementally.
+
+**3. Affinity recommendations** — new `GET /api/recommendations/by-affinity`:
+- Computes the caller's top-3 fandoms + top-3 authors from their
+  own library, then surfaces community covers matching those
+  affinities that the caller doesn't already own.
+- Joins via the existing `title_key` / `author_key` / `fandom_key`
+  normalised indexes on `community_covers`.
+- Carries a `match_reason` per row so the UI can show "author:
+  Tester" or "fandom: Harry Potter" under each card.
+- New rail on `RecommendationsPage.jsx` between meta-strip and
+  digest card; auto-hides when no matches.
+
+**Tests** — new file `tests/test_event_bus.py` with 3 tests
+exercising the bus, the `create_notification` → bus path, and the
+HTTP endpoint opening with a real session.  All 6 cover-related +
+event-bus tests pass.
+
 ## 2026-06-18 — Cover ecosystem Tier 5: public surfaces & discoverability ✅
 
 Turned the cover ecosystem outward.  Anyone can now browse, vote, and

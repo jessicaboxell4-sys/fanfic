@@ -67,6 +67,22 @@
   (`page_views` with `page_type`, `slug`, `is_anon`, `ts`) + a small
   admin widget that aggregates daily/weekly views and the
   conversion ratio.
+- **Reader heatmap** *(parked 2026-06-18)* — aggregate `reading_cursors`
+  across all readers to show "most readers paused at chapter 3" on
+  the book detail page.  Privacy-sensitive (consent required) so
+  needs its own design pass.
+- **Pages/minute pace tracking** *(parked 2026-06-18)* — replace
+  minute-only `reading_activity` heartbeats with a pages-per-session
+  metric derived from cursor deltas.  Schema migration in the
+  reading_activity collection + frontend refresh of stats card.
+- **Time-of-day reading pattern + daily-reminder push**
+  *(parked 2026-06-18)* — bucket activity by hour, surface "you read
+  mostly 9-11pm" insight + opt-in daily push at the peak hour.
+  Needs Web Push infrastructure (VAPID keys) we don't currently have.
+- **Bookclub buddy-pacing** *(parked 2026-06-18)* — auto-trigger the
+  next chapter discussion when both members of a 2-person room cross
+  a chapter boundary.  Needs reading_cursors fan-out into the existing
+  bookclub events stream + per-room pacing policy.
 - Keyboard shortcuts (J/K next/prev) for ReadOriginal viewer ✅ (shipped 2026-06-17)
 - Engagement-gate hint UI in bookclub digest settings ✅ (shipped 2026-06-17)
 - `?` keyboard-cheatsheet overlay for ReadOriginal viewer ✅ (shipped 2026-06-17)

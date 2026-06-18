@@ -113,6 +113,8 @@ export default function RecommendationsPage() {
     } finally { setDigestBusy(false); }
   };
 
+  const [affinity, setAffinity] = useState(null);
+
   const load = async () => {
     setLoading(true);
     try {
@@ -126,6 +128,13 @@ export default function RecommendationsPage() {
     finally { setLoading(false); }
   };
 
+  const loadAffinity = async () => {
+    try {
+      const { data } = await api.get("/recommendations/by-affinity", { params: { limit: 12 } });
+      setAffinity(data);
+    } catch { /* affinity is best-effort */ }
+  };
+
   const loadDismissed = async () => {
     try {
       const { data } = await api.get("/recommendations/dismissed");
@@ -136,6 +145,7 @@ export default function RecommendationsPage() {
   useEffect(() => {
     load();
     loadDismissed();
+    loadAffinity();
     loadDigestSettings();
   }, []);
 
@@ -199,6 +209,53 @@ export default function RecommendationsPage() {
             </Link>
           )}
         </div>
+
+        {/* Affinity rail — community covers in your top fandoms/authors */}
+        {affinity && (affinity.recommendations || []).length > 0 && (
+          <section data-testid="affinity-rail" className="border-t border-[#E8E6E1] pt-6">
+            <div className="flex items-baseline justify-between gap-3 mb-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] inline-flex items-center gap-2">
+                  <Sparkles className="w-3 h-3" /> More from authors &amp; fandoms you read
+                </p>
+                {affinity.top_fandoms?.length > 0 && (
+                  <p className="text-xs text-[#6B705C] mt-1">
+                    Based on:{" "}
+                    {[...(affinity.top_fandoms || []), ...(affinity.top_authors || [])]
+                      .slice(0, 5).join(" · ")}
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+              {affinity.recommendations.map((c) => (
+                <Link
+                  key={c.cover_id}
+                  to={`/cover/${c.cover_id}`}
+                  className="bg-white rounded-lg border border-[#E8E6E1] overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+                  data-testid={`affinity-card-${c.cover_id}`}
+                >
+                  <div className="aspect-[2/3] bg-[#F5F2EA] overflow-hidden">
+                    <img
+                      src={`data:${c.mime_type};base64,${c.image_base64}`}
+                      alt={c.title}
+                      loading="lazy"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="p-2">
+                    <p className="font-serif text-sm text-[#2C2C2C] leading-tight line-clamp-2">
+                      {c.title}
+                    </p>
+                    <p className="text-[10px] text-[#6B705C] mt-1 truncate" title={c.match_reason}>
+                      {c.match_reason}
+                    </p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Weekly digest — in-app always fires; email is opt-in */}
         <div

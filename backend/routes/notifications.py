@@ -70,6 +70,10 @@ NOTIFICATION_CATALOG: List[Dict[str, Any]] = [
     {"kind": "friend_shared_cover", "group": "Cover ecosystem",
      "label": "A friend shared a new cover",
      "description": "Pings you when a friend publishes a cover to the community pool.", "mutable": True},
+    # --- Engagement / re-engagement ---
+    {"kind": "reengagement_stuck", "group": "Engagement",
+     "label": "Stuck-book reminder",
+     "description": "Sunday nudge listing books you started but haven\u2019t touched in 14+ days.", "mutable": True},
 ]
 
 KNOWN_KINDS = {c["kind"] for c in NOTIFICATION_CATALOG}
@@ -95,7 +99,7 @@ async def create_notification(user_id: str, kind: str, title: str, body: str = "
         muted = await _muted_kinds(user_id)
         if kind in muted:
             return
-    await db.notifications.insert_one({
+    notif_doc = {
         "notification_id": f"ntf_{uuid.uuid4().hex[:12]}",
         "user_id": user_id,
         "kind": kind,
@@ -104,7 +108,22 @@ async def create_notification(user_id: str, kind: str, title: str, body: str = "
         "link": link[:300],
         "read": False,
         "created_at": datetime.now(timezone.utc),
-    })
+    }
+    await db.notifications.insert_one(notif_doc)
+    # Push to the unified SSE bus so any open tab gets an instant
+    # bell-bump without waiting for the next 30-60s notification poll.
+    try:
+        from utils.event_bus import publish as bus_publish
+        await bus_publish(user_id, "notification", {
+            "notification_id": notif_doc["notification_id"],
+            "kind": kind,
+            "title": notif_doc["title"],
+            "body": notif_doc["body"],
+            "link": notif_doc["link"],
+            "created_at": notif_doc["created_at"].isoformat(),
+        })
+    except Exception:
+        pass
 
 
 def _serialize(doc: Dict[str, Any]) -> Dict[str, Any]:

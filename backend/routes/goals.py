@@ -393,3 +393,77 @@ async def stream_goal_hits(request: Request):
             "Connection": "keep-alive",
         },
     )
+
+
+
+
+# ---------------------------------------------------------------------
+# Unified events stream (Tier-X 2026-06-18)
+# ---------------------------------------------------------------------
+
+@api_router.get("/events/stream")
+async def stream_events(request: Request):
+    """Multiplexed SSE channel — fans out every transient per-user
+    event (goal-hit, notification, future bookclub-msg / friend-finish)
+    over a single persistent connection.
+
+    Replaces the per-feature polling loops in ``NotificationsBell``,
+    ``MessagesDropdown``, ``FriendsPage``, and ``ActiveRoomPanel``.
+
+    Frame format::
+
+        : connected\\n\\n              (open ack so proxies flush)
+        : keepalive\\n\\n              (every 25s — Cloudflare keep-alive)
+        event: notification\\n
+        data: {json}\\n\\n             (when create_notification fires)
+        event: goal-hit\\n
+        data: {json}\\n\\n             (when publish_goal_hit fires)
+    """
+    user = await _resolve_session_user(request)
+    user_id = user.user_id
+
+    from utils.event_bus import subscribe as bus_subscribe
+
+    async def event_generator():
+        yield ": connected\n\n"
+        sub = bus_subscribe(user_id)
+        try:
+            while True:
+                next_evt = asyncio.create_task(sub.__anext__())
+                sleeper = asyncio.create_task(asyncio.sleep(25))
+                try:
+                    done, pending = await asyncio.wait(
+                        {next_evt, sleeper},
+                        return_when=asyncio.FIRST_COMPLETED,
+                    )
+                    for p in pending:
+                        p.cancel()
+                    if next_evt in done:
+                        envelope = next_evt.result()
+                        kind = envelope.get("kind") or "event"
+                        data = envelope.get("data") or {}
+                        yield f"event: {kind}\ndata: {json.dumps(data)}\n\n"
+                    else:
+                        yield ": keepalive\n\n"
+                except asyncio.CancelledError:
+                    raise
+                except Exception:  # noqa: BLE001
+                    logger.exception("events SSE iteration failed")
+                    break
+                if await request.is_disconnected():
+                    break
+        finally:
+            try:
+                await sub.aclose()  # type: ignore[attr-defined]
+            except Exception:
+                pass
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )

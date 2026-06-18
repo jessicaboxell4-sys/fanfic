@@ -40,6 +40,10 @@ async def publish_goal_hit(user_id: str, goal: Dict[str, Any]) -> None:
     Failures are swallowed (the queue is bounded — if a client is so
     backed up that ``put_nowait`` fails, that connection will be cleaned
     up by its own iterator the next time it loops).
+
+    Also fans out to the unified ``event_bus`` so the new
+    ``/api/events/stream`` endpoint can deliver the same event without
+    a second listener on the existing ``/api/goals/stream`` endpoint.
     """
     if not user_id:
         return
@@ -52,6 +56,11 @@ async def publish_goal_hit(user_id: str, goal: Dict[str, Any]) -> None:
         except asyncio.QueueFull:
             # Drop — better to skip a confetti burst than crash the worker.
             pass
+    try:
+        from utils.event_bus import publish as bus_publish
+        await bus_publish(user_id, "goal-hit", payload)
+    except Exception:
+        pass
 
 
 async def subscribe(user_id: str) -> AsyncIterator[Dict[str, Any]]:

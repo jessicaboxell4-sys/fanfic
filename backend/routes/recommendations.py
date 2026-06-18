@@ -708,3 +708,126 @@ async def preview_friends_finished(
         "email_error": email_result.get("error"),
         **payload,
     }
+
+
+
+# ---------------------------------------------------------------------
+# Affinity-based recommendations  (2026-06-18)
+#
+# Looks at the user's own library, picks their top 3 fandoms + top 3
+# authors, then surfaces community covers from the shared pool that
+# match those affinities and aren't already in the user's library.
+# A "you might also like…" surface backed by the existing community-
+# cover catalogue — no external book API needed.
+# ---------------------------------------------------------------------
+
+@api_router.get("/recommendations/by-affinity")
+async def affinity_recommendations(
+    limit: int = 12,
+    user: User = Depends(get_current_user),
+):
+    """Returns community covers whose title+author matches one of the
+    user's top fandoms / top authors but that the user doesn't
+    already have a book for.  Powers the "More from authors you read"
+    rail on the recommendations page."""
+    limit = max(1, min(int(limit or 12), 60))
+
+    # Aggregate the user's library by fandom and author to find their
+    # top three of each.
+    own_books = db.books.find(
+        {"user_id": user.user_id},
+        {"_id": 0, "title": 1, "author": 1, "fandom": 1, "category": 1},
+    )
+    fandom_counts: Dict[str, int] = {}
+    author_counts: Dict[str, int] = {}
+    own_keys: set = set()
+    async for b in own_books:
+        f = (b.get("fandom") or "").strip()
+        a = (b.get("author") or "").strip()
+        t = (b.get("title") or "").strip().lower()
+        if f:
+            fandom_counts[f] = fandom_counts.get(f, 0) + 1
+        if a:
+            author_counts[a] = author_counts.get(a, 0) + 1
+        if t and a:
+            own_keys.add((t, a.lower()))
+
+    top_fandoms = [k for k, _ in sorted(fandom_counts.items(), key=lambda x: -x[1])[:3]]
+    top_authors = [k for k, _ in sorted(author_counts.items(), key=lambda x: -x[1])[:3]]
+
+    # Build the DNF blocklist: any author whose books the user has
+    # explicitly marked Did-Not-Finish.  Stops the rec engine from
+    # nagging the user with more by an author they've given up on.
+    dnf_cursor = db.books.find(
+        {"user_id": user.user_id, "is_dnf": True},
+        {"_id": 0, "author": 1},
+    )
+    dnf_authors: set = set()
+    async for b in dnf_cursor:
+        a = (b.get("author") or "").strip().lower()
+        if a:
+            dnf_authors.add(a)
+
+    if not top_fandoms and not top_authors:
+        return {"top_fandoms": [], "top_authors": [], "recommendations": []}
+
+    # Build an OR query against the community pool.  Use the normalised
+    # *_key fields so casing differences don't matter.
+    or_clauses: List[Dict[str, Any]] = []
+    for f in top_fandoms:
+        or_clauses.append({"fandom_key": f.lower()})
+    for a in top_authors:
+        or_clauses.append({"author_key": a.lower()})
+    if not or_clauses:
+        return {"top_fandoms": top_fandoms, "top_authors": top_authors, "recommendations": []}
+
+    cursor = (
+        db.community_covers.find(
+            {"$or": or_clauses, "shared_by_user_id": {"$ne": user.user_id}},
+            {"_id": 0},
+        )
+        .sort([("votes", -1), ("import_count", -1), ("shared_at", -1)])
+        .limit(limit * 3)   # over-fetch to allow filtering own books
+    )
+    import base64
+    from pathlib import Path
+    cov_dir = Path("/app/community_covers")
+    out: List[Dict[str, Any]] = []
+    async for c in cursor:
+        # Skip if user already owns a book with this title+author.
+        key = ((c.get("title") or "").strip().lower(), (c.get("author") or "").strip().lower())
+        if key in own_keys:
+            continue
+        # Skip DNF'd authors entirely — user already abandoned them.
+        if key[1] in dnf_authors:
+            continue
+        path = cov_dir / c["file"]
+        if not path.exists():
+            continue
+        f_match = c.get("fandom", "") in top_fandoms
+        a_match = c.get("author", "") in top_authors
+        reason = []
+        if f_match:
+            reason.append(f"fandom: {c.get('fandom', '')}")
+        if a_match:
+            reason.append(f"author: {c.get('author', '')}")
+        out.append({
+            "cover_id":     c["cover_id"],
+            "title":        c.get("title", ""),
+            "author":       c.get("author", ""),
+            "fandom":       c.get("fandom", ""),
+            "shared_by":    c.get("shared_by_username", "anon"),
+            "votes":        int(c.get("votes", 0)),
+            "import_count": int(c.get("import_count", 0)),
+            "match_reason": " · ".join(reason) or "you might also like",
+            "image_base64": base64.b64encode(path.read_bytes()).decode("ascii"),
+            "mime_type":    "image/png",
+        })
+        if len(out) >= limit:
+            break
+
+    return {
+        "top_fandoms":     top_fandoms,
+        "top_authors":     top_authors,
+        "recommendations": out,
+    }

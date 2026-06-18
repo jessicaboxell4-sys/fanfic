@@ -977,6 +977,20 @@ def start_digest_scheduler():
         replace_existing=True,
     )
 
+    # Sunday 17:00 UTC — surface "books you started but haven't
+    # touched in 14+ days" as an in-app notification so the user
+    # closes the loop or actively DNFs them.
+    from utils.engagement import stuck_books_reengagement_tick
+    sched.add_job(
+        wrap_cron_job(stuck_books_reengagement_tick, "stuck_books_reengagement_tick"),
+        "cron",
+        day_of_week="sun",
+        hour=17,
+        minute=0,
+        id="stuck_books_reengagement_tick",
+        replace_existing=True,
+    )
+
     sched.start()
     _scheduler = sched
     logger.info("Schedulers started (weekly digest + daily account grace tick).")

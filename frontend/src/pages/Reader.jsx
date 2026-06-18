@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { ReactReader } from "react-reader";
-import { ArrowLeft, BookOpen, Minus, Plus, BookText, AlignLeft, Bookmark, BookmarkPlus, X as XIcon } from "lucide-react";
+import { ArrowLeft, BookOpen, Minus, Plus, BookText, AlignLeft, Bookmark, BookmarkPlus, X as XIcon, Maximize, Minimize } from "lucide-react";
 import { api } from "../lib/api";
 import { pulseGoalsCheck } from "../lib/goalHitWatcher";
 import { toast } from "sonner";
@@ -24,6 +24,11 @@ export default function Reader() {
   const [error, setError] = useState(null);
   const [bookmarks, setBookmarks] = useState([]);
   const [showBookmarkPanel, setShowBookmarkPanel] = useState(false);
+  // Mobile reading mode: full-screen viewport + tap-edge page flips.
+  // `isFullscreen` is mirrored from the actual fullscreenchange event so
+  // pressing ESC (which the browser handles) still updates our button.
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const readerWrapRef = useRef(null);
   const renditionRef = useRef(null);
   const savedLocationRef = useRef(null);
   const progressTimerRef = useRef(null);
@@ -41,9 +46,30 @@ export default function Reader() {
       if (progressTimerRef.current) clearTimeout(progressTimerRef.current);
       progressTimerRef.current = setTimeout(() => {
         api.post(`/books/${id}/progress`, { percent: pct, cfi }).catch(() => {});
-        // If the user just crossed 100% in this debounced save, check
-        // whether a Reading-goal flipped to hit — same trigger we use on
-        // the BookCard "Mark read" button.
+        // Also push the cursor to the cloud so the same book picked
+        // up on another device can resume from this exact spot.
+        try {
+          let deviceId = localStorage.getItem("shelfsort-device-id");
+          if (!deviceId) {
+            deviceId = "dev_" + Math.random().toString(36).slice(2, 14);
+            localStorage.setItem("shelfsort-device-id", deviceId);
+          }
+          // Best-effort UA label so the handoff prompt reads naturally.
+          const ua = (navigator.userAgent || "").toLowerCase();
+          const label = ua.includes("iphone") ? "iPhone"
+            : ua.includes("ipad") ? "iPad"
+            : ua.includes("android") ? "Android"
+            : ua.includes("mac") ? "Mac"
+            : ua.includes("win") ? "Windows"
+            : "this device";
+          api.post(`/books/${id}/cursor`, {
+            cfi: String(cfi || ""),
+            percent: pct,
+            chapter_label: "",
+            device_id: deviceId,
+            device_label: label,
+          }).catch(() => {});
+        } catch { /* localStorage blocked — fine */ }
         if (pct >= 0.99) pulseGoalsCheck();
       }, 1200);
     } catch (e) {}
@@ -54,6 +80,46 @@ export default function Reader() {
       const saved = window.localStorage.getItem(`shelfsort-loc-${id}`);
       if (saved) savedLocationRef.current = saved;
     } catch (e) {}
+  }, [id]);
+
+  // Cross-device handoff: ask the cloud where we left off.  If the
+  // cloud copy was written by a different device within the last 6 h
+  // AND it's noticeably ahead of (or behind) the local one, surface
+  // a toast so the user can jump to the cloud cursor in one tap.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get(`/books/${id}/cursor`);
+        if (cancelled || !data?.cfi) return;
+        const myDevice = localStorage.getItem("shelfsort-device-id");
+        if (data.device_id && myDevice && data.device_id === myDevice) return;
+        const updatedAt = new Date(data.updated_at);
+        const ageHours = (Date.now() - updatedAt.getTime()) / 3_600_000;
+        if (!Number.isFinite(ageHours) || ageHours > 6) return;
+        // Local progress: read from books endpoint state if available;
+        // simpler — use the savedLocationRef heuristic: if cfi differs
+        // and remote is fresh, offer the jump.
+        const localCfi = savedLocationRef.current;
+        if (localCfi && String(localCfi) === String(data.cfi)) return;
+        const label = data.device_label || "another device";
+        const pctTxt = data.percent ? ` (${Math.round(data.percent * 100)}%)` : "";
+        toast(`You were reading on ${label}${pctTxt}`, {
+          description: "Jump to that spot?",
+          action: {
+            label: "Resume there",
+            onClick: () => {
+              try {
+                renditionRef.current?.display(data.cfi);
+                savedLocationRef.current = null;
+              } catch { /* ignore */ }
+            },
+          },
+          duration: 12000,
+        });
+      } catch { /* no cursor yet → no prompt */ }
+    })();
+    return () => { cancelled = true; };
   }, [id]);
 
   // Load this book's bookmarks once the book is open.
@@ -159,6 +225,32 @@ export default function Reader() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [addBookmark]);
+
+  // Mobile reading mode — fullscreen toggle + tap-edge page nav.
+  // Listens to the browser's own fullscreenchange so ESC also updates
+  // our local flag.
+  useEffect(() => {
+    const sync = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", sync);
+    return () => document.removeEventListener("fullscreenchange", sync);
+  }, []);
+
+  const toggleFullscreen = useCallback(() => {
+    try {
+      if (document.fullscreenElement) {
+        document.exitFullscreen?.();
+      } else {
+        (readerWrapRef.current || document.documentElement).requestFullscreen?.();
+      }
+    } catch { /* unsupported — best effort */ }
+  }, []);
+
+  const flipNext = useCallback(() => {
+    try { renditionRef.current?.next(); } catch { /* no-op */ }
+  }, []);
+  const flipPrev = useCallback(() => {
+    try { renditionRef.current?.prev(); } catch { /* no-op */ }
+  }, []);
 
   // Reading-time heartbeat: every 60s, if the tab is visible AND user is
   // active (mouse/scroll/key/touch in the last 90s), send a 60-second ping.
@@ -432,6 +524,22 @@ export default function Reader() {
               <span>{flow === "paginated" ? "Pages" : "Scroll"}</span>
             </button>
 
+            {/* Fullscreen toggle — best for mobile reading.  On
+                desktop it just hides the OS chrome; on phones it
+                expands the reader to cover the address bar too. */}
+            <button
+              data-testid="fullscreen-toggle"
+              onClick={toggleFullscreen}
+              className="flex items-center gap-1.5 text-xs font-medium bg-white border border-[#E8E6E1] rounded-full px-3 py-1.5 hover:bg-[#F5F3EC]"
+              title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen reading mode"}
+              aria-pressed={isFullscreen}
+            >
+              {isFullscreen
+                ? <Minimize className="w-3.5 h-3.5" />
+                : <Maximize className="w-3.5 h-3.5" />}
+              <span className="hidden sm:inline">{isFullscreen ? "Exit" : "Focus"}</span>
+            </button>
+
             <div className="flex items-center gap-1 bg-white border border-[#E8E6E1] rounded-full px-1.5 py-1">
               <button
                 data-testid="font-decrease"
@@ -455,7 +563,12 @@ export default function Reader() {
         </div>
       </header>
 
-      <div className="flex-1 relative" data-testid="reader-area" style={{ minHeight: 0 }}>
+      <div
+        ref={readerWrapRef}
+        className="flex-1 relative"
+        data-testid="reader-area"
+        style={{ minHeight: 0 }}
+      >
         {bookData ? (
           <div style={{ position: "absolute", inset: 0 }}>
             <ReactReader
@@ -468,6 +581,32 @@ export default function Reader() {
               showToc={true}
               swipeable={flow === "paginated"}
             />
+
+            {/* Tap-edge page flips for mobile / touch.  Only in paginated
+                mode; scrolled flow doesn't need them.  Anchored to the
+                outer reader wrap so the central iframe (where the user
+                actually reads) stays untouched.  Hidden visually but
+                hit-testable on every viewport size. */}
+            {flow === "paginated" && (
+              <>
+                <button
+                  type="button"
+                  aria-label="Previous page"
+                  data-testid="reader-tap-prev"
+                  onClick={flipPrev}
+                  className="absolute left-0 top-12 bottom-12 w-[12%] z-10 bg-transparent focus:outline-none cursor-w-resize"
+                  style={{ WebkitTapHighlightColor: "transparent" }}
+                />
+                <button
+                  type="button"
+                  aria-label="Next page"
+                  data-testid="reader-tap-next"
+                  onClick={flipNext}
+                  className="absolute right-0 top-12 bottom-12 w-[12%] z-10 bg-transparent focus:outline-none cursor-e-resize"
+                  style={{ WebkitTapHighlightColor: "transparent" }}
+                />
+              </>
+            )}
           </div>
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
