@@ -5,6 +5,13 @@ import NotificationMuteMatrix from "../components/NotificationMuteMatrix";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
+import {
   ArrowLeft,
   Mail,
   Sparkles,
@@ -501,37 +508,47 @@ export default function EmailPreferences() {
               <label className="text-xs font-semibold uppercase tracking-wider text-[#6B705C] mb-1 block flex items-center gap-1.5">
                 <Calendar className="w-3 h-3" /> Day of week
               </label>
-              <select
-                data-testid="weekly-digest-day"
-                value={weekly_digest.day_of_week}
-                onChange={(e) => updateDigest({ day_of_week: Number(e.target.value) })}
+              <Select
+                value={String(weekly_digest.day_of_week)}
+                onValueChange={(v) => updateDigest({ day_of_week: Number(v) })}
                 disabled={!weekly_digest.enabled || savingDigest}
-                className="w-full bg-white border border-[#E8E6E1] rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#E07A5F] focus:ring-2 focus:ring-[#E07A5F]/20"
               >
-                {DAY_NAMES.map((d, i) => (
-                  <option key={d} value={i}>
-                    {d}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger
+                  data-testid="weekly-digest-day"
+                  className="w-full bg-white border border-[#E8E6E1] rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#E07A5F] focus:ring-2 focus:ring-[#E07A5F]/20"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DAY_NAMES.map((d, i) => (
+                    <SelectItem key={d} value={String(i)}>{d}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <label className="text-xs font-semibold uppercase tracking-wider text-[#6B705C] mb-1 block">
                 Time (UTC)
               </label>
-              <select
-                data-testid="weekly-digest-hour"
-                value={weekly_digest.hour}
-                onChange={(e) => updateDigest({ hour: Number(e.target.value) })}
+              <Select
+                value={String(weekly_digest.hour)}
+                onValueChange={(v) => updateDigest({ hour: Number(v) })}
                 disabled={!weekly_digest.enabled || savingDigest}
-                className="w-full bg-white border border-[#E8E6E1] rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#E07A5F] focus:ring-2 focus:ring-[#E07A5F]/20"
               >
-                {Array.from({ length: 24 }, (_, h) => (
-                  <option key={h} value={h}>
-                    {String(h).padStart(2, "0")}:00
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger
+                  data-testid="weekly-digest-hour"
+                  className="w-full bg-white border border-[#E8E6E1] rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#E07A5F] focus:ring-2 focus:ring-[#E07A5F]/20"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 24 }, (_, h) => (
+                    <SelectItem key={h} value={String(h)}>
+                      {`${String(h).padStart(2, "0")}:00`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </ChannelCard>

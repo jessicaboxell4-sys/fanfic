@@ -149,6 +149,18 @@ export default function BookCard({ book, selectMode, selected, onToggleSelect, o
           </div>
         )}
 
+        {/* Cross-device hint: shown when there's a fresh cloud cursor
+            from a different device — passive nudge that sync works. */}
+        {!selectMode && !isRead && crossDeviceHint && (
+          <div
+            data-testid={`cross-device-hint-${book.book_id}`}
+            title={`Picked up on ${crossDeviceHint.device_label || "another device"}`}
+            className="absolute top-2 right-2 bg-[#FDF3E1] text-[#8C5C00] text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full flex items-center gap-1 shadow border border-[#F5E0A8]"
+          >
+            <Smartphone className="w-3 h-3" /> Resume
+          </div>
+        )}
+
         {/* Hover-only quick action: add/remove from reading queue */}
         {!selectMode && (
           <button

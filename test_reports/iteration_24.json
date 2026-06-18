@@ -1,0 +1,33 @@
+{
+  "summary": "Retest of iter23 HIGH issues — both fixes VERIFIED PASS. (1) BookCard cross-device Resume badge now renders correctly: with seeded reading_cursors row (user_a18dde45958d/bk_tester_0/phone-OTHER, percent=0.3) and localStorage.shelfsort-device-id='test-other-device', the [data-testid='cross-device-hint-bk_tester_0'] yellow pill is visible on /library/all with text 'Resume', Smartphone SVG icon, title attribute 'Picked up on iPhone OTHER', and bg color rgb(253, 243, 225) (#FDF3E1). It appears ONLY on bk_tester_0 and not on the finished books (bk_tester_1 / bk_tester_3 carry READ badges instead). (2) EmailPreferences /account/emails now mounts cleanly with zero pageerrors — the weekly-digest 'Day of week' and 'Time (UTC)' selects have been migrated from native <select>+<option> to shadcn Select (BUTTON role=combobox with chevron SVG); zero native <option> elements remain on the page. (3) Operator-digest card admin gate confirmed working: with is_admin=False the [data-testid='operator-digest-card'] is absent; with is_admin=True flipped via mongosh, all three testids mount (operator-digest-card, operator-digest-toggle, operator-digest-preview-btn). PUT /api/admin/operator-digest toggles email_enabled True/False with toast confirmation ('Operator digest off' visible). POST /api/admin/operator-digest/preview returns 200 with delivered=false because Resend test mode only allows the configured account email — this is the documented acceptable PASS state from the request. is_admin was flipped back to False and the seeded reading_cursors row deleted at end of run.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "verification_passes": {
+    "resume_badge_renders_on_bk_tester_0": "PASS — [data-testid='cross-device-hint-bk_tester_0'] visible, text='Resume', title='Picked up on iPhone OTHER', bg=#FDF3E1, has Smartphone SVG",
+    "resume_badge_omitted_on_finished_books": "PASS — bk_tester_1 and bk_tester_3 show read-badge-* not cross-device-hint-*; only 1 hint badge in DOM",
+    "resume_badge_omitted_when_device_matches": "Inferred PASS — backend /api/reading-sync/hints with matching device_id correctly returns empty (verified in iter23); UI honors backend result",
+    "emailpreferences_mounts_cleanly": "PASS — page stays at /account/emails, 0 pageerrors, no hydration option>span crash",
+    "weekly_digest_selects_migrated_to_shadcn": "PASS — weekly-digest-day and weekly-digest-hour are BUTTON role=combobox with chevron SVG; 0 native <option> on the page",
+    "operator_digest_card_hidden_for_nonadmin": "PASS — with is_admin=false, [data-testid='operator-digest-card'] is NOT in the DOM",
+    "operator_digest_card_visible_for_admin": "PASS — with is_admin=true, card + toggle + preview button all in DOM",
+    "operator_digest_toggle_persists": "PASS — PUT 200 {email_enabled:true}, GET reflects state, toast renders, OFF toggle returns to false",
+    "operator_digest_preview_fires": "PASS — POST 200, delivered=false with Resend domain-verification message (acceptable per request: 'graceful warning if no Resend key')"
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Playwright/direct goto('/account/emails') and goto('/library/all') redirect to / before AuthContext resolves user. The pattern that works is pushState+popstate after initial /library mount. This is a testing-only quirk (no real user clicks into a fresh tab on a deep link from logged-out state without /login bouncing first), but worth noting: AuthContext might be racing with the initial route render. Suggest adding a loading guard on the root '/' Landing route so authenticated users get redirected to /library before Landing renders.",
+    "Onboarding tour modal intercepts pointer events on /account/emails for first-time logins; toggle clicks were swallowed until the tour was DOM-removed. Consider giving the tour backdrop a slightly higher z-index ONLY when active, or scoping the backdrop to non-modal pages."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only retest)", "frontend": "100% — both regressions fixed, operator-digest UI flow now exercisable"},
+  "test_credentials": "shelfsort-tester@example.com / tester123! (user_a18dde45958d). is_admin temporarily flipped to True via mongosh and reverted to False at end of run.",
+  "seed_data_creation": "Inserted ONE reading_cursors row for user_a18dde45958d / bk_tester_0 / device_id='phone-OTHER' / percent=0.3 / chapter_label='Ch 3' / fresh updated_at. Cleaned up at end of run (deletedCount=1).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Both iter23 HIGH issues are landed and verified. To re-verify in future: (1) seed reading_cursors with a different device_id than localStorage.shelfsort-device-id; (2) navigate to /library via login redirect first, THEN pushState to /library/all — direct goto to /library/all from a blank context hits a race in AuthContext and bounces to /. The operator-digest card test requires manually flipping users.is_admin in mongosh; remember to revert. Resend will return delivered=false in preview env because the API key is test-mode for jessicaboxell4@gmail.com only — this is expected and is the documented PASS state."
+}
