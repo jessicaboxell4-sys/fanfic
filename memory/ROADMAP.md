@@ -59,6 +59,10 @@
 - Move from local FS to object storage when scaling
 
 ## P3 — nice-to-have
+- **Launch tweet draft** *(remind-later, parked 2026-06-18)* — once
+  you click Deploy, ask me to draft a launch tweet for Twitter /
+  Bluesky pointing to a nice community cover, so the analytics
+  funnel + heatmap dashboards have real traffic to render.
 - **Weekly Operator Digest email** *(remind-later, parked 2026-06-18)*
   — Sunday rollup email to admin users surfacing the funnel + top
   covers + referrer distribution from `/api/analytics/summary`.
