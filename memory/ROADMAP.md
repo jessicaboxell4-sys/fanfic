@@ -98,6 +98,12 @@
   whenever another device saves a cursor.)
 
 ### Parked / remind-later
+- **Cover rails empty-state CTA** (parked 2026-06-18) — when a
+  trending rail (Top of the week / Trending now / Fresh today) has
+  fewer than N entries, swap the empty slots for a "Be the first
+  to share a cover for this rail" tile linking to the cover
+  generator.  Turns sparse-data UX into an organic call-to-action.
+  ~20 LOC inside `ExploreCoversPage.jsx`.
 - **Top help searches admin widget** (parked 2026-06-18) — extend
   the help-click analytics with a ping on Help-page search-with-
   results queries.  Surface the most-searched terms in the Admin
