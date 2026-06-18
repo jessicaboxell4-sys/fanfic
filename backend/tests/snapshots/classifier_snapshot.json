@@ -1,0 +1,205 @@
+[
+  {
+    "category": "Fanfiction",
+    "classifier": "metadata",
+    "confidence": 0.95,
+    "fandom": "Harry Potter",
+    "id": "hp-drarry"
+  },
+  {
+    "category": "Fanfiction",
+    "classifier": "metadata",
+    "confidence": 0.95,
+    "fandom": "Harry Potter",
+    "id": "hp-genfic"
+  },
+  {
+    "category": "Fanfiction",
+    "classifier": "metadata",
+    "confidence": 0.95,
+    "fandom": "Twilight",
+    "id": "twi-romance"
+  },
+  {
+    "category": "Fanfiction",
+    "classifier": "metadata",
+    "confidence": 0.95,
+    "fandom": "Marvel",
+    "id": "marvel-cap-iw"
+  },
+  {
+    "category": "Fanfiction",
+    "classifier": "metadata",
+    "confidence": 0.95,
+    "fandom": "DC Comics",
+    "id": "dc-batfam"
+  },
+  {
+    "category": "Fanfiction",
+    "classifier": "metadata",
+    "confidence": 0.95,
+    "fandom": "Star Wars",
+    "id": "sw-rebels"
+  },
+  {
+    "category": "Fanfiction",
+    "classifier": "metadata",
+    "confidence": 0.95,
+    "fandom": "Lord of the Rings",
+    "id": "lotr-aragorn"
+  },
+  {
+    "category": "Fanfiction",
+    "classifier": "metadata",
+    "confidence": 0.95,
+    "fandom": "Sherlock Holmes",
+    "id": "sherlock-bbc"
+  },
+  {
+    "category": "Fanfiction",
+    "classifier": "metadata",
+    "confidence": 0.95,
+    "fandom": "Percy Jackson and the Olympians",
+    "id": "pjo-classic"
+  },
+  {
+    "category": "Fanfiction",
+    "classifier": "metadata",
+    "confidence": 0.8,
+    "fandom": "Percy Jackson and the Olympians",
+    "id": "pjo-companion"
+  },
+  {
+    "category": "Fanfiction",
+    "classifier": "metadata",
+    "confidence": 0.95,
+    "fandom": "Heroes of Olympus",
+    "id": "hoo-jason"
+  },
+  {
+    "category": "Fanfiction",
+    "classifier": "metadata",
+    "confidence": 0.9,
+    "fandom": "Trials of Apollo",
+    "id": "toa-apollo"
+  },
+  {
+    "category": "Fanfiction",
+    "classifier": "metadata",
+    "confidence": 0.95,
+    "fandom": "Magnus Chase and the Gods of Asgard",
+    "id": "magnus-asgard"
+  },
+  {
+    "category": "Fanfiction",
+    "classifier": "metadata",
+    "confidence": 0.95,
+    "fandom": "The Kane Chronicles",
+    "id": "kane-egypt"
+  },
+  {
+    "category": "Fanfiction",
+    "classifier": "metadata",
+    "confidence": 0.8,
+    "fandom": "The Sun and the Star",
+    "id": "sun-and-star"
+  },
+  {
+    "category": "Fanfiction",
+    "classifier": "metadata",
+    "confidence": 0.95,
+    "fandom": "The Mortal Instruments",
+    "id": "tmi-jace"
+  },
+  {
+    "category": "Fanfiction",
+    "classifier": "metadata",
+    "confidence": 0.95,
+    "fandom": "The Infernal Devices",
+    "id": "tid-tessa"
+  },
+  {
+    "category": "Fanfiction",
+    "classifier": "metadata",
+    "confidence": 0.95,
+    "fandom": "Harry Potter",
+    "id": "crossover-hp-marvel"
+  },
+  {
+    "category": "Fanfiction",
+    "classifier": "metadata",
+    "confidence": 0.7,
+    "fandom": "Other",
+    "id": "fanfic-generic"
+  },
+  {
+    "category": "Unclassified",
+    "classifier": "metadata",
+    "confidence": 0.2,
+    "fandom": null,
+    "id": "origfic-fantasy"
+  },
+  {
+    "category": "Unclassified",
+    "classifier": "metadata",
+    "confidence": 0.2,
+    "fandom": null,
+    "id": "origfic-romance"
+  },
+  {
+    "category": "Unclassified",
+    "classifier": "metadata",
+    "confidence": 0.2,
+    "fandom": null,
+    "id": "origfic-thriller"
+  },
+  {
+    "category": "Non-fiction",
+    "classifier": "metadata",
+    "confidence": 0.7,
+    "fandom": null,
+    "id": "nonfic-memoir"
+  },
+  {
+    "category": "Non-fiction",
+    "classifier": "metadata",
+    "confidence": 0.7,
+    "fandom": null,
+    "id": "nonfic-cookbook"
+  },
+  {
+    "category": "Non-fiction",
+    "classifier": "metadata",
+    "confidence": 0.7,
+    "fandom": null,
+    "id": "nonfic-bio"
+  },
+  {
+    "category": "Non-fiction",
+    "classifier": "metadata",
+    "confidence": 0.7,
+    "fandom": null,
+    "id": "nonfic-history"
+  },
+  {
+    "category": "Non-fiction",
+    "classifier": "metadata",
+    "confidence": 0.7,
+    "fandom": null,
+    "id": "nonfic-selfhelp"
+  },
+  {
+    "category": "Unclassified",
+    "classifier": "metadata",
+    "confidence": 0.2,
+    "fandom": null,
+    "id": "unclassified-empty"
+  },
+  {
+    "category": "Unclassified",
+    "classifier": "metadata",
+    "confidence": 0.2,
+    "fandom": null,
+    "id": "unclassified-short"
+  }
+]

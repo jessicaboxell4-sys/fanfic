@@ -8,6 +8,31 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-18 — Classifier snapshot regression ✅
+
+A 29-fixture snapshot test now guards every keyword-bank + classifier
+edit against silent drift.
+
+- **`tests/test_classifier_snapshot.py`** — runs every fixture
+  through ``classify_by_metadata`` and diffs against
+  ``tests/snapshots/classifier_snapshot.json``.  Covers each major
+  fandom in ``FANDOM_KEYWORDS`` (HP, Twilight, Marvel, DC, Star
+  Wars, LOTR, Sherlock + every Riordanverse sub-fandom +
+  Shadowhunters sub-series), plus an HP×Marvel crossover, a
+  generic AO3 fanfic, original-fiction novels, every non-fiction
+  branch (memoir/cookbook/biography/history/self-help), and
+  Unclassified edge cases.
+- **Self-bootstrapping**: first run writes the snapshot and passes.
+  Any later drift fails loudly with a per-fixture diff.  Run with
+  `SHELFSORT_UPDATE_CLASSIFIER_SNAPSHOT=1` to intentionally
+  refresh after a deliberate change (Claude prompt tweak, new
+  fandom bucket, etc.).
+- Catches the silent "I tweaked the prompt and now every Marvel
+  fic is classified as DC" class of bug that would otherwise only
+  surface in production via mis-shelved uploads.
+
+---
+
 ## 2026-06-18 — Phase 6 continued: metadata + classifier extracted ✅
 
 Two more shim-pattern splits, each reducing ``books.py`` without
