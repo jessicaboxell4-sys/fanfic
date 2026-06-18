@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
-import { User as UserIcon, Mail, Lock, Loader2, Mail as MailIcon, Settings2, AlertTriangle, Layers, Plus, X as XIcon, Download, Sparkles, Trash2, Users as UsersIcon, ShieldCheck as ShieldCheckIcon, Wand2 } from "lucide-react";
+import { User as UserIcon, Mail, Lock, Loader2, Mail as MailIcon, Settings2, AlertTriangle, Layers, Plus, X as XIcon, Download, Sparkles, Trash2, Users as UsersIcon, ShieldCheck as ShieldCheckIcon, Wand2, HelpCircle } from "lucide-react";
 import LibraryStatsCard from "../components/LibraryStatsCard";
 import FandomTreemap from "../components/FandomTreemap";
 import CatalogSyncCard from "../components/CatalogSyncCard";
@@ -731,6 +731,14 @@ function CloudBackupCard() {
     <section className="shelf-card p-6 mb-6" data-testid="cloud-backup-card" id="cloud-backup-card">
       <h2 className="font-serif text-2xl text-[#2C2C2C] mb-1 flex items-center gap-2">
         <Download className="w-5 h-5 text-[#3B5B3F]" /> Cloud library mirror
+        <Link
+          to="/help#cloud-backup"
+          title="About cloud library mirror"
+          data-testid="help-anchor-cloud-backup"
+          className="inline-flex items-center justify-center w-5 h-5 rounded-full text-[#6B705C] hover:text-[#6B46C1] transition-colors"
+        >
+          <HelpCircle className="w-4 h-4" />
+        </Link>
       </h2>
       <p className="text-sm text-[#6B705C] mb-5">
         Your EPUBs and covers are continuously mirrored to durable cloud storage so a server redeploy can&apos;t wipe them. Click below to trigger an immediate mirror — usually it runs in the background every 10 minutes.

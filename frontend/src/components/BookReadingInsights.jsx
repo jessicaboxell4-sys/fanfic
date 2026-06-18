@@ -46,6 +46,7 @@ export default function BookReadingInsights({ bookId }) {
       className="flex flex-wrap items-center gap-2 mt-3 mb-2"
       data-testid="book-reading-insights"
     >
+      <HelpAnchor section="reading-insights" label="About reading insights" className="mr-0.5" />
       {reread?.is_reread && (
         <span
           data-testid="reread-pill"

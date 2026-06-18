@@ -142,8 +142,17 @@ export default function AccountDropdown({ user, onLogout }) {
               <ShieldCheck className="w-4 h-4 text-white" strokeWidth={2.5} />
             </span>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-[#2C2C2C] leading-tight">
+              <p className="text-sm font-semibold text-[#2C2C2C] leading-tight flex items-center gap-1.5">
                 Backed up {backupAgo}
+                <Link
+                  to="/help#cloud-backup"
+                  onClick={() => setBackupOpen(false)}
+                  title="About cloud backup"
+                  data-testid="help-anchor-cloud-backup-popover"
+                  className="inline-flex text-[#6B705C] hover:text-[#6B46C1]"
+                >
+                  <HelpCircle className="w-3.5 h-3.5" />
+                </Link>
               </p>
               {backupCount > 0 && (
                 <p className="text-xs text-[#6B705C] mt-0.5" data-testid="backup-fresh-count">
