@@ -56,6 +56,8 @@
 - `POST /api/reading-sync/cursor` · `POST /api/push/subscribe` (Web Push)
 - `GET|PUT /api/admin/operator-digest` · `POST /api/admin/operator-digest/preview`
 - `GET  /api/analytics/summary` (admin visitor analytics + funnel)
+- `POST /api/feedback` (Help-page short-form feedback + optional 5MB photo upload)
+- `GET  /api/admin/feedback` · `GET /api/admin/feedback/by-page` (admin triage + per-page friction aggregation)
 
 ## 3rd-Party Integrations
 - **Emergent LLM Key** — Claude Sonnet 4.6 for classification + tag suggestions

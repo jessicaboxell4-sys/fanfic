@@ -8,6 +8,34 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-18 — Help-page feedback: admin aggregation widget ✅
+
+Completed the user's last request from iter-26: the new Help-page
+SuggestionBox (photo upload + free-text) now has a matching admin
+console widget so per-page friction is visible at a glance.
+
+- New `HelpFeedbackCard` in `/app/frontend/src/pages/AdminConsole.jsx`
+  with per-page aggregation (`/admin/feedback/by-page`), status
+  filter (open / all), drill-down list (`/admin/feedback?page=…`),
+  inline photo thumbnails, and full data-testid coverage.
+- Backend: `/api/feedback` now correctly returns HTTP 413 for
+  `photo_too_large` and HTTP 400 for `not_an_image` (was previously
+  200 + `{ok:false}` which the client treated as success).
+- Backend: `/api/admin/feedback` + `/api/admin/feedback/by-page`
+  scope queries to `{text: {$exists, $ne: null}}` so the shared
+  `suggestions` collection's older `/api/suggestions` rows (with
+  `title`/`body`/`category` schema) don't leak into the new widget
+  and crash it on `r.text.length`.
+- Frontend SuggestionBox now reads `err.response.data.detail` and
+  surfaces reason-specific toasts ("Image is larger than 5 MB",
+  "That file isn't an image").
+- Help.jsx Lightbulb import was missing (added during testing-agent
+  iter 27) — `/help` route no longer 500s on first render.
+- Testing agent iter 28: ALL 5 verification items PASS.
+
+---
+
+
 ## 2026-06-18 — Auto-backfill on backend startup ✅
 
 The "did I remember to click backfill before deploying?" worry is
