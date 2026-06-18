@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Heart, Flame, Trophy, Sparkles } from "lucide-react";
+import { Heart, Flame, Trophy, Sparkles, BookOpen, ChevronRight } from "lucide-react";
 import { api } from "../lib/api";
 import ConsentBanner from "../components/ConsentBanner";
 
@@ -20,34 +20,66 @@ function ExploreRail({ rows, eyebrow, icon: Icon, accent, testid }) {
         <span className="text-xs text-[#6B705C]">{rows.length}</span>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-        {rows.map((c) => (
-          <Link
-            key={c.cover_id}
-            to={`/cover/${c.cover_id}`}
-            className="bg-white rounded-lg border border-[#E8E6E1] overflow-hidden shadow-sm hover:shadow-md transition-shadow"
-            data-testid={`explore-card-${c.cover_id}`}
-          >
-            <div className="aspect-[2/3] bg-[#F5F2EA] overflow-hidden">
-              <img
-                src={`data:${c.mime_type};base64,${c.image_base64}`}
-                alt={c.title}
-                loading="lazy"
-                className="w-full h-full object-cover"
-              />
-            </div>
-            <div className="p-2.5">
-              <p className="font-serif text-sm text-[#2C2C2C] leading-tight line-clamp-2 break-words">
-                {c.title || "Untitled"}
-              </p>
-              <div className="flex items-center justify-between mt-2 text-[11px] text-[#6B705C]">
-                <span className="inline-flex items-center gap-1">
-                  <Heart className="w-3 h-3" /> {c.votes || 0}
+        {rows.map((c) => {
+          const hasImg = !!(c.image_base64 && c.image_base64.length > 64);
+          return (
+            <Link
+              key={c.cover_id}
+              to={`/cover/${c.cover_id}`}
+              className="group relative bg-white rounded-lg border border-[#E8E6E1] overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+              data-testid={`explore-card-${c.cover_id}`}
+            >
+              <div className="aspect-[2/3] bg-[#F5F2EA] overflow-hidden relative">
+                {hasImg ? (
+                  <img
+                    src={`data:${c.mime_type};base64,${c.image_base64}`}
+                    alt={c.title}
+                    loading="lazy"
+                    onError={(e) => {
+                      // Bad / corrupt base64 — swap to the placeholder
+                      // sibling so the card never looks blank.
+                      e.currentTarget.style.display = "none";
+                      const ph = e.currentTarget.parentNode.querySelector(
+                        "[data-cover-fallback]",
+                      );
+                      if (ph) ph.style.display = "flex";
+                    }}
+                    className="w-full h-full object-cover"
+                  />
+                ) : null}
+                <div
+                  data-cover-fallback
+                  className="w-full h-full flex-col items-center justify-center text-[#C7B7A8]"
+                  data-testid={`explore-card-placeholder-${c.cover_id}`}
+                  style={{ display: hasImg ? "none" : "flex" }}
+                  aria-label="Cover image unavailable"
+                >
+                  <BookOpen className="w-10 h-10 mb-1.5" strokeWidth={1.25} />
+                  <span className="text-[10px] uppercase tracking-wider font-semibold">no image yet</span>
+                </div>
+                {/* Affordance pill — visible at all viewport widths so mobile
+                    users see the card is tappable. */}
+                <span
+                  className="absolute bottom-2 right-2 inline-flex items-center gap-0.5 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-black/55 text-white backdrop-blur-sm opacity-90 group-hover:opacity-100"
+                  data-testid={`explore-card-view-hint-${c.cover_id}`}
+                >
+                  View <ChevronRight className="w-2.5 h-2.5" />
                 </span>
-                <span className="truncate">@{c.shared_by}</span>
               </div>
-            </div>
-          </Link>
-        ))}
+              <div className="p-2.5">
+                <p className="font-serif text-sm text-[#2C2C2C] leading-tight line-clamp-2 break-words">
+                  {c.title || "Untitled"}
+                </p>
+                <div className="flex items-center justify-between mt-2 text-[11px] text-[#6B705C]">
+                  <span className="inline-flex items-center gap-1">
+                    <Heart className="w-3 h-3" /> {c.votes || 0}
+                  </span>
+                  <span className="truncate">@{c.shared_by}</span>
+                </div>
+              </div>
+            </Link>
+          );
+        })}
       </div>
     </section>
   );
