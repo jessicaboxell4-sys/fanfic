@@ -9,6 +9,7 @@ import {
 import { useAuth } from "../context/AuthContext";
 import { api } from "../lib/api";
 import UpdatesBell from "./UpdatesBell";
+import SuggestionBox from "./SuggestionBox";
 import StreakBadge from "./StreakBadge";
 import NavbarQuickAdd from "./NavbarQuickAdd";
 import AppearancePopover from "./AppearancePopover";
@@ -264,6 +265,7 @@ export default function Navbar() {
               three most-tapped controls. */}
           <div className="hidden sm:flex items-center gap-1.5 md:gap-2 lg:gap-3" data-testid="navbar-secondary-icons">
             <AppearancePopover />
+            <SuggestionBox />
             {user && <MessagesDropdown />}
             {user && <StreakBadge />}
             {user && FETCHING_UI_ENABLED && <UpdatesBell />}
