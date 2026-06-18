@@ -59,6 +59,14 @@
 - Move from local FS to object storage when scaling
 
 ## P3 — nice-to-have
+- **Cover ecosystem visitor analytics** *(remind-later, parked 2026-06-18)*
+  — anonymous traffic + heart + signup-conversion counter on
+  /explore/covers, /u/:username and /cover/:cover_id pages, surfaced
+  in the Admin Console so the operator can see whether the public
+  gallery is actually driving sign-ups.  One MongoDB collection
+  (`page_views` with `page_type`, `slug`, `is_anon`, `ts`) + a small
+  admin widget that aggregates daily/weekly views and the
+  conversion ratio.
 - Keyboard shortcuts (J/K next/prev) for ReadOriginal viewer ✅ (shipped 2026-06-17)
 - Engagement-gate hint UI in bookclub digest settings ✅ (shipped 2026-06-17)
 - `?` keyboard-cheatsheet overlay for ReadOriginal viewer ✅ (shipped 2026-06-17)
