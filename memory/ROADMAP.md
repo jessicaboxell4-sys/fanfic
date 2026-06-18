@@ -33,6 +33,22 @@
 
 ## P2 — polish
 
+- **Smart welcome email** (parked 2026-06-18) — use the new onboarding
+  answers (referral · favorite_fandom · reader_type · is_13_plus) to
+  send a personalized 3-line welcome email via Resend.  E.g. "Harry
+  Potter + mostly fanfic" routes to a tour of HP-tagged shelves +
+  the EPUB-from-URL importer; "mostly original + just organizing"
+  routes to a tour of the duplicate-detector + Smart Shelves.
+  Requires: route in `routes/auth.py` register success path to
+  dispatch a templated email; templates live alongside the existing
+  digest emails.  Easy win — uses existing infra.
+
+- **Per-page "Report friction" CTA** (parked 2026-06-18) — small
+  link on every page that opens the SuggestionBox with the `source`
+  field auto-prefilled to the user's current route.  Turns the
+  admin's per-page aggregation from "feedback I wrote ON /help"
+  into "feedback I wrote ABOUT /library while I was looking at it."
+
 - **Cover ecosystem — Tier 3 & 4** (Tiers 1 + 2 shipped 2026-06-17 —
   community pool + style packs).  Future expansions parked:
     * **Tier 2 remainder**
