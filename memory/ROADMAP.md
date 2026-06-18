@@ -98,6 +98,13 @@
   whenever another device saves a cursor.)
 
 ### Parked / remind-later
+- **Top help searches admin widget** (parked 2026-06-18) — extend
+  the help-click analytics with a ping on Help-page search-with-
+  results queries.  Surface the most-searched terms in the Admin
+  Console as a "users keep searching for X" signal — better
+  feature-clarity heuristic than raw TOC clicks because searches
+  are the *failed-to-find* moments.  ~15 LOC: 1 extra endpoint +
+  1 widget.
 - **Backup history page** (parked 2026-06-18) — turn the "X files
   safe in cloud storage" count in the AccountDropdown popover into
   a link to `/account/backups` showing the last 10 backup runs
