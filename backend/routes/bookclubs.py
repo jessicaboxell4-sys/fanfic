@@ -144,8 +144,76 @@ def _serialize_message(doc: Dict[str, Any]) -> Dict[str, Any]:
         "user_previous_username": doc.get("user_previous_username"),
         "chapter_index": int(doc.get("chapter_index", 0) or 0),
         "body": doc.get("body", ""),
+        "is_system": bool(doc.get("is_system", False)),
         "created_at": _iso(doc.get("created_at")),
     }
+
+
+async def _maybe_post_buddy_pacing(
+    room: Dict[str, Any], room_id: str, target_chapter: int,
+) -> None:
+    """Buddy-pacing: when both members of a 2-person room cross into a
+    new chapter, post a system message inviting the discussion.
+
+    Triggered from ``set_my_progress`` after a forward chapter move.
+    Idempotent — checks for an existing system trigger for the same
+    (room_id, chapter_index) before posting.  Only fires for rooms with
+    exactly two active human members (oversight role excluded), so it
+    stays out of larger clubs where chapter pacing is messier.
+    """
+    if target_chapter <= 0:
+        return
+    members = await db.bookclub_members.find(
+        {
+            "room_id": room_id,
+            "status": "active",
+            "role": {"$ne": "oversight"},
+        },
+        {"_id": 0, "user_id": 1, "current_chapter": 1},
+    ).to_list(length=10)
+    if len(members) != 2:
+        return
+    # Both must be at-or-past the target chapter for the nudge to make sense.
+    if not all(int(m.get("current_chapter", 0) or 0) >= target_chapter for m in members):
+        return
+
+    # Idempotency: skip if we already posted a buddy-pacing nudge for this chapter.
+    existing = await db.bookclub_messages.find_one(
+        {"room_id": room_id, "chapter_index": target_chapter, "is_system": True,
+         "system_kind": "buddy_pacing"},
+        {"_id": 1},
+    )
+    if existing is not None:
+        return
+
+    now = datetime.now(timezone.utc)
+    msg = {
+        "message_id": f"clubmsg_{uuid.uuid4().hex[:12]}",
+        "room_id": room_id,
+        "user_id": "system",
+        "user_name": "Shelfsort",
+        "user_username": None,
+        "user_previous_username": None,
+        "chapter_index": target_chapter,
+        "body": f"Both of you have reached Chapter {target_chapter}. Ready to talk about it?",
+        "is_system": True,
+        "system_kind": "buddy_pacing",
+        "created_at": now,
+    }
+    await db.bookclub_messages.insert_one(msg)
+    await db.bookclubs.update_one(
+        {"room_id": room_id}, {"$set": {"updated_at": now}},
+    )
+    # Ping both members in-app so they discover the prompt.
+    room_name = (room or {}).get("name", "")
+    for m in members:
+        await create_notification(
+            m["user_id"],
+            kind="bookclub_message",
+            title=f"Both of you reached Chapter {target_chapter}",
+            body=f'Time to discuss in "{room_name}".',
+            link=f"/bookclubs/{room_id}?chapter={target_chapter}",
+        )
 
 
 async def _hydrate_users(user_ids: List[str]) -> Dict[str, Dict[str, Any]]:
@@ -749,6 +817,9 @@ async def set_my_progress(
                     body=f'They wrapped up your "{room_name}" read.',
                     link=f"/bookclubs/{room_id}",
                 )
+        # Buddy-pacing: 2-person rooms get a system "ready to discuss
+        # chapter N?" prompt the first time both members cross into N.
+        await _maybe_post_buddy_pacing(room or {}, room_id, target_chapter)
     return {"current_chapter": target_chapter}
 
 

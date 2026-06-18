@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Book, Check, CheckCircle2, Circle, ListPlus, ListChecks } from "lucide-react";
+import { Book, Check, CheckCircle2, Circle, ListPlus, ListChecks, Smartphone } from "lucide-react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
 import { pulseGoalsCheck } from "../lib/goalHitWatcher";
@@ -43,7 +43,7 @@ function ClassifierChip({ classifier }) {
   );
 }
 
-export default function BookCard({ book, selectMode, selected, onToggleSelect, onChanged }) {
+export default function BookCard({ book, selectMode, selected, onToggleSelect, onChanged, crossDeviceHint }) {
   const { user } = useAuth();
   const [marking, setMarking] = useState(false);
   const [queueing, setQueueing] = useState(false);

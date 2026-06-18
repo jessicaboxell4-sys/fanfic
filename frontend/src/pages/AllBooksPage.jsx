@@ -206,6 +206,31 @@ export default function AllBooksPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Cross-device hints: fetch the set of books with a fresh cloud
+  // cursor from a different device.  Used by BookCard to render the
+  // passive "Resume" badge so the user discovers cross-device sync
+  // even before enabling push.  Cheap (single Mongo query) and runs
+  // once per library mount.
+  const [crossDeviceHints, setCrossDeviceHints] = useState({});
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const deviceId = localStorage.getItem("shelfsort-device-id") || "";
+        const { data } = await api.get("/reading-sync/hints", {
+          params: { device_id: deviceId, hours: 48 },
+        });
+        if (cancelled) return;
+        const map = {};
+        for (const h of (data?.hints || [])) {
+          if (h?.book_id) map[h.book_id] = h;
+        }
+        setCrossDeviceHints(map);
+      } catch { /* non-fatal */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   // Full-text search: when the toggle is on and the user types ≥ 2 chars,
   // debounce 350 ms then call the dedicated `/api/library/search/fulltext`
   // endpoint. Results render in a panel above the regular book grid; the
@@ -1345,6 +1370,7 @@ export default function AllBooksPage() {
                       });
                     }}
                     onChanged={load}
+                    crossDeviceHint={crossDeviceHints[b.book_id]}
                   />
                 ))}
               </div>

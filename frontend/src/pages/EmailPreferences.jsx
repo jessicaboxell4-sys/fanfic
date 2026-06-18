@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import NotificationMuteMatrix from "../components/NotificationMuteMatrix";
 import { api } from "../lib/api";
+import { useAuth } from "../context/AuthContext";
 import {
   ArrowLeft,
   Mail,
@@ -14,6 +15,7 @@ import {
   AlertCircle,
   PartyPopper,
   Info,
+  LineChart,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -121,6 +123,8 @@ function ChannelCard({
 
 export default function EmailPreferences() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isAdmin = !!user?.is_admin;
   const [overview, setOverview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [savingDigest, setSavingDigest] = useState(false);
@@ -128,6 +132,8 @@ export default function EmailPreferences() {
   const [sendingDigestPreview, setSendingDigestPreview] = useState(false);
   const [sendingUpdatePreview, setSendingUpdatePreview] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
+  const [operatorDigest, setOperatorDigest] = useState(null);
+  const [sendingOperatorPreview, setSendingOperatorPreview] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -144,6 +150,47 @@ export default function EmailPreferences() {
   useEffect(() => {
     load();
   }, []);
+
+  // Operator digest (admin-only) — loaded on demand so non-admins
+  // never see a 403 in the console.
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get("/admin/operator-digest");
+        if (!cancelled) setOperatorDigest(data);
+      } catch { /* admin gate or transient — non-fatal */ }
+    })();
+    return () => { cancelled = true; };
+  }, [isAdmin]);
+
+  const updateOperatorDigest = async (enabled) => {
+    setSavingDigest(true);
+    try {
+      const { data } = await api.put("/admin/operator-digest", { email_enabled: enabled });
+      setOperatorDigest((o) => ({ ...(o || {}), email_enabled: data.email_enabled }));
+      toast.success(enabled ? "Operator digest on" : "Operator digest off");
+    } catch (e) {
+      toast.error(errMsg(e?.response?.data?.detail));
+    } finally {
+      setSavingDigest(false);
+    }
+  };
+
+  const sendOperatorDigestPreview = async () => {
+    setSendingOperatorPreview(true);
+    try {
+      const { data } = await api.post("/admin/operator-digest/preview");
+      if (data?.delivered) toast.success(`Sample sent to ${overview?.email || "your inbox"}`);
+      else if (data?.logged) toast.warning("Preview prepared — email delivery not configured.");
+      else toast.warning(data?.error || "Preview not delivered.");
+    } catch (e) {
+      toast.error(errMsg(e?.response?.data?.detail));
+    } finally {
+      setSendingOperatorPreview(false);
+    }
+  };
 
   const updateDigest = async (patch) => {
     setSavingDigest(true);
@@ -626,6 +673,37 @@ export default function EmailPreferences() {
             </p>
           </div>
         </ChannelCard>
+
+        {/* Operator digest (admin-only) — Sunday rollup of analytics. */}
+        {isAdmin && (
+          <ChannelCard
+            icon={<LineChart className="w-5 h-5" />}
+            iconBg="bg-[#EEF3EC]"
+            iconColor="text-[#6B46C1]"
+            title="Operator weekly digest"
+            subtitle="A Sunday 19:00 UTC rollup of explore/cover views, signups, top covers, and referrer mix — for admins only."
+            enabled={operatorDigest?.email_enabled || false}
+            onToggle={() => updateOperatorDigest(!operatorDigest?.email_enabled)}
+            saving={savingDigest}
+            testidPrefix="operator-digest"
+            lastSent={operatorDigest?.last_sent_at}
+            previewBtn={
+              <>
+                <button
+                  type="button"
+                  onClick={sendOperatorDigestPreview}
+                  disabled={sendingOperatorPreview}
+                  data-testid="operator-digest-preview-btn"
+                  className="btn-secondary text-sm flex items-center gap-2 disabled:opacity-60"
+                >
+                  {sendingOperatorPreview ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  Send sample email
+                </button>
+                <p className="text-xs text-[#6B705C]">Reuses the data behind your Admin Console analytics widget.</p>
+              </>
+            }
+          />
+        )}
 
         {!email_configured && (
           <p

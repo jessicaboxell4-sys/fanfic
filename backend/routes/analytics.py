@@ -377,6 +377,91 @@ async def book_reading_heatmap(
 
 
 # ---------------------------------------------------------------------
+# Books most-likely-finished leaderboard
+# ---------------------------------------------------------------------
+
+# Same cohort gate as the per-book heatmap — a leaderboard row is hidden
+# until at least N opted-in readers contribute progress for the book.
+_LEADERBOARD_MIN_READERS = _HEATMAP_MIN_READERS
+
+
+@api_router.get("/books/most-finished-leaderboard")
+async def books_most_finished_leaderboard(
+    limit: int = 20,
+    user: User = Depends(get_current_user),  # noqa: ARG001
+):
+    """Cross-reader leaderboard of canonical (title, author) pairs
+    sorted by completion rate (fraction of opted-in cohort with
+    >=99% progress).  Powers a "books most likely to be finished"
+    homepage / bookclub-picker strip.
+
+    Privacy: respects ``users.reading_data_shared`` (default True);
+    only books with >= _LEADERBOARD_MIN_READERS contributing cohort
+    members are returned so a single user can't be inferred.
+    """
+    limit = max(1, min(int(limit or 20), 50))
+
+    opted_in: List[str] = []
+    async for u in db.users.find(
+        {"reading_data_shared": {"$ne": False}},
+        {"_id": 0, "user_id": 1},
+    ):
+        opted_in.append(u["user_id"])
+    if not opted_in:
+        return {"rows": [], "cohort_threshold": _LEADERBOARD_MIN_READERS}
+
+    pipeline = [
+        {"$match": {
+            "user_id":           {"$in": opted_in},
+            "progress_fraction": {"$gt": 0},
+            "trashed":           {"$ne": True},
+            "title":             {"$exists": True, "$ne": ""},
+        }},
+        {"$project": {
+            "_id": 0,
+            "title_key":  {"$toLower": {"$trim": {"input": "$title"}}},
+            "author_key": {"$toLower": {"$trim": {"input": {"$ifNull": ["$author", ""]}}}},
+            "title": 1, "author": 1, "fandom": 1,
+            "progress_fraction": 1,
+        }},
+        {"$group": {
+            "_id":            {"title_key": "$title_key", "author_key": "$author_key"},
+            "cohort":         {"$sum": 1},
+            "finished":       {"$sum": {"$cond": [{"$gte": ["$progress_fraction", 0.99]}, 1, 0]}},
+            "sample_title":   {"$first": "$title"},
+            "sample_author":  {"$first": "$author"},
+            "sample_fandom":  {"$first": "$fandom"},
+            "avg_progress":   {"$avg": "$progress_fraction"},
+        }},
+        {"$match": {"cohort": {"$gte": _LEADERBOARD_MIN_READERS}}},
+        {"$project": {
+            "_id": 0,
+            "title":           "$sample_title",
+            "author":          "$sample_author",
+            "fandom":          "$sample_fandom",
+            "cohort":          1,
+            "finished":        1,
+            "completion_rate": {"$divide": ["$finished", "$cohort"]},
+            "avg_progress":    1,
+        }},
+        {"$sort": {"completion_rate": -1, "cohort": -1}},
+        {"$limit": limit},
+    ]
+    rows: List[Dict[str, Any]] = []
+    async for r in db.books.aggregate(pipeline):
+        rows.append({
+            "title":           r["title"],
+            "author":          r.get("author", ""),
+            "fandom":          r.get("fandom"),
+            "cohort":          int(r["cohort"]),
+            "finished":        int(r["finished"]),
+            "completion_rate": round(float(r["completion_rate"]), 3),
+            "avg_progress":    round(float(r.get("avg_progress", 0)), 3),
+        })
+    return {"rows": rows, "cohort_threshold": _LEADERBOARD_MIN_READERS}
+
+
+# ---------------------------------------------------------------------
 # Privacy toggle
 # ---------------------------------------------------------------------
 

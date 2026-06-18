@@ -1,0 +1,53 @@
+{
+  "summary": "Validated P3 batch + SSE migration. Backend 9/9 PASS on test_p3_batch.py (cross-device hints, buddy-pacing, most-finished leaderboard, operator-digest gating). Leaderboard endpoint returns correct {rows, cohort_threshold:10} shape with tester bearer. SSE unified channel /api/events/stream IS opened on /library and /friends; chat/unread-count + friends/pending-count are NOT polled on an interval (delta = 0 over 20s idle) — only fetched once per route mount as initial seed. TWO frontend regressions found: (1) the cross-device 'Resume' yellow pill never renders on BookCard even though AllBooksPage fetches /api/reading-sync/hints and the API correctly returns the bk_tester_0 hint — BookCard.jsx destructures the `crossDeviceHint` prop but never references it in the JSX. (2) /account/emails page CRASHES with a React hydration error (option > span) before the admin-only operator-digest-card can mount, so the digest toggle/preview flow cannot be exercised via UI even though the API behind it is healthy (admin GET/PUT both 200).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "BookCard.jsx", "issue": "crossDeviceHint prop is destructured at line 46 but never rendered. AllBooksPage fetches /api/reading-sync/hints correctly (returns the bk_tester_0 hint for our seeded cross-device cursor) and passes crossDeviceHint={crossDeviceHints[b.book_id]} into BookCard, but no element with data-testid='cross-device-hint-<book_id>' ever appears in the DOM. The yellow Resume pill JSX is missing entirely.", "selector": "[data-testid='cross-device-hint-bk_tester_0']", "priority": "HIGH"},
+      {"component": "EmailPreferences page (/account/emails)", "issue": "Page renders briefly then crashes with a React hydration error: 'In HTML, <span> cannot be a child of <option>.' Trace points at the weekly-digest <select> at line 530 (option text wrapped by the Emergent VisualEditor in a span). After the crash the route falls back to / (landing). Net effect: the operator-digest-card never reaches steady DOM in this environment, so the toggle + 'Send sample email' UI flow cannot be verified end-to-end. Backend GET/PUT /api/admin/operator-digest both returned 200 in-flight (admin gate works), so this is purely a render bug in the Weekly-digest <select>/<option> tree. Source review confirms the operator-digest-card and operator-digest-preview-btn testids ARE wired correctly inside the isAdmin block.", "selector": "[data-testid='operator-digest-card']", "priority": "HIGH"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "verification_passes": {
+    "backend_pytest_test_p3_batch": "PASS 9/9 (TestCrossDeviceHints×3, TestBookclubBuddyPacing×1, TestMostFinishedLeaderboard×2, TestOperatorDigestGating×3)",
+    "most_finished_leaderboard_shape": "PASS — GET /api/books/most-finished-leaderboard?limit=5 with tester bearer → 200, body = {rows: [], cohort_threshold: 10} (tester's own books don't form a cohort, expected)",
+    "reading_sync_hints_endpoint": "PASS — with seeded reading_cursors row (device_id=phone-OTHER, percent=0.3, fresh), /api/reading-sync/hints?device_id=test-other-device&hours=48 returns the bk_tester_0 hint; with device_id=phone-OTHER (own device) it correctly omits it",
+    "sse_unified_channel_opens_on_library_and_friends": "PASS — EventSource on /api/events/stream observed (4 connections across login/library/friends navigations)",
+    "no_continuous_polling_of_chat_unread_or_friends_pending": "PASS — after page idles, 20s yielded 0 additional polls to either endpoint (only initial fetch-on-mount per route, which is acceptable)",
+    "cross_device_resume_badge_renders_on_book_card": "FAIL — BookCard never renders the badge (see frontend_issues)",
+    "cross_device_badge_omitted_on_finished_books": "PASS by accident — bk_tester_1/_3 (finished) have no badge BECAUSE no book has a badge",
+    "operator_digest_card_visible_to_admin": "FAIL — page crashes before card mounts (hydration error in unrelated weekly-digest <option>)",
+    "operator_digest_nonadmin_blocked": "PASS via pytest (403 GET/PUT)",
+    "buddy_pacing_system_message_e2e": "PASS via pytest test_buddy_pacing_system_message_appears (full 2-person flow, idempotency, second-chapter nudge all verified; messages persisted with is_system=true, system_kind='buddy_pacing')"
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_p3_batch.py",
+    "/app/test_reports/pytest/pytest_iter23.xml"
+  ],
+  "action_items": [
+    "HIGH — Add the yellow 'Resume' pill JSX in /app/frontend/src/components/BookCard.jsx. The prop is already wired through (destructured at line 46, supplied at AllBooksPage.jsx:1373). Expected: when crossDeviceHint truthy, render a small yellow badge with data-testid={`cross-device-hint-${book.book_id}`} reading something like '📱 Resume on iPhone 15 · 30%'. Without this, the only user-visible artefact of the cross-device sync feature is invisible.",
+    "HIGH — Fix the React hydration crash in EmailPreferences.jsx around the weekly-digest <select>. The Emergent VE wraps option text in a <span>, which is illegal HTML inside <option> in React 19 and crashes the whole route. Either render option text via the `label` prop only, or render the day selector as a button list/dropdown instead of a native <select>. Until this is fixed the entire /account/emails surface is unusable for any user (not just admins).",
+    "LOW — Continue to silence /api/auth/me 401 noise on public landing (carry-over from iter 22). Several 401s appear in console on the marketing landing redirect from /account/emails crash."
+  ],
+  "critical_code_review_comments": [
+    "BookCard.jsx accepts crossDeviceHint but doesn't use it. This is a half-shipped feature — please add a unit test or Storybook story that fails when the prop is provided but no testid renders, so it doesn't ship in a no-op state again.",
+    "EmailPreferences.jsx uses 4 native <select> elements with mapped <option> arrays (lines 502-540ish). React 19 + VisualEditor + nested-span = crash. Migrate to the shadcn <Select> primitive (used elsewhere in the app) to be safe, or guard the page from VE injection.",
+    "AllBooksPage.jsx /reading-sync/hints fetch runs once on mount with no refresh hook on SSE 'reading_cursor' events — once the unified SSE channel emits a cross-device sync, the hint pill would still be stale until next full page mount. Consider subscribing to SSE 'reading_cursor' events and refetching hints (or patching the local map). Not blocking for first ship.",
+    "operator_digest backend uses Sunday 19:00 UTC cron in digest.py — note this is a server-tz job; document that operators in non-UTC environments will see Sunday early-evening local-time delivery."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (9/9)", "frontend": "SSE migration verified PASS; cross-device badge FAIL; operator digest UI UNVERIFIABLE due to render crash"},
+  "test_credentials": "shelfsort-tester@example.com / tester123! (user_a18dde45958d) — used as documented. Admin flag was temporarily flipped via mongosh and reverted before exit.",
+  "seed_data_creation": "Inserted ONE reading_cursors row for user_a18dde45958d / bk_tester_0 with device_id='phone-OTHER', percent=0.3, fresh timestamp. Cleaned up at end of run.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "To re-verify the cross-device badge: (1) seed reading_cursors row again — mongosh script in the iter23 thread or the test_p3_batch.py fixture pattern works. (2) Set localStorage 'shelfsort-device-id' to anything other than the seeded cursor's device_id BEFORE first auth (or BEFORE navigating to /library/all). (3) Look for [data-testid='cross-device-hint-bk_tester_0'] on /library/all. To re-verify the operator-digest card, first reproduce the hydration crash by hitting /account/emails as ANY user — if the page still bounces to / it's the same VE/option/span issue. test_p3_batch.py is the canonical 9-test regression for this batch and runs in ~2s.",
+  "rca_of_the_issue": {
+    "cross_device_hint_missing": "BookCard.jsx line 46 destructures `crossDeviceHint` from props but the component body (lines 47-244) never renders an element using it. The feature is plumbed end-to-end at the data layer but the leaf-component JSX was forgotten.",
+    "operator_digest_card_unreachable_in_ui": "EmailPreferences.jsx renders 4 native <select> blocks for weekly-digest schedule. The Emergent VisualEditor injects a <span x-excluded='true' style='display:contents'> wrapper around the dynamic option text. React 19 treats <span> as an invalid <option> child and throws a hydration error, which collapses the route to the public landing via the app-level error boundary. Backend operator-digest endpoints are healthy (GET/PUT both 200 when admin) — the failure is purely in the FE render. Either replace native <select> with the shadcn <Select> (which uses divs, not <option>), or pass option labels via the `label` prop without nested text nodes."
+  }
+}

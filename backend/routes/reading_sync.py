@@ -100,6 +100,44 @@ async def get_reading_cursor(
     return doc
 
 
+@api_router.get("/reading-sync/hints")
+async def cross_device_hints(
+    device_id: str = "",
+    hours: int = 24,
+    user: User = Depends(get_current_user),
+):
+    """Return a per-book "you started this on another device — pick up?"
+    hint set.  The library page calls this once and tags each ``BookCard``
+    when its ``book_id`` is in the result, so the user discovers
+    cross-device sync passively without enabling push.
+
+    A book qualifies if its ``reading_cursors`` row was updated in the
+    last ``hours`` window by ANY device other than the caller's current
+    ``device_id`` (mint-once stable id from localStorage).  Books
+    already finished (>=99%) are excluded so we don't badge them.
+    """
+    hours = max(1, min(int(hours or 24), 24 * 30))
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
+    q: Dict[str, Any] = {"user_id": user.user_id, "updated_at": {"$gte": cutoff}}
+    if device_id:
+        q["device_id"] = {"$ne": device_id}
+    cursor = db.reading_cursors.find(
+        q,
+        {"_id": 0, "book_id": 1, "device_label": 1, "updated_at": 1, "percent": 1},
+    )
+    hints: List[Dict[str, Any]] = []
+    async for c in cursor:
+        if float(c.get("percent") or 0) >= 0.99:
+            continue   # already finished — no nudge
+        hints.append({
+            "book_id":      c.get("book_id"),
+            "device_label": c.get("device_label") or "another device",
+            "updated_at":   c.get("updated_at"),
+            "percent":      float(c.get("percent") or 0),
+        })
+    return {"hints": hints, "count": len(hints)}
+
+
 @api_router.get("/books/{book_id}/active-devices")
 async def active_devices_for_book(
     book_id: str,

@@ -991,6 +991,30 @@ def start_digest_scheduler():
         replace_existing=True,
     )
 
+    # Sunday 19:00 UTC — operator digest email for admin users with
+    # `operator_digest.email_enabled = True`.  Fires after the visitor
+    # cover-recap (18:00) so the queue doesn't double-up.  Idempotent
+    # per ISO week via `operator_digest.last_sent_at`.
+    from routes.operator_digest import maybe_send_operator_digest_for_all
+
+    async def _operator_digest_tick():
+        try:
+            sent = await maybe_send_operator_digest_for_all()
+            if sent:
+                logger.info("Operator-digest tick: emailed %d admin(s)", sent)
+        except Exception as e:
+            logger.warning("Operator-digest tick failed: %s", e)
+
+    sched.add_job(
+        wrap_cron_job(_operator_digest_tick, "operator_digest_tick"),
+        "cron",
+        day_of_week="sun",
+        hour=19,
+        minute=0,
+        id="operator_digest_tick",
+        replace_existing=True,
+    )
+
     sched.start()
     _scheduler = sched
     logger.info("Schedulers started (weekly digest + daily account grace tick).")

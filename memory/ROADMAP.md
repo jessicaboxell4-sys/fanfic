@@ -59,15 +59,13 @@
 - Move from local FS to object storage when scaling
 
 ## P3 — nice-to-have
-- **Launch tweet draft** *(remind-later, parked 2026-06-18)* — once
-  you click Deploy, ask me to draft a launch tweet for Twitter /
-  Bluesky pointing to a nice community cover, so the analytics
-  funnel + heatmap dashboards have real traffic to render.
-- **Weekly Operator Digest email** *(remind-later, parked 2026-06-18)*
-  — Sunday rollup email to admin users surfacing the funnel + top
-  covers + referrer distribution from `/api/analytics/summary`.
-  Uses the existing Resend integration + Sunday digest scheduler
-  tick.  ~50 lines on top of the existing digest infrastructure.
+- **Launch tweet drafts** ✅ (shipped 2026-06-18 — three angle variants
+  drafted in `/app/memory/LAUNCH_TWEET.md` with posting checklist).
+- **Weekly Operator Digest email** ✅ (shipped 2026-06-18 — Sunday
+  19:00 UTC rollup of explore views, cover views, signups, top covers,
+  and referrer mix.  Admin-only toggle on Account → Email preferences;
+  preview via `POST /api/admin/operator-digest/preview`.  Idempotent
+  per ISO week via `operator_digest.last_sent_at`).
 - **Twitter-style vanity URL** *(dropped 2026-06-18 after testing-
   agent sweep)* — the `/@:username` route was removed because the
   Kubernetes ingress / SPA fallback eats the `@` character and
@@ -75,25 +73,22 @@
   back, route it via the backend instead (e.g.,
   `GET /api/share/at/:username` → 302 to `/u/:username`) so the
   ingress never sees the `@`.
-- **Heatmap extensions deferred from the analytics+heatmap batch**
-  *(parked 2026-06-18)*:
-  * Re-reading detection (multiple backward jumps surfaced as a "must
-    be good" badge — needs per-session cursor history table).
-  * Pace percentile ("you're in the 80th-percentile speed for this
-    book" — needs per-cursor-tick deltas tracked over time).
-  * Books-most-likely-finished leaderboard (homepage + bookclub
-    picker aid — needs aggregate completion rates indexed across
-    every canonical book).
+- **Heatmap extensions deferred from the analytics+heatmap batch**:
+  * **Books-most-likely-finished leaderboard** ✅ (shipped 2026-06-18
+    — `GET /api/books/most-finished-leaderboard`; cohort-gated at 10
+    opted-in readers; respects `reading_data_shared`.  Surfaces
+    canonical (title, author) pairs sorted by completion rate.)
+  * Re-reading detection *(parked — needs per-session cursor history
+    table to detect multiple backward jumps).*
+  * Pace percentile *(parked — needs per-cursor-tick deltas tracked
+    over time).*
   * Personal-vs-aggregate cursor on the book detail page (the Reader
     pill ships this, the detail page surface is still TBD).
-  * Bookclub picking aid using completion rates (UI in bookclub
-    creation flow).
 - **"You started this on iPhone — pick up?" passive banner on BookCard**
-  *(remind-later, parked 2026-06-18)* — for books with a stale local
-  cursor but a fresh cloud cursor, show a small badge on the card
-  itself.  Doesn't need notification permission, helps users
-  discover cross-device sync even before enabling push.  Small
-  frontend-only change (~30 lines on BookCard.jsx).
+  ✅ (shipped 2026-06-18 — yellow "Resume" pill on the library grid
+  for any unfinished book with a fresh cloud cursor from a different
+  device.  Powered by `GET /api/reading-sync/hints` + the existing
+  `shelfsort-device-id` localStorage stamp.)
 - ✅ ~~Cover ecosystem visitor analytics~~ — superseded by the
   `AdminAnalyticsCard` widget shipped in the
   visitor-analytics+heatmap batch on 2026-06-18.
@@ -109,10 +104,12 @@
   *(parked 2026-06-18)* — bucket activity by hour, surface "you read
   mostly 9-11pm" insight + opt-in daily push at the peak hour.
   Needs Web Push infrastructure (VAPID keys) we don't currently have.
-- **Bookclub buddy-pacing** *(parked 2026-06-18)* — auto-trigger the
-  next chapter discussion when both members of a 2-person room cross
-  a chapter boundary.  Needs reading_cursors fan-out into the existing
-  bookclub events stream + per-room pacing policy.
+- **Bookclub buddy-pacing** ✅ (shipped 2026-06-18 — when both members
+  of a 2-person room cross into a new chapter, the room auto-posts a
+  system message "Both of you have reached Chapter N. Ready to talk
+  about it?" and pings both readers via in-app notifications.
+  Idempotent per (room, chapter); larger rooms skipped to avoid
+  spam.)
 - Keyboard shortcuts (J/K next/prev) for ReadOriginal viewer ✅ (shipped 2026-06-17)
 - Engagement-gate hint UI in bookclub digest settings ✅ (shipped 2026-06-17)
 - `?` keyboard-cheatsheet overlay for ReadOriginal viewer ✅ (shipped 2026-06-17)
