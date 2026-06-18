@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { ReactReader } from "react-reader";
 import { ArrowLeft, BookOpen, Minus, Plus, BookText, AlignLeft, Bookmark, BookmarkPlus, X as XIcon, Maximize, Minimize } from "lucide-react";
 import { api } from "../lib/api";
+import { armReadingHandoff } from "../lib/push";
 import { pulseGoalsCheck } from "../lib/goalHitWatcher";
 import { toast } from "sonner";
 
@@ -234,6 +235,13 @@ export default function Reader() {
     document.addEventListener("fullscreenchange", sync);
     return () => document.removeEventListener("fullscreenchange", sync);
   }, []);
+
+  // Cross-device handoff push — fires a single beacon when the user
+  // backgrounds / closes the tab after meaningful progress.  The
+  // backend pushes the resume prompt to every other registered
+  // device of the same user.  Opt-in (no-ops unless Push has been
+  // enabled in Account settings).
+  useEffect(() => armReadingHandoff(id, () => lastProgressRef.current), [id]);
 
   const toggleFullscreen = useCallback(() => {
     try {

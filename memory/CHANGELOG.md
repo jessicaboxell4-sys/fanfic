@@ -8,6 +8,47 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-18 — Web Push cross-device handoff ✅
+
+True Kindle-Sync-style reading handoff via Web Push.  When you close
+a Shelfsort tab mid-book, your *other* devices get a push within
+seconds: "Resume reading? You were on 'Twilight' (42%) on Mac."
+Tap the push → opens the Reader at the cloud cursor.
+
+**Backend** (new `routes/push.py`, ~200 lines):
+- VAPID keypair generated and stored in `backend/.env`
+  (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY_PEM`, `VAPID_CONTACT_EMAIL`).
+- `GET /api/push/vapid-public-key` — unauthenticated, browser
+  fetches during PushManager.subscribe().
+- `POST /api/push/subscribe` / `unsubscribe` — idempotent
+  per-endpoint upsert in `push_subscriptions`.
+- `POST /api/push/handoff` — fired by the Reader on visibilitychange
+  via `navigator.sendBeacon`.  Sends a Web Push to every
+  subscription belonging to the user EXCEPT the closing device.
+- Uses `pywebpush` 2.3.0 + `py-vapid` 1.9.4 (new dependencies, frozen
+  into `requirements.txt`).
+
+**Frontend**:
+- New service worker `public/sw.js` — handles `push` (shows
+  notification) + `notificationclick` (focus/open the resume URL).
+- New helper `lib/push.js` — `getPushStatus`, `enablePush`,
+  `disablePush`, plus `armReadingHandoff(bookId, getPercent)` that
+  the Reader mounts to fire the beacon on tab close.
+- New component `PushHandoffToggle` on the Account page with a
+  bell-icon button, status indicator ("subscribed" / "blocked by
+  browser" / "not enabled").  Hides itself on browsers without
+  Push support.
+- `Reader.jsx` now arms the handoff beacon on mount with the
+  current book id + percent.  Only fires once per tab close and
+  only when progress > 5% so a quick peek doesn't ping every device.
+
+**Tests** — new `tests/test_push.py`:
+- VAPID public key endpoint accessible unauth.
+- Subscribe is idempotent (second call doesn't duplicate row).
+- Unsubscribe drops the row.
+- Handoff 404s for unknown / cross-user book IDs.
+All 3 pass.
+
 ## 2026-06-18 — Reading sync + stuck books + DNF + Resume hero ✅
 
 Six tightly-coupled features that build the cross-device reading

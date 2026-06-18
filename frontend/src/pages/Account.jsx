@@ -7,6 +7,7 @@ import { User as UserIcon, Mail, Lock, Loader2, Mail as MailIcon, Settings2, Ale
 import LibraryStatsCard from "../components/LibraryStatsCard";
 import FandomTreemap from "../components/FandomTreemap";
 import CatalogSyncCard from "../components/CatalogSyncCard";
+import PushHandoffToggle from "../components/PushHandoffToggle";
 // PalettePickerCard moved to /account/appearance (linked from the navbar appearance popover)
 import { FETCHING_UI_ENABLED } from "../lib/featureFlags";
 import { toast } from "sonner";
@@ -1311,6 +1312,9 @@ export default function Account() {
             </button>
           </form>
         </section>
+
+        {/* Push notifications for cross-device reading handoff. */}
+        <PushHandoffToggle />
 
         {/* Email preferences link */}
         <section className="shelf-card p-6 mb-6" data-testid="email-prefs-link-card">
