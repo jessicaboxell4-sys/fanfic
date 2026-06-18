@@ -842,7 +842,7 @@ export default function AllBooksPage() {
                       ? "bg-[#6B705C] text-white border-[#6B705C]"
                       : "bg-white border-[#6B705C]/30 text-[#6B705C] hover:bg-[#6B705C]/10"
                   }`}
-                  title="FanFicFare couldn't find these — skipped on bulk update"
+                  title="We couldn't find these online — skipped on bulk update"
                 >
                   🚫 Can&apos;t find online · {refreshStatus.unavailable}
                 </button>

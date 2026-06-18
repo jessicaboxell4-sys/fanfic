@@ -457,11 +457,11 @@ export default function BookDetail() {
             {book.unavailable && !editing && (
               <div className="shelf-card p-5 mb-6 bg-[#FDF3E1]/40 border-[#E07A5F]/20" data-testid="recover-source-panel">
                 <p className="text-sm font-semibold text-[#2C2C2C] mb-1">
-                  🚫 FanFicFare couldn't find this story
+                  🚫 We couldn&apos;t find this story online
                 </p>
                 <p className="text-xs text-[#6B705C] mb-3">
                   We tried <code className="bg-white/60 px-1.5 py-0.5 rounded text-[#E07A5F]">{book.source_url}</code>. If the work moved
-                  (e.g., reposted under a new AO3 ID), paste the new URL and we'll try again.
+                  (e.g., reposted under a new ID), paste the new URL and we&apos;ll try again.
                 </p>
                 {editingSource ? (
                   <form onSubmit={saveSourceUrl} className="flex flex-col sm:flex-row gap-2">
@@ -706,16 +706,16 @@ export default function BookDetail() {
               )}
               {book.last_refreshed_at && (
                 <Meta
-                  label="Last updated from FanFicFare"
+                  label="Last refreshed online"
                   value={new Date(book.last_refreshed_at).toLocaleString()}
                 />
               )}
               {book.unavailable && (
                 <Meta
-                  label="FanFicFare status"
+                  label="Online availability"
                   value={
                     <span className="text-[#D9534F]" data-testid="unavailable-tag">
-                      🚫 Can't find online
+                      🚫 Can&apos;t find online
                     </span>
                   }
                 />

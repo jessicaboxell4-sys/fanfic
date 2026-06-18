@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import PoweredByFanFicFare from "../components/PoweredByFanFicFare";
+import { FETCHING_UI_ENABLED } from "../lib/featureFlags";
 import { api, API } from "../lib/api";
 import { ArrowLeft, ExternalLink, RefreshCw, Edit3, Download, Loader2, Book, AlertTriangle, CheckCircle2, RotateCw, Upload } from "lucide-react";
 import { toast } from "sonner";
@@ -67,7 +68,7 @@ export default function CantFindOnline() {
   useEffect(() => { probeStatus(false); }, []);
 
   const retryAll = async () => {
-    if (!window.confirm(`Retry FanFicFare for all ${books.length} unavailable book(s)? This may take a minute or two.`)) return;
+    if (!window.confirm(`Retry fetching all ${books.length} unavailable book(s)? This may take a minute or two.`)) return;
     setRetryAllBusy(true);
     try {
       const { data } = await api.post("/books/retry-unavailable");
@@ -75,7 +76,7 @@ export default function CantFindOnline() {
         toast.success(`${data.refreshed} book${data.refreshed === 1 ? "" : "s"} refreshed!`);
       }
       if (data.still_unavailable > 0) {
-        toast.warning(`${data.still_unavailable} book${data.still_unavailable === 1 ? "" : "s"} still unavailable — FanFicFare may still be down.`);
+        toast.warning(`${data.still_unavailable} book${data.still_unavailable === 1 ? "" : "s"} still unavailable — the source may still be down.`);
       }
       if (data.refreshed === 0 && data.still_unavailable === 0 && data.attempted === 0) {
         toast.info("Nothing to retry.");
@@ -119,10 +120,10 @@ export default function CantFindOnline() {
     const { silent = false } = opts;
     // If we've already auto-tried once for this book, ask for confirmation
     if (!silent && autoTriedIds.has(bid)) {
-      if (!window.confirm("FanFicFare already tried this once. Try again?")) return;
+      if (!window.confirm("We already tried this once. Try again?")) return;
     }
     setBusyId(bid);
-    const t = toast.loading("Pulling latest from FanFicFare…");
+    const t = toast.loading("Pulling latest…");
     try {
       const { data } = await api.post(`/books/${bid}/refresh`, {}, { timeout: 300000 });
       toast.success(`Updated to "${data.title}"`, { id: t });
@@ -143,7 +144,7 @@ export default function CantFindOnline() {
   const saveUrl = async (bid) => {
     try {
       await api.patch(`/books/${bid}/source-url`, { source_url: editUrl.trim() });
-      toast.success("Source URL updated. Click Retry FanFicFare to try again.");
+      toast.success("Source URL updated. Click Retry to try again.");
       setEditingId(null);
       setEditUrl("");
     } catch (e) {
@@ -172,11 +173,11 @@ export default function CantFindOnline() {
               Lost & found
             </h1>
             <p className="text-[#6B705C] mt-3 max-w-xl">
-              FanFicFare couldn't find these online. Try a same-site search to see if the work moved,
+              We couldn't find these online. Try a same-site search to see if the work moved,
               then paste the new URL to bring it back into your refresh queue.
             </p>
             <div className="mt-4">
-              <PoweredByFanFicFare />
+              {FETCHING_UI_ENABLED && <PoweredByFanFicFare />}
             </div>
           </div>
           {books.length > 0 && (
@@ -186,7 +187,7 @@ export default function CantFindOnline() {
                 onClick={retryAll}
                 disabled={retryAllBusy}
                 className="btn-primary text-sm flex items-center gap-2 disabled:opacity-60"
-                title="Clear the unavailable flag on every book and re-attempt FanFicFare"
+                title="Clear the unavailable flag on every book and re-attempt fetching"
               >
                 {retryAllBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCw className="w-4 h-4" />}
                 Retry all ({books.length})
@@ -203,7 +204,7 @@ export default function CantFindOnline() {
           )}
         </div>
 
-        {/* FanFicFare status banner */}
+        {/* Source-fetch status banner */}
         {status && (
           <div
             data-testid="fanfic-status-banner"
@@ -220,7 +221,7 @@ export default function CantFindOnline() {
             )}
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold">
-                {status.ok ? "FanFicFare is responding normally" : "FanFicFare is having trouble right now"}
+                {status.ok ? "Source fetcher is responding normally" : "Source fetcher is having trouble right now"}
               </p>
               <p className="text-xs text-[#6B705C] mt-0.5" data-testid="fanfic-status-detail">
                 {status.detail}
@@ -233,7 +234,7 @@ export default function CantFindOnline() {
               </p>
               {!status.ok && (
                 <p className="text-xs text-[#6B705C] mt-1.5">
-                  Your library is safe — books are flagged so we don't keep retrying. Once FanFicFare is back, "Retry all" will sweep them back into sync.
+                  Your library is safe — books are flagged so we don't keep retrying. Once the source fetcher is back, "Retry all" will sweep them back into sync.
                 </p>
               )}
             </div>
@@ -256,7 +257,7 @@ export default function CantFindOnline() {
           <div className="text-center py-16 shelf-card">
             <Book className="w-12 h-12 text-[#6B46C1] mx-auto mb-4 opacity-70" />
             <h2 className="font-serif text-2xl text-[#2C2C2C] mb-2">Nothing's lost</h2>
-            <p className="text-[#6B705C]">Every refreshable book in your library is reachable on FanFicFare.</p>
+            <p className="text-[#6B705C]">Every refreshable book in your library is reachable online.</p>
           </div>
         ) : (
           <ul className="space-y-4" data-testid="lost-list">
@@ -379,7 +380,7 @@ export default function CantFindOnline() {
                           ) : (
                             <RefreshCw className="w-3.5 h-3.5" />
                           )}
-                          Retry FanFicFare
+                          Retry
                         </button>
                         <label
                           className="btn-secondary text-xs flex items-center gap-1.5 py-1.5 cursor-pointer"

@@ -589,7 +589,7 @@ export default function Help() {
               <ul>
                 <li>Normalizes every URL (strips chapter / collection / mirror cruft) so an AO3 URL with <code>?view_adult=true</code> matches the same work without it, and FFnet URLs with or without the trailing chapter ID collapse together.</li>
                 <li>Flags <em>owned</em> vs <em>new</em> URLs, and also <em>duplicates within your input list</em> so you don&apos;t waste a fetch on the same fic twice.</li>
-                <li>Lets you download just the new URLs as a <code>.txt</code> or <code>.xlsx</code> — ready to paste into FanFicFare or a download manager.</li>
+                <li>Lets you download just the new URLs as a <code>.txt</code> or <code>.xlsx</code> — ready to paste into a download manager or your reader.</li>
               </ul>
               <p>For uploads, dropping a <code>.txt</code> of mostly-URLs onto the regular upload zone triggers the same flow automatically.</p>
             </Section>
@@ -714,7 +714,7 @@ export default function Help() {
               <p><strong>Books I haven&apos;t read</strong>: the dedicated <Link to="/library/unread">unread shelf</Link> lists every book you&apos;ve never opened, newest upload first.</p>
               <p><strong>Up next queue</strong>: build a personal reading order with the <em>Up next</em> widget on the Dashboard. Books in the queue persist across devices.</p>
               <p>The <Link to="/stats">Reading stats</Link> page covers your library shape, most-read fandoms, and pairing distribution. For a more cinematic year-end view — books opened, pages turned, longest streak, top fandoms, top author, bookends — open <a href="#year-in-books">Year in Books</a> below.</p>
-              <p><strong>Refresh fanfics</strong>: the URL-fetching feature (FanFicFare + FicHub) is intentionally hidden from the UI but the code is preserved for a future re-enable. No FAQ entry until then.</p>
+              <p><strong>Refresh fanfics</strong>: the URL-fetching feature is currently disabled while we tune it. Your existing books and their metadata are unaffected.</p>
             </Section>
 
             <Section id="cross-device" icon={ArrowLeftRight} title="Cross-device reading sync">
