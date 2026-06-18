@@ -8,6 +8,26 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-18 — Timestamp convention locked in ✅
+
+After the testing-agent sweep flagged the ISO-string `$gte` pattern as
+fragile, locked the convention down with two thin pieces instead of a
+multi-day BSON-Date migration:
+
+- **`utils/timestamps.py`** — `utc_iso(dt=None)` + `now_iso()`
+  helpers that always emit `+00:00`-offset ISO strings, no matter
+  whether the caller passes a naïve / aware / `None` datetime.
+  Module docstring explains the rationale (lexical-sort match,
+  no API-layer parsing, pre-existing data already stringly-typed).
+- **`tests/test_timestamp_convention.py`** — regression test that
+  samples up to 50 docs from each of the 6 critical timestamp
+  collections (`community_covers.shared_at`, `page_views.ts`,
+  `page_views.hour_bucket`, `cover_archive.archived_at`,
+  `reading_cursors.updated_at`, `push_subscriptions.created_at`)
+  and asserts every value is a `str` or missing.  If any writer
+  ever sneaks in a BSON `Date`, CI flips red immediately rather
+  than letting silent-filter-mismatch bugs ship.
+
 ## 2026-06-18 — Testing-agent sweep fixes ✅
 
 Ran the testing agent across the 10-feature batch.  Backend pytest
