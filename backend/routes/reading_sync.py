@@ -66,6 +66,29 @@ async def push_reading_cursor(
     if own is None:
         raise HTTPException(status_code=404, detail="Book not found")
     now_iso = datetime.now(timezone.utc).isoformat()
+
+    # Append-only history row — powers re-read detection + pace
+    # percentile.  We log the new (post-update) state, not the prior
+    # one, so the latest row mirrors the upsert; consumers can derive
+    # the prev/curr delta with `$setWindowFields` or a sorted scan.
+    # Skips tiny noise jitters under 0.2pp so the collection doesn't
+    # explode on rapid-fire scroll ticks.
+    prev = await db.reading_cursors.find_one(
+        {"user_id": user.user_id, "book_id": book_id},
+        {"_id": 0, "percent": 1},
+    )
+    delta = abs(float(body.percent or 0) - float((prev or {}).get("percent") or 0))
+    if prev is None or delta >= 0.002:
+        await db.cursor_history.insert_one({
+            "user_id":   user.user_id,
+            "book_id":   book_id,
+            "percent":   float(body.percent or 0),
+            "prev_pct":  float((prev or {}).get("percent") or 0),
+            "delta":     delta,
+            "device_id": body.device_id,
+            "ts":        now_iso,
+        })
+
     await db.reading_cursors.update_one(
         {"user_id": user.user_id, "book_id": book_id},
         {"$set": {
@@ -80,6 +103,21 @@ async def push_reading_cursor(
         }},
         upsert=True,
     )
+
+    # Publish to the unified SSE bus so other tabs/devices owned by
+    # the same user can refresh their cross-device "Resume" hint set
+    # immediately instead of waiting for a full page mount.
+    try:
+        from utils.event_bus import publish
+        await publish(user.user_id, "reading_cursor", {
+            "book_id":      book_id,
+            "device_id":    body.device_id,
+            "percent":      float(body.percent or 0),
+            "updated_at":   now_iso,
+        })
+    except Exception as e:
+        logger.debug("SSE reading_cursor publish failed (non-fatal): %s", e)
+
     return {"ok": True, "updated_at": now_iso}
 
 
@@ -272,6 +310,229 @@ async def pace_forecast(
         "minutes_last_14d":    minutes_total,
         "avg_minutes_per_day": round(avg_minutes_per_day, 1),
         "reason":              "ok",
+    }
+
+
+# ---------------------------------------------------------------------
+# Re-read detection (cursor_history-based)
+# ---------------------------------------------------------------------
+
+@api_router.get("/books/{book_id}/reread-signal")
+async def reread_signal(
+    book_id: str,
+    user: User = Depends(get_current_user),
+):
+    """Detect whether the user appears to be re-reading this book.
+
+    A "backward jump" is logged whenever the cursor drops back to
+    below 60 % of the peak percent seen so far (e.g., user finishes
+    the book at 100 %, then opens it again and starts at 5 %).  Three
+    or more such jumps in the last 90 days = re-read.
+
+    Returns ``{is_reread, backward_jumps, peak_percent}`` so the
+    BookDetail page can decorate the cover with a small "📖 Re-read"
+    badge.  Cohort gating doesn't apply — this is purely the user's
+    own data."""
+    own = await db.books.find_one(
+        {"book_id": book_id, "user_id": user.user_id},
+        {"_id": 0, "book_id": 1},
+    )
+    if own is None:
+        raise HTTPException(status_code=404, detail="Book not found")
+
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=90)).isoformat()
+    cursor = db.cursor_history.find(
+        {"user_id": user.user_id, "book_id": book_id, "ts": {"$gte": cutoff}},
+        {"_id": 0, "percent": 1, "ts": 1},
+    ).sort("ts", 1)
+
+    peak = 0.0
+    backward = 0
+    last = 0.0
+    async for r in cursor:
+        p = float(r.get("percent") or 0)
+        # A backward jump = current percent at least 0.4pp behind the
+        # running peak, AND we previously were near (>=0.8 * peak)
+        # the high-water mark — otherwise rapid scrubbing in the
+        # Reader would trigger false positives on first read.
+        if peak >= 0.5 and last >= peak * 0.8 and p < peak * 0.6:
+            backward += 1
+        peak = max(peak, p)
+        last = p
+    return {
+        "is_reread":      backward >= 3,
+        "backward_jumps": backward,
+        "peak_percent":   round(peak, 3),
+        "window_days":    90,
+    }
+
+
+# ---------------------------------------------------------------------
+# Pace percentile — user's rate compared to their own median across
+# all finished books.  Cheaper than a cohort-wide aggregate and still
+# answers the interesting question ("am I reading faster than usual?").
+# ---------------------------------------------------------------------
+
+@api_router.get("/books/{book_id}/pace-percentile")
+async def pace_percentile(
+    book_id: str,
+    user: User = Depends(get_current_user),
+):
+    """Compare the user's reading pace on this book against their
+    median pace on their previously-finished books.
+
+    Pace is ``Δpercent / Δhour`` over the last 14 days of cursor
+    history.  Returns a ``relative`` multiplier (1.0 = exactly their
+    usual pace, 1.5 = 50 % faster) so the BookDetail surface can
+    show "You're 50% faster than your usual pace" or fall back to
+    "not enough data" gracefully."""
+    own = await db.books.find_one(
+        {"book_id": book_id, "user_id": user.user_id},
+        {"_id": 0, "book_id": 1},
+    )
+    if own is None:
+        raise HTTPException(status_code=404, detail="Book not found")
+
+    async def _rate_for_book(bid: str, days: int) -> Optional[float]:
+        """Δpercent / hours of activity for a single book over ``days``."""
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        rows: List[Dict[str, Any]] = []
+        async for r in db.cursor_history.find(
+            {"user_id": user.user_id, "book_id": bid, "ts": {"$gte": cutoff}},
+            {"_id": 0, "percent": 1, "ts": 1},
+        ).sort("ts", 1):
+            rows.append(r)
+        if len(rows) < 2:
+            return None
+        pct_delta = float(rows[-1]["percent"]) - float(rows[0]["percent"])
+        if pct_delta <= 0:
+            return None
+        # Pull reading_activity minutes inside the same window so the
+        # denominator reflects actual session time, not wallclock.
+        mins = 0
+        async for r in db.reading_activity.find(
+            {"user_id": user.user_id, "book_id": bid, "day": {"$gte": cutoff[:10]}},
+            {"_id": 0, "minutes": 1},
+        ):
+            mins += int(r.get("minutes") or 0)
+        if mins < 5:
+            return None
+        return pct_delta / (mins / 60.0)   # %pts per hour
+
+    current = await _rate_for_book(book_id, days=14)
+    if current is None:
+        return {"have_data": False, "reason": "not_enough_data"}
+
+    # Median over the user's other books that have any activity.  Cap
+    # at 30 books for fairness.
+    other_rates: List[float] = []
+    finished_ids = await db.books.find(
+        {
+            "user_id":           user.user_id,
+            "progress_fraction": {"$gte": 0.5},
+            "book_id":           {"$ne": book_id},
+            "trashed":           {"$ne": True},
+        },
+        {"_id": 0, "book_id": 1},
+    ).limit(30).to_list(length=30)
+    for b in finished_ids:
+        r = await _rate_for_book(b["book_id"], days=180)
+        if r is not None:
+            other_rates.append(r)
+
+    if not other_rates:
+        return {
+            "have_data":      True,
+            "current_rate":   round(current, 3),
+            "median_rate":    None,
+            "relative":       1.0,
+            "reason":         "no_baseline_books",
+        }
+    other_rates.sort()
+    median = other_rates[len(other_rates) // 2]
+    relative = current / median if median > 0 else 1.0
+    return {
+        "have_data":     True,
+        "current_rate":  round(current, 3),
+        "median_rate":   round(median, 3),
+        "relative":      round(relative, 2),
+        "cohort_size":   len(other_rates),
+    }
+
+
+# ---------------------------------------------------------------------
+# Aggregate cursor — community average completion percent for the
+# canonical (title, author) pair.  Cohort-gated like the heatmap.
+# ---------------------------------------------------------------------
+
+_AGG_CURSOR_MIN_READERS = 5
+
+
+@api_router.get("/books/{book_id}/aggregate-cursor")
+async def aggregate_cursor(
+    book_id: str,
+    user: User = Depends(get_current_user),
+):
+    """Average progress percent across opted-in users who own the
+    same canonical (title, author) pair.  Shows a "the community is
+    at X %" tick on the BookDetail progress bar.
+
+    Cohort gating at ``_AGG_CURSOR_MIN_READERS`` (=5) keeps single
+    users from being identified by their reading position."""
+    book = await db.books.find_one(
+        {"book_id": book_id, "user_id": user.user_id},
+        {"_id": 0, "title": 1, "author": 1, "progress_fraction": 1},
+    )
+    if book is None:
+        raise HTTPException(status_code=404, detail="Book not found")
+
+    title = (book.get("title") or "").strip().lower()
+    author = (book.get("author") or "").strip().lower()
+    if not title:
+        return {"have_data": False, "reason": "no_title"}
+
+    # Restrict to opted-in cohort only.
+    opted = await db.users.find(
+        {"reading_data_shared": {"$ne": False}},
+        {"_id": 0, "user_id": 1},
+    ).to_list(length=10000)
+    opted_ids = [u["user_id"] for u in opted]
+
+    pipeline = [
+        {"$match": {
+            "user_id":           {"$in": opted_ids},
+            "title":             {"$exists": True, "$ne": ""},
+            "progress_fraction": {"$gt": 0},
+            "trashed":           {"$ne": True},
+        }},
+        {"$project": {
+            "_id": 0,
+            "title_key":         {"$toLower": {"$trim": {"input": "$title"}}},
+            "author_key":        {"$toLower": {"$trim": {"input": {"$ifNull": ["$author", ""]}}}},
+            "progress_fraction": 1,
+        }},
+        {"$match": {"title_key": title, "author_key": author}},
+        {"$group": {
+            "_id":            None,
+            "cohort":         {"$sum": 1},
+            "avg_pct":        {"$avg": "$progress_fraction"},
+            "finished":       {"$sum": {"$cond": [{"$gte": ["$progress_fraction", 0.99]}, 1, 0]}},
+        }},
+    ]
+    agg = await db.books.aggregate(pipeline).to_list(length=1)
+    if not agg or agg[0]["cohort"] < _AGG_CURSOR_MIN_READERS:
+        return {
+            "have_data": False,
+            "reason":    "below_cohort_threshold",
+            "threshold": _AGG_CURSOR_MIN_READERS,
+        }
+    a = agg[0]
+    return {
+        "have_data":       True,
+        "your_percent":    round(float(book.get("progress_fraction") or 0), 3),
+        "avg_percent":     round(float(a["avg_pct"]), 3),
+        "completion_rate": round(a["finished"] / a["cohort"], 3),
+        "cohort":          int(a["cohort"]),
     }
 
 

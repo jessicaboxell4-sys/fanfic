@@ -1,0 +1,32 @@
+{
+  "summary": "Shelfsort P3 final batch — frontend verification PASS (4/4). (1) BookReadingInsights pill strip mounts on /book/bk_tester_0 with [data-testid='book-reading-insights'] container and [data-testid='reread-pill'] yellow 'Re-read' badge (text='Re-read', title='3 backward jumps in the last 90 days', Repeat SVG icon present) after seeding 10 cursor_history rows with the documented [0.1, 0.3, 0.55, 0.8, 1.0, 0.05, 1.0, 0.1, 1.0, 0.2] percent trace. Backend /api/books/bk_tester_0/reread-signal returned {is_reread:true, backward_jumps:3, peak_percent:1.0}. Pace and cohort pills did not render (acceptable per request — no baseline books / below 5-user cohort threshold). (2) BookReadingInsights hides gracefully on /book/bk_tester_2 with no cursor_history: [data-testid='book-detail-title'] still mounts (page does NOT crash) and [data-testid='book-reading-insights'] is absent from the DOM (showAny short-circuit returns null). (3) SSE-driven Resume badge refresh on /library/all works end-to-end: with localStorage.shelfsort-device-id='test-tab-A-device' and a POST /api/books/bk_tester_0/cursor (device_id='phone-OTHER', percent=0.3, device_label='iPhone OTHER'), the [data-testid='cross-device-hint-bk_tester_0'] yellow Resume badge appeared within 500ms (text='Resume', title='Picked up on iPhone OTHER') without a page refresh, confirming AllBooksPage's useEventStream subscription to 'reading_cursor' triggers fetchHints. (4) Phase-6 chapter-helper extraction shim — /api/books/bk_tester_0/diff returns HTTP 400 with the structured payload {\"detail\":\"No counterpart version found. Refresh this book first to create a version history, or pass ?vs={other_book_id}.\"}. Status 400 (not 500) proves the diff_chapters re-export from utils/epub_chapters lands cleanly and the route reaches its business-logic guard — no ImportError. Reading-insights endpoints /reread-signal, /pace-percentile, /aggregate-cursor all returned HTTP 200 with proper schemas.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "verification_passes": {
+    "reread_pill_renders_on_bk_tester_0_after_seed": "PASS — [data-testid='book-reading-insights'] + [data-testid='reread-pill'] present; text='Re-read', title='3 backward jumps in the last 90 days', icon SVG present",
+    "reread_signal_endpoint_returns_is_reread_true": "PASS — /api/books/bk_tester_0/reread-signal => {is_reread:true, backward_jumps:3, peak_percent:1.0, window_days:90}",
+    "pace_percentile_endpoint_200": "PASS — returns {have_data:false, reason:'not_enough_data'} (graceful, no error)",
+    "aggregate_cursor_endpoint_200": "PASS — returns {have_data:false, reason:'below_cohort_threshold', threshold:5} (cohort-gated, graceful)",
+    "book_reading_insights_hides_on_bk_tester_2": "PASS — book-detail-title mounts, book-reading-insights absent, no crash",
+    "sse_resume_badge_refresh": "PASS — Resume badge appeared 500ms after POST /api/books/bk_tester_0/cursor with device_id='phone-OTHER'; text='Resume', title='Picked up on iPhone OTHER'",
+    "phase6_diff_route_shim": "PASS — /api/books/bk_tester_0/diff => HTTP 400 with structured 'No counterpart version found' detail (no ImportError, diff_chapters re-export from utils/epub_chapters reachable)"
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Minor: BookReadingInsights useEffect makes 3 parallel API calls on every BookDetail mount even when the book has zero cursor_history — endpoints already short-circuit cheaply (returning have_data:false) but on a library with hundreds of detail-page visits per session, batching these into a single /api/books/{id}/insights endpoint that returns all three signals at once would cut frontend network chatter by 67%.",
+    "Cohort threshold (5 users) for aggregate-cursor is hardcoded; consider surfacing it via /api/config so the same threshold can be tuned without a frontend redeploy.",
+    "Direct goto('/book/<id>') from a fresh tab still races with AuthContext (carryover from iter24): the working pattern is to land on /library via login, THEN history.pushState. AuthContext gating on the '/' route would solve this preview-deploy testing quirk."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (4/4 endpoints verified: reread-signal, pace-percentile, aggregate-cursor, diff)", "frontend": "100% (3/3 UI flows: pill strip mount, graceful hide, SSE Resume badge refresh)"},
+  "test_credentials": "shelfsort-tester@example.com / tester123! (user_a18dde45958d) — used as documented; no admin elevation needed for this iter.",
+  "seed_data_creation": "Inserted 10 cursor_history rows for user_a18dde45958d/bk_tester_0 with percent trace [0.1, 0.3, 0.55, 0.8, 1.0, 0.05, 1.0, 0.1, 1.0, 0.2] and ascending ts ISO strings spanning the last 10 minutes (TEST_seed:true marker). Also inserted 1 reading_cursors row for bk_tester_0 with device_id='phone-OTHER' via the POST /api/books/bk_tester_0/cursor call to exercise the SSE flow. Both cleaned up at end of run: cursor_history deletedCount=10, reading_cursors deletedCount=1.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All three P3 final-batch frontend features (BookReadingInsights pill strip, SSE Resume badge refresh, Phase-6 diff shim) are landed and verified. Field name gotcha: cursor_history rows are queried by the route on field 'ts' (ISO string) not 'recorded_at' — first seed attempt with recorded_at returned is_reread:false; reseed with ts as ISO string returned is_reread:true. To re-verify in the future: seed 10 rows with the documented percent trace, ts as ISO strings ascending within the 90-day window, then GET /api/books/<id>/reread-signal. For SSE: login in tab A, set localStorage.shelfsort-device-id to anything other than 'phone-OTHER', then POST /api/books/<id>/cursor with device_id='phone-OTHER' and watch the cross-device-hint testid appear within 1s. Direct goto deep-links still race AuthContext; use login-then-pushState pattern."
+}

@@ -1,5 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from "react";
-import { useNavigate, Link, useSearchParams } from "react-router-dom";
+import React, { useEffect, useMemo, useState, useCallback } from "react";import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { api } from "../lib/api";
 import Navbar from "../components/Navbar";
 import BookCard from "../components/BookCard";
@@ -16,6 +15,7 @@ import BackupReminderBanner from "../components/BackupReminderBanner";
 import LibraryActivityWidgets from "../components/LibraryActivityWidgets";
 import Ao3FilterChips from "../components/Ao3FilterChips";
 import FandomFinder from "../components/FandomFinder";
+import { useEventStream } from "../hooks/useEventStream";
 import { Search, X, Plus, ArrowRight, ArrowLeftRight, Heart, BookOpen, CheckSquare, Sparkles, Loader2, RefreshCw, Library, UserCircle2, Filter, Pin, FolderOpen, ArrowUpDown, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Trash2, LayoutGrid, List as ListIcon } from "lucide-react";
 import { toast } from "sonner";
 import { FETCHING_UI_ENABLED } from "../lib/featureFlags";
@@ -212,24 +212,32 @@ export default function AllBooksPage() {
   // even before enabling push.  Cheap (single Mongo query) and runs
   // once per library mount.
   const [crossDeviceHints, setCrossDeviceHints] = useState({});
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const deviceId = localStorage.getItem("shelfsort-device-id") || "";
-        const { data } = await api.get("/reading-sync/hints", {
-          params: { device_id: deviceId, hours: 48 },
-        });
-        if (cancelled) return;
-        const map = {};
-        for (const h of (data?.hints || [])) {
-          if (h?.book_id) map[h.book_id] = h;
-        }
-        setCrossDeviceHints(map);
-      } catch { /* non-fatal */ }
-    })();
-    return () => { cancelled = true; };
+  const fetchHints = useCallback(async () => {
+    try {
+      const deviceId = localStorage.getItem("shelfsort-device-id") || "";
+      const { data } = await api.get("/reading-sync/hints", {
+        params: { device_id: deviceId, hours: 48 },
+      });
+      const map = {};
+      for (const h of (data?.hints || [])) {
+        if (h?.book_id) map[h.book_id] = h;
+      }
+      setCrossDeviceHints(map);
+    } catch { /* non-fatal */ }
   }, []);
+  useEffect(() => { fetchHints(); }, [fetchHints]);
+
+  // Live refresh: when any of the user's devices saves a new cursor,
+  // re-fetch the hint set so the "Resume" badge appears immediately
+  // on every other open tab without waiting for a remount.  Skips
+  // the refetch when the event came from this tab's own device id.
+  useEventStream({
+    "reading_cursor": (data) => {
+      const ownDevice = localStorage.getItem("shelfsort-device-id") || "";
+      if (data?.device_id && data.device_id === ownDevice) return;
+      fetchHints();
+    },
+  });
 
   // Full-text search: when the toggle is on and the user types ≥ 2 chars,
   // debounce 350 ms then call the dedicated `/api/library/search/fulltext`

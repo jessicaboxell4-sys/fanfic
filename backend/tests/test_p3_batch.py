@@ -306,10 +306,6 @@ class TestMostFinishedLeaderboard:
         assert match["completion_rate"] >= 0.99
 
 
-# =====================================================================
-# Operator digest gating
-# =====================================================================
-
 class TestOperatorDigestGating:
     TOK = f"sess_od_{uuid.uuid4().hex}"
     UID = f"user_od_{uuid.uuid4().hex[:8]}"
@@ -356,3 +352,159 @@ class TestOperatorDigestGating:
             assert r.json()["email_enabled"] is True
         finally:
             db.users.update_one({"user_id": self.UID}, {"$set": {"is_admin": False}})
+
+
+
+# =====================================================================
+# Reading-insights endpoints — re-read signal, pace percentile,
+# aggregate cursor.  Powers BookReadingInsights on BookDetail.
+# =====================================================================
+
+class TestReadingInsights:
+    TOK = f"sess_ri_{uuid.uuid4().hex}"
+    UID = f"user_ri_{uuid.uuid4().hex[:8]}"
+    BOOK = f"book_ri_{uuid.uuid4().hex[:6]}"
+    SHARED_TITLE = f"Cohort-RI-{uuid.uuid4().hex[:6]}"
+
+    @pytest.fixture(autouse=True, scope="class")
+    def seed(self):
+        now = datetime.now(timezone.utc)
+        db.users.insert_one({
+            "user_id": self.UID, "email": f"{self.UID}@ex.com", "name": "RI Tester",
+            "is_admin": False, "reading_data_shared": True,
+            "created_at": now.isoformat(),
+        })
+        db.user_sessions.insert_one({
+            "user_id": self.UID, "session_token": self.TOK,
+            "expires_at": now + timedelta(days=7), "created_at": now,
+        })
+        db.books.insert_one({
+            "book_id": self.BOOK, "user_id": self.UID,
+            "title": self.SHARED_TITLE, "author": "Shared Author",
+            "category": "Fanfiction", "progress_fraction": 0.45,
+            "created_at": now,
+        })
+        # Seed cursor_history with a clean read-through then a re-read:
+        # five forward steps to 100 %, then three backward jumps to <40 %.
+        hist = []
+        ts0 = now - timedelta(days=60)
+        for i, p in enumerate([0.1, 0.3, 0.55, 0.8, 1.0,
+                                0.05, 1.0, 0.1, 1.0, 0.2]):
+            hist.append({
+                "user_id": self.UID, "book_id": self.BOOK,
+                "percent": p, "prev_pct": (hist[-1]["percent"] if hist else 0),
+                "delta": 0, "device_id": "test",
+                "ts": (ts0 + timedelta(days=i * 3)).isoformat(),
+            })
+        db.cursor_history.insert_many(hist)
+        # Cohort books for aggregate-cursor: 6 fake readers at varying
+        # progress on the SAME canonical title so the cohort gate
+        # (>= 5) clears.
+        self.cohort_uids: list[str] = []
+        for i, pct in enumerate([0.2, 0.5, 0.6, 0.7, 0.9, 1.0]):
+            cu = f"user_ri_cohort_{i}_{uuid.uuid4().hex[:6]}"
+            db.users.insert_one({
+                "user_id": cu, "email": f"{cu}@ex.com", "name": cu,
+                "is_admin": False, "reading_data_shared": True,
+                "created_at": now.isoformat(),
+            })
+            db.books.insert_one({
+                "book_id": f"book_ri_cohort_{i}_{uuid.uuid4().hex[:6]}",
+                "user_id": cu,
+                "title": self.SHARED_TITLE, "author": "Shared Author",
+                "category": "Fanfiction", "progress_fraction": pct,
+                "created_at": now,
+            })
+            self.cohort_uids.append(cu)
+        yield
+        db.users.delete_many({"user_id": {"$in": self.cohort_uids + [self.UID]}})
+        db.user_sessions.delete_many({"user_id": self.UID})
+        db.books.delete_many({"title": self.SHARED_TITLE})
+        db.cursor_history.delete_many({"user_id": self.UID})
+
+    def test_reread_signal_detects_backward_jumps(self):
+        r = requests.get(
+            f"{BASE}/api/books/{self.BOOK}/reread-signal",
+            headers=_h(self.TOK),
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        # The 3 backward jumps to <40% after reaching 100% should trip it.
+        assert body["is_reread"] is True
+        assert body["backward_jumps"] >= 3
+        assert body["peak_percent"] >= 0.99
+
+    def test_reread_signal_404_for_unknown_book(self):
+        r = requests.get(
+            f"{BASE}/api/books/nonexistent_book/reread-signal",
+            headers=_h(self.TOK),
+        )
+        assert r.status_code == 404
+
+    def test_aggregate_cursor_returns_cohort_average(self):
+        r = requests.get(
+            f"{BASE}/api/books/{self.BOOK}/aggregate-cursor",
+            headers=_h(self.TOK),
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        # 6-user cohort, avg ~ 0.65; threshold is 5 so it clears.
+        assert body["have_data"] is True
+        assert body["cohort"] >= 5
+        assert body["your_percent"] == 0.45
+        assert 0.5 < body["avg_percent"] < 0.8
+
+    def test_pace_percentile_graceful_without_data(self):
+        # Tester has cursor_history but no reading_activity rows ⇒
+        # endpoint should return have_data=False with not_enough_data.
+        r = requests.get(
+            f"{BASE}/api/books/{self.BOOK}/pace-percentile",
+            headers=_h(self.TOK),
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body.get("have_data") in (False, True)
+        if body.get("have_data") is False:
+            assert body.get("reason") == "not_enough_data"
+
+
+# =====================================================================
+# Phase-6 module split — chapter helpers moved to utils/epub_chapters.
+# Backward-compat shim: routes.books still exposes the names.
+# =====================================================================
+
+class TestPhase6ChapterHelpersShim:
+    def test_extract_chapters_reexported_from_books(self):
+        from routes.books import extract_chapters, diff_chapters, _normalize_chapter_title
+        from utils.epub_chapters import (
+            extract_chapters as _ec,
+            diff_chapters as _dc,
+            _normalize_chapter_title as _nct,
+        )
+        assert extract_chapters is _ec
+        assert diff_chapters is _dc
+        assert _normalize_chapter_title is _nct
+
+    def test_normalize_chapter_title_strips_prefix(self):
+        from utils.epub_chapters import _normalize_chapter_title
+        assert _normalize_chapter_title("Chapter 5: The Reckoning") == "the reckoning"
+        assert _normalize_chapter_title("Prologue") == ""
+        assert _normalize_chapter_title("   ") == ""
+
+    def test_diff_chapters_detects_added_and_changed(self):
+        from utils.epub_chapters import diff_chapters
+        old = [
+            {"index": 0, "title": "Chapter 1", "words": 100, "href": "a.xhtml"},
+            {"index": 1, "title": "Chapter 2", "words": 200, "href": "b.xhtml"},
+        ]
+        new = [
+            {"index": 0, "title": "Chapter 1", "words": 100, "href": "a.xhtml"},
+            {"index": 1, "title": "Chapter 2", "words": 250, "href": "b.xhtml"},
+            {"index": 2, "title": "Chapter 3", "words": 300, "href": "c.xhtml"},
+        ]
+        d = diff_chapters(old, new)
+        assert d["summary"]["chapters_added"] == 1
+        assert d["summary"]["chapters_changed"] == 1
+        assert d["summary"]["chapters_unchanged"] == 1
+        assert d["summary"]["words_delta"] == 350
+        assert d["first_changed_chapter"] is not None

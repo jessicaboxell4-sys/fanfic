@@ -4,6 +4,7 @@ import { api, API } from "../lib/api";
 import Navbar from "../components/Navbar";
 import TagInput from "../components/TagInput";
 import ReadingStatsCard from "../components/ReadingStatsCard";
+import BookReadingInsights from "../components/BookReadingInsights";
 import { ArrowLeft, Download, Trash2, Sparkles, Book, Edit3, Heart, Link as LinkIcon, BookOpen, RefreshCw, Tag as TagIcon, Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { FETCHING_UI_ENABLED } from "../lib/featureFlags";
@@ -754,6 +755,7 @@ export default function BookDetail() {
                 <Meta label="Status" value={book.source_meta.status} />
               )}
             </div>
+            <BookReadingInsights bookId={book.book_id} />
           </div>
         </div>
       </main>
