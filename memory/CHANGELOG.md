@@ -8,6 +8,21 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-18 — Tier 3 vote endpoint bugfix ✅
+
+`POST /community-covers/{cover_id}/vote` was returning 404 for every
+brand-new community cover.  Root cause: the projection
+`{"_id": 0, "voters": 1, "votes": 1}` returns an empty document `{}`
+when the source doc has neither field yet — and the handler used the
+truthy check `if not record:` which treats `{}` as "missing".  Switched
+to explicit `if record is None:` so a freshly-shared cover with no
+voters list is correctly recognised as existing.  Result: all 8
+`test_cover_regen.py` tests pass, including the new
+`test_community_cover_voting_and_featured` which exercises the
+vote → /featured surface → re-vote toggle → 404-on-missing flow.
+
+
+
 ## 2026-06-17 — Cover style packs (Tier 2) ✅
 
 Cover ecosystem Tier 2: styles as first-class objects.  Ten curated

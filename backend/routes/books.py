@@ -5872,7 +5872,7 @@ async def vote_community_cover(
         {"cover_id": cover_id},
         {"_id": 0, "voters": 1, "votes": 1},
     )
-    if not record:
+    if record is None:
         raise HTTPException(status_code=404, detail="Community cover not found")
     voters = set(record.get("voters") or [])
     if user.user_id in voters:

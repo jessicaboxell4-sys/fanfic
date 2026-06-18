@@ -280,6 +280,13 @@ def test_cover_styles_catalog_and_custom_crud():
         assert r4.status_code == 200
         # Second delete → 404.
         r5 = s.delete(f"{BASE}/api/cover-styles/custom/{custom_uuid}")
+        assert r5.status_code == 404
+    finally:
+        # Clean up any leaked custom styles for this user.
+        asyncio.get_event_loop().run_until_complete(
+            db.user_cover_styles.delete_many({"user_id": uid})
+        )
+        _cleanup(uid, book_id)
 
 
 def test_community_cover_voting_and_featured():
@@ -336,14 +343,6 @@ def test_community_cover_voting_and_featured():
         )
         _cleanup(a_uid, a_book)
         _cleanup(b_uid, b_book)
-
-        assert r5.status_code == 404
-    finally:
-        # Clean up any leaked custom styles for this user.
-        asyncio.get_event_loop().run_until_complete(
-            db.user_cover_styles.delete_many({"user_id": uid})
-        )
-        _cleanup(uid, book_id)
 
 
 
