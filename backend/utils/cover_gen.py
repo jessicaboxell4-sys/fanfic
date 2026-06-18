@@ -97,30 +97,46 @@ def _build_prompt(book: Dict[str, Any], nudge: Optional[str] = None) -> str:
 async def generate_cover(
     book: Dict[str, Any],
     nudge: Optional[str] = None,
+    style_prompt: Optional[str] = None,
 ) -> Tuple[bytes, str]:
     """Generate a single PNG cover for ``book``.
 
+    Args:
+        book:          metadata dict (title / author / fandom / tags / desc).
+        nudge:         optional one-liner from the user ("more moody").
+        style_prompt:  optional pre-rendered style override (from
+                       ``utils.cover_styles.get_style_prompt`` or a
+                       user-custom style's ``prompt`` field).  Appended
+                       AFTER the book context but BEFORE the nudge so
+                       the model treats it as a strong constraint
+                       without overriding the reader's direction.
+
     Returns:
         (png_bytes, prompt_for_audit)
-
-    Raises:
-        RuntimeError if the model returned no image.
-
-    Each call instantiates a fresh ``LlmChat`` with a unique
-    ``session_id`` because the playbook requires it (no chat history
-    is needed for one-shot generation).
     """
     api_key = os.environ.get("EMERGENT_LLM_KEY")
     if not api_key:
         raise RuntimeError("EMERGENT_LLM_KEY not configured")
 
     prompt = _build_prompt(book, nudge=nudge)
-    # Tiny audit-friendly prompt summary — full prompt would bloat logs.
+    if style_prompt:
+        # Splice the style override in front of any user nudge so the
+        # nudge always wins ties.  If there's no nudge, the style is the
+        # last thing the model reads (= strongest weight).
+        if "Extra direction from the reader:" in prompt:
+            prompt = prompt.replace(
+                "Extra direction from the reader:",
+                f"{style_prompt}\n\nExtra direction from the reader:",
+            )
+        else:
+            prompt = f"{prompt}\n\n{style_prompt}"
+
     logger.info(
-        "cover_gen: title=%r author=%r nudge=%r prompt_len=%d",
+        "cover_gen: title=%r author=%r nudge=%r style=%r prompt_len=%d",
         (book.get("title") or "")[:60],
         (book.get("author") or "")[:40],
         (nudge or "")[:40],
+        (style_prompt or "")[:40],
         len(prompt),
     )
 

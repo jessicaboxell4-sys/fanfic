@@ -32,6 +32,10 @@ export default function PolishCoversPage() {
   const [loading, setLoading] = useState(true);
   const [batchSize, setBatchSize] = useState(5);
   const [running, setRunning] = useState(false);
+  // Selected style applies to every per-book generation kicked off from
+  // this page (single or batch).  Empty = Shelfsort house default.
+  const [styleId, setStyleId] = useState("");
+  const [styles, setStyles] = useState([]);
   // Map<book_id, { status, previewId?, imageDataUrl? }>
   const [perBook, setPerBook] = useState({});
 
@@ -40,10 +44,14 @@ export default function PolishCoversPage() {
     (async () => {
       setLoading(true);
       try {
-        const { data } = await api.get("/books/cover-less", { params: { limit: 100 } });
+        const [bRes, sRes] = await Promise.all([
+          api.get("/books/cover-less", { params: { limit: 100 } }),
+          api.get("/cover-styles"),
+        ]);
         if (cancelled) return;
-        setBooks(data.books || []);
-        setTotal(data.total || 0);
+        setBooks(bRes.data.books || []);
+        setTotal(bRes.data.total || 0);
+        setStyles(sRes.data?.styles || []);
       } catch {
         if (!cancelled) toast.error("Couldn't load cover-less books");
       } finally {
@@ -62,7 +70,9 @@ export default function PolishCoversPage() {
   const generateOne = async (book) => {
     setStatus(book.book_id, { status: "loading" });
     try {
-      const { data } = await api.post(`/books/${book.book_id}/preview-cover`, {});
+      const { data } = await api.post(`/books/${book.book_id}/preview-cover`, {
+        style_id: styleId || null,
+      });
       setStatus(book.book_id, {
         status: "preview",
         previewId: data.preview_id,
@@ -158,6 +168,21 @@ export default function PolishCoversPage() {
             <Stat label="Applied this session" value={appliedCount} testid="polish-covers-applied" />
           </div>
           <div className="flex items-center gap-2 flex-wrap" data-testid="polish-covers-actions">
+            <label htmlFor="cover-style-pick" className="text-xs text-[#6B705C]">Style</label>
+            <select
+              id="cover-style-pick"
+              value={styleId}
+              onChange={(e) => setStyleId(e.target.value)}
+              data-testid="polish-covers-style"
+              className="text-sm px-2 py-1.5 rounded-lg border border-[#E5DDC5] bg-white focus:outline-none focus:border-[#6B46C1] max-w-[160px]"
+            >
+              <option value="">House</option>
+              {styles.filter(s => s.id !== "house").map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.kind === "custom" ? "★ " : ""}{s.name}
+                </option>
+              ))}
+            </select>
             <label htmlFor="batch-size" className="text-xs text-[#6B705C]">Batch</label>
             <select
               id="batch-size"

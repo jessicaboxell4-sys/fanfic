@@ -8,6 +8,71 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-17 — Cover style packs (Tier 2) ✅
+
+Cover ecosystem Tier 2: styles as first-class objects.  Ten curated
+built-in styles + user-defined custom styles.  Picker is on every
+single-book regenerate modal AND on the bulk "Polish my covers" page,
+so a user can re-skin one book or 50 in one shared visual language.
+
+**Backend** (`utils/cover_styles.py`, `utils/cover_gen.py`,
+`routes/books.py`):
+- New `utils/cover_styles.py` — ten hand-tuned built-ins:
+  *Shelfsort house* (default), *Minimalist line-art*,
+  *Gothic candlelight*, *Watercolour botanical*, *Pulp paperback*,
+  *Cyberpunk neon*, *Vintage 70s sci-fi*, *Dark academia*,
+  *Cottagecore*, *Noir black & white*.  Each style is just a
+  prompt-fragment that splices into the existing rule block.
+- `cover_gen.generate_cover` learned a new `style_prompt=` kwarg.
+  The style override is appended BEFORE the user nudge so the nudge
+  always wins ties, but the style is the dominant aesthetic
+  instruction otherwise.
+- `POST /books/{id}/preview-cover` accepts `style_id` in the body.
+  Built-in slugs resolve via `cover_styles.get_style_prompt`; custom
+  ids (`"custom:{uuid}"`) resolve against `user_cover_styles`.
+- New endpoints:
+    * `GET  /cover-styles`               — list built-ins + caller's
+      customs (with `kind: "built_in"` / `"custom"` discriminator).
+    * `POST /cover-styles/custom`        — save a named user style
+      (max 20 per user, max 1000-char prompt).  Returns
+      `id: "custom:{uuid}"` ready to pass back into preview-cover.
+    * `DELETE /cover-styles/custom/{id}` — drop a saved style.
+      Doesn't touch covers already generated with it.
+
+**Frontend** (`components/RegenerateCoverButton.jsx`,
+`pages/PolishCoversPage.jsx`):
+- Style picker `<select>` in the regenerate modal, above the nudge
+  field.  Default option = "Shelfsort house"; built-ins come next;
+  customs get a leading ★ marker.  Selected style's description
+  shows in italic below the select.
+- `PolishCoversPage` got the same picker in the actions strip — pick
+  *Gothic candlelight*, click "Generate next 10", and ten cover-less
+  books come back in the same visual register.  Useful for users who
+  want a cohesive library look.
+
+**Tests** (`tests/test_cover_regen.py`, +1 test, 7/7 pass):
+- `test_cover_styles_catalog_and_custom_crud` — built-ins enumerated,
+  custom create / list-includes / delete / second-delete-404 round
+  trip, empty-name 400.
+
+**Storage**: customs live in `user_cover_styles` Mongo collection,
+capped at 20 per user.
+
+**Still parked in ROADMAP**:
+- Tier 3 — Voting, Featured-of-the-week, Style remix, Trending feed,
+  Profile gallery, Cover challenges
+- Tier 4 — Reference image upload, Series consistency, Cover history
+  timeline, Public A/B vote
+- "Apply this style to my whole library" as a single-button bulk
+  action with confirmation modal (currently you achieve this via the
+  PolishCoversPage style picker + Generate-all; future enhancement
+  could one-click queue every book including ones that already have a
+  cover).
+
+---
+
+
+
 ## 2026-06-17 — Community covers + variant cap bumped to 20 ✅
 
 ### Variant cap raised

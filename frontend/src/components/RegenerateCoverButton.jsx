@@ -22,6 +22,10 @@ export default function RegenerateCoverButton({ book, onCoverChanged }) {
   const [imageDataUrl, setImageDataUrl] = useState(null);
   const [nudge, setNudge] = useState("");
   const [applying, setApplying] = useState(false);
+  // Style picker (Tier 2) — list fetched once when modal opens.
+  // ``styleId`` empty string = Shelfsort house style (the default).
+  const [styles, setStyles] = useState([]);
+  const [styleId, setStyleId] = useState("");
   // Variants drawer state — fetched lazily when the modal opens so
   // the cover-less browse experience isn't slowed down by a per-card
   // GET on every render.
@@ -34,8 +38,16 @@ export default function RegenerateCoverButton({ book, onCoverChanged }) {
       setVariants(data?.variants || []);
       setVariantsLoaded(true);
     } catch {
-      // Quiet fail — variants drawer just stays empty.
       setVariantsLoaded(true);
+    }
+  };
+
+  const loadStyles = async () => {
+    try {
+      const { data } = await api.get("/cover-styles");
+      setStyles(data?.styles || []);
+    } catch {
+      /* fine — picker just shows nothing */
     }
   };
 
@@ -44,6 +56,7 @@ export default function RegenerateCoverButton({ book, onCoverChanged }) {
     try {
       const { data } = await api.post(`/books/${book.book_id}/preview-cover`, {
         nudge: nudge.trim() || null,
+        style_id: styleId || null,
       });
       setPreviewId(data.preview_id);
       setImageDataUrl(`data:${data.mime_type};base64,${data.image_base64}`);
@@ -63,8 +76,9 @@ export default function RegenerateCoverButton({ book, onCoverChanged }) {
     setImageDataUrl(null);
     setVariants([]);
     setVariantsLoaded(false);
-    // Fire variants fetch in parallel with the generation.
+    // Fire variants + styles fetches in parallel with the generation.
     loadVariants();
+    loadStyles();
     await generate();
   };
 
@@ -228,6 +242,35 @@ export default function RegenerateCoverButton({ book, onCoverChanged }) {
                     No preview yet
                   </div>
                 )}
+              </div>
+
+              {/* Style picker — built-in + custom. Empty string is
+                  the default Shelfsort house style. */}
+              <div>
+                <label htmlFor="cover-style" className="text-xs uppercase tracking-wider font-bold text-[#6B705C] block mb-1">
+                  Style
+                </label>
+                <select
+                  id="cover-style"
+                  value={styleId}
+                  onChange={(e) => setStyleId(e.target.value)}
+                  disabled={loading}
+                  data-testid="regen-cover-style"
+                  className="w-full text-sm px-3 py-2 rounded-lg border border-[#E5DDC5] bg-white focus:outline-none focus:border-[#6B46C1]"
+                >
+                  <option value="">Shelfsort house (default)</option>
+                  {styles.filter(s => s.id !== "house").map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.kind === "custom" ? "★ " : ""}{s.name}
+                    </option>
+                  ))}
+                </select>
+                {styleId && (() => {
+                  const s = styles.find(x => x.id === styleId);
+                  return s ? (
+                    <p className="text-[11px] text-[#6B705C] mt-1 italic">{s.description}</p>
+                  ) : null;
+                })()}
               </div>
 
               {/* Free-text nudge — sent on the next regenerate. */}

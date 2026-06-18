@@ -33,15 +33,13 @@
 
 ## P2 — polish
 
-- **Cover ecosystem — Tier 2, 3, 4** (Tier 1 shipped 2026-06-17 as the
-  community cover pool).  Future expansions parked:
-    * **Tier 2 — Style as a first-class concept**
-        - Style packs (Minimalist, Gothic, Watercolour, Pulp, Cyberpunk,
-          Vintage 70s sci-fi, etc.)
-        - "Generate in this style" — swap aesthetic, keep guardrails
-        - "Apply this style to my whole library" — bulk-regen for a
-          cohesive shelf
-        - Custom user styles (save your prompt as a named style)
+- **Cover ecosystem — Tier 3 & 4** (Tiers 1 + 2 shipped 2026-06-17 —
+  community pool + style packs).  Future expansions parked:
+    * **Tier 2 remainder**
+        - "Apply this style to my whole library" — single-click bulk
+          regen of every book (including ones with covers) in a chosen
+          style.  Currently achievable via PolishCoversPage picker +
+          Generate-all on the cover-less subset.
     * **Tier 3 — Discovery & social**
         - Cover voting / 🤍 like
         - Featured covers of the week (homepage spotlight)

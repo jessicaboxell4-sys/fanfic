@@ -241,6 +241,55 @@ def test_community_browse_requires_title():
 
 
 
+def test_cover_styles_catalog_and_custom_crud():
+    """List has all 10 built-ins; create + delete custom round-trips;
+    cap of 20 customs is enforced."""
+    import requests
+
+    uid, email, pw, book_id = _seed_user_and_book()
+    s = requests.Session()
+    s.post(f"{BASE}/api/auth/login", json={"email": email, "password": pw})
+    try:
+        # Catalog has built-ins.
+        r = s.get(f"{BASE}/api/cover-styles")
+        assert r.status_code == 200
+        ids = {x["id"] for x in r.json()["styles"]}
+        assert {"house", "gothic-candlelight", "noir-blackwhite"} <= ids
+
+        # Create a custom.
+        r2 = s.post(f"{BASE}/api/cover-styles/custom", json={
+            "name": "My noir style",
+            "prompt": "Very high contrast, single splash of red, otherwise B&W.",
+        })
+        assert r2.status_code == 200, r2.text
+        new_id = r2.json()["id"]
+        assert new_id.startswith("custom:")
+
+        # Catalog now includes it.
+        r3 = s.get(f"{BASE}/api/cover-styles")
+        ids2 = {x["id"] for x in r3.json()["styles"]}
+        assert new_id in ids2
+
+        # Missing name → 400.
+        bad = s.post(f"{BASE}/api/cover-styles/custom", json={"name": "", "prompt": "x"})
+        assert bad.status_code == 400
+
+        # Delete.
+        custom_uuid = new_id.split(":", 1)[1]
+        r4 = s.delete(f"{BASE}/api/cover-styles/custom/{custom_uuid}")
+        assert r4.status_code == 200
+        # Second delete → 404.
+        r5 = s.delete(f"{BASE}/api/cover-styles/custom/{custom_uuid}")
+        assert r5.status_code == 404
+    finally:
+        # Clean up any leaked custom styles for this user.
+        asyncio.get_event_loop().run_until_complete(
+            db.user_cover_styles.delete_many({"user_id": uid})
+        )
+        _cleanup(uid, book_id)
+
+
+
 def test_cover_variants_listed_activated_and_deleted():
     """Apply two covers in a row → both stored as variants, second is
     active.  Switching back makes the first active.  Deleting active

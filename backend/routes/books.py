@@ -5278,6 +5278,7 @@ _COVER_PREVIEW_TTL_SECONDS = 60 * 60  # 1 hour
 
 class CoverPreviewBody(BaseModel):
     nudge: Optional[str] = None
+    style_id: Optional[str] = None
 
 
 @api_router.post("/books/{book_id}/preview-cover")
@@ -5297,8 +5298,25 @@ async def preview_book_cover(
     )
     if not doc:
         raise HTTPException(status_code=404, detail="Book not found")
+
+    # Resolve style: built-in slug → prompt string, or custom user style.
+    from utils.cover_styles import get_style_prompt as _get_built_in_style
+    style_prompt = ""
+    if body.style_id:
+        style_prompt = _get_built_in_style(body.style_id)
+        if not style_prompt and body.style_id.startswith("custom:"):
+            custom_id = body.style_id.split(":", 1)[1]
+            custom = await db.user_cover_styles.find_one(
+                {"style_id": custom_id, "user_id": user.user_id},
+                {"_id": 0, "prompt": 1},
+            )
+            if custom:
+                style_prompt = custom.get("prompt", "")
+
     try:
-        png_bytes, prompt = await _generate_cover(doc, nudge=body.nudge)
+        png_bytes, prompt = await _generate_cover(
+            doc, nudge=body.nudge, style_prompt=style_prompt or None,
+        )
     except Exception as e:  # noqa: BLE001 — surface as 502 with detail
         logger.exception("cover_gen failed for %s", book_id)
         raise HTTPException(status_code=502, detail=f"Cover generation failed: {e}")
@@ -5551,6 +5569,88 @@ def _norm_book_key(title: str, author: str, fandom: str) -> Dict[str, str]:
         "author_key": clean(author),
         "fandom_key": clean(fandom),
     }
+
+
+
+# ---------------------------------------------------------------------
+# Cover style catalog (2026-06-17 Tier 2)
+# Built-in styles ship via utils/cover_styles.py; user-defined ones
+# live in the `user_cover_styles` collection.
+# ---------------------------------------------------------------------
+
+from utils.cover_styles import built_in_list, style_exists
+
+
+class CustomStyleBody(BaseModel):
+    name: str
+    prompt: str
+
+
+@api_router.get("/cover-styles")
+async def list_cover_styles(user: User = Depends(get_current_user)):
+    """List every style available to the caller — built-in + custom.
+    Custom styles return with ``id`` already prefixed ``custom:`` so the
+    frontend can pass it back into ``preview-cover`` without
+    transformation."""
+    custom_rows = await db.user_cover_styles.find(
+        {"user_id": user.user_id},
+        {"_id": 0, "style_id": 1, "name": 1, "description": 1, "prompt": 1},
+    ).sort("created_at", -1).to_list(length=50)
+    customs = [
+        {
+            "id": f"custom:{r['style_id']}",
+            "name": r["name"],
+            "description": r.get("description") or r.get("prompt", "")[:80],
+            "kind": "custom",
+        }
+        for r in custom_rows
+    ]
+    return {"styles": built_in_list() + customs}
+
+
+@api_router.post("/cover-styles/custom")
+async def create_custom_style(
+    body: CustomStyleBody,
+    user: User = Depends(get_current_user),
+):
+    """Save a named user-defined style.  Prompt is appended verbatim to
+    the generation prompt so users can express anything they like.
+    Capped at 20 customs per user so a runaway user can't bloat Mongo."""
+    name = (body.name or "").strip()
+    prompt = (body.prompt or "").strip()
+    if not name or not prompt:
+        raise HTTPException(status_code=400, detail="name and prompt are required")
+    if len(prompt) > 1000:
+        raise HTTPException(status_code=400, detail="prompt too long (max 1000 chars)")
+    existing = await db.user_cover_styles.count_documents({"user_id": user.user_id})
+    if existing >= 20:
+        raise HTTPException(status_code=400, detail="Custom style cap reached (20).  Delete one first.")
+    style_id = uuid.uuid4().hex[:12]
+    await db.user_cover_styles.insert_one({
+        "style_id":   style_id,
+        "user_id":    user.user_id,
+        "name":       name[:60],
+        "prompt":     prompt,
+        "description": prompt[:80],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return {"ok": True, "id": f"custom:{style_id}", "name": name[:60]}
+
+
+@api_router.delete("/cover-styles/custom/{style_id}")
+async def delete_custom_style(
+    style_id: str,
+    user: User = Depends(get_current_user),
+):
+    """Remove a saved custom style.  No effect on covers already
+    generated with it — those bytes are independent."""
+    r = await db.user_cover_styles.delete_one(
+        {"style_id": style_id, "user_id": user.user_id},
+    )
+    if r.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Custom style not found")
+    return {"ok": True}
+
 
 
 @api_router.post("/books/{book_id}/cover-variants/{variant_id}/share")
