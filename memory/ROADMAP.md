@@ -83,14 +83,9 @@
   itself.  Doesn't need notification permission, helps users
   discover cross-device sync even before enabling push.  Small
   frontend-only change (~30 lines on BookCard.jsx).
-- **Cover ecosystem visitor analytics** *(remind-later, parked 2026-06-18)*
-  — anonymous traffic + heart + signup-conversion counter on
-  /explore/covers, /u/:username and /cover/:cover_id pages, surfaced
-  in the Admin Console so the operator can see whether the public
-  gallery is actually driving sign-ups.  One MongoDB collection
-  (`page_views` with `page_type`, `slug`, `is_anon`, `ts`) + a small
-  admin widget that aggregates daily/weekly views and the
-  conversion ratio.
+- ✅ ~~Cover ecosystem visitor analytics~~ — superseded by the
+  `AdminAnalyticsCard` widget shipped in the
+  visitor-analytics+heatmap batch on 2026-06-18.
 - **Reader heatmap** *(parked 2026-06-18)* — aggregate `reading_cursors`
   across all readers to show "most readers paused at chapter 3" on
   the book detail page.  Privacy-sensitive (consent required) so
