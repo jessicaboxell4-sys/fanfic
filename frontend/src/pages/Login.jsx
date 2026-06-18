@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
 import { BookOpen, Mail, Lock, User as UserIcon, AtSign, Loader2 } from "lucide-react";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
@@ -21,12 +21,35 @@ export default function Login() {
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [busy, setBusy] = useState(false);
-  // Approval-gate states (2026-06-15). When the backend tells us the
-  // sign-up is pending or rejected we swap the whole right-hand panel
-  // for a calm explainer instead of just toast-ing — toasts vanish and
-  // users panic. ``rejected`` includes the admin's reason.
   const [pendingNotice, setPendingNotice] = useState(null);
   const [rejectedNotice, setRejectedNotice] = useState(null);
+
+  // 2026-06-18 — admin-controlled signup config drives whether the
+  // register form shows onboarding questions and the rules-accept
+  // checkbox.  Pulled once on mount; the form re-fetches every time
+  // the user flips into ``register`` mode so a freshly-flipped admin
+  // toggle is honored without a hard refresh.
+  const [signupCfg, setSignupCfg] = useState({
+    approval_gate_enabled: true,
+    questions_enabled: false,
+  });
+  const [registerStep, setRegisterStep] = useState(1); // 1 = email/pw, 2 = onboarding
+  const [referral, setReferral] = useState("");
+  const [favoriteFandom, setFavoriteFandom] = useState("");
+  const [readerType, setReaderType] = useState("");
+  const [is13Plus, setIs13Plus] = useState(null); // true | false | null
+  const [acceptedRules, setAcceptedRules] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    api
+      .get("/signup/config")
+      .then(({ data }) => {
+        if (mounted) setSignupCfg(data);
+      })
+      .catch(() => { /* fall back to defaults */ });
+    return () => { mounted = false; };
+  }, [mode]);
 
   const handleGoogle = () => {
     // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
@@ -37,6 +60,19 @@ export default function Login() {
   const submit = async (e) => {
     e.preventDefault();
     if (busy) return;
+
+    // Multi-step register flow: when onboarding questions are enabled
+    // we collect email/pw on step 1, advance to a questions panel on
+    // step 2, and POST /auth/register only when step 2 is submitted.
+    if (mode === "register" && signupCfg.questions_enabled && registerStep === 1) {
+      if (!email || (password || "").length < 8) {
+        toast.error("Email and 8+ char password are required");
+        return;
+      }
+      setRegisterStep(2);
+      return;
+    }
+
     setBusy(true);
     try {
       if (mode === "forgot") {
@@ -46,14 +82,28 @@ export default function Login() {
         return;
       }
       const url = mode === "login" ? "/auth/login" : "/auth/register";
-      const body = mode === "login"
-        ? { email, password }
-        : { email, password, name: name || undefined };
+      let body;
+      if (mode === "login") {
+        body = { email, password };
+      } else {
+        body = { email, password, name: name || undefined };
+        if (signupCfg.questions_enabled) {
+          if (!acceptedRules) {
+            toast.error("Please agree to the community rules.");
+            setBusy(false);
+            return;
+          }
+          body.accepted_rules = true;
+          body.onboarding = {
+            referral:        referral || undefined,
+            favorite_fandom: favoriteFandom || undefined,
+            reader_type:     readerType || undefined,
+            is_13_plus:      is13Plus,
+          };
+        }
+      }
       const { data } = await api.post(url, body);
 
-      // Register may have completed with the user landing in the
-      // pending-approval queue; the backend signals that with
-      // ``{pending: true, email, name, message}`` instead of a session.
       if (data?.pending) {
         setPendingNotice({
           email: data.email || email,
@@ -63,15 +113,10 @@ export default function Login() {
         return;
       }
 
-      // Belt-and-suspenders: ``loginSuccess`` does ``setUser(data)``
-      // immediately AND re-fetches /auth/me so any field the login
-      // response dropped (e.g. ``is_admin`` pre-2026-06-15) self-heals
-      // before the FE renders auth-gated UI like the AdminConsole button.
       loginSuccess(data);
       toast.success(mode === "login" ? "Welcome back" : "Account created");
       navigate("/library");
     } catch (err) {
-      // 403 with structured detail = approval-gate refusal (login path).
       const detail = err?.response?.data?.detail;
       if (err?.response?.status === 403 && detail && typeof detail === "object") {
         if (detail.code === "pending_approval") {
@@ -179,19 +224,184 @@ export default function Login() {
           ) : (
           <>
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-3">
-            {mode === "login" ? "Welcome back" : mode === "register" ? "Make a shelf" : "Forgot your password?"}
+            {mode === "login"
+              ? "Welcome back"
+              : mode === "register"
+              ? (registerStep === 2 ? "Quick intro" : "Make a shelf")
+              : "Forgot your password?"}
           </p>
           <h1 className="font-serif text-4xl text-[#2C2C2C] mb-3">
-            {mode === "login" ? "Open your library." : mode === "register" ? "Start your library." : "We'll send a link."}
+            {mode === "login"
+              ? "Open your library."
+              : mode === "register"
+              ? (registerStep === 2 ? "Tell us about you." : "Start your library.")
+              : "We'll send a link."}
           </h1>
           <p className="text-[#6B705C] mb-8">
             {mode === "login"
               ? "Sign in to save your sorted shelves across devices."
               : mode === "register"
-              ? "Create an account or sign in with Google. Sign-ups are reviewed before activation."
+              ? (registerStep === 2
+                  ? "Four quick questions so we can shape Shelfsort to fit you."
+                  : signupCfg.approval_gate_enabled
+                  ? "Create an account or sign in with Google. Sign-ups are reviewed before activation."
+                  : "Create an account or sign in with Google.")
               : "Enter the email on your account and we'll send a one-hour reset link."}
           </p>
 
+          {mode === "register" && registerStep === 2 ? (
+            <form
+              onSubmit={submit}
+              className="space-y-5"
+              data-testid="onboarding-form"
+            >
+              <div>
+                <label className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C] mb-2 block">
+                  How did you find Shelfsort?
+                </label>
+                <div className="grid grid-cols-2 gap-2" data-testid="onboarding-referral">
+                  {[
+                    ["google", "Google"],
+                    ["twitter", "Twitter / X"],
+                    ["reddit", "Reddit"],
+                    ["friend", "A friend"],
+                    ["tiktok", "TikTok"],
+                    ["other", "Somewhere else"],
+                  ].map(([val, lbl]) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setReferral(val)}
+                      data-testid={`onboarding-referral-${val}`}
+                      className={`px-3 py-2 rounded-lg text-sm border transition-colors ${
+                        referral === val
+                          ? "bg-[#6B46C1] text-white border-[#6B46C1]"
+                          : "bg-white text-[#2C2C2C] border-[#E8E6E1] hover:border-[#6B46C1]"
+                      }`}
+                    >
+                      {lbl}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C] mb-2 block">
+                  Favorite fanfic fandom (optional)
+                </label>
+                <input
+                  type="text"
+                  data-testid="onboarding-favorite-fandom"
+                  value={favoriteFandom}
+                  onChange={(e) => setFavoriteFandom(e.target.value.slice(0, 80))}
+                  placeholder="e.g. Harry Potter, Star Wars, Marvel…"
+                  className="w-full bg-white border border-[#E8E6E1] rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#E07A5F] focus:ring-2 focus:ring-[#E07A5F]/20"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C] mb-2 block">
+                  What kind of reader are you?
+                </label>
+                <div className="grid grid-cols-2 gap-2" data-testid="onboarding-reader-type">
+                  {[
+                    ["fanfic", "Mostly fanfic"],
+                    ["original", "Mostly original"],
+                    ["mix", "Healthy mix"],
+                    ["organize", "Just organizing"],
+                  ].map(([val, lbl]) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setReaderType(val)}
+                      data-testid={`onboarding-reader-type-${val}`}
+                      className={`px-3 py-2 rounded-lg text-sm border transition-colors ${
+                        readerType === val
+                          ? "bg-[#6B46C1] text-white border-[#6B46C1]"
+                          : "bg-white text-[#2C2C2C] border-[#E8E6E1] hover:border-[#6B46C1]"
+                      }`}
+                    >
+                      {lbl}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C] mb-2 block">
+                  Are you 13 or older?
+                </label>
+                <div className="flex gap-2" data-testid="onboarding-age">
+                  {[
+                    [true, "Yes, 13+"],
+                    [false, "No, under 13"],
+                  ].map(([val, lbl]) => (
+                    <button
+                      key={String(val)}
+                      type="button"
+                      onClick={() => setIs13Plus(val)}
+                      data-testid={`onboarding-age-${val ? "yes" : "no"}`}
+                      className={`flex-1 px-3 py-2 rounded-lg text-sm border transition-colors ${
+                        is13Plus === val
+                          ? (val
+                              ? "bg-[#6B46C1] text-white border-[#6B46C1]"
+                              : "bg-[#D9534F] text-white border-[#D9534F]")
+                          : "bg-white text-[#2C2C2C] border-[#E8E6E1] hover:border-[#6B46C1]"
+                      }`}
+                    >
+                      {lbl}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <label
+                className="flex items-start gap-2 cursor-pointer select-none"
+                data-testid="onboarding-rules-label"
+              >
+                <input
+                  type="checkbox"
+                  checked={acceptedRules}
+                  onChange={(e) => setAcceptedRules(e.target.checked)}
+                  data-testid="onboarding-rules-checkbox"
+                  className="mt-1 accent-[#6B46C1]"
+                />
+                <span className="text-xs text-[#2C2C2C]">
+                  I&apos;ve read and agree to the{" "}
+                  <Link
+                    to="/rules"
+                    target="_blank"
+                    className="text-[#6B46C1] font-semibold underline"
+                    data-testid="onboarding-rules-link"
+                  >
+                    Shelfsort community rules
+                  </Link>
+                  .
+                </span>
+              </label>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setRegisterStep(1)}
+                  data-testid="onboarding-back-btn"
+                  className="text-sm font-semibold text-[#6B705C] hover:text-[#2C2C2C]"
+                >
+                  ← Back
+                </button>
+                <button
+                  type="submit"
+                  data-testid="onboarding-submit-btn"
+                  disabled={busy || !acceptedRules}
+                  className="ml-auto btn-primary py-3 px-6 flex items-center justify-center gap-2 disabled:opacity-60"
+                >
+                  {busy && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Create account
+                </button>
+              </div>
+            </form>
+          ) : (
+          <>
           <button
             data-testid="google-signin-btn"
             onClick={handleGoogle}
@@ -287,9 +497,15 @@ export default function Login() {
               className="w-full btn-primary py-3 flex items-center justify-center gap-2 disabled:opacity-60"
             >
               {busy && <Loader2 className="w-4 h-4 animate-spin" />}
-              {mode === "login" ? "Sign in" : mode === "register" ? "Create account" : "Send reset link"}
+              {mode === "login"
+                ? "Sign in"
+                : mode === "register"
+                ? (signupCfg.questions_enabled ? "Continue" : "Create account")
+                : "Send reset link"}
             </button>
           </form>
+          </>
+          )}
 
           <p className="text-xs text-[#6B705C] mt-6 text-center">
             {mode === "login" ? (

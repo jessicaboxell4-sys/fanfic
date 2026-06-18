@@ -8,7 +8,7 @@ import {
   BarChart3, ToggleLeft, ClipboardList, Loader2, Plus, X as XIcon, Trash2,
   Check, ChevronRight, ChevronDown, Download, AlertOctagon, RotateCcw, Send,
   Mail, MessageSquare, Clock, CircleAlert, Route as RouteIcon, Search,
-  Inbox, Database, Siren, HardDrive, TrendingUp, Eye,
+  Inbox, Database, Siren, HardDrive, TrendingUp, Eye, BookOpen, Sparkles,
 } from "lucide-react";
 import MongoInspectorCard from "../components/MongoInspectorCard";
 import ModerationLogCard from "../components/ModerationLogCard";
@@ -40,6 +40,7 @@ const ADMIN_CARD_MANIFEST = [
   { testid: "admin-today-pulse-card", title: "Today · 24h pulse", subtitle: "Signups, uploads, errors at a glance.", keywords: "today pulse signups uploads errors fandoms 24h daily summary" },
   { testid: "admin-feedback-inbox-card", title: "Feedback inbox", subtitle: "User-submitted bugs, ideas, and feature requests.", keywords: "feedback suggestions bug feature request inbox users reports tickets" },
   { testid: "admin-help-feedback-card", title: "Help-page feedback", subtitle: "Per-page friction reports with screenshots.", keywords: "help suggestion friction page screenshot photo feedback short-form by-page" },
+  { testid: "admin-signup-rules-card", title: "Sign-up rules & questions", subtitle: "Approval gate, onboarding questions, community rules.", keywords: "signup register approval gate onboarding questions rules community moderation referral fandom reader type" },
   { testid: "admin-storage-by-user-card", title: "Top storage users", subtitle: "Top 20 accounts by uploaded bytes.", keywords: "storage user disk bytes top biggest heavy quota power outliers abandoned" },
   { testid: "admin-storage-trend-card", title: "Storage trend · 30 days", subtitle: "Cumulative bytes over time.", keywords: "storage trend disk growth chart graph history snapshot 30d size bytes" },
   { testid: "admin-view-consents-card", title: "View-as-user consents", subtitle: "Request read-only access to a user's library.", keywords: "view as user impersonate consent privacy access permission timeline" },
@@ -719,6 +720,233 @@ function ImageIconAlias() {
       <circle cx="9" cy="9" r="2" />
       <path d="M21 15l-5-5L5 21" />
     </svg>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// SignupRulesCard — admin controls for approval gate + onboarding + rules
+// ---------------------------------------------------------------------------
+// Three knobs live in the ``app_config`` doc with ``_id='signup'``:
+//   - ``approval_gate_enabled``: when False, new accounts auto-approve
+//   - ``questions_enabled``:    when True, register form gates on four
+//                               onboarding questions + rules accept
+//   - ``rules_md``:             markdown surfaced on /rules and linked
+//                               from the register form's checkbox
+// Aggregated answers live further down in onboarding-stats so admins
+// can see referral mix + favorite-fandom tally at a glance.
+function SignupRulesCard() {
+  const [cfg, setCfg] = useState(null);
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [editingRules, setEditingRules] = useState(false);
+  const [draftRules, setDraftRules] = useState("");
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [{ data: c }, { data: s }] = await Promise.all([
+        api.get("/admin/signup-config"),
+        api.get("/admin/onboarding-stats"),
+      ]);
+      setCfg(c);
+      setStats(s);
+      setDraftRules(c?.rules_md || "");
+    } catch { toast.error("Couldn't load sign-up config"); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, []);
+
+  const patch = async (body) => {
+    setSaving(true);
+    try {
+      const { data } = await api.put("/admin/signup-config", body);
+      setCfg(data);
+      if (body.rules_md !== undefined) setDraftRules(data.rules_md || "");
+      toast.success("Saved");
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't save");
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <Card
+      icon={ShieldCheck}
+      title="Sign-up rules & questions"
+      subtitle="Toggle the approval gate, onboarding questions, and edit the community rules."
+      testid="admin-signup-rules-card"
+    >
+      {loading || !cfg ? (
+        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+      ) : (
+        <div className="space-y-5">
+          {/* Two toggles */}
+          <div className="grid sm:grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => patch({ approval_gate_enabled: !cfg.approval_gate_enabled })}
+              disabled={saving}
+              data-testid="signup-toggle-approval-gate"
+              className={`text-left rounded-xl border p-3 transition-colors ${
+                cfg.approval_gate_enabled
+                  ? "bg-[#EDE6FA] border-[#6B46C1]"
+                  : "bg-[#FBFAF6] border-[#E5DDC5] hover:border-[#6B46C1]"
+              } disabled:opacity-60`}
+            >
+              <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C]">
+                Approval gate
+              </p>
+              <p className="font-medium text-[#2C2C2C] mt-1">
+                {cfg.approval_gate_enabled ? "ON — admin reviews every sign-up" : "OFF — auto-approve everyone"}
+              </p>
+              <p className="text-xs text-[#6B705C] mt-1.5">
+                {cfg.approval_gate_enabled
+                  ? "Click to disable: new users land in the library immediately."
+                  : "Click to re-enable: new users queue for admin review."}
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => patch({ questions_enabled: !cfg.questions_enabled })}
+              disabled={saving}
+              data-testid="signup-toggle-questions"
+              className={`text-left rounded-xl border p-3 transition-colors ${
+                cfg.questions_enabled
+                  ? "bg-[#EDE6FA] border-[#6B46C1]"
+                  : "bg-[#FBFAF6] border-[#E5DDC5] hover:border-[#6B46C1]"
+              } disabled:opacity-60`}
+            >
+              <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C]">
+                Onboarding questions
+              </p>
+              <p className="font-medium text-[#2C2C2C] mt-1">
+                {cfg.questions_enabled ? "ON — questions shown at sign-up" : "OFF — skip onboarding"}
+              </p>
+              <p className="text-xs text-[#6B705C] mt-1.5">
+                {cfg.questions_enabled
+                  ? "Click to stop asking — keeps signed-up users' existing answers."
+                  : "Click to start collecting referral, fandom, reader-type, age."}
+              </p>
+            </button>
+          </div>
+
+          {/* Onboarding-answer aggregation */}
+          {cfg.questions_enabled && stats && (
+            <div className="rounded-xl border border-[#E5DDC5] bg-[#FBFAF6] p-4" data-testid="signup-onboarding-stats">
+              <div className="flex items-baseline justify-between mb-3">
+                <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C]">
+                  Onboarding answers
+                </p>
+                <p className="text-xs text-[#6B705C]">
+                  {stats.total_with_onboarding} user{stats.total_with_onboarding === 1 ? "" : "s"} answered
+                </p>
+              </div>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <StatList title="How they found us" rows={stats.referral} testid="signup-stats-referral" />
+                <StatList title="Reader type"        rows={stats.reader_type} testid="signup-stats-reader-type" />
+                <StatList title="Top fandoms"        rows={stats.favorite_fandoms} testid="signup-stats-favorite-fandoms" />
+                <div data-testid="signup-stats-age">
+                  <p className="text-xs uppercase tracking-[0.15em] text-[#6B705C] font-bold mb-1.5">Age</p>
+                  <p className="text-sm text-[#2C2C2C]">
+                    13+: <strong>{stats.age_13_plus}</strong> · Under 13: <strong>{stats.age_under_13}</strong>
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Rules editor */}
+          <div className="rounded-xl border border-[#E5DDC5] bg-[#FBFAF6] p-4">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C]">
+                Community rules (markdown)
+              </p>
+              <a
+                href="/rules"
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-[#6B46C1] hover:text-[#553397] font-semibold"
+                data-testid="signup-rules-view-link"
+              >
+                View public page →
+              </a>
+            </div>
+            {editingRules ? (
+              <>
+                <textarea
+                  value={draftRules}
+                  onChange={(e) => setDraftRules(e.target.value)}
+                  rows={14}
+                  data-testid="signup-rules-textarea"
+                  className="w-full text-sm font-mono bg-white border border-[#E8E6E1] rounded-lg px-3 py-2 focus:outline-none focus:border-[#6B46C1] focus:ring-1 focus:ring-[#6B46C1]/30 resize-y"
+                />
+                <div className="flex items-center gap-2 mt-2">
+                  <button
+                    type="button"
+                    onClick={() => { patch({ rules_md: draftRules }); setEditingRules(false); }}
+                    disabled={saving || draftRules.trim().length < 20}
+                    data-testid="signup-rules-save"
+                    className="px-3 py-1.5 rounded-full bg-[#6B46C1] text-white text-xs font-bold uppercase tracking-[0.15em] hover:bg-[#553397] disabled:opacity-60"
+                  >
+                    Save rules
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setEditingRules(false); setDraftRules(cfg.rules_md || ""); }}
+                    className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C] hover:text-[#2C2C2C]"
+                  >
+                    Cancel
+                  </button>
+                  <span className="text-[10px] text-[#6B705C] ml-auto">{draftRules.length}/50000</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <pre className="text-xs text-[#2C2C2C] whitespace-pre-wrap line-clamp-6 mb-2" data-testid="signup-rules-preview">
+                  {cfg.rules_md}
+                </pre>
+                <button
+                  type="button"
+                  onClick={() => setEditingRules(true)}
+                  data-testid="signup-rules-edit"
+                  className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B46C1] hover:text-[#553397]"
+                >
+                  Edit rules →
+                </button>
+              </>
+            )}
+            {cfg.updated_at && (
+              <p className="text-[10px] text-[#6B705C] mt-2">
+                Last updated {fmtTime(cfg.updated_at)}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// Small two-column count list reused inside SignupRulesCard.
+function StatList({ title, rows, testid }) {
+  return (
+    <div data-testid={testid}>
+      <p className="text-xs uppercase tracking-[0.15em] text-[#6B705C] font-bold mb-1.5">{title}</p>
+      {!rows || rows.length === 0 ? (
+        <p className="text-xs text-[#6B705C] italic">No answers yet.</p>
+      ) : (
+        <ul className="space-y-0.5">
+          {rows.map((r) => (
+            <li key={r.label} className="flex justify-between text-sm">
+              <span className="text-[#2C2C2C] capitalize">{r.label}</span>
+              <span className="text-[#6B705C] font-mono">{r.count}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -3210,6 +3438,7 @@ export default function AdminConsole() {
               <TodayPulseCard />
               <FeedbackInboxCard />
               <HelpFeedbackCard />
+              <SignupRulesCard />
               <StorageByUserCard />
               <StorageTrendCard />
               <ViewConsentsCard />

@@ -1,0 +1,38 @@
+{
+  "summary": "Tested Shelfsort signup-config / community-rules / onboarding feature set. 13/13 backend endpoint tests pass against the running API. Public /rules page and register multi-step onboarding flow verified end-to-end via Playwright. Admin card UI was not directly visually confirmed because page.goto('/admin') redirects to '/' on this preview URL even after a successful fetch login (auth-context hydration race — same issue main agent reported); the card+toggles+stats+rules-editor data-testids are all confirmed present in AdminConsole.jsx source and the underlying APIs they call are all green.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "various", "issue": "Backend WatchFiles reloader is highly sensitive — any edit under /app/backend/tests/ triggers a multi-second reload during which all HTTPS calls hang/timeout. Long-term harmless; only affects iterative test authoring."},
+      {"endpoint": "/api/suggestions (separate feature)", "issue": "Pre-existing KeyError: 'suggestion_id' in routes/suggestions.py _serialize visible in stderr log — unrelated to this iteration but worth a follow-up."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Admin /admin navigation via in-test fetch login", "issue": "page.goto('/admin') after credentials:'include' fetch login still redirects to '/' — AuthContext hasn't hydrated by the time AdminRoute evaluates. Workaround: navigate to '/' first, await /auth/me, then goto /admin. Functional flow is fine for real users (they're already authed in the browser).", "affected_selectors": ["admin-signup-rules-card"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_signup_config.py", "/app/test_reports/pytest/pytest_iter29.xml"],
+  "action_items": [
+    "Visually self-test the AdminConsole 'Sign-up rules & questions' card in the live browser (login as shelfsort-tester, hit /admin, expand card, toggle approval-gate + questions, check Saved toast, open rules editor, save).",
+    "Optional: fix pre-existing /api/suggestions KeyError: 'suggestion_id' (unrelated to this iteration)."
+  ],
+  "critical_code_review_comments": [
+    "signup_config.py — clean, defaults preserved, admin gate via require_admin, length validation (20 / 50000) returns 400 / 413 as specified.",
+    "auth.py register flow — gate-off path correctly auto-approves and issues session (no {pending:true}); questions_enabled path enforces accepted_rules (400), at-least-one-onboarding-answer (400), is_13_plus=false (403). Onboarding payload is sanitized (trim, lowercased keys, length-capped).",
+    "First-user bootstrap correctly bypasses the questions/rules gate (is_first_user short-circuit) — good for fresh installs.",
+    "Rules.jsx renders markdown via tiny home-grown formatter — H1/H2/paragraphs styled correctly; data-testid='rules-loading' + 'rules-content' + 'rules-empty' all wired.",
+    "Login.jsx multi-step register: signupCfg re-fetched whenever mode flips, step gating handled, submit button correctly disabled until rules checkbox is ticked.",
+    "AdminConsole.jsx — all six required data-testids ('admin-signup-rules-card', 'signup-toggle-approval-gate', 'signup-toggle-questions', 'signup-onboarding-stats', 'signup-rules-edit', 'signup-rules-save') are present in source."
+  ],
+  "updated_files": ["/app/backend/tests/test_signup_config.py"],
+  "success_rate": {"backend": "100% (13/13)", "frontend": "Rules page + register onboarding flow verified (2/3 UI flows). Admin card not visually confirmed (data-testids verified statically + backend APIs green)."},
+  "test_credentials": "Admin: shelfsort-tester@example.com / tester123! (is_admin=true). Test config reset to {approval_gate_enabled:true, questions_enabled:false} after tests.",
+  "seed_data_creation": "Created several TEST_*@example.com pending registrations (gate-on path leaves them in 'pending' state harmlessly; reddit referral count incremented by 1 per stats verification test).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend tests live at /app/backend/tests/test_signup_config.py — they use TEST_BASE_URL or REACT_APP_BACKEND_URL and fall back to http://localhost:8001. They extract session_token from Set-Cookie and use Bearer auth (the Secure cookie is otherwise dropped over plain HTTP). If the live preview URL times out, restart backend (sudo supervisorctl restart backend), wait ~12 sec, then run with TEST_BASE_URL=http://localhost:8001. WatchFiles reload of /app/backend/tests/* will briefly hang all calls — avoid editing test files while a run is in flight.",
+  "rca of the issue": "N/A — no functional bugs found in this iteration's feature surface."
+}

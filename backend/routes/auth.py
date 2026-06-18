@@ -239,11 +239,20 @@ async def _clear_failed_attempts(identifier: str):
     await db.login_attempts.delete_many({"identifier": identifier})
 
 
+class OnboardingAnswers(BaseModel):
+    referral:         Optional[str] = None   # "google" | "twitter" | "reddit" | "friend" | "other"
+    favorite_fandom:  Optional[str] = None   # free-text, optional
+    reader_type:      Optional[str] = None   # "fanfic" | "original" | "mix" | "organize"
+    is_13_plus:       Optional[bool] = None
+
+
 class RegisterBody(BaseModel):
     email: str
     password: str
     name: Optional[str] = None
     username: Optional[str] = None
+    accepted_rules: Optional[bool] = None
+    onboarding: Optional[OnboardingAnswers] = None
 
 
 class LoginBody(BaseModel):
@@ -280,7 +289,35 @@ async def auth_register(body: RegisterBody, response: Response):
     # itself; everyone after that lands in ``"pending"`` until an
     # existing admin approves them from /admin → Pending sign-ups.
     is_first_user = (await db.users.count_documents({}, limit=1)) == 0
-    approval_status = "approved" if is_first_user else "pending"
+
+    # 2026-06-18 — Admin-controlled signup config.  When the approval
+    # gate is OFF, every new account is auto-approved (still goes
+    # through the onboarding-questions step if that's separately ON).
+    # When ``questions_enabled`` is True, the rules-acknowledgement
+    # checkbox is required and at least one onboarding answer must be
+    # supplied so the admin dashboard isn't full of blank rows.
+    from routes.signup_config import _get_config as _get_signup_config
+    cfg = await _get_signup_config()
+
+    if cfg["questions_enabled"] and not is_first_user:
+        if not body.accepted_rules:
+            raise HTTPException(status_code=400, detail="You must agree to the community rules to sign up")
+        ob = body.onboarding
+        if ob is None or not any([ob.referral, ob.favorite_fandom, ob.reader_type, ob.is_13_plus is not None]):
+            raise HTTPException(status_code=400, detail="Please answer the onboarding questions to continue")
+        if ob.is_13_plus is False:
+            raise HTTPException(
+                status_code=403,
+                detail="Shelfsort is for readers 13 and older.",
+            )
+
+    if is_first_user:
+        approval_status = "approved"
+    elif cfg["approval_gate_enabled"]:
+        approval_status = "pending"
+    else:
+        approval_status = "approved"
+
     user_doc = {
         "user_id": user_id,
         "email": email,
@@ -291,6 +328,21 @@ async def auth_register(body: RegisterBody, response: Response):
         "approval_status": approval_status,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
+    if body.accepted_rules:
+        user_doc["accepted_rules_at"] = datetime.now(timezone.utc).isoformat()
+    if body.onboarding is not None:
+        ob = body.onboarding
+        ob_doc: Dict[str, Any] = {}
+        if ob.referral:
+            ob_doc["referral"] = ob.referral.strip().lower()[:40]
+        if ob.favorite_fandom:
+            ob_doc["favorite_fandom"] = ob.favorite_fandom.strip()[:80]
+        if ob.reader_type:
+            ob_doc["reader_type"] = ob.reader_type.strip().lower()[:40]
+        if ob.is_13_plus is not None:
+            ob_doc["is_13_plus"] = bool(ob.is_13_plus)
+        if ob_doc:
+            user_doc["onboarding"] = ob_doc
     if username:
         user_doc["username"] = username
         user_doc["username_lower"] = username.lower()
