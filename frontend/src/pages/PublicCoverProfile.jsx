@@ -5,6 +5,8 @@ import { api } from "../lib/api";
 import Navbar from "../components/Navbar";
 import { toast } from "sonner";
 import { ShareButtons } from "../components/ShareButtons";
+import ConsentBanner from "../components/ConsentBanner";
+import { stampView } from "../lib/analytics";
 
 /**
  * Public-but-auth-gated profile page surfacing a user's community
@@ -26,6 +28,7 @@ export default function PublicCoverProfile() {
 
   useEffect(() => {
     let alive = true;
+    stampView("profile", username);
     (async () => {
       try {
         const { data } = await api.get(`/users/${username}/cover-profile`);
@@ -232,6 +235,7 @@ export default function PublicCoverProfile() {
           )}
         </section>
       </main>
+      <ConsentBanner />
     </div>
   );
 }

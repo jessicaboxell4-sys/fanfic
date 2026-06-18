@@ -59,6 +59,19 @@
 - Move from local FS to object storage when scaling
 
 ## P3 — nice-to-have
+- **Heatmap extensions deferred from the analytics+heatmap batch**
+  *(parked 2026-06-18)*:
+  * Re-reading detection (multiple backward jumps surfaced as a "must
+    be good" badge — needs per-session cursor history table).
+  * Pace percentile ("you're in the 80th-percentile speed for this
+    book" — needs per-cursor-tick deltas tracked over time).
+  * Books-most-likely-finished leaderboard (homepage + bookclub
+    picker aid — needs aggregate completion rates indexed across
+    every canonical book).
+  * Personal-vs-aggregate cursor on the book detail page (the Reader
+    pill ships this, the detail page surface is still TBD).
+  * Bookclub picking aid using completion rates (UI in bookclub
+    creation flow).
 - **"You started this on iPhone — pick up?" passive banner on BookCard**
   *(remind-later, parked 2026-06-18)* — for books with a stale local
   cursor but a fresh cloud cursor, show a small badge on the card

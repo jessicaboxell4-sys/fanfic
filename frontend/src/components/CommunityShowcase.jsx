@@ -10,18 +10,25 @@ import { api } from "../lib/api";
  * empty so a fresh install doesn't show a sad gap.  Each thumbnail
  * deep-links into the public `/cover/:id` page so anonymous
  * visitors can browse the gallery without signing up first.
+ *
+ * Also surfaces a small public-counter strip ("X readers signed up
+ * this month") above the grid for social proof — pulled from the
+ * `/api/analytics/public-stats` endpoint.
  */
 export default function CommunityShowcase() {
   const [covers, setCovers] = useState([]);
+  const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       try {
-        const { data } = await api.get("/community-covers/featured", {
-          params: { days: 7, limit: 6 },
-        });
-        setCovers(data?.covers || []);
+        const [c, s] = await Promise.all([
+          api.get("/community-covers/featured", { params: { days: 7, limit: 6 } }),
+          api.get("/analytics/public-stats"),
+        ]);
+        setCovers(c.data?.covers || []);
+        setStats(s.data || null);
       } catch { /* non-blocking */ }
       setLoading(false);
     })();
@@ -57,6 +64,18 @@ export default function CommunityShowcase() {
             Explore the gallery <ArrowRight className="w-3 h-3" />
           </Link>
         </div>
+        {stats && stats.total_users > 0 && (
+          <p
+            className="text-xs text-[#6B705C] mb-5 -mt-2"
+            data-testid="landing-public-counter"
+          >
+            <strong className="text-[#2C2C2C]">{stats.total_users.toLocaleString()}</strong>{" "}
+            readers · <strong className="text-[#2C2C2C]">{stats.total_covers.toLocaleString()}</strong> AI covers shared
+            {stats.monthly_signups > 0 && (
+              <> · <strong className="text-[#2C2C2C]">{stats.monthly_signups.toLocaleString()}</strong> signed up this month</>
+            )}
+          </p>
+        )}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
           {covers.map((c) => (
             <Link

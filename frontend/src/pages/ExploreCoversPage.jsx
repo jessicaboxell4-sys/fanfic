@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Heart, Flame, Trophy, Sparkles } from "lucide-react";
 import { api } from "../lib/api";
+import ConsentBanner from "../components/ConsentBanner";
 
 // Hoisted outside the page so React doesn't re-create the type on each
 // render (which would otherwise blow away the entire subtree's DOM).
@@ -64,6 +65,7 @@ export default function ExploreCoversPage() {
 
   useEffect(() => {
     document.title = "Explore community covers — Shelfsort";
+    import("../lib/analytics").then((m) => m.stampView("explore"));
     (async () => {
       try {
         const r = await api.get("/community-covers/explore");
@@ -145,6 +147,7 @@ export default function ExploreCoversPage() {
           </a>
         </footer>
       </main>
+      <ConsentBanner />
     </div>
   );
 }

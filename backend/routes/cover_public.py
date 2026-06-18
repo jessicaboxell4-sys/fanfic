@@ -407,13 +407,20 @@ img {{ max-width: 480px; width: 100%; border-radius: 6px; margin-top: 1.5rem; }}
 
 
 @api_router.get("/share/cover/{cover_id}")
-async def share_cover_html(cover_id: str):
+async def share_cover_html(cover_id: str, request: Request):
     rec = await db.community_covers.find_one(
         {"cover_id": cover_id},
         {"_id": 0, "title": 1, "author": 1, "shared_by_username": 1, "votes": 1, "file": 1},
     )
     if rec is None or not (_COMMUNITY_COVERS_DIR / rec["file"]).exists():
         raise HTTPException(status_code=404, detail="Not found")
+    # Stamp the view server-side so crawler hits and direct link
+    # clicks both feed the analytics funnel.
+    try:
+        from routes.analytics import _stamp_view
+        await _stamp_view("cover", cover_id, request)
+    except Exception:
+        pass
     title = f"\u201c{rec.get('title', 'Untitled')}\u201d — cover by @{rec.get('shared_by_username', 'anon')}"
     desc = (
         f"AI-generated cover for {rec.get('title', '')}"
@@ -431,13 +438,18 @@ async def share_cover_html(cover_id: str):
 
 
 @api_router.get("/share/u/{username}")
-async def share_user_html(username: str):
+async def share_user_html(username: str, request: Request):
     user_doc = await db.users.find_one(
         {"username": username},
         {"_id": 0, "username": 1, "name": 1},
     )
     if user_doc is None:
         raise HTTPException(status_code=404, detail="Not found")
+    try:
+        from routes.analytics import _stamp_view
+        await _stamp_view("profile", username, request)
+    except Exception:
+        pass
     name = user_doc.get("name") or username
     title = f"@{username} — cover-sharer on Shelfsort"
     desc = (

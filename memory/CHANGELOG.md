@@ -8,6 +8,63 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-18 — Visitor analytics + Reader heatmap + Privacy guardrails ✅
+
+Two adjacent surfaces shipped in one batch.
+
+**Visitor analytics** (new `routes/analytics.py`):
+- `page_views` collection with hour-bucketed timestamps, ip_hash for
+  dedupe (never raw IPs), ref_bucket coarse-grained (twitter,
+  bluesky, discord, reddit, search, ao3, internal, other), country
+  inferred from `cf-ipcountry` / `accept-language`.
+- `POST /api/analytics/view` — SPA-driven view stamping (deduped
+  within 30 min by ip_hash + page_type + slug).
+- `_stamp_view()` hook fires server-side inside the
+  `/api/share/cover/{id}` and `/api/share/u/{username}` HTML pages
+  so crawler hits feed the same funnel.
+- `GET /api/analytics/public-stats` (unauth) — total users, monthly
+  signups, total covers.  Powers the landing-page social-proof
+  counter ("9,402 readers signed up this month").
+- `GET /api/analytics/summary` (admin-only) — funnel (explore →
+  cover → signup with conversion %), by_ref distribution, by_country
+  top-8, and the top 8 covers by views.
+
+**Reader heatmap**:
+- `GET /api/books/{id}/heatmap` — joins by canonical
+  (title_key, author_key), aggregates everyone's
+  `progress_fraction` into a 10-bucket completion curve, finds the
+  biggest ≥20-pp drop as the DNF cliff, and returns the caller's
+  own percent so the Reader UI can render a "you-vs-them" sparkline.
+- Cohort gate: heatmap is suppressed unless ≥10 unique readers have
+  the same canonical book.  Returns
+  `{ready: False, reason: "cohort_too_small"}` below the gate.
+
+**Privacy guardrails** (mandatory layer):
+- `users.reading_data_shared` (default `True`) — gates whether the
+  caller's books feed the cross-reader aggregate.
+- `POST/GET /api/analytics/reading-data-sharing` — opt-out toggle.
+- New `ReadingPrivacyToggle` card on the Account page.
+- New `ConsentBanner` component shown on first visit to any public
+  page (`/explore/covers`, `/cover/:id`, `/u/:user`) — accept /
+  decline persisted to localStorage, decline blocks SPA `stampView`.
+
+**Frontend integrations**:
+- `Reader.jsx` fetches heatmap on mount and renders a header pill
+  with cohort count, 10-bar mini sparkline (purple bars = sections
+  the reader has reached, grey = ahead), and a red "⚠ N%" badge if a
+  DNF cliff exists.
+- `CommunityShowcase` (landing page) shows the public counter strip
+  above the cover grid.
+- `AdminAnalyticsCard` widget on AdminConsole — funnel cells with
+  conversion %, top covers, by-referrer, by-country lists.  Window
+  selector (24h / 7d / 30d / 90d).
+
+**Tests** — new `tests/test_analytics.py` (7 tests, all passing):
+public stats unauth, view stamp + dedupe, admin summary 403 for
+non-admin, admin summary shape for admin, heatmap below cohort
+gate, heatmap above cohort gate with chapter_curve + DNF cliff,
+privacy toggle persistence.
+
 ## 2026-06-18 — Web Push cross-device handoff ✅
 
 True Kindle-Sync-style reading handoff via Web Push.  When you close

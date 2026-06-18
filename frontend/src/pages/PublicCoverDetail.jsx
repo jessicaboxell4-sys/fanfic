@@ -4,6 +4,8 @@ import { Heart, ArrowLeft, GitBranch, Download } from "lucide-react";
 import { api } from "../lib/api";
 import { toast } from "sonner";
 import { ShareButtons } from "../components/ShareButtons";
+import ConsentBanner from "../components/ConsentBanner";
+import { stampView } from "../lib/analytics";
 
 /**
  * Public cover-permalink page at `/cover/:coverId`.  Unauthenticated.
@@ -22,6 +24,7 @@ export default function PublicCoverDetail() {
 
   useEffect(() => {
     let alive = true;
+    stampView("cover", coverId);
     (async () => {
       try {
         const { data } = await api.get(`/community-covers/${coverId}`);
@@ -239,6 +242,7 @@ export default function PublicCoverDetail() {
           </div>
         </div>
       </main>
+      <ConsentBanner />
     </div>
   );
 }

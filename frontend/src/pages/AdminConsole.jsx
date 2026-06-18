@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import MongoInspectorCard from "../components/MongoInspectorCard";
 import ModerationLogCard from "../components/ModerationLogCard";
+import AdminAnalyticsCard from "../components/AdminAnalyticsCard";
 
 // ---------------------------------------------------------------------------
 // Page-level "Expand all / Collapse all" broadcast
@@ -3039,6 +3040,7 @@ export default function AdminConsole() {
                 testid="admin-moderation-log-card"
               >
                 <ModerationLogCard pageSize={25} />
+                <AdminAnalyticsCard />
               </Card>
               <MongoInspectorCardWrap />
               <FulltextBackfillCard />

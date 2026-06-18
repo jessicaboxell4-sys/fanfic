@@ -25,6 +25,10 @@ export default function Reader() {
   const [error, setError] = useState(null);
   const [bookmarks, setBookmarks] = useState([]);
   const [showBookmarkPanel, setShowBookmarkPanel] = useState(false);
+  // Aggregated cross-reader heatmap data for this canonical book.
+  // Loaded once on mount; gated server-side so it's null for books
+  // with fewer than 10 unique readers contributing.
+  const [heatmap, setHeatmap] = useState(null);
   // Mobile reading mode: full-screen viewport + tap-edge page flips.
   // `isFullscreen` is mirrored from the actual fullscreenchange event so
   // pressing ESC (which the browser handles) still updates our button.
@@ -242,6 +246,19 @@ export default function Reader() {
   // device of the same user.  Opt-in (no-ops unless Push has been
   // enabled in Account settings).
   useEffect(() => armReadingHandoff(id, () => lastProgressRef.current), [id]);
+
+  // Fetch the cross-reader heatmap once on mount.  Errors here are
+  // fatal-to-the-widget only — the reader UI carries on regardless.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get(`/books/${id}/heatmap`);
+        if (!cancelled) setHeatmap(data);
+      } catch { /* no heatmap = no widget */ }
+    })();
+    return () => { cancelled = true; };
+  }, [id]);
 
   const toggleFullscreen = useCallback(() => {
     try {
@@ -520,6 +537,46 @@ export default function Reader() {
               <Bookmark className="w-3.5 h-3.5" />
               <span data-testid="bookmark-count">{bookmarks.length}</span>
             </button>
+
+            {/* Cross-reader heatmap pill — only renders when the
+                cohort gate (≥10 readers) is met and the user hasn't
+                opted out of reading-data sharing. */}
+            {heatmap?.ready && (
+              <div
+                className="hidden md:flex items-center gap-2 text-xs bg-white border border-[#E8E6E1] rounded-full px-3 py-1.5"
+                data-testid="reader-heatmap-pill"
+                title={`${heatmap.cohort} readers · ${Math.round((heatmap.completion_rate || 0) * 100)}% finish rate`}
+              >
+                <span className="text-[#6B705C] font-medium">
+                  {heatmap.cohort}
+                </span>
+                <span className="text-[#6B705C]">readers</span>
+                {/* Mini sparkline of the 10-bucket completion curve */}
+                <span className="flex items-end gap-0.5 h-3 ml-1">
+                  {(heatmap.chapter_curve || []).map((c, i) => (
+                    <span
+                      key={i}
+                      className={
+                        "block w-1 rounded-sm " +
+                        (heatmap.you?.percent * 100 >= c.bucket
+                          ? "bg-[#6B46C1]"
+                          : "bg-[#E8E6E1]")
+                      }
+                      style={{ height: `${4 + c.fraction_reached * 8}px` }}
+                      aria-hidden="true"
+                    />
+                  ))}
+                </span>
+                {heatmap.dnf_cliff && (
+                  <span
+                    className="text-[10px] font-semibold text-[#B91C1C] ml-1"
+                    title={`${Math.round(heatmap.dnf_cliff.abandon_rate * 100)}% of readers stop near ${heatmap.dnf_cliff.percent_bucket}%`}
+                  >
+                    ⚠ {heatmap.dnf_cliff.percent_bucket}%
+                  </span>
+                )}
+              </div>
+            )}
 
             {/* Flow toggle */}
             <button

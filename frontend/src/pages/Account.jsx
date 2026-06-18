@@ -8,6 +8,7 @@ import LibraryStatsCard from "../components/LibraryStatsCard";
 import FandomTreemap from "../components/FandomTreemap";
 import CatalogSyncCard from "../components/CatalogSyncCard";
 import PushHandoffToggle from "../components/PushHandoffToggle";
+import ReadingPrivacyToggle from "../components/ReadingPrivacyToggle";
 // PalettePickerCard moved to /account/appearance (linked from the navbar appearance popover)
 import { FETCHING_UI_ENABLED } from "../lib/featureFlags";
 import { toast } from "sonner";
@@ -1315,6 +1316,9 @@ export default function Account() {
 
         {/* Push notifications for cross-device reading handoff. */}
         <PushHandoffToggle />
+
+        {/* Reading-data sharing opt-out (heatmap contributor toggle). */}
+        <ReadingPrivacyToggle />
 
         {/* Email preferences link */}
         <section className="shelf-card p-6 mb-6" data-testid="email-prefs-link-card">
