@@ -8,7 +8,7 @@ import {
   ArrowLeft, ArrowLeftRight, Upload, Sparkles, Layers, RefreshCw, BookOpen, Trash2,
   Filter, Heart, AlertTriangle, Settings, GitCompare, Bell, LineChart,
   Globe, Shield, CheckCircle2, Clock, FileWarning, User as UserIcon, X,
-  MessageSquare, Search, ListChecks, AtSign, Target, Compass,
+  MessageSquare, Search, ListChecks, AtSign, Target, Compass, Lightbulb,
 } from "lucide-react";
 
 // Help guide — kept current with the app. Last updated: 2026-06-18.

@@ -39,6 +39,7 @@ const ADMIN_CARD_MANIFEST = [
   { testid: "admin-pending-users-card", title: "Pending sign-ups", subtitle: "Approve or reject new users.", keywords: "pending sign-up approval new user gate queue invite waitlist" },
   { testid: "admin-today-pulse-card", title: "Today · 24h pulse", subtitle: "Signups, uploads, errors at a glance.", keywords: "today pulse signups uploads errors fandoms 24h daily summary" },
   { testid: "admin-feedback-inbox-card", title: "Feedback inbox", subtitle: "User-submitted bugs, ideas, and feature requests.", keywords: "feedback suggestions bug feature request inbox users reports tickets" },
+  { testid: "admin-help-feedback-card", title: "Help-page feedback", subtitle: "Per-page friction reports with screenshots.", keywords: "help suggestion friction page screenshot photo feedback short-form by-page" },
   { testid: "admin-storage-by-user-card", title: "Top storage users", subtitle: "Top 20 accounts by uploaded bytes.", keywords: "storage user disk bytes top biggest heavy quota power outliers abandoned" },
   { testid: "admin-storage-trend-card", title: "Storage trend · 30 days", subtitle: "Cumulative bytes over time.", keywords: "storage trend disk growth chart graph history snapshot 30d size bytes" },
   { testid: "admin-view-consents-card", title: "View-as-user consents", subtitle: "Request read-only access to a user's library.", keywords: "view as user impersonate consent privacy access permission timeline" },
@@ -522,6 +523,201 @@ function FeedbackInboxCard() {
         </ul>
       )}
     </Card>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// HelpFeedbackCard — Help-page SuggestionBox feed
+// ---------------------------------------------------------------------------
+// Distinct from FeedbackInboxCard (which sits on the older `/api/suggestions`
+// product board with titles/votes/categories). This card surfaces the
+// short-form Help-page SuggestionBox stream: free-text + optional screenshot,
+// grouped by the page the user was on when they wrote it.  The aggregation
+// widget on top reveals which routes generate the most friction; clicking
+// a row drills into that page's entries below.
+function HelpFeedbackCard() {
+  const [byPage, setByPage] = useState([]);
+  const [rows, setRows] = useState([]);
+  const [status, setStatus] = useState("open"); // open | all
+  const [pageFilter, setPageFilter] = useState(""); // "" = all pages
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(null);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const statusParam = status === "all" ? "" : status;
+      const [{ data: agg }, { data: list }] = await Promise.all([
+        api.get("/admin/feedback/by-page", { params: { status: statusParam, limit: 30 } }),
+        api.get("/admin/feedback", { params: { status: statusParam, page: pageFilter || undefined, limit: 100 } }),
+      ]);
+      setByPage(agg?.rows || []);
+      setRows(list?.rows || []);
+    } catch { toast.error("Couldn't load help feedback"); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [status, pageFilter]);
+
+  const totalCount = byPage.reduce((s, r) => s + (r.count || 0), 0);
+
+  return (
+    <Card
+      icon={MessageSquare}
+      title={`Help-page feedback${totalCount > 0 ? ` (${totalCount})` : ""}`}
+      subtitle="Free-text + screenshot reports from the Help page, grouped by where the user was."
+      testid="admin-help-feedback-card"
+    >
+      {/* Status filter */}
+      <div className="flex flex-wrap items-center gap-2 mb-4" data-testid="help-feedback-filter-row">
+        {[
+          ["open", "Open"],
+          ["all", "All"],
+        ].map(([val, lbl]) => (
+          <button
+            key={val}
+            onClick={() => { setStatus(val); setPageFilter(""); setExpanded(null); }}
+            data-testid={`help-feedback-status-${val}`}
+            className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-[0.15em] transition-colors ${
+              status === val ? "bg-[#6B46C1] text-white" : "bg-[#F5F3EC] text-[#6B705C] hover:bg-[#E8E2D4]"
+            }`}
+          >
+            {lbl}
+          </button>
+        ))}
+        {pageFilter && (
+          <button
+            type="button"
+            onClick={() => { setPageFilter(""); setExpanded(null); }}
+            data-testid="help-feedback-clear-page"
+            className="ml-auto inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-[0.15em] bg-[#FBE9E5] text-[#B43F26] hover:bg-[#F6D7CE]"
+          >
+            <XIcon className="w-3 h-3" />
+            Page: {pageFilter}
+          </button>
+        )}
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+      ) : (
+        <>
+          {/* Per-page aggregation widget */}
+          {byPage.length === 0 ? (
+            <p className="text-sm text-[#1F8F4E] italic inline-flex items-center gap-1.5 mb-2" data-testid="help-feedback-empty">
+              <Check className="w-3.5 h-3.5" /> No {status === "all" ? "" : status} feedback yet.
+            </p>
+          ) : (
+            <div className="mb-5" data-testid="help-feedback-by-page">
+              <p className="text-xs uppercase tracking-[0.15em] text-[#6B705C] font-bold mb-2">By page</p>
+              <ul className="grid gap-1.5">
+                {byPage.map((r) => {
+                  const active = pageFilter === r.page;
+                  return (
+                    <li key={r.page || "(unknown)"}>
+                      <button
+                        type="button"
+                        onClick={() => { setPageFilter(active ? "" : r.page); setExpanded(null); }}
+                        data-testid={`help-feedback-page-${r.page || "unknown"}`}
+                        className={`w-full flex items-center justify-between gap-3 text-left rounded-lg border px-3 py-2 text-sm transition-colors ${
+                          active
+                            ? "bg-[#EDE6FA] border-[#6B46C1] text-[#2C2C2C]"
+                            : "bg-[#FBFAF6] border-[#E5DDC5] hover:bg-[#F5F0E0] text-[#2C2C2C]"
+                        }`}
+                      >
+                        <span className="truncate font-mono text-xs">{r.page || "(unknown)"}</span>
+                        <span className="flex items-center gap-2 flex-shrink-0">
+                          {r.with_photo > 0 && (
+                            <span className="inline-flex items-center gap-0.5 text-[10px] uppercase tracking-[0.15em] text-[#6B705C]">
+                              <ImageIconAlias /> {r.with_photo}
+                            </span>
+                          )}
+                          <span className="px-2 py-0.5 rounded-full bg-[#6B46C1] text-white text-xs font-bold">{r.count}</span>
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+
+          {/* Drill-down list */}
+          {rows.length > 0 && (
+            <div data-testid="help-feedback-list">
+              <p className="text-xs uppercase tracking-[0.15em] text-[#6B705C] font-bold mb-2">
+                {pageFilter ? `Entries on ${pageFilter}` : "Latest entries"} · {rows.length}
+              </p>
+              <ul className="space-y-2">
+                {rows.map((r, idx) => {
+                  const id = `${r.ts}-${idx}`;
+                  const open = expanded === id;
+                  return (
+                    <li
+                      key={id}
+                      className="rounded-xl border border-[#E5DDC5] bg-[#FBFAF6] p-3"
+                      data-testid={`help-feedback-row-${idx}`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-[#6B705C] font-mono truncate">{r.page || "(unknown)"}</p>
+                          <p className="text-sm text-[#2C2C2C] mt-0.5 line-clamp-2">{r.text}</p>
+                          <p className="text-xs text-[#6B705C] mt-1">
+                            {r.user_email || r.user_id || "anonymous"} · {fmtTime(r.ts)}
+                            {r.photo_b64 && <span className="ml-2 text-[#6B46C1] font-bold">· photo</span>}
+                          </p>
+                        </div>
+                        {(r.photo_b64 || r.text.length > 160) && (
+                          <button
+                            onClick={() => setExpanded(open ? null : id)}
+                            data-testid={`help-feedback-expand-${idx}`}
+                            className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B46C1] hover:text-[#553B96] flex-shrink-0"
+                          >
+                            {open ? "Hide" : "Show"}
+                          </button>
+                        )}
+                      </div>
+                      {open && (
+                        <div className="mt-3 pt-3 border-t border-[#E5DDC5]">
+                          <p className="text-sm text-[#2C2C2C] whitespace-pre-wrap mb-3">{r.text}</p>
+                          {r.photo_b64 && (
+                            <a
+                              href={`data:${r.photo_mime || "image/png"};base64,${r.photo_b64}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              data-testid={`help-feedback-photo-${idx}`}
+                            >
+                              <img
+                                src={`data:${r.photo_mime || "image/png"};base64,${r.photo_b64}`}
+                                alt="attachment"
+                                className="max-w-full max-h-80 rounded-md border border-[#E5DDC5]"
+                              />
+                            </a>
+                          )}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+        </>
+      )}
+    </Card>
+  );
+}
+
+// Tiny inline icon used in the aggregation row's "N with photo" badge.
+// Defined locally so we don't have to re-import lucide's Image elsewhere
+// (the file already imports MessageSquare etc., but not Image).
+function ImageIconAlias() {
+  return (
+    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <circle cx="9" cy="9" r="2" />
+      <path d="M21 15l-5-5L5 21" />
+    </svg>
   );
 }
 
@@ -2997,7 +3193,7 @@ export default function AdminConsole() {
             >
               <Search className="w-8 h-8 text-[#6B705C] mx-auto mb-2" aria-hidden="true" />
               <p className="font-serif text-xl text-[#2C2C2C] mb-1">No sections match "{rawQuery}"</p>
-              <p className="text-sm text-[#6B705C] mb-4">Try one of the suggestions above — or clear the search to see all 13 sections.</p>
+              <p className="text-sm text-[#6B705C] mb-4">Try one of the suggestions above — or clear the search to see all {ADMIN_CARD_MANIFEST.length} sections.</p>
               <button
                 type="button"
                 onClick={() => setRawQuery("")}
@@ -3012,6 +3208,7 @@ export default function AdminConsole() {
               <PendingUsersCard />
               <TodayPulseCard />
               <FeedbackInboxCard />
+              <HelpFeedbackCard />
               <StorageByUserCard />
               <StorageTrendCard />
               <ViewConsentsCard />
