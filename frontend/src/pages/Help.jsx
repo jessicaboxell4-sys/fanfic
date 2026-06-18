@@ -9,7 +9,7 @@ import {
   MessageSquare, Search, ListChecks, AtSign, Target, Compass,
 } from "lucide-react";
 
-// Help guide — kept current with the app. Last updated: 2026-06-15.
+// Help guide — kept current with the app. Last updated: 2026-06-18.
 // When you add a feature, drop a new <Section> here; the sticky table
 // of contents builds itself from each section's `id`.
 
@@ -19,17 +19,15 @@ import {
 // deploy, POST to /api/announcements with a fresh `version` string.
 // `version` doubles as the per-user localStorage dismissal key.
 const FALLBACK_WHATS_NEW = {
-  version: "2026-06-16-inplace-meta",
+  version: "2026-06-18-cloud-backup",
   title: "Fresh in Shelfsort",
   items: [
-    { to: "/library", label: "Edit title / author / description in place", desc: "— the Edit button on any book now lets you fix the title, author, and description. Edits are rewritten into the EPUB file itself, so when you re-download or share the book, your corrections travel with it. Chapters and covers stay byte-identical." },
-    { to: "/library/stats", label: "Download your Year in Books as a PNG", desc: "— the Wrapped outro now has Download as PNG and Copy image buttons. Get a 1080×1350 Instagram-ready portrait of your year in one tap. Browsers that support image-clipboard also get a Copy button — paste straight into Threads / iMessage stories." },
-    { to: "/library/stats", label: "Share links now unfurl rich previews", desc: "— pasting a /share/yib/<token> link into Twitter, iMessage, Slack or Discord now shows your year as a proper card with the recap image, not bare text. Old links keep working." },
-    { to: "/friends", label: "Friends DM dots auto-refresh", desc: "— the unread-message dot on each friend now updates every 20 seconds (and immediately when you switch back to the tab) without needing a manual reload." },
-    { to: "/library/stats", label: "Year in Books — Wrapped redesign", desc: "— your yearly recap is a Spotify-Wrapped style scroll-snap experience: nine cinematic full-screen slides covering books opened, pages turned, longest streak, best month, top fandoms, top author, bookends, and achievements." },
-    { to: "/goals", label: "Goal-hit confetti, everywhere", desc: "— when finishing a book flips a reading goal, confetti now fires anywhere in the app, not just on the Goals page. A celebration toast names the goal you hit." },
-    { to: "/library/originals", label: "Native PDF / TXT / DOCX viewer", desc: "— open any non-EPUB original directly in-app at /read-original/<id>. PDFs use the browser's PDF.js, TXT renders in a clean serif column, DOCX is converted by mammoth.js, and unsupported formats (MOBI/AZW/etc.) get a one-click Convert-to-EPUB button." },
-    { to: "/account#username", label: "Public usernames", desc: "— claim a one-of-a-kind @handle (capital letters welcome) so friends can find you without sharing your email." },
+    { to: "/account", label: "Cloud library mirror", desc: "— your EPUBs and covers are now continuously mirrored to durable cloud storage so a server redeploy can't wipe them. Look for the green ✓ Shield-Check on your avatar — click it for a one-tap “Back up again” popover." },
+    { to: "/library/all", label: "Resume on another device", desc: "— start a fic on your laptop, pick it up on your phone. The yellow Resume pill on a book card means you have a fresh cloud cursor from a different device; tap it and the Reader opens at the exact CFI." },
+    { to: "/library", label: "Reading insights on every book", desc: "— BookDetail now surfaces three live pills: ↻ Re-read (if you keep coming back), ⚡ Pace (faster/slower than your usual %/hr), and ⌖ Cohort (you 45% · community 62%). All cohort-gated and opt-in." },
+    { to: "/explore/covers", label: "Community Covers — vote and remix", desc: "— browse, vote, and remix AI-generated covers shared by other Shelfsort readers. Public SEO-friendly cover pages with proper OG previews mean covers unfurl beautifully on Twitter / Discord / iMessage." },
+    { to: "/library", label: "Real-time messages and friend activity", desc: "— the message indicator and friends-page now update live via a single SSE channel (no more 15-second polling delay)." },
+    { to: "/account/emails", label: "Operator weekly digest (admins)", desc: "— Sunday-evening rollup email of explore views, signups, top covers, and referrer mix. Toggle from Account → Email preferences, admin-only." },
   ],
 };
 const WHATS_NEW_KEY = "shelfsort.whatsNewDismissed";
@@ -53,16 +51,22 @@ const SECTIONS = [
   { id: "sources", label: "Sources we recognize" },
   { id: "detection", label: "Detection & overrides" },
   { id: "data-safety", label: "Backup & restore" },
+  { id: "cloud-backup", label: "Cloud library mirror" },
   { id: "reading", label: "Reader & stats" },
+  { id: "cross-device", label: "Cross-device reading sync" },
+  { id: "reading-insights", label: "Reading insights (Re-read · Pace · Cohort)" },
   { id: "year-in-books", label: "Year in Books (Wrapped recap)" },
   { id: "word-count", label: "Word count & reading time" },
   { id: "usernames", label: "Public usernames & @handles" },
   { id: "messages", label: "Messages & friends" },
   { id: "bookclubs", label: "Book-club reading rooms" },
+  { id: "covers", label: "Community Covers" },
   { id: "recommendations", label: "Friend recommendations" },
   { id: "opds", label: "E-reader sync (OPDS)" },
   { id: "notifications", label: "Notifications & mutes" },
+  { id: "push", label: "Web push notifications" },
   { id: "auto-theme", label: "Scheduled auto-theme" },
+  { id: "operator-digest", label: "Operator weekly digest (admin)" },
   { id: "account", label: "Account & preferences" },
 ];
 
@@ -206,7 +210,7 @@ export default function Help() {
 
         <header className="mb-8">
           <h1 className="font-serif text-5xl md:text-6xl text-[#2C2C2C] leading-tight">Help</h1>
-          <p className="text-[#6B705C] mt-2">How to do everything in Shelfsort. Last updated 2026-06-15.</p>
+          <p className="text-[#6B705C] mt-2">How to do everything in Shelfsort. Last updated 2026-06-18.</p>
           <p className="text-sm text-[#6B705C] mt-3">
             Don&rsquo;t see what you&rsquo;re looking for? <Link to="/suggestions" className="text-[var(--primary)] font-semibold underline">Drop a suggestion →</Link> — bugs, tweaks, brand new ideas all welcome.
           </p>
@@ -351,19 +355,23 @@ export default function Help() {
             </button>
           </div>
           <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-1 text-sm text-[#2C2C2C] list-disc list-inside">
+            <li><a href="#cloud-backup" className="hover:underline font-semibold">Cloud library mirror</a> — survives redeploys, one-click backup, avatar shield-check</li>
+            <li><a href="#cross-device" className="hover:underline font-semibold">Cross-device reading sync</a> — Resume on any device, Web Push handoff</li>
+            <li><a href="#reading-insights" className="hover:underline font-semibold">Reading insights</a> — Re-read · Pace · Cohort pills on BookDetail</li>
+            <li><a href="#covers" className="hover:underline font-semibold">Community Covers</a> — vote, remix, public SEO-friendly profiles</li>
             <li><Link to="/goals" className="hover:underline font-semibold">Reading goals</Link> — yearly &amp; monthly targets, confetti on hit</li>
             <li><a href="#year-in-books" className="hover:underline font-semibold">Year in Books</a> — Spotify-Wrapped style yearly recap</li>
             <li><a href="#usernames" className="hover:underline font-semibold">Public usernames &amp; @handles</a> with autocomplete</li>
             <li><a href="#quick-search" className="hover:underline">Navbar book quick-search</a> — typeahead jumps</li>
-            <li><a href="#tour" className="hover:underline">First-time tour</a> — replay any time</li>
-            <li><a href="#bookclubs" className="hover:underline">Book-club reading rooms</a> — chat-style layout</li>
+            <li><a href="#push" className="hover:underline">Web push notifications</a> — device handoff alerts</li>
+            <li><a href="#bookclubs" className="hover:underline">Book-club reading rooms</a> — chat-style + buddy-pacing</li>
             <li><a href="#word-count" className="hover:underline">Word count &amp; reading time</a> with WPM setting</li>
             <li><a href="#recommendations" className="hover:underline">Friend recommendations</a> + weekly Sunday digest</li>
             <li><a href="#auto-theme" className="hover:underline">Scheduled auto-theme</a> (light by day / dark by night)</li>
             <li><a href="#opds" className="hover:underline">E-reader sync (OPDS)</a> for KOReader, Moon+, Marvin</li>
             <li><a href="#notifications" className="hover:underline">Per-kind notification mutes</a></li>
             <li><a href="#messages" className="hover:underline">Friends &amp; DMs unified</a> at /friends with inline chat drawer</li>
-            <li><a href="#bookclubs" className="hover:underline">Book-club weekly email digest</a> (opt-in)</li>
+            <li><a href="#operator-digest" className="hover:underline">Operator weekly digest</a> (admin-only)</li>
           </ul>
         </div>
 
@@ -633,6 +641,18 @@ export default function Help() {
               </ul>
             </Section>
 
+            <Section id="cloud-backup" icon={Shield} title="Cloud library mirror (durable storage)">
+              <p>On top of the manual ZIP backup above, Shelfsort continuously mirrors every EPUB + cover you upload to durable cloud object storage so a server redeploy or crash <em>can&apos;t wipe your library</em>. You don&apos;t have to do anything — the mirror is on by default.</p>
+              <ul>
+                <li><strong>Constant background mirror</strong> — every 10 minutes a tick walks the file system and uploads anything not already in the cloud. Idempotent: re-uploading the same file is a no-op so the job is cheap to run repeatedly.</li>
+                <li><strong>Auto-backfill on boot</strong> — when the server restarts, the very first thing it does (after coming online) is fire a backfill, so every redeploy puts you back in sync within minutes.</li>
+                <li><strong>One-tap re-mirror</strong> — visit <Link to="/account#cloud-backup-card">Account → Cloud library mirror</Link> and hit <em>Back up my library now</em> to force an immediate run. Useful right before a big trip or a known maintenance window.</li>
+                <li><strong>Visible reassurance signal</strong> — once your library has been backed up in the last 24 h, a tiny green <strong>✓ Shield-Check</strong> badge appears on your avatar in the top navbar. Click it for a popover showing the timestamp, file count, and a one-tap &ldquo;Back up again →&rdquo; button.</li>
+                <li><strong>Transparent restore</strong> — if a file goes missing from the server (post-redeploy, never re-uploaded), the next time anyone opens it the bytes are pulled back from cloud storage automatically. First open is slightly slower (10–60 s for a big book); every subsequent open is instant.</li>
+              </ul>
+              <p className="text-xs text-[#6B705C]">Your bytes are stored by Emergent&apos;s managed object storage; Shelfsort never reads them except to serve them back to you. The manual ZIP backup above is the right tool when you want a portable copy you control entirely — the cloud mirror is the safety net that keeps things working even if you forget to make a ZIP.</p>
+            </Section>
+
             <Section id="reading" icon={BookOpen} title="Reader & stats">
               <p>Click any book cover to open the in-browser EPUB Reader. Your reading position is saved per-book; come back to where you left off automatically.</p>
               <p><strong>Bookmarks</strong>: while reading, tap the <em>Bookmark</em> button in the reader header to save your current page — or just press <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>B</kbd>. If the current page is already bookmarked, the button flips to a filled <em>Saved</em> chip so you don&apos;t accidentally save the same spot twice. Open the <em>Bookmark</em> panel (the icon next to it with the count) to see every saved spot for this book, jump to any of them, type or edit a free-form note (saved on blur), and remove on hover. Each bookmark stores the chapter title, your reading-progress percentage, and the date you saved it. Bookmarks sync to your account so they follow you across devices.</p>
@@ -642,6 +662,29 @@ export default function Help() {
               <p><strong>Up next queue</strong>: build a personal reading order with the <em>Up next</em> widget on the Dashboard. Books in the queue persist across devices.</p>
               <p>The <Link to="/stats">Reading stats</Link> page covers your library shape, most-read fandoms, and pairing distribution. For a more cinematic year-end view — books opened, pages turned, longest streak, top fandoms, top author, bookends — open <a href="#year-in-books">Year in Books</a> below.</p>
               <p><strong>Refresh fanfics</strong>: the URL-fetching feature (FanFicFare + FicHub) is intentionally hidden from the UI but the code is preserved for a future re-enable. No FAQ entry until then.</p>
+            </Section>
+
+            <Section id="cross-device" icon={ArrowLeftRight} title="Cross-device reading sync">
+              <p>Start a fic on your laptop on the train; finish it on your phone in bed. Shelfsort tracks your reading position per-device in the cloud (CFI-precise, not just chapter-precise) so the &quot;where was I?&quot; bookmark follows you everywhere.</p>
+              <ul>
+                <li><strong>Resume Reading dashboard card</strong> — when the latest cursor came from a different device than the one you&apos;re on, the dashboard surfaces a &ldquo;Pick up where you left off on iPhone&rdquo; card with the book cover + chapter title. One tap drops you straight back into the Reader at the right page.</li>
+                <li><strong>Yellow Resume pill on book cards</strong> — for books with a fresh cloud cursor from a different device in the last 48 h (and you haven&apos;t finished them), a small yellow Resume pill appears in the corner of the cover on the library grid. Passive nudge that doesn&apos;t require enabling push.</li>
+                <li><strong>Reader pill (you vs you elsewhere)</strong> — when you open a book inside the Reader, a small pill in the top bar shows the cursor age + originating device label so you know whether you&apos;re ahead of, behind, or at the same spot as your other devices.</li>
+                <li><strong>Web push handoff</strong> — opt-in. When you close a book on one device, your other devices get a soft browser notification asking if you want to continue there. Toggle in <Link to="/account#notifications">Account → Notifications</Link>; see <a href="#push">Web push notifications</a> below for the setup walk-through.</li>
+                <li><strong>Realtime updates</strong> — every device&apos;s position is published via Shelfsort&apos;s unified SSE channel, so when you save progress on the laptop, your phone&apos;s Reader pill updates within ~1 second (no polling).</li>
+              </ul>
+              <p className="text-xs text-[#6B705C]">Privacy: position data is per-user only. Friends never see where you are in a fic — that data isn&apos;t shared even when you&apos;re a member of a Book Club room reading the same book.</p>
+            </Section>
+
+            <Section id="reading-insights" icon={LineChart} title="Reading insights (Re-read · Pace · Cohort)">
+              <p>BookDetail pages now surface up to three live pills that turn raw cursor data into reading rhythm signals — all opt-in and silently hidden when the data isn&apos;t there yet.</p>
+              <ul>
+                <li><strong>↻ Re-read pill</strong> — Shelfsort tracks &ldquo;backward jumps&rdquo; (the cursor dropping below 60 % of the running peak after being near 100 %). Three or more of those in 90 days → you&apos;re re-reading. The pill says <em>Re-read</em>, and after the fourth jump in 30 days you get a small in-app nudge (&ldquo;You&apos;ve kept coming back to <em>Title</em> — want to add it to a Cosy Comforts shelf?&rdquo;).</li>
+                <li><strong>⚡ Pace pill</strong> — Shelfsort compares your %/hr on this book to your own median across the last six months of finished books. <em>30 % faster than usual</em>, <em>your usual pace</em>, or <em>20 % slower than usual</em>. When you haven&apos;t opened a fresh book yet, the pill becomes <em>~Nh to finish</em>, a projection of total reading hours based on your median pace × the book&apos;s remaining percentage.</li>
+                <li><strong>⌖ Cohort progress bar</strong> — the Progress field now renders as a slim bar with your current percent in coral plus a purple tick mark at the community average. Cohort-gated (≥5 opted-in readers of the same canonical title+author) so no individual can be inferred. Surfaces as &ldquo;You: 45 % · Community: 62 %&rdquo;.</li>
+                <li><strong>Books most likely to be finished</strong> — admins also see a leaderboard (`/api/books/most-finished-leaderboard`) of canonical titles sorted by community completion rate. Useful for picking the next book-club read.</li>
+              </ul>
+              <p className="text-xs text-[#6B705C]">Cohort insights respect your <em>Share reading data</em> setting under <Link to="/account#privacy">Account → Privacy</Link>. Switching it off both stops contributing to the cohort and stops receiving the cohort pill on your own books.</p>
             </Section>
 
             <Section id="year-in-books" icon={Sparkles} title="Year in Books (Wrapped recap)">
@@ -735,7 +778,20 @@ export default function Help() {
                 <li><strong>Roles</strong>: Owner / Moderator / Member. Owners can edit, invite, promote, demote, remove, transfer ownership, or delete. Moderators can edit + invite + remove. Members read &amp; post.</li>
                 <li><strong>Friends-only invites</strong>: pick from your accepted-friends list <em>or</em> type an <code>@handle</code> in the quick-invite field at the top of the members rail to invite anyone on Shelfsort. Use <Link to="/friends">/friends</Link> to add people first if you&apos;d rather route through the friends list.</li>
                 <li><strong>Notifications</strong>: bookclub invites and per-message pings always fire in the bell. Optional <em>weekly email digest</em> ships every Monday at 08:00 UTC summarising the past week&apos;s activity across all your rooms — opt-in at <Link to="/account/emails">Account → Emails</Link>.</li>
+                <li><strong>Buddy-pacing prompts</strong>: in 2-person rooms, when both members cross into a new chapter Shelfsort auto-posts a system message (&ldquo;Both of you have reached Chapter 7. Ready to talk about it?&rdquo;) and pings both readers in-app. Larger rooms skip the prompt to avoid spam. Idempotent — one nudge per chapter per room.</li>
               </ul>
+            </Section>
+
+            <Section id="covers" icon={Sparkles} title="Community Covers">
+              <p>Shelfsort can generate AI cover art for any book that ships without a great one — and once you&apos;re happy with a generated cover, you can share it back to the community pool so other readers of the same book can adopt it.</p>
+              <ul>
+                <li><strong>Generate</strong>: on any book&apos;s detail page click <em>Regenerate cover</em>. Pick an aesthetic (vintage paperback, minimalist, watercolour, neon, etc.) and Shelfsort renders a new cover via Gemini Nano Banana. You can keep iterating; each render is saved as a variant.</li>
+                <li><strong>Share</strong>: the <em>Share to community</em> toggle on a saved variant publishes it to the pool. Public URL: <Link to="/explore/covers">/explore/covers</Link>. Each shared cover gets its own <code>/cover/&lt;id&gt;</code> page with Open Graph + Twitter Card meta so the link unfurls as a rich preview in Discord / Twitter / iMessage.</li>
+                <li><strong>Vote &amp; adopt</strong>: any logged-in user can up-vote a cover. The top-voted covers per canonical title bubble to the top of the Explore page and into the &ldquo;Cover of the week&rdquo; dashboard strip. One-click <em>Use this cover</em> on someone else&apos;s variant copies it to your library (with attribution to the original sharer).</li>
+                <li><strong>Lineage &amp; profiles</strong>: each cover tracks who shared it, who&apos;s adopted it, and which variants remixed from it. Click any sharer&apos;s @handle to see their <Link to="/library">public profile</Link> with their shared covers gallery.</li>
+                <li><strong>SEO &amp; discovery</strong>: the cover pool ships an RSS feed (<code>/feed/covers.xml</code>) and sitemap so search engines + RSS clients can index new community covers. The <em>Explore page</em> exposes browse-by-aesthetic + browse-by-fandom rails.</li>
+              </ul>
+              <p className="text-xs text-[#6B705C]">Privacy: sharing is opt-in per variant. Your library never auto-shares; only covers you explicitly toggle <em>Share to community</em> on become public. Revoke from the same toggle at any time and the public URL 404s within minutes.</p>
             </Section>
 
             <Section id="recommendations" icon={Sparkles} title="Friend recommendations">
@@ -769,6 +825,17 @@ export default function Help() {
               </ul>
             </Section>
 
+            <Section id="push" icon={Bell} title="Web push notifications">
+              <p>For cross-device handoff (&ldquo;Continue this fic on your phone?&rdquo;), Shelfsort uses Web Push — silent OS-level notifications that fire even when the tab is closed. <em>Strictly opt-in</em>: you have to explicitly enable it.</p>
+              <ul>
+                <li><strong>Enable</strong>: <Link to="/account#notifications">Account → Notifications</Link> → click <em>Enable browser notifications</em>. Your browser shows a permission prompt; allow it.</li>
+                <li><strong>Per-device subscription</strong>: subscribe separately on each device you want to receive handoff pings (phone, work laptop, tablet). The list shows every active subscription with the device label and the date you registered it.</li>
+                <li><strong>What triggers a push</strong>: closing a book on one device sends a soft handoff prompt to your other devices (&ldquo;Continue <em>Title</em> on iPhone?&rdquo;). Tapping the push opens the Reader at the same CFI. Nothing else uses push (no marketing pings, no chat alerts — those stay in-app + email).</li>
+                <li><strong>Unsubscribe</strong>: revoke any device from the same panel, or just block notifications in the browser. Server-side subscriptions are deleted on revoke.</li>
+              </ul>
+              <p className="text-xs text-[#6B705C]">Technical: VAPID keys are auto-rotated server-side; the public key ships down with the subscribe call so you never need to copy/paste anything. iOS Safari requires the site to be added to Home Screen as a Web App before push works — Shelfsort prompts you to do this on first enable from iOS.</p>
+            </Section>
+
             <Section id="auto-theme" icon={Sparkles} title="Scheduled auto-theme">
               <p>Three modes at <Link to="/account/appearance">Appearance → Theme</Link>:</p>
               <ul>
@@ -783,6 +850,16 @@ export default function Help() {
                 </li>
               </ul>
               <p className="text-xs text-[#6B705C]">Stored to localStorage only (per-browser).</p>
+            </Section>
+
+            <Section id="operator-digest" icon={LineChart} title="Operator weekly digest (admins only)">
+              <p>If you&apos;re an admin, Shelfsort can email you a Sunday-evening rollup of the past week&apos;s site analytics so you can keep a light pulse on engagement without opening the admin console.</p>
+              <ul>
+                <li><strong>What&apos;s in it</strong>: explore-page views, cover-page views, new signups, top 5 covers by view count (with the sharer&apos;s @handle), and a top-6 referrer mix (Twitter, Reddit, Discord, direct, etc.).</li>
+                <li><strong>Cadence</strong>: Sunday 19:00 UTC. Idempotent per ISO week so you never get two for the same Mon–Sun window.</li>
+                <li><strong>Enable</strong>: <Link to="/account/emails">Account → Email preferences</Link> → <em>Operator weekly digest</em> card (admin-only — the card is hidden from non-admins). Toggle it on, hit <em>Send sample email</em> to preview the layout.</li>
+                <li><strong>Where the data comes from</strong>: same aggregations the <Link to="/admin">Admin Console</Link> analytics widget uses — no separate tracking pipeline.</li>
+              </ul>
             </Section>
 
             <Section id="account" icon={Settings} title="Account & preferences">
