@@ -12,6 +12,7 @@ import DashboardHelpCard from "../components/DashboardHelpCard";
 import DashboardSuggestionsBox from "../components/DashboardSuggestionsBox";
 import FriendRecsCard from "../components/FriendRecsCard";
 import LibraryReadingStatsCard from "../components/LibraryReadingStatsCard";
+import CoverOfTheWeekStrip from "../components/CoverOfTheWeekStrip";
 import DuplicateResolutionModal from "../components/DuplicateResolutionModal";
 import UrlListDedupeModal from "../components/UrlListDedupeModal";
 import { Library, ArrowRight, Pin, RotateCcw, BarChart3 } from "lucide-react";
@@ -156,6 +157,9 @@ export default function Dashboard() {
 
         {/* Friend recommendations — auto-hides if there's nothing to show */}
         <FriendRecsCard />
+
+        {/* Covers of the week — auto-hides if the community pool is quiet */}
+        <CoverOfTheWeekStrip />
 
         {/* Reading-time stats — auto-hides until word counts exist */}
         <LibraryReadingStatsCard />

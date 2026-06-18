@@ -8,6 +8,22 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-18 — "Covers of the week" homepage strip ✅
+
+Wired the existing `/api/community-covers/featured?days=7` endpoint
+into a `CoverOfTheWeekStrip` component on the welcome dashboard.
+Horizontally-scrollable card list of the top-voted community covers
+from the last 7 days — each card shows the AI-generated thumbnail,
+title + author, the sharer's `@handle`, and a red Heart vote-toggle
+backed by the same `POST /community-covers/{id}/vote` endpoint as the
+regenerate-cover modal.  Voting is optimistic with a rollback on
+failure.  Strip auto-hides on fresh installs / quiet weeks so the
+lean dashboard stays lean.  Verified end-to-end via screenshot once
+real community covers existed (login → tour → /library → strip renders
+with two cards in the expected position above the quick-action chips).
+
+
+
 ## 2026-06-18 — Tier 3 vote endpoint bugfix ✅
 
 `POST /community-covers/{cover_id}/vote` was returning 404 for every
