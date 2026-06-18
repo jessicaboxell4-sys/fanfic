@@ -1015,6 +1015,20 @@ def start_digest_scheduler():
         replace_existing=True,
     )
 
+    # Object-storage mirror tick — every 10 min, re-upload any
+    # locally-cached file that Emergent doesn't already have.  This
+    # is how new uploads make it to durable storage without modifying
+    # the 20+ STORAGE_DIR write sites in `books.py`.  Idempotent via
+    # 409 = "already exists" short-circuit.
+    from routes.storage_admin import storage_backfill_tick
+    sched.add_job(
+        wrap_cron_job(storage_backfill_tick, "storage_backfill_tick"),
+        "interval",
+        minutes=10,
+        id="storage_backfill_tick",
+        replace_existing=True,
+    )
+
     sched.start()
     _scheduler = sched
     logger.info("Schedulers started (weekly digest + daily account grace tick).")

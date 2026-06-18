@@ -8,6 +8,43 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-18 — Object storage migration (Phase A: Emergent backend) ✅
+
+Shelfsort EPUBs + covers are now mirrored to durable Emergent Object
+Storage so they survive container redeploys.  No upload-flow changes
+required — additive only.
+
+- **`utils/storage_cloud.py`** — provider-agnostic adapter wrapping
+  Emergent Object Storage.  Late-bound key read (works after
+  `load_dotenv`), session-scoped storage key with auto-refresh on
+  403, idempotent uploads (409 = "already mirrored" treated as
+  success).
+- **`routes/storage_admin.py`** — new admin endpoints:
+  * `POST /api/admin/storage/backfill` — admin-triggered manual
+    upload-everything (capped at 2 000 files per call, repeat to
+    drain larger libraries).
+  * `GET /api/admin/storage/status` — last backfill counters
+    (scanned / uploaded / skipped / errors / ts).
+- **10-min cron tick** (`storage_backfill_tick`) registered in
+  `digest._setup_scheduler` — walks `STORAGE_DIR`, mirrors any
+  unmirrored file.  New uploads become durable within 10 min
+  without modifying the 20+ existing FS-write sites in `books.py`.
+- **Read-fallback restore** wired into `GET /api/books/{id}/cover`
+  and `GET /api/books/{id}/download` — when the local cache is
+  missing (post-redeploy), the bytes are pulled back from the
+  cloud and re-cached on the container disk.  Transparent to the
+  client.
+- **Validated against the live API** — backfill drained 200/200
+  files cleanly, round-trip upload+restore preserves bytes, full
+  test_storage_cloud.py suite (7 tests) green.
+
+Phase B (Cloudflare R2) is now a single-file change — swap
+`utils/storage_cloud.py` for an `S3`/`boto3` backend pointing at
+R2.  Every caller (admin endpoints, cron tick, read fallback)
+stays unchanged.  See ROADMAP.md for the trigger.
+
+---
+
 ## 2026-06-18 — Classifier snapshot regression ✅
 
 A 29-fixture snapshot test now guards every keyword-bank + classifier

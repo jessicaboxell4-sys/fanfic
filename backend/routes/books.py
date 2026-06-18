@@ -2654,8 +2654,12 @@ async def get_cover(book_id: str, request: Request):
     if not book:
         raise HTTPException(status_code=404, detail="Not found")
     cover = STORAGE_DIR / user_id / f"{book_id}.cover"
+    # Object-storage fallback: after a redeploy the local cache may be
+    # empty even though the bytes are safely mirrored in the cloud.
     if not cover.exists():
-        raise HTTPException(status_code=404, detail="No cover")
+        from utils.storage_cloud import ensure_local_cached
+        if not await asyncio.to_thread(ensure_local_cached, cover, user_id, book_id, ".cover"):
+            raise HTTPException(status_code=404, detail="No cover")
     return FileResponse(str(cover), media_type="image/jpeg")
 
 
@@ -2666,7 +2670,9 @@ async def download_book(book_id: str, user: User = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Not found")
     fp = STORAGE_DIR / user.user_id / f"{book_id}.epub"
     if not fp.exists():
-        raise HTTPException(status_code=404, detail="File missing")
+        from utils.storage_cloud import ensure_local_cached
+        if not await asyncio.to_thread(ensure_local_cached, fp, user.user_id, book_id, ".epub"):
+            raise HTTPException(status_code=404, detail="File missing")
     download_name = _templated_filename(book.get('title'), book.get('author'), book_id)
     return FileResponse(str(fp), media_type="application/epub+zip", filename=download_name)
 
