@@ -1,0 +1,42 @@
+{
+  "summary": "Iter 28 regression PASS. All 5 review items verified end-to-end. (1) /admin loads cleanly — no React runtime overlay, no 'Cannot read properties of undefined (reading length)'. (2) admin-help-feedback-card expands; help-feedback-by-page renders /library (4), /help (1), /search (1 with photo); /library row click reveals help-feedback-clear-page and filters the list. (3) help-feedback-status-all and help-feedback-status-open both reload the list without errors. (4) Backend /api/feedback: text-only -> 200 {ok:true}; 6MB image -> 413 {detail:'photo_too_large'}; text/plain content_type -> 400 {detail:'not_an_image'}. (5) /help SuggestionBox mounted, oversize pick triggers client-side toast 'Image is larger than 5 MB.' (server-side reason-specific toast wiring confirmed by code review of SuggestionBox.jsx submit()).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Navbar (any page)", "issues": ["Hydration warning: <button data-testid=backup-fresh-badge> nested inside <button data-testid=navbar-account> in AccountDropdown. Pre-existing — unrelated to this fix but visible in console on every admin/help render."]}
+    ]
+  },
+  "verification_passes": {
+    "admin_help_feedback_card": "PASS — card body mounts, by-page widget renders 3 pages, /library row click activates help-feedback-clear-page, status filter buttons reload list without crash.",
+    "feedback_endpoint_413": "PASS — POST 6MB image returns 413 with body {detail:'photo_too_large'}.",
+    "feedback_endpoint_400": "PASS — POST text/plain returns 400 with body {detail:'not_an_image'}.",
+    "feedback_endpoint_200": "PASS — POST valid text-only returns 200 {ok:true}.",
+    "admin_feedback_scoping": "PASS — /api/admin/feedback rows all carry non-null `text`; /api/admin/feedback/by-page omits legacy product-board rows; page filter (page=/library) returns only /library entries.",
+    "suggestion_box_mount": "PASS — /help loads with Lightbulb imported (iter 27 fix held), help-suggestion-box / textarea / file input / send button all present.",
+    "suggestion_box_oversize_toast": "PASS (client) — 6MB image pick shows 'Image is larger than 5 MB.' toast before submit. Server path verified via backend 413 contract + static review of SuggestionBox.submit() catch branch which maps err.response.data.detail==='photo_too_large' -> 'That image is larger than 5 MB — try a smaller one.'"
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_help_feedback_iter28.py",
+    "/app/test_reports/pytest/pytest_iter28.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "HelpFeedbackCard.load() still parallel-fires /admin/feedback/by-page + /admin/feedback even when the card is collapsed (Card initialises with `open=false` but the parent HelpFeedbackCard hooks `useEffect(load, [status, pageFilter])` runs on mount regardless). Wasted call on every admin page load. Suggest moving the fetch inside an `if (open)` guard or hoist the open-state above the data fetch.",
+    "AccountDropdown nests <button data-testid=backup-fresh-badge> inside the <button data-testid=navbar-account>, causing a React hydration warning on every admin/help render. Should swap inner button for <span role='button'> or move the badge outside the outer button.",
+    "AdminConsole.jsx is now 3000+ lines (1600 last iter + new cards). Long past the 700-line threshold — split each card into /pages/admin/cards/<Name>.jsx during next refactor.",
+    "Welcome tour now has data-testid='tour-skip' (good), but the persisted dismissal key is localStorage 'shelfsort_tour_seen' which a server-side flag would be safer for cross-device users.",
+    "Backend /api/feedback validates MIME via startswith('image/') only — a forged content_type could still store a 5MB blob. Consider magic-byte sniffing (Pillow.open()) for extra safety."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_help_feedback_iter28.py (new)"
+  ],
+  "success_rate": {"backend": "100% (7/7 pytest)", "frontend": "100% (admin card flow + help suggestion mount + client oversize toast all green)"},
+  "test_credentials": "shelfsort-tester@example.com / tester123! (user_a18dde45958d, is_admin=true)",
+  "seed_data_creation": "Backend tests inserted 1 TEST_iter28 text-only row on /library. Did not delete (no DELETE endpoint exposed). /library count went 3 -> 4 in by-page aggregation; safe to ignore for production but a teardown fixture could call db directly if hygiene matters.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "The two regression bugs from iter 27 are fully closed. To re-run: (a) `pytest /app/backend/tests/test_help_feedback_iter28.py -v` covers feedback writer + admin scoping; (b) Playwright bypass for the welcome tour is `await page.add_init_script(\"window.localStorage.setItem('shelfsort_tour_seen', '1');\")` BEFORE navigation (testid 'tour-skip' now exists, but pre-seeding is faster).",
+  "rca of the issue": "Iter 27 root cause (HelpFeedbackCard crash) was the shared `suggestions` collection serving two writers with different shapes; the admin reader treated every row as the help shape and dereferenced r.text.length on legacy rows that had no `text`. Main agent's fix added a Mongo discriminator `{text:{$exists,$ne:null}}` to both /admin/feedback list + by-page aggregation AND defaulted text='' in the frontend before any .length usage. Verified end-to-end: rows surfaced now uniformly carry `text`, and even a row with text=null would render as '' instead of crashing. The /api/feedback 200+ok:false -> 413/400+detail conversion is also fully applied; SuggestionBox now reads err.response.data.detail and toasts the reason-specific copy."
+}

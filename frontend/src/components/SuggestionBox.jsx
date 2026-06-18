@@ -58,8 +58,15 @@ export default function SuggestionBox({ source = "help-page" }) {
       toast.success("Thank you — we read every one.");
       setText("");
       clearPhoto();
-    } catch {
-      toast.error("Couldn't send right now — try again in a minute.");
+    } catch (err) {
+      const reason = err?.response?.data?.detail;
+      if (reason === "photo_too_large") {
+        toast.error("That image is larger than 5 MB — try a smaller one.");
+      } else if (reason === "not_an_image") {
+        toast.error("That file isn't an image — pick a PNG or JPEG.");
+      } else {
+        toast.error("Couldn't send right now — try again in a minute.");
+      }
     } finally {
       setBusy(false);
     }

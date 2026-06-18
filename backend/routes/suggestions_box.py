@@ -11,7 +11,7 @@ import base64
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import Depends, File, Form, Request, UploadFile
+from fastapi import Depends, File, Form, HTTPException, Request, UploadFile
 from pydantic import BaseModel, Field
 
 from deps import api_router, db
@@ -40,8 +40,13 @@ async def submit_suggestion(
     if photo is not None:
         raw = await photo.read()
         if len(raw) > 5 * 1024 * 1024:
-            return {"ok": False, "reason": "photo_too_large"}
-        if raw and (photo.content_type or "").startswith("image/"):
+            # 413 so the client knows to keep the form populated and surface
+            # a size-specific toast — returning 200 made the client clear the
+            # form as if the submission succeeded.
+            raise HTTPException(status_code=413, detail="photo_too_large")
+        if raw and not (photo.content_type or "").startswith("image/"):
+            raise HTTPException(status_code=400, detail="not_an_image")
+        if raw:
             photo_b64 = base64.b64encode(raw).decode()
             photo_mime = photo.content_type
 
@@ -68,7 +73,12 @@ async def list_suggestions(
     filter (e.g., ``/library``) scopes to a single route so admins
     can dig into the friction on one screen."""
     limit = max(1, min(int(limit or 100), 500))
-    q: Dict[str, Any] = {}
+    # The ``suggestions`` collection is shared with the older
+    # /api/suggestions product-board (which uses {title, body, category,
+    # suggestion_id}).  Discriminate to the Help-page shape by requiring
+    # the ``text`` field so we don't render legacy rows that crash the
+    # admin UI.
+    q: Dict[str, Any] = {"text": {"$exists": True, "$ne": None}}
     if status:
         q["status"] = status
     if page:
@@ -89,8 +99,14 @@ async def suggestions_by_page(
     admin widget that surfaces which routes are causing the most
     user friction."""
     limit = max(1, min(int(limit or 30), 100))
+    # Same shape-discriminator as the list endpoint above — legacy
+    # rows from the /api/suggestions board don't carry a ``text``
+    # field and shouldn't show up in the per-page friction widget.
+    match: Dict[str, Any] = {"text": {"$exists": True, "$ne": None}}
+    if status:
+        match["status"] = status
     pipeline = [
-        {"$match": {"status": status} if status else {}},
+        {"$match": match},
         {"$group": {
             "_id":           {"$ifNull": ["$page", "(unknown)"]},
             "count":         {"$sum": 1},

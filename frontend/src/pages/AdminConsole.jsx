@@ -652,6 +652,7 @@ function HelpFeedbackCard() {
                 {rows.map((r, idx) => {
                   const id = `${r.ts}-${idx}`;
                   const open = expanded === id;
+                  const text = r.text || "";
                   return (
                     <li
                       key={id}
@@ -661,13 +662,13 @@ function HelpFeedbackCard() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
                           <p className="text-xs text-[#6B705C] font-mono truncate">{r.page || "(unknown)"}</p>
-                          <p className="text-sm text-[#2C2C2C] mt-0.5 line-clamp-2">{r.text}</p>
+                          <p className="text-sm text-[#2C2C2C] mt-0.5 line-clamp-2">{text}</p>
                           <p className="text-xs text-[#6B705C] mt-1">
                             {r.user_email || r.user_id || "anonymous"} · {fmtTime(r.ts)}
                             {r.photo_b64 && <span className="ml-2 text-[#6B46C1] font-bold">· photo</span>}
                           </p>
                         </div>
-                        {(r.photo_b64 || r.text.length > 160) && (
+                        {(r.photo_b64 || text.length > 160) && (
                           <button
                             onClick={() => setExpanded(open ? null : id)}
                             data-testid={`help-feedback-expand-${idx}`}
@@ -679,7 +680,7 @@ function HelpFeedbackCard() {
                       </div>
                       {open && (
                         <div className="mt-3 pt-3 border-t border-[#E5DDC5]">
-                          <p className="text-sm text-[#2C2C2C] whitespace-pre-wrap mb-3">{r.text}</p>
+                          <p className="text-sm text-[#2C2C2C] whitespace-pre-wrap mb-3">{text}</p>
                           {r.photo_b64 && (
                             <a
                               href={`data:${r.photo_mime || "image/png"};base64,${r.photo_b64}`}
