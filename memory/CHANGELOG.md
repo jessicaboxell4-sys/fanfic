@@ -8,20 +8,32 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
-## 2026-06-18 — Backup-fresh navbar badge ✅
+## 2026-06-18 — Auto-backfill on backend startup ✅
 
-Tiny but high-impact: the AccountDropdown avatar now wears a green
-ShieldCheck badge whenever the user's library was backed up within
-the last 24 h.  Constant reassurance signal that doesn't require
-visiting Settings.
+The "did I remember to click backfill before deploying?" worry is
+gone — every backend boot now triggers an initial backfill 15s
+after startup (fire-and-forget so it doesn't block traffic).
+Combined with the 10-min cron tick, the cloud mirror is now
+fully self-driving.
 
-- **`AccountDropdown.jsx`** — fetches `GET /api/account/backup-library`
-  on mount.  When `last_run_at` is within 24 h, renders a 14 px
-  green badge over the avatar (bottom-right corner) with a hover
-  tooltip "Library backed up X min/h ago".
-- Reuses the existing endpoint — no backend changes.
-- Hides cleanly when the user has never backed up or storage is
-  disabled.
+- Empty-pod startups: instant no-op (nothing to mirror).
+- Pods with existing files (preview, post-redeploy): drain at
+  5 000 files/tick until everything is mirrored.
+- APScheduler `coalesce` correctly skips overlapping ticks while a
+  drain is in progress — no duplicate work.
+- First validated run: 4,999/5,000 files uploaded cleanly on the
+  preview pod's ~27k-file backlog.
+
+---
+
+## 2026-06-18 — Backup-fresh navbar badge + tap-to-act popover ✅
+
+Avatar badge now opens a popover on click:
+- "Backed up N min ago" timestamp
+- "X files safe in cloud storage" count from saved stats
+- "Back up again →" button that re-runs the per-user backfill and
+  toasts the result
+Reuses the existing endpoints — no backend changes.
 
 ---
 

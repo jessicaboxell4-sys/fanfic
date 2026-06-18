@@ -56,6 +56,29 @@ async def on_startup():
         await db.books.create_index([("user_id", 1), ("tags", 1)])
     except Exception as e:
         logger.warning(f"Index setup: {e}")
+
+    # Auto-backfill on startup — fire-and-forget so a slow upload to
+    # the object store doesn't delay the server accepting traffic.
+    # Catches the "I just deployed, my pod just rebooted, are my files
+    # safe?" case without needing the user to click anything.  The
+    # 10-min cron tick continues afterwards for new uploads.
+    try:
+        import asyncio as _asyncio
+        from routes.storage_admin import storage_backfill_tick
+
+        async def _initial_backfill_delayed():
+            # Wait 15 s after startup so the app is fully serving
+            # traffic before we start chewing on disk + network for
+            # the mirror.
+            await _asyncio.sleep(15)
+            try:
+                await storage_backfill_tick()
+            except Exception as e:
+                logger.warning("Initial storage backfill failed: %s", e)
+
+        _asyncio.create_task(_initial_backfill_delayed())
+    except Exception as e:
+        logger.warning(f"Could not schedule initial storage backfill: {e}")
     # One-time migration (2026-05): rename legacy `fichub_*` DB fields on
     # existing book records to their new names. Idempotent: only matches docs
     # that still have at least one legacy field. Safe to run on every startup.
