@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { Link, useLocation } from "react-router-dom";
 import Navbar from "../components/Navbar";
+import { api } from "../lib/api";
 import {
   ArrowLeft, ArrowLeftRight, Upload, Sparkles, Layers, RefreshCw, BookOpen, Trash2,
   Filter, Heart, AlertTriangle, Settings, GitCompare, Bell, LineChart,
@@ -56,7 +57,6 @@ const SECTIONS = [
   { id: "cross-device", label: "Cross-device reading sync" },
   { id: "reading-insights", label: "Reading insights (Re-read · Pace · Cohort)" },
   { id: "year-in-books", label: "Year in Books (Wrapped recap)" },
-  { id: "word-count", label: "Word count & reading time" },
   { id: "usernames", label: "Public usernames & @handles" },
   { id: "messages", label: "Messages & friends" },
   { id: "bookclubs", label: "Book-club reading rooms" },
@@ -66,8 +66,9 @@ const SECTIONS = [
   { id: "notifications", label: "Notifications & mutes" },
   { id: "push", label: "Web push notifications" },
   { id: "auto-theme", label: "Scheduled auto-theme" },
-  { id: "operator-digest", label: "Operator weekly digest (admin)" },
+  { id: "word-count", label: "Word count & reading time" },
   { id: "account", label: "Account & preferences" },
+  { id: "operator-digest", label: "Operator weekly digest (admin)" },
 ];
 
 function Section({ id, icon: Icon, title, children }) {
@@ -228,7 +229,7 @@ export default function Help() {
                     <li key={s.id} className="flex items-center gap-1.5">
                       <a
                         href={`#${s.id}`}
-                        onClick={() => { try { api.post("/help/track", { section: s.id }); } catch {} }}
+                        onClick={() => { try { api.post("/help/track", { section: s.id }); } catch { /* fire-and-forget */ } }}
                         className="text-[#6B705C] hover:text-[#E07A5F] flex-1"
                       >
                         {s.label}
@@ -811,16 +812,6 @@ export default function Help() {
               </p>
             </Section>
 
-            <Section id="word-count" icon={BookOpen} title="Word count & reading time">
-              <p>Every uploaded EPUB is indexed for full-text search at upload — the same pass also stamps a <strong>word count</strong> on the book. From that, Shelfsort computes a <strong>reading-time estimate</strong> using your personal reading speed (words-per-minute).</p>
-              <ul>
-                <li><strong>Per-book</strong>: open any book&apos;s detail page to see its word count and total reading time. For half-read books the estimate splits into &quot;<em>Xh Ym total · Zm left</em>&quot; based on your current progress.</li>
-                <li><strong>Dashboard tile</strong>: a &quot;<strong>Reading time</strong>&quot; card shows your full library at a glance — minutes left to read, minutes already read, library total. Hides automatically until at least one book has a word count.</li>
-                <li><strong>Reading speed</strong>: change yours at <Link to="/account/appearance">Appearance → Reading speed</Link>. Default is 250 wpm (average adult fiction); presets cover Slow (180), Average (250), Fast (350), Speed reader (500). Slider and number input go from 80 to 1500.</li>
-                <li><strong>Backfill</strong>: books uploaded before this feature shipped get their word count filled in lazily by an admin sweep, or instantly if an admin runs <code>POST /api/admin/wordcount/backfill</code>.</li>
-              </ul>
-            </Section>
-
             <Section id="bookclubs" icon={MessageSquare} title="Book-club reading rooms">
               <p>Private invite-only spaces where you and friends read the <em>same book</em> together. Find them at <Link to="/bookclubs">/bookclubs</Link>.</p>
               <ul>
@@ -904,13 +895,13 @@ export default function Help() {
               <p className="text-xs text-[#6B705C]">Stored to localStorage only (per-browser).</p>
             </Section>
 
-            <Section id="operator-digest" icon={LineChart} title="Operator weekly digest (admins only)">
-              <p>If you&apos;re an admin, Shelfsort can email you a Sunday-evening rollup of the past week&apos;s site analytics so you can keep a light pulse on engagement without opening the admin console.</p>
+            <Section id="word-count" icon={BookOpen} title="Word count & reading time">
+              <p>Every uploaded EPUB is indexed for full-text search at upload — the same pass also stamps a <strong>word count</strong> on the book. From that, Shelfsort computes a <strong>reading-time estimate</strong> using your personal reading speed (words-per-minute).</p>
               <ul>
-                <li><strong>What&apos;s in it</strong>: explore-page views, cover-page views, new signups, top 5 covers by view count (with the sharer&apos;s @handle), and a top-6 referrer mix (Twitter, Reddit, Discord, direct, etc.).</li>
-                <li><strong>Cadence</strong>: Sunday 19:00 UTC. Idempotent per ISO week so you never get two for the same Mon–Sun window.</li>
-                <li><strong>Enable</strong>: <Link to="/account/emails">Account → Email preferences</Link> → <em>Operator weekly digest</em> card (admin-only — the card is hidden from non-admins). Toggle it on, hit <em>Send sample email</em> to preview the layout.</li>
-                <li><strong>Where the data comes from</strong>: same aggregations the <Link to="/admin">Admin Console</Link> analytics widget uses — no separate tracking pipeline.</li>
+                <li><strong>Per-book</strong>: open any book&apos;s detail page to see its word count and total reading time. For half-read books the estimate splits into &quot;<em>Xh Ym total · Zm left</em>&quot; based on your current progress.</li>
+                <li><strong>Dashboard tile</strong>: a &quot;<strong>Reading time</strong>&quot; card shows your full library at a glance — minutes left to read, minutes already read, library total. Hides automatically until at least one book has a word count.</li>
+                <li><strong>Reading speed</strong>: change yours at <Link to="/account/appearance">Appearance → Reading speed</Link>. Default is 250 wpm (average adult fiction); presets cover Slow (180), Average (250), Fast (350), Speed reader (500). Slider and number input go from 80 to 1500.</li>
+                <li><strong>Backfill</strong>: books uploaded before this feature shipped get their word count filled in lazily by an admin sweep, or instantly if an admin runs <code>POST /api/admin/wordcount/backfill</code>.</li>
               </ul>
             </Section>
 
@@ -966,6 +957,16 @@ export default function Help() {
               </ul>
               <p>Found a bug or want a feature? The agent listens — just ask in chat.</p>
             </Section>
+            <Section id="operator-digest" icon={LineChart} title="Operator weekly digest (admins only)">
+              <p>If you&apos;re an admin, Shelfsort can email you a Sunday-evening rollup of the past week&apos;s site analytics so you can keep a light pulse on engagement without opening the admin console.</p>
+              <ul>
+                <li><strong>What&apos;s in it</strong>: explore-page views, cover-page views, new signups, top 5 covers by view count (with the sharer&apos;s @handle), and a top-6 referrer mix (Twitter, Reddit, Discord, direct, etc.).</li>
+                <li><strong>Cadence</strong>: Sunday 19:00 UTC. Idempotent per ISO week so you never get two for the same Mon–Sun window.</li>
+                <li><strong>Enable</strong>: <Link to="/account/emails">Account → Email preferences</Link> → <em>Operator weekly digest</em> card (admin-only — the card is hidden from non-admins). Toggle it on, hit <em>Send sample email</em> to preview the layout.</li>
+                <li><strong>Where the data comes from</strong>: same aggregations the <Link to="/admin">Admin Console</Link> analytics widget uses — no separate tracking pipeline.</li>
+              </ul>
+            </Section>
+
           </article>
         </div>
           </div>{/* /right column */}
