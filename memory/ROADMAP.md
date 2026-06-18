@@ -98,6 +98,13 @@
   whenever another device saves a cursor.)
 
 ### Parked / remind-later
+- **Backup history page** (parked 2026-06-18) — turn the "X files
+  safe in cloud storage" count in the AccountDropdown popover into
+  a link to `/account/backups` showing the last 10 backup runs
+  with timestamps + counts.  Useful for trust ("yes, this has
+  been running for weeks") and debugging ("why did the count
+  drop?").  ~60 LOC: new `backup_history` collection + 1 endpoint
+  + 1 page.
 - **Phase 6 — continued `books.py` splits** (now ~5 391 lines after
   the 2026-06-18 metadata + classifier extractions).  Remaining
   candidates:
