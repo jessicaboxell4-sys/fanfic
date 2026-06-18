@@ -11,6 +11,7 @@ import DmDrawer from "../components/DmDrawer";
 import DisplayName from "../components/DisplayName";
 import PrimaryCTAButton from "../components/PrimaryCTAButton";
 import { api } from "../lib/api";
+import { useEventStream } from "../hooks/useEventStream";
 import { useAuth } from "../context/AuthContext";
 
 function PersonRow({ row, children, testid }) {
@@ -107,9 +108,11 @@ export default function FriendsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authedUser?.user_id]);
 
-  // Poll for new DMs every 20s while the tab is visible and no drawer is open.
-  // Refetch immediately on tab refocus so the unread dot appears without
-  // needing a manual reload after switching back from another tab.
+  // Poll for new DMs every 60s while the tab is visible and no drawer
+  // is open (relaxed from 20s — the unified SSE channel handles the
+  // fast path; this just self-heals dropped connections).  Refetch
+  // immediately on tab refocus so the unread dot reflects reality
+  // after a long absence.
   useEffect(() => {
     if (!authedUser?.user_id) return;
     let interval = null;
@@ -118,7 +121,7 @@ export default function FriendsPage() {
       if (dmTarget) return; // skip — drawer is open, user is actively reading
       loadDmUnread();
     };
-    interval = setInterval(tick, 20000);
+    interval = setInterval(tick, 60000);
     const onVisibility = () => {
       if (!document.hidden && !dmTarget) loadDmUnread();
     };
@@ -129,6 +132,18 @@ export default function FriendsPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authedUser?.user_id, dmTarget]);
+
+  // Live updates via the unified SSE channel — no polling latency
+  // for incoming DMs / friend requests.
+  useEventStream({
+    "chat-incoming": () => { if (!dmTarget) loadDmUnread(); },
+    "notification": (n) => {
+      if (n?.kind === "friend_request" || n?.kind === "friend_accepted") {
+        // Re-pull the full friends + pending list to pick up the new edge.
+        load();
+      }
+    },
+  });
 
   // Honour `?room=<roomId>` deep links (legacy /messages/:roomId redirects).
   // Look the room up in /chat/rooms, find the other member, open the drawer,

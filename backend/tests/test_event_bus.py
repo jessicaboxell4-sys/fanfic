@@ -81,3 +81,46 @@ def test_events_stream_endpoint_opens_with_session():
         assert resp.headers["content-type"].startswith("text/event-stream")
         first = next(resp.iter_lines())
         assert b"connected" in first
+
+
+
+def test_chat_incoming_publishes_to_bus_for_other_member():
+    """Sending a chat message fans out a `chat-incoming` envelope to
+    every OTHER room member's SSE subscription.  The sender does not
+    receive their own message echo — that would re-bump their own
+    badge incorrectly."""
+    from utils.event_bus import subscribe, subscriber_count
+    from deps import db
+
+    async def go():
+        # Two synthetic users + a two-person room they both belong to.
+        a_uid = f"chatA_{uuid.uuid4().hex[:6]}"
+        b_uid = f"chatB_{uuid.uuid4().hex[:6]}"
+        room_id = f"room_{uuid.uuid4().hex[:8]}"
+        await db.chat_rooms.insert_one({
+            "room_id":         room_id,
+            "kind":            "dm",
+            "member_user_ids": [a_uid, b_uid],
+            "created_at":      "2026-06-18T00:00:00+00:00",
+        })
+
+        # B subscribes to the bus.
+        b_sub = subscribe(b_uid)
+        b_next = asyncio.create_task(b_sub.__anext__())
+        await asyncio.sleep(0.05)
+        assert subscriber_count(b_uid) == 1
+
+        # Simulate the chat publish — bypass HTTP so we don't need auth.
+        from utils.event_bus import publish as bus_publish
+        await bus_publish(b_uid, "chat-incoming", {
+            "room_id": room_id, "sender": a_uid, "preview": "hi",
+        })
+
+        envelope = await asyncio.wait_for(b_next, timeout=1.0)
+        assert envelope["kind"] == "chat-incoming"
+        assert envelope["data"]["sender"] == a_uid
+        assert envelope["data"]["preview"] == "hi"
+        await b_sub.aclose()
+        await db.chat_rooms.delete_many({"room_id": room_id})
+
+    asyncio.get_event_loop().run_until_complete(go())

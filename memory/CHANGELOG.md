@@ -8,6 +8,30 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-18 — Polling-loop SSE migration (Messages + Friends) ✅
+
+Closed the loop on the unified SSE channel by migrating the two
+remaining live-data consumers off polling:
+
+- **Backend** — `routes/chat.py` `send_message` now publishes a
+  `chat-incoming` envelope to every OTHER room member's SSE bus.
+  Sender is excluded so they don't see their own echo bump the
+  badge.  Friend-request / friend-accepted events already flow via
+  `notification` envelopes since `create_notification` was wired to
+  the bus on 2026-06-18.
+- **Frontend** — `MessagesDropdown` and `FriendsPage` now subscribe
+  to `chat-incoming` + `notification` (filtered to friend-shaped
+  kinds) via `useEventStream`.  Background polling cadence relaxed
+  from 15-20 s to 60 s as a safety-net for dropped connections.
+- **Test** — new `test_chat_incoming_publishes_to_bus_for_other_member`
+  asserts the chat-incoming envelope reaches a subscribed receiver
+  with the correct sender + preview.  All 4 event-bus tests pass.
+
+Third polling loop (`ActiveRoomPanel` from the original roadmap)
+doesn't exist in the codebase — replaced by the bookclub message
+flow which is on a separate WebSocket-style channel and out of scope
+for the SSE migration.  Removed from the action-items list.
+
 ## 2026-06-18 — Deployment readiness sweep + SSE iteration bug fix ✅
 
 Ran the deployment-readiness check (PASS) and a parallel sanity pass.

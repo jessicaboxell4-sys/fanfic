@@ -298,6 +298,24 @@ async def post_chat_message(
         {"$set": {"last_read_at": now}},
         upsert=True,
     )
+    # Push an "incoming message" envelope to every other room member's
+    # open SSE channel so the messages-dropdown / friends-page badge
+    # bumps in real time instead of waiting for the 15s poll.
+    try:
+        from utils.event_bus import publish as bus_publish
+        room = await db.chat_rooms.find_one(
+            {"room_id": room_id}, {"_id": 0, "member_user_ids": 1},
+        ) or {}
+        envelope = {
+            "room_id":   room_id,
+            "sender":    user.user_id,
+            "preview":   msg["body"][:80],
+        }
+        for mid in (room.get("member_user_ids") or []):
+            if mid != user.user_id:
+                await bus_publish(mid, "chat-incoming", envelope)
+    except Exception:
+        pass
     return _serialize_message(msg)
 
 

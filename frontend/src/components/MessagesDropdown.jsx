@@ -1,36 +1,48 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { MessageSquare, Users, BookOpen } from "lucide-react";
 import { api } from "../lib/api";
+import { useEventStream } from "../hooks/useEventStream";
 
 // Combined Messages / Friends / Reading-rooms dropdown.  Lives in the
-// navbar in place of the standalone chat icon.  Polls unread + pending
-// counts every 15s and shows one combined numeric badge so users notice
-// new activity at a glance.
+// navbar in place of the standalone chat icon.  Originally polled
+// unread + pending counts every 15 s; now subscribes to the unified
+// SSE channel for instant updates and only polls every 60 s as a
+// safety-net in case the long-lived connection drops.
 export default function MessagesDropdown() {
   const [open, setOpen] = useState(false);
   const [unread, setUnread] = useState(0);
   const [pending, setPending] = useState(0);
   const wrapRef = useRef(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const [a, b] = await Promise.all([
-          api.get("/chat/unread-count").catch(() => ({ data: { unread: 0 } })),
-          api.get("/friends/pending-count").catch(() => ({ data: { pending_in: 0 } })),
-        ]);
-        if (!cancelled) {
-          setUnread(a?.data?.unread || 0);
-          setPending(b?.data?.pending_in || 0);
-        }
-      } catch { /* ignore */ }
-    };
-    load();
-    const id = setInterval(load, 15000);
-    return () => { cancelled = true; clearInterval(id); };
+  const load = useCallback(async () => {
+    try {
+      const [a, b] = await Promise.all([
+        api.get("/chat/unread-count").catch(() => ({ data: { unread: 0 } })),
+        api.get("/friends/pending-count").catch(() => ({ data: { pending_in: 0 } })),
+      ]);
+      setUnread(a?.data?.unread || 0);
+      setPending(b?.data?.pending_in || 0);
+    } catch { /* ignore */ }
   }, []);
+
+  useEffect(() => {
+    load();
+    // Slow safety-poll so a dropped SSE connection still self-heals
+    // within a minute.
+    const id = setInterval(load, 60000);
+    return () => clearInterval(id);
+  }, [load]);
+
+  // Instant updates via the unified SSE channel.
+  useEventStream({
+    "chat-incoming": () => load(),
+    "notification": (n) => {
+      // Only re-load if the notification is friend-request shaped —
+      // other kinds (covers, goals) don't affect this badge.
+      if (n?.kind === "friend_request" || n?.kind === "friend_accepted") load();
+    },
+  });
 
   useEffect(() => {
     if (!open) return;
