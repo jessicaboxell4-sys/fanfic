@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { Link, useLocation } from "react-router-dom";
 import Navbar from "../components/Navbar";
+import SuggestionBox from "../components/SuggestionBox";
 import { api } from "../lib/api";
 import {
   ArrowLeft, ArrowLeftRight, Upload, Sparkles, Layers, RefreshCw, BookOpen, Trash2,
@@ -35,6 +36,7 @@ const WHATS_NEW_KEY = "shelfsort.whatsNewDismissed";
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const SECTIONS = [
+  { id: "feedback", label: "Send us feedback" },
   { id: "getting-started", label: "Getting started" },
   { id: "tour", label: "First-time tour" },
   { id: "dashboard-tour", label: "Dashboard tour" },
@@ -430,6 +432,11 @@ export default function Help() {
 
         <div className="grid md:grid-cols-1 gap-10">
           <article className="min-w-0 break-words">
+            <Section id="feedback" icon={Lightbulb} title="Send us feedback">
+              <p>Got a bug, a feature wish, or a screen that feels confusing? Drop us a note here — every suggestion lands in the team&apos;s triage queue. You can attach a screenshot if showing is easier than telling.</p>
+              <SuggestionBox source="help-page" />
+            </Section>
+
             <Section id="getting-started" icon={Sparkles} title="Getting started">
               <p>Shelfsort organizes your EPUB library by fandom, author, pairing, completion status, and reading progress — built for fanfiction readers but works for any ebook collection.</p>
               <ol>
