@@ -333,9 +333,11 @@ export default function BookDetail() {
               </span>
               {book.fandom && <span className="badge-fandom">{book.fandom}</span>}
               <StatusBadge book={book} onChange={(next) => setBook((b) => ({ ...b, ...next }))} />
-              <span className="text-xs text-[#6B705C] px-2 py-1">
-                via {book.classifier} · {Math.round(book.confidence * 100)}% confident
-              </span>
+              {Number.isFinite(book.confidence) && (
+                <span className="text-xs text-[#6B705C] px-2 py-1">
+                  via {book.classifier} · {Math.round(book.confidence * 100)}% confident
+                </span>
+              )}
             </div>
 
             {book.description && (
