@@ -46,10 +46,16 @@
 - `POST /api/books/{id}/reclassify|refresh|touch|progress|mark`
 - `POST /api/books/bulk/move|delete`
 - `GET  /api/books/export/zip|xlsx|links`
+- `GET  /api/books/most-finished-leaderboard` (cohort ≥10, opted-in only)
 - `GET  /api/year-in-books/{year}` · `POST /api/year-in-books/{year}/share|email`
 - `GET  /api/public/year/{token}` · `GET /api/og/yib/{token}` (OG preview HTML + image)
 - `GET  /api/admin/users/pending` · `POST /api/admin/users/{user_id}/approve`
 - `POST /api/admin/view-consents/request` · `POST /api/account/admin-access/grant`
+- `GET  /api/events/stream` (unified SSE channel — chat, notifications, friend activity)
+- `GET  /api/reading-sync/hints` (cross-device "Resume" passive hint set)
+- `POST /api/reading-sync/cursor` · `POST /api/push/subscribe` (Web Push)
+- `GET|PUT /api/admin/operator-digest` · `POST /api/admin/operator-digest/preview`
+- `GET  /api/analytics/summary` (admin visitor analytics + funnel)
 
 ## 3rd-Party Integrations
 - **Emergent LLM Key** — Claude Sonnet 4.6 for classification + tag suggestions

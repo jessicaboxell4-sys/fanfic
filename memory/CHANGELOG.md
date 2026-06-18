@@ -8,6 +8,68 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-18 — P3 batch: Operator digest, Resume badge, Buddy-pacing, Leaderboard ✅
+
+Cleared four P3 items in one batch — three product features and one
+backlog-doc deliverable.  All shipped behind a new
+`test_p3_batch.py` regression (9/9 green) plus testing-agent
+verification (iteration_24.json — 100% PASS).
+
+- **Weekly Operator Digest email** — new `routes/operator_digest.py`
+  module. Sunday 19:00 UTC cron sends a rollup of explore views,
+  cover-page views, signups, top 5 covers, and referrer mix to
+  every admin who toggled
+  `operator_digest.email_enabled = True`.  Toggle + "Send sample
+  email" preview button live on `/account/emails` (admin-only
+  card).  Idempotent per ISO week via
+  `operator_digest.last_sent_at` on the user doc.  Reuses the
+  existing Resend pipeline + `log_email_send` helper.
+- **BookCard "Resume" passive hint** — new
+  `GET /api/reading-sync/hints` endpoint surfaces every book with a
+  fresh cloud cursor (last 48 h, percent < 99 %, from a device
+  other than the caller's `shelfsort-device-id`).
+  `AllBooksPage.jsx` fetches once per mount and passes per-book
+  hints down; `BookCard.jsx` renders a yellow pill
+  (`cross-device-hint-<book_id>` testid) with a Smartphone icon
+  and the originating device label as a tooltip. Lets users
+  discover cross-device sync without enabling push.
+- **Bookclub buddy-pacing** — when both members of a 2-person room
+  cross into a new chapter, `_maybe_post_buddy_pacing` inserts a
+  system message ("Both of you have reached Chapter N. Ready to
+  talk about it?") + pings both readers via in-app notifications.
+  Idempotent per (room, chapter) via a `system_kind='buddy_pacing'`
+  guard; larger rooms skipped to avoid spam.
+- **Books-most-likely-finished leaderboard** — new
+  `GET /api/books/most-finished-leaderboard` aggregates canonical
+  (title, author) pairs by completion rate (≥99% progress fraction
+  across opted-in cohort).  Same `_HEATMAP_MIN_READERS = 10`
+  cohort gate as the per-book heatmap so single users can't be
+  inferred.  Powers a future homepage / bookclub-picker strip; no
+  frontend surface yet.
+- **Launch tweet drafts** — three angle variants
+  (cover-ecosystem, cross-device sync, privacy-community) committed
+  to `memory/LAUNCH_TWEET.md` with a posting checklist + after-
+  launch monitoring notes.
+
+Fixes during the same window (testing-agent surfaced during the P3
+sweep):
+
+- **EmailPreferences `<select>` crash** — the Emergent VisualEditor
+  wraps dynamic option text in a `<span>`, which React 19 refuses
+  inside a native `<option>` (hydration error → app-level error
+  boundary collapsing the route to `/`).  Migrated the
+  weekly-digest day-of-week + UTC-hour controls to shadcn
+  `<Select>` (Radix popper, no `<option>` DOM).  Page now mounts
+  cleanly for all users; operator-digest card is reachable.
+- **BookCard Resume badge JSX** — initial implementation
+  destructured `crossDeviceHint` from props but the badge JSX got
+  lost in a follow-up edit, shipping a no-op feature.  Re-added
+  the badge block alongside the existing Read badge (with
+  `!isRead && crossDeviceHint` guard so finished books never get
+  the pill).
+
+---
+
 ## 2026-06-18 — Polling-loop SSE migration (Messages + Friends) ✅
 
 Closed the loop on the unified SSE channel by migrating the two
