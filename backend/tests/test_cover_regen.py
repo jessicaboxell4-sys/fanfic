@@ -400,3 +400,299 @@ def test_cover_variants_listed_activated_and_deleted():
         assert len(r.json()["variants"]) == 1
     finally:
         _cleanup(uid, book_id)
+
+
+
+# ---------------------------------------------------------------------
+# Tier 4 — notifications, achievements, public profile, lineage
+# (2026-06-18)
+# ---------------------------------------------------------------------
+
+def test_vote_milestone_fires_notification():
+    """Voting on someone else's cover for the first time crosses the
+    1-vote milestone → recipient gets a `cover_milestone_votes` row."""
+    import requests
+    a_uid, a_email, a_pw, a_book = _seed_user_and_book()
+    b_uid, b_email, b_pw, b_book = _seed_user_and_book()
+    sa = requests.Session()
+    sb = requests.Session()
+    sa.post(f"{BASE}/api/auth/login", json={"email": a_email, "password": a_pw})
+    sb.post(f"{BASE}/api/auth/login", json={"email": b_email, "password": b_pw})
+    try:
+        r = sa.post(f"{BASE}/api/books/{a_book}/preview-cover", json={})
+        if r.status_code != 200:
+            pytest.skip(f"preview-cover skipped: {r.status_code}")
+        pid = r.json()["preview_id"]
+        sa.post(f"{BASE}/api/books/{a_book}/apply-cover", json={"preview_id": pid})
+        vlist = sa.get(f"{BASE}/api/books/{a_book}/cover-variants").json()
+        vid = vlist["variants"][0]["variant_id"]
+        sr = sa.post(f"{BASE}/api/books/{a_book}/cover-variants/{vid}/share")
+        cover_id = sr.json()["community_cover_id"]
+
+        # B votes — first heart → sharer (A) should get a milestone ping.
+        sb.post(f"{BASE}/api/community-covers/{cover_id}/vote")
+
+        notif = asyncio.get_event_loop().run_until_complete(
+            db.notifications.find_one(
+                {"user_id": a_uid, "kind": "cover_milestone_votes"},
+                {"_id": 0, "kind": 1, "title": 1, "body": 1},
+            )
+        )
+        assert notif is not None, "Expected cover_milestone_votes notification for A"
+        assert "1" in notif["title"]
+    finally:
+        asyncio.get_event_loop().run_until_complete(
+            db.community_covers.delete_many({"shared_by_user_id": {"$in": [a_uid, b_uid]}})
+        )
+        asyncio.get_event_loop().run_until_complete(
+            db.notifications.delete_many({"user_id": {"$in": [a_uid, b_uid]}})
+        )
+        _cleanup(a_uid, a_book)
+        _cleanup(b_uid, b_book)
+
+
+def test_import_milestone_fires_notification():
+    """First import of A's shared cover → A gets a
+    `cover_milestone_imports` notification."""
+    import requests
+    a_uid, a_email, a_pw, a_book = _seed_user_and_book()
+    b_uid, b_email, b_pw, b_book = _seed_user_and_book()
+    sa = requests.Session()
+    sb = requests.Session()
+    sa.post(f"{BASE}/api/auth/login", json={"email": a_email, "password": a_pw})
+    sb.post(f"{BASE}/api/auth/login", json={"email": b_email, "password": b_pw})
+    try:
+        r = sa.post(f"{BASE}/api/books/{a_book}/preview-cover", json={})
+        if r.status_code != 200:
+            pytest.skip(f"preview-cover skipped: {r.status_code}")
+        pid = r.json()["preview_id"]
+        sa.post(f"{BASE}/api/books/{a_book}/apply-cover", json={"preview_id": pid})
+        vlist = sa.get(f"{BASE}/api/books/{a_book}/cover-variants").json()
+        vid = vlist["variants"][0]["variant_id"]
+        sr = sa.post(f"{BASE}/api/books/{a_book}/cover-variants/{vid}/share")
+        cover_id = sr.json()["community_cover_id"]
+
+        # B imports → first import → A gets the milestone ping.
+        ir = sb.post(f"{BASE}/api/books/{b_book}/import-community-cover/{cover_id}")
+        assert ir.status_code == 200, ir.text
+
+        notif = asyncio.get_event_loop().run_until_complete(
+            db.notifications.find_one(
+                {"user_id": a_uid, "kind": "cover_milestone_imports"},
+                {"_id": 0, "title": 1},
+            )
+        )
+        assert notif is not None, "Expected cover_milestone_imports for A after first import"
+    finally:
+        asyncio.get_event_loop().run_until_complete(
+            db.community_covers.delete_many({"shared_by_user_id": {"$in": [a_uid, b_uid]}})
+        )
+        asyncio.get_event_loop().run_until_complete(
+            db.notifications.delete_many({"user_id": {"$in": [a_uid, b_uid]}})
+        )
+        _cleanup(a_uid, a_book)
+        _cleanup(b_uid, b_book)
+
+
+def test_top_of_week_scheduler_grants_achievement_and_notifies():
+    """The leaderboard tick records the current top cover in
+    system_state, pings the sharer, and stamps a `top_of_week`
+    achievement.  Re-running with the same winner is a no-op."""
+    import requests
+    from utils.cover_notifications import cover_leaderboard_tick
+    a_uid, a_email, a_pw, a_book = _seed_user_and_book()
+    sa = requests.Session()
+    sa.post(f"{BASE}/api/auth/login", json={"email": a_email, "password": a_pw})
+    try:
+        r = sa.post(f"{BASE}/api/books/{a_book}/preview-cover", json={})
+        if r.status_code != 200:
+            pytest.skip(f"preview-cover skipped: {r.status_code}")
+        pid = r.json()["preview_id"]
+        sa.post(f"{BASE}/api/books/{a_book}/apply-cover", json={"preview_id": pid})
+        vlist = sa.get(f"{BASE}/api/books/{a_book}/cover-variants").json()
+        vid = vlist["variants"][0]["variant_id"]
+        sr = sa.post(f"{BASE}/api/books/{a_book}/cover-variants/{vid}/share")
+        cover_id = sr.json()["community_cover_id"]
+
+        # Seed at least one vote so the cover qualifies (votes > 0).
+        sa.post(f"{BASE}/api/community-covers/{cover_id}/vote")
+
+        # Reset any prior state so we're guaranteed a "changed" tick.
+        asyncio.get_event_loop().run_until_complete(
+            db.system_state.delete_many({"_id": "cover_ecosystem_state"})
+        )
+        asyncio.get_event_loop().run_until_complete(
+            db.users.update_one({"user_id": a_uid}, {"$unset": {"cover_achievements": ""}})
+        )
+
+        # First tick — should detect change, ping A, grant achievement.
+        result = asyncio.get_event_loop().run_until_complete(cover_leaderboard_tick())
+        assert result["changed"] is True
+        assert result["top"] == cover_id
+
+        user_doc = asyncio.get_event_loop().run_until_complete(
+            db.users.find_one({"user_id": a_uid}, {"_id": 0, "cover_achievements": 1})
+        )
+        trophies = user_doc.get("cover_achievements") or []
+        assert any(t["kind"] == "top_of_week" and t["cover_id"] == cover_id for t in trophies)
+
+        notif = asyncio.get_event_loop().run_until_complete(
+            db.notifications.find_one({"user_id": a_uid, "kind": "cover_top_of_week"}, {"_id": 0, "title": 1})
+        )
+        assert notif is not None
+
+        # Re-running with the same winner is a no-op (no double trophy).
+        result2 = asyncio.get_event_loop().run_until_complete(cover_leaderboard_tick())
+        assert result2["changed"] is False
+        user_doc2 = asyncio.get_event_loop().run_until_complete(
+            db.users.find_one({"user_id": a_uid}, {"_id": 0, "cover_achievements": 1})
+        )
+        top_count = sum(
+            1 for t in (user_doc2.get("cover_achievements") or [])
+            if t["kind"] == "top_of_week" and t["cover_id"] == cover_id
+        )
+        assert top_count == 1, "Achievement should only be stamped once"
+    finally:
+        asyncio.get_event_loop().run_until_complete(
+            db.community_covers.delete_many({"shared_by_user_id": a_uid})
+        )
+        asyncio.get_event_loop().run_until_complete(
+            db.notifications.delete_many({"user_id": a_uid})
+        )
+        asyncio.get_event_loop().run_until_complete(
+            db.system_state.delete_many({"_id": "cover_ecosystem_state"})
+        )
+        _cleanup(a_uid, a_book)
+
+
+def test_public_cover_profile_endpoint():
+    """`/api/users/{username}/cover-profile` returns lifetime totals
+    + the user's covers + their achievements.  Unknown users 404."""
+    import requests
+    a_uid, a_email, a_pw, a_book = _seed_user_and_book()
+
+    # Give A a username so /u/<username> resolves.
+    asyncio.get_event_loop().run_until_complete(
+        db.users.update_one(
+            {"user_id": a_uid},
+            {"$set": {"username": f"prof_{a_uid[-6:]}"}},
+        )
+    )
+    handle = f"prof_{a_uid[-6:]}"
+
+    sa = requests.Session()
+    sa.post(f"{BASE}/api/auth/login", json={"email": a_email, "password": a_pw})
+    try:
+        r = sa.post(f"{BASE}/api/books/{a_book}/preview-cover", json={})
+        if r.status_code != 200:
+            pytest.skip(f"preview-cover skipped: {r.status_code}")
+        pid = r.json()["preview_id"]
+        sa.post(f"{BASE}/api/books/{a_book}/apply-cover", json={"preview_id": pid})
+        vlist = sa.get(f"{BASE}/api/books/{a_book}/cover-variants").json()
+        vid = vlist["variants"][0]["variant_id"]
+        sa.post(f"{BASE}/api/books/{a_book}/cover-variants/{vid}/share")
+
+        pr = sa.get(f"{BASE}/api/users/{handle}/cover-profile")
+        assert pr.status_code == 200, pr.text
+        body = pr.json()
+        assert body["username"] == handle
+        assert body["totals"]["shared"] == 1
+        assert len(body["covers"]) == 1
+
+        # Unknown username → 404.
+        nf = sa.get(f"{BASE}/api/users/no-such-handle-xyz/cover-profile")
+        assert nf.status_code == 404
+    finally:
+        asyncio.get_event_loop().run_until_complete(
+            db.community_covers.delete_many({"shared_by_user_id": a_uid})
+        )
+        _cleanup(a_uid, a_book)
+
+
+def test_cover_lineage_tracks_parent_and_children():
+    """Importing A's shared cover into B's library and re-sharing it
+    stores parent_cover_id on the new community cover, and the
+    /lineage endpoint surfaces both parent and child."""
+    import requests
+    a_uid, a_email, a_pw, a_book = _seed_user_and_book()
+    b_uid, b_email, b_pw, b_book = _seed_user_and_book()
+    sa = requests.Session()
+    sb = requests.Session()
+    sa.post(f"{BASE}/api/auth/login", json={"email": a_email, "password": a_pw})
+    sb.post(f"{BASE}/api/auth/login", json={"email": b_email, "password": b_pw})
+    try:
+        r = sa.post(f"{BASE}/api/books/{a_book}/preview-cover", json={})
+        if r.status_code != 200:
+            pytest.skip(f"preview-cover skipped: {r.status_code}")
+        pid = r.json()["preview_id"]
+        sa.post(f"{BASE}/api/books/{a_book}/apply-cover", json={"preview_id": pid})
+        vlist = sa.get(f"{BASE}/api/books/{a_book}/cover-variants").json()
+        vid = vlist["variants"][0]["variant_id"]
+        sr = sa.post(f"{BASE}/api/books/{a_book}/cover-variants/{vid}/share")
+        parent_id = sr.json()["community_cover_id"]
+
+        # B imports A's cover, then re-shares the imported variant.
+        sb.post(f"{BASE}/api/books/{b_book}/import-community-cover/{parent_id}")
+        b_variants = sb.get(f"{BASE}/api/books/{b_book}/cover-variants").json()
+        b_active = next(v for v in b_variants["variants"] if v["active"])
+        sr2 = sb.post(f"{BASE}/api/books/{b_book}/cover-variants/{b_active['variant_id']}/share")
+        child_id = sr2.json()["community_cover_id"]
+        assert child_id != parent_id
+
+        # Lineage of the child points back at the parent.
+        lin = sb.get(f"{BASE}/api/community-covers/{child_id}/lineage")
+        assert lin.status_code == 200
+        body = lin.json()
+        assert body["parent"] is not None
+        assert body["parent"]["cover_id"] == parent_id
+        assert body["remix_count"] == 0
+
+        # Lineage of the parent surfaces the child.
+        linp = sa.get(f"{BASE}/api/community-covers/{parent_id}/lineage")
+        assert linp.status_code == 200
+        assert linp.json()["remix_count"] == 1
+        assert linp.json()["children"][0]["cover_id"] == child_id
+    finally:
+        asyncio.get_event_loop().run_until_complete(
+            db.community_covers.delete_many({"shared_by_user_id": {"$in": [a_uid, b_uid]}})
+        )
+        _cleanup(a_uid, a_book)
+        _cleanup(b_uid, b_book)
+
+
+def test_featured_endpoint_marks_trending():
+    """A freshly-shared cover with ≥3 hearts comes back with
+    `trending: True`.  A 0-vote cover doesn't."""
+    import requests
+    a_uid, a_email, a_pw, a_book = _seed_user_and_book()
+    sa = requests.Session()
+    sa.post(f"{BASE}/api/auth/login", json={"email": a_email, "password": a_pw})
+    try:
+        r = sa.post(f"{BASE}/api/books/{a_book}/preview-cover", json={})
+        if r.status_code != 200:
+            pytest.skip(f"preview-cover skipped: {r.status_code}")
+        pid = r.json()["preview_id"]
+        sa.post(f"{BASE}/api/books/{a_book}/apply-cover", json={"preview_id": pid})
+        vlist = sa.get(f"{BASE}/api/books/{a_book}/cover-variants").json()
+        vid = vlist["variants"][0]["variant_id"]
+        sr = sa.post(f"{BASE}/api/books/{a_book}/cover-variants/{vid}/share")
+        cover_id = sr.json()["community_cover_id"]
+
+        # Forge 3 voters directly so we don't need 3 separate users.
+        asyncio.get_event_loop().run_until_complete(
+            db.community_covers.update_one(
+                {"cover_id": cover_id},
+                {"$set": {"votes": 3, "voters": ["v1", "v2", "v3"]}},
+            )
+        )
+
+        fr = sa.get(f"{BASE}/api/community-covers/featured", params={"days": 7})
+        assert fr.status_code == 200
+        match = next((c for c in fr.json()["covers"] if c["cover_id"] == cover_id), None)
+        assert match is not None
+        assert match["trending"] is True
+    finally:
+        asyncio.get_event_loop().run_until_complete(
+            db.community_covers.delete_many({"shared_by_user_id": a_uid})
+        )
+        _cleanup(a_uid, a_book)

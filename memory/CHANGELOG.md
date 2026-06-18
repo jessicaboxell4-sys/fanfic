@@ -8,6 +8,61 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-18 — Cover ecosystem Tier 4: notifications, trophies, lineage ✅
+
+Turned the cover ecosystem into a full social loop.  Sharers now get
+pinged when their work resonates; viewers can browse any sharer's
+public profile and remix tree.
+
+**Notifications** (`utils/cover_notifications.py`, hooked into
+`routes/books.py`):
+- `cover_milestone_votes` — fires when someone else's vote crosses
+  1 / 5 / 10 / 25 / 50 / 100 hearts on a shared cover.  Toggles are
+  idempotent because the milestone only triggers on the "voted"
+  action and at the exact threshold.
+- `cover_milestone_imports` — fires when import_count crosses
+  1 / 5 / 10 / 25 on a shared cover.
+- `cover_top_of_week` — daily scheduler tick (12:00 UTC) detects the
+  current top-of-week winner and pings the new sharer only when the
+  winner *changes* from yesterday's recorded value in
+  `system_state.cover_ecosystem_state`.
+- `cover_weekly_recap` — Sunday 18:00 UTC tick aggregates each
+  sharer's votes + imports over the past 7 days and sends a single
+  in-app rollup.  Quiet weeks stay quiet.
+- `friend_shared_cover` — single in-app ping to every accepted
+  friend of the sharer when they publish a new community cover.
+- All five kinds added to `NOTIFICATION_CATALOG` as user-mutable so
+  the existing notification-mutes settings UI surfaces them
+  automatically — no separate toggle page needed.
+
+**Achievements / public profile** (`routes/books.py`):
+- `GET /api/users/{username}/cover-profile` — returns the user's
+  display name, lifetime totals (shared / votes / imports), trophies,
+  and grid of their top covers.  Auth-gated, 404s for unknown
+  usernames so existence isn't leaked.
+- `cover_achievements` array on the user doc.  `top_of_week` trophy
+  is granted idempotently inside the leaderboard tick (same cover
+  winning twice doesn't double-stamp).
+- New page `frontend/src/pages/PublicCoverProfile.jsx` at route
+  `/u/:username`, reachable from the `@handle` link on every
+  community cover card.
+
+**Lineage / trending** (`routes/books.py`):
+- `parent_cover_id` recorded on shared community-cover records
+  whenever the source variant came from an import (the existing
+  `source: "community:<id>"` tag is parsed).
+- `GET /api/community-covers/{id}/lineage` — returns the parent
+  (one level up) plus direct children, with `remix_count`.
+- `/community-covers/featured` now returns a `trending: bool` flag
+  per row (≥3 hearts AND shared within 48 h) so the homepage strip
+  can show a red "🔥 Trending" pill alongside the gold "🏆 #1 this
+  week" ribbon.
+
+**Tests** — 6 new tests in `tests/test_cover_regen.py` covering vote
+milestones, import milestones, leaderboard-tick idempotency, public
+profile happy-path + 404, lineage parent/child round-trip, and
+featured-endpoint trending detection.  All 14 tests pass.
+
 ## 2026-06-18 — "Covers of the week" homepage strip ✅
 
 Wired the existing `/api/community-covers/featured?days=7` endpoint

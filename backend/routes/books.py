@@ -91,6 +91,12 @@ from utils.admin_audit import record_admin_action
 
 from emergentintegrations.llm.chat import LlmChat, UserMessage
 
+from utils.cover_notifications import (
+    notify_vote_milestone,
+    notify_import_milestone,
+    notify_friends_of_new_share,
+)
+
 
 # Heuristic fandom detection. Keys are the canonical shelf name (AO3-style
 # canonicals where reasonable — see https://archiveofourown.org/wrangling for
@@ -5702,6 +5708,12 @@ async def share_cover_to_community(
     )
 
     keys = _norm_book_key(doc.get("title", ""), doc.get("author", ""), doc.get("fandom", ""))
+    # If this variant was originally imported from another community
+    # cover, remember the lineage so the remix tree is visible.
+    parent_cover_id = ""
+    src_tag = (target.get("source") or "") if isinstance(target, dict) else ""
+    if src_tag.startswith("community:"):
+        parent_cover_id = src_tag.split(":", 1)[1]
     record = {
         "cover_id": cover_id,
         **keys,
@@ -5711,12 +5723,22 @@ async def share_cover_to_community(
         "file":              cover_id,                       # bare filename in community_covers/
         "source_book_id":    book_id,
         "source_variant_id": variant_id,
+        "parent_cover_id":   parent_cover_id,
         "shared_by_user_id": user.user_id,
         "shared_by_username": shared_by,
         "shared_at":         datetime.now(timezone.utc).isoformat(),
         "import_count":      0,
     }
     await db.community_covers.insert_one(record)
+    # Fan-out to friends — single in-app ping per friend, quiet failure.
+    try:
+        await notify_friends_of_new_share(
+            cover_id=cover_id,
+            sharer_user_id=user.user_id,
+            title=doc.get("title", ""),
+        )
+    except Exception as e:
+        logger.exception("notify_friends_of_new_share fan-out errored: %s", e)
     return {"ok": True, "community_cover_id": cover_id, "shared_by": shared_by}
 
 
@@ -5825,6 +5847,20 @@ async def import_community_cover(
         {"cover_id": cover_id},
         {"$inc": {"import_count": 1}},
     )
+    # Read back the new import count so we can fire a milestone ping
+    # if this import crossed a 1/5/10/25 boundary.
+    try:
+        post = await db.community_covers.find_one(
+            {"cover_id": cover_id},
+            {"_id": 0, "import_count": 1},
+        )
+        if post:
+            await notify_import_milestone(
+                cover_id=cover_id,
+                new_import_count=int(post.get("import_count", 0)),
+            )
+    except Exception as e:
+        logger.exception("notify_import_milestone errored: %s", e)
     return {"ok": True, "variant_id": variant_id, "active_variant": variant_id}
 
 
@@ -5886,6 +5922,17 @@ async def vote_community_cover(
         {"cover_id": cover_id},
         {"$set": {"voters": list(voters), "votes": new_count}},
     )
+    # Milestone notification — only fires on exact thresholds so the
+    # toggle path doesn't re-fire.
+    if action == "voted":
+        try:
+            await notify_vote_milestone(
+                cover_id=cover_id,
+                new_vote_count=new_count,
+                voter_user_id=user.user_id,
+            )
+        except Exception as e:
+            logger.exception("notify_vote_milestone errored: %s", e)
     return {"ok": True, "votes": new_count, "voted_by_me": action == "voted"}
 
 
@@ -5897,7 +5944,12 @@ async def featured_community_covers(
 ):
     """Top-voted community covers across the whole pool, lifetime
     (``days=0``) or scoped to the recent ``days`` window.  Used by a
-    "Featured this week" homepage strip + the dedicated discovery page."""
+    "Featured this week" homepage strip + the dedicated discovery page.
+
+    Each row carries a ``trending`` flag — covers that have collected
+    ≥3 hearts AND were shared within the last 48 h.  These cards get a
+    distinct pill on the homepage strip so high-velocity covers are
+    visible even when a long-running cover holds the cumulative #1."""
     limit = max(1, min(int(limit), 60))
     days = max(0, min(int(days), 365))
     query: Dict[str, Any] = {}
@@ -5909,24 +5961,137 @@ async def featured_community_covers(
         .sort([("votes", -1), ("import_count", -1), ("shared_at", -1)])
         .limit(limit)
     )
+    trending_cutoff = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
     rows: List[Dict[str, Any]] = []
     async for r in cursor:
         path = _COMMUNITY_COVERS_DIR / r["file"]
         if not path.exists():
             continue
+        votes = int(r.get("votes", 0))
+        shared_at = r.get("shared_at") or ""
         rows.append({
             "cover_id":     r["cover_id"],
             "title":        r.get("title", ""),
             "author":       r.get("author", ""),
             "fandom":       r.get("fandom", ""),
             "shared_by":    r.get("shared_by_username", "anon"),
-            "votes":        int(r.get("votes", 0)),
+            "shared_by_user_id": r.get("shared_by_user_id", ""),
+            "votes":        votes,
             "import_count": int(r.get("import_count", 0)),
             "voted_by_me":  user.user_id in (r.get("voters") or []),
+            "trending":     votes >= 3 and shared_at >= trending_cutoff,
+            "parent_cover_id": r.get("parent_cover_id", ""),
             "image_base64": base64.b64encode(path.read_bytes()).decode("ascii"),
             "mime_type":    "image/png",
         })
     return {"covers": rows, "window_days": days}
+
+
+# ---------------------------------------------------------------------
+# Cover ecosystem Tier 4 — public profile, achievements, lineage
+# (2026-06-18)
+# ---------------------------------------------------------------------
+
+@api_router.get("/users/{username}/cover-profile")
+async def public_cover_profile(
+    username: str,
+    user: User = Depends(get_current_user),  # noqa: ARG001 — auth-gate only
+):
+    """Public-but-auth-gated profile page powering `/u/{username}`.
+    Surfaces lifetime cover stats, the trophies the user has unlocked
+    (e.g. ``top_of_week``), and a feed of their best community
+    covers.  Returns 404 for unknown / username-less accounts so the
+    URL doesn't leak existence of private users."""
+    target = await db.users.find_one(
+        {"username": username},
+        {
+            "_id": 0, "user_id": 1, "username": 1, "name": 1,
+            "cover_achievements": 1, "picture": 1, "created_at": 1,
+        },
+    )
+    if target is None:
+        raise HTTPException(status_code=404, detail="No such user")
+    cursor = (
+        db.community_covers.find(
+            {"shared_by_user_id": target["user_id"]},
+            {"_id": 0},
+        )
+        .sort([("votes", -1), ("import_count", -1), ("shared_at", -1)])
+        .limit(48)
+    )
+    covers: List[Dict[str, Any]] = []
+    lifetime_votes = 0
+    lifetime_imports = 0
+    total_shared = 0
+    async for r in cursor:
+        path = _COMMUNITY_COVERS_DIR / r["file"]
+        if not path.exists():
+            continue
+        votes = int(r.get("votes", 0))
+        imports = int(r.get("import_count", 0))
+        lifetime_votes += votes
+        lifetime_imports += imports
+        total_shared += 1
+        covers.append({
+            "cover_id":     r["cover_id"],
+            "title":        r.get("title", ""),
+            "author":       r.get("author", ""),
+            "fandom":       r.get("fandom", ""),
+            "votes":        votes,
+            "import_count": imports,
+            "shared_at":    r.get("shared_at"),
+            "image_base64": base64.b64encode(path.read_bytes()).decode("ascii"),
+            "mime_type":    "image/png",
+        })
+    achievements = target.get("cover_achievements") or []
+    return {
+        "username":       target.get("username"),
+        "display_name":   target.get("name") or target.get("username"),
+        "picture":        target.get("picture", ""),
+        "joined_at":      target.get("created_at"),
+        "covers":         covers,
+        "achievements":   achievements,
+        "totals": {
+            "shared":  total_shared,
+            "votes":   lifetime_votes,
+            "imports": lifetime_imports,
+        },
+    }
+
+
+@api_router.get("/community-covers/{cover_id}/lineage")
+async def community_cover_lineage(
+    cover_id: str,
+    user: User = Depends(get_current_user),  # noqa: ARG001 — auth-gate only
+):
+    """Returns the parent (if this cover was imported + re-shared) and
+    the direct children (covers downstream that name this one as
+    parent).  Used by the cover-card UI to surface "Remixed from @x"
+    and "Remixed 3 times" badges so the community can see lineage."""
+    cur = await db.community_covers.find_one(
+        {"cover_id": cover_id},
+        {"_id": 0, "cover_id": 1, "title": 1, "parent_cover_id": 1, "shared_by_username": 1},
+    )
+    if cur is None:
+        raise HTTPException(status_code=404, detail="Community cover not found")
+    parent = None
+    pid = cur.get("parent_cover_id")
+    if pid:
+        parent = await db.community_covers.find_one(
+            {"cover_id": pid},
+            {"_id": 0, "cover_id": 1, "title": 1, "shared_by_username": 1},
+        )
+    children_cursor = db.community_covers.find(
+        {"parent_cover_id": cover_id},
+        {"_id": 0, "cover_id": 1, "title": 1, "shared_by_username": 1, "votes": 1},
+    ).sort("shared_at", -1).limit(20)
+    children = [c async for c in children_cursor]
+    return {
+        "cover_id": cover_id,
+        "parent":   parent,
+        "children": children,
+        "remix_count": len(children),
+    }
 
 
 

@@ -21,6 +21,7 @@ import StatsPage from "@/pages/StatsPage";
 import GoalsPage from "@/pages/GoalsPage";
 import YearInBooksPage from "@/pages/YearInBooksPage";
 import PublicYearInBooks from "@/pages/PublicYearInBooks";
+import PublicCoverProfile from "@/pages/PublicCoverProfile";
 import SmartShelves from "@/pages/SmartShelves";
 import SmartShelfPage from "@/pages/SmartShelfPage";
 import AllBooksPage from "@/pages/AllBooksPage";
@@ -124,6 +125,7 @@ function AppRouter() {
       <Route path="/login" element={<Login />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/share/yib/:token" element={<PublicYearInBooks />} />
+      <Route path="/u/:username" element={<ProtectedRoute><PublicCoverProfile /></ProtectedRoute>} />
       <Route path="/library" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/library/all" element={<ProtectedRoute><AllBooksPage /></ProtectedRoute>} />
       <Route path="/library/queue" element={<ProtectedRoute><ReadingQueuePage /></ProtectedRoute>} />

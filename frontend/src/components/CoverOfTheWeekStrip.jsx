@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Heart, Sparkles, Trophy } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Heart, Sparkles, Trophy, Flame } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../lib/api";
 
@@ -105,6 +106,15 @@ export default function CoverOfTheWeekStrip() {
                 #1 this week
               </div>
             )}
+            {!isTop && c.trending && (
+              <div
+                className="absolute top-2 left-2 z-10 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#D14545] text-white text-[10px] font-bold uppercase tracking-wider shadow-md"
+                data-testid={`cover-of-week-trending-${c.cover_id}`}
+              >
+                <Flame className="w-3 h-3 fill-current" />
+                Trending
+              </div>
+            )}
             <div className="aspect-[2/3] bg-[#F5F2EA] overflow-hidden">
               {c.image_base64 && (
                 <img
@@ -145,12 +155,14 @@ export default function CoverOfTheWeekStrip() {
                   />
                   {c.votes || 0}
                 </button>
-                <span
-                  className="text-[10px] text-[#6B705C] truncate ml-2"
-                  title={`Shared by ${c.shared_by}`}
+                <Link
+                  to={`/u/${c.shared_by}`}
+                  className="text-[10px] text-[#6B705C] hover:text-[#6B46C1] truncate ml-2"
+                  title={`See @${c.shared_by}'s covers`}
+                  data-testid={`cover-of-week-handle-${c.cover_id}`}
                 >
                   @{c.shared_by}
-                </span>
+                </Link>
               </div>
             </div>
           </article>

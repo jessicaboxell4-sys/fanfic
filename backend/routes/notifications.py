@@ -54,6 +54,22 @@ NOTIFICATION_CATALOG: List[Dict[str, Any]] = [
     {"kind": "suggestion_status", "group": "Suggestions",
      "label": "Status change on your suggestion",
      "description": "An admin reviewed, planned, or shipped one of your suggestions.", "mutable": True},
+    # --- Cover ecosystem ---
+    {"kind": "cover_top_of_week", "group": "Cover ecosystem",
+     "label": "Your cover took #1 this week",
+     "description": "Pings you the first time one of your shared covers leads the weekly leaderboard.", "mutable": True},
+    {"kind": "cover_milestone_votes", "group": "Cover ecosystem",
+     "label": "Your cover hit a vote milestone",
+     "description": "Pings you when one of your shared covers crosses 1, 5, 10, 25, 50, or 100 hearts.", "mutable": True},
+    {"kind": "cover_milestone_imports", "group": "Cover ecosystem",
+     "label": "Readers are adopting your cover",
+     "description": "Pings you when one of your covers crosses 1, 5, 10, or 25 imports into other readers' libraries.", "mutable": True},
+    {"kind": "cover_weekly_recap", "group": "Cover ecosystem",
+     "label": "Weekly cover-sharing recap",
+     "description": "Sunday rollup of hearts + imports your covers earned this week (auto-hides quiet weeks).", "mutable": True},
+    {"kind": "friend_shared_cover", "group": "Cover ecosystem",
+     "label": "A friend shared a new cover",
+     "description": "Pings you when a friend publishes a cover to the community pool.", "mutable": True},
 ]
 
 KNOWN_KINDS = {c["kind"] for c in NOTIFICATION_CATALOG}

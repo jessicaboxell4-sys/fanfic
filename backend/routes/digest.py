@@ -949,6 +949,34 @@ def start_digest_scheduler():
         id="account_grace_tick",
         replace_existing=True,
     )
+
+    # Cover-ecosystem ticks (Tier 4, 2026-06-18):
+    #   * Daily 12:00 UTC — recompute "Cover of the Week" winner and
+    #     ping the new sharer the first day they take the top spot.
+    #   * Sunday 18:00 UTC — push a per-sharer recap of hearts +
+    #     imports earned in the past 7 days (silent on quiet weeks).
+    from utils.cover_notifications import (
+        cover_leaderboard_tick, cover_weekly_recap_tick,
+    )
+
+    sched.add_job(
+        wrap_cron_job(cover_leaderboard_tick, "cover_leaderboard_tick"),
+        "cron",
+        hour=12,
+        minute=0,
+        id="cover_leaderboard_tick",
+        replace_existing=True,
+    )
+    sched.add_job(
+        wrap_cron_job(cover_weekly_recap_tick, "cover_weekly_recap_tick"),
+        "cron",
+        day_of_week="sun",
+        hour=18,
+        minute=0,
+        id="cover_weekly_recap_tick",
+        replace_existing=True,
+    )
+
     sched.start()
     _scheduler = sched
     logger.info("Schedulers started (weekly digest + daily account grace tick).")
