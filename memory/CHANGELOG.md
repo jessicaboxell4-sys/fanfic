@@ -8,6 +8,23 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-18 — Deployment readiness sweep + SSE iteration bug fix ✅
+
+Ran the deployment-readiness check (PASS) and a parallel sanity pass.
+Frontend `yarn build` succeeded.  Service worker `/sw.js` confirmed
+200 on the production URL.  All services running.
+
+**Bug surfaced + fixed**: `/api/goals/stream` (existing) and the new
+`/api/events/stream` were logging `goal-hit SSE iteration failed`
+every ~28 seconds.  Root cause: both endpoints cancelled the
+`next_evt = sub.__anext__()` task on every heartbeat tick, which
+killed the underlying async generator with `StopAsyncIteration` on
+the next call.  Rewrote both loops to keep a single long-lived
+`next_evt` task across heartbeats and race it with
+`asyncio.wait_for(asyncio.shield(next_evt), timeout=25)` so the
+heartbeat path doesn't disturb it.  Verified silent for 60s after
+restart.
+
 ## 2026-06-18 — CI verification ✅
 
 User asked for CI wiring; turned out the GitHub Actions workflow

@@ -350,28 +350,25 @@ async def stream_goal_hits(request: Request):
         # open immediately (some proxies buffer until the first byte).
         yield ": connected\n\n"
         sub = subscribe_goal_events(user_id)
+        # Long-lived task across heartbeats — cancelling it on every
+        # heartbeat kills the underlying async generator with
+        # StopAsyncIteration on the next call, so we keep ONE task
+        # alive and just wait on it with a timeout instead.
+        next_evt = asyncio.create_task(sub.__anext__())
         try:
             while True:
-                # Race the next event against a 25s heartbeat so an idle
-                # tunnel doesn't get reaped by Cloudflare (it kills
-                # connections after ~100s of silence).
-                next_evt = asyncio.create_task(sub.__anext__())
-                sleeper = asyncio.create_task(asyncio.sleep(25))
                 try:
-                    done, pending = await asyncio.wait(
-                        {next_evt, sleeper},
-                        return_when=asyncio.FIRST_COMPLETED,
+                    payload = await asyncio.wait_for(
+                        asyncio.shield(next_evt), timeout=25,
                     )
-                    for p in pending:
-                        p.cancel()
-                    if next_evt in done:
-                        payload = next_evt.result()
-                        yield f"event: goal-hit\ndata: {json.dumps(payload)}\n\n"
-                    else:
-                        # heartbeat
-                        yield ": keepalive\n\n"
+                    yield f"event: goal-hit\ndata: {json.dumps(payload)}\n\n"
+                    next_evt = asyncio.create_task(sub.__anext__())
+                except asyncio.TimeoutError:
+                    yield ": keepalive\n\n"
                 except asyncio.CancelledError:
                     raise
+                except StopAsyncIteration:
+                    break
                 except Exception:  # noqa: BLE001 — defensive, never crash the stream
                     logger.exception("goal-hit SSE iteration failed")
                     break
@@ -379,6 +376,8 @@ async def stream_goal_hits(request: Request):
                 if await request.is_disconnected():
                     break
         finally:
+            if not next_evt.done():
+                next_evt.cancel()
             try:
                 await sub.aclose()  # type: ignore[attr-defined]
             except Exception:
@@ -427,32 +426,31 @@ async def stream_events(request: Request):
     async def event_generator():
         yield ": connected\n\n"
         sub = bus_subscribe(user_id)
+        next_evt = asyncio.create_task(sub.__anext__())
         try:
             while True:
-                next_evt = asyncio.create_task(sub.__anext__())
-                sleeper = asyncio.create_task(asyncio.sleep(25))
                 try:
-                    done, pending = await asyncio.wait(
-                        {next_evt, sleeper},
-                        return_when=asyncio.FIRST_COMPLETED,
+                    envelope = await asyncio.wait_for(
+                        asyncio.shield(next_evt), timeout=25,
                     )
-                    for p in pending:
-                        p.cancel()
-                    if next_evt in done:
-                        envelope = next_evt.result()
-                        kind = envelope.get("kind") or "event"
-                        data = envelope.get("data") or {}
-                        yield f"event: {kind}\ndata: {json.dumps(data)}\n\n"
-                    else:
-                        yield ": keepalive\n\n"
+                    kind = envelope.get("kind") or "event"
+                    data = envelope.get("data") or {}
+                    yield f"event: {kind}\ndata: {json.dumps(data)}\n\n"
+                    next_evt = asyncio.create_task(sub.__anext__())
+                except asyncio.TimeoutError:
+                    yield ": keepalive\n\n"
                 except asyncio.CancelledError:
                     raise
+                except StopAsyncIteration:
+                    break
                 except Exception:  # noqa: BLE001
                     logger.exception("events SSE iteration failed")
                     break
                 if await request.is_disconnected():
                     break
         finally:
+            if not next_evt.done():
+                next_evt.cancel()
             try:
                 await sub.aclose()  # type: ignore[attr-defined]
             except Exception:
