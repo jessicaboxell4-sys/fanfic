@@ -8,6 +8,22 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-19 — Deploy unblock: removed `.env` ignore rules ✅
+
+Deployer Agent flagged that `/app/.gitignore` lines 138-140 were
+ignoring `.env`, `.env.*`, and `*.env`, contradicting the comment
+at line 121 ("intentionally committed: Emergent overrides values
+at deploy time"). Removed the three offending lines so
+`backend/.env` and `frontend/.env` are tracked again.
+
+Verified with `git check-ignore -v backend/.env frontend/.env`
+(no matches) and re-ran `deployment_agent` → **PASS**.
+`/api/health` confirms Mongo, Scheduler (7 jobs), Storage, and
+Antivirus all green.
+
+---
+
+
 ## 2026-06-18 — `?theme=dark` / `?theme=light` URL override ✅
 
 Added a one-shot theme override in `ThemeContext.jsx`.  Any URL
