@@ -1696,8 +1696,18 @@ async def get_alert_health(user: User = Depends(require_admin)):
     #    so we instead check whether *any* alert row exists at all for
     #    the failing job_id — if not, the alert path never fired (or
     #    fired before the table existed, which is what we want to flag).
+    #
+    #    Pytest fixtures use ``job_id`` prefix ``test_job_err_`` — those
+    #    rows are noise in the prod-facing banner and are filtered out.
+    #    Rows in ``cron_alerts`` with ``suppressed=True`` also count as
+    #    "covered" because the alerter ran, decided not to send (Resend
+    #    missing, flag off, etc.), and recorded the decision.
     failing_runs_cursor = db.cron_runs.find(
-        {"status": "error", "finished_at": {"$gte": window_start}},
+        {
+            "status": "error",
+            "finished_at": {"$gte": window_start},
+            "job_id": {"$not": {"$regex": "^test_job_"}},
+        },
         {"_id": 0, "job_id": 1, "finished_at": 1, "error": 1},
     ).sort("finished_at", -1)
     uncovered: list[dict] = []

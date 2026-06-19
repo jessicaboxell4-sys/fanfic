@@ -73,11 +73,34 @@ async def _maybe_alert_admins(job_id: str, error: str | None) -> None:
     isn't imported at module load — we lazy-import it inside the
     function so unit tests that don't exercise this path don't need
     the Resend dependency.
+
+    Whenever an alert is *suppressed* (feature flag off, debounced,
+    no admin emails, Resend not configured) we still write a row to
+    ``cron_alerts`` with ``suppressed=True`` + a ``reason`` field so
+    ``/admin/alert-health`` doesn't perpetually flag the same run as
+    "uncovered."  Without this, the admin banner kept showing the
+    same drop-out forever even after the operator acknowledged it.
     """
+    async def _mark_suppressed(reason: str) -> None:
+        try:
+            await db.cron_alerts.update_one(
+                {"job_id": job_id},
+                {"$set": {
+                    "job_id":       job_id,
+                    "last_seen_at": datetime.now(timezone.utc),
+                    "suppressed":   True,
+                    "reason":       reason,
+                }},
+                upsert=True,
+            )
+        except Exception as exc:
+            logger.warning("cron alert: failed to mark suppressed (%s) for %s: %s", reason, job_id, exc)
+
     try:
         from utils.feature_flags import get_flags  # noqa: WPS433
         flags = await get_flags()
         if not flags.get("cron_failure_alerts", True):
+            await _mark_suppressed("feature_flag_off")
             return
     except Exception as exc:
         logger.warning("cron alert: couldn't read feature flag, defaulting on: %s", exc)
@@ -100,15 +123,18 @@ async def _maybe_alert_admins(job_id: str, error: str | None) -> None:
         admins = await admins_cursor.to_list(length=50)
     except Exception as exc:
         logger.error("cron alert: admin lookup failed for %s: %s", job_id, exc)
+        await _mark_suppressed("admin_lookup_failed")
         return
     recipients = [a["email"] for a in admins if a.get("email")]
     if not recipients:
+        await _mark_suppressed("no_admin_recipients")
         return
 
     resend_key = os.environ.get("RESEND_API_KEY") or ""
     sender = os.environ.get("SENDER_EMAIL") or ""
     if not resend_key or not sender:
         logger.info("cron alert: Resend not configured, skipping email for %s", job_id)
+        await _mark_suppressed("resend_not_configured")
         return
 
     subject = f"[Shelfsort] Cron job failed: {job_id}"

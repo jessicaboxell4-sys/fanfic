@@ -8,6 +8,40 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-18 — Cron-alert silent-drop fix ✅
+
+The admin banner "Cron failures going un-alerted" was correctly
+flagging a real gap: when `_maybe_alert_admins` suppressed an alert
+(feature flag off, no admin emails, Resend not configured, debounce),
+no row was ever written to `cron_alerts`, so `/admin/alert-health`
+kept reporting the same failure as "uncovered" forever.
+
+Two fixes:
+
+1. **`utils/cron_health.py`**: every suppression path now upserts a
+   `cron_alerts` row with `suppressed=True` + a `reason` string
+   (`feature_flag_off` · `no_admin_recipients` · `resend_not_configured`
+   · `admin_lookup_failed`).  This means the banner correctly clears
+   once the alerter has *acknowledged* the failure (even if no email
+   went out).
+
+2. **`routes/admin.py /admin/alert-health`**: now excludes pytest
+   fixtures (`job_id` matching `^test_job_`) from the uncovered list.
+   The `test_job_err_ee3c54` row that triggered the user's banner was
+   left over by `test_cron_health.py` after a test run.
+
+New regression test `tests/test_cron_alert_suppression.py` (3 cases,
+all passing) pins:
+- Suppression row written when there are no admin recipients
+- Suppression row written when Resend env vars are blank
+- Pytest fixtures filtered from the prod-facing endpoint
+
+Existing `test_alert_health.py` (5 cases) still passes.
+Live endpoint now returns `cron_failures_uncovered_24h: 0`.
+
+---
+
+
 ## 2026-06-18 — Landing page polish + Help-page docs ✅
 
 - **Hero copy** tightened with the "Downloads folder full of
