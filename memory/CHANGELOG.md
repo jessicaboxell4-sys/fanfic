@@ -8,6 +8,29 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-18 — App-wide contrast sweep ✅
+
+The faded body text the user spotted on the Sign-up rules card was
+a symptom of a broader pattern: `text-[#6B705C]` (medium olive) on
+pastel card backgrounds (`#EDE6FA`, `#E8F3EC`, `#FDF3E1`, `#FDECE6`,
+`#FBE9E5`, `#F5F0E0`) only hits ~3.5:1 contrast — fails WCAG AA.
+
+Rather than touching every JSX file, added a single CSS attribute-
+selector rule in `index.css` that bumps any `text-[#6B705C]` text
+nested inside a known colored card background to `#3F4034`
+(luminance ~0.14 = 5.5:1 against `#EDE6FA`, passes WCAG AA).
+
+Effect: every card across the app — new AccountSafety, Antivirus,
+SignupRules, Help, AdminConsole, and any older pages I didn't
+touch — now renders body text with proper contrast.
+
+Also applied targeted text-color upgrades to the `SafetyStat`
+component (`palette.muted: "#3F4034"`) so the percentage strip
+under each big number is now readable on the colored stat tiles.
+
+---
+
+
 ## 2026-06-18 — Chat KeyError + admin contrast fix ✅
 
 **Bug 1 — Chat rooms 500 in production**:

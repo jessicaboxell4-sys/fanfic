@@ -219,10 +219,10 @@ export default function AccountSafety() {
 
 function SafetyStat({ icon: Icon, label, value, total, color, testid }) {
   const palette = {
-    green: { bg: "#E8F3EC", border: "#2C7A3E", text: "#2C7A3E" },
-    red:   { bg: "#FDECE6", border: "#B43F26", text: "#B43F26" },
-    grey:  { bg: "#FBFAF6", border: "#E5DDC5", text: "#6B705C" },
-  }[color] || { bg: "#FBFAF6", border: "#E5DDC5", text: "#6B705C" };
+    green: { bg: "#E8F3EC", border: "#2C7A3E", text: "#2C7A3E", muted: "#3F4034" },
+    red:   { bg: "#FDECE6", border: "#B43F26", text: "#B43F26", muted: "#3F4034" },
+    grey:  { bg: "#FBFAF6", border: "#E5DDC5", text: "#6B705C", muted: "#3F4034" },
+  }[color] || { bg: "#FBFAF6", border: "#E5DDC5", text: "#6B705C", muted: "#3F4034" };
   const pct = total > 0 ? Math.round((value / total) * 100) : 0;
   return (
     <div
@@ -237,7 +237,7 @@ function SafetyStat({ icon: Icon, label, value, total, color, testid }) {
         </p>
       </div>
       <p className="font-serif text-3xl text-[#2C2C2C]">{value}</p>
-      <p className="text-xs text-[#6B705C] mt-0.5">
+      <p className="text-xs mt-0.5" style={{ color: palette.muted }}>
         {total > 0 ? `${pct}% of your ${total} book${total === 1 ? "" : "s"}` : "no books yet"}
       </p>
     </div>

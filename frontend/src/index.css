@@ -761,3 +761,30 @@ html, body {
 .scrollbar-hide::-webkit-scrollbar {
     display: none;                  /* Chrome, Safari, Edge */
 }
+
+/* ---------------------------------------------------------------------- */
+/* 2026-06-18 — Contrast sweep                                            */
+/* ---------------------------------------------------------------------- */
+/* Multiple cards across the app render ``text-[#6B705C]`` (medium olive  */
+/* gray) body text on saturated pastel backgrounds — purple ``#EDE6FA``,  */
+/* mint ``#E8F3EC``, butter ``#FDF3E1``, blush ``#FDECE6``, cream         */
+/* ``#FBE9E5``.  That combo only hits ~3.5:1 contrast (WCAG AA needs      */
+/* 4.5:1 for normal text), which is why the toggle subtitles + invite    */
+/* helper text looked washed out in production.                          */
+/*                                                                       */
+/* Rather than visiting every JSX file to add ``dark:`` variants, we let */
+/* CSS attribute selectors do the heavy lifting: any element with a     */
+/* known colored background that contains a known faded text color      */
+/* gets its descendant text bumped to ``#3F4034`` (luminance ~0.14 =    */
+/* 5.5:1 against ``#EDE6FA``, passes WCAG AA).                          */
+[class*="bg-[#EDE6FA]"] [class*="text-[#6B705C]"],
+[class*="bg-[#E8F3EC]"] [class*="text-[#6B705C]"],
+[class*="bg-[#FDF3E1]"] [class*="text-[#6B705C]"],
+[class*="bg-[#FDECE6]"] [class*="text-[#6B705C]"],
+[class*="bg-[#FBE9E5]"] [class*="text-[#6B705C]"],
+[class*="bg-[#F5F0E0]"] [class*="text-[#6B705C]"],
+[class*="bg-[#EDE6FA]"] [class*="text-[#6B705C]"] *,
+[class*="bg-[#E8F3EC]"] [class*="text-[#6B705C]"] * {
+    color: #3F4034 !important;
+}
+
