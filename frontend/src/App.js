@@ -66,6 +66,7 @@ import Help from "@/pages/Help";
 import Rules from "@/pages/Rules";
 import AccountSafety from "@/pages/AccountSafety";
 import AdminConsole from "@/pages/AdminConsole";
+import AdminTestAccounts from "@/pages/AdminTestAccounts";
 import AdminViewAs from "@/pages/AdminViewAs";
 import ModInbox from "@/pages/ModInbox";
 import AuthCallback from "@/pages/AuthCallback";
@@ -185,6 +186,7 @@ function AppRouter() {
       <Route path="/rules" element={<Rules />} />
       <Route path="/account/safety" element={<ProtectedRoute><AccountSafety /></ProtectedRoute>} />
       <Route path="/admin" element={<AdminRoute><AdminConsole /></AdminRoute>} />
+      <Route path="/admin/test-accounts" element={<AdminRoute><AdminTestAccounts /></AdminRoute>} />
       <Route path="/admin/pending" element={<ModeratorRoute><ModInbox /></ModeratorRoute>} />
       <Route path="/admin/view/:uid" element={<AdminRoute><AdminViewAs /></AdminRoute>} />
       <Route path="/book/:id" element={<ProtectedRoute><BookDetail /></ProtectedRoute>} />

@@ -8,7 +8,7 @@ import {
   BarChart3, ToggleLeft, ClipboardList, Loader2, Plus, X as XIcon, Trash2,
   Check, ChevronRight, ChevronDown, Download, AlertOctagon, RotateCcw, Send,
   Mail, MessageSquare, Clock, CircleAlert, Route as RouteIcon, Search,
-  Inbox, Database, Siren, HardDrive, TrendingUp, Eye, BookOpen, Sparkles, ShieldAlert,
+  Inbox, Database, Siren, HardDrive, TrendingUp, Eye, BookOpen, Sparkles, ShieldAlert, FlaskConical,
 } from "lucide-react";
 import MongoInspectorCard from "../components/MongoInspectorCard";
 import ModerationLogCard from "../components/ModerationLogCard";
@@ -207,6 +207,16 @@ function PendingUsersCard() {
       subtitle="New users sit here until you approve or reject them. They get an email either way."
       testid="admin-pending-users-card"
     >
+      <div className="mb-3 text-xs">
+        <Link
+          to="/admin/test-accounts"
+          data-testid="admin-pending-test-accounts-link"
+          className="inline-flex items-center gap-1 text-[#6B46C1] hover:underline"
+          title="Fixture accounts from the testing agent are hidden from this inbox. View them separately."
+        >
+          <FlaskConical className="w-3.5 h-3.5" /> View test accounts →
+        </Link>
+      </div>
       {loading ? (
         <p className="text-sm text-[#6B705C] italic" data-testid="admin-pending-loading">Loading…</p>
       ) : pending.length === 0 ? (

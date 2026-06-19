@@ -463,7 +463,7 @@ export default function Login() {
                 <input
                   data-testid="auth-username-input"
                   type="text"
-                  placeholder="username (optional, e.g. PageDragon)"
+                  placeholder="username (optional, e.g. bookworm42)"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   maxLength={20}

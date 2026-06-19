@@ -8,6 +8,47 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-19 — Three small polishes ✅
+
+**1. Username placeholder.** Signup form (`Login.jsx`) and Account
+settings (`Account.jsx`) now suggest `bookworm42` instead of
+`PageDragon` / `ImCrazy`.
+
+**2. Dark-mode contrast on the "Polish your library?" banner.**
+The cream `#FDF3E1` OnboardingPrompt card was illegible in dark
+mode — body text rendered as nearly-invisible `#D9C49A` on a
+near-black background.  Override in `index.css` was rewritten:
+background opacity bumped (`rgba(255,200,145,0.14)`), body text
+brightened from `#D9C49A` → `#F5E0AE`, title from `#F8E8C5` →
+`#FBEACB`.  Verified on /library?theme=dark — banner is now crisp
+and fully readable in both themes.
+
+**3. Test-account quarantine.** Testing-agent fixtures (`@test.local`,
+`@example.com`, prefixes `test_`/`sync_`/`linkless_`/`t_`/`qa_`)
+were flooding the real `/admin` Pending sign-ups inbox (21 fake
+rows for an admin staring at "(21)").  New
+`backend/utils/test_account_filter.py` is the single source of
+truth for the pattern.  Wired into:
+- `GET /api/admin/pending-users` — excludes fixtures from main inbox
+- `GET /api/admin/test-accounts` — new endpoint, returns ONLY fixtures
+- `POST /api/admin/test-accounts/purge` — admin-only hard delete
+  (users + their books + sessions, idempotent)
+- `pending_count` aggregator (operator digest KPI) — matches the inbox
+
+New admin page at `/admin/test-accounts` (admin-route gated) with a
+"Purge all" red button + per-row status pill (pending/approved/rejected).
+Discoverable via a "View test accounts →" link inside the Pending
+sign-ups card on `/admin`.
+
+Real-world impact: tester's admin inbox dropped from 21 → 0 pending
+sign-ups instantly.  262 fixtures now live on the separate page.
+
+Pytest coverage in `/app/backend/tests/test_account_filter.py`
+(5/5 pass).
+
+---
+
+
 ## 2026-06-19 — Antivirus shield badges + Kindle-style reader skins ✅
 
 **🛡️ Antivirus visibility.** New `AntivirusBadge.jsx` component

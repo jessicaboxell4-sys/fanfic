@@ -1395,7 +1395,7 @@ export default function Account() {
                 type="text"
                 value={usernameInput}
                 onChange={(e) => setUsernameInput(e.target.value)}
-                placeholder={profile.username || "ImCrazy"}
+                placeholder={profile.username || "bookworm42"}
                 maxLength={20}
                 autoComplete="off"
                 className="w-full bg-white border border-[#E8E6E1] rounded-xl pl-7 pr-3 py-2.5 text-sm font-mono focus:outline-none focus:border-[#6B46C1] focus:ring-2 focus:ring-[#6B46C1]/20"

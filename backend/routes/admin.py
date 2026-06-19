@@ -28,6 +28,7 @@ from deps import db, api_router, logger, RESEND_API_KEY, SENDER_EMAIL, EMERGENT_
 from models import User
 from auth_dep import require_admin, require_moderator_or_admin
 from utils.admin_audit import record_admin_action
+from utils.test_account_filter import mongo_test_account_filter
 from utils.email_log import log_email_send
 from utils.feature_flags import KNOWN_FLAGS, get_flags, set_flag
 
@@ -257,10 +258,19 @@ if "FRONTEND_URL" not in globals():
 async def list_pending_users(user: User = Depends(require_moderator_or_admin)):
     """List every user whose ``approval_status == "pending"`` so admins
     can triage them on the AdminConsole. Sorted oldest-first so the queue
-    is FIFO — the user who has been waiting longest is at the top."""
+    is FIFO — the user who has been waiting longest is at the top.
+
+    Test-account fixtures (``@test.local``, ``@example.com``, etc. — see
+    ``utils.test_account_filter``) are filtered out so the testing-agent
+    seeds don't clog the real admin inbox; they're triageable on the
+    separate ``/admin/test-accounts`` page if ever needed.
+    """
     rows = await (
         db.users.find(
-            {"approval_status": "pending"},
+            {
+                "approval_status": "pending",
+                "$nor": mongo_test_account_filter()["$or"],
+            },
             {
                 "_id": 0,
                 "user_id": 1,
@@ -275,6 +285,70 @@ async def list_pending_users(user: User = Depends(require_moderator_or_admin)):
         .to_list(length=500)
     )
     return {"users": rows, "count": len(rows)}
+
+
+@api_router.get("/admin/test-accounts")
+async def list_test_accounts(user: User = Depends(require_moderator_or_admin)):
+    """Companion to ``/admin/pending-users`` — returns the *fixture*
+    accounts created by the testing agent or seeded for QA, regardless
+    of ``approval_status``.  Surfaced on the separate
+    ``/admin/test-accounts`` page so the main pending inbox stays
+    clean for real sign-ups.  Sorted newest-first because admins
+    triaging fixtures usually want to act on the most recent batch.
+    """
+    rows = await (
+        db.users.find(
+            {**mongo_test_account_filter()},
+            {
+                "_id": 0,
+                "user_id": 1,
+                "email": 1,
+                "name": 1,
+                "username": 1,
+                "picture": 1,
+                "approval_status": 1,
+                "created_at": 1,
+                "approved_at": 1,
+                "approval_rejected_reason": 1,
+            },
+        )
+        .sort("created_at", -1)
+        .to_list(length=500)
+    )
+    return {"users": rows, "count": len(rows)}
+
+
+@api_router.post("/admin/test-accounts/purge")
+async def purge_test_accounts(user: User = Depends(require_admin)):
+    """Hard-delete every fixture account (and any books/sessions they
+    own).  Admin-only — moderators can view fixtures but only an admin
+    can wipe them.  Idempotent.  Returns a summary of what was deleted.
+    """
+    fixtures = await db.users.find(
+        {**mongo_test_account_filter()},
+        {"_id": 0, "user_id": 1, "email": 1},
+    ).to_list(length=1000)
+    user_ids = [u["user_id"] for u in fixtures]
+    if not user_ids:
+        return {"ok": True, "deleted_users": 0, "deleted_books": 0, "deleted_sessions": 0}
+
+    books_res = await db.books.delete_many({"user_id": {"$in": user_ids}})
+    sessions_res = await db.user_sessions.delete_many({"user_id": {"$in": user_ids}})
+    users_res = await db.users.delete_many({"user_id": {"$in": user_ids}})
+
+    await record_admin_action(
+        user,
+        action="purge_test_accounts",
+        target_type="users",
+        target_id="test-fixtures",
+        details={"count": users_res.deleted_count, "emails": [u["email"] for u in fixtures[:50]]},
+    )
+    return {
+        "ok": True,
+        "deleted_users":    users_res.deleted_count,
+        "deleted_books":    books_res.deleted_count,
+        "deleted_sessions": sessions_res.deleted_count,
+    }
 
 
 @api_router.post("/admin/users/{target_user_id}/approve")
@@ -427,8 +501,12 @@ async def get_today_pulse(user: User = Depends(require_admin)):
             new_fandoms.append(r["_id"])
 
     # 5) Pending count — independent of the 24h window because the queue
-    # is the queue.
-    pending_count = await db.users.count_documents({"approval_status": "pending"})
+    # is the queue.  Excludes fixture accounts so the operator-digest
+    # KPI matches what the admin sees in the inbox.
+    pending_count = await db.users.count_documents({
+        "approval_status": "pending",
+        "$nor": mongo_test_account_filter()["$or"],
+    })
 
     return {
         "window_hours": 24,
