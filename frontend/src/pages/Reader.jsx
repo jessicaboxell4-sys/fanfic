@@ -12,6 +12,17 @@ const FLOW_KEY = "shelfsort-flow"; // "paginated" | "scrolled"
 const THEME_KEY = "shelfsort-reader-theme";
 const FONT_KEY = "shelfsort-reader-font";
 
+function relativeAge(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const diff = (Date.now() - d.getTime()) / 1000;
+  if (diff < 60) return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 86400 * 7) return `${Math.floor(diff / 86400)}d ago`;
+  return d.toLocaleDateString();
+}
+
 export default function Reader() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -28,6 +39,9 @@ export default function Reader() {
   const [error, setError] = useState(null);
   const [bookmarks, setBookmarks] = useState([]);
   const [showBookmarkPanel, setShowBookmarkPanel] = useState(false);
+  // Cross-device "Furthest read position" — populated by the cursor
+  // fetch effect on mount when a different device left off ahead of us.
+  const [handoff, setHandoff] = useState(null);
   const [showThemePanel, setShowThemePanel] = useState(false);
   const [themeId, setThemeId] = useState(() => {
     const v = window.localStorage.getItem(THEME_KEY);
@@ -143,30 +157,44 @@ export default function Reader() {
         const updatedAt = new Date(data.updated_at);
         const ageHours = (Date.now() - updatedAt.getTime()) / 3_600_000;
         if (!Number.isFinite(ageHours) || ageHours > 24 * 14) return;
-        // Local progress: read from books endpoint state if available;
-        // simpler — use the savedLocationRef heuristic: if cfi differs
-        // and remote is fresh, offer the jump.
         const localCfi = savedLocationRef.current;
         if (localCfi && String(localCfi) === String(data.cfi)) return;
-        const label = data.device_label || "another device";
-        const pctTxt = data.percent ? ` (${Math.round(data.percent * 100)}%)` : "";
-        toast(`You were reading on ${label}${pctTxt}`, {
-          description: "Jump to that spot?",
-          action: {
-            label: "Resume there",
-            onClick: () => {
-              try {
-                renditionRef.current?.display(data.cfi);
-                savedLocationRef.current = null;
-              } catch { /* ignore */ }
-            },
-          },
-          duration: 12000,
+        // Persistent ribbon — see <CrossDeviceRibbon /> below.  Stays
+        // visible until the user either jumps to the saved spot or
+        // dismisses with the × button.  Dismissals are remembered per
+        // (book, cfi) in localStorage so reopening doesn't nag again.
+        const dismissed = (() => {
+          try { return localStorage.getItem(`shelfsort-handoff-dismissed-${id}-${data.cfi}`) === "1"; }
+          catch { return false; }
+        })();
+        if (dismissed) return;
+        setHandoff({
+          cfi: data.cfi,
+          percent: data.percent,
+          deviceLabel: data.device_label || "another device",
+          updatedAt: data.updated_at,
         });
       } catch { /* no cursor yet → no prompt */ }
     })();
     return () => { cancelled = true; };
   }, [id]);
+
+  // Cross-device "Furthest read position" ribbon state.  Lives at the
+  // top of the reader area, just below the toolbar.
+  const dismissHandoff = useCallback(() => {
+    if (!handoff) return;
+    try { localStorage.setItem(`shelfsort-handoff-dismissed-${id}-${handoff.cfi}`, "1"); } catch {}
+    setHandoff(null);
+  }, [handoff, id]);
+
+  const jumpToHandoff = useCallback(() => {
+    if (!handoff) return;
+    try {
+      renditionRef.current?.display(handoff.cfi);
+      savedLocationRef.current = null;
+    } catch {}
+    dismissHandoff();
+  }, [handoff, dismissHandoff]);
 
   // Load this book's bookmarks once the book is open.
   const loadBookmarks = useCallback(async () => {
@@ -778,6 +806,48 @@ export default function Reader() {
         data-testid="reader-area"
         style={{ minHeight: 0 }}
       >
+        {/* Cross-device "Furthest read position" ribbon — a Kindle-style
+            persistent hint shown when the cloud cursor was last
+            updated on a different device than this one.  Sits in the
+            top-right corner so it doesn't cover content.  Two
+            actions: "Jump there" (move + dismiss) and × (dismiss only). */}
+        {handoff && (
+          <div
+            data-testid="reader-handoff-ribbon"
+            className="absolute top-3 right-3 z-30 max-w-[280px] sm:max-w-sm shelf-card px-3 py-2 shadow-lg border border-[#6B46C1]/30 bg-[#FDFBF7] dark:bg-zinc-800 flex items-start gap-2 fade-in"
+            style={{ borderRadius: 12 }}
+          >
+            <span className="text-[#6B46C1] mt-0.5 flex-shrink-0">
+              <BookOpen className="w-4 h-4" />
+            </span>
+            <div className="flex-1 min-w-0 text-xs">
+              <p className="text-[#2C2C2C] dark:text-zinc-100 leading-tight">
+                You were <span className="font-semibold">{handoff.percent ? `${Math.round(handoff.percent * 100)}%` : "reading"}</span> through this on your <span className="font-semibold">{handoff.deviceLabel}</span>
+                {handoff.updatedAt ? <span className="text-[#6B705C] dark:text-zinc-400"> · {relativeAge(handoff.updatedAt)}</span> : null}
+              </p>
+              <div className="flex items-center gap-2 mt-1.5">
+                <button
+                  type="button"
+                  data-testid="reader-handoff-jump"
+                  onClick={jumpToHandoff}
+                  className="text-[11px] font-semibold text-[#6B46C1] hover:underline"
+                >
+                  Jump there →
+                </button>
+              </div>
+            </div>
+            <button
+              type="button"
+              data-testid="reader-handoff-dismiss"
+              onClick={dismissHandoff}
+              aria-label="Dismiss"
+              className="text-[#6B705C] hover:text-[#2C2C2C] dark:hover:text-zinc-100 flex-shrink-0"
+            >
+              <XIcon className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
         {bookData ? (
           <div style={{ position: "absolute", inset: 0 }}>
             <ReactReader

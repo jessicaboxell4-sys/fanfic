@@ -8,6 +8,33 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-19 — Reader "Furthest read position" ribbon ✅
+
+Persistent dismissible ribbon at the top-right of the Reader.  Shows
+when the cloud cursor was last written on a different device than
+the current one (within 14 days):
+
+  📖  You were 42% through this on your iPhone · 2h ago
+      Jump there →                                  ×
+
+- Replaces the previous toast (which auto-vanished after 12s) with
+  a persistent banner — feels more like Kindle's "Furthest read"
+  indicator on the device-switch screen.
+- Two actions: "Jump there →" (calls `rendition.display(cfi)` then
+  dismisses) and "×" (dismisses without jumping).
+- Dismissals are remembered per (book, cfi) in localStorage so
+  reopening doesn't nag — but a *fresher* cursor (new cfi) on the
+  cloud will re-show the ribbon, which is what you want.
+- Data flow already wired by the cross-device caption work earlier
+  today (`/books/{id}/cursor` already returns device_id +
+  device_label + updated_at).
+
+Pytest in `tests/test_cursor_fallback.py::test_books_recent_includes_cross_device_fields`
+locks down the backend payload contract (14/14 backend tests pass).
+
+---
+
+
 ## 2026-06-19 — Cross-device caption on Continue Reading rail ✅
 
 Tiny "📱 Continued on your iPhone · 2h ago" line under each card on

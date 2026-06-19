@@ -62,3 +62,37 @@ def test_write_then_read_round_trips(session):
     assert body["cfi"] == "epubcfi(/6/4!/4/2[chap-1]/8/1:0)"
     assert body["device_label"] == "Test laptop"
     assert abs(body["percent"] - 0.42) < 0.001
+
+
+def test_books_recent_includes_cross_device_fields(session):
+    """The Continue Reading rail relies on /books/recent returning
+    `last_device_id`, `last_device_label`, and `last_cursor_updated_at`
+    alongside each book whenever a cursor exists.  Regression guard
+    for the 2026-06-19 cross-device caption feature."""
+    # Ensure a cursor exists from the round-trip test above
+    session.post(
+        f"{BASE_URL}/api/books/{BOOK_ID}/cursor",
+        json={
+            "cfi": "epubcfi(/6/4!/4/2/8/1:5)",
+            "percent": 0.55,
+            "device_id": "test-device-phone",
+            "device_label": "iPhone",
+        },
+        timeout=20,
+    )
+    # Touch last_opened_at so the book surfaces on /books/recent
+    db = MongoClient(os.environ["MONGO_URL"])[os.environ["DB_NAME"]]
+    from datetime import datetime, timezone
+    db.books.update_one(
+        {"book_id": BOOK_ID},
+        {"$set": {"last_opened_at": datetime.now(timezone.utc).isoformat()}},
+    )
+
+    r = session.get(f"{BASE_URL}/api/books/recent", timeout=20)
+    assert r.status_code == 200
+    books = r.json().get("books", [])
+    book = next((b for b in books if b.get("book_id") == BOOK_ID), None)
+    assert book is not None, "Expected the seeded book on /books/recent"
+    assert book.get("last_device_id")     == "test-device-phone"
+    assert book.get("last_device_label")  == "iPhone"
+    assert book.get("last_cursor_updated_at"), "Expected a last_cursor_updated_at timestamp"
