@@ -6,6 +6,7 @@ import TagInput from "../components/TagInput";
 import ReadingStatsCard from "../components/ReadingStatsCard";
 import BookReadingInsights from "../components/BookReadingInsights";
 import BookCohortProgress from "../components/BookCohortProgress";
+import AntivirusBadge from "../components/AntivirusBadge";
 import { ArrowLeft, Download, Trash2, Sparkles, Book, Edit3, Heart, Link as LinkIcon, BookOpen, RefreshCw, Tag as TagIcon, Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { FETCHING_UI_ENABLED } from "../lib/featureFlags";
@@ -662,6 +663,12 @@ export default function BookDetail() {
               <Meta label="File" value={book.filename} />
               <Meta label="Size" value={`${(book.size_bytes / 1024).toFixed(0)} KB`} />
               <Meta label="Language" value={book.language || "—"} />
+              <AntivirusBadge
+                av_status={book.av_status}
+                av_scanned_at={book.av_scanned_at}
+                av_signature={book.av_signature}
+                variant="row"
+              />
               {book.publisher && <Meta label="Publisher" value={book.publisher} />}
               {Array.isArray(book.relationships) && book.relationships.length > 0 && (
                 <Meta

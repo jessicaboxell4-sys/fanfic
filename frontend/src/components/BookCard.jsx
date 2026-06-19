@@ -6,6 +6,7 @@ import { pulseGoalsCheck } from "../lib/goalHitWatcher";
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
 import RegenerateCoverButton from "./RegenerateCoverButton";
+import AntivirusBadge from "./AntivirusBadge";
 
 const categoryBadgeClass = (category) => {
   if (category === "Fanfiction") return "badge-fandom";
@@ -137,6 +138,18 @@ export default function BookCard({ book, selectMode, selected, onToggleSelect, o
         {/* AI cover regenerator — hover-revealed top-left overlay. */}
         {!selectMode && (
           <RegenerateCoverButton book={book} onCoverChanged={onChanged} />
+        )}
+
+        {/* Antivirus shield — bottom-left corner pip. Subtle in idle state,
+            brightens on hover. Hidden when av_status is unset. Red if
+            infected (always full opacity). */}
+        {!selectMode && (
+          <AntivirusBadge
+            av_status={book.av_status}
+            av_scanned_at={book.av_scanned_at}
+            av_signature={book.av_signature}
+            variant="corner"
+          />
         )}
 
         {/* Read indicator: persistent badge on finished books */}

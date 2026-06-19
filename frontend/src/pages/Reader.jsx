@@ -1,13 +1,16 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { ReactReader } from "react-reader";
-import { ArrowLeft, BookOpen, Minus, Plus, BookText, AlignLeft, Bookmark, BookmarkPlus, X as XIcon, Maximize, Minimize } from "lucide-react";
+import { ArrowLeft, BookOpen, Minus, Plus, BookText, AlignLeft, Bookmark, BookmarkPlus, X as XIcon, Maximize, Minimize, Palette } from "lucide-react";
 import { api } from "../lib/api";
 import { armReadingHandoff } from "../lib/push";
 import { pulseGoalsCheck } from "../lib/goalHitWatcher";
 import { toast } from "sonner";
+import ReaderThemePanel, { READER_THEMES, READER_FONTS, DEFAULT_THEME, DEFAULT_FONT } from "../components/ReaderThemePanel";
 
 const FLOW_KEY = "shelfsort-flow"; // "paginated" | "scrolled"
+const THEME_KEY = "shelfsort-reader-theme";
+const FONT_KEY = "shelfsort-reader-font";
 
 export default function Reader() {
   const { id } = useParams();
@@ -25,6 +28,15 @@ export default function Reader() {
   const [error, setError] = useState(null);
   const [bookmarks, setBookmarks] = useState([]);
   const [showBookmarkPanel, setShowBookmarkPanel] = useState(false);
+  const [showThemePanel, setShowThemePanel] = useState(false);
+  const [themeId, setThemeId] = useState(() => {
+    const v = window.localStorage.getItem(THEME_KEY);
+    return (v && READER_THEMES[v]) ? v : DEFAULT_THEME;
+  });
+  const [fontId, setFontId] = useState(() => {
+    const v = window.localStorage.getItem(FONT_KEY);
+    return (v && READER_FONTS[v]) ? v : DEFAULT_FONT;
+  });
   // Aggregated cross-reader heatmap data for this canonical book.
   // Loaded once on mount; gated server-side so it's null for books
   // with fewer than 10 unique readers contributing.
@@ -336,6 +348,43 @@ export default function Reader() {
     } catch (e) {}
   }, []);
 
+  // Re-register a custom epubjs theme whenever the user picks a
+  // different skin or font.  epubjs only paints what's in the iframe,
+  // so we also keep the outer reader wrap recoloured (see header
+  // overlay + reader-area inline styles below) so the page doesn't
+  // look like a dark page in a light frame (or vice versa).
+  const applyAppearance = useCallback((tid, fid, rendition) => {
+    const r = rendition || renditionRef.current;
+    if (!r) return;
+    const t = READER_THEMES[tid] || READER_THEMES[DEFAULT_THEME];
+    const f = READER_FONTS[fid] || READER_FONTS[DEFAULT_FONT];
+    const themeName = `skin-${tid}-${fid}`;
+    try {
+      r.themes.register(themeName, {
+        body: {
+          color: t.css.body.color,
+          background: t.css.body.background,
+          "font-family": f.family,
+          "line-height": "1.7",
+          padding: "0 8px",
+        },
+        p: { "font-family": f.family },
+        "h1, h2, h3, h4": {
+          color: t.css["h1, h2, h3, h4"].color,
+          "font-family": f.family,
+        },
+        a: { color: t.css.a.color },
+      });
+      r.themes.select(themeName);
+    } catch (e) { /* iframe not ready yet — first paint will re-apply */ }
+  }, []);
+
+  useEffect(() => {
+    applyAppearance(themeId, fontId);
+    try { window.localStorage.setItem(THEME_KEY, themeId); } catch (e) {}
+    try { window.localStorage.setItem(FONT_KEY, fontId); } catch (e) {}
+  }, [themeId, fontId, applyAppearance]);
+
   useEffect(() => {
     applyFont(fontSize);
     try { window.localStorage.setItem("shelfsort-fontsize", String(fontSize)); } catch (e) {}
@@ -385,6 +434,10 @@ export default function Reader() {
     });
     rendition.themes.select("paper");
     applyFont(fontSize);
+    // Apply the user's saved skin + font preset on top of the
+    // base "paper" theme.  The helper just re-registers a custom
+    // theme each time it's called, so live changes work too.
+    applyAppearance(themeId, fontId, rendition);
 
     const saved = savedLocationRef.current;
     // If we have a ?at=<href> jump target, prefer it over the saved location.
@@ -482,27 +535,37 @@ export default function Reader() {
     );
   }
 
+  const activeTheme = READER_THEMES[themeId] || READER_THEMES[DEFAULT_THEME];
+  const isDarkSkin = activeTheme.side === "night";
+
   return (
-    <div className="h-screen overflow-hidden flex flex-col bg-paper">
-      <header className="flex-shrink-0 backdrop-blur-xl bg-[#FDFBF7]/85 border-b border-[#E8E6E1] z-30">
+    <div className="h-screen overflow-hidden flex flex-col" style={{ background: activeTheme.wrapBg }}>
+      <header
+        className="flex-shrink-0 backdrop-blur-xl border-b z-30"
+        style={{
+          background: isDarkSkin ? `${activeTheme.wrapBg}E6` : "#FDFBF7D9",
+          borderColor: isDarkSkin ? "#3a3a3a" : "#E8E6E1",
+        }}
+      >
         <div className="max-w-6xl mx-auto px-4 md:px-6 py-3 flex items-center justify-between gap-3">
           <button
             data-testid="reader-back"
             onClick={() => navigate(`/book/${id}`)}
-            className="flex items-center gap-2 text-sm text-[#6B705C] hover:text-[#2C2C2C]"
+            className="flex items-center gap-2 text-sm hover:opacity-100"
+            style={{ color: isDarkSkin ? `${activeTheme.wrapText}B3` : "#6B705C" }}
           >
             <ArrowLeft className="w-4 h-4" /> Back
           </button>
           <div className="flex-1 min-w-0 text-center">
             {book ? (
               <>
-                <p className="font-serif text-base md:text-lg text-[#2C2C2C] truncate" data-testid="reader-title">
+                <p className="font-serif text-base md:text-lg truncate" data-testid="reader-title" style={{ color: activeTheme.wrapText }}>
                   {book.title}
                 </p>
-                <p className="text-xs text-[#6B705C] truncate">{book.author}</p>
+                <p className="text-xs truncate" style={{ color: isDarkSkin ? `${activeTheme.wrapText}99` : "#6B705C" }}>{book.author}</p>
               </>
             ) : (
-              <p className="text-sm text-[#6B705C]">Opening book…</p>
+              <p className="text-sm" style={{ color: isDarkSkin ? `${activeTheme.wrapText}99` : "#6B705C" }}>Opening book…</p>
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -605,6 +668,18 @@ export default function Reader() {
               <span className="hidden sm:inline">{isFullscreen ? "Exit" : "Focus"}</span>
             </button>
 
+            {/* Appearance — skin + font picker */}
+            <button
+              data-testid="reader-appearance-toggle"
+              onClick={() => setShowThemePanel((v) => !v)}
+              className="flex items-center gap-1.5 text-xs font-medium bg-white border border-[#E8E6E1] rounded-full px-3 py-1.5 hover:bg-[#F5F3EC]"
+              title="Reading appearance (theme & font)"
+              aria-pressed={showThemePanel}
+            >
+              <Palette className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Aa</span>
+            </button>
+
             <div className="flex items-center gap-1 bg-white border border-[#E8E6E1] rounded-full px-1.5 py-1">
               <button
                 data-testid="font-decrease"
@@ -681,6 +756,16 @@ export default function Reader() {
             </div>
           </div>
         )}
+
+        {/* Appearance panel — slides in from the right (above bookmarks panel) */}
+        <ReaderThemePanel
+          open={showThemePanel}
+          onClose={() => setShowThemePanel(false)}
+          themeId={themeId}
+          fontId={fontId}
+          onThemeChange={setThemeId}
+          onFontChange={setFontId}
+        />
 
         {/* Bookmarks panel — slides in from the right */}
         {showBookmarkPanel && (

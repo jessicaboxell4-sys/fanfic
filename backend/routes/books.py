@@ -2719,7 +2719,11 @@ async def download_book(book_id: str, user: User = Depends(get_current_user)):
             )
             await db.books.update_one(
                 {"book_id": book_id, "user_id": user.user_id},
-                {"$set": {"av_status": "infected", "av_signature": _av.get("signature", "")}},
+                {"$set": {
+                    "av_status": "infected",
+                    "av_signature": _av.get("signature", ""),
+                    "av_scanned_at": datetime.now(timezone.utc).isoformat(),
+                }},
             )
             raise HTTPException(
                 status_code=403,
@@ -2728,7 +2732,10 @@ async def download_book(book_id: str, user: User = Depends(get_current_user)):
         if _av.get("ok"):
             await db.books.update_one(
                 {"book_id": book_id, "user_id": user.user_id},
-                {"$set": {"av_status": "clean"}},
+                {"$set": {
+                    "av_status": "clean",
+                    "av_scanned_at": datetime.now(timezone.utc).isoformat(),
+                }},
             )
     download_name = _templated_filename(book.get('title'), book.get('author'), book_id)
     return FileResponse(str(fp), media_type="application/epub+zip", filename=download_name)

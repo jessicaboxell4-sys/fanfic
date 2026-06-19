@@ -121,12 +121,19 @@ async def rescan_my_library(user: User = Depends(get_current_user)) -> Dict[str,
             )
             await db.books.update_one(
                 {"book_id": book_id, "user_id": user.user_id},
-                {"$set": {"av_status": "infected", "av_signature": sig}},
+                {"$set": {
+                    "av_status": "infected",
+                    "av_signature": sig,
+                    "av_scanned_at": datetime.now(timezone.utc).isoformat(),
+                }},
             )
         elif result.get("ok"):
             await db.books.update_one(
                 {"book_id": book_id, "user_id": user.user_id},
-                {"$set": {"av_status": "clean"}},
+                {"$set": {
+                    "av_status": "clean",
+                    "av_scanned_at": datetime.now(timezone.utc).isoformat(),
+                }},
             )
 
     finished = datetime.now(timezone.utc)
