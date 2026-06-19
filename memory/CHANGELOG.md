@@ -8,6 +8,33 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-18 — Tracked invite links + Facebook channel ✅
+
+- **`?ref=<channel>` query param** on the landing/login URL now
+  auto-flips the form into register mode and pre-fills the
+  onboarding "How did you find Shelfsort?" answer.  Works on any
+  arbitrary tag (e.g. `?ref=hpfanfic` for Reddit r/HPfanfiction);
+  known channels (google, twitter, reddit, **facebook**, tiktok,
+  friend) highlight the matching radio.
+- **Facebook** added to the onboarding-questions radio list.
+- **Backend** persists the referral even when onboarding questions
+  are disabled — `?ref=facebook` still records attribution silently
+  so admins can run launch campaigns without first flipping the
+  questions toggle on.
+- **AdminConsole "Tracked invite links" widget** in the Sign-up
+  rules card.  9 ready-to-copy URLs (Facebook, Twitter/X, Reddit
+  generic, r/HPfanfiction, r/FanFiction, TikTok, Bookstagram,
+  Discord, Newsletter) each with its own COPY button + toast
+  confirmation.  Admins can mint custom tags by editing the URL.
+
+End-to-end verified:
+- `POST /api/auth/register` with `{onboarding:{referral:"facebook"}}` → user created, attribution captured
+- `POST /api/auth/register` with `{onboarding:{referral:"hpfanfic"}}` → custom tag persisted
+- Both surface in `/api/admin/onboarding-stats` under their respective channel labels
+
+---
+
+
 ## 2026-06-18 — Suppression reasons in alert-health banner ✅
 
 Made the admin's "Cron failures going un-alerted" banner self-

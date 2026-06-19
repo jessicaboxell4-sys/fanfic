@@ -858,6 +858,9 @@ function SignupRulesCard() {
             </div>
           )}
 
+          {/* Tracked invite links (2026-06-18) */}
+          <InviteLinksWidget />
+
           {/* Rules editor */}
           <div className="rounded-xl border border-[#E5DDC5] bg-[#FBFAF6] p-4">
             <div className="flex items-center justify-between mb-2">
@@ -930,9 +933,79 @@ function SignupRulesCard() {
   );
 }
 
-// Small two-column count list reused inside SignupRulesCard.
-function StatList({ title, rows, testid }) {
+
+// ---------------------------------------------------------------------------
+// InviteLinksWidget — tracked-URL builder + copy buttons
+// ---------------------------------------------------------------------------
+// Hands the admin a one-click copy for ``?ref=<channel>`` invite URLs
+// that pre-tag the new signup's onboarding.referral field.  Works
+// regardless of whether the onboarding-questions toggle is on — the
+// register handler falls through to a referral-only ``onboarding``
+// payload when questions are off, so attribution survives both modes.
+function InviteLinksWidget() {
+  // Bake the base URL from the page so this works on preview, prod,
+  // and any custom domain attached via Entri.
+  const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+  const links = [
+    { tag: "facebook",     label: "Facebook" },
+    { tag: "twitter",      label: "Twitter / X" },
+    { tag: "reddit",       label: "Reddit (generic)" },
+    { tag: "hpfanfic",     label: "Reddit · r/HPfanfiction" },
+    { tag: "fanfiction",   label: "Reddit · r/FanFiction" },
+    { tag: "tiktok",       label: "TikTok" },
+    { tag: "bookstagram",  label: "Instagram · Bookstagram" },
+    { tag: "discord",      label: "Discord server" },
+    { tag: "newsletter",   label: "Newsletter" },
+  ];
+  const copy = async (url, tag) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success(`Copied ${tag} invite link`);
+    } catch {
+      toast.error("Couldn't access clipboard — copy manually");
+    }
+  };
   return (
+    <div className="rounded-xl border border-[#E5DDC5] bg-[#FBFAF6] p-4" data-testid="signup-invite-links">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C]">
+          Tracked invite links
+        </p>
+        <span className="text-[10px] text-[#6B705C]">
+          new sign-ups tagged in onboarding-stats
+        </span>
+      </div>
+      <p className="text-xs text-[#6B705C] mb-3">
+        Each link auto-pre-fills the &ldquo;How did you find Shelfsort?&rdquo; answer
+        for the new user.  Anything after <code className="font-mono">?ref=</code>
+        is captured verbatim, so add your own tags too.
+      </p>
+      <ul className="grid sm:grid-cols-2 gap-1.5">
+        {links.map(({ tag, label }) => {
+          const url = `${baseUrl}/?ref=${tag}`;
+          return (
+            <li key={tag} className="flex items-center gap-2 text-xs">
+              <span className="font-medium text-[#2C2C2C] w-32 flex-shrink-0">{label}</span>
+              <code className="font-mono text-[10px] text-[#6B705C] truncate flex-1">{url}</code>
+              <button
+                type="button"
+                onClick={() => copy(url, label)}
+                data-testid={`signup-invite-copy-${tag}`}
+                className="px-2 py-0.5 rounded bg-[#6B46C1] text-white text-[10px] font-bold uppercase tracking-[0.1em] hover:bg-[#553397] flex-shrink-0"
+              >
+                Copy
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+
+// Small two-column count list reused inside SignupRulesCard.
+function StatList({ title, rows, testid }) {  return (
     <div data-testid={testid}>
       <p className="text-xs uppercase tracking-[0.15em] text-[#6B705C] font-bold mb-1.5">{title}</p>
       {!rows || rows.length === 0 ? (

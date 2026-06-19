@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { BookOpen, Mail, Lock, User as UserIcon, AtSign, Loader2 } from "lucide-react";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
@@ -14,6 +14,7 @@ function errMsg(detail) {
 
 export default function Login() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { loginSuccess } = useAuth();
   const [mode, setMode] = useState("login"); // "login" | "register" | "forgot"
   const [email, setEmail] = useState("");
@@ -50,6 +51,20 @@ export default function Login() {
       .catch(() => { /* fall back to defaults */ });
     return () => { mounted = false; };
   }, [mode]);
+
+  // 2026-06-18 — Tracked invite links.  Visiting /?ref=facebook (or
+  // ?ref=hpfanfic, ?ref=bookstagram, etc.) auto-flips the form into
+  // register mode AND pre-selects the onboarding "How did you find
+  // Shelfsort?" answer.  When the answer matches a known channel
+  // (google / twitter / reddit / facebook / tiktok / friend), the
+  // matching radio is highlighted; arbitrary tags (e.g. ?ref=hpfanfic)
+  // are stored verbatim and surface in /admin/onboarding-stats.
+  useEffect(() => {
+    const ref = (searchParams.get("ref") || "").trim().toLowerCase();
+    if (!ref) return;
+    setMode("register");
+    setReferral(ref.slice(0, 40));
+  }, [searchParams]);
 
   const handleGoogle = () => {
     // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
@@ -100,6 +115,11 @@ export default function Login() {
             reader_type:     readerType || undefined,
             is_13_plus:      is13Plus,
           };
+        } else if (referral) {
+          // Tracked invite links still record the referral source
+          // even when onboarding questions are disabled — otherwise
+          // ?ref=facebook links would silently lose their attribution.
+          body.onboarding = { referral };
         }
       }
       const { data } = await api.post(url, body);
@@ -264,6 +284,7 @@ export default function Login() {
                     ["google", "Google"],
                     ["twitter", "Twitter / X"],
                     ["reddit", "Reddit"],
+                    ["facebook", "Facebook"],
                     ["friend", "A friend"],
                     ["tiktok", "TikTok"],
                     ["other", "Somewhere else"],
