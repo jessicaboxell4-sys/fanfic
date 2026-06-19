@@ -512,6 +512,14 @@ html, body {
 :root[data-theme="dark"] .bg-\[\#EDE7FB\] { background-color: rgba(167, 139, 250, 0.22); }
 :root[data-theme="dark"] .border-\[\#6B46C1\]\/20 { border-color: rgba(196, 181, 253, 0.35); }
 :root[data-theme="dark"] .bg-\[\#FDF3E1\] { background-color: rgba(255, 165, 130, 0.18); }
+/* 2026-06-18 — text overrides for the cream `#FDF3E1` card (the
+   "Polish your library?" OnboardingPrompt, the backup-reminder
+   ribbon, etc.).  Without these, dark-on-dark-brown body text was
+   illegible.  The cream is reserved for "soft suggestion" surfaces
+   so a warm amber-tinted foreground reads as suggestion-coloured. */
+:root[data-theme="dark"] .bg-\[\#FDF3E1\] .text-\[\#2C2C2C\],
+:root[data-theme="dark"] .bg-\[\#FDF3E1\] .text-\[\#3F4034\] { color: #F8E8C5 !important; }
+:root[data-theme="dark"] .bg-\[\#FDF3E1\] .text-\[\#6B705C\] { color: #D9C49A !important; }
 /* The former AO3-maroon `#900` accent was retired in favour of the purple    */
 /* primary `#6B46C1` everywhere (2026-06-13 theme parity sweep). The text     */
 /* and border overrides that lived here are no longer referenced by any JSX  */
@@ -786,5 +794,16 @@ html, body {
 [class*="bg-[#EDE6FA]"] [class*="text-[#6B705C]"] *,
 [class*="bg-[#E8F3EC]"] [class*="text-[#6B705C]"] * {
     color: #3F4034 !important;
+}
+/* 2026-06-18 — Dark-mode escape hatch.  The light-mode `#3F4034`
+   above turns into illegible near-black on the dark theme's
+   remapped backgrounds, so we override the override and let the
+   per-card text colors (defined above, e.g. cream cards →
+   `#F8E8C5`) win.  Without this, the prior rule's `!important`
+   would beat them.  */
+:root[data-theme="dark"] [class*="bg-["][class*="text-[#6B705C]"],
+:root[data-theme="dark"] [class*="bg-["] [class*="text-[#6B705C]"],
+:root[data-theme="dark"] [class*="bg-["] [class*="text-[#6B705C]"] * {
+    color: inherit !important;
 }
 

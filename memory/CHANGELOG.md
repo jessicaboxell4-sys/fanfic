@@ -8,6 +8,28 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-18 — Dark-mode text overrides for cream cards ✅
+
+The "Polish your library?" OnboardingPrompt and any other `bg-[#FDF3E1]`
+(cream) card was unreadable in dark mode — background remapped to
+dark brown via the existing override (line 514), but the dark text
+colors stayed dark → dark-on-dark.
+
+Added two text overrides in index.css:
+  - `text-[#2C2C2C]` / `text-[#3F4034]` inside cream cards → `#F8E8C5`
+  - `text-[#6B705C]` inside cream cards → `#D9C49A`
+
+Also added a dark-mode escape hatch to the earlier contrast-sweep
+rule so the light-mode `#3F4034` override doesn't beat the new
+per-card text colors in dark mode.
+
+Affects: OnboardingPrompt ("Polish your library?"), any backup
+reminder ribbon, suggestion-banner-style ribbons, anything using
+the cream surface.
+
+---
+
+
 ## 2026-06-18 — App-wide contrast sweep ✅
 
 The faded body text the user spotted on the Sign-up rules card was
