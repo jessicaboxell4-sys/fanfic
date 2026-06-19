@@ -8,6 +8,20 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-18 — `?theme=dark` / `?theme=light` URL override ✅
+
+Added a one-shot theme override in `ThemeContext.jsx`.  Any URL
+with `?theme=dark` or `?theme=light` forces that theme for the
+current page load only — closing the tab restores the saved
+preference.  Useful for spot-checking pages in both modes without
+flipping the OS appearance.
+
+Works on every route: `/?theme=dark`, `/admin?theme=dark`,
+`/account/safety?theme=dark`, `/help?theme=light`, etc.
+
+---
+
+
 ## 2026-06-18 — Dark-mode text overrides for cream cards ✅
 
 The "Polish your library?" OnboardingPrompt and any other `bg-[#FDF3E1]`

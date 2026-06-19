@@ -107,8 +107,18 @@ export function ThemeProvider({ children }) {
 
   // Mirror the choice onto <html data-theme="..."> so the CSS overrides in
   // index.css can target it with a single attribute selector.
+  // 2026-06-18 — ``?theme=dark`` / ``?theme=light`` URL override lets the
+  // developer (or anyone) force a specific theme for spot-checking any page
+  // without changing the OS appearance.  Override only sticks for the
+  // current page load — closing the tab returns to the saved preference,
+  // so users can't accidentally lock themselves into a mode.
   useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme);
+    let effective = theme;
+    try {
+      const override = new URLSearchParams(window.location.search).get("theme");
+      if (override === "dark" || override === "light") effective = override;
+    } catch { /* SSR or sealed iframe — ignore */ }
+    document.documentElement.setAttribute("data-theme", effective);
     document.documentElement.setAttribute("data-theme-mode", mode);
   }, [theme, mode]);
 
