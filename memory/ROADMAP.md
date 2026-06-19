@@ -31,6 +31,18 @@
   Single SSE connection per tab = lower DB load, instant updates,
   simpler client code.
 
+
+- **Reader prefs cross-device sync** (parked 2026-06-19) — the Reader
+  appearance panel (themes + fonts, shipped 2026-06-19) currently
+  persists only to `localStorage`, so a reader's "Sepia Night + Lora"
+  combo doesn't follow them to a phone or tablet.  Add a tiny
+  `reader_prefs: { theme: str, font: str }` sub-doc on the User model
+  + `GET/PATCH /api/account/reader-prefs`.  Frontend should hydrate
+  from the API on mount (with localStorage as fast-path fallback) and
+  PATCH on each change with a 600ms debounce.  ~30 min of work,
+  turns Shelfsort into a stickier multi-device read-from-anywhere
+  story than Kindle.
+
 ## P2 — polish
 
 - **Admin card-view tracking** (parked 2026-06-18) — wire each
