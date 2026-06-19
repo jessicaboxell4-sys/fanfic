@@ -8,6 +8,42 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-19 — Antivirus shield badges + Kindle-style reader skins ✅
+
+**🛡️ Antivirus visibility.** New `AntivirusBadge.jsx` component
+renders in two variants:
+- `variant="corner"` — small shield pip on every `BookCard` cover
+  (green emerald = clean, red = infected). Idle opacity 70%, full on
+  hover. Native `title` tooltip shows the scan date.
+- `variant="row"` — full pill row inside the BookDetail metadata
+  grid: "Scanned clean • Jun 19, 2026" or "Flagged: <signature>".
+
+Backend now also stores `av_scanned_at` (ISO8601 with `timezone.utc`)
+alongside every `av_status` mutation in `account_safety.py` and
+`books.py` so the badge tooltip has a real timestamp.
+
+**🌙 Reader appearance panel (Kindle-style).** New `ReaderThemePanel.jsx`
+slide-in panel (right edge of reader). Six themes split across day/night:
+- Light: Cream (default), White, Sage
+- Dark: Midnight, Sepia Night, OLED Black
+
+Four font families: Sans (Manrope), Serif (Lora), Classic (Cormorant
+Garamond), Readable (Atkinson Hyperlegible).
+
+Selection persists to `localStorage` (`shelfsort-reader-theme`,
+`shelfsort-reader-font`) and applies via epubjs's `themes.register`
+helper. The outer reader chrome (header + wrap background) recolours
+to match the active skin so dark themes don't leak the cream chrome.
+Lora and Atkinson Hyperlegible added to the Google Fonts import in
+`public/index.html`.
+
+Backend tests pass (5/5, `/app/backend/tests/test_av_fields.py`).
+Frontend smoke-test: library grid shows green/red pips on 2/1 seeded
+books, BookDetail rows render correctly.
+
+---
+
+
 ## 2026-06-19 — Deploy unblock: removed `.env` ignore rules ✅
 
 Deployer Agent flagged that `/app/.gitignore` lines 138-140 were
