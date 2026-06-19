@@ -21,15 +21,15 @@ import {
 // deploy, POST to /api/announcements with a fresh `version` string.
 // `version` doubles as the per-user localStorage dismissal key.
 const FALLBACK_WHATS_NEW = {
-  version: "2026-06-18-cloud-backup",
+  version: "2026-06-18-antivirus-rules",
   title: "Fresh in Shelfsort",
   items: [
-    { to: "/account", label: "Cloud library mirror", desc: "— your EPUBs and covers are now continuously mirrored to durable cloud storage so a server redeploy can't wipe them. Look for the green ✓ Shield-Check on your avatar — click it for a one-tap “Back up again” popover." },
+    { to: "/account/safety", label: "Antivirus on every upload", desc: "— every file you add (and every cloud restore) is now scanned by ClamAV before it lands in your library. Visit your Library safety report to see counts + rescan on demand." },
+    { to: "/rules", label: "Community rules now live", desc: "— Shelfsort has a written code of conduct. No spam, no politics, no hate speech or bullying, no piracy promotion, respect IP, be kind. Skim it from the footer or the register checkbox." },
+    { to: "/account", label: "Cloud library mirror", desc: "— your EPUBs and covers are continuously mirrored to durable cloud storage so a server redeploy can't wipe them. Look for the green ✓ Shield-Check on your avatar — click it for a one-tap “Back up again” popover." },
     { to: "/library/all", label: "Resume on another device", desc: "— start a fic on your laptop, pick it up on your phone. The yellow Resume pill on a book card means you have a fresh cloud cursor from a different device; tap it and the Reader opens at the exact CFI." },
     { to: "/library", label: "Reading insights on every book", desc: "— BookDetail now surfaces three live pills: ↻ Re-read (if you keep coming back), ⚡ Pace (faster/slower than your usual %/hr), and ⌖ Cohort (you 45% · community 62%). All cohort-gated and opt-in." },
     { to: "/explore/covers", label: "Community Covers — vote and remix", desc: "— browse, vote, and remix AI-generated covers shared by other Shelfsort readers. Public SEO-friendly cover pages with proper OG previews mean covers unfurl beautifully on Twitter / Discord / iMessage." },
-    { to: "/library", label: "Real-time messages and friend activity", desc: "— the message indicator and friends-page now update live via a single SSE channel (no more 15-second polling delay)." },
-    { to: "/account/emails", label: "Operator weekly digest (admins)", desc: "— Sunday-evening rollup email of explore views, signups, top covers, and referrer mix. Toggle from Account → Email preferences, admin-only." },
   ],
 };
 const WHATS_NEW_KEY = "shelfsort.whatsNewDismissed";
@@ -55,6 +55,8 @@ const SECTIONS = [
   { id: "detection", label: "Detection & overrides" },
   { id: "data-safety", label: "Backup & restore" },
   { id: "cloud-backup", label: "Cloud library mirror" },
+  { id: "antivirus", label: "Antivirus & library safety" },
+  { id: "rules", label: "Community rules" },
   { id: "reading", label: "Reader & stats" },
   { id: "cross-device", label: "Cross-device reading sync" },
   { id: "reading-insights", label: "Reading insights (Re-read · Pace · Cohort)" },
@@ -713,7 +715,32 @@ export default function Help() {
               <p className="text-xs text-[#6B705C]">Your bytes are stored by Emergent&apos;s managed object storage; Shelfsort never reads them except to serve them back to you. The manual ZIP backup above is the right tool when you want a portable copy you control entirely — the cloud mirror is the safety net that keeps things working even if you forget to make a ZIP.</p>
             </Section>
 
-            <Section id="reading" icon={BookOpen} title="Reader & stats">
+            <Section id="antivirus" icon={Shield} title="Antivirus &amp; library safety">
+              <p>Every file you add to Shelfsort is scanned by <strong>ClamAV</strong> before it lands in your library. The scan runs synchronously on the upload response — if anything is flagged, the file is rejected with a clear message and never enters your library. Same goes for backup-ZIP restores and feedback photo attachments.</p>
+              <ul>
+                <li><strong>What gets scanned</strong> — every book upload (EPUB, PDF, MOBI, AZW, TXT), every backup-ZIP restore, every photo attached to feedback, and every file restored back from cloud storage on download. The signature database is refreshed daily, so files that were clean yesterday can still be caught if a brand-new threat is published.</li>
+                <li><strong>Where to check your own report</strong> — <Link to="/account/safety">Account → Library safety report</Link>. Three live counters: clean, flagged, awaiting first scan. If anything has been flagged it&apos;s listed by filename + signature, with a timestamp.</li>
+                <li><strong>Rescan on demand</strong> — the same page has a one-tap <em>Rescan now</em> button that re-runs ClamAV across every book in your library (it pulls cloud-only files back to disk first, so the rescan is complete, not just a cache sweep). Capped at 500 books per run to keep the wait reasonable.</li>
+                <li><strong>If a flagged file used to be clean</strong> — that&apos;s the normal &ldquo;new signature caught an old file&rdquo; case. The download endpoint rescans before serving the file, so a freshly-flagged book is blocked at the next download attempt. Your earlier downloads are not retroactively recalled — you should manually delete any local copies of a flagged file from your devices.</li>
+                <li><strong>What we never do</strong> — ClamAV only sees the file bytes; the result is &ldquo;clean&rdquo; or &ldquo;<em>signature name</em> FOUND&rdquo;. We don&apos;t share files with third-party AV services, we don&apos;t store hashes in any external registry, and your scan results are visible only to you (the admin antivirus dashboard sees aggregate quarantine entries, not your library contents).</li>
+              </ul>
+              <p className="text-xs text-[#6B705C]">If the AV scanner is temporarily unavailable (e.g. mid-deploy while signatures download), uploads still work but the file is queued for scanning when the daemon is back — the Library safety report banner turns red so you know.</p>
+            </Section>
+
+            <Section id="rules" icon={Shield} title="Community rules">
+              <p>Shelfsort is a quiet corner of the internet for people who love books. To keep it that way, every account holder agrees to a short, written code of conduct.</p>
+              <ul>
+                <li><strong>No spam</strong> — no off-platform promotion, no commercial schemes, no link-farming.</li>
+                <li><strong>No politics</strong> — keep partisan content and election material off the platform.</li>
+                <li><strong>No hate speech or bullying</strong> — targeting users, authors, or communities by identity is not tolerated.</li>
+                <li><strong>No piracy promotion</strong> — don&apos;t share download links to unauthorized copies. Shelfsort is for organizing books you already own (or freely-shared works like fanfiction).</li>
+                <li><strong>Respect intellectual property</strong> — authors keep rights to their work. Don&apos;t repost full chapters or AI-derivatives that misrepresent the original.</li>
+                <li><strong>Be kind</strong> — &ldquo;what one reader would say to another.&rdquo; Curiosity, gentle disagreement, shared favorites — yes. Snark at someone&apos;s taste — no.</li>
+              </ul>
+              <p>Read the full text at <Link to="/rules" target="_blank">/rules</Link>. Rule breaches lead to a warning, suspension, or ban depending on severity. Appeals can be sent via the feedback box at the top of this page.</p>
+            </Section>
+
+            <Section id="reading" icon={BookOpen} title="Reader &amp; stats">
               <p>Click any book cover to open the in-browser EPUB Reader. Your reading position is saved per-book; come back to where you left off automatically.</p>
               <p><strong>Bookmarks</strong>: while reading, tap the <em>Bookmark</em> button in the reader header to save your current page — or just press <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>B</kbd>. If the current page is already bookmarked, the button flips to a filled <em>Saved</em> chip so you don&apos;t accidentally save the same spot twice. Open the <em>Bookmark</em> panel (the icon next to it with the count) to see every saved spot for this book, jump to any of them, type or edit a free-form note (saved on blur), and remove on hover. Each bookmark stores the chapter title, your reading-progress percentage, and the date you saved it. Bookmarks sync to your account so they follow you across devices.</p>
               <p>You can also see every bookmark across your whole library on the <Link to="/bookmarks">All bookmarks</Link> page. PDF and TXT/DOCX originals support bookmarks too — see the <Link to="/library/originals">Originals</Link> section above for how they work in the smart viewer.</p>
