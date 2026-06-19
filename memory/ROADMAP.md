@@ -32,12 +32,20 @@
   simpler client code.
 
 
-- **Reader prefs cross-device sync** (parked 2026-06-19) — the Reader
-  appearance panel (themes + fonts, shipped 2026-06-19) currently
-  persists only to `localStorage`, so a reader's "Sepia Night + Lora"
-  combo doesn't follow them to a phone or tablet.  Add a tiny
-  `reader_prefs: { theme: str, font: str }` sub-doc on the User model
-  + `GET/PATCH /api/account/reader-prefs`.  Frontend should hydrate
+- **Reader prefs cross-device sync** ✅ (shipped 2026-06-19 — see CHANGELOG)
+
+- **Tighten DMARC** (reminder: tighten on or after **2026-07-03**) —
+  on 2026-06-19 we set the DMARC TXT at IONOS to `p=none;` which only
+  *monitors* delivery without enforcing.  After 1-2 weeks of clean
+  Resend analytics (no spoofing reports, no spam complaints), tighten
+  to `p=quarantine;` to actively reject non-Shelfsort senders trying
+  to forge `@shelfsort.com`.  Steps:
+    1. Open https://login.ionos.com → Domains & SSL → shelfsort.com → DNS
+    2. Find the `TXT _dmarc` row → edit
+    3. Change value from `v=DMARC1; p=none;` to `v=DMARC1; p=quarantine; rua=mailto:jessica@shelfsort.com;`
+    4. Save.  No app changes — Resend doesn't track DMARC anyway.
+  Optional further hardening once a month in `p=quarantine` looks clean:
+  bump to `p=reject;` (the strictest setting, used by banks).
   from the API on mount (with localStorage as fast-path fallback) and
   PATCH on each change with a 600ms debounce.  ~30 min of work,
   turns Shelfsort into a stickier multi-device read-from-anywhere

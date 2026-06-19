@@ -8,6 +8,45 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-19 — Cross-device last-read cursor hydration ✅
+
+Reader.jsx now falls back to the **cloud cursor**
+(`GET /books/{id}/cursor`) when localStorage is empty for that book.
+Previously, opening a book on a fresh device (or after clearing cache)
+started at chapter 1 even though the backend already knew the user's
+last position — the only path to the cloud cursor was via the "Resume
+there" toast, which itself was gated to a 6-hour freshness window.
+
+Two changes:
+- localStorage useEffect now (when `shelfsort-loc-{bookId}` is empty)
+  awaits `GET /books/{id}/cursor` and uses its `cfi` as the initial
+  position.  If the rendition has already painted chapter 1 by the
+  time the cloud response arrives, we jump immediately — ~200-300 ms
+  perceived "thinking" load.
+- Cross-device toast freshness window bumped from 6 hours → 14 days
+  so a user returning after a few days still sees the resume prompt.
+
+Bookmarks themselves are already cloud-synced via
+`POST /books/{id}/bookmarks` and reloaded from
+`GET /books/{id}/bookmarks` on mount — no change needed there.
+
+Pytest in `/app/backend/tests/test_cursor_fallback.py` verifies the
+underlying contract: 404 → silent fallback, 200 + cfi → round-trip.
+
+### Also confirmed (no shipped change):
+- **Fixture auto-purge cron** triggered manually via Python — 93
+  stale fixtures correctly purged, fresh ones (< 7d) preserved, real
+  user with a 10d account preserved.  Production schedule (daily
+  03:00 UTC) confirmed working.
+
+### Reminder filed:
+- **Tighten DMARC** on or after 2026-07-03 (added to ROADMAP.md
+  with the exact 4-step IONOS walkthrough).  No app changes — just a
+  DNS edit to bump `p=none;` → `p=quarantine;`.
+
+---
+
+
 ## 2026-06-19 — Five-in-one hardening batch ✅
 
 ### 1. Bulk-approve rate-limit throttle

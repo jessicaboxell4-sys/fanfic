@@ -93,16 +93,45 @@ export default function Reader() {
   }, [id]);
 
   useEffect(() => {
+    // localStorage is the fast-path default: same device, same book =
+    // resume instantly without a round-trip.  When it's empty (fresh
+    // device, cleared cache), we fall back to the cloud cursor below
+    // so the user never starts at chapter 1 just because they switched
+    // devices.  That's THE Kindle-parity moment.
+    let cancelled = false;
+    let localFound = false;
     try {
       const saved = window.localStorage.getItem(`shelfsort-loc-${id}`);
-      if (saved) savedLocationRef.current = saved;
+      if (saved) {
+        savedLocationRef.current = saved;
+        localFound = true;
+      }
     } catch (e) {}
+
+    if (!localFound) {
+      (async () => {
+        try {
+          const { data } = await api.get(`/books/${id}/cursor`);
+          if (cancelled || !data?.cfi) return;
+          savedLocationRef.current = data.cfi;
+          // If the rendition already mounted at chapter 1 (cloud
+          // request lost the race against epubjs's first paint), jump
+          // now.  feels like a 200-300ms "thinking" load.
+          if (renditionRef.current) {
+            try { renditionRef.current.display(data.cfi); } catch (e) {}
+          }
+        } catch (e) { /* 404 (never opened anywhere) or offline — silent */ }
+      })();
+    }
+    return () => { cancelled = true; };
   }, [id]);
 
   // Cross-device handoff: ask the cloud where we left off.  If the
-  // cloud copy was written by a different device within the last 6 h
-  // AND it's noticeably ahead of (or behind) the local one, surface
-  // a toast so the user can jump to the cloud cursor in one tap.
+  // cloud copy was written by a different device within the last 14
+  // days AND it's noticeably ahead of (or behind) the local one,
+  // surface a toast so the user can jump to the cloud cursor in one
+  // tap.  (Was 6h originally — too short for casual readers who go a
+  // few days between sessions.)
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -113,7 +142,7 @@ export default function Reader() {
         if (data.device_id && myDevice && data.device_id === myDevice) return;
         const updatedAt = new Date(data.updated_at);
         const ageHours = (Date.now() - updatedAt.getTime()) / 3_600_000;
-        if (!Number.isFinite(ageHours) || ageHours > 6) return;
+        if (!Number.isFinite(ageHours) || ageHours > 24 * 14) return;
         // Local progress: read from books endpoint state if available;
         // simpler — use the savedLocationRef heuristic: if cfi differs
         // and remote is fresh, offer the jump.
