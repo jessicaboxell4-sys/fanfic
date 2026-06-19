@@ -77,44 +77,57 @@ async def rescan_my_library(user: User = Depends(get_current_user)) -> Dict[str,
         )
 
     user_dir = STORAGE_DIR / user.user_id
+    user_dir.mkdir(parents=True, exist_ok=True)
     started = datetime.now(timezone.utc)
     scanned = 0
     flagged = 0
     skipped = 0
     flags: List[Dict[str, Any]] = []
 
-    if user_dir.exists():
-        for fp in user_dir.iterdir():
-            if not fp.is_file():
-                continue
-            # Cap the per-user rescan at 500 files so a power user
-            # with 5000 EPUBs doesn't pin the worker for too long.
-            if scanned >= 500:
+    # 2026-06-18 — Walk the user's *books* collection (the source of
+    # truth) instead of just whatever happens to be on local disk.
+    # Files living only in cloud storage get pulled to disk first so
+    # the rescan actually covers the user's whole library, not just
+    # their warm cache.
+    from utils.storage_cloud import ensure_local_cached
+    book_cursor = db.books.find(
+        {"user_id": user.user_id, "status": {"$ne": "trash"}},
+        {"_id": 0, "book_id": 1, "title": 1},
+    ).limit(500)
+    async for book in book_cursor:
+        book_id = book.get("book_id")
+        if not book_id:
+            continue
+        fp = user_dir / f"{book_id}.epub"
+        if not fp.exists():
+            # Pull from object storage; if that fails the book has no
+            # scannable file (e.g. URL-only entry) and we skip it.
+            ok = await asyncio.to_thread(ensure_local_cached, fp, user.user_id, book_id, ".epub")
+            if not ok:
                 skipped += 1
                 continue
-            book_id = fp.stem
-            result = await asyncio.to_thread(antivirus.scan_path, fp)
-            scanned += 1
-            if result.get("infected"):
-                flagged += 1
-                sig = result.get("signature", "")
-                flags.append({"book_id": book_id, "signature": sig})
-                await antivirus.record_quarantine(
-                    user_id=user.user_id,
-                    filename=fp.name,
-                    scan=result,
-                    source="rescan",
-                    extra={"book_id": book_id},
-                )
-                await db.books.update_one(
-                    {"book_id": book_id, "user_id": user.user_id},
-                    {"$set": {"av_status": "infected", "av_signature": sig}},
-                )
-            elif result.get("ok"):
-                await db.books.update_one(
-                    {"book_id": book_id, "user_id": user.user_id},
-                    {"$set": {"av_status": "clean"}},
-                )
+        result = await asyncio.to_thread(antivirus.scan_path, fp)
+        scanned += 1
+        if result.get("infected"):
+            flagged += 1
+            sig = result.get("signature", "")
+            flags.append({"book_id": book_id, "signature": sig, "title": book.get("title", "")})
+            await antivirus.record_quarantine(
+                user_id=user.user_id,
+                filename=fp.name,
+                scan=result,
+                source="rescan",
+                extra={"book_id": book_id},
+            )
+            await db.books.update_one(
+                {"book_id": book_id, "user_id": user.user_id},
+                {"$set": {"av_status": "infected", "av_signature": sig}},
+            )
+        elif result.get("ok"):
+            await db.books.update_one(
+                {"book_id": book_id, "user_id": user.user_id},
+                {"$set": {"av_status": "clean"}},
+            )
 
     finished = datetime.now(timezone.utc)
     summary = {
