@@ -96,3 +96,25 @@ def test_books_recent_includes_cross_device_fields(session):
     assert book.get("last_device_id")     == "test-device-phone"
     assert book.get("last_device_label")  == "iPhone"
     assert book.get("last_cursor_updated_at"), "Expected a last_cursor_updated_at timestamp"
+
+
+def test_get_book_includes_cross_device_fields(session):
+    """The BookDetail page hint relies on /books/{id} returning the
+    same cross-device fields.  Regression guard for the 2026-06-19
+    BookDetail cross-device hint."""
+    session.post(
+        f"{BASE_URL}/api/books/{BOOK_ID}/cursor",
+        json={
+            "cfi": "epubcfi(/6/4!/4/2/8/1:7)",
+            "percent": 0.77,
+            "device_id": "test-device-tablet",
+            "device_label": "iPad",
+        },
+        timeout=20,
+    )
+    r = session.get(f"{BASE_URL}/api/books/{BOOK_ID}", timeout=20)
+    assert r.status_code == 200
+    body = r.json()
+    assert body.get("last_device_id")     == "test-device-tablet"
+    assert body.get("last_device_label")  == "iPad"
+    assert body.get("last_cursor_updated_at")

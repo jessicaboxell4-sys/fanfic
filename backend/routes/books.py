@@ -2603,6 +2603,25 @@ async def get_book(book_id: str, user: User = Depends(get_current_user)):
     book = await db.books.find_one({"book_id": book_id, "user_id": user.user_id}, {"_id": 0})
     if not book:
         raise HTTPException(status_code=404, detail="Not found")
+    # Cross-device awareness: attach the latest reading_cursor's device
+    # info so the BookDetail page can render a "Last read on iPhone ·
+    # 42% · 2h ago" hint next to the Read button.  Same payload shape
+    # as /books/recent, kept consistent so the same FE helpers work.
+    c = await db.reading_cursors.find_one(
+        {"user_id": user.user_id, "book_id": book_id},
+        {"_id": 0, "device_id": 1, "device_label": 1, "updated_at": 1, "percent": 1},
+    )
+    if c:
+        book["last_device_id"]    = c.get("device_id")
+        book["last_device_label"] = c.get("device_label") or ""
+        ts = c.get("updated_at")
+        if isinstance(ts, datetime):
+            ts = ts.isoformat()
+        book["last_cursor_updated_at"] = ts
+        # If the cursor has a percent and the book doc doesn't track
+        # one yet, fall back to cursor's percent for the UI.
+        if c.get("percent") is not None and book.get("progress_fraction") is None:
+            book["last_cursor_percent"] = c.get("percent")
     return book
 
 

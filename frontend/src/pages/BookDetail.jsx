@@ -7,11 +7,22 @@ import ReadingStatsCard from "../components/ReadingStatsCard";
 import BookReadingInsights from "../components/BookReadingInsights";
 import BookCohortProgress from "../components/BookCohortProgress";
 import AntivirusBadge from "../components/AntivirusBadge";
-import { ArrowLeft, Download, Trash2, Sparkles, Book, Edit3, Heart, Link as LinkIcon, BookOpen, RefreshCw, Tag as TagIcon, Loader2, Upload } from "lucide-react";
+import { ArrowLeft, Download, Trash2, Sparkles, Book, Edit3, Heart, Link as LinkIcon, BookOpen, RefreshCw, Tag as TagIcon, Loader2, Upload, Smartphone, Laptop, Tablet, MonitorSmartphone } from "lucide-react";
 import { toast } from "sonner";
 import { FETCHING_UI_ENABLED } from "../lib/featureFlags";
 
 const DEFAULT_CATEGORIES = ["Fanfiction", "Original Fiction", "Non-fiction", "Unclassified", "Updated stories", "Old stories"];
+
+function relativeAgeShort(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const diff = (Date.now() - d.getTime()) / 1000;
+  if (diff < 60) return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 86400 * 7) return `${Math.floor(diff / 86400)}d ago`;
+  return d.toLocaleDateString();
+}
 
 export default function BookDetail() {
   const { id } = useParams();
@@ -567,7 +578,39 @@ export default function BookDetail() {
                 </div>
               </div>
             ) : (
-              <div className="flex flex-wrap gap-3">
+              <>
+                {/* Cross-device hint: appears just above the action
+                    row when the cloud cursor came from a different
+                    device than this one (within 14 days).  Mirrors the
+                    Continue Reading rail caption + Reader handoff
+                    ribbon so the awareness is consistent everywhere. */}
+                {book.last_device_id && book.last_device_label && (() => {
+                  let myDevice = "";
+                  try { myDevice = window.localStorage.getItem("shelfsort-device-id") || ""; } catch {}
+                  if (!myDevice || myDevice === book.last_device_id) return null;
+                  const updated = book.last_cursor_updated_at;
+                  const ageDays = updated ? (Date.now() - new Date(updated).getTime()) / 86_400_000 : 999;
+                  if (ageDays > 14) return null;
+                  const rel = relativeAgeShort(updated);
+                  const pct = (book.progress_fraction ?? book.last_cursor_percent);
+                  const pctTxt = (pct != null && pct >= 0) ? ` · ${Math.round(pct * 100)}%` : "";
+                  const L = book.last_device_label.toLowerCase();
+                  const Icon = L.includes("iphone") || L.includes("android") ? Smartphone
+                            : L.includes("ipad") ? Tablet
+                            : (L.includes("mac") || L.includes("windows")) ? Laptop
+                            : MonitorSmartphone;
+                  return (
+                    <div
+                      data-testid="bookdetail-cross-device-hint"
+                      className="mb-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#EEE9FB] dark:bg-[#6B46C1]/20 text-[#6B46C1] text-xs"
+                      title={`Last read on ${book.last_device_label}${pctTxt} · ${rel}`}
+                    >
+                      <Icon className="w-3.5 h-3.5" />
+                      <span>Last read on your {book.last_device_label}{pctTxt} · {rel}</span>
+                    </div>
+                  );
+                })()}
+                <div className="flex flex-wrap gap-3">
                 <button
                   data-testid="read-book-btn"
                   onClick={() => navigate(`/read/${id}`)}
@@ -657,6 +700,7 @@ export default function BookDetail() {
                   <Trash2 className="w-4 h-4" /> Remove
                 </button>
               </div>
+              </>
             )}
 
             <div className="mt-10 grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">

@@ -8,6 +8,34 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-19 — BookDetail cross-device hint ✅
+
+Small purple lavender pill above the "Read now" button on
+`/book/{id}`, showing:
+
+  📱  Last read on your iPhone · 42% · 2h ago
+
+Closes the cross-device awareness loop — readers now see their
+furthest position **before** they tap Read (no more surprise jump
+from the Reader's handoff ribbon).
+
+- Backend: `GET /books/{id}` now also attaches `last_device_id`,
+  `last_device_label`, `last_cursor_updated_at`, and an optional
+  `last_cursor_percent` (only filled when `progress_fraction` is
+  missing).  Same shape as `/books/recent` — one Mongo round trip
+  to `reading_cursors`.
+- Frontend: BookDetail.jsx renders the pill only when
+  `last_device_id` differs from the local
+  `shelfsort-device-id` AND the cursor is fresh (< 14 d).
+  lucide-react glyph adapts (Smartphone / Tablet / Laptop /
+  MonitorSmartphone).
+
+Pytest in `test_cursor_fallback::test_get_book_includes_cross_device_fields`
+locks the payload contract (15/15 backend tests pass).
+
+---
+
+
 ## 2026-06-19 — Reader "Furthest read position" ribbon ✅
 
 Persistent dismissible ribbon at the top-right of the Reader.  Shows
