@@ -8,6 +8,30 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-19 — Resend plan-usage gauge on EmailStatsCard ✅
+
+Added two-bar quota gauge inside the existing Admin "Resend
+deliveries · this week" card:
+
+  RESEND PLAN USAGE
+  Today    [▌▌▌▌▌▌            ]   18 / 100   (18%)
+  Month    [▌▌                ]  142 / 3,000  (5%)
+
+- Backend: `/admin/email-stats` response now includes a `quota`
+  block (`used_today`, `used_month`, `daily_limit`, `monthly_limit`,
+  `daily_remaining`, `monthly_remaining`).  Limits are env-driven
+  (`RESEND_DAILY_LIMIT` / `RESEND_MONTHLY_LIMIT`, defaults
+  `100`/`3000` for Resend's free plan).
+- "Used" counts `email_logs` rows with `status == "ok"` in the
+  rolling 24h / 30d window (failed sends don't draw down Resend's
+  real quota either).
+- Bar tint flips amber at ≥ 75 %, red at ≥ 90 %, with an inline
+  "Upgrade plan →" link appearing at red that opens
+  `resend.com/settings/billing`.
+
+---
+
+
 ## 2026-06-19 — Resend domain verified, real email cutover ✅
 
 `shelfsort.com` is verified at Resend (DKIM + SPF + MX all green

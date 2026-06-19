@@ -1854,6 +1854,22 @@ async def get_email_stats(user: User = Depends(require_admin)):
     if last_ts and last_ts.tzinfo is None:
         last_ts = last_ts.replace(tzinfo=timezone.utc)
 
+    # Resend quota counters.  Limits are env-driven so an upgrade just
+    # bumps the numbers in /app/backend/.env — no code change needed.
+    # Defaults match Resend's free plan (100/day, 3000/month).  We only
+    # count ``status == "ok"`` rows because failed sends don't draw down
+    # the quota on Resend's side either.
+    day_start = now - _td(days=1)
+    month_start = now - _td(days=30)
+    used_today = await db.email_logs.count_documents(
+        {"sent_at": {"$gte": day_start}, "status": "ok"}
+    )
+    used_month = await db.email_logs.count_documents(
+        {"sent_at": {"$gte": month_start}, "status": "ok"}
+    )
+    daily_limit   = int(os.environ.get("RESEND_DAILY_LIMIT",   "100"))
+    monthly_limit = int(os.environ.get("RESEND_MONTHLY_LIMIT", "3000"))
+
     return {
         "window_days": 7,
         "total_7d": total_7d,
@@ -1863,6 +1879,14 @@ async def get_email_stats(user: User = Depends(require_admin)):
         "by_kind": by_kind,
         "recent_failures": recent_failures,
         "last_send_at": last_ts.isoformat() if last_ts else None,
+        "quota": {
+            "used_today":      used_today,
+            "used_month":      used_month,
+            "daily_limit":     daily_limit,
+            "monthly_limit":   monthly_limit,
+            "daily_remaining": max(0, daily_limit - used_today),
+            "monthly_remaining": max(0, monthly_limit - used_month),
+        },
     }
 
 

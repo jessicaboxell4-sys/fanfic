@@ -3663,6 +3663,68 @@ function RouteCatalogueCard() {
 // ---------------------------------------------------------------------------
 // A2 — Email-stats card. Rolling 7-day Resend telemetry pulled from db.email_logs.
 // ---------------------------------------------------------------------------
+// QuotaGauges — Resend plan usage bars (used inside EmailStatsCard).
+// ---------------------------------------------------------------------------
+// Two-bar layout: rolling 24h vs the daily plan limit, and rolling 30d
+// vs the monthly plan limit.  Plan limits come from the backend (env
+// vars on the backend pod) so upgrading from free → paid is a single
+// .env tweak with zero code change.  Bar tint shifts amber at ≥ 75 %
+// and red at ≥ 90 %, with an inline call-to-upgrade hint at red.
+function QuotaGauges({ quota }) {
+  const { used_today, used_month, daily_limit, monthly_limit } = quota;
+  const dayPct   = daily_limit   > 0 ? Math.min(100, Math.round((used_today / daily_limit)   * 100)) : 0;
+  const monthPct = monthly_limit > 0 ? Math.min(100, Math.round((used_month / monthly_limit) * 100)) : 0;
+  const tint = (p) =>
+    p >= 90 ? { bar: "bg-red-600",  rail: "bg-red-100",   text: "text-red-700"   } :
+    p >= 75 ? { bar: "bg-amber-500",rail: "bg-amber-100", text: "text-amber-700" } :
+              { bar: "bg-[#6B46C1]",rail: "bg-[#EEE9FB]", text: "text-[#6B46C1]" };
+  const dayT   = tint(dayPct);
+  const monthT = tint(monthPct);
+  const showUpgrade = dayPct >= 90 || monthPct >= 90;
+
+  return (
+    <div className="mb-4 p-3 rounded-xl border border-[#E5DDC5] bg-[#FBFAF6]" data-testid="email-quota-gauges">
+      <div className="flex items-baseline justify-between mb-2">
+        <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C]">Resend plan usage</p>
+        {showUpgrade && (
+          <a
+            href="https://resend.com/settings/billing"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[11px] font-semibold text-red-700 hover:underline"
+            data-testid="email-quota-upgrade-link"
+          >
+            Upgrade plan →
+          </a>
+        )}
+      </div>
+
+      <div className="space-y-2" data-testid="email-quota-bars">
+        <Gauge label="Today" used={used_today} limit={daily_limit}   pct={dayPct}   tint={dayT}   testid="email-quota-daily" />
+        <Gauge label="Month" used={used_month} limit={monthly_limit} pct={monthPct} tint={monthT} testid="email-quota-monthly" />
+      </div>
+    </div>
+  );
+}
+
+function Gauge({ label, used, limit, pct, tint, testid }) {
+  return (
+    <div data-testid={testid}>
+      <div className="flex items-baseline justify-between text-xs mb-1">
+        <span className="text-[#6B705C]">{label}</span>
+        <span className={`font-mono ${tint.text}`}>
+          {used.toLocaleString()} / {limit.toLocaleString()} <span className="text-[#6B705C]">({pct}%)</span>
+        </span>
+      </div>
+      <div className={`h-1.5 w-full rounded-full overflow-hidden ${tint.rail}`}>
+        <div className={`h-full ${tint.bar} transition-all`} style={{ width: `${Math.max(2, pct)}%` }} />
+      </div>
+    </div>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
 function EmailStatsCard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -3702,6 +3764,15 @@ function EmailStatsCard() {
               <p className="text-2xl font-medium text-[#2C2C2C]">{(data.error_rate_7d * 100).toFixed(1)}%</p>
             </div>
           </div>
+
+          {/* Resend plan quota gauge — counts OK sends in the last
+              24h / 30d against the plan limits.  Limits come from the
+              backend (env-driven), so an upgrade just means bumping
+              RESEND_DAILY_LIMIT / RESEND_MONTHLY_LIMIT.  Bar colour
+              flips amber at ≥ 75 % and red at ≥ 90 %. */}
+          {data.quota && (
+            <QuotaGauges quota={data.quota} />
+          )}
           {data.by_kind.length > 0 && (
             <div className="mb-4" data-testid="email-stats-by-kind">
               <p className="text-xs font-medium text-[#2C2C2C] mb-2">Per template (7d)</p>
