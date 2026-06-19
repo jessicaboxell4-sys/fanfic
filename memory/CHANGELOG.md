@@ -8,6 +8,33 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-19 — Campaign conversion funnel ✅
+
+New widget on the AdminConsole (right under Tracked Invite Links)
+that turns "I posted on Reddit" into measurable signal.  For every
+tracked `onboarding.referral` value, shows the full funnel:
+
+  Channel        Signups    Approved     Uploaded     Active 7d
+  Facebook       12         8 (66%)      5 (41%)      3 (25%)
+  Reddit         4          4 (100%)     4 (100%)     2 (50%)
+  Organic/direct 56         50 (89%)     28 (50%)     14 (25%)
+
+- New `GET /api/admin/campaign-stats` does it in two Mongo round-trips:
+  one aggregate-pipeline grouped by `onboarding.referral` with counters
+  for signups/approved/active_7d, plus one `db.books.distinct("user_id")`
+  to compute the uploader intersection.
+- Excludes test-account fixtures (real users only).
+- Sorted by signups desc, with the unlabeled "Organic / direct" row
+  italicized as the baseline.
+- "Active 7d" = `last_login_at >= now-7d` (already tracked by auth.py).
+- Channel labels prettified: `hpfanfic` → `r/HPfanfiction`, etc.
+
+Pytest coverage in `/app/backend/tests/test_campaign_stats.py` (3/3 pass —
+funnel math, test-account exclusion, organic baseline).
+
+---
+
+
 ## 2026-06-19 — Bulk-approve pending sign-ups (with campaign filter) ✅
 
 Operator can now triage a launch-traffic surge in one click instead

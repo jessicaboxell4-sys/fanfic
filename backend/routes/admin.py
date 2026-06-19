@@ -404,6 +404,67 @@ async def list_test_accounts(user: User = Depends(require_moderator_or_admin)):
     return {"users": rows, "count": len(rows)}
 
 
+@api_router.get("/admin/campaign-stats")
+async def get_campaign_stats(user: User = Depends(require_moderator_or_admin)):
+    """Per-campaign conversion funnel.
+
+    For each tracked invite source (``onboarding.referral``, populated
+    either by the multi-step signup question OR by the ``?ref=<channel>``
+    URL tracker on /login):
+
+      - ``signups``   — total accounts that came via this channel
+      - ``approved``  — how many of them passed the approval gate
+      - ``uploaded``  — how many own ≥ 1 book (real engagement signal)
+      - ``active_7d`` — how many have logged in in the last 7 days
+
+    Test-account fixtures are excluded so the funnel reflects real
+    humans only.  Returns a list sorted by signups desc so the top
+    channel is first.  An ``organic`` synthetic row gathers users
+    with no ``onboarding.referral`` set — the baseline for comparing
+    paid/posted campaigns against people who found the site cold.
+    """
+    real_user_filter = {"$nor": mongo_test_account_filter()["$or"]}
+    seven_days_ago = (
+        datetime.now(timezone.utc) - timedelta(days=7)
+    ).isoformat()
+
+    # Group all real users by referral, counting approved + active_7d
+    # in the same pass so we hit Mongo once.
+    cursor = db.users.aggregate([
+        {"$match": real_user_filter},
+        {"$group": {
+            "_id": {"$ifNull": ["$onboarding.referral", None]},
+            "signups":   {"$sum": 1},
+            "approved":  {"$sum": {"$cond": [{"$eq": ["$approval_status", "approved"]}, 1, 0]}},
+            "active_7d": {"$sum": {"$cond": [{"$gte": ["$last_login_at", seven_days_ago]}, 1, 0]}},
+            "user_ids":  {"$push": "$user_id"},
+        }},
+    ])
+    groups = [g async for g in cursor]
+
+    # "Uploaded" — separate query because ``db.books`` doesn't know
+    # about ``onboarding.referral``.  Fetch the set of user_ids who own
+    # ≥ 1 book, then intersect with each campaign's user_id list.
+    uploader_ids: set[str] = set(
+        await db.books.distinct("user_id")
+    )
+
+    out: list[dict] = []
+    for g in groups:
+        ref = g["_id"]
+        ref_uploaders = sum(1 for uid in g["user_ids"] if uid in uploader_ids)
+        out.append({
+            "ref":       ref,  # None for organic
+            "signups":   g["signups"],
+            "approved":  g["approved"],
+            "uploaded":  ref_uploaders,
+            "active_7d": g["active_7d"],
+        })
+
+    out.sort(key=lambda r: (-r["signups"], (r["ref"] or "zzz")))
+    return {"campaigns": out, "computed_at": datetime.now(timezone.utc).isoformat()}
+
+
 @api_router.post("/admin/test-accounts/purge")
 async def purge_test_accounts(user: User = Depends(require_admin)):
     """Hard-delete every fixture account (and any books/sessions they

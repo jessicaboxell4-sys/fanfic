@@ -960,6 +960,11 @@ function SignupRulesCard() {
           {/* Tracked invite links (2026-06-18) */}
           <InviteLinksWidget />
 
+          {/* Campaign conversion funnel (2026-06-19) — pairs with
+              InviteLinksWidget above: shows how each tracked channel
+              actually converts (signup → approved → uploaded → active). */}
+          <CampaignStatsWidget />
+
           {/* Rules editor */}
           <div className="rounded-xl border border-[#E5DDC5] dark:border-zinc-700 bg-[#FBFAF6] dark:bg-zinc-800/60 p-4">
             <div className="flex items-center justify-between mb-2">
@@ -1098,6 +1103,117 @@ function InviteLinksWidget() {
           );
         })}
       </ul>
+    </div>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// CampaignStatsWidget — per-channel conversion funnel
+// ---------------------------------------------------------------------------
+// Paired with InviteLinksWidget above.  For every tracked
+// ``onboarding.referral`` value, shows the funnel:
+//     signups → approved → uploaded ≥ 1 book → active in last 7 days
+// Real users only (test fixtures filtered server-side).  Sorted by
+// signups so the most-active channel surfaces first; the "organic"
+// row (users with no ref) is the baseline.
+function CampaignStatsWidget() {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const load = async () => {
+    setLoading(true);
+    try {
+      const { data } = await api.get("/admin/campaign-stats");
+      setRows(data?.campaigns || []);
+    } catch {
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => { load(); }, []);
+
+  const channelLabel = (ref) => {
+    if (!ref) return "Organic / direct";
+    const known = {
+      facebook: "Facebook", twitter: "Twitter / X", reddit: "Reddit",
+      hpfanfic: "r/HPfanfiction", fanfiction: "r/FanFiction",
+      tiktok: "TikTok", bookstagram: "Bookstagram", discord: "Discord",
+      newsletter: "Newsletter", google: "Google search", friend: "Friend",
+    };
+    return known[ref] || ref;
+  };
+
+  const pct = (num, den) => (den > 0 ? Math.round((num / den) * 100) : 0);
+
+  return (
+    <div className="rounded-xl border border-[#E5DDC5] dark:border-zinc-700 bg-[#FBFAF6] dark:bg-zinc-800/60 p-4" data-testid="signup-campaign-stats">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C] dark:text-zinc-400">
+          Campaign conversion
+        </p>
+        <button
+          type="button"
+          onClick={load}
+          disabled={loading}
+          data-testid="campaign-stats-refresh"
+          className="text-[10px] text-[#6B46C1] hover:underline inline-flex items-center gap-1 disabled:opacity-50"
+        >
+          <RotateCcw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} /> refresh
+        </button>
+      </div>
+      <p className="text-[11px] text-[#6B705C] dark:text-zinc-400 mb-3">
+        Funnel for each tracked invite channel — real users only.
+      </p>
+
+      {loading ? (
+        <p className="text-xs text-[#6B705C] italic">Loading…</p>
+      ) : rows.length === 0 ? (
+        <p className="text-xs text-[#6B705C] italic">No campaign data yet. Share a tracked invite link to start measuring.</p>
+      ) : (
+        <div className="overflow-x-auto -mx-1">
+          <table className="w-full text-xs" data-testid="campaign-stats-table">
+            <thead>
+              <tr className="text-[10px] uppercase tracking-wider text-[#6B705C] dark:text-zinc-400 border-b border-[#E5DDC5] dark:border-zinc-700">
+                <th className="text-left py-2 px-1 font-semibold">Channel</th>
+                <th className="text-right py-2 px-1 font-semibold">Signups</th>
+                <th className="text-right py-2 px-1 font-semibold">Approved</th>
+                <th className="text-right py-2 px-1 font-semibold" title="Users who uploaded ≥ 1 book">Uploaded</th>
+                <th className="text-right py-2 px-1 font-semibold" title="Users who logged in in the last 7 days">Active 7d</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => {
+                const isOrganic = !r.ref;
+                return (
+                  <tr
+                    key={r.ref || "__organic__"}
+                    data-testid={`campaign-row-${r.ref || "organic"}`}
+                    className="border-b border-[#E5DDC5]/40 dark:border-zinc-700/40 last:border-0"
+                  >
+                    <td className={`py-1.5 px-1 ${isOrganic ? "italic text-[#6B705C]" : "text-[#2C2C2C] dark:text-zinc-100 font-medium"}`}>
+                      {channelLabel(r.ref)}
+                    </td>
+                    <td className="text-right py-1.5 px-1 font-mono text-[#2C2C2C] dark:text-zinc-100">{r.signups}</td>
+                    <td className="text-right py-1.5 px-1 font-mono text-[#2C2C2C] dark:text-zinc-100">
+                      {r.approved}
+                      <span className="text-[#6B705C] dark:text-zinc-400 ml-1">({pct(r.approved, r.signups)}%)</span>
+                    </td>
+                    <td className="text-right py-1.5 px-1 font-mono text-[#2C2C2C] dark:text-zinc-100">
+                      {r.uploaded}
+                      <span className="text-[#6B705C] dark:text-zinc-400 ml-1">({pct(r.uploaded, r.signups)}%)</span>
+                    </td>
+                    <td className="text-right py-1.5 px-1 font-mono text-[#2C2C2C] dark:text-zinc-100">
+                      {r.active_7d}
+                      <span className="text-[#6B705C] dark:text-zinc-400 ml-1">({pct(r.active_7d, r.signups)}%)</span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
