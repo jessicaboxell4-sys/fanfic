@@ -8,6 +8,45 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-19 — Bulk-approve pending sign-ups (with campaign filter) ✅
+
+Operator can now triage a launch-traffic surge in one click instead
+of N approves.  Two new admin entrypoints on the Pending Sign-ups
+card:
+
+- **"Approve all (N)"** — green pill, primary action.  Approves
+  every real pending user, fires their approval emails in parallel,
+  and writes a single bulk-audit-log row (instead of N noisy ones).
+- **Per-campaign chips** — auto-derived from
+  `onboarding.referral`, only shown for channels with ≥ 2 pending
+  sign-ups.  Click "Facebook (3)" to approve everyone who arrived
+  via `?ref=facebook` (the tracked invite link from `InviteLinksWidget`).
+
+Backend:
+- `GET /api/admin/pending-users` now includes `onboarding` so the
+  client can group by campaign.
+- New `POST /api/admin/pending-users/approve-bulk` with optional
+  `{"ref": "facebook"}` body.  Excludes test-account fixtures, is
+  idempotent on re-runs (returns `approved: 0`), and runs approval
+  emails through `asyncio.gather` so a 20-user batch still returns
+  in well under 5s.
+
+Frontend:
+- Toolbar only renders when ≥ 2 pending users (so single-row inboxes
+  don't get cluttered).
+- Each chip shows a spinner during its own bulk call; other chips
+  stay disabled until done.
+
+Pytest coverage in `/app/backend/tests/test_bulk_approve.py` (3/3
+pass — by-ref filter, no-ref filter, idempotency).
+
+Live end-to-end smoke verified with seeded fixtures: 4 facebook + 2
+reddit + 1 solo → "Facebook (3)" approved 4 → remaining 3 → "Approve
+all" approved 3 → inbox empty.
+
+---
+
+
 ## 2026-06-19 — Three small polishes ✅
 
 **1. Username placeholder.** Signup form (`Login.jsx`) and Account

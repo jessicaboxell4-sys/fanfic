@@ -161,6 +161,23 @@ function PendingUsersCard() {
   const [busyId, setBusyId] = useState(null);
   const [rejectingId, setRejectingId] = useState(null);
   const [rejectReason, setRejectReason] = useState("");
+  const [bulkBusy, setBulkBusy] = useState(null); // null | "all" | "ref:facebook" | ...
+
+  // Group pending users by their tracked invite campaign (the
+  // ``onboarding.referral`` field, populated either by the multi-step
+  // signup question OR by ``?ref=<channel>`` URL tracking).  Only
+  // surface campaigns with ≥ 2 sign-ups — single sign-ups are clutter.
+  const refCampaigns = (() => {
+    const counts = new Map();
+    for (const u of pending) {
+      const r = u?.onboarding?.referral;
+      if (!r) continue;
+      counts.set(r, (counts.get(r) || 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .filter(([, n]) => n >= 2)
+      .sort((a, b) => b[1] - a[1]);
+  })();
 
   const load = async () => {
     setLoading(true);
@@ -200,6 +217,34 @@ function PendingUsersCard() {
     finally { setBusyId(null); }
   };
 
+  // One-click approve everyone (or everyone from a specific campaign).
+  // Each call fires its own approval email — same as the per-user
+  // button — but in parallel server-side so a 20-user batch still
+  // returns in well under 5s.
+  const bulkApprove = async (ref) => {
+    const targets = ref
+      ? pending.filter((u) => u?.onboarding?.referral === ref)
+      : pending;
+    if (targets.length === 0) return;
+    const label = ref ? `everyone from "${ref}" (${targets.length})` : `all ${targets.length} pending sign-ups`;
+    if (!window.confirm(`Approve ${label}?\n\nEach user gets an approval email and can sign in immediately.`)) return;
+    setBulkBusy(ref ? `ref:${ref}` : "all");
+    try {
+      const { data } = await api.post("/admin/pending-users/approve-bulk", { ref: ref || null });
+      const okCount = data?.approved ?? 0;
+      const emailedCount = data?.emails_sent ?? 0;
+      toast.success(
+        `Approved ${okCount} user${okCount === 1 ? "" : "s"}${emailedCount === okCount ? "" : ` · ${emailedCount} emailed`}`
+      );
+      const approvedIds = new Set((data?.users || []).map((u) => u.user_id));
+      setPending((prev) => prev.filter((u) => !approvedIds.has(u.user_id)));
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't bulk-approve — try again");
+    } finally {
+      setBulkBusy(null);
+    }
+  };
+
   return (
     <Card
       icon={Inbox}
@@ -217,6 +262,50 @@ function PendingUsersCard() {
           <FlaskConical className="w-3.5 h-3.5" /> View test accounts →
         </Link>
       </div>
+
+      {/* Bulk-approve toolbar — only shown when there are ≥ 2 pending.
+          Each campaign chip is a one-click "Approve all from this
+          channel" that uses the existing tracked invite link
+          (``?ref=<channel>``) → ``onboarding.referral`` mapping. */}
+      {!loading && pending.length >= 2 && (
+        <div className="mb-4 p-3 rounded-xl bg-[#F5F3EC] border border-[#E5DDC5] flex flex-wrap items-center gap-2" data-testid="admin-bulk-approve-toolbar">
+          <button
+            type="button"
+            onClick={() => bulkApprove(null)}
+            disabled={bulkBusy !== null}
+            data-testid="admin-bulk-approve-all"
+            className="px-3 py-1.5 rounded-full bg-[#1F8F4E] text-white text-xs font-bold uppercase tracking-[0.15em] hover:bg-[#176D3A] transition-colors inline-flex items-center gap-1.5 disabled:opacity-60"
+          >
+            {bulkBusy === "all" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+            Approve all ({pending.length})
+          </button>
+          {refCampaigns.length > 0 && (
+            <>
+              <span className="text-[10px] uppercase tracking-wider text-[#6B705C] ml-2">or by campaign:</span>
+              {refCampaigns.map(([ref, n]) => (
+                <button
+                  key={ref}
+                  type="button"
+                  onClick={() => bulkApprove(ref)}
+                  disabled={bulkBusy !== null}
+                  data-testid={`admin-bulk-approve-ref-${ref}`}
+                  className="px-2.5 py-1 rounded-full bg-white border border-[#E5DDC5] text-xs text-[#2C2C2C] hover:bg-[#FDFBF7] hover:border-[#6B46C1] transition-colors inline-flex items-center gap-1 disabled:opacity-60"
+                  title={`Approve everyone who joined via ?ref=${ref}`}
+                >
+                  {bulkBusy === `ref:${ref}` ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Check className="w-3 h-3 text-[#1F8F4E]" />
+                  )}
+                  <span className="capitalize">{ref}</span>
+                  <span className="text-[#6B705C]">({n})</span>
+                </button>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+
       {loading ? (
         <p className="text-sm text-[#6B705C] italic" data-testid="admin-pending-loading">Loading…</p>
       ) : pending.length === 0 ? (

@@ -279,12 +279,98 @@ async def list_pending_users(user: User = Depends(require_moderator_or_admin)):
                 "username": 1,
                 "picture": 1,
                 "created_at": 1,
+                "onboarding": 1,
             },
         )
         .sort("created_at", 1)
         .to_list(length=500)
     )
     return {"users": rows, "count": len(rows)}
+
+
+class BulkApproveBody(BaseModel):
+    ref: Optional[str] = None  # match onboarding.referral; None = approve all pending
+
+
+@api_router.post("/admin/pending-users/approve-bulk")
+async def approve_pending_bulk(
+    body: BulkApproveBody,
+    user: User = Depends(require_moderator_or_admin),
+):
+    """One-click bulk-approve every pending sign-up — optionally
+    filtered to a single referral campaign (``ref="facebook"`` etc.).
+
+    Mirrors `approve_user` per-row: flips status, stamps approver +
+    timestamp, drops any rejection reason, writes an audit log entry,
+    and best-effort sends the approval email.
+
+    Excludes test-account fixtures so the bulk action is always safe
+    on the real inbox.  Returns counts + a per-user breakdown.
+    """
+    query: Dict[str, Any] = {
+        "approval_status": "pending",
+        "$nor": mongo_test_account_filter()["$or"],
+    }
+    ref = (body.ref or "").strip().lower()
+    if ref:
+        query["onboarding.referral"] = ref
+
+    targets = await db.users.find(
+        query, {"_id": 0, "user_id": 1, "email": 1, "name": 1},
+    ).to_list(length=500)
+
+    if not targets:
+        return {"ok": True, "approved": 0, "ref": ref or None, "users": []}
+
+    now = datetime.now(timezone.utc).isoformat()
+    user_ids = [t["user_id"] for t in targets]
+    result = await db.users.update_many(
+        {"user_id": {"$in": user_ids}, "approval_status": "pending"},
+        {
+            "$set": {
+                "approval_status": "approved",
+                "approved_by": user.user_id,
+                "approved_at": now,
+            },
+            "$unset": {"approval_rejected_reason": ""},
+        },
+    )
+
+    # Audit log a single bulk entry — too noisy to write N rows.
+    await record_admin_action(
+        user,
+        "user.approve_bulk",
+        target=f"ref:{ref}" if ref else "all-pending",
+        metadata={"count": result.modified_count, "ref": ref or None},
+    )
+
+    # Send approval emails in parallel — best-effort.  Failures don't
+    # block: the user can still log in, they just won't get the welcome
+    # email until we add a retry queue (out of scope here).
+    async def _send_one(t: Dict[str, Any]) -> bool:
+        try:
+            await _send_approval_email(
+                to=t.get("email") or "",
+                name=t.get("name") or "",
+                approved=True,
+            )
+            return True
+        except Exception:
+            return False
+
+    email_results = await asyncio.gather(*[_send_one(t) for t in targets], return_exceptions=False)
+    emails_sent = sum(1 for ok in email_results if ok)
+
+    return {
+        "ok": True,
+        "approved": result.modified_count,
+        "emails_sent": emails_sent,
+        "ref": ref or None,
+        "users": [
+            {"user_id": t["user_id"], "email": t.get("email")}
+            for t in targets
+        ],
+    }
 
 
 @api_router.get("/admin/test-accounts")
