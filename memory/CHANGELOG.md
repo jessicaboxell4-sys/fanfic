@@ -8,6 +8,27 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-19 — Cross-device caption on Continue Reading rail ✅
+
+Tiny "📱 Continued on your iPhone · 2h ago" line under each card on
+the Continue Reading rail.  Only renders when the *latest* cursor for
+that book came from a **different device** than the one currently
+viewing the dashboard — so it's a surprise reveal, not constant
+footer chrome.  Reuses the existing `device_id` / `device_label`
+already tracked by `db.reading_cursors`.
+
+- Backend: `/books/recent` now also side-fetches the latest cursor
+  per book in a single Mongo round trip and attaches
+  `last_device_id` + `last_device_label` + `last_cursor_updated_at`.
+- Frontend: `ContinueReadingRail.jsx` reads `shelfsort-device-id`
+  from localStorage, compares to each book's `last_device_id`,
+  renders the caption + lucide-react glyph (iPhone/iPad/Android/Mac/
+  Windows) when they differ.  Hidden if either ID is missing.
+- Test ID: `continue-card-cross-device-{book_id}` for QA.
+
+---
+
+
 ## 2026-06-19 — Cross-device last-read cursor hydration ✅
 
 Reader.jsx now falls back to the **cloud cursor**

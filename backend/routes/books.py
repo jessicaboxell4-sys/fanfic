@@ -2484,12 +2484,40 @@ async def export_unavailable_list(user: User = Depends(get_current_user)):
 
 @api_router.get("/books/recent")
 async def list_recent(limit: int = 8, user: User = Depends(get_current_user)):
-    """Recently-opened books for the dashboard's Continue Reading rail."""
+    """Recently-opened books for the dashboard's Continue Reading rail.
+
+    For each book we also attach the latest ``reading_cursors`` entry
+    (`last_device_id`, `last_device_label`, `last_cursor_updated_at`)
+    so the rail can render a "📱 Last on iPhone · 2h ago" caption when
+    the most recent reading happened on a different device than the
+    one currently viewing the dashboard.  This turns the cross-device
+    sync from invisible plumbing into a visible delight.
+    """
     cursor = db.books.find(
         {"user_id": user.user_id, "last_opened_at": {"$ne": None, "$exists": True}},
         {"_id": 0},
     ).sort("last_opened_at", -1).limit(max(1, min(int(limit), 24)))
     books = await cursor.to_list(24)
+
+    if not books:
+        return {"books": books}
+
+    # Side-fetch the latest cursor per book in a single Mongo round trip.
+    book_ids = [b["book_id"] for b in books]
+    cursor_rows = await db.reading_cursors.find(
+        {"user_id": user.user_id, "book_id": {"$in": book_ids}},
+        {"_id": 0, "book_id": 1, "device_id": 1, "device_label": 1, "updated_at": 1},
+    ).to_list(length=len(book_ids))
+    cursor_by_book = {c["book_id"]: c for c in cursor_rows}
+    for b in books:
+        c = cursor_by_book.get(b["book_id"])
+        if c:
+            b["last_device_id"]         = c.get("device_id")
+            b["last_device_label"]      = c.get("device_label") or ""
+            ts = c.get("updated_at")
+            if isinstance(ts, datetime):
+                ts = ts.isoformat()
+            b["last_cursor_updated_at"] = ts
     return {"books": books}
 
 

@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { BookOpen, Book } from "lucide-react";
+import { BookOpen, Book, Smartphone, Laptop, Tablet, MonitorSmartphone } from "lucide-react";
 
 function relTime(iso) {
   if (!iso) return "";
@@ -13,8 +13,25 @@ function relTime(iso) {
   return d.toLocaleDateString();
 }
 
+// Pick the right glyph for the device label the server returned.
+// Server-side options come from `deviceMeta()` in lib/push.js:
+// "iPhone" | "iPad" | "Android" | "Mac" | "Windows" | "this device"
+function DeviceIcon({ label, className }) {
+  const L = (label || "").toLowerCase();
+  if (L.includes("iphone") || L.includes("android"))  return <Smartphone className={className} />;
+  if (L.includes("ipad"))                              return <Tablet className={className} />;
+  if (L.includes("mac")   || L.includes("windows"))    return <Laptop className={className} />;
+  return <MonitorSmartphone className={className} />;
+}
+
+function getCurrentDeviceId() {
+  try { return window.localStorage.getItem("shelfsort-device-id") || ""; }
+  catch { return ""; }
+}
+
 export default function ContinueReadingRail({ books }) {
   if (!books || books.length === 0) return null;
+  const myDeviceId = getCurrentDeviceId();
 
   return (
     <section className="" data-testid="continue-reading-rail">
@@ -84,6 +101,20 @@ export default function ContinueReadingRail({ books }) {
                   {b.title}
                 </h3>
                 <p className="text-xs text-[#6B705C] mt-1 line-clamp-1">{b.author}</p>
+                {/* Cross-device caption: only render when the latest
+                    cursor came from a *different* device than the one
+                    currently viewing the dashboard.  Reveals the
+                    invisible sync as a tiny "wait, it knows?" moment. */}
+                {b.last_device_id && myDeviceId && b.last_device_id !== myDeviceId && b.last_device_label && (
+                  <p
+                    className="text-[11px] text-[#6B46C1] mt-1.5 flex items-center gap-1"
+                    data-testid={`continue-card-cross-device-${b.book_id}`}
+                    title={`Last opened on ${b.last_device_label} ${relTime(b.last_cursor_updated_at)}`}
+                  >
+                    <DeviceIcon label={b.last_device_label} className="w-3 h-3" />
+                    <span>Continued on your {b.last_device_label} · {relTime(b.last_cursor_updated_at)}</span>
+                  </p>
+                )}
               </div>
             </Link>
           );
