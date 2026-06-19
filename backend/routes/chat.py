@@ -60,7 +60,10 @@ class ChatMessageCreate(BaseModel):
 def _serialize_room(doc: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "room_id": doc["room_id"],
-        "name": doc["name"],
+        # ``name`` is technically required by ChatRoomCreate, but some
+        # legacy seed rooms predate that validation — fall back to a
+        # placeholder rather than 500-ing the whole admin list.
+        "name": doc.get("name") or "(untitled room)",
         "member_user_ids": doc.get("member_user_ids", []),
         "created_at": doc["created_at"].isoformat() if isinstance(doc.get("created_at"), datetime) else doc.get("created_at"),
         "created_by": doc.get("created_by"),

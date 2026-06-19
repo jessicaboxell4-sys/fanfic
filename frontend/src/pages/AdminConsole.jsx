@@ -218,7 +218,7 @@ function PendingUsersCard() {
           {pending.map((u) => (
             <li
               key={u.user_id}
-              className="rounded-xl border border-[#E5DDC5] bg-[#FBFAF6] p-3"
+              className="rounded-xl border border-[#E5DDC5] dark:border-zinc-700 bg-[#FBFAF6] dark:bg-zinc-800/60 p-3"
               data-testid={`admin-pending-row-${u.user_id}`}
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -472,7 +472,7 @@ function FeedbackInboxCard() {
             return (
               <li
                 key={it.suggestion_id}
-                className="rounded-xl border border-[#E5DDC5] bg-[#FBFAF6] p-3"
+                className="rounded-xl border border-[#E5DDC5] dark:border-zinc-700 bg-[#FBFAF6] dark:bg-zinc-800/60 p-3"
                 data-testid={`feedback-row-${it.suggestion_id}`}
               >
                 <div className="flex flex-wrap items-start justify-between gap-2">
@@ -658,7 +658,7 @@ function HelpFeedbackCard() {
                   return (
                     <li
                       key={id}
-                      className="rounded-xl border border-[#E5DDC5] bg-[#FBFAF6] p-3"
+                      className="rounded-xl border border-[#E5DDC5] dark:border-zinc-700 bg-[#FBFAF6] dark:bg-zinc-800/60 p-3"
                       data-testid={`help-feedback-row-${idx}`}
                     >
                       <div className="flex items-start justify-between gap-3">
@@ -791,17 +791,17 @@ function SignupRulesCard() {
               data-testid="signup-toggle-approval-gate"
               className={`text-left rounded-xl border p-3 transition-colors ${
                 cfg.approval_gate_enabled
-                  ? "bg-[#EDE6FA] border-[#6B46C1]"
-                  : "bg-[#FBFAF6] border-[#E5DDC5] hover:border-[#6B46C1]"
+                  ? "bg-[#EDE6FA] dark:bg-purple-900/40 border-[#6B46C1] text-[#2C2C2C] dark:text-purple-50"
+                  : "bg-[#FBFAF6] dark:bg-zinc-800/60 border-[#E5DDC5] dark:border-zinc-700 hover:border-[#6B46C1] text-[#2C2C2C] dark:text-zinc-100"
               } disabled:opacity-60`}
             >
-              <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C]">
+              <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C] dark:text-zinc-400">
                 Approval gate
               </p>
-              <p className="font-medium text-[#2C2C2C] mt-1">
+              <p className="font-medium mt-1">
                 {cfg.approval_gate_enabled ? "ON — admin reviews every sign-up" : "OFF — auto-approve everyone"}
               </p>
-              <p className="text-xs text-[#6B705C] mt-1.5">
+              <p className="text-xs text-[#3F4034] dark:text-zinc-400 mt-1.5">
                 {cfg.approval_gate_enabled
                   ? "Click to disable: new users land in the library immediately."
                   : "Click to re-enable: new users queue for admin review."}
@@ -815,17 +815,17 @@ function SignupRulesCard() {
               data-testid="signup-toggle-questions"
               className={`text-left rounded-xl border p-3 transition-colors ${
                 cfg.questions_enabled
-                  ? "bg-[#EDE6FA] border-[#6B46C1]"
-                  : "bg-[#FBFAF6] border-[#E5DDC5] hover:border-[#6B46C1]"
+                  ? "bg-[#EDE6FA] dark:bg-purple-900/40 border-[#6B46C1] text-[#2C2C2C] dark:text-purple-50"
+                  : "bg-[#FBFAF6] dark:bg-zinc-800/60 border-[#E5DDC5] dark:border-zinc-700 hover:border-[#6B46C1] text-[#2C2C2C] dark:text-zinc-100"
               } disabled:opacity-60`}
             >
-              <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C]">
+              <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C] dark:text-zinc-400">
                 Onboarding questions
               </p>
-              <p className="font-medium text-[#2C2C2C] mt-1">
+              <p className="font-medium mt-1">
                 {cfg.questions_enabled ? "ON — questions shown at sign-up" : "OFF — skip onboarding"}
               </p>
-              <p className="text-xs text-[#6B705C] mt-1.5">
+              <p className="text-xs text-[#3F4034] dark:text-zinc-400 mt-1.5">
                 {cfg.questions_enabled
                   ? "Click to stop asking — keeps signed-up users' existing answers."
                   : "Click to start collecting referral, fandom, reader-type, age."}
@@ -835,12 +835,12 @@ function SignupRulesCard() {
 
           {/* Onboarding-answer aggregation */}
           {cfg.questions_enabled && stats && (
-            <div className="rounded-xl border border-[#E5DDC5] bg-[#FBFAF6] p-4" data-testid="signup-onboarding-stats">
+            <div className="rounded-xl border border-[#E5DDC5] dark:border-zinc-700 bg-[#FBFAF6] dark:bg-zinc-800/60 p-4" data-testid="signup-onboarding-stats">
               <div className="flex items-baseline justify-between mb-3">
-                <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C]">
+                <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C] dark:text-zinc-400">
                   Onboarding answers
                 </p>
-                <p className="text-xs text-[#6B705C]">
+                <p className="text-xs text-[#6B705C] dark:text-zinc-400">
                   {stats.total_with_onboarding} user{stats.total_with_onboarding === 1 ? "" : "s"} answered
                 </p>
               </div>
@@ -849,8 +849,8 @@ function SignupRulesCard() {
                 <StatList title="Reader type"        rows={stats.reader_type} testid="signup-stats-reader-type" />
                 <StatList title="Top fandoms"        rows={stats.favorite_fandoms} testid="signup-stats-favorite-fandoms" />
                 <div data-testid="signup-stats-age">
-                  <p className="text-xs uppercase tracking-[0.15em] text-[#6B705C] font-bold mb-1.5">Age</p>
-                  <p className="text-sm text-[#2C2C2C]">
+                  <p className="text-xs uppercase tracking-[0.15em] text-[#6B705C] dark:text-zinc-400 font-bold mb-1.5">Age</p>
+                  <p className="text-sm text-[#2C2C2C] dark:text-zinc-100">
                     13+: <strong>{stats.age_13_plus}</strong> · Under 13: <strong>{stats.age_under_13}</strong>
                   </p>
                 </div>
@@ -862,7 +862,7 @@ function SignupRulesCard() {
           <InviteLinksWidget />
 
           {/* Rules editor */}
-          <div className="rounded-xl border border-[#E5DDC5] bg-[#FBFAF6] p-4">
+          <div className="rounded-xl border border-[#E5DDC5] dark:border-zinc-700 bg-[#FBFAF6] dark:bg-zinc-800/60 p-4">
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C]">
                 Community rules (markdown)
@@ -966,16 +966,16 @@ function InviteLinksWidget() {
     }
   };
   return (
-    <div className="rounded-xl border border-[#E5DDC5] bg-[#FBFAF6] p-4" data-testid="signup-invite-links">
+    <div className="rounded-xl border border-[#E5DDC5] dark:border-zinc-700 bg-[#FBFAF6] dark:bg-zinc-800/60 p-4" data-testid="signup-invite-links">
       <div className="flex items-center justify-between mb-2">
-        <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C]">
+        <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C] dark:text-zinc-400">
           Tracked invite links
         </p>
-        <span className="text-[10px] text-[#6B705C]">
+        <span className="text-[10px] text-[#6B705C] dark:text-zinc-400">
           new sign-ups tagged in onboarding-stats
         </span>
       </div>
-      <p className="text-xs text-[#6B705C] mb-3">
+      <p className="text-xs text-[#3F4034] dark:text-zinc-400 mb-3">
         Each link auto-pre-fills the &ldquo;How did you find Shelfsort?&rdquo; answer
         for the new user.  Anything after <code className="font-mono">?ref=</code>
         is captured verbatim, so add your own tags too.
@@ -985,8 +985,8 @@ function InviteLinksWidget() {
           const url = `${baseUrl}/?ref=${tag}`;
           return (
             <li key={tag} className="flex items-center gap-2 text-xs">
-              <span className="font-medium text-[#2C2C2C] w-32 flex-shrink-0">{label}</span>
-              <code className="font-mono text-[10px] text-[#6B705C] truncate flex-1">{url}</code>
+              <span className="font-medium text-[#2C2C2C] dark:text-zinc-100 w-32 flex-shrink-0">{label}</span>
+              <code className="font-mono text-[10px] text-[#3F4034] dark:text-zinc-400 truncate flex-1">{url}</code>
               <button
                 type="button"
                 onClick={() => copy(url, label)}
@@ -1007,15 +1007,15 @@ function InviteLinksWidget() {
 // Small two-column count list reused inside SignupRulesCard.
 function StatList({ title, rows, testid }) {  return (
     <div data-testid={testid}>
-      <p className="text-xs uppercase tracking-[0.15em] text-[#6B705C] font-bold mb-1.5">{title}</p>
+      <p className="text-xs uppercase tracking-[0.15em] text-[#6B705C] dark:text-zinc-400 font-bold mb-1.5">{title}</p>
       {!rows || rows.length === 0 ? (
-        <p className="text-xs text-[#6B705C] italic">No answers yet.</p>
+        <p className="text-xs text-[#6B705C] dark:text-zinc-400 italic">No answers yet.</p>
       ) : (
         <ul className="space-y-0.5">
           {rows.map((r) => (
             <li key={r.label} className="flex justify-between text-sm">
-              <span className="text-[#2C2C2C] capitalize">{r.label}</span>
-              <span className="text-[#6B705C] font-mono">{r.count}</span>
+              <span className="text-[#2C2C2C] dark:text-zinc-100 capitalize">{r.label}</span>
+              <span className="text-[#6B705C] dark:text-zinc-400 font-mono">{r.count}</span>
             </li>
           ))}
         </ul>
@@ -1070,15 +1070,15 @@ function AntivirusCard() {
           <div
             className={`rounded-xl border p-4 ${
               status.available && status.eicar_test_ok
-                ? "bg-[#E8F3EC] border-[#2C7A3E]"
-                : "bg-[#FDECE6] border-[#B43F26]"
+                ? "bg-[#E8F3EC] dark:bg-emerald-950/40 border-[#2C7A3E] dark:border-emerald-700"
+                : "bg-[#FDECE6] dark:bg-red-950/40 border-[#B43F26] dark:border-red-700"
             }`}
             data-testid="av-status-banner"
           >
-            <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C] mb-1">
+            <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C] dark:text-zinc-400 mb-1">
               Scanner status
             </p>
-            <p className="font-medium text-[#2C2C2C]">
+            <p className="font-medium text-[#2C2C2C] dark:text-zinc-100">
               {!status.available
                 ? "DOWN — clamd unreachable; uploads currently UNSCANNED"
                 : !status.eicar_test_ok
@@ -1086,16 +1086,16 @@ function AntivirusCard() {
                 : `HEALTHY — EICAR test passed in ${status.scan_ms} ms`}
             </p>
             {status.available && status.signature && (
-              <p className="text-xs text-[#6B705C] mt-1">
+              <p className="text-xs text-[#6B705C] dark:text-zinc-400 mt-1">
                 Liveness signature: <code className="font-mono">{status.signature}</code>
               </p>
             )}
-            <div className="flex gap-4 mt-2 text-xs text-[#6B705C]">
+            <div className="flex gap-4 mt-2 text-xs text-[#6B705C] dark:text-zinc-400">
               <span>
-                Total quarantined: <strong className="text-[#2C2C2C]">{status.quarantine_total}</strong>
+                Total quarantined: <strong className="text-[#2C2C2C] dark:text-zinc-100">{status.quarantine_total}</strong>
               </span>
               <span>
-                Last 24 h: <strong className="text-[#2C2C2C]">{status.quarantine_last_24h}</strong>
+                Last 24 h: <strong className="text-[#2C2C2C] dark:text-zinc-100">{status.quarantine_last_24h}</strong>
               </span>
             </div>
           </div>
@@ -1135,7 +1135,7 @@ function AntivirusCard() {
               {rows.map((r, idx) => (
                 <li
                   key={`${r.ts}-${idx}`}
-                  className="rounded-xl border border-[#E5DDC5] bg-[#FBFAF6] p-3"
+                  className="rounded-xl border border-[#E5DDC5] dark:border-zinc-700 bg-[#FBFAF6] dark:bg-zinc-800/60 p-3"
                   data-testid={`av-quarantine-row-${idx}`}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -1227,7 +1227,7 @@ function StorageByUserCard() {
               return (
                 <li
                   key={u.user_id}
-                  className="rounded-xl border border-[#E5DDC5] bg-[#FBFAF6] hover:bg-[#F5F3EC] transition-colors"
+                  className="rounded-xl border border-[#E5DDC5] dark:border-zinc-700 bg-[#FBFAF6] dark:bg-zinc-800/60 hover:bg-[#F5F3EC] transition-colors"
                   data-testid={`storage-row-${u.user_id}`}
                 >
                   <button
@@ -1472,7 +1472,7 @@ function ViewConsentsCard() {
       subtitle="Read-only access to a user's library — requires their explicit consent. All reads are audit-logged."
       testid="admin-view-consents-card"
     >
-      <form onSubmit={submitRequest} className="mb-4 rounded-xl border border-[#E5DDC5] bg-[#FBFAF6] p-3" data-testid="view-consent-request-form">
+      <form onSubmit={submitRequest} className="mb-4 rounded-xl border border-[#E5DDC5] dark:border-zinc-700 bg-[#FBFAF6] dark:bg-zinc-800/60 p-3" data-testid="view-consent-request-form">
         <p className="text-xs uppercase tracking-wider text-[#6B46C1] mb-2 font-bold">Request access</p>
         <input
           type="text" value={targetUid}
@@ -1520,7 +1520,7 @@ function ViewConsentsCard() {
                   return (
                     <li
                       key={c.consent_id}
-                      className="rounded-lg border border-[#E5DDC5] bg-[#FBFAF6] px-3 py-2 flex flex-wrap items-center gap-3"
+                      className="rounded-lg border border-[#E5DDC5] dark:border-zinc-700 bg-[#FBFAF6] dark:bg-zinc-800/60 px-3 py-2 flex flex-wrap items-center gap-3"
                       data-testid={`view-consent-row-${c.consent_id}`}
                     >
                       <div className="flex-1 min-w-0">
@@ -3053,7 +3053,7 @@ function ChatRoomsCard() {
           )}
 
           {/* Create form */}
-          <div className="rounded-xl border border-[#E5DDC5] bg-[#FBFAF6] p-4" data-testid="admin-chat-room-create-form">
+          <div className="rounded-xl border border-[#E5DDC5] dark:border-zinc-700 bg-[#FBFAF6] dark:bg-zinc-800/60 p-4" data-testid="admin-chat-room-create-form">
             <p className="text-xs font-bold uppercase tracking-wider text-[#6B46C1] mb-2">Create a new room</p>
             <input
               type="text"

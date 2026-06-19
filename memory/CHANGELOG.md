@@ -8,6 +8,26 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-18 — Chat KeyError + admin contrast fix ✅
+
+**Bug 1 — Chat rooms 500 in production**:
+`_serialize_room` crashed with `KeyError: 'name'` on a legacy seed
+room that pre-dates the required-name validation, breaking the
+`/chat/rooms` list for everyone.  Hardened the serializer to fall
+back to `"(untitled room)"` instead of 500-ing.  Endpoint now
+returns 200 with all 8 rooms.
+
+**Bug 2 — Low-contrast text in admin signup card**:
+Hard-coded `text-[#6B705C]` (medium gray) body copy on the pale
+`bg-[#EDE6FA]` toggle backgrounds + `bg-[#FBFAF6]` stat panels was
+too washed-out to read.  Bumped body text to `text-[#3F4034]`
+(darker olive) and added `dark:` variants to every colored
+background and text utility so the cards work in both light AND
+dark mode going forward.
+
+---
+
+
 ## 2026-06-18 — Tracked invite links + Facebook channel ✅
 
 - **`?ref=<channel>` query param** on the landing/login URL now
