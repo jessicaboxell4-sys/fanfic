@@ -436,6 +436,7 @@ async def get_campaign_stats(user: User = Depends(require_moderator_or_admin)):
             "_id": {"$ifNull": ["$onboarding.referral", None]},
             "signups":   {"$sum": 1},
             "approved":  {"$sum": {"$cond": [{"$eq": ["$approval_status", "approved"]}, 1, 0]}},
+            "pending":   {"$sum": {"$cond": [{"$eq": ["$approval_status", "pending"]},  1, 0]}},
             "active_7d": {"$sum": {"$cond": [{"$gte": ["$last_login_at", seven_days_ago]}, 1, 0]}},
             "user_ids":  {"$push": "$user_id"},
         }},
@@ -457,6 +458,7 @@ async def get_campaign_stats(user: User = Depends(require_moderator_or_admin)):
             "ref":       ref,  # None for organic
             "signups":   g["signups"],
             "approved":  g["approved"],
+            "pending":   g["pending"],
             "uploaded":  ref_uploaders,
             "active_7d": g["active_7d"],
         })

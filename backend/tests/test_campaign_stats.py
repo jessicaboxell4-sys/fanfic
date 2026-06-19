@@ -73,6 +73,7 @@ def test_campaign_stats_funnel(admin_session):
         row = next(c for c in r.json()["campaigns"] if c["ref"] == "campfx_fb")
         assert row["signups"]   == 4
         assert row["approved"]  == 3
+        assert row["pending"]   == 1
         assert row["uploaded"]  == 2
         assert row["active_7d"] == 1
     finally:

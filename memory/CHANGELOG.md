@@ -8,6 +8,31 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-19 — Click-to-approve from campaign funnel ✅
+
+The Campaign Conversion table now has a new "Pending" column.
+Whenever a row has ≥ 1 pending sign-up, the count renders as an
+amber action pill `2 ›` instead of a static number.
+
+Clicking the pill:
+1. Fires a `shelfsort:bulk-approve-ref` `CustomEvent` on `window`.
+2. The Pending Sign-ups card (in a *different* collapsible section)
+   listens, scrolls itself into view, then calls `bulkApprove(ref)`
+   exactly as if the operator had clicked the matching campaign chip.
+3. Same confirm dialog, same approval emails, same audit-log entry.
+
+So the post-launch flow is now:
+   *post tracked link → check Campaign card → click `2 ›` → confirm → done*
+
+Decoupled via CustomEvent so neither card has to import the other.
+
+Backend: added a `pending` count to each `/admin/campaign-stats` row
+(same aggregation pass — `$cond` on `approval_status == "pending"`).
+Pytest assertion bumped to verify the new field (3/3 still pass).
+
+---
+
+
 ## 2026-06-19 — Campaign conversion funnel ✅
 
 New widget on the AdminConsole (right under Tracked Invite Links)

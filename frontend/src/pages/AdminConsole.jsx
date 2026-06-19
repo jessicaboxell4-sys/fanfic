@@ -221,6 +221,11 @@ function PendingUsersCard() {
   // Each call fires its own approval email — same as the per-user
   // button — but in parallel server-side so a 20-user batch still
   // returns in well under 5s.
+  //
+  // ``ref`` may also come from the Campaign Conversion widget via the
+  // ``shelfsort:bulk-approve-ref`` custom event (see useEffect below) —
+  // that lets a single click from the funnel table jump the operator
+  // straight into the confirm dialog for the matching campaign.
   const bulkApprove = async (ref) => {
     const targets = ref
       ? pending.filter((u) => u?.onboarding?.referral === ref)
@@ -244,6 +249,25 @@ function PendingUsersCard() {
       setBulkBusy(null);
     }
   };
+
+  // Listen for cross-card triggers fired by the Campaign Conversion
+  // widget.  Decoupled via CustomEvent so neither card has to import
+  // the other or share parent state — useful since they sit in two
+  // different collapsible sections.
+  useEffect(() => {
+    const onTrigger = (ev) => {
+      const ref = ev?.detail?.ref;
+      if (!ref) return;
+      // Scroll the pending card into view first so the confirm dialog
+      // doesn't pop up over a card the user can't see.
+      const card = document.querySelector('[data-testid="admin-pending-users-card"]');
+      if (card) card.scrollIntoView({ behavior: "smooth", block: "start" });
+      // Give scroll a moment, then fire.
+      setTimeout(() => bulkApprove(ref), 350);
+    };
+    window.addEventListener("shelfsort:bulk-approve-ref", onTrigger);
+    return () => window.removeEventListener("shelfsort:bulk-approve-ref", onTrigger);
+  }, [pending]);
 
   return (
     <Card
@@ -1177,6 +1201,7 @@ function CampaignStatsWidget() {
               <tr className="text-[10px] uppercase tracking-wider text-[#6B705C] dark:text-zinc-400 border-b border-[#E5DDC5] dark:border-zinc-700">
                 <th className="text-left py-2 px-1 font-semibold">Channel</th>
                 <th className="text-right py-2 px-1 font-semibold">Signups</th>
+                <th className="text-right py-2 px-1 font-semibold" title="Awaiting your approval — click to bulk-approve">Pending</th>
                 <th className="text-right py-2 px-1 font-semibold">Approved</th>
                 <th className="text-right py-2 px-1 font-semibold" title="Users who uploaded ≥ 1 book">Uploaded</th>
                 <th className="text-right py-2 px-1 font-semibold" title="Users who logged in in the last 7 days">Active 7d</th>
@@ -1185,6 +1210,10 @@ function CampaignStatsWidget() {
             <tbody>
               {rows.map((r) => {
                 const isOrganic = !r.ref;
+                const triggerBulk = () => {
+                  if (!r.ref || (r.pending || 0) === 0) return;
+                  window.dispatchEvent(new CustomEvent("shelfsort:bulk-approve-ref", { detail: { ref: r.ref } }));
+                };
                 return (
                   <tr
                     key={r.ref || "__organic__"}
@@ -1195,6 +1224,21 @@ function CampaignStatsWidget() {
                       {channelLabel(r.ref)}
                     </td>
                     <td className="text-right py-1.5 px-1 font-mono text-[#2C2C2C] dark:text-zinc-100">{r.signups}</td>
+                    <td className="text-right py-1.5 px-1 font-mono">
+                      {(r.pending || 0) > 0 && !isOrganic ? (
+                        <button
+                          type="button"
+                          onClick={triggerBulk}
+                          data-testid={`campaign-row-approve-${r.ref}`}
+                          title={`Bulk-approve all ${r.pending} pending from ${channelLabel(r.ref)}`}
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 transition-colors"
+                        >
+                          {r.pending} <ChevronRight className="w-3 h-3" />
+                        </button>
+                      ) : (
+                        <span className="text-[#6B705C] dark:text-zinc-400">{r.pending || 0}</span>
+                      )}
+                    </td>
                     <td className="text-right py-1.5 px-1 font-mono text-[#2C2C2C] dark:text-zinc-100">
                       {r.approved}
                       <span className="text-[#6B705C] dark:text-zinc-400 ml-1">({pct(r.approved, r.signups)}%)</span>
