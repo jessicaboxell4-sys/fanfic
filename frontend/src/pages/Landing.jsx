@@ -12,6 +12,9 @@ import {
   Target,
   Tablet,
   PencilLine,
+  Shield,
+  Smartphone,
+  Heart,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import PrimaryCTAButton from "../components/PrimaryCTAButton";
@@ -127,10 +130,11 @@ export default function Landing() {
             sorted by <span className="italic text-[#E07A5F]">fandom</span>.
           </h1>
           <p className="text-base sm:text-lg text-[#6B705C] leading-relaxed mb-6 max-w-lg">
-            Drop in a folder of EPUBs. Shelfsort reads the metadata and uses AI to file
-            them by Harry Potter, Twilight, Marvel, original fiction, and anything else
-            hiding in your downloads. Then it gives them a home — a clean reader, a
-            year-end recap, friends to talk about them with, the works.
+            Got a Downloads folder full of nameless EPUBs? Shelfsort reads the
+            metadata and uses AI to file them by Harry Potter, Twilight, Marvel,
+            original fiction, and anything else hiding in there. Then it gives
+            them a home — a clean reader, a year-end recap, friends to talk
+            about them with, the works.
           </p>
           <FandomTicker className="mb-8" />
           <div className="flex flex-wrap gap-3">
@@ -147,6 +151,31 @@ export default function Landing() {
               How it works
             </SecondaryCTAButton>
           </div>
+          {/* Trust strip — tiny social-proof under the CTA so first-time
+              visitors immediately see the three differentiators we ship.
+              Each item is icon + ~3 words; the whole row is one line on
+              desktop, wraps on mobile.  No claims we can't back up. */}
+          <ul
+            className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-6 text-xs text-[#6B705C]"
+            data-testid="hero-trust-strip"
+          >
+            <li className="inline-flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-[#6B46C1]" />
+              <span>AI auto-sorts by fandom</span>
+            </li>
+            <li className="inline-flex items-center gap-1.5">
+              <Shield className="w-3.5 h-3.5 text-[#2C7A3E]" />
+              <span>Every upload virus-scanned</span>
+            </li>
+            <li className="inline-flex items-center gap-1.5">
+              <Smartphone className="w-3.5 h-3.5 text-[#E07A5F]" />
+              <span>Sync across devices</span>
+            </li>
+            <li className="inline-flex items-center gap-1.5">
+              <Heart className="w-3.5 h-3.5 text-[#B43F26]" />
+              <span>Free while we grow</span>
+            </li>
+          </ul>
         </div>
         <div className="relative">
           <img

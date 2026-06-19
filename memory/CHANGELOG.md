@@ -8,6 +8,22 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-18 — Landing page polish + Help-page docs ✅
+
+- **Hero copy** tightened with the "Downloads folder full of
+  nameless EPUBs" hook so first-time visitors immediately see
+  themselves in the problem.
+- **Trust strip** added under the CTA — four icon + ~3-word
+  claims (AI auto-sorts by fandom · Every upload virus-scanned ·
+  Sync across devices · Free while we grow).  Each backed by a
+  feature actually shipped this session.
+- **Help page** now has two new sections — "Antivirus & library
+  safety" and "Community rules" — plus an updated What's-New
+  banner featuring the antivirus + rules launches.
+
+---
+
+
 ## 2026-06-18 — Library safety report ✅
 
 - New `GET /api/account/safety` returns user's own scan stats
