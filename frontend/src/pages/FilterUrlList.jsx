@@ -456,7 +456,7 @@ export default function FilterUrlList() {
                 </p>
                 <div className="space-y-1 max-h-48 overflow-y-auto bg-white rounded-lg border border-[#E5DDC5] p-3">
                   {report.already_owned.map((m, idx) => (
-                    <div key={idx} className="text-sm truncate">
+                    <div key={m.book_id || m.source_url || `${m.title}-${m.author}-${idx}`} className="text-sm truncate">
                       <span className="font-medium">{m.title || "Untitled"}</span>
                       <span className="text-[#6B705C]"> — {m.author || "Unknown"}</span>
                       {m.fandom && <span className="text-[#6B705C]"> · {m.fandom}</span>}
@@ -471,7 +471,7 @@ export default function FilterUrlList() {
                 <p className="text-xs uppercase tracking-wide text-amber-700 mb-2">New URLs</p>
                 <div className="space-y-1 max-h-48 overflow-y-auto bg-amber-50/60 rounded-lg border border-amber-200 p-3">
                   {report.new_urls.map((u, idx) => (
-                    <div key={idx} className="text-xs font-mono truncate">{u.url}</div>
+                    <div key={u.url || `new-url-${idx}`} className="text-xs font-mono truncate">{u.url}</div>
                   ))}
                 </div>
               </div>
@@ -484,7 +484,7 @@ export default function FilterUrlList() {
                 </p>
                 <div className="space-y-1 max-h-32 overflow-y-auto bg-white rounded-lg border border-dashed border-[#6B705C]/30 p-3">
                   {report.ao3_non_work.map((item, idx) => (
-                    <div key={idx} className="text-xs truncate flex items-center gap-2">
+                    <div key={item.url || `${item.kind}-${idx}`} className="text-xs truncate flex items-center gap-2">
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#E5DDC5]/60 text-[#2C2C2C] uppercase tracking-wide">
                         {item.kind === "ao3_series" ? "series" : item.kind === "ao3_collection" ? "collection" : "user"}
                       </span>
@@ -503,7 +503,7 @@ export default function FilterUrlList() {
                 </p>
                 <div className="space-y-1 max-h-32 overflow-y-auto bg-white rounded-lg border border-dashed border-[#6B705C]/30 p-3">
                   {report.unrecognized.map((u, idx) => (
-                    <div key={idx} className="text-xs text-[#6B705C] font-mono truncate">{u}</div>
+                    <div key={`${u}-${idx}`} className="text-xs text-[#6B705C] font-mono truncate">{u}</div>
                   ))}
                 </div>
               </div>
@@ -542,7 +542,7 @@ export default function FilterUrlList() {
                 {pullReport.added?.length > 0 && (
                   <div className="text-xs space-y-0.5 max-h-32 overflow-y-auto">
                     {pullReport.added.map((b, idx) => (
-                      <div key={idx} className="text-[#2C2C2C] truncate">
+                      <div key={b.book_id || b.canonical || `added-${idx}`} className="text-[#2C2C2C] truncate">
                         ✓ <span className="font-medium">{b.title}</span>{b.fandom ? <span className="text-[#6B705C]"> · {b.fandom}</span> : null}
                       </div>
                     ))}
@@ -551,7 +551,7 @@ export default function FilterUrlList() {
                 {pullReport.failed?.length > 0 && (
                   <div className="text-xs space-y-0.5 max-h-24 overflow-y-auto mt-2">
                     {pullReport.failed.map((b, idx) => (
-                      <div key={idx} className="text-amber-800 truncate">
+                      <div key={b.canonical || `failed-${idx}`} className="text-amber-800 truncate">
                         ✗ <span className="font-mono">{b.canonical}</span> — {b.error}
                       </div>
                     ))}

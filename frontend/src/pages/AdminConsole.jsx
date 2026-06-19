@@ -2418,7 +2418,7 @@ function AuditLogCard() {
       ) : (
         <ul className="space-y-1" data-testid="admin-audit-list">
           {entries.map((e, i) => (
-            <li key={i} className="text-xs px-2.5 py-1.5 rounded bg-[#FBFAF6] border border-[#E5DDC5]" data-testid={`admin-audit-row-${i}`}>
+            <li key={e._id || `${e.actor_email}-${e.ts}-${i}`} className="text-xs px-2.5 py-1.5 rounded bg-[#FBFAF6] border border-[#E5DDC5]" data-testid={`admin-audit-row-${i}`}>
               <div className="flex items-center justify-between gap-2">
                 <span><strong>{e.action}</strong> by <span className="text-[#6B705C]">{e.actor_email}</span></span>
                 <span className="text-[#6B705C] flex-shrink-0">{fmtTime(e.ts)}</span>
@@ -3182,7 +3182,7 @@ function CronJobRow({ job }) {
           ) : (
             <ul className="space-y-1 max-h-72 overflow-auto" data-testid={`cron-history-${job.id}`}>
               {job.recent.map((r, idx) => (
-                <li key={idx} className="text-xs flex items-start gap-2 font-mono">
+                <li key={r.started_at || `cron-run-${idx}`} className="text-xs flex items-start gap-2 font-mono">
                   <span className={r.status === "ok" ? "text-[#6B46C1]" : "text-red-700"}>
                     {r.status === "ok" ? "✓" : "✗"}
                   </span>
@@ -3473,7 +3473,7 @@ function EmailStatsCard() {
               <p className="text-xs font-medium text-red-700 mb-2">Recent failures</p>
               <ul className="space-y-1 text-xs font-mono">
                 {data.recent_failures.map((f, i) => (
-                  <li key={i} className="text-red-700 break-all" data-testid={`email-stats-failure-${i}`}>
+                  <li key={`${f.kind}-${f.to}-${i}`} className="text-red-700 break-all" data-testid={`email-stats-failure-${i}`}>
                     [{f.kind}] {f.to} — {f.error}
                   </li>
                 ))}

@@ -84,7 +84,7 @@ export default function UrlListDedupeModal({ reports, onClose }) {
 
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
           {reports.map((r, i) => (
-            <div key={i}>
+            <div key={r.filename || `report-${i}`}>
               {reports.length > 1 && (
                 <p className="text-xs uppercase tracking-wide text-[#6B705C] mb-3">
                   From <span className="font-mono">{r.filename || "(unnamed)"}</span>
@@ -98,7 +98,7 @@ export default function UrlListDedupeModal({ reports, onClose }) {
                   </p>
                   <div className="space-y-1 max-h-48 overflow-y-auto bg-white rounded-lg border border-[#E5DDC5] p-3">
                     {r.already_owned.map((m, idx) => (
-                      <div key={idx} className="text-sm text-[#2C2C2C] truncate">
+                      <div key={m.book_id || m.source_url || `${m.title}-${m.author}-${idx}`} className="text-sm text-[#2C2C2C] truncate">
                         <span className="font-medium">{m.title || "Untitled"}</span>
                         <span className="text-[#6B705C]"> — {m.author || "Unknown"}</span>
                         {m.fandom && <span className="text-[#6B705C]"> · {m.fandom}</span>}
@@ -114,7 +114,7 @@ export default function UrlListDedupeModal({ reports, onClose }) {
                   </p>
                   <div className="space-y-1 max-h-48 overflow-y-auto bg-amber-50/60 rounded-lg border border-amber-200 p-3">
                     {r.new_urls.map((u, idx) => (
-                      <div key={idx} className="text-xs text-[#2C2C2C] font-mono truncate">
+                      <div key={u.url || `new-url-${idx}`} className="text-xs text-[#2C2C2C] font-mono truncate">
                         {u.url}
                       </div>
                     ))}
@@ -129,7 +129,7 @@ export default function UrlListDedupeModal({ reports, onClose }) {
                   </p>
                   <div className="space-y-1 max-h-32 overflow-y-auto bg-white rounded-lg border border-dashed border-[#6B705C]/30 p-3">
                     {r.unrecognized.map((u, idx) => (
-                      <div key={idx} className="text-xs text-[#6B705C] font-mono truncate">{u}</div>
+                      <div key={`${u}-${idx}`} className="text-xs text-[#6B705C] font-mono truncate">{u}</div>
                     ))}
                   </div>
                 </div>
