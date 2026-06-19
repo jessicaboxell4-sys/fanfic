@@ -1755,7 +1755,32 @@ async def get_alert_health(user: User = Depends(require_admin)):
         "cron_failures_uncovered_24h": len(uncovered),
         "uncovered_job_ids": [u["job_id"] for u in uncovered][:5],
         "latest_failure": latest,
+        # 2026-06-18 — Suppression-reason audit so the admin banner can
+        # tell operators *why* alerts aren't going out (Resend missing,
+        # feature flag off, etc.).  Aggregated from rows that
+        # ``_maybe_alert_admins`` upserts with ``suppressed=True``.
+        "suppressed_reasons": await _aggregate_suppression_reasons(window_start),
     }
+
+
+async def _aggregate_suppression_reasons(window_start) -> list[dict]:
+    """Group suppressed cron_alerts rows by reason for the admin banner."""
+    pipeline = [
+        {"$match": {
+            "suppressed": True,
+            "last_seen_at": {"$gte": window_start},
+        }},
+        {"$group": {
+            "_id":   {"$ifNull": ["$reason", "unknown"]},
+            "count": {"$sum": 1},
+        }},
+        {"$sort": {"count": -1}},
+        {"$project": {"_id": 0, "reason": "$_id", "count": 1}},
+    ]
+    rows = []
+    async for r in db.cron_alerts.aggregate(pipeline):
+        rows.append(r)
+    return rows
 
 
 # ---------------------------------------------------------------------------

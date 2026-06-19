@@ -1689,6 +1689,23 @@ function UsersCard() {
 // silenced into permanent obscurity.
 const ALERT_HEALTH_DISMISS_KEY = "shelfsort.admin.alert-health-dismissed-at";
 
+// Friendly labels + fix-hints for each suppression reason the
+// backend can record on ``cron_alerts`` rows.  Kept here (not in a
+// shared module) because they're admin-banner-specific copy.
+const SUPPRESSION_REASON_LABEL = {
+  resend_not_configured: "Resend not configured",
+  no_admin_recipients:   "No admins with email",
+  feature_flag_off:      "Feature flag off",
+  admin_lookup_failed:   "Admin lookup failed",
+  unknown:               "Unknown reason",
+};
+const SUPPRESSION_FIX_HINT = {
+  resend_not_configured: "Set RESEND_API_KEY and SENDER_EMAIL in backend/.env, then restart the backend.",
+  no_admin_recipients:   "Add an email to at least one admin user in the Users & admins card.",
+  feature_flag_off:      "Toggle 'cron_failure_alerts' back on in the Feature flags card.",
+  admin_lookup_failed:   "Mongo couldn't be queried for admin emails — check /api/health.",
+};
+
 function AlertHealthBanner() {
   const [data, setData] = useState(null);
   const [dismissed, setDismissed] = useState(false);
@@ -1706,10 +1723,15 @@ function AlertHealthBanner() {
   }, []);
 
   const totalIssues = (data?.alert_send_failures_24h || 0)
-    + (data?.cron_failures_uncovered_24h || 0);
+    + (data?.cron_failures_uncovered_24h || 0)
+    + ((data?.suppressed_reasons || []).reduce((s, r) => s + r.count, 0));
   if (!data || totalIssues === 0 || dismissed) return null;
 
   const isSendFailure = (data.alert_send_failures_24h || 0) > 0;
+  const isOnlySuppressed =
+    (data.alert_send_failures_24h || 0) === 0 &&
+    (data.cron_failures_uncovered_24h || 0) === 0 &&
+    (data.suppressed_reasons || []).length > 0;
   const tone = isSendFailure
     ? { bg: "bg-[#FBE9E5]", border: "border-[#D9534F]", icon: "text-[#B43F26]", title: "text-[#7A2417]", body: "text-[#7A2417]" }
     : { bg: "bg-[#FDF3E1]", border: "border-[#D49A1E]", icon: "text-[#8B4F00]", title: "text-[#5C3300]", body: "text-[#5C3300]" };
@@ -1737,11 +1759,17 @@ function AlertHealthBanner() {
             className={`text-xs font-bold uppercase tracking-[0.2em] ${tone.icon} mb-1`}
             data-testid="alert-health-banner-tag"
           >
-            {isSendFailure ? "Cron alerts are misfiring" : "Cron failures going un-alerted"}
+            {isSendFailure
+              ? "Cron alerts are misfiring"
+              : isOnlySuppressed
+              ? "Cron alert pipeline suppressed"
+              : "Cron failures going un-alerted"}
           </p>
           <h2 className={`font-serif text-lg md:text-xl ${tone.title} leading-tight mb-2`}>
             {isSendFailure
               ? `${data.alert_send_failures_24h} alert send${data.alert_send_failures_24h === 1 ? "" : "s"} failed in the last 24h`
+              : isOnlySuppressed
+              ? `Cron-failure emails are being suppressed`
               : `${data.cron_failures_uncovered_24h} cron failure${data.cron_failures_uncovered_24h === 1 ? "" : "s"} in the last 24h with no alert email sent`}
             {!isSendFailure && (data.alert_send_failures_24h || 0) > 0 && (
               <> · plus {data.alert_send_failures_24h} Resend error{data.alert_send_failures_24h === 1 ? "" : "s"}</>
@@ -1757,6 +1785,30 @@ function AlertHealthBanner() {
           {data.uncovered_job_ids && data.uncovered_job_ids.length > 0 && (
             <p className={`text-xs ${tone.body} opacity-80 mb-2`} data-testid="alert-health-banner-jobs">
               Uncovered jobs: {data.uncovered_job_ids.join(", ")}
+            </p>
+          )}
+          {data.suppressed_reasons && data.suppressed_reasons.length > 0 && (
+            <p
+              className={`text-xs ${tone.body} opacity-90 mb-2`}
+              data-testid="alert-health-banner-suppressions"
+            >
+              Alerts suppressed:{" "}
+              {data.suppressed_reasons.map((r, i) => (
+                <span key={r.reason} data-testid={`alert-health-suppression-${r.reason}`}>
+                  {i > 0 && " · "}
+                  <code className="px-1.5 py-0.5 rounded bg-white/60 font-mono text-[10px]">
+                    {SUPPRESSION_REASON_LABEL[r.reason] || r.reason}
+                  </code>
+                  <span className="ml-1">({r.count})</span>
+                </span>
+              ))}
+              {data.suppressed_reasons.some((r) => SUPPRESSION_FIX_HINT[r.reason]) && (
+                <span className="block mt-1 italic opacity-90">
+                  {data.suppressed_reasons
+                    .map((r) => SUPPRESSION_FIX_HINT[r.reason])
+                    .filter(Boolean)[0]}
+                </span>
+              )}
             </p>
           )}
           <div className="flex flex-wrap items-center gap-3 mt-2">

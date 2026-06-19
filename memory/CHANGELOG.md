@@ -8,6 +8,30 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-18 — Suppression reasons in alert-health banner ✅
+
+Made the admin's "Cron failures going un-alerted" banner self-
+explanatory.  Operators no longer need to dig through logs to find
+out *why* alerts aren't going out.
+
+- `GET /api/admin/alert-health` now returns `suppressed_reasons`:
+  an array of `{reason, count}` aggregated from the new
+  `suppressed=True` rows in `cron_alerts` (last 24h).
+- Frontend banner gained a third state — "Cron alert pipeline
+  suppressed" — that fires when there are zero failures but
+  alerts are still being suppressed (Resend down, no admin
+  emails, etc.).  Each reason is shown with a one-line fix hint
+  matched to the reason code (`SUPPRESSION_FIX_HINT` map).
+- Pre-existing two states ("alerts misfiring" / "going un-alerted")
+  preserved; new strip stacks under them when both are present.
+- E2E verified: inserting two suppressed rows correctly renders
+  "Alerts suppressed: Resend not configured (1) · No admins with
+  email (1) · Set RESEND_API_KEY and SENDER_EMAIL in backend/.env,
+  then restart the backend."
+
+---
+
+
 ## 2026-06-18 — Cron-alert silent-drop fix ✅
 
 The admin banner "Cron failures going un-alerted" was correctly
