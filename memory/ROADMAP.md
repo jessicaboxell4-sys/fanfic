@@ -33,6 +33,26 @@
 
 ## P2 — polish
 
+- **Shared library for delisted/orphaned works** (parked 2026-06-18) —
+  the fanfic community's "author pulled their fic" problem.  Real
+  pain point but legally murky.  Five viable shapes mapped during
+  the conversation, ranked by legal exposure:
+    1. (safest) Index-only "I have this" registry — no file transfer;
+       Shelfsort plays matchmaker, users DM 1:1 outside the app.
+    2. (fully legal) Public-domain-only shared shelf — pre-1929 works,
+       Standard Ebooks / Project Gutenberg imports.
+    3. (low risk) Friends-only file sharing — extend the existing
+       friend-library view with "request a copy" → owner approves →
+       1:1 transfer.  Stays inside friendships.
+    4. (cleanest for fanfic) Author-opt-in orphan archive — original
+       authors register a preservation request before deleting; only
+       opted-in works survive.  Author-driven, not fan-driven.
+    5. (no exposure) Personal rescue shelf — works the user
+       personally pulled from elsewhere, never shared.  Just a tag.
+  My recommendation when we revisit: option (3) for the social
+  use case + (5) for personal vault.  Options (1), (2), (4) are
+  bigger product moves and warrant their own discussion.
+
 - **Smart welcome email** (parked 2026-06-18) — use the new onboarding
   answers (referral · favorite_fandom · reader_type · is_13_plus) to
   send a personalized 3-line welcome email via Resend.  E.g. "Harry

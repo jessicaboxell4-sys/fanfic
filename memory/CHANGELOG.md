@@ -8,6 +8,22 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-18 — Library safety report ✅
+
+- New `GET /api/account/safety` returns user's own scan stats
+  (clean / infected / unscanned counts + recent flagged list).
+- New `POST /api/account/safety/rescan` re-runs ClamAV across the
+  user's whole library (walks `db.books`, pulls from cloud storage
+  if local cache is cold).  Capped at 500 files per call.
+- New `/account/safety` page rendered with stat cards, AV-down
+  banner, recent-flags list, and "Rescan now" CTA.  Linked from
+  the Account page next to the backup buttons.
+- Testing agent iter 30: **7/7 PASS** (+ fixed flagged UX gap
+  where cloud-only files weren't rescanned).
+
+---
+
+
 ## 2026-06-18 — `/api/health` + ClamAV antivirus integration ✅
 
 ### Health endpoint
