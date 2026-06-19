@@ -3790,7 +3790,27 @@ function EmailStatsCard() {
           )}
           {data.recent_failures.length > 0 && (
             <div data-testid="email-stats-failures">
-              <p className="text-xs font-medium text-red-700 mb-2">Recent failures</p>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-medium text-red-700">Recent failures</p>
+                <button
+                  type="button"
+                  data-testid="email-stats-clear-pre-cutover"
+                  onClick={async () => {
+                    if (!window.confirm("Delete every errored email row from before your Resend domain was verified?\n\n(Sandbox-era noise — real telemetry stays.)")) return;
+                    try {
+                      const { data: r } = await api.post("/admin/email-logs/clear-pre-cutover-failures");
+                      toast.success(`Cleared ${r.deleted} pre-cutover row${r.deleted === 1 ? "" : "s"}.`);
+                      load();
+                    } catch (e) {
+                      toast.error(e?.response?.data?.detail || "Couldn't clear — retry?");
+                    }
+                  }}
+                  className="text-[11px] text-[#6B46C1] hover:underline"
+                  title="Removes errored email_log rows older than your Resend domain verification timestamp"
+                >
+                  Clear pre-cutover ↺
+                </button>
+              </div>
               <ul className="space-y-1 text-xs font-mono">
                 {data.recent_failures.map((f, i) => (
                   <li key={`${f.kind}-${f.to}-${i}`} className="text-red-700 break-all" data-testid={`email-stats-failure-${i}`}>

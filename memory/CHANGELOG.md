@@ -8,6 +8,50 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-19 — Five-in-one hardening batch ✅
+
+### 1. Bulk-approve rate-limit throttle
+Resend free plan caps at 5 req/sec.  `asyncio.gather` was slamming
+that limit and ~80 % of approval emails were coming back "Too many
+requests" during the live bulk test.  Replaced with a sequential
+loop + 250 ms sleep between sends → max 4 req/sec (safe margin).
+A 20-user batch now returns in ~5 s instead of 1 s but every email
+actually delivers.
+
+### 2. Reader prefs cross-device sync
+New `routes/reader_prefs.py` (`GET` + `PATCH` `/api/account/reader-prefs`)
+mirrors the in-Reader theme + font picks to a `reader_prefs` sub-doc
+on the user.  Reader.jsx hydrates from the API on mount (with
+localStorage as the fast-path default), and PATCHes back on change
+with a 600 ms debounce.  Whitelisted theme/font values reject junk
+at the boundary.  Pytest coverage: 5/5 pass.
+
+### 3. cursor_history TTL index
+`db.cursor_history.create_index("created_at", expireAfterSeconds=180d)`
+on startup.  Mongo auto-purges old reading-progress events so the
+collection doesn't grow unboundedly.  Idempotent.
+
+### 4. Fixture auto-purge cron
+Daily 03:00 UTC: deletes every test-account fixture older than 7 d
+(reuses `utils.test_account_filter`) along with their books and
+sessions.  Operator no longer needs to click "Purge all" on
+`/admin/test-accounts` manually.  Hooked into the existing
+APScheduler instance via `digest._scheduler`.
+
+### 5. "Clear pre-cutover failures" admin button
+New `POST /api/admin/email-logs/clear-pre-cutover-failures` deletes
+errored rows older than `RESEND_DOMAIN_VERIFIED_AT`
+(`2026-06-19T14:30:00Z`).  Tidies the EmailStatsCard horror story
+without losing real post-cutover telemetry.  Discoverable via a tiny
+"Clear pre-cutover ↺" link inside the Recent Failures section.
+Admin-only, audit-logged.  Already cleared **17 stale rows** on
+first run.
+
+Total backend pytest: 16/16 pass.
+
+---
+
+
 ## 2026-06-19 — Resend plan-usage gauge on EmailStatsCard ✅
 
 Added two-bar quota gauge inside the existing Admin "Resend

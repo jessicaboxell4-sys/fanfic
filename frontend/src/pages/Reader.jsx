@@ -379,10 +379,50 @@ export default function Reader() {
     } catch (e) { /* iframe not ready yet — first paint will re-apply */ }
   }, []);
 
+  // Cross-device hydration: on mount, pull the saved
+  // `reader_prefs` sub-doc from the user's account.  localStorage is
+  // the fast-path default at first paint (no network), but a
+  // subsequent server value silently upgrades the UI when it arrives.
+  // This is what makes "Sepia Night + Lora" follow the reader from
+  // laptop to phone.  We skip the upgrade entirely if the user just
+  // changed something locally (avoids stomping mid-debounce).
+  const hasUserEditedRef = useRef(false);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get("/account/reader-prefs");
+        if (cancelled || hasUserEditedRef.current) return;
+        if (data?.theme && READER_THEMES[data.theme]) setThemeId(data.theme);
+        if (data?.font && READER_FONTS[data.font]) setFontId(data.font);
+      } catch (e) { /* unauth or offline — localStorage stays canonical */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Debounced PATCH back to the server whenever the user picks a new
+  // theme or font.  600ms gap so rapid clicks (e.g. cycling through
+  // skins in the panel) collapse into one network round-trip.
+  const prefsPatchTimerRef = useRef(null);
   useEffect(() => {
     applyAppearance(themeId, fontId);
     try { window.localStorage.setItem(THEME_KEY, themeId); } catch (e) {}
     try { window.localStorage.setItem(FONT_KEY, fontId); } catch (e) {}
+
+    // Skip the very first effect run — that's the hydration paint, not
+    // a real user edit.  ``hasUserEditedRef`` guards both directions.
+    if (!hasUserEditedRef.current) {
+      hasUserEditedRef.current = true;
+      return;
+    }
+    if (prefsPatchTimerRef.current) clearTimeout(prefsPatchTimerRef.current);
+    prefsPatchTimerRef.current = setTimeout(() => {
+      api.patch("/account/reader-prefs", { theme: themeId, font: fontId })
+        .catch(() => { /* offline / unauth — localStorage is still canonical */ });
+    }, 600);
+    return () => {
+      if (prefsPatchTimerRef.current) clearTimeout(prefsPatchTimerRef.current);
+    };
   }, [themeId, fontId, applyAppearance]);
 
   useEffect(() => {

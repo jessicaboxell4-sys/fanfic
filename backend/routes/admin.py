@@ -344,9 +344,11 @@ async def approve_pending_bulk(
         metadata={"count": result.modified_count, "ref": ref or None},
     )
 
-    # Send approval emails in parallel — best-effort.  Failures don't
-    # block: the user can still log in, they just won't get the welcome
-    # email until we add a retry queue (out of scope here).
+    # Send approval emails sequentially with a small gap.  Resend's
+    # free plan caps at 5 req/sec — `asyncio.gather` slams that limit
+    # and ~80% of sends came back "Too many requests" during the live
+    # bulk-approve test.  A 250ms sleep between sends maxes us out at
+    # 4/sec (safe margin), so a 20-user batch still returns in ~5s.
     async def _send_one(t: Dict[str, Any]) -> bool:
         try:
             await _send_approval_email(
@@ -358,8 +360,13 @@ async def approve_pending_bulk(
         except Exception:
             return False
 
-    email_results = await asyncio.gather(*[_send_one(t) for t in targets], return_exceptions=False)
-    emails_sent = sum(1 for ok in email_results if ok)
+    emails_sent = 0
+    for t in targets:
+        if await _send_one(t):
+            emails_sent += 1
+        # Pace: only sleep BETWEEN sends, not after the last one.
+        if t is not targets[-1]:
+            await asyncio.sleep(0.25)
 
     return {
         "ok": True,
@@ -1888,6 +1895,44 @@ async def get_email_stats(user: User = Depends(require_admin)):
             "monthly_remaining": max(0, monthly_limit - used_month),
         },
     }
+
+
+@api_router.post("/admin/email-logs/clear-pre-cutover-failures")
+async def clear_pre_cutover_failures(user: User = Depends(require_admin)):
+    """Delete `status="error"` email_log rows older than the Resend
+    domain-verification timestamp (``RESEND_DOMAIN_VERIFIED_AT`` in
+    backend/.env, ISO8601).  Any error logged BEFORE that moment is
+    sandbox-era noise from when the sender was still
+    ``onboarding@resend.dev``; deleting them tidies the Email Stats
+    card without dropping any real post-cutover telemetry.
+
+    Idempotent — running twice returns ``deleted: 0`` the second time.
+    Admin-only (this writes to the audit log).
+    """
+    cutoff_str = os.environ.get("RESEND_DOMAIN_VERIFIED_AT", "").strip()
+    if not cutoff_str:
+        raise HTTPException(
+            400,
+            "RESEND_DOMAIN_VERIFIED_AT not configured — set it in backend/.env to enable.",
+        )
+    # Parse the env timestamp.  Mongo's ``sent_at`` is a real datetime
+    # (BSON Date), so we compare with a datetime — not the ISO string.
+    cutoff = datetime.fromisoformat(cutoff_str.replace("Z", "+00:00"))
+    if cutoff.tzinfo is None:
+        cutoff = cutoff.replace(tzinfo=timezone.utc)
+
+    res = await db.email_logs.delete_many({
+        "status": "error",
+        "sent_at": {"$lt": cutoff},
+    })
+
+    await record_admin_action(
+        user,
+        "email_logs.clear_pre_cutover",
+        target=cutoff.isoformat(),
+        metadata={"deleted": res.deleted_count},
+    )
+    return {"ok": True, "deleted": res.deleted_count, "cutoff": cutoff.isoformat()}
 
 
 

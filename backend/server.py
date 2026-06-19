@@ -8,11 +8,12 @@ startup/shutdown lifecycle hooks.
 """
 from starlette.middleware.cors import CORSMiddleware
 import os
+from datetime import datetime, timezone
 
 from deps import app, api_router, db, logger, client
 
 # Import each routes module so its @api_router decorators register.
-from routes import root, auth, books, conversions, user_prefs, library_backup, tags, authors, pairings, trash, bookmarks, library_discovery, stats, series_categories, digest, year, smart_shelves, announcements, admin, admin_db, fulltext, chat, friends, invites, friend_library, suggestions, notifications, bookclubs, recommendations, opds, wordcount, goals, refresh, duplicates, url_lists, fandoms, exports, reading_activity, library_views, duplicate_resolution, view_consents, cover_public, reading_sync, push, analytics, operator_digest, storage_admin, help_analytics, suggestions_box, signup_config, health, admin_antivirus, account_safety  # noqa: F401
+from routes import root, auth, books, conversions, user_prefs, library_backup, tags, authors, pairings, trash, bookmarks, library_discovery, stats, series_categories, digest, year, smart_shelves, announcements, admin, admin_db, fulltext, chat, friends, invites, friend_library, suggestions, notifications, bookclubs, recommendations, opds, wordcount, goals, refresh, duplicates, url_lists, fandoms, exports, reading_activity, library_views, duplicate_resolution, view_consents, cover_public, reading_sync, push, analytics, operator_digest, storage_admin, help_analytics, suggestions_box, signup_config, health, admin_antivirus, account_safety, reader_prefs  # noqa: F401
 
 # Some static-path routes (e.g. /api/books/refresh-status, /api/books/recent)
 # live in route modules that are imported *after* books.py, which means
@@ -195,6 +196,64 @@ async def on_startup():
         digest.start_digest_scheduler()
     except Exception as e:
         logger.warning(f"Digest scheduler failed to start: {e}")
+
+    # cursor_history TTL — auto-delete reading-progress events older
+    # than 180 days so the collection doesn't grow unboundedly.  The
+    # re-read detector only walks the trailing 30-day window, so 180d
+    # is generous head-room.  Idempotent: creating an index that
+    # already exists is a no-op in Mongo.
+    try:
+        await db.cursor_history.create_index(
+            "created_at",
+            expireAfterSeconds=180 * 24 * 3600,
+            name="cursor_history_ttl_180d",
+        )
+        logger.info("cursor_history TTL index live (180d retention).")
+    except Exception as e:
+        logger.warning("cursor_history TTL index create failed: %s", e)
+
+    # Auto-purge fixture accounts (testing-agent leftovers like
+    # ``@test.local``, ``test_*@example.com``) older than 7 days +
+    # their books + sessions.  Runs daily at 03:00 UTC via APScheduler
+    # so the admin's "/admin/test-accounts" page stays clean without
+    # the operator needing to click "Purge all" manually.
+    try:
+        from apscheduler.schedulers.asyncio import AsyncIOScheduler
+        from utils.test_account_filter import mongo_test_account_filter
+        from utils.cron_health import wrap_cron_job
+        from datetime import timedelta as _td
+
+        async def _purge_old_fixtures():
+            cutoff = (datetime.now(timezone.utc) - _td(days=7)).isoformat()
+            stale = await db.users.find(
+                {
+                    "created_at": {"$lt": cutoff},
+                    **mongo_test_account_filter(),
+                },
+                {"_id": 0, "user_id": 1},
+            ).to_list(length=10000)
+            if not stale:
+                return
+            ids = [u["user_id"] for u in stale]
+            await db.books.delete_many({"user_id": {"$in": ids}})
+            await db.user_sessions.delete_many({"user_id": {"$in": ids}})
+            res = await db.users.delete_many({"user_id": {"$in": ids}})
+            logger.info("Auto-purged %d fixture accounts (older than 7d)", res.deleted_count)
+
+        # Borrow the existing scheduler instance set up by
+        # ``digest.start_digest_scheduler()`` so we don't run two.
+        if digest._scheduler is not None:
+            digest._scheduler.add_job(
+                wrap_cron_job(_purge_old_fixtures, "fixture_auto_purge"),
+                "cron",
+                hour=3,
+                minute=0,
+                id="fixture_auto_purge",
+                replace_existing=True,
+            )
+            logger.info("Fixture auto-purge job scheduled (daily 03:00 UTC).")
+    except Exception as e:
+        logger.warning("Fixture auto-purge job failed to schedule: %s", e)
 
     # One-time bootstrap (2026-06): if no user is flagged is_admin yet,
     # promote the oldest existing account so the operator of a freshly
