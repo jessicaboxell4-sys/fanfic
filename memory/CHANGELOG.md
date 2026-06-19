@@ -8,6 +8,32 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-19 — Resend domain verified, real email cutover ✅
+
+`shelfsort.com` is verified at Resend (DKIM + SPF + MX all green
+in us-east-1).  Sender flipped from the sandbox
+`onboarding@resend.dev` to **`Shelfsort <hello@shelfsort.com>`**.
+
+DNS records live at IONOS:
+- `MX send` → `feedback-smtp.us-east-1.amazonses.com` (pri 10)
+- `TXT send` → `v=spf1 include:amazonses.com ~all`
+- `TXT resend._domainkey` → DKIM public key
+- `TXT _dmarc` → `v=DMARC1; p=none;` (optional, monitoring only)
+
+`backend/.env` updated.  Test email accepted by Resend
+(message id `59b71cf0-2b70-46b2-afcf-be2b519c7169`).
+
+This unblocks:
+- Per-user approval emails on real (non-owner) addresses
+- Bulk approve / approve-bulk emails
+- All future transactional email (password reset, welcome, etc.)
+
+Existing IONOS mailbox `jessica@shelfsort.com` untouched — root MX
+unchanged, so receiving still flows through IONOS Mail.
+
+---
+
+
 ## 2026-06-19 — Click-to-approve from campaign funnel ✅
 
 The Campaign Conversion table now has a new "Pending" column.
