@@ -33,6 +33,13 @@
 
 ## P2 — polish
 
+- **Admin card-view tracking** (parked 2026-06-18) — wire each
+  AdminConsole card's expand toggle to fire a `?card=<id>` event
+  against `/api/help/popular` (same endpoint the Help page already
+  uses for section-click tracking).  After a week of admin use,
+  surface the most-visited cards at the top of `/admin` automatically.
+  Two lines of code per card, no UX cost.
+
 - **Shared library for delisted/orphaned works** (parked 2026-06-18) —
   the fanfic community's "author pulled their fic" problem.  Real
   pain point but legally murky.  Five viable shapes mapped during
