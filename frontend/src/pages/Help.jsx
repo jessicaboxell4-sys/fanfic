@@ -932,6 +932,7 @@ export default function Help() {
                 <li><strong>Per-kind mute matrix</strong>: at <Link to="/account/emails">Account → Emails</Link>, scroll past the email channels to the <em>In-app notifications</em> card. Each kind has its own toggle so you can keep bookclub invites loud and silence chatty message pings.</li>
                 <li><strong>Critical kinds</strong> (friend requests, bookclub invites) cannot be muted — they&apos;re actionable and would silently disappear if turned off.</li>
                 <li><strong>Email channels</strong> (all opt-in, default OFF): Weekly digest, Fic updates, Year-in-Books recap, From-friends weekly, Book-club weekly. Each has a &quot;send sample&quot; button so you can preview before subscribing.</li>
+                <li><strong>Account updates · NEW (2026-06-20)</strong>: at the bottom of <Link to="/account/emails">Account → Emails</Link>, a fresh <em>Account updates</em> card lets you choose which one-off emails you want (You&apos;re approved!, Approval declined, Suggestion status updates, Year in Books wrapped, Bookclub invites, Weekly recommendations, Fandom overlap with friends). Turn any off and that email becomes an in-app notification on your next visit. Security-critical emails (password resets) always send regardless.</li>
               </ul>
             </Section>
 

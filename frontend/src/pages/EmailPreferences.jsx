@@ -778,6 +778,13 @@ export default function EmailPreferences() {
           className="mt-8 bg-white border border-[#E8E6E1] rounded-2xl p-5"
         >
           <h2 className="font-serif text-xl text-[#2C2C2C] mb-1">Account updates</h2>
+          <div
+            data-testid="account-updates-release-note"
+            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[#EEE9FB] text-[#6B46C1] text-[10px] font-bold uppercase tracking-wider mb-2"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-[#6B46C1]" />
+            New &middot; choose which emails you actually want
+          </div>
           <p className="text-sm text-[#6B705C] mb-4">
             Choose which kinds of one-off emails you want. Turning any off swaps that email
             for an in-app notification so you still see it next time you open Shelfsort.

@@ -7,6 +7,27 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-20 (admin-help-email-system) — AdminHelp adds Email-system kill-switch section ✅
+
+Closed a documentation gap: `AdminHelp.jsx` previously had no permanent
+section explaining the new `EmailSystemCard` kill switch (the
+`outbound_emails_enabled` feature flag), even though `EmailPreferences.jsx`
+and user-facing `Help.jsx` were updated last session.
+
+**Frontend** — `/app/frontend/src/pages/AdminHelp.jsx`:
+- New `email-system` Section between `notifications` and `email-logs`.
+- Sidebar TOC entry: **"Email system kill switch"** (icon: Pause).
+- Covers: when to flip OFF (quota burn / QA noise), what happens while
+  paused (queues to in-app notifications), always-on kinds (password
+  reset bypasses), per-user opt-out independence, test-domain
+  suppression via `utils/email_suppression.py`, and the
+  `PUT /admin/feature-flags` backend endpoint.
+
+**Verification**: Logged in as the seeded tester promoted temporarily to
+`is_admin=true`, captured `/admin/help` screenshot showing the rendered
+section with all six bullets. Admin flag reverted to `false` post-test.
+
+
 
 ## 2026-06-20 (email-system-card) — Admin master switch card ✅
 

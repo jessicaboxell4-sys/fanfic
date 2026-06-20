@@ -27,6 +27,7 @@ const SECTIONS = [
   { id: "antivirus",        label: "Antivirus & quarantine",  icon: ShieldAlert },
   { id: "feedback",         label: "Feedback inbox + attachments", icon: MessageSquare },
   { id: "notifications",    label: "Operator digest + cron",  icon: Bell },
+  { id: "email-system",     label: "Email system kill switch", icon: Pause },
   { id: "email-logs",       label: "Email logs & retry",      icon: Mail },
   { id: "bookclubs",        label: "Book-club moderation",    icon: Users },
   { id: "unknown-sources",  label: "Unknown sources triage",  icon: Eye },
@@ -205,6 +206,18 @@ export default function AdminHelp() {
               <li><strong>Preview</strong>: <code>GET /admin/operator-digest</code> renders today&apos;s digest without sending.</li>
               <li><strong>Cron status card</strong>: shows next-run timestamps for every scheduled job (digest, AV rescan sweep, R2 backfill tick, storage backfill tick, account-grace cleanup).</li>
               <li><strong>Cron alerts</strong>: if a job hasn&apos;t run within its expected window, the card flashes an &quot;Overdue&quot; badge.</li>
+            </ul>
+          </Section>
+
+          <Section id="email-system" icon={Pause} title="Email system kill switch">
+            <p>Added 2026-06-20 as a one-click counterpart to the buried <code>outbound_emails_enabled</code> feature flag. Lives on the <Link to="/admin" className="text-[#6B46C1] underline">/admin</Link> console as the <em>Email system</em> card with a big ON/PAUSED pill.</p>
+            <ul>
+              <li><strong>When to flip OFF</strong>: Resend quota burn (free tier is 100 emails/day), domain mis-config, or noisy QA runs spamming real inboxes. Toggling pauses ALL outbound mail in under 5 seconds.</li>
+              <li><strong>What happens while paused</strong>: every queued email (approval, suggestion status, year-in-books, weekly digest, etc.) flips to an in-app notification instead. Users still see the message next time they open Shelfsort.</li>
+              <li><strong>Always-on kinds</strong>: security-critical mail (password reset, email-change confirmation) bypasses the switch and still sends — this is intentional so locked-out users can recover.</li>
+              <li><strong>Per-user opt-outs are independent</strong>: each user has their own opt-out list at <Link to="/account/emails" className="text-[#6B46C1] underline">/account/emails</Link> → <em>Account updates</em>. Those settings are honoured regardless of the master switch.</li>
+              <li><strong>Test-domain suppression</strong>: <code>backend/utils/email_suppression.py</code> ALWAYS blocks Resend calls to test patterns (<code>@test.local</code>, <code>@example.*</code>, <code>@e.com</code>, <code>@t.com</code>, prefixes like <code>test_</code>, <code>qa_</code>, <code>fixture_</code>, etc.). This runs even when the master switch is ON, so QA fixtures can never burn quota.</li>
+              <li><strong>Backend endpoint</strong>: <code>PUT /admin/feature-flags</code> with body <code>{`{flag: "outbound_emails_enabled", enabled: false}`}</code>.</li>
             </ul>
           </Section>
 
