@@ -43,6 +43,14 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def on_startup():
+    # Install the email suppression layer FIRST so any startup hook
+    # that might fire an email (digest backfill, etc.) routes through
+    # the test-recipient + outbound-pause gates.
+    try:
+        from utils.email_suppression import install as _install_email_guards
+        _install_email_guards()
+    except Exception as e:
+        logger.warning(f"email_suppression install failed: {e}")
     try:
         await db.users.create_index("email", unique=True)
         await db.user_sessions.create_index("session_token", unique=True)

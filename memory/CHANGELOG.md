@@ -8,6 +8,71 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-20 (email-suppression) — Test-recipient skip + emergency outbound brake ✅
+
+Direct response to hitting the Resend 100/day quota: protect real
+quota from test traffic AND give the admin a one-click emergency
+brake that keeps users informed via in-app notifications.
+
+**Single monkey-patch at startup** — `utils/email_suppression.py`
+wraps ``resend.Emails.send`` with two gates:
+
+  1. **Test-recipient gate** — if the recipient matches the existing
+     ``is_test_account()`` patterns (``@example.*``, ``@ft.local``,
+     ``@bulkfx.*``, ``test_*@*``, etc.), the email is short-circuited.
+     A row is still written to ``email_logs`` with
+     ``status="suppressed", suppress_reason="test_recipient"`` so the
+     admin email-logs page shows what would-have-been-sent.
+     Stops every pytest run + bulk-fixture script from eating real
+     Resend quota again.
+
+  2. **Outbound-pause gate** — when the centralised feature flag
+     ``outbound_emails_enabled`` is set to False, every real-domain
+     email is suppressed too AND a matching ``notifications`` row
+     is inserted for the user (when we can resolve them by email).
+     Toast-style in-app fallback: title = original email subject,
+     body = "Heads-up: an email we'd normally send was paused…".
+     Activate the brake from `/admin` → Feature flags → toggle
+     ``outbound_emails_enabled`` to **Disabled**.
+
+**Why a monkey-patch instead of refactoring 10+ call sites**: every
+Resend send in this codebase already goes through ``resend.Emails.send``
+inside ``asyncio.to_thread(...)``. Patching once at startup means the
+two gates apply universally without touching the call sites that
+matter (auth, digest, suggestion-status, year-in-books, admin-test,
+cron-failure-alerts).
+
+**Implementation notes**:
+- Uses a dedicated synchronous ``pymongo.MongoClient`` (max pool 4)
+  because the patched function runs in a worker thread.  Tiny indexed
+  lookups; no event-loop juggling.
+- Imports ``deps`` defensively so `load_dotenv()` fires before the
+  first sync Mongo call (needed when pytest imports the suppression
+  module directly).
+- Feature flag added to ``utils/feature_flags.KNOWN_FLAGS`` so the
+  existing Feature flags admin card surfaces a toggle automatically —
+  zero new admin UI needed.
+
+**Tests** — `tests/test_email_suppression.py` (+5 cases):
+- Test recipient (``@example.com``) → suppressed + log row + no
+  Resend call
+- Test local-part (``test_xxx@real-domain``) → also suppressed
+- Real recipient with flag ON → original ``_ORIGINAL_SEND`` is called
+- Flag OFF + real user → suppressed + ``notifications`` row inserted
+  for that user
+- Flag OFF + unknown email → suppressed + no notification (silent
+  no-op, defensive)
+All 5 passing.  53/53 tests green across today's full suite.
+
+**Screenshot verified**: `/admin` → "flags" filter → Feature flags
+card now shows ``outbound_emails_enabled — Send real emails via
+Resend (turn OFF to suppress all outbound and queue in-app
+notifications instead — Resend quota brake) — Enabled``.
+
+---
+
+
+
 ## 2026-06-20 (deploy-comms) — Auto-detect deploys, notify users ✅
 
 Three complementary pieces so users always know when a deploy is

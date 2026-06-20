@@ -21,6 +21,7 @@ KNOWN_FLAGS: Dict[str, str] = {
     "fichub_enabled":       "Fetch fic metadata + chapters via FicHub / FanFicFare",
     "calibre_convert_enabled": "Auto-convert PDF / MOBI / DOCX uploads via Calibre",
     "cron_failure_alerts":  "Email all admins when a scheduled job fails (debounced, 60 min/job)",
+    "outbound_emails_enabled": "Send real emails via Resend (turn OFF to suppress all outbound and queue in-app notifications instead — Resend quota brake)",
 }
 
 DEFAULT_FLAGS: Dict[str, bool] = {k: True for k in KNOWN_FLAGS}
