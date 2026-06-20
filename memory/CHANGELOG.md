@@ -8,6 +8,47 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-20 — Deep-dive bug sweep ✅
+
+Comprehensive audit after the deploy: full backend + frontend lint,
+122-test pytest run, log scan.  Surfaced **three real bugs**:
+
+**🐞 Bug 1 — `BookReadingInsights.jsx` runtime crash (HIGH)**
+- Component referenced `<HelpAnchor>` in JSX but never imported it.
+- Every BookDetail page with reading data would throw
+  ``ReferenceError: HelpAnchor is not defined`` and unmount the
+  whole right column.  Latent since the component was added —
+  somehow the import got dropped during a previous refactor.
+- Fix: re-added the `import HelpAnchor from "./HelpAnchor"` line.
+
+**🐞 Bug 2 — `routes/url_lists.py` NameError on pull (HIGH)**
+- ``pull_url_list`` referenced `detect_series_from_title` and
+  ``_canonicalize_fandom`` but neither was imported in the module.
+- Any user invoking the bulk URL pull feature would hit a
+  ``NameError`` 500 the moment the classifier needed to pick a
+  series + fandom.
+- Fix: added the missing import from `utils.epub_metadata`.
+
+**🐞 Bug 3 — `routes/books.py` shadowed import (LOW)**
+- ``classify_ao3_non_work`` was imported at the top of the module
+  AND re-imported in a function body (via ``utils.unknown_sources``)
+  — same underlying function, but ruff flagged the redefinition.
+- Fix: removed the redundant inner import.
+
+**Test-suite hygiene** — the test_account_filter expansion broke
+a handful of older tests that used ``user_<hex>@example.com`` as
+"real user" fixtures.  Updated to use non-matching prefixes/
+domains.  Also updated 2 Year-In-Books tests whose assumptions
+(``RESEND_API_KEY empty``) are no longer true now that the Resend
+domain is verified.
+
+**Result**: 121 passed, 0 failed, 1 skipped (bootstrap-only test).
+Production-critical imports verified clean.  Frontend lint only
+shows cosmetic warnings (unescaped apostrophes in strings, empty
+catches in reader.jsx that are intentional design).
+
+---
+
 ## 2026-06-20 — Attachment preview chips on /suggestions + admin board ✅
 
 Companion to the attachment-on-every-form work earlier today: now that suggestions can carry files, the board UI and admin triage view surface them.

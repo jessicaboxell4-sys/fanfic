@@ -30,7 +30,11 @@ def admin_session():
 
 def _seed(referral, approved, last_login_iso, with_book):
     db = MongoClient(os.environ["MONGO_URL"])[os.environ["DB_NAME"]]
-    uid = f"user_campfx_{uuid.uuid4().hex[:10]}"
+    # 2026-06-20 — drop the ``user_`` prefix so the seed isn't caught
+    # by the broadened test_account_filter (it now treats every
+    # ``user_*`` local part as a fixture).  ``campfx_*`` is unique
+    # enough to clean up.
+    uid = f"campfx_{uuid.uuid4().hex[:10]}"
     doc = {
         "user_id": uid,
         "email": f"{uid}@campfx.zzz",  # NOT a test domain

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { BookOpen, Zap, Users, Repeat, Hourglass } from "lucide-react";
+import HelpAnchor from "./HelpAnchor";
 
 /**
  * Three-pill strip on BookDetail surfacing the new heatmap signals:

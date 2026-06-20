@@ -54,9 +54,11 @@ def _seed_pending(count: int, referral: str | None) -> list[str]:
     docs = []
     now = datetime.now(timezone.utc).isoformat()
     for _ in range(count):
-        uid = f"user_bulkfx_{uuid.uuid4().hex[:10]}"
+        uid = f"bulkfx_{uuid.uuid4().hex[:10]}"
         ids.append(uid)
         # NOT a test domain — ``@bulkfx.zzz`` avoids the test_account_filter.
+        # Also avoid the ``user_`` prefix (added to the filter on
+        # 2026-06-20) by using a bare ``bulkfx_`` prefix.
         doc = {
             "user_id": uid,
             "email": f"{uid}@bulkfx.zzz",

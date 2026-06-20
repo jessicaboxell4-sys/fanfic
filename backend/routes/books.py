@@ -3864,7 +3864,6 @@ async def add_unknown_source_manual(
 
     from utils.unknown_sources import (
         record_unknown_sources, _host_of, normalize_fanfic_url,
-        classify_ao3_non_work,
     )
 
     # Already-accepted shortcut so the UI can tell the user "no need to

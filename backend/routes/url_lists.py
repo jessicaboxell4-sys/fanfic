@@ -41,6 +41,10 @@ from routes.books import (
     format_links_txt,
     normalize_fanfic_url,
 )
+from utils.epub_metadata import (
+    _canonicalize_fandom,
+    detect_series_from_title,
+)
 
 
 # ---------------------------------------------------------------------------
