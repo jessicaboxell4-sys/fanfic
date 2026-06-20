@@ -2,6 +2,33 @@
 
 > Active backlog. Items move to [CHANGELOG.md](./CHANGELOG.md) when shipped.
 
+## ⏰ Parked reminders — bring up next session
+
+(Parked 2026-06-20 — user said "remind later for all" on Iter 32 wrap-up.)
+
+- **R2 "$ saved this month" line** on the admin R2 dashboard — compare
+  the Emergent traffic from the last billing window vs near-zero R2
+  hits projected for next month.  Quick win + motivating to see the
+  migration ROI in real numbers.  Implementation sketch: pull last
+  Emergent usage from the existing storage dashboard logs, multiply by
+  Emergent's posted GB rate, subtract projected R2 GB-month cost from
+  the migration_progress total.  Render as a small line under the
+  "Migration complete · 100% on R2" banner.
+- **Open `/admin`, expand R2 migration card, click "Pause Emergent
+  fallback"** — manual user action, no agent work needed.  The toggle
+  is pausable, persists across pod restarts, audit-logged. Surface
+  this nudge again next time the user opens /admin.
+- **Rotate the Emergent API key** — final cutover step.  Recommended
+  after ~1 week of clean reads with the fallback paused.  The key
+  lives in backend/.env as `EMERGENT_LLM_KEY` (used by both Object
+  Storage and the AI services).  Two phases: (1) confirm no fallback
+  reads in storage logs for the past 7 days, (2) rotate the key in
+  Emergent's dashboard and update `backend/.env`.
+- **Reader DNA share-as-PNG card** (1080×1080) via nano-banana — turn
+  the new `/api/insights/reader-dna` payload into an Instagram-story-
+  ready PNG.  User said "ask later" — bring up alongside Year-In-Books
+  share work.
+
 
 ## P2 — parked, ready to ship anytime
 
