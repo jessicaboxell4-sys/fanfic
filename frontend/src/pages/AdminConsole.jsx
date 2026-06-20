@@ -9,6 +9,7 @@ import {
   Check, ChevronRight, ChevronDown, Download, AlertOctagon, RotateCcw, Send,
   Mail, MessageSquare, Clock, CircleAlert, Route as RouteIcon, Search,
   Inbox, Database, Siren, HardDrive, TrendingUp, Eye, BookOpen, Sparkles, ShieldAlert, FlaskConical,
+  Paperclip,
 } from "lucide-react";
 import MongoInspectorCard from "../components/MongoInspectorCard";
 import ModerationLogCard from "../components/ModerationLogCard";
@@ -606,6 +607,15 @@ function FeedbackInboxCard() {
                       <span className={`text-xs font-bold uppercase tracking-[0.15em] ${c.fg}`}>{c.label}</span>
                       {statusBadge(it.status)}
                       <span className="text-xs text-[#6B705C]">· {it.votes_count} vote{it.votes_count === 1 ? "" : "s"}</span>
+                      {it.has_attachment && (
+                        <span
+                          className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#6B46C1] bg-[#EEE9FB] border border-[#6B46C1]/30 rounded-full px-2 py-0.5"
+                          data-testid={`feedback-attachment-badge-${it.suggestion_id}`}
+                          title={`Has attachment: ${it.attachment_name || ""}`}
+                        >
+                          <Paperclip className="w-2.5 h-2.5" /> file
+                        </span>
+                      )}
                     </div>
                     <p className="font-medium text-[#2C2C2C] mt-1">{it.title}</p>
                     <p className="text-xs text-[#6B705C] mt-0.5">
@@ -626,6 +636,28 @@ function FeedbackInboxCard() {
                       <p className="text-sm text-[#2C2C2C] whitespace-pre-wrap mb-3">{it.body}</p>
                     ) : (
                       <p className="text-sm text-[#6B705C] italic mb-3">No description.</p>
+                    )}
+                    {it.has_attachment && (
+                      <div className="mb-3" data-testid={`feedback-attachment-${it.suggestion_id}`}>
+                        <a
+                          href={`${process.env.REACT_APP_BACKEND_URL}/api/suggestions/${it.suggestion_id}/attachment`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 text-xs text-[#6B46C1] bg-white border border-[#E5DDC5] rounded-full px-2.5 py-1 hover:border-[#6B46C1]"
+                          data-testid={`feedback-attachment-open-${it.suggestion_id}`}
+                          title={it.attachment_name || "attachment"}
+                        >
+                          <Paperclip className="w-3 h-3" />
+                          <span className="truncate max-w-[22ch]">{it.attachment_name || "attachment"}</span>
+                          {it.attachment_size ? (
+                            <span className="text-[10px] text-[#6B705C]">
+                              {it.attachment_size < 1024 * 1024
+                                ? `${Math.round(it.attachment_size / 1024)} KB`
+                                : `${(it.attachment_size / 1024 / 1024).toFixed(1)} MB`}
+                            </span>
+                          ) : null}
+                        </a>
+                      </div>
                     )}
                     <div className="flex flex-wrap items-center gap-1.5">
                       {["under_review", "planned", "done", "declined", "open"]

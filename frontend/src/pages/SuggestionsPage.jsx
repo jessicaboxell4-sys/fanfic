@@ -44,6 +44,103 @@ function CategoryIcon({ category }) {
   return <Icon className="w-3.5 h-3.5" style={{ color: c.color }} title={c.label} />;
 }
 
+/**
+ * Inline attachment indicator + preview toggle for a suggestion row.
+ *
+ * Renders a clickable chip ( 📎 filename · 47 KB ).  Clicking once
+ * fetches the bytes from /api/suggestions/{sid}/attachment with the
+ * caller's session and inlines a preview:
+ *   - Image MIME → <img> thumbnail (max-height 240px)
+ *   - PDF MIME   → <embed> mini viewer (max-height 480px)
+ *   - Anything else → "Download" link styled the same as the chip
+ * Clicking the chip again collapses the preview.  The bytes are
+ * fetched lazily — the list response only carries metadata, so
+ * scrolling past a suggestion with a 9 MB file doesn't slow the
+ * board.
+ */
+function SuggestionAttachmentChip({ sid, name, mime, size }) {
+  const [open, setOpen] = useState(false);
+  const [url, setUrl] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const isImage = (mime || "").startsWith("image/");
+  const isPdf = (mime || "").includes("pdf");
+
+  const toggle = async () => {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    if (!url) {
+      setLoading(true);
+      try {
+        const res = await api.get(`/suggestions/${sid}/attachment`, {
+          responseType: "blob",
+        });
+        setUrl(URL.createObjectURL(res.data));
+      } catch (e) {
+        toast.error("Couldn't fetch attachment");
+        setLoading(false);
+        return;
+      }
+      setLoading(false);
+    }
+    setOpen(true);
+  };
+
+  return (
+    <div className="mb-1" data-testid={`suggestion-attachment-${sid}`}>
+      <button
+        type="button"
+        onClick={toggle}
+        data-testid={`suggestion-attachment-toggle-${sid}`}
+        className="inline-flex items-center gap-1.5 text-[11px] text-[#6B705C] bg-[#FBFAF6] border border-[#E5DDC5] rounded-full px-2.5 py-1 hover:border-[var(--primary)] hover:text-[var(--primary)] transition-colors"
+        title={`${name || "attachment"} · click to ${open ? "hide" : "preview"}`}
+      >
+        <Paperclip className="w-3 h-3" />
+        <span className="truncate max-w-[24ch]">{name || "attachment"}</span>
+        {size ? (
+          <span className="text-[10px] text-[#6B705C]">
+            {size < 1024 * 1024
+              ? `${Math.round(size / 1024)} KB`
+              : `${(size / 1024 / 1024).toFixed(1)} MB`}
+          </span>
+        ) : null}
+        {loading && <Loader2 className="w-3 h-3 animate-spin" />}
+      </button>
+      {open && url && (
+        <div
+          className="mt-2 p-2 rounded-lg border border-[#E5DDC5] bg-[#FBFAF6]"
+          data-testid={`suggestion-attachment-preview-${sid}`}
+        >
+          {isImage ? (
+            <img
+              src={url}
+              alt={name || "attachment"}
+              className="max-h-60 rounded border border-[#E5DDC5]"
+            />
+          ) : isPdf ? (
+            <embed
+              src={url}
+              type="application/pdf"
+              className="w-full h-[480px] rounded border border-[#E5DDC5]"
+            />
+          ) : (
+            <a
+              href={url}
+              download={name || "attachment"}
+              className="text-xs text-[var(--primary)] hover:underline inline-flex items-center gap-1"
+              data-testid={`suggestion-attachment-download-${sid}`}
+            >
+              <Paperclip className="w-3 h-3" />
+              Download {name || "attachment"}
+            </a>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SuggestionsPage() {
   const { user } = useAuth();
   const isAdmin = !!user?.is_admin;
@@ -314,6 +411,14 @@ export default function SuggestionsPage() {
                     <StatusPill status={s.status} />
                   </div>
                   {s.body && <p className="text-xs text-[#4A4A4A] whitespace-pre-wrap mb-1">{s.body}</p>}
+                  {s.has_attachment && (
+                    <SuggestionAttachmentChip
+                      sid={s.suggestion_id}
+                      name={s.attachment_name}
+                      mime={s.attachment_mime}
+                      size={s.attachment_size}
+                    />
+                  )}
                   {s.admin_note && (
                     <p className="text-xs text-[#6B46C1] mt-1 p-2 rounded bg-[#EEF3EC] border-l-2 border-[#6B46C1]">
                       <strong>Admin note:</strong> {s.admin_note}

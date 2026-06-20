@@ -8,6 +8,24 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-20 — Attachment preview chips on /suggestions + admin board ✅
+
+Companion to the attachment-on-every-form work earlier today: now that suggestions can carry files, the board UI and admin triage view surface them.
+
+**`/suggestions` (public board)** — every row that has an attachment renders an inline `SuggestionAttachmentChip` (📎 filename · size). Click toggles a preview pane in-place:
+  - Image MIME → 240px-max thumbnail
+  - PDF MIME   → 480px embedded mini-viewer
+  - Anything else → Download link
+  Bytes are fetched lazily on first open (so a 9 MB attachment doesn't slow a 100-row board scroll).
+
+**`/admin` → Feedback inbox** — `FeedbackInboxCard` rows with an attachment now show:
+  - A small purple "📎 file" badge in the header for quick scanning of which rows have evidence
+  - A clickable chip with filename + size when the row is expanded, opening in a new tab (same-origin so the session cookie carries auth)
+
+**Backend** — already serialised `has_attachment`, `attachment_name`, `attachment_mime`, `attachment_size` in `_serialize()`; new `GET /suggestions/{sid}/attachment` route streams the bytes (submitter or admin only, 403 otherwise).
+
+---
+
 ## 2026-06-20 — Attachments on every suggestion surface ✅
 
 User reported the suggestion forms didn't show a way to attach a screenshot or file. Audit showed only the Help-page SuggestionBox supported attachments (images only, 5 MB) — the long-form `/suggestions` board and the Dashboard inline form were JSON-only.
