@@ -9,9 +9,10 @@ import {
   Filter, Heart, AlertTriangle, Settings, GitCompare, Bell, LineChart,
   Globe, Shield, CheckCircle2, Clock, FileWarning, User as UserIcon, X,
   MessageSquare, Search, ListChecks, AtSign, Target, Compass, Lightbulb,
+  Dna, Repeat, Command,
 } from "lucide-react";
 
-// Help guide — kept current with the app. Last updated: 2026-06-18.
+// Help guide — kept current with the app. Last updated: 2026-06-20.
 // When you add a feature, drop a new <Section> here; the sticky table
 // of contents builds itself from each section's `id`.
 
@@ -21,15 +22,17 @@ import {
 // deploy, POST to /api/announcements with a fresh `version` string.
 // `version` doubles as the per-user localStorage dismissal key.
 const FALLBACK_WHATS_NEW = {
-  version: "2026-06-18-antivirus-rules",
+  version: "2026-06-20-finished-similar-dna",
   title: "Fresh in Shelfsort",
   items: [
-    { to: "/account/safety", label: "Antivirus on every upload", desc: "— every file you add (and every cloud restore) is now scanned by ClamAV before it lands in your library. Visit your Library safety report to see counts + rescan on demand." },
-    { to: "/rules", label: "Community rules now live", desc: "— Shelfsort has a written code of conduct. No spam, no politics, no hate speech or bullying, no piracy promotion, respect IP, be kind. Skim it from the footer or the register checkbox." },
-    { to: "/account", label: "Cloud library mirror", desc: "— your EPUBs and covers are continuously mirrored to durable cloud storage so a server redeploy can't wipe them. Look for the green ✓ Shield-Check on your avatar — click it for a one-tap “Back up again” popover." },
-    { to: "/library/all", label: "Resume on another device", desc: "— start a fic on your laptop, pick it up on your phone. The yellow Resume pill on a book card means you have a fresh cloud cursor from a different device; tap it and the Reader opens at the exact CFI." },
-    { to: "/library", label: "Reading insights on every book", desc: "— BookDetail now surfaces three live pills: ↻ Re-read (if you keep coming back), ⚡ Pace (faster/slower than your usual %/hr), and ⌖ Cohort (you 45% · community 62%). All cohort-gated and opt-in." },
-    { to: "/explore/covers", label: "Community Covers — vote and remix", desc: "— browse, vote, and remix AI-generated covers shared by other Shelfsort readers. Public SEO-friendly cover pages with proper OG previews mean covers unfurl beautifully on Twitter / Discord / iMessage." },
+    { to: "/library/all", label: "Finished a book? Get a similar one", desc: "— hit ≥ 95 % on any book and the BookDetail page now shows up to six other titles from YOUR library that share the same fandom or author, prioritising the ones you haven't finished. Soft landing after the last page." },
+    { to: "/library/stats", label: "Reader DNA card on /stats", desc: "— a one-glance “what kind of reader am I?” panel: top 3 fandoms, fanfic-vs-original split bar, average book length in words, and Comfort reads — books you finished AND opened again in the last 30 days." },
+    { label: "Cmd / Ctrl + Shift + D toggles dark mode", desc: "— a global keyboard shortcut for instant light↔dark flip. Skips text inputs so it never clobbers your paste." },
+    { to: "/account/safety", label: "Antivirus rescan nudge", desc: "— a gentle banner appears if your last full library scan is more than 90 days old (or if you have unscanned books). One click runs a fresh sweep; one click dismisses it for the day." },
+    { to: "/", label: "Honest homepage counters", desc: "— the Landing page now shows books · readers · fandoms tiles, with test-account fixtures filtered out so the numbers reflect REAL people building libraries." },
+    { label: "Shared reader links skip the welcome tour", desc: "— following a /read/<book_id> link or a URL with ?from=share lands you straight in the Reader instead of popping the onboarding tour over your book." },
+    { to: "/account/safety", label: "Antivirus on every upload", desc: "— every file you add (and every cloud restore) is scanned by ClamAV before it lands in your library. Visit your Library safety report to see counts + rescan on demand." },
+    { to: "/rules", label: "Community rules", desc: "— Shelfsort has a written code of conduct. No spam, no politics, no hate speech or bullying, no piracy promotion, respect IP, be kind. Skim it from the footer or the register checkbox." },
   ],
 };
 const WHATS_NEW_KEY = "shelfsort.whatsNewDismissed";
@@ -60,6 +63,8 @@ const SECTIONS = [
   { id: "reading", label: "Reader & stats" },
   { id: "cross-device", label: "Cross-device reading sync" },
   { id: "reading-insights", label: "Reading insights (Re-read · Pace · Cohort)" },
+  { id: "similar-books", label: "Finished a book? Want a similar one" },
+  { id: "reader-dna", label: "Reader DNA & comfort reads" },
   { id: "year-in-books", label: "Year in Books (Wrapped recap)" },
   { id: "usernames", label: "Public usernames & @handles" },
   { id: "messages", label: "Messages & friends" },
@@ -70,6 +75,7 @@ const SECTIONS = [
   { id: "notifications", label: "Notifications & mutes" },
   { id: "push", label: "Web push notifications" },
   { id: "auto-theme", label: "Scheduled auto-theme" },
+  { id: "keyboard-shortcuts", label: "Keyboard shortcuts" },
   { id: "word-count", label: "Word count & reading time" },
   { id: "account", label: "Account & preferences" },
   { id: "operator-digest", label: "Operator weekly digest (admin)" },
@@ -721,6 +727,7 @@ export default function Help() {
                 <li><strong>What gets scanned</strong> — every book upload (EPUB, PDF, MOBI, AZW, TXT), every backup-ZIP restore, every photo attached to feedback, and every file restored back from cloud storage on download. The signature database is refreshed daily, so files that were clean yesterday can still be caught if a brand-new threat is published.</li>
                 <li><strong>Where to check your own report</strong> — <Link to="/account/safety">Account → Library safety report</Link>. Three live counters: clean, flagged, awaiting first scan. If anything has been flagged it&apos;s listed by filename + signature, with a timestamp.</li>
                 <li><strong>Rescan on demand</strong> — the same page has a one-tap <em>Rescan now</em> button that re-runs ClamAV across every book in your library (it pulls cloud-only files back to disk first, so the rescan is complete, not just a cache sweep). Capped at 500 books per run to keep the wait reasonable.</li>
+                <li><strong>90-day nudge banner</strong> — if it&apos;s been more than 90 days since your last full library scan (or you have unscanned books with no prior scan ever), a quiet banner appears at the top of every page with a single <em>Run scan</em> button. One click runs the rescan; one click dismisses the nudge for the day. Hidden once the report is fresh again.</li>
                 <li><strong>If a flagged file used to be clean</strong> — that&apos;s the normal &ldquo;new signature caught an old file&rdquo; case. The download endpoint rescans before serving the file, so a freshly-flagged book is blocked at the next download attempt. Your earlier downloads are not retroactively recalled — you should manually delete any local copies of a flagged file from your devices.</li>
                 <li><strong>What we never do</strong> — ClamAV only sees the file bytes; the result is &ldquo;clean&rdquo; or &ldquo;<em>signature name</em> FOUND&rdquo;. We don&apos;t share files with third-party AV services, we don&apos;t store hashes in any external registry, and your scan results are visible only to you (the admin antivirus dashboard sees aggregate quarantine entries, not your library contents).</li>
               </ul>
@@ -772,6 +779,26 @@ export default function Help() {
                 <li><strong>Books most likely to be finished</strong> — admins also see a leaderboard (`/api/books/most-finished-leaderboard`) of canonical titles sorted by community completion rate. Useful for picking the next book-club read.</li>
               </ul>
               <p className="text-xs text-[#6B705C]">Cohort insights respect your <em>Share reading data</em> setting under <Link to="/account#privacy">Account → Privacy</Link>. Switching it off both stops contributing to the cohort and stops receiving the cohort pill on your own books.</p>
+            </Section>
+
+            <Section id="similar-books" icon={Sparkles} title="Finished a book? Want a similar one">
+              <p>The moment you close a book is also the moment you&apos;re most likely to want another. The BookDetail page now ends with a soft strip — <em>&ldquo;Finished on this device. Want a similar one?&rdquo;</em> — pulling up to six other titles from <strong>your own library</strong> that share the seed book&apos;s fandom or author.</p>
+              <ul>
+                <li><strong>When it appears</strong>: only after the book is effectively done. Either your progress hit ≥ 95 %, or you tapped <em>Mark as finished</em>. Otherwise the strip stays out of your way.</li>
+                <li><strong>What it surfaces</strong>: library-local matches scored on fandom (×3) + author (×2) + whether it&apos;s still unfinished (+1) + recency. Unfinished books rise to the top because you&apos;ve already chosen to keep them — the strip is meant to re-surface, not recommend strangers.</li>
+                <li><strong>Why library-local</strong>: embedding-based community recs already live behind <Link to="/recommendations">Recommendations</Link>. The finished strip is for resurfacing things you&apos;ve forgotten you own. Stays silent when nothing matches.</li>
+              </ul>
+            </Section>
+
+            <Section id="reader-dna" icon={Dna} title="Reader DNA & comfort reads">
+              <p>Open <Link to="/library/stats">Reading stats</Link> and scroll past the category bars — there&apos;s a new <strong>Reader DNA</strong> card that summarises your reading make-up in one panel.</p>
+              <ul>
+                <li><strong>Top 3 fandoms</strong> by book count.</li>
+                <li><strong>Fanfic vs original split bar</strong> — the proportion of your library that&apos;s fanfic vs original work, rendered as a single coral/purple bar.</li>
+                <li><strong>Average book length</strong> in words, computed from each book&apos;s indexed word count (or a rough size-based estimate when missing).</li>
+                <li><strong>Comfort reads · last 30 days</strong> — books you&apos;ve finished AND re-opened a session for in the last month. The titles you keep coming back to without thinking about it.</li>
+              </ul>
+              <p className="text-xs text-[#6B705C]">One API round-trip (<code>/api/insights/reader-dna</code>). Silently hidden when your library is empty.</p>
             </Section>
 
             <Section id="year-in-books" icon={Sparkles} title="Year in Books (Wrapped recap)">
@@ -927,6 +954,16 @@ export default function Help() {
                 </li>
               </ul>
               <p className="text-xs text-[#6B705C]">Stored to localStorage only (per-browser).</p>
+            </Section>
+
+            <Section id="keyboard-shortcuts" icon={Command} title="Keyboard shortcuts">
+              <p>A handful of global shortcuts for power users. All listeners skip when you&apos;re typing in a text field so they never clobber your paste.</p>
+              <ul>
+                <li><kbd>Cmd</kbd> / <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>D</kbd> — toggle light ↔ dark theme instantly. Works on every page.</li>
+                <li><kbd>/</kbd> — focus the navbar quick-search. See <a href="#quick-search">Navbar quick-search</a> for what it searches.</li>
+                <li><kbd>Esc</kbd> — close any open modal, popover, or the Welcome tour overlay.</li>
+              </ul>
+              <p className="text-xs text-[#6B705C]">More shortcuts coming. Have a request? <Link to="#feedback">Send us feedback</Link>.</p>
             </Section>
 
             <Section id="word-count" icon={BookOpen} title="Word count & reading time">
