@@ -1,11 +1,12 @@
 import React, { useRef, useState } from "react";
-import { Lightbulb, Loader2, Send, Image as ImageIcon, X } from "lucide-react";
+import { Lightbulb, Loader2, Send, Paperclip, X } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../lib/api";
 
 /**
  * Help-page feedback form.  Captures free-text + an optional
- * screenshot.  POSTs as multipart/form-data to ``/api/feedback``.
+ * attachment (screenshot, PDF log, small zip — any file up to
+ * 10 MB).  POSTs as multipart/form-data to ``/api/feedback``.
  *
  *   <SuggestionBox source="help-page" />
  *
@@ -22,16 +23,18 @@ export default function SuggestionBox({ source = "help-page" }) {
   const onPhotoPick = (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
-    if (!f.type.startsWith("image/")) {
-      toast.error("Please pick an image file.");
-      return;
-    }
-    if (f.size > 5 * 1024 * 1024) {
-      toast.error("Image is larger than 5 MB.");
+    if (f.size > 10 * 1024 * 1024) {
+      toast.error("File is larger than 10 MB.");
       return;
     }
     setPhoto(f);
-    setPhotoPreview(URL.createObjectURL(f));
+    // Inline preview only for images; non-image files just show the
+    // filename chip so the user knows the attach worked.
+    if (f.type.startsWith("image/")) {
+      setPhotoPreview(URL.createObjectURL(f));
+    } else {
+      setPhotoPreview(null);
+    }
   };
 
   const clearPhoto = () => {
@@ -61,9 +64,11 @@ export default function SuggestionBox({ source = "help-page" }) {
     } catch (err) {
       const reason = err?.response?.data?.detail;
       if (reason === "photo_too_large") {
-        toast.error("That image is larger than 5 MB — try a smaller one.");
+        toast.error("That file is larger than 10 MB — try a smaller one.");
       } else if (reason === "not_an_image") {
-        toast.error("That file isn't an image — pick a PNG or JPEG.");
+        toast.error("That file type isn't supported here — try a different file.");
+      } else if (reason === "photo_unsafe") {
+        toast.error("Attachment didn't pass our antivirus check.");
       } else {
         toast.error("Couldn't send right now — try again in a minute.");
       }
@@ -82,7 +87,7 @@ export default function SuggestionBox({ source = "help-page" }) {
         <span className="font-semibold">Tell us what would make Shelfsort better</span>
       </p>
       <p className="text-xs text-[#6B705C] mb-3">
-        Bug, feature wish, confusion — anything goes. You can attach a screenshot.
+        Bug, feature wish, confusion — anything goes. You can attach a screenshot, PDF or any small file.
       </p>
       <textarea
         value={text}
@@ -99,17 +104,36 @@ export default function SuggestionBox({ source = "help-page" }) {
             className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[#6B705C] hover:text-[#E07A5F] cursor-pointer"
             data-testid="help-suggestion-photo-label"
           >
-            <ImageIcon className="w-3.5 h-3.5" />
-            {photo ? "Change image" : "Attach image"}
+            <Paperclip className="w-3.5 h-3.5" />
+            {photo ? "Change file" : "Attach file"}
             <input
               ref={fileRef}
               type="file"
-              accept="image/*"
               onChange={onPhotoPick}
               className="hidden"
               data-testid="help-suggestion-photo-input"
             />
           </label>
+          {photo && !photoPreview && (
+            <span
+              className="inline-flex items-center gap-1.5 text-xs text-[#2C2C2C] bg-[#FBFAF6] border border-[#E8E6E1] rounded-full pl-3 pr-1 py-1"
+              data-testid="help-suggestion-file-chip"
+              title={photo.name}
+            >
+              <span className="truncate max-w-[18ch]">{photo.name}</span>
+              <span className="text-[10px] text-[#6B705C]">
+                {(photo.size / 1024).toFixed(0)} KB
+              </span>
+              <button
+                type="button"
+                onClick={clearPhoto}
+                aria-label="Remove attachment"
+                className="w-5 h-5 rounded-full hover:bg-white flex items-center justify-center text-[#6B705C] hover:text-[#E07A5F]"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
           {photoPreview && (
             <div className="relative" data-testid="help-suggestion-photo-preview">
               <img src={photoPreview} alt="attachment" className="w-16 h-16 object-cover rounded-md border border-[#E8E6E1]" />

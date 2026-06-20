@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
 import { toast } from "sonner";
-import { Sparkles, Lightbulb, Bug, Send, ArrowRight, Loader2 } from "lucide-react";
+import { Sparkles, Lightbulb, Bug, Send, ArrowRight, Loader2, Paperclip, X } from "lucide-react";
 
 /**
  * Compact "Suggestions" box on the welcome dashboard.
@@ -24,6 +24,7 @@ export default function DashboardSuggestionsBox() {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [category, setCategory] = useState("feature");
+  const [attachment, setAttachment] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [lastSent, setLastSent] = useState(null);
 
@@ -32,17 +33,30 @@ export default function DashboardSuggestionsBox() {
     if (!title.trim() || submitting) return;
     setSubmitting(true);
     try {
-      const { data } = await api.post("/suggestions", {
-        title: title.trim(),
-        body: body.trim(),
-        category,
+      // Multipart so the optional attachment (screenshot, PDF, small
+      // zip up to 10 MB) rides along with the title/body.
+      const fd = new FormData();
+      fd.append("title", title.trim());
+      fd.append("body", body.trim());
+      fd.append("category", category);
+      if (attachment) fd.append("attachment", attachment);
+      const { data } = await api.post("/suggestions", fd, {
+        headers: { "Content-Type": "multipart/form-data" },
       });
       setLastSent({ id: data?.id || null, title: title.trim() });
       setTitle("");
       setBody("");
+      setAttachment(null);
       toast.success("Thanks — your suggestion's in.");
     } catch (err) {
-      toast.error(err?.response?.data?.detail || "Couldn't submit. Try the full board.");
+      const reason = err?.response?.data?.detail;
+      if (reason === "attachment_too_large") {
+        toast.error("Attachment is larger than 10 MB — try a smaller file.");
+      } else if (reason === "attachment_unsafe") {
+        toast.error("Attachment didn't pass our antivirus check.");
+      } else {
+        toast.error(reason || "Couldn't submit. Try the full board.");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -108,6 +122,49 @@ export default function DashboardSuggestionsBox() {
               </button>
             );
           })}
+        </div>
+        {/* Attachment row — optional screenshot / PDF / log up to 10 MB. */}
+        <div className="flex flex-wrap items-center gap-2" data-testid="dashboard-suggestion-attachment-row">
+          <label
+            className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[#6B705C] hover:text-[#6B46C1] cursor-pointer"
+            data-testid="dashboard-suggestion-attachment-label"
+          >
+            <Paperclip className="w-3.5 h-3.5" />
+            {attachment ? "Change file" : "Attach screenshot or file"}
+            <input
+              type="file"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (!f) return;
+                if (f.size > 10 * 1024 * 1024) {
+                  toast.error("File is larger than 10 MB — try a smaller one.");
+                  return;
+                }
+                setAttachment(f);
+              }}
+              className="hidden"
+              data-testid="dashboard-suggestion-attachment-input"
+            />
+          </label>
+          {attachment && (
+            <span
+              className="inline-flex items-center gap-1.5 text-xs text-[#2C2C2C] bg-white border border-[#E8E6E1] rounded-full pl-3 pr-1 py-0.5"
+              data-testid="dashboard-suggestion-attachment-chip"
+              title={attachment.name}
+            >
+              <span className="truncate max-w-[18ch]">{attachment.name}</span>
+              <button
+                type="button"
+                onClick={() => setAttachment(null)}
+                aria-label="Remove attachment"
+                data-testid="dashboard-suggestion-attachment-remove"
+                className="w-5 h-5 rounded-full hover:bg-[#FBFAF6] flex items-center justify-center text-[#6B705C] hover:text-[#6B46C1]"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+          <span className="text-[10px] text-[#6B705C] ml-auto">Max 10 MB · any file</span>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
           <Link

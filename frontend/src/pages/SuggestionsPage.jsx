@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import {
   ArrowLeft, MessageSquare, Lightbulb, Bug, Sparkles, ChevronUp, Loader2,
-  Trash2, ShieldCheck as ShieldCheckIcon, Send,
+  Trash2, ShieldCheck as ShieldCheckIcon, Send, Paperclip, X,
 } from "lucide-react";
 import Navbar from "../components/Navbar";
 import { api } from "../lib/api";
@@ -56,6 +56,7 @@ export default function SuggestionsPage() {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [category, setCategory] = useState("feature");
+  const [attachment, setAttachment] = useState(null);   // File | null
   const [submitting, setSubmitting] = useState(false);
 
   const load = async () => {
@@ -81,12 +82,29 @@ export default function SuggestionsPage() {
     }
     setSubmitting(true);
     try {
-      await api.post("/suggestions", { title: title.trim(), body: body.trim(), category });
+      // Multipart so attachments (image / PDF / log / small zip up
+      // to 10 MB) can ride along with the title + body.
+      const fd = new FormData();
+      fd.append("title", title.trim());
+      fd.append("body", body.trim());
+      fd.append("category", category);
+      if (attachment) fd.append("attachment", attachment);
+      await api.post("/suggestions", fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
       toast.success("Suggestion submitted — thanks!");
       setTitle(""); setBody(""); setCategory("feature");
+      setAttachment(null);
       await load();
     } catch (e) {
-      toast.error(e?.response?.data?.detail || "Couldn't submit");
+      const reason = e?.response?.data?.detail;
+      if (reason === "attachment_too_large") {
+        toast.error("Attachment is larger than 10 MB — try a smaller file.");
+      } else if (reason === "attachment_unsafe") {
+        toast.error("Attachment didn't pass our antivirus check.");
+      } else {
+        toast.error(reason || "Couldn't submit");
+      }
     } finally { setSubmitting(false); }
   };
 
@@ -163,6 +181,57 @@ export default function SuggestionsPage() {
             rows={3}
             className="w-full text-sm px-3 py-2 rounded-lg border border-[#E5DDC5] bg-white mb-2 focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/30 resize-none"
           />
+          {/* Attachment picker — optional, up to 10 MB.  Any file type
+              accepted; the backend AV-scans every upload.  Most folks
+              attach a screenshot, but a PDF log dump or small zip
+              works too. */}
+          <div className="flex items-center gap-3 mb-2" data-testid="suggestions-attachment-row">
+            <label
+              className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[#6B705C] hover:text-[var(--primary)] cursor-pointer"
+              data-testid="suggestions-attachment-label"
+            >
+              <Paperclip className="w-3.5 h-3.5" />
+              {attachment ? "Change attachment" : "Attach screenshot or file"}
+              <input
+                type="file"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (!f) return;
+                  if (f.size > 10 * 1024 * 1024) {
+                    toast.error("File is larger than 10 MB — try a smaller one.");
+                    return;
+                  }
+                  setAttachment(f);
+                }}
+                className="hidden"
+                data-testid="suggestions-attachment-input"
+              />
+            </label>
+            {attachment && (
+              <span
+                className="inline-flex items-center gap-1.5 text-xs text-[#2C2C2C] bg-[#FBFAF6] border border-[#E5DDC5] rounded-full pl-3 pr-1 py-1"
+                data-testid="suggestions-attachment-chip"
+                title={attachment.name}
+              >
+                <span className="truncate max-w-[18ch]">{attachment.name}</span>
+                <span className="text-[10px] text-[#6B705C]">
+                  {(attachment.size / 1024).toFixed(0)} KB
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setAttachment(null)}
+                  aria-label="Remove attachment"
+                  data-testid="suggestions-attachment-remove"
+                  className="w-5 h-5 rounded-full hover:bg-white flex items-center justify-center text-[#6B705C] hover:text-[var(--primary)]"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            <span className="text-[10px] text-[#6B705C] ml-auto">
+              Max 10 MB · any file
+            </span>
+          </div>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-1" data-testid="suggestions-category-picker">
               {CATEGORIES.map((c) => {

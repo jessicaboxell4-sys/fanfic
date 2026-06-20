@@ -14,12 +14,13 @@ Admins can:
 Categories: bug, improvement, feature.
 """
 import uuid
+import base64
 import asyncio
 from datetime import datetime, timezone
 from typing import Optional, Literal, Dict, Any, List
 
 import resend
-from fastapi import Depends, HTTPException
+from fastapi import Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
 from deps import db, api_router, logger, RESEND_API_KEY, SENDER_EMAIL, FRONTEND_URL
@@ -33,11 +34,11 @@ from routes.notifications import create_notification
 CATEGORIES = ("bug", "improvement", "feature")
 STATUSES = ("open", "under_review", "planned", "done", "declined")
 
-
-class SuggestionCreate(BaseModel):
-    title: str = Field(..., min_length=3, max_length=120)
-    body: str = Field(default="", max_length=4000)
-    category: Literal["bug", "improvement", "feature"] = "feature"
+# Attachment limits — keeps Mongo doc size manageable AND covers the
+# common bug-report kit: screenshot (≤2 MB), small PDF / log dump
+# (≤10 MB), tiny .zip with a couple of artefacts.  Anything bigger
+# should go via the dedicated Resend support email instead.
+_MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
 
 
 class SuggestionUpdate(BaseModel):
@@ -61,6 +62,13 @@ def _serialize(doc: Dict[str, Any], me: Optional[str] = None) -> Dict[str, Any]:
         "is_mine": (doc["submitter_user_id"] == me) if me else False,
         "created_at": doc["created_at"].isoformat() if isinstance(doc.get("created_at"), datetime) else doc.get("created_at"),
         "updated_at": doc["updated_at"].isoformat() if isinstance(doc.get("updated_at"), datetime) else doc.get("updated_at"),
+        # Attachment metadata — bytes never leak in list responses; the
+        # admin board fetches them separately via the existing detail
+        # endpoint (which reads the same doc).
+        "attachment_name": doc.get("attachment_name"),
+        "attachment_mime": doc.get("attachment_mime"),
+        "attachment_size": doc.get("attachment_size"),
+        "has_attachment":  bool(doc.get("attachment_b64")),
     }
 
 
@@ -101,13 +109,28 @@ async def list_suggestions(
 
 
 @api_router.post("/suggestions")
-async def submit_suggestion(body: SuggestionCreate, user: User = Depends(get_current_user)):
+async def submit_suggestion(
+    title: str = Form(..., min_length=3, max_length=120),
+    body: str = Form(default="", max_length=4000),
+    category: Literal["bug", "improvement", "feature"] = Form("feature"),
+    attachment: Optional[UploadFile] = File(None),
+    user: User = Depends(get_current_user),
+):
+    """Create a new suggestion on the board.
+
+    Multipart form so bug-reporters can attach a screenshot, a small
+    PDF, a log file, or a tiny zip without leaving the form.  Cap at
+    10 MB — anything bigger should go via support email instead.
+
+    Attachments are antivirus-scanned (ClamAV) before being base64-
+    encoded into the doc so the admin board can preview them inline.
+    """
     now = datetime.now(timezone.utc)
-    doc = {
+    doc: Dict[str, Any] = {
         "suggestion_id": f"sug_{uuid.uuid4().hex[:12]}",
-        "title": body.title.strip(),
-        "body": body.body.strip(),
-        "category": body.category,
+        "title": title.strip(),
+        "body": body.strip(),
+        "category": category,
         "status": "open",
         "submitter_user_id": user.user_id,
         "submitter_name": user.name or (user.email or "").split("@")[0],
@@ -117,8 +140,68 @@ async def submit_suggestion(body: SuggestionCreate, user: User = Depends(get_cur
         "created_at": now,
         "updated_at": now,
     }
+
+    if attachment is not None:
+        raw = await attachment.read()
+        if not raw:
+            # Empty file picker = no attachment.  Don't fail, just skip.
+            pass
+        elif len(raw) > _MAX_ATTACHMENT_BYTES:
+            raise HTTPException(status_code=413, detail="attachment_too_large")
+        else:
+            # Antivirus pre-scan — same policy as /books/upload + /feedback.
+            from utils.antivirus import scan_bytes, record_quarantine
+            scan = await asyncio.to_thread(
+                scan_bytes, raw, hint_name=attachment.filename or "suggestion.bin",
+            )
+            if scan.get("infected"):
+                await record_quarantine(
+                    user_id=user.user_id,
+                    filename=attachment.filename or "",
+                    scan=scan,
+                    source="upload",
+                    extra={"endpoint": "suggestions", "size_bytes": len(raw)},
+                )
+                raise HTTPException(status_code=400, detail="attachment_unsafe")
+            doc["attachment_b64"]  = base64.b64encode(raw).decode()
+            doc["attachment_mime"] = attachment.content_type or "application/octet-stream"
+            doc["attachment_name"] = (attachment.filename or "attachment")[:200]
+            doc["attachment_size"] = len(raw)
+
     await db.suggestions.insert_one(doc)
     return _serialize(doc, user.user_id)
+
+
+@api_router.get("/suggestions/{sid}/attachment")
+async def download_suggestion_attachment(
+    sid: str,
+    user: User = Depends(get_current_user),
+):
+    """Stream the attachment for a suggestion.
+
+    Only the submitter or an admin can fetch the bytes — public
+    visibility on the board doesn't include the file (the list
+    response only exposes ``has_attachment`` metadata).
+    """
+    from fastapi.responses import Response
+    doc = await db.suggestions.find_one(
+        {"suggestion_id": sid},
+        {"_id": 0, "submitter_user_id": 1, "attachment_b64": 1,
+         "attachment_mime": 1, "attachment_name": 1},
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail="Suggestion not found")
+    if not user.is_admin and doc.get("submitter_user_id") != user.user_id:
+        raise HTTPException(status_code=403, detail="Not allowed to view attachment")
+    if not doc.get("attachment_b64"):
+        raise HTTPException(status_code=404, detail="No attachment on this suggestion")
+    raw = base64.b64decode(doc["attachment_b64"])
+    fn = doc.get("attachment_name") or "attachment"
+    return Response(
+        content=raw,
+        media_type=doc.get("attachment_mime") or "application/octet-stream",
+        headers={"Content-Disposition": f'inline; filename="{fn}"'},
+    )
 
 
 @api_router.post("/suggestions/{sid}/vote")

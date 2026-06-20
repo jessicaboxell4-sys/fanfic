@@ -39,13 +39,11 @@ async def submit_suggestion(
     photo_mime: Optional[str] = None
     if photo is not None:
         raw = await photo.read()
-        if len(raw) > 5 * 1024 * 1024:
+        if len(raw) > 10 * 1024 * 1024:
             # 413 so the client knows to keep the form populated and surface
             # a size-specific toast — returning 200 made the client clear the
             # form as if the submission succeeded.
             raise HTTPException(status_code=413, detail="photo_too_large")
-        if raw and not (photo.content_type or "").startswith("image/"):
-            raise HTTPException(status_code=400, detail="not_an_image")
         if raw:
             # Antivirus pre-scan — same policy as /books/upload (2026-06-18).
             # Disguised executables sometimes ride in as image/jpeg, so we

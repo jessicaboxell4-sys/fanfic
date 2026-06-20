@@ -8,6 +8,24 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-20 — Attachments on every suggestion surface ✅
+
+User reported the suggestion forms didn't show a way to attach a screenshot or file. Audit showed only the Help-page SuggestionBox supported attachments (images only, 5 MB) — the long-form `/suggestions` board and the Dashboard inline form were JSON-only.
+
+**Backend**:
+- `routes/suggestions.py::submit_suggestion` switched from JSON to multipart. Optional `attachment: UploadFile` accepted up to 10 MB, ANY file type. ClamAV-scanned before base64-encoded into the doc (same policy as `/feedback`).
+- New `GET /suggestions/{sid}/attachment` endpoint streams the file back to the submitter or any admin (with proper Content-Disposition inline header).
+- `routes/suggestions_box.py::submit_suggestion` (the Help-page `/feedback` endpoint): size cap bumped 5 MB → 10 MB and the image-only MIME check removed. Same AV pipeline.
+
+**Frontend** — three surfaces updated with a unified Paperclip picker + filename chip + remove button + "Max 10 MB · any file" hint:
+- `pages/SuggestionsPage.jsx` (used by footer "Suggestions" link AND navbar "Suggestions & feedback" item)
+- `components/DashboardSuggestionsBox.jsx` (Dashboard inline form)
+- `components/SuggestionBox.jsx` (Help page; image preview retained when an image is picked, filename chip for everything else)
+
+**Verified**: PDF upload → store → re-download identical bytes via curl. Too-large file returns HTTP 413 + `attachment_too_large` toast. Live on preview — `/suggestions` page shows the new "Attach screenshot or file" label.
+
+---
+
 ## 2026-06-20 — Approval-status flip for legacy test fixtures ✅
 
 User reported 21 test-fixture emails still rendering with a
