@@ -37,24 +37,24 @@ def seed():
 def alice_suggestion():
     r = requests.post(
         f"{BASE}/api/suggestions",
-        json={"title": "Add dark mode reader skin", "body": "Easy on the eyes at night.", "category": "improvement"},
+        data={"title": "Add dark mode reader skin", "body": "Easy on the eyes at night.", "category": "improvement"},
         headers=H(ALICE),
     )
-    assert r.status_code == 200
+    assert r.status_code == 200, r.text
     yield r.json()["suggestion_id"]
 
 
 class TestSubmit:
     def test_unauth(self):
-        r = requests.post(f"{BASE}/api/suggestions", json={"title": "x", "body": "y"})
+        r = requests.post(f"{BASE}/api/suggestions", data={"title": "x", "body": "y"})
         assert r.status_code == 401
 
     def test_title_required(self):
-        r = requests.post(f"{BASE}/api/suggestions", json={"body": "no title"}, headers=H(ALICE))
+        r = requests.post(f"{BASE}/api/suggestions", data={"body": "no title"}, headers=H(ALICE))
         assert r.status_code == 422
 
     def test_invalid_category_422(self):
-        r = requests.post(f"{BASE}/api/suggestions", json={"title": "abc", "body": "", "category": "wishlist"}, headers=H(ALICE))
+        r = requests.post(f"{BASE}/api/suggestions", data={"title": "abc", "body": "", "category": "wishlist"}, headers=H(ALICE))
         assert r.status_code == 422
 
     def test_submit_creates_with_auto_vote(self, alice_suggestion):
@@ -115,7 +115,7 @@ class TestSelfDelete:
     def test_alice_deletes_own(self):
         c = requests.post(
             f"{BASE}/api/suggestions",
-            json={"title": "Goner", "category": "bug"},
+            data={"title": "Goner", "category": "bug"},
             headers=H(ALICE),
         )
         sid = c.json()["suggestion_id"]
@@ -146,7 +146,7 @@ class TestAdmin:
         # Submit one fresh and ensure count reflects ≥1 open
         c = requests.post(
             f"{BASE}/api/suggestions",
-            json={"title": "Counted suggestion", "category": "feature"},
+            data={"title": "Counted suggestion", "category": "feature"},
             headers=H(ALICE),
         )
         r = requests.get(f"{BASE}/api/admin/suggestions/open-count", headers=H(ADMIN))
@@ -194,7 +194,7 @@ class TestAdmin:
     def test_admin_delete(self):
         c = requests.post(
             f"{BASE}/api/suggestions",
-            json={"title": "spam title", "category": "bug"},
+            data={"title": "spam title", "category": "bug"},
             headers=H(ALICE),
         )
         sid = c.json()["suggestion_id"]

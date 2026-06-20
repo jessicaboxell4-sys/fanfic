@@ -9,7 +9,7 @@ import {
   Check, ChevronRight, ChevronDown, Download, AlertOctagon, RotateCcw, Send,
   Mail, MessageSquare, Clock, CircleAlert, Route as RouteIcon, Search,
   Inbox, Database, Siren, HardDrive, TrendingUp, Eye, BookOpen, Sparkles, ShieldAlert, FlaskConical,
-  Paperclip,
+  Paperclip, HelpCircle,
 } from "lucide-react";
 import MongoInspectorCard from "../components/MongoInspectorCard";
 import ModerationLogCard from "../components/ModerationLogCard";
@@ -607,15 +607,47 @@ function FeedbackInboxCard() {
                       <span className={`text-xs font-bold uppercase tracking-[0.15em] ${c.fg}`}>{c.label}</span>
                       {statusBadge(it.status)}
                       <span className="text-xs text-[#6B705C]">· {it.votes_count} vote{it.votes_count === 1 ? "" : "s"}</span>
-                      {it.has_attachment && (
-                        <span
-                          className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#6B46C1] bg-[#EEE9FB] border border-[#6B46C1]/30 rounded-full px-2 py-0.5"
-                          data-testid={`feedback-attachment-badge-${it.suggestion_id}`}
-                          title={`Has attachment: ${it.attachment_name || ""}`}
-                        >
-                          <Paperclip className="w-2.5 h-2.5" /> file
-                        </span>
-                      )}
+                      {it.has_attachment && (() => {
+                        // Pick a label + accent based on MIME family
+                        // so admins can spot screenshots vs log dumps
+                        // at a glance before they expand the row.
+                        const mime = (it.attachment_mime || "").toLowerCase();
+                        let label = "file";
+                        let tone = "bg-[#EEE9FB] text-[#6B46C1] border-[#6B46C1]/30";
+                        if (mime.startsWith("image/")) {
+                          label = "image";
+                          tone = "bg-emerald-50 text-emerald-800 border-emerald-300";
+                        } else if (mime.includes("pdf")) {
+                          label = "pdf";
+                          tone = "bg-rose-50 text-rose-800 border-rose-300";
+                        } else if (
+                          mime.startsWith("text/") ||
+                          mime.includes("log") ||
+                          mime.includes("json") ||
+                          mime.includes("csv")
+                        ) {
+                          label = "log";
+                          tone = "bg-amber-50 text-amber-800 border-amber-300";
+                        } else if (
+                          mime.includes("zip") ||
+                          mime.includes("compressed") ||
+                          mime.includes("tar") ||
+                          mime.includes("octet-stream")
+                        ) {
+                          label = "zip";
+                          tone = "bg-slate-100 text-slate-700 border-slate-300";
+                        }
+                        return (
+                          <span
+                            className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.12em] border rounded-full px-2 py-0.5 ${tone}`}
+                            data-testid={`feedback-attachment-badge-${it.suggestion_id}`}
+                            data-mime-family={label}
+                            title={`Attachment: ${it.attachment_name || ""} (${it.attachment_mime || "unknown"})`}
+                          >
+                            <Paperclip className="w-2.5 h-2.5" /> {label}
+                          </span>
+                        );
+                      })()}
                     </div>
                     <p className="font-medium text-[#2C2C2C] mt-1">{it.title}</p>
                     <p className="text-xs text-[#6B705C] mt-0.5">
@@ -4508,6 +4540,14 @@ export default function AdminConsole() {
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap" data-testid="admin-bulk-toggles">
+            <Link
+              to="/admin/help"
+              data-testid="admin-help-link"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-[#E5DDC5] text-[#6B705C] text-xs font-bold uppercase tracking-[0.15em] hover:border-[#6B46C1] hover:text-[#6B46C1] transition-colors"
+              title="What does each card do?"
+            >
+              <HelpCircle className="w-3.5 h-3.5" /> Help
+            </Link>
             <button
               type="button"
               onClick={() => setOpenTick((v) => v + 1)}

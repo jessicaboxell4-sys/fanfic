@@ -23,18 +23,16 @@ export default function SuggestionBox({ source = "help-page" }) {
   const onPhotoPick = (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
+    if (!f.type.startsWith("image/")) {
+      toast.error("Pictures only — pick a PNG or JPEG.");
+      return;
+    }
     if (f.size > 10 * 1024 * 1024) {
-      toast.error("File is larger than 10 MB.");
+      toast.error("Image is larger than 10 MB.");
       return;
     }
     setPhoto(f);
-    // Inline preview only for images; non-image files just show the
-    // filename chip so the user knows the attach worked.
-    if (f.type.startsWith("image/")) {
-      setPhotoPreview(URL.createObjectURL(f));
-    } else {
-      setPhotoPreview(null);
-    }
+    setPhotoPreview(URL.createObjectURL(f));
   };
 
   const clearPhoto = () => {
@@ -87,7 +85,7 @@ export default function SuggestionBox({ source = "help-page" }) {
         <span className="font-semibold">Tell us what would make Shelfsort better</span>
       </p>
       <p className="text-xs text-[#6B705C] mb-3">
-        Bug, feature wish, confusion — anything goes. You can attach a screenshot, PDF or any small file.
+        Bug, feature wish, confusion — anything goes. You can attach a screenshot.
       </p>
       <textarea
         value={text}
@@ -105,35 +103,16 @@ export default function SuggestionBox({ source = "help-page" }) {
             data-testid="help-suggestion-photo-label"
           >
             <Paperclip className="w-3.5 h-3.5" />
-            {photo ? "Change file" : "Attach file"}
+            {photo ? "Change screenshot" : "Attach screenshot"}
             <input
               ref={fileRef}
               type="file"
+              accept="image/*"
               onChange={onPhotoPick}
               className="hidden"
               data-testid="help-suggestion-photo-input"
             />
           </label>
-          {photo && !photoPreview && (
-            <span
-              className="inline-flex items-center gap-1.5 text-xs text-[#2C2C2C] bg-[#FBFAF6] border border-[#E8E6E1] rounded-full pl-3 pr-1 py-1"
-              data-testid="help-suggestion-file-chip"
-              title={photo.name}
-            >
-              <span className="truncate max-w-[18ch]">{photo.name}</span>
-              <span className="text-[10px] text-[#6B705C]">
-                {(photo.size / 1024).toFixed(0)} KB
-              </span>
-              <button
-                type="button"
-                onClick={clearPhoto}
-                aria-label="Remove attachment"
-                className="w-5 h-5 rounded-full hover:bg-white flex items-center justify-center text-[#6B705C] hover:text-[#E07A5F]"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </span>
-          )}
           {photoPreview && (
             <div className="relative" data-testid="help-suggestion-photo-preview">
               <img src={photoPreview} alt="attachment" className="w-16 h-16 object-cover rounded-md border border-[#E8E6E1]" />

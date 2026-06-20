@@ -130,14 +130,19 @@ export default function DashboardSuggestionsBox() {
             data-testid="dashboard-suggestion-attachment-label"
           >
             <Paperclip className="w-3.5 h-3.5" />
-            {attachment ? "Change file" : "Attach screenshot or file"}
+            {attachment ? "Change screenshot" : "Attach screenshot"}
             <input
               type="file"
+              accept="image/*"
               onChange={(e) => {
                 const f = e.target.files?.[0];
                 if (!f) return;
+                if (!f.type.startsWith("image/")) {
+                  toast.error("Pictures only — pick a PNG or JPEG.");
+                  return;
+                }
                 if (f.size > 10 * 1024 * 1024) {
-                  toast.error("File is larger than 10 MB — try a smaller one.");
+                  toast.error("Image is larger than 10 MB — try a smaller one.");
                   return;
                 }
                 setAttachment(f);
@@ -164,7 +169,7 @@ export default function DashboardSuggestionsBox() {
               </button>
             </span>
           )}
-          <span className="text-[10px] text-[#6B705C] ml-auto">Max 10 MB · any file</span>
+          <span className="text-[10px] text-[#6B705C] ml-auto">Pictures only · max 10 MB</span>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
           <Link

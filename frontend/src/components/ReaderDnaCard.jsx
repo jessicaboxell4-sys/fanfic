@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
-import { Dna, Repeat, BookOpen } from "lucide-react";
+import { Dna, Repeat, BookOpen, Share2, Download, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 /**
  * ReaderDnaCard — one-glance "what kind of reader am I?" panel.
@@ -18,6 +19,7 @@ import { Dna, Repeat, BookOpen } from "lucide-react";
  */
 export default function ReaderDnaCard() {
   const [data, setData] = useState(null);
+  const [shareBusy, setShareBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -30,6 +32,43 @@ export default function ReaderDnaCard() {
     return () => { cancelled = true; };
   }, []);
 
+  // Fetch the 1080×1080 PNG and either trigger Web Share API (mobile,
+  // works directly with Instagram / Twitter / iMessage) or fall back
+  // to a regular download (desktop browsers without Share API support).
+  const sharePng = async () => {
+    setShareBusy(true);
+    try {
+      const res = await api.get("/insights/reader-dna/share-card.png", {
+        responseType: "blob",
+      });
+      const file = new File([res.data], "reader-dna.png", { type: "image/png" });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: "My Reader DNA",
+          text: "Made on Shelfsort — shelfsort.com",
+        });
+        toast.success("Shared");
+      } else {
+        const url = URL.createObjectURL(res.data);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "reader-dna.png";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        toast.success("Saved reader-dna.png");
+      }
+    } catch (e) {
+      if (e?.name !== "AbortError") {
+        toast.error("Couldn't generate share card");
+      }
+    } finally {
+      setShareBusy(false);
+    }
+  };
+
   if (!data) return null;
   if ((data.total_books || 0) === 0) return null;
 
@@ -41,9 +80,30 @@ export default function ReaderDnaCard() {
       className="shelf-card p-6 mb-6"
       data-testid="reader-dna-card"
     >
-      <div className="flex items-center gap-2 mb-4">
-        <Dna className="w-4 h-4 text-[#6B46C1]" aria-hidden="true" />
-        <h2 className="font-serif text-2xl text-[#2C2C2C]">Reader DNA</h2>
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <div className="flex items-center gap-2">
+          <Dna className="w-4 h-4 text-[#6B46C1]" aria-hidden="true" />
+          <h2 className="font-serif text-2xl text-[#2C2C2C]">Reader DNA</h2>
+        </div>
+        <button
+          type="button"
+          onClick={sharePng}
+          disabled={shareBusy}
+          data-testid="reader-dna-share-button"
+          title="Generate a 1080×1080 share card"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#6B46C1] text-white text-xs font-bold uppercase tracking-[0.12em] hover:bg-[#5C3AAD] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {shareBusy
+            ? <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />
+            : (typeof navigator !== "undefined" && navigator.share)
+                ? <Share2 className="w-3 h-3" aria-hidden="true" />
+                : <Download className="w-3 h-3" aria-hidden="true" />}
+          {shareBusy
+            ? "Rendering…"
+            : (typeof navigator !== "undefined" && navigator.share)
+                ? "Share"
+                : "Save PNG"}
+        </button>
       </div>
       <div className="grid md:grid-cols-2 gap-6">
         {/* Reader DNA block */}

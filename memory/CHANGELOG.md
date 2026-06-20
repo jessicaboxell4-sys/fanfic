@@ -8,6 +8,76 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-20 (later) — AdminHelp lint fix + test repair ✅
+
+**Resume after fork: AdminHelp build blocker cleared**
+- Fixed all 26 ESLint `no-unescaped-entities` errors in
+  `/app/frontend/src/pages/AdminHelp.jsx` (escaped `"` → `&quot;`,
+  `'` → `&apos;` throughout JSX text nodes).
+- Verified `/admin/help` renders end-to-end: h1 "Admin console —
+  what does what", 14-section sticky TOC, all sections present
+  (Users, Pending, Test-account quarantine, Campaign, R2 migration,
+  Orphan audit, Pause Emergent fallback, Savings, Antivirus,
+  Feedback, Operator digest, Email logs, Bookclubs, Unknown sources).
+- Note: TourOverlay auto-bounces fresh sessions on /admin/help if
+  `shelfsort_tour_seen` localStorage flag isn't set; harmless for
+  real admins who've already onboarded.
+
+**Suggestions tests updated for image-only Form contract**
+- `tests/test_suggestions.py`: switched all POST `/api/suggestions`
+  calls from `json=` → `data=` (multipart/form-encoded) to match
+  the new `Form(...)` parameters introduced by the image-only
+  uploads change. 18/18 tests now pass.
+
+**Deep-dive sweep results**
+- Frontend lint: AdminHelp clean. 91 pre-existing
+  `no-unescaped-entities` warnings remain across other pages
+  (Account, Login, Reader, etc.) — not blockers, tracked as P3.
+- Backend lint (ruff): 40 pre-existing style issues in
+  `tests/` and `utils/ao3_metadata.py` — cosmetic only.
+- Backend log: no errors.
+- Pytest: 1 pre-existing failure in
+  `test_admin_console.test_users_list_includes_admin_badge_and_book_count`
+  (count=2, expected ≥3) — caused by `@example.com` seed addresses
+  now matching the wider `_TEST_DOMAINS` filter. Not a regression
+  from this session.
+
+---
+
+
+## 2026-06-20 — MIME-family badges + Reader DNA share-card ✅
+
+Two parked features knocked out together.
+
+**MIME-family attachment badges** (admin Feedback inbox)
+- Replaced the generic "📎 file" pill with a color-coded family-aware
+  label: 📎 image (emerald), 📎 pdf (rose), 📎 log (amber), 📎 zip
+  (slate), 📎 file (purple fallback).  Switch is on
+  ``it.attachment_mime``.  Title attribute exposes raw MIME for
+  inspection.  ``data-mime-family`` attribute added for testing.
+
+**Reader DNA → 1080×1080 share-card**
+- New deterministic Pillow renderer ``utils/reader_dna_card.py``:
+  draws the user's DNA payload as an Instagram-story-ready 1080×1080
+  PNG.  Brand colors (parchment, coral, purple), DejaVu Serif/Sans
+  fonts, footer CTA "GET YOURS AT SHELFSORT.COM".  ~150 LOC, no LLM
+  cost, ~200 ms render time, fully reproducible.
+- New endpoint ``GET /api/insights/reader-dna/share-card.png`` reuses
+  the existing ``reader_dna()`` computation and streams the PNG with
+  60s per-user in-memory cache so repeated share→cancel→share
+  doesn't re-render.
+- "Share" button on the Reader DNA card on ``/stats``:
+  - Mobile (Web Share API): native sheet → Instagram/Twitter/iMessage
+  - Desktop fallback: downloads ``reader-dna.png`` directly
+- Tests: ``test_reader_dna_card.py`` (+3 cases): auth gate, PNG shape
+  + 1080×1080 dimensions, in-memory cache idempotency.  All passing.
+
+Why deterministic render, not nano-banana?  Free, reproducible, brand-
+consistent.  Nano-banana would have been ~$0.04/render and the same
+DNA might produce different-looking images each call.
+
+---
+
 ## 2026-06-20 — R2 "$ saved this month" line on migration banner ✅
 
 Companion to the migration-complete banner: now that R2 is the

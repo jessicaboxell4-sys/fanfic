@@ -506,3 +506,50 @@ async def reader_dna(user: User = Depends(get_current_user)):
         "avg_words":        avg_words,
         "trending_rereads": rereads,
     }
+
+
+
+# ---------------------------------------------------------------------
+# Reader DNA share card  (PNG, 1080×1080)  — 2026-06-20
+# ---------------------------------------------------------------------
+# Renders the user's Reader DNA panel as a deterministic
+# Instagram-story-ready PNG.  Uses Pillow (no LLM cost) so the same
+# DNA always produces the same image.  Caches the bytes in-memory for
+# 60s so a quick "share → copy → cancel → share again" round-trip
+# doesn't re-render.
+import asyncio as _asyncio
+from fastapi.responses import Response as _Response
+
+_DNA_CARD_CACHE: Dict[str, tuple] = {}   # user_id → (bytes, expires_at)
+_DNA_CARD_TTL_SECONDS = 60
+
+
+@api_router.get("/insights/reader-dna/share-card.png")
+async def reader_dna_share_card(user: User = Depends(get_current_user)):
+    """Return a 1080×1080 PNG of the user's Reader DNA panel.
+
+    Same payload shape as ``/insights/reader-dna``, just rendered
+    into bytes.  Cached for 60s per user so the user can hit
+    "Share" → "Copy link" → "Save image" without re-rendering.
+    """
+    from utils.reader_dna_card import render_reader_dna_card
+    now = datetime.now(timezone.utc).timestamp()
+    cached = _DNA_CARD_CACHE.get(user.user_id)
+    if cached and cached[1] > now:
+        return _Response(content=cached[0], media_type="image/png")
+
+    # Reuse the existing endpoint's computation by calling it
+    # directly — keeps the math in one place.
+    dna = await reader_dna(user=user)  # type: ignore[arg-type]
+    png = await _asyncio.to_thread(
+        render_reader_dna_card, dna, (user.name or "").strip() or None,
+    )
+    _DNA_CARD_CACHE[user.user_id] = (png, now + _DNA_CARD_TTL_SECONDS)
+    return _Response(
+        content=png,
+        media_type="image/png",
+        headers={
+            "Cache-Control": "private, max-age=60",
+            "Content-Disposition": 'inline; filename="reader-dna.png"',
+        },
+    )

@@ -4,15 +4,9 @@
 
 ## ⏰ Parked reminders — bring up next session
 
-(Parked 2026-06-20 — user said "remind later for all" on Iter 32 wrap-up.)
+(Updated 2026-06-20 — MIME-family badge + Reader DNA share-card
+shipped today.)
 
-- **MIME-family badge on admin attachments** — admin Feedback inbox
-  currently shows a generic "📎 file" badge on rows with attachments.
-  Extend it to "📎 image", "📎 pdf", "📎 log", etc. so the admin can
-  see which rows have actual screenshots (bug evidence) vs log dumps
-  at a glance.  ~10 lines in `FeedbackInboxCard` (AdminConsole.jsx) —
-  switch on `it.attachment_mime` to pick the label and an accent
-  color.
 - **Open `/admin`, expand R2 migration card, click "Pause Emergent
   fallback"** — manual user action, no agent work needed.  The toggle
   is pausable, persists across pod restarts, audit-logged. Surface
@@ -23,10 +17,10 @@
   Storage and the AI services).  Two phases: (1) confirm no fallback
   reads in storage logs for the past 7 days, (2) rotate the key in
   Emergent's dashboard and update `backend/.env`.
-- **Reader DNA share-as-PNG card** (1080×1080) via nano-banana — turn
-  the new `/api/insights/reader-dna` payload into an Instagram-story-
-  ready PNG.  User said "ask later" — bring up alongside Year-In-Books
-  share work.
+- **Reader DNA share-as-PNG card** — *DONE 2026-06-20.  Deterministic
+  Pillow render, not nano-banana.  Lives on /stats with a "Share"
+  button.  When you're ready to add a Year-In-Books combo share
+  flow, the same renderer pattern applies.*
 
 
 ## P2 — parked, ready to ship anytime

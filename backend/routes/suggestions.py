@@ -149,6 +149,11 @@ async def submit_suggestion(
         elif len(raw) > _MAX_ATTACHMENT_BYTES:
             raise HTTPException(status_code=413, detail="attachment_too_large")
         else:
+            # 2026-06-20 — images only (per user direction).  Other file
+            # types should go via the dedicated support email.
+            mime = (attachment.content_type or "").lower()
+            if not mime.startswith("image/"):
+                raise HTTPException(status_code=400, detail="not_an_image")
             # Antivirus pre-scan — same policy as /books/upload + /feedback.
             from utils.antivirus import scan_bytes, record_quarantine
             scan = await asyncio.to_thread(
@@ -164,8 +169,8 @@ async def submit_suggestion(
                 )
                 raise HTTPException(status_code=400, detail="attachment_unsafe")
             doc["attachment_b64"]  = base64.b64encode(raw).decode()
-            doc["attachment_mime"] = attachment.content_type or "application/octet-stream"
-            doc["attachment_name"] = (attachment.filename or "attachment")[:200]
+            doc["attachment_mime"] = attachment.content_type or "image/png"
+            doc["attachment_name"] = (attachment.filename or "screenshot")[:200]
             doc["attachment_size"] = len(raw)
 
     await db.suggestions.insert_one(doc)
