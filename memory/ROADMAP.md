@@ -6,6 +6,13 @@
 
 (Parked 2026-06-20 — user said "remind later for all" on Iter 32 wrap-up.)
 
+- **MIME-family badge on admin attachments** — admin Feedback inbox
+  currently shows a generic "📎 file" badge on rows with attachments.
+  Extend it to "📎 image", "📎 pdf", "📎 log", etc. so the admin can
+  see which rows have actual screenshots (bug evidence) vs log dumps
+  at a glance.  ~10 lines in `FeedbackInboxCard` (AdminConsole.jsx) —
+  switch on `it.attachment_mime` to pick the label and an accent
+  color.
 - **R2 "$ saved this month" line** on the admin R2 dashboard — compare
   the Emergent traffic from the last billing window vs near-zero R2
   hits projected for next month.  Quick win + motivating to see the
