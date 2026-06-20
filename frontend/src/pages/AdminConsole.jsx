@@ -1437,6 +1437,8 @@ function AntivirusCard() {
 function R2MigrationProgressCard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [backfilling, setBackfilling] = useState(false);
+  const [lastBackfill, setLastBackfill] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -1447,6 +1449,20 @@ function R2MigrationProgressCard() {
     finally { setLoading(false); }
   };
   useEffect(() => { load(); }, []);
+
+  const backfill = async () => {
+    setBackfilling(true);
+    try {
+      const { data: r } = await api.post("/admin/storage-migration-backfill?chunk_size=25");
+      setLastBackfill(r);
+      toast.success(`Migrated ${r.migrated} · skipped ${r.already_on_r2} · failed ${r.failed}`);
+      load();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Backfill failed");
+    } finally {
+      setBackfilling(false);
+    }
+  };
 
   if (data && data.enabled === false) return null;
 
@@ -1495,15 +1511,32 @@ function R2MigrationProgressCard() {
               Migration nearly complete. Safe to consider dropping the Emergent fallback after a week of clean reads.
             </p>
           )}
-          <button
-            type="button"
-            onClick={load}
-            disabled={loading}
-            data-testid="r2-migration-resample"
-            className="text-[11px] text-[#6B46C1] hover:underline disabled:opacity-50"
-          >
-            {loading ? "Sampling…" : "Re-sample"}
-          </button>
+          <div className="flex items-center gap-3 pt-1">
+            <button
+              type="button"
+              onClick={backfill}
+              disabled={backfilling || (data?.percent ?? 0) >= 100}
+              data-testid="r2-migration-backfill"
+              className="px-3 py-1.5 rounded-full bg-[#6B46C1] text-white text-xs font-bold uppercase tracking-[0.15em] hover:bg-[#5C3AAD] disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+            >
+              {backfilling ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+              {backfilling ? "Migrating…" : "Migrate next 25"}
+            </button>
+            <button
+              type="button"
+              onClick={load}
+              disabled={loading}
+              data-testid="r2-migration-resample"
+              className="text-[11px] text-[#6B46C1] hover:underline disabled:opacity-50"
+            >
+              {loading ? "Sampling…" : "Re-sample"}
+            </button>
+          </div>
+          {lastBackfill && (
+            <p className="text-[11px] text-[#6B705C] italic" data-testid="r2-migration-last-result">
+              Last batch: {lastBackfill.migrated} migrated · {lastBackfill.already_on_r2} already · {lastBackfill.failed} failed · {lastBackfill.emergent_missing} missing in Emergent
+            </p>
+          )}
         </div>
       ) : (
         <p className="text-sm text-[#6B705C]">{loading ? "Sampling…" : "Click refresh"}</p>

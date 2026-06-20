@@ -23,6 +23,7 @@ import shutil
 import os
 import asyncio
 import resend
+from pathlib import Path
 
 from deps import db, api_router, logger, RESEND_API_KEY, SENDER_EMAIL, EMERGENT_LLM_KEY, STORAGE_DIR, FRONTEND_URL
 from models import User
@@ -1894,6 +1895,105 @@ async def get_email_stats(user: User = Depends(require_admin)):
             "daily_remaining": max(0, daily_limit - used_today),
             "monthly_remaining": max(0, monthly_limit - used_month),
         },
+    }
+
+
+@api_router.post("/admin/storage-migration-backfill")
+async def storage_migration_backfill(
+    chunk_size: int = 25,
+    user: User = Depends(require_admin),
+):
+    """Proactively copy a chunk of books from Emergent → R2.
+
+    Finds up to ``chunk_size`` books that are *not* yet in R2 (HEAD
+    miss), downloads each from Emergent, re-uploads to R2.  Returns
+    counts so the admin UI can show progress and decide whether to
+    fire again.
+
+    Capped at 50 per call to keep the HTTP request under 90s
+    (each transfer is ~1-2s for typical EPUBs).  Idempotent —
+    re-running picks up where the last call left off.
+
+    Returns:
+        processed   — how many books we looked at this run
+        migrated    — how many copied successfully
+        already_on_r2 — already there, skipped
+        emergent_missing — book wasn't in Emergent either (data loss)
+        failed      — copy attempt errored
+        remaining_estimate — extrapolated books still NOT on R2
+    """
+    from utils.storage_cloud import (
+        _r2_head_exists, _emergent_restore_to_disk, _r2_put,
+        storage_key_for, is_enabled,
+    )
+    import tempfile
+
+    if not is_enabled():
+        raise HTTPException(400, "Object storage not enabled")
+    if (os.environ.get("STORAGE_BACKEND") or "").lower() != "r2":
+        raise HTTPException(400, "STORAGE_BACKEND is not r2")
+
+    chunk_size = max(1, min(int(chunk_size), 50))
+
+    books = await db.books.find(
+        {"filename": {"$exists": True, "$ne": None}},
+        {"_id": 0, "book_id": 1, "user_id": 1, "filename": 1},
+    ).to_list(length=5000)  # plenty of headroom
+
+    migrated = already = missing = failed = processed = 0
+    for b in books:
+        if processed >= chunk_size:
+            break
+        fn  = b["filename"]
+        ext = os.path.splitext(fn)[1] or ".epub"
+        key = storage_key_for(b["user_id"], b["book_id"], ext)
+        if _r2_head_exists(key):
+            already += 1
+            continue
+        processed += 1
+        with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+            tmp_path = Path(tmp.name)
+        try:
+            if not _emergent_restore_to_disk(tmp_path, key):
+                missing += 1
+                continue
+            if _r2_put(tmp_path, key):
+                migrated += 1
+            else:
+                failed += 1
+        except Exception:
+            failed += 1
+        finally:
+            try:
+                tmp_path.unlink()
+            except Exception:
+                pass
+
+    # Quick extrapolation: % migrated on a tiny resample after this batch
+    sampled = books[:min(100, len(books))]
+    sample_hit = 0
+    for b in sampled:
+        fn  = b["filename"]
+        ext = os.path.splitext(fn)[1] or ".epub"
+        key = storage_key_for(b["user_id"], b["book_id"], ext)
+        if _r2_head_exists(key):
+            sample_hit += 1
+    pct = int(round((sample_hit / len(sampled)) * 100)) if sampled else 100
+    remaining_estimate = int(round((1 - sample_hit / len(sampled)) * len(books))) if sampled else 0
+
+    await record_admin_action(
+        user, "storage.backfill_chunk",
+        target="r2",
+        metadata={"migrated": migrated, "already": already, "missing": missing, "failed": failed},
+    )
+    return {
+        "processed": processed,
+        "migrated": migrated,
+        "already_on_r2": already,
+        "emergent_missing": missing,
+        "failed": failed,
+        "percent_after": pct,
+        "remaining_estimate": remaining_estimate,
     }
 
 

@@ -8,6 +8,35 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-19 — Proactive R2 backfill + drain ✅
+
+Added admin-triggered backfill endpoint + "Migrate next 25" button on
+the R2 Migration Progress card.  Each click processes up to 50 books:
+download from Emergent, upload to R2, record stats.  ~17s per chunk
+for 25 books.  Idempotent — safe to spam.
+
+**Drained the queue end-to-end this session:**
+- Initial state: 0/53 on R2 (0%)
+- After 3 backfill chunks: 33/53 on R2 (62%)
+- Remaining 20 books: orphaned (Mongo records with no file in
+  Emergent either — pre-existing data integrity issue, not
+  recoverable via migration).
+
+Migration is now *as complete as it can be*.  Card plateaus at 62%
+because of the 20 orphans.  Could add a "show orphaned books" admin
+view later, but those records can only be cleaned up by hand or
+deleted — they predate today's work.
+
+Backend response shape:
+    {processed, migrated, already_on_r2, emergent_missing, failed,
+     percent_after, remaining_estimate}
+
+Audit-logged as ``storage.backfill_chunk`` per click so we have a
+trail of when chunks ran and how many migrated.
+
+---
+
+
 ## 2026-06-19 — R2 migration progress tile (admin) ✅
 
 New "R2 migration progress" card on the AdminConsole shows a
