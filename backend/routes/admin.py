@@ -2107,6 +2107,84 @@ async def storage_migration_progress(
     }
 
 
+# Configurable cost rates — tune via env without code changes.  Defaults
+# use the posted public rates (Cloudflare R2: $0.015/GB/mo + $0 egress;
+# Emergent storage: $0.20/GB/mo + ~$0.09/GB egress, similar to S3).
+_EMERGENT_STORAGE_GB_RATE = float(os.environ.get("EMERGENT_STORAGE_GB_RATE", "0.20"))
+_EMERGENT_EGRESS_GB_RATE  = float(os.environ.get("EMERGENT_EGRESS_GB_RATE", "0.09"))
+_R2_STORAGE_GB_RATE       = float(os.environ.get("R2_STORAGE_GB_RATE", "0.015"))
+_R2_EGRESS_GB_RATE        = float(os.environ.get("R2_EGRESS_GB_RATE", "0.00"))
+# Egress multiplier — without per-request access logs we estimate
+# monthly egress as ``total_stored × multiplier``.  ``2.0`` reflects
+# the typical active-library pattern (every byte read about twice
+# per month).  Override via env if you have real billing data.
+_EGRESS_MULTIPLIER = float(os.environ.get("STORAGE_EGRESS_MULTIPLIER", "2.0"))
+
+
+@api_router.get("/admin/storage-cost-savings")
+async def storage_cost_savings(user: User = Depends(require_admin)):
+    """Estimate $ saved this month by being on R2 instead of Emergent.
+
+    Inputs (all configurable via env so you can drop in real billing
+    numbers when you have them):
+      - Total bytes stored across the library (sum of ``size_bytes``
+        on the books collection — same data the storage gauge uses).
+      - Egress multiplier (default 2.0 — typical active library
+        reads each byte ~2x per month).
+      - Per-GB rates for storage + egress on both backends.
+
+    The output exposes every input AND the derived numbers so the
+    UI can render a transparent tooltip explaining the math.  Numbers
+    are estimates — replace ``EGRESS_MULTIPLIER`` with your real
+    billing-period egress when you have a month of R2 data.
+    """
+    # Sum total bytes across non-trash books.
+    pipeline = [
+        {"$match": {"category": {"$ne": "Trash"}}},
+        {"$group": {"_id": None, "bytes": {"$sum": "$size_bytes"}}},
+    ]
+    rows = await db.books.aggregate(pipeline).to_list(length=1)
+    total_bytes = int(rows[0]["bytes"]) if rows else 0
+    total_gb = total_bytes / (1024 ** 3)
+    monthly_egress_gb = total_gb * _EGRESS_MULTIPLIER
+
+    emergent_storage = total_gb * _EMERGENT_STORAGE_GB_RATE
+    emergent_egress  = monthly_egress_gb * _EMERGENT_EGRESS_GB_RATE
+    emergent_total   = emergent_storage + emergent_egress
+
+    r2_storage = total_gb * _R2_STORAGE_GB_RATE
+    r2_egress  = monthly_egress_gb * _R2_EGRESS_GB_RATE
+    r2_total   = r2_storage + r2_egress
+
+    savings = max(0.0, emergent_total - r2_total)
+    savings_pct = int(round((savings / emergent_total) * 100)) if emergent_total > 0 else 0
+
+    return {
+        "total_bytes": total_bytes,
+        "total_gb": round(total_gb, 4),
+        "monthly_egress_gb": round(monthly_egress_gb, 4),
+        "rates": {
+            "emergent_storage_per_gb": _EMERGENT_STORAGE_GB_RATE,
+            "emergent_egress_per_gb":  _EMERGENT_EGRESS_GB_RATE,
+            "r2_storage_per_gb":       _R2_STORAGE_GB_RATE,
+            "r2_egress_per_gb":        _R2_EGRESS_GB_RATE,
+            "egress_multiplier":       _EGRESS_MULTIPLIER,
+        },
+        "emergent_estimated": {
+            "storage_usd": round(emergent_storage, 4),
+            "egress_usd":  round(emergent_egress, 4),
+            "total_usd":   round(emergent_total, 4),
+        },
+        "r2_estimated": {
+            "storage_usd": round(r2_storage, 4),
+            "egress_usd":  round(r2_egress, 4),
+            "total_usd":   round(r2_total, 4),
+        },
+        "savings_usd": round(savings, 4),
+        "savings_pct": savings_pct,
+    }
+
+
 class StorageFallbackBody(BaseModel):
     paused: bool
 

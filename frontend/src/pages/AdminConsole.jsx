@@ -1467,12 +1467,51 @@ function AntivirusCard() {
 // Emergent fallback?" decision tool.  Server samples 100 random books
 // and HEAD-checks each one against R2 — extrapolates to the full
 // collection.  Sampling takes ~5s so we don't auto-poll.
+
+/**
+ * Small "$ X saved this month" line that lives inside the
+ * migration-complete banner.  Auto-formats based on scale so a
+ * tiny library shows "$0.0003" and a big one shows "$10".  Hover
+ * the line for a transparent tooltip explaining the math.
+ */
+function SavingsLine({ savings }) {
+  if (!savings) return null;
+  const usd = Number(savings.savings_usd || 0);
+  const pct = Number(savings.savings_pct || 0);
+  const fmt = (n) => {
+    const v = Number(n || 0);
+    if (v >= 100) return `$${v.toFixed(0)}`;
+    if (v >= 0.01) return `$${v.toFixed(2)}`;
+    if (v > 0) return `$${v.toFixed(4)}`;
+    return "$0";
+  };
+  const tooltip =
+    `Library: ${savings.total_gb} GB stored · ${savings.monthly_egress_gb} GB est. monthly egress\n` +
+    `Emergent: ${fmt(savings.emergent_estimated.total_usd)} (${fmt(savings.emergent_estimated.storage_usd)} storage + ${fmt(savings.emergent_estimated.egress_usd)} egress)\n` +
+    `R2: ${fmt(savings.r2_estimated.total_usd)} (${fmt(savings.r2_estimated.storage_usd)} storage + ${fmt(savings.r2_estimated.egress_usd)} egress)\n` +
+    `Savings: ${fmt(usd)} (${pct}% off)`;
+  return (
+    <p
+      className="text-[11px] text-emerald-900 mt-2 italic cursor-help"
+      data-testid="r2-savings-line"
+      title={tooltip}
+    >
+      Estimated savings this month:{" "}
+      <span className="font-semibold not-italic font-mono">{fmt(usd)}</span>
+      {" "}
+      <span className="text-emerald-700 not-italic">({pct}% off Emergent)</span>
+      <span className="ml-1 text-emerald-700 not-italic">· hover for math</span>
+    </p>
+  );
+}
+
 function R2MigrationProgressCard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [backfilling, setBackfilling] = useState(false);
   const [lastBackfill, setLastBackfill] = useState(null);
   const [togglingPause, setTogglingPause] = useState(false);
+  const [savings, setSavings] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -1482,7 +1521,15 @@ function R2MigrationProgressCard() {
     } catch { toast.error("Couldn't load R2 migration progress"); }
     finally { setLoading(false); }
   };
-  useEffect(() => { load(); }, []);
+  // Cost savings rollup — loaded once on mount alongside the gauge.
+  // Cheap (single Mongo aggregate) so safe to refresh on every reload.
+  const loadSavings = async () => {
+    try {
+      const { data } = await api.get("/admin/storage-cost-savings");
+      setSavings(data);
+    } catch { /* silent — the banner just hides the line */ }
+  };
+  useEffect(() => { load(); loadSavings(); }, []);
 
   const backfill = async () => {
     setBackfilling(true);
@@ -1578,6 +1625,9 @@ function R2MigrationProgressCard() {
                       Fallback: {paused ? "PAUSED" : "active"}
                     </span>
                   </div>
+                  {savings && (
+                    <SavingsLine savings={savings} />
+                  )}
                 </div>
               </div>
             </div>

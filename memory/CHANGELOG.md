@@ -8,6 +8,43 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-20 — R2 "$ saved this month" line on migration banner ✅
+
+Companion to the migration-complete banner: now that R2 is the
+primary backend, surface the ROI in dollars.
+
+**Backend** — new `GET /api/admin/storage-cost-savings` aggregates
+total bytes from non-trash books, applies configurable per-GB rates
+(via env: `EMERGENT_STORAGE_GB_RATE`, `EMERGENT_EGRESS_GB_RATE`,
+`R2_STORAGE_GB_RATE`, `R2_EGRESS_GB_RATE`, `STORAGE_EGRESS_MULTIPLIER`),
+and returns:
+  - Inputs: `total_gb`, `monthly_egress_gb`, `rates`
+  - Per-backend estimates: `emergent_estimated.{storage,egress,total}_usd`
+  - Per-backend estimates: `r2_estimated.{storage,egress,total}_usd`
+  - Bottom line: `savings_usd`, `savings_pct`
+
+Defaults reflect posted public rates:
+  - Emergent: $0.20/GB/mo storage + $0.09/GB egress (S3-class)
+  - R2: $0.015/GB/mo storage + $0 egress (R2's killer feature)
+  - Egress multiplier: 2.0 (typical active library reads each byte
+    ~2× per month — override with real billing data when you have it)
+
+**Frontend** — `SavingsLine` component injected at the bottom of
+the `r2-migration-complete-banner`.  Renders only when both the
+gauge AND the savings endpoint have loaded. Auto-formats:
+  - `$10` for ≥ $100
+  - `$10.45` for ≥ $0.01
+  - `$0.0003` for sub-cent
+Hovering the line reveals a tooltip with the full math (storage +
+egress for each backend, total + delta).
+
+**Tests**: `test_storage_cost_savings.py` (+2 cases) — admin-gate +
+shape/math/sanity check (R2 always ≤ Emergent for non-zero
+libraries; savings_pct ∈ [0, 100]; storage × rate is internally
+consistent).  Both passing.
+
+---
+
 ## 2026-06-20 — Deep-dive bug sweep ✅
 
 Comprehensive audit after the deploy: full backend + frontend lint,

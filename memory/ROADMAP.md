@@ -13,14 +13,6 @@
   at a glance.  ~10 lines in `FeedbackInboxCard` (AdminConsole.jsx) —
   switch on `it.attachment_mime` to pick the label and an accent
   color.
-- **R2 "$ saved this month" line** on the admin R2 dashboard — compare
-  the Emergent traffic from the last billing window vs near-zero R2
-  hits projected for next month.  Quick win + motivating to see the
-  migration ROI in real numbers.  Implementation sketch: pull last
-  Emergent usage from the existing storage dashboard logs, multiply by
-  Emergent's posted GB rate, subtract projected R2 GB-month cost from
-  the migration_progress total.  Render as a small line under the
-  "Migration complete · 100% on R2" banner.
 - **Open `/admin`, expand R2 migration card, click "Pause Emergent
   fallback"** — manual user action, no agent work needed.  The toggle
   is pausable, persists across pod restarts, audit-logged. Surface
