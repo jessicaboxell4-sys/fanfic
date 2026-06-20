@@ -8,6 +8,45 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-19 — Cloudflare R2 cutover ✅
+
+Object storage migrated from Emergent Object Storage to Cloudflare R2.
+`STORAGE_BACKEND=r2` flag is now live in `backend/.env`.
+
+**Architecture:**
+- `utils/storage_cloud.py` now dispatches by `STORAGE_BACKEND` env var
+  - `r2` (current) — boto3 S3 client → Cloudflare R2 bucket `shelfsort`
+  - `emergent` (legacy) — original integrations.emergentagent.com path
+- All writes go to R2 only
+- Reads try R2 first → fall back to Emergent on miss → silently
+  re-upload to R2 (lazy migration of existing ~5000 files; users
+  trigger the copy by accessing their old books)
+- Both `_emergent_*` private functions retained for the fallback path
+- Single `r2` client instance cached per-process (boto3 client init
+  is ~150 ms)
+
+**Verified:**
+- Cred smoke test passed PUT/GET/LIST/DELETE
+- Public dispatcher round-trip passed (`mirror_up` → `restore_to_disk`
+  → `delete_remote` → confirmed miss after delete)
+- 23/23 backend pytest pass (3 new for R2 dispatcher)
+- `/api/health` reports `storage: ok` under R2 mode
+
+**What's NOT done (parked):**
+- No proactive backfill cron — relying on lazy migration as users
+  access old books.  Can add an explicit chunked backfill later if
+  we want to free up Emergent storage immediately.
+- No live cost telemetry — R2 free tier is 10 GB/mo + 1M class-A ops,
+  plenty of headroom for current scale.  Cost gauge in admin UI is
+  parked.
+
+To roll back: set `STORAGE_BACKEND=emergent` in `backend/.env` and
+restart supervisor.  Files written to R2 since cutover would then
+be unreachable until you flip back.
+
+---
+
+
 ## 2026-06-19 — Cloudflare R2 credentials wired ⚙️ (migration pending)
 
 User created a Cloudflare R2 bucket (`shelfsort`) and Account API

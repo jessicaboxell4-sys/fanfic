@@ -1,5 +1,4 @@
-"""Object-storage adapter — local filesystem mirrored to Emergent Object
-Storage.
+"""Object-storage adapter — local filesystem mirrored to cloud.
 
 Architecture
 ------------
@@ -9,18 +8,26 @@ Shelfsort historically writes user uploads to ``STORAGE_DIR/{user_id}/
 fine until a redeploy — at which point the entire pod disk is wiped
 and every EPUB / cover the user has uploaded vanishes.
 
-This module adds a durable mirror against Emergent's managed object
-storage so the container disk becomes purely a cache:
+This module adds a durable mirror against a managed object store so
+the container disk becomes purely a cache:
 
 * Every successful local write → ``mirror_up()`` async-task uploads
   the same bytes to ``shelfsort/users/{user_id}/{book_id}.{ext}``.
 * Every local read that finds the file missing → ``restore_to_disk()``
   downloads from object storage and re-caches it on the container.
 
-The adapter is intentionally provider-agnostic.  The current
-implementation talks to Emergent Object Storage; swapping to
-Cloudflare R2 in the future is a single-file change (this one) — no
-caller has to know.
+Backend dispatch
+----------------
+
+Controlled by env var ``STORAGE_BACKEND``:
+    - ``emergent`` (default) — original Emergent Object Storage
+    - ``r2``                 — Cloudflare R2 via S3 API (boto3)
+
+Reads on ``r2`` mode transparently fall back to Emergent when R2 says
+"not found", and silently mirror the recovered file back into R2.
+This gives a zero-downtime migration: existing files on Emergent are
+"lazily" pulled into R2 the first time they're accessed after the
+cutover.
 
 API:
     - mirror_up(local_path: Path, key: str) -> bool
@@ -52,6 +59,13 @@ STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
 APP_NAME    = "shelfsort"
 
 
+def _backend() -> str:
+    """Which object-store backend is live this request.  Late-bound so
+    we read AFTER ``load_dotenv``, and operator can flip via .env hot
+    reload (next supervisor restart picks it up)."""
+    return (os.environ.get("STORAGE_BACKEND") or "emergent").strip().lower()
+
+
 def _emergent_key() -> str:
     """Late-bound key read so we get the value AFTER ``load_dotenv``
     in ``deps.py`` has populated the environment.  Reading at import
@@ -68,10 +82,106 @@ _INIT_RETRY_AFTER_SECS = 60   # back off after a failed init so we don't
 
 
 def is_enabled() -> bool:
-    """Object storage is opt-in via env: if EMERGENT_LLM_KEY is unset
-    (e.g., local dev container without integrations) the adapter
-    silently no-ops so the legacy local-FS path keeps working."""
+    """Object storage is opt-in via env: if neither EMERGENT_LLM_KEY
+    nor R2 credentials are configured, the adapter silently no-ops so
+    the legacy local-FS path keeps working."""
+    if _backend() == "r2":
+        return bool(
+            os.environ.get("R2_ACCOUNT_ID")
+            and os.environ.get("R2_ACCESS_KEY_ID")
+            and os.environ.get("R2_SECRET_ACCESS_KEY")
+            and os.environ.get("R2_BUCKET_NAME")
+        )
     return bool(_emergent_key())
+
+
+# ---------------------------------------------------------------------
+# Cloudflare R2 backend (S3 API via boto3)
+# ---------------------------------------------------------------------
+# Lazily instantiated so the boto3 dependency only runs on R2-mode
+# pods, and so we don't try to read R2_* env vars at import time
+# (before load_dotenv).
+
+_r2_client = None  # boto3.client('s3', ...) — cached singleton
+
+def _get_r2_client():
+    """Cached S3 client pointed at Cloudflare R2.  Reused across calls
+    inside the same process so we don't pay boto3's ~150ms client
+    construction cost on every read."""
+    global _r2_client
+    if _r2_client is not None:
+        return _r2_client
+    try:
+        import boto3
+        _r2_client = boto3.client(
+            "s3",
+            endpoint_url=os.environ["R2_ENDPOINT_URL"],
+            aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],
+            aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],
+            region_name="auto",
+        )
+        return _r2_client
+    except Exception as e:
+        logger.warning("R2 client init failed: %s", e)
+        return None
+
+
+def _r2_put(local_path: Path, key: str) -> bool:
+    """Upload local file to R2 at ``key``. Best-effort, returns bool."""
+    cli = _get_r2_client()
+    if cli is None or not local_path.exists():
+        return False
+    try:
+        bucket = os.environ["R2_BUCKET_NAME"]
+        with local_path.open("rb") as f:
+            cli.put_object(
+                Bucket=bucket,
+                Key=key,
+                Body=f,
+                ContentType=_content_type_for(key),
+            )
+        return True
+    except Exception as e:
+        logger.warning("R2 upload failed for %s: %s", key, e)
+        return False
+
+
+def _r2_get(local_path: Path, key: str) -> bool:
+    """Download R2 object into ``local_path``.  Returns False on 404
+    (missing) so callers can decide on fallback."""
+    cli = _get_r2_client()
+    if cli is None:
+        return False
+    try:
+        bucket = os.environ["R2_BUCKET_NAME"]
+        resp = cli.get_object(Bucket=bucket, Key=key)
+        local_path.parent.mkdir(parents=True, exist_ok=True)
+        with local_path.open("wb") as f:
+            for chunk in resp["Body"].iter_chunks(chunk_size=1024 * 64):
+                f.write(chunk)
+        return True
+    except Exception as e:
+        # boto3 throws ClientError with NoSuchKey for 404 — we treat
+        # any get failure as "not in R2" and let the caller fall back.
+        msg = str(e)
+        if "NoSuchKey" not in msg and "404" not in msg:
+            logger.warning("R2 download failed for %s: %s", key, msg)
+        return False
+
+
+def _r2_delete(key: str) -> bool:
+    """Hard-delete an R2 object.  Idempotent — R2's DeleteObject
+    returns 204 even for missing keys."""
+    cli = _get_r2_client()
+    if cli is None:
+        return False
+    try:
+        bucket = os.environ["R2_BUCKET_NAME"]
+        cli.delete_object(Bucket=bucket, Key=key)
+        return True
+    except Exception as e:
+        logger.warning("R2 delete failed for %s: %s", key, e)
+        return False
 
 
 def _init_storage(force: bool = False) -> Optional[str]:
@@ -133,6 +243,16 @@ def _content_type_for(key: str) -> str:
 
 
 def mirror_up(local_path: Path, key: str) -> bool:
+    """Public dispatcher.  Routes to R2 or Emergent based on the
+    ``STORAGE_BACKEND`` env var.  Best-effort, never raises."""
+    if not is_enabled():
+        return False
+    if _backend() == "r2":
+        return _r2_put(local_path, key)
+    return _emergent_mirror_up(local_path, key)
+
+
+def _emergent_mirror_up(local_path: Path, key: str) -> bool:
     """Best-effort upload of ``local_path`` to remote ``key``.
 
     Returns ``True`` on success.  Never raises — logs and returns
@@ -180,6 +300,41 @@ def mirror_up(local_path: Path, key: str) -> bool:
 
 
 def restore_to_disk(local_path: Path, key: str) -> bool:
+    """Public dispatcher.  On R2 mode: try R2 first, fall back to
+    Emergent (if Emergent creds are still present) — this is the
+    zero-downtime migration path.  When a file is recovered from
+    Emergent we silently mirror it back to R2 so subsequent reads
+    hit the new backend natively.
+    """
+    if not is_enabled():
+        return False
+    if _backend() == "r2":
+        if _r2_get(local_path, key):
+            return True
+        # R2 miss — fall back to Emergent for files that haven't been
+        # migrated yet.  If Emergent has it, persist the recovered
+        # bytes back to R2 silently so next time we don't double-hop.
+        if _emergent_key() and _emergent_restore_to_disk(local_path, key):
+            try:
+                _r2_put(local_path, key)
+            except Exception:
+                pass
+            return True
+        return False
+    return _emergent_restore_to_disk(local_path, key)
+
+
+def delete_remote(key: str) -> bool:
+    """Public dispatcher.  R2 supports real deletes; Emergent's stub
+    no-ops.  Best-effort."""
+    if not is_enabled():
+        return False
+    if _backend() == "r2":
+        return _r2_delete(key)
+    return _emergent_delete_remote(key)
+
+
+def _emergent_restore_to_disk(local_path: Path, key: str) -> bool:
     """Fetch ``key`` from object storage and write it to ``local_path``.
     Used when the local cache is missing (e.g., after a redeploy).
     Returns ``True`` on success."""
@@ -214,7 +369,7 @@ def restore_to_disk(local_path: Path, key: str) -> bool:
         return False
 
 
-def delete_remote(key: str) -> bool:
+def _emergent_delete_remote(key: str) -> bool:
     """Best-effort delete of a remote object.
 
     Emergent Object Storage doesn't currently expose a hard-delete
