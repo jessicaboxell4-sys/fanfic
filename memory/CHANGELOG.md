@@ -8,6 +8,35 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-19 — Cloudflare R2 credentials wired ⚙️ (migration pending)
+
+User created a Cloudflare R2 bucket (`shelfsort`) and Account API
+token scoped to that bucket only.  Credentials added to
+`backend/.env`:
+- `R2_ACCOUNT_ID`
+- `R2_ACCESS_KEY_ID`
+- `R2_SECRET_ACCESS_KEY`
+- `R2_BUCKET_NAME=shelfsort`
+- `R2_ENDPOINT_URL`
+
+End-to-end smoke test passed: PUT + GET + LIST + DELETE all round-trip
+cleanly via boto3 (S3 API).  `list_buckets` returns AccessDenied
+which is correct — the token is bucket-scoped (least privilege).
+
+**Not yet migrated** — still need:
+- `R2StorageBackend` adapter in `utils/storage_cloud.py`
+- `STORAGE_BACKEND` feature flag (`emergent | r2 | dual`)
+- Background backfill cron to copy existing files Emergent → R2
+- Cutover once backfill ≥ 99% done
+
+Parked for next session — meaty enough to warrant a fresh context
+window for careful implementation + testing.
+
+User should rotate the secret key (currently exposed in this chat).
+
+---
+
+
 ## 2026-06-19 — BookDetail cross-device hint ✅
 
 Small purple lavender pill above the "Read now" button on
