@@ -43,6 +43,7 @@ const ADMIN_CARD_MANIFEST = [
   { testid: "admin-signup-rules-card", title: "Sign-up rules & questions", subtitle: "Approval gate, onboarding questions, community rules.", keywords: "signup register approval gate onboarding questions rules community moderation referral fandom reader type" },
   { testid: "admin-antivirus-card", title: "Antivirus", subtitle: "ClamAV scanner status + recent flags.", keywords: "antivirus clamav virus malware scan quarantine infected eicar signature" },
   { testid: "admin-storage-by-user-card", title: "Top storage users", subtitle: "Top 20 accounts by uploaded bytes.", keywords: "storage user disk bytes top biggest heavy quota power outliers abandoned" },
+  { testid: "admin-r2-migration-card", title: "R2 migration progress", subtitle: "Lazy Emergent → R2 migration sampled progress.", keywords: "r2 migration storage emergent cloudflare progress sample backfill" },
   { testid: "admin-storage-trend-card", title: "Storage trend · 30 days", subtitle: "Cumulative bytes over time.", keywords: "storage trend disk growth chart graph history snapshot 30d size bytes" },
   { testid: "admin-view-consents-card", title: "View-as-user consents", subtitle: "Request read-only access to a user's library.", keywords: "view as user impersonate consent privacy access permission timeline" },
   { testid: "admin-users-card", title: "Users & admins", subtitle: "Promote or demote any account.", keywords: "users admins promote demote roles accounts" },
@@ -1419,6 +1420,93 @@ function AntivirusCard() {
             </ul>
           )}
         </div>
+      )}
+    </Card>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// R2MigrationProgressCard — sample-based gauge of how many books are on R2
+// ---------------------------------------------------------------------------
+// Hidden when STORAGE_BACKEND is not "r2" (the backend returns
+// enabled=false).  Useful as the operator's "is it safe to drop the
+// Emergent fallback?" decision tool.  Server samples 100 random books
+// and HEAD-checks each one against R2 — extrapolates to the full
+// collection.  Sampling takes ~5s so we don't auto-poll.
+function R2MigrationProgressCard() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const { data } = await api.get("/admin/storage-migration-progress");
+      setData(data);
+    } catch { toast.error("Couldn't load R2 migration progress"); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, []);
+
+  if (data && data.enabled === false) return null;
+
+  const pct = data?.percent ?? 0;
+  const tint =
+    pct >= 95 ? { bar: "bg-emerald-500", rail: "bg-emerald-100", text: "text-emerald-700" } :
+    pct >= 60 ? { bar: "bg-amber-500",   rail: "bg-amber-100",   text: "text-amber-700"   } :
+                { bar: "bg-[#6B46C1]",   rail: "bg-[#EEE9FB]",   text: "text-[#6B46C1]"   };
+
+  return (
+    <Card
+      icon={HardDrive}
+      title="R2 migration progress"
+      subtitle="Sampled progress of the lazy Emergent → R2 migration. 100 books HEAD-checked per refresh."
+      testid="admin-r2-migration-card"
+    >
+      {data ? (
+        <div className="space-y-3" data-testid="r2-migration-stats">
+          <div>
+            <div className="flex items-baseline justify-between text-xs mb-1">
+              <span className="text-[#6B705C]">Sample-based estimate</span>
+              <span className={`font-mono ${tint.text}`}>
+                {data.sample_hit} / {data.sampled} sampled · <span className="font-semibold">~{data.percent}%</span>
+              </span>
+            </div>
+            <div className={`h-2 w-full rounded-full overflow-hidden ${tint.rail}`}>
+              <div className={`h-full ${tint.bar} transition-all`} style={{ width: `${Math.max(2, pct)}%` }} />
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-xs">
+            <div className="bg-[#FBFAF6] border border-[#E5DDC5] rounded p-2">
+              <p className="text-[#6B705C] text-[10px] uppercase tracking-wider">Total books</p>
+              <p className="font-mono text-[#2C2C2C] text-base">{data.total.toLocaleString()}</p>
+            </div>
+            <div className="bg-[#FBFAF6] border border-[#E5DDC5] rounded p-2">
+              <p className="text-[#6B705C] text-[10px] uppercase tracking-wider">Est. on R2</p>
+              <p className="font-mono text-[#2C2C2C] text-base">{data.estimated_migrated.toLocaleString()}</p>
+            </div>
+            <div className="bg-[#FBFAF6] border border-[#E5DDC5] rounded p-2">
+              <p className="text-[#6B705C] text-[10px] uppercase tracking-wider">Est. remaining</p>
+              <p className="font-mono text-[#2C2C2C] text-base">{Math.max(0, data.total - data.estimated_migrated).toLocaleString()}</p>
+            </div>
+          </div>
+          {pct >= 99 && (
+            <p className="text-xs text-emerald-700 italic">
+              Migration nearly complete. Safe to consider dropping the Emergent fallback after a week of clean reads.
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={load}
+            disabled={loading}
+            data-testid="r2-migration-resample"
+            className="text-[11px] text-[#6B46C1] hover:underline disabled:opacity-50"
+          >
+            {loading ? "Sampling…" : "Re-sample"}
+          </button>
+        </div>
+      ) : (
+        <p className="text-sm text-[#6B705C]">{loading ? "Sampling…" : "Click refresh"}</p>
       )}
     </Card>
   );
@@ -4057,6 +4145,7 @@ export default function AdminConsole() {
               <HelpFeedbackCard />
               <SignupRulesCard />
               <AntivirusCard />
+              <R2MigrationProgressCard />
               <StorageByUserCard />
               <StorageTrendCard />
               <ViewConsentsCard />

@@ -8,6 +8,33 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-19 — R2 migration progress tile (admin) ✅
+
+New "R2 migration progress" card on the AdminConsole shows a
+sample-based gauge of how many books have made it from Emergent
+into R2 since the cutover.  Operator's "is it safe to drop the
+Emergent fallback?" decision tool.
+
+- Backend: `GET /admin/storage-migration-progress?sample_size=100`
+  picks N random books, HEAD-checks each in R2, extrapolates to the
+  full collection.  Returns `{total, sampled, sample_hit,
+  estimated_migrated, percent}`.  ~50ms per HEAD probe → ~5s for
+  100-sample.
+- Frontend: progress bar tinted purple → amber → emerald as it
+  climbs.  At ≥99% shows a "safe to drop Emergent fallback" hint.
+- Hidden when `STORAGE_BACKEND != "r2"` (the endpoint returns
+  `enabled: false`).
+- Searchable from the AdminConsole search box ("r2", "migration",
+  "backfill").
+
+Initial probe on launch: 0/30 hit (all existing 102 books still on
+Emergent — lazy migration will tick this up as users access them).
+
+Total this session: **24/24 backend pytest pass.**
+
+---
+
+
 ## 2026-06-19 — Cloudflare R2 cutover ✅
 
 Object storage migrated from Emergent Object Storage to Cloudflare R2.

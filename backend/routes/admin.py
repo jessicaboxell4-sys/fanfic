@@ -1897,6 +1897,73 @@ async def get_email_stats(user: User = Depends(require_admin)):
     }
 
 
+@api_router.get("/admin/storage-migration-progress")
+async def storage_migration_progress(
+    sample_size: int = 100,
+    user: User = Depends(require_admin),
+):
+    """Estimate what % of books have been migrated to R2.
+
+    HEAD-checking all ~5000 books would take minutes; instead we pick
+    a random sample of ``sample_size`` books with files and HEAD them
+    against R2, then extrapolate.  ~50ms/probe × 100 = ~5s total.
+
+    Returns:
+        total       — total books with a stored filename
+        sampled     — actual sample size queried
+        sample_hit  — how many of the sample exist in R2 right now
+        estimated_migrated — extrapolated total presence (sample_hit/sampled × total)
+        percent     — round((sample_hit / sampled) * 100)
+
+    Useful as the operator's "is it safe to drop the Emergent
+    fallback yet?" gauge — once percent climbs to 100% and stays
+    there for a week, it's safe to set ``STORAGE_BACKEND=r2-only``
+    (a future flag) and stop hitting Emergent on misses.
+    """
+    from utils.storage_cloud import _r2_head_exists, storage_key_for
+
+    if (os.environ.get("STORAGE_BACKEND") or "").lower() != "r2":
+        return {"enabled": False, "reason": "STORAGE_BACKEND is not r2"}
+
+    sample_size = max(1, min(int(sample_size), 500))
+
+    # Books with a stored filename — anything missing filename can't
+    # have been mirrored and isn't relevant to the migration count.
+    total = await db.books.count_documents({"filename": {"$exists": True, "$ne": None}})
+    if total == 0:
+        return {
+            "enabled": True, "total": 0, "sampled": 0, "sample_hit": 0,
+            "estimated_migrated": 0, "percent": 100,
+        }
+
+    # Random sample via Mongo's $sample aggregation.
+    cursor = db.books.aggregate([
+        {"$match": {"filename": {"$exists": True, "$ne": None}}},
+        {"$sample": {"size": sample_size}},
+        {"$project": {"_id": 0, "book_id": 1, "user_id": 1, "filename": 1}},
+    ])
+    sample = await cursor.to_list(length=sample_size)
+
+    sample_hit = 0
+    for b in sample:
+        fn = b.get("filename") or ""
+        ext = os.path.splitext(fn)[1] or ".epub"
+        key = storage_key_for(b["user_id"], b["book_id"], ext)
+        if _r2_head_exists(key):
+            sample_hit += 1
+
+    estimated = int(round((sample_hit / len(sample)) * total)) if sample else 0
+    percent   = int(round((sample_hit / len(sample)) * 100)) if sample else 0
+    return {
+        "enabled": True,
+        "total": total,
+        "sampled": len(sample),
+        "sample_hit": sample_hit,
+        "estimated_migrated": estimated,
+        "percent": percent,
+    }
+
+
 @api_router.post("/admin/email-logs/clear-pre-cutover-failures")
 async def clear_pre_cutover_failures(user: User = Depends(require_admin)):
     """Delete `status="error"` email_log rows older than the Resend

@@ -126,6 +126,21 @@ def _get_r2_client():
         return None
 
 
+def _r2_head_exists(key: str) -> bool:
+    """Lightweight HEAD probe — returns True if ``key`` exists in R2.
+    Used by the admin migration-progress sampler.  Cheap (~50ms) so
+    safe to call in a 100-key loop."""
+    cli = _get_r2_client()
+    if cli is None:
+        return False
+    try:
+        bucket = os.environ["R2_BUCKET_NAME"]
+        cli.head_object(Bucket=bucket, Key=key)
+        return True
+    except Exception:
+        return False
+
+
 def _r2_put(local_path: Path, key: str) -> bool:
     """Upload local file to R2 at ``key``. Best-effort, returns bool."""
     cli = _get_r2_client()
