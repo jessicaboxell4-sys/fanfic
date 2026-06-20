@@ -40,9 +40,15 @@ from utils.feature_flags import KNOWN_FLAGS, get_flags, set_flag
 
 @api_router.get("/admin/users")
 async def list_users(user: User = Depends(require_admin)):
-    """Return every user with admin badge + book/storage stats."""
+    """Return every user with admin badge + book/storage stats.
+
+    Excludes test-account fixtures (``utils.test_account_filter``) so
+    the main "Users & admins" admin section doesn't get cluttered by
+    agent-created seeds — those live on the separate
+    ``/admin/test-accounts`` page.
+    """
     rows = await db.users.find(
-        {},
+        {"$nor": mongo_test_account_filter()["$or"]},
         {"_id": 0, "user_id": 1, "email": 1, "name": 1, "is_admin": 1, "is_moderator": 1, "created_at": 1},
     ).sort("created_at", 1).to_list(length=2000)
     # Annotate with book counts (single aggregation, not per-row).
@@ -615,7 +621,12 @@ async def get_today_pulse(user: User = Depends(require_admin)):
 
     # 1) Signups in the last 24h. ``created_at`` is stored as ISO string
     # at the moment, so we compare lexicographically — safe for ISO 8601.
-    signups_24h = await db.users.count_documents({"created_at": {"$gte": win_iso}})
+    # Test-account fixtures are excluded so the morning operator-digest
+    # only reflects REAL new accounts.
+    signups_24h = await db.users.count_documents({
+        "created_at": {"$gte": win_iso},
+        "$nor": mongo_test_account_filter()["$or"],
+    })
 
     # 2) Uploads. Some old books store ``created_at`` as datetime, newer
     # ones as ISO string — handle both with $or.
@@ -1062,23 +1073,44 @@ async def set_global_fandom_aliases(body: GlobalFandomAliasBody, user: User = De
 
 @api_router.get("/admin/global-stats")
 async def global_stats(user: User = Depends(require_admin)):
-    """Tenant-wide rollup. Light aggregations only — no per-book scan."""
-    user_count = await db.users.count_documents({})
-    book_count = await db.books.count_documents({})
-    admin_count = await db.users.count_documents({"is_admin": True})
+    """Tenant-wide rollup. Light aggregations only — no per-book scan.
+
+    Test-account fixtures (``utils.test_account_filter``) are excluded
+    from every count so the admin's headline KPIs reflect REAL users
+    and books only.  Fixture counts are still visible on the dedicated
+    ``/admin/test-accounts`` page.
+    """
+    test_filter = {"$nor": mongo_test_account_filter()["$or"]}
+
+    # Real users only (test fixtures excluded).
+    user_count = await db.users.count_documents(test_filter)
+    admin_count = await db.users.count_documents({**test_filter, "is_admin": True})
+
+    # Books from real users only.  We resolve the real user_ids first
+    # because books don't carry the test-flag — exclusion travels via
+    # the owner's email pattern.
+    real_user_ids = [
+        u["user_id"]
+        async for u in db.users.find(test_filter, {"_id": 0, "user_id": 1})
+    ]
+    book_count = await db.books.count_documents({"user_id": {"$in": real_user_ids}}) if real_user_ids else 0
 
     # Signups in last 7d / 30d (string ISO comparison works because we
     # store created_at as ISO 8601).
     now = datetime.now(timezone.utc)
     week_ago = (now - timedelta(days=7)).isoformat()
     month_ago = (now - timedelta(days=30)).isoformat()
-    signups_7d = await db.users.count_documents({"created_at": {"$gte": week_ago}})
-    signups_30d = await db.users.count_documents({"created_at": {"$gte": month_ago}})
+    signups_7d = await db.users.count_documents({**test_filter, "created_at": {"$gte": week_ago}})
+    signups_30d = await db.users.count_documents({**test_filter, "created_at": {"$gte": month_ago}})
 
-    # Top 10 fandoms across all libraries.
+    # Top 10 fandoms across all libraries — restricted to real users.
+    books_match = {
+        "fandom": {"$ne": None, "$nin": ["", None]},
+        "user_id": {"$in": real_user_ids},
+    } if real_user_ids else {"_id": None}  # impossible match if no real users yet
     top_fandoms = []
     pipeline = [
-        {"$match": {"fandom": {"$ne": None, "$nin": ["", None]}}},
+        {"$match": books_match},
         {"$group": {"_id": "$fandom", "n": {"$sum": 1}}},
         {"$sort": {"n": -1}},
         {"$limit": 10},
@@ -1086,13 +1118,21 @@ async def global_stats(user: User = Depends(require_admin)):
     async for r in db.books.aggregate(pipeline):
         top_fandoms.append({"fandom": r["_id"], "count": r["n"]})
 
-    # Category split
+    # Category split — restricted to real users.
     categories: Dict[str, int] = {}
-    async for r in db.books.aggregate([{"$group": {"_id": "$category", "n": {"$sum": 1}}}]):
+    cat_pipeline = [
+        {"$match": {"user_id": {"$in": real_user_ids}}} if real_user_ids else {"$match": {"_id": None}},
+        {"$group": {"_id": "$category", "n": {"$sum": 1}}},
+    ]
+    async for r in db.books.aggregate(cat_pipeline):
         categories[r["_id"] or "Uncategorized"] = r["n"]
 
-    # Storage used on disk (sum of sizes in books collection).
-    storage_pipeline = [{"$group": {"_id": None, "bytes": {"$sum": "$size_bytes"}}}]
+    # Storage used on disk (sum of sizes in books collection) — real
+    # users only so fixture EPUBs don't inflate the quota gauge.
+    storage_pipeline = [
+        {"$match": {"user_id": {"$in": real_user_ids}}} if real_user_ids else {"$match": {"_id": None}},
+        {"$group": {"_id": None, "bytes": {"$sum": "$size_bytes"}}},
+    ]
     storage_doc = await db.books.aggregate(storage_pipeline).to_list(length=1)
     total_bytes = storage_doc[0]["bytes"] if storage_doc else 0
 
@@ -2061,6 +2101,201 @@ async def storage_migration_progress(
         "sample_hit": sample_hit,
         "estimated_migrated": estimated,
         "percent": percent,
+    }
+
+
+@api_router.get("/admin/orphan-audit")
+async def orphan_audit(
+    limit: int = 1000,
+    user: User = Depends(require_admin),
+):
+    """Audit every book whose stored file is missing from BOTH backends.
+
+    For each book with a ``filename`` field, we HEAD-check the primary
+    object store (R2 in current cutover) and, on a miss, fall back to
+    the Emergent secondary.  A book is "orphaned" only when BOTH
+    checks fail — at that point the DB row points at bytes we can no
+    longer serve.
+
+    Returns:
+        scanned     — books inspected this run (capped at ``limit``)
+        orphans     — list of orphaned book metadata for the UI table
+        orphan_count — len(orphans)
+        backend     — primary backend in use right now
+
+    Read-only.  Pair with ``POST /admin/orphan-audit/delete-bulk`` to
+    actually remove the records.  The endpoint is also safe to re-run
+    at any time — no writes occur.
+    """
+    from utils.storage_cloud import remote_exists, storage_key_for, is_enabled
+
+    if not is_enabled():
+        raise HTTPException(400, "Object storage not enabled")
+
+    limit = max(1, min(int(limit), 5000))
+
+    books = await db.books.find(
+        {"filename": {"$exists": True, "$ne": None}},
+        {
+            "_id": 0,
+            "book_id": 1,
+            "user_id": 1,
+            "filename": 1,
+            "title": 1,
+            "author": 1,
+            "fandom": 1,
+            "category": 1,
+            "created_at": 1,
+            "size_bytes": 1,
+        },
+    ).to_list(length=limit)
+
+    # Resolve owner emails in one pass so the UI table can show who
+    # uploaded each orphan without a follow-up call.
+    from utils.test_account_filter import is_test_account as _is_test_email
+    owner_ids = list({b["user_id"] for b in books if b.get("user_id")})
+    owners: Dict[str, Dict[str, Any]] = {}
+    if owner_ids:
+        async for u in db.users.find(
+            {"user_id": {"$in": owner_ids}},
+            {"_id": 0, "user_id": 1, "email": 1, "name": 1, "is_test_account": 1},
+        ):
+            owners[u["user_id"]] = u
+
+    orphans: List[Dict[str, Any]] = []
+    # Parallelise HEAD probes — 20-wide concurrency knocks ~250s of
+    # serial probes (for ~5000 books) down to ~12s while keeping the
+    # R2 / Emergent backends well under their rate limits.
+    sem = asyncio.Semaphore(20)
+
+    async def _probe(book: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        fn = book.get("filename") or ""
+        ext = os.path.splitext(fn)[1] or ".epub"
+        key = storage_key_for(book["user_id"], book["book_id"], ext)
+        async with sem:
+            exists = await asyncio.to_thread(remote_exists, key)
+        if exists:
+            return None
+        owner = owners.get(book["user_id"], {})
+        owner_email = owner.get("email") or ""
+        owner_is_test = bool(owner.get("is_test_account")) or _is_test_email(owner_email)
+        created = book.get("created_at")
+        if hasattr(created, "isoformat"):
+            created = created.isoformat()
+        return {
+            "book_id": book["book_id"],
+            "user_id": book["user_id"],
+            "owner_email": owner_email,
+            "owner_name": owner.get("name") or "",
+            "owner_is_test": owner_is_test,
+            "title": book.get("title") or "(untitled)",
+            "author": book.get("author") or "",
+            "fandom": book.get("fandom") or "",
+            "category": book.get("category") or "",
+            "filename": fn,
+            "size_bytes": int(book.get("size_bytes") or 0),
+            "created_at": created,
+            "storage_key": key,
+        }
+
+    results = await asyncio.gather(*[_probe(b) for b in books])
+    orphans = [r for r in results if r is not None]
+
+    return {
+        "scanned": len(books),
+        "limit": limit,
+        "orphan_count": len(orphans),
+        "orphans": orphans,
+        "backend": (os.environ.get("STORAGE_BACKEND") or "emergent").lower(),
+    }
+
+
+class OrphanBulkDeleteBody(BaseModel):
+    book_ids: List[str] = Field(default_factory=list)
+    confirm_recheck: bool = True
+
+
+@api_router.post("/admin/orphan-audit/delete-bulk")
+async def orphan_audit_delete_bulk(
+    body: OrphanBulkDeleteBody,
+    user: User = Depends(require_admin),
+):
+    """Permanently delete a batch of orphaned book records from the DB.
+
+    Safety mechanics:
+      • Each ``book_id`` is RE-CHECKED against object storage before the
+        DB row is removed (unless ``confirm_recheck=False`` is passed
+        by an operator who's already audited this exact batch).  If a
+        file unexpectedly reappears, that book is skipped and the
+        endpoint reports it back as ``recovered``.
+      • Only the ``books`` row itself is removed.  Reading-activity /
+        bookmarks rows are NOT touched here — they're harmless (foreign
+        keys onto a no-longer-served book) and the daily cron purges
+        them via ``account_grace_tick``.  Keeping this endpoint
+        narrowly-scoped means an admin can't accidentally nuke a user
+        the way ``POST /account/delete`` does.
+      • Audit-logged with the exact book_ids removed.
+
+    Returns counts + the recovered/missing breakdown so the UI can
+    refresh the orphan table after the action.
+    """
+    from utils.storage_cloud import remote_exists, storage_key_for, is_enabled
+
+    if not is_enabled():
+        raise HTTPException(400, "Object storage not enabled")
+    if not body.book_ids:
+        raise HTTPException(400, "book_ids cannot be empty")
+    if len(body.book_ids) > 500:
+        raise HTTPException(400, "Cap of 500 books per batch — split larger jobs")
+
+    targets = await db.books.find(
+        {"book_id": {"$in": body.book_ids}},
+        {"_id": 0, "book_id": 1, "user_id": 1, "filename": 1, "title": 1},
+    ).to_list(length=600)
+
+    deleted_ids: List[str] = []
+    recovered: List[Dict[str, str]] = []
+    not_found: List[str] = []
+
+    for b in targets:
+        if body.confirm_recheck:
+            fn = b.get("filename") or ""
+            ext = os.path.splitext(fn)[1] or ".epub"
+            key = storage_key_for(b["user_id"], b["book_id"], ext)
+            still_orphan = not await asyncio.to_thread(remote_exists, key)
+            if not still_orphan:
+                # File magically came back — refuse to delete.
+                recovered.append({"book_id": b["book_id"], "title": b.get("title") or ""})
+                continue
+        deleted_ids.append(b["book_id"])
+
+    # Calculate IDs in the request that didn't even resolve to a book.
+    found_ids = {t["book_id"] for t in targets}
+    for bid in body.book_ids:
+        if bid not in found_ids:
+            not_found.append(bid)
+
+    deleted_count = 0
+    if deleted_ids:
+        res = await db.books.delete_many({"book_id": {"$in": deleted_ids}})
+        deleted_count = res.deleted_count
+
+    await record_admin_action(
+        user,
+        "books.delete_orphans_bulk",
+        target=f"count:{deleted_count}",
+        metadata={
+            "deleted": deleted_count,
+            "recovered": len(recovered),
+            "not_found": len(not_found),
+            "book_ids": deleted_ids[:50],  # cap audit metadata
+        },
+    )
+    return {
+        "ok": True,
+        "deleted": deleted_count,
+        "recovered": recovered,
+        "not_found": not_found,
     }
 
 

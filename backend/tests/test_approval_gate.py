@@ -69,12 +69,27 @@ def seed():
 
 
 def _make_pending_signup():
-    """Register a new account end-to-end; return (email, password, uid)."""
-    email = f"approvaltest_{uuid.uuid4().hex[:8]}@example.com"
+    """Register a new account end-to-end; return (email, password, uid).
+
+    Uses a non-RFC2606 domain so the test_account_filter (which
+    auto-approves anything ending in @test.local / @example.com etc.)
+    doesn't fire — we explicitly want the real approval-gate path.
+    """
+    email = f"approvaltest_{uuid.uuid4().hex[:8]}@real-domain-acme.shop"
     password = "hunter2pw"
     r = requests.post(
         f"{BASE}/api/auth/register",
-        json={"email": email, "password": password, "name": "Approval Test"},
+        json={
+            "email": email,
+            "password": password,
+            "name": "Approval Test",
+            "accepted_rules": True,
+            "onboarding": {
+                "referral": "google",
+                "reader_type": "fanfic",
+                "is_13_plus": True,
+            },
+        },
         timeout=15,
     )
     assert r.status_code == 200, r.text

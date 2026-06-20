@@ -8,6 +8,61 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-20 — Orphan audit & auto-accept test accounts ✅
+
+Two complementary admin tools shipped together:
+
+**1. Orphan audit & cleanup**
+- New `GET /api/admin/orphan-audit` — HEAD-checks every book with a
+  stored filename against R2 *and* the Emergent fallback (concurrent,
+  20-wide semaphore so the ~3800-book scan completes in ~2s).  Returns
+  per-orphan metadata (title, owner, filename, size) so the admin can
+  inspect before deleting.
+- New `POST /api/admin/orphan-audit/delete-bulk` — re-checks each book
+  against storage before removing (so a recovered file is never
+  nuked), batches capped at 500, audit-logged.
+- New `OrphanCleanupCard` on `/admin` slotted next to the R2 migration
+  card — runs the audit, shows a sortable table with per-row
+  checkboxes + a "Test" badge for fixture owners, "Delete N selected"
+  action with confirm prompt + re-audit on success.
+- First run confirmed the 20 orphans from the prior R2 migration —
+  19 belong to test fixtures, 1 to a real user.  Cleanup unblocks the
+  migration gauge from plateauing at 62%.
+
+**2. Auto-accept agent test accounts**
+- `routes/auth.py` (both `/auth/google` and `/auth/register`) now
+  detect emails matching `utils.test_account_filter` patterns
+  (`@test.local`, `@example.com`, `test_*` / `t_*` / `sync_*`
+  prefixes, etc.) and:
+  - Skip the approval gate (status set to `approved` immediately).
+  - Skip onboarding-question requirements.
+  - Stamp `is_test_account=True` + `auto_approved_test=True` on the
+    user doc for stat isolation.
+- `routes/admin.py` extended to **exclude test accounts** from:
+  - `GET /admin/users` (main users list)
+  - `GET /admin/global-stats` (user/book/signup/storage rollups)
+  - `GET /admin/today-pulse` (24h signups KPI)
+  - (Already excluded from `/admin/pending-users` and bulk-approve.)
+- Real users still hit the approval gate normally — verified via the
+  refreshed `test_approval_gate.py` (switched its fixture domain off
+  `@example.com` so the test no longer trips the new fixture filter).
+- New `utils/storage_cloud.py` helpers: `_emergent_head_exists()` +
+  public `remote_exists(key)` dispatcher used by the orphan audit.
+
+**Tests added: `test_orphan_audit.py` (6 cases)**
+- auth gate, audit shape, bulk-delete validation (empty body,
+  unknown IDs), test-account auto-approval flag, real-user pending
+  preservation.  All passing.
+
+**Tests touched:** `test_approval_gate.py` — switched the fixture
+domain to `@real-domain-acme.shop` so the existing gate tests aren't
+hijacked by the new auto-approve rule.
+
+Total diff: ~210 LOC added to AdminConsole.jsx, ~250 LOC added to
+admin.py, +1 manifest entry, +6 pytest cases.
+
+---
+
 ## 2026-06-19 — Proactive R2 backfill + drain ✅
 
 Added admin-triggered backfill endpoint + "Migrate next 25" button on

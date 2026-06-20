@@ -44,6 +44,7 @@ const ADMIN_CARD_MANIFEST = [
   { testid: "admin-antivirus-card", title: "Antivirus", subtitle: "ClamAV scanner status + recent flags.", keywords: "antivirus clamav virus malware scan quarantine infected eicar signature" },
   { testid: "admin-storage-by-user-card", title: "Top storage users", subtitle: "Top 20 accounts by uploaded bytes.", keywords: "storage user disk bytes top biggest heavy quota power outliers abandoned" },
   { testid: "admin-r2-migration-card", title: "R2 migration progress", subtitle: "Lazy Emergent → R2 migration sampled progress.", keywords: "r2 migration storage emergent cloudflare progress sample backfill" },
+  { testid: "admin-orphan-audit-card", title: "Orphan audit & cleanup", subtitle: "Find books whose files are missing in both R2 and Emergent.", keywords: "orphan audit cleanup missing files head-check r2 emergent storage dead row dangling" },
   { testid: "admin-storage-trend-card", title: "Storage trend · 30 days", subtitle: "Cumulative bytes over time.", keywords: "storage trend disk growth chart graph history snapshot 30d size bytes" },
   { testid: "admin-view-consents-card", title: "View-as-user consents", subtitle: "Request read-only access to a user's library.", keywords: "view as user impersonate consent privacy access permission timeline" },
   { testid: "admin-users-card", title: "Users & admins", subtitle: "Promote or demote any account.", keywords: "users admins promote demote roles accounts" },
@@ -1541,6 +1542,214 @@ function R2MigrationProgressCard() {
       ) : (
         <p className="text-sm text-[#6B705C]">{loading ? "Sampling…" : "Click refresh"}</p>
       )}
+    </Card>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// OrphanCleanupCard — find + delete books whose files vanished from storage
+// ---------------------------------------------------------------------------
+// HEAD-checks every book with a stored filename against the active R2
+// bucket AND the Emergent fallback.  A book is flagged "orphan" only if
+// BOTH backends return 404 — meaning the bytes are truly gone and the
+// DB row points at nothing.  Cleanup lets the admin bulk-delete those
+// dead rows so the migration progress can finally hit 100% and the
+// library counts stop overstating reality.
+function OrphanCleanupCard() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [selected, setSelected] = useState(() => new Set());
+  const [lastResult, setLastResult] = useState(null);
+
+  const audit = async () => {
+    setLoading(true);
+    setLastResult(null);
+    try {
+      const { data } = await api.get("/admin/orphan-audit", { params: { limit: 5000 } });
+      setData(data);
+      // Default to selecting every orphan — admin can untick before delete.
+      setSelected(new Set((data?.orphans || []).map((o) => o.book_id)));
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't run orphan audit");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggle = (book_id) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(book_id)) next.delete(book_id); else next.add(book_id);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    const all = (data?.orphans || []).map((o) => o.book_id);
+    setSelected((prev) => (prev.size === all.length ? new Set() : new Set(all)));
+  };
+
+  const removeSelected = async () => {
+    const ids = Array.from(selected);
+    if (!ids.length) return;
+    if (!window.confirm(
+      `Delete ${ids.length} orphaned book record${ids.length === 1 ? "" : "s"}?\n\n`
+      + `Each row will be re-checked against object storage before deletion. `
+      + `Files won't be touched (they're already gone). This action is logged.`,
+    )) return;
+    setDeleting(true);
+    try {
+      const { data: r } = await api.post("/admin/orphan-audit/delete-bulk", {
+        book_ids: ids,
+        confirm_recheck: true,
+      });
+      setLastResult(r);
+      toast.success(`Removed ${r.deleted} orphan${r.deleted === 1 ? "" : "s"}`);
+      // Refresh the audit so the table reflects the post-delete state.
+      audit();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Bulk delete failed");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const orphans = data?.orphans || [];
+  const allChecked = orphans.length > 0 && selected.size === orphans.length;
+  const sizeTotal = orphans.reduce((s, o) => s + (o.size_bytes || 0), 0);
+
+  return (
+    <Card
+      icon={AlertOctagon}
+      title="Orphan audit & cleanup"
+      subtitle="Find DB rows whose files are missing from both R2 and Emergent, then bulk-delete them so the migration can hit 100%."
+      testid="admin-orphan-audit-card"
+    >
+      <div className="space-y-3" data-testid="orphan-audit-body">
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={audit}
+            disabled={loading}
+            data-testid="orphan-audit-run"
+            className="px-3 py-1.5 rounded-full bg-[#6B46C1] text-white text-xs font-bold uppercase tracking-[0.15em] hover:bg-[#5C3AAD] disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+          >
+            {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+            {loading ? "Auditing…" : data ? "Re-audit" : "Run audit"}
+          </button>
+          {data && (
+            <p className="text-xs text-[#6B705C]" data-testid="orphan-audit-summary">
+              Scanned <span className="font-mono">{data.scanned}</span> · found
+              {" "}
+              <span className="font-mono font-semibold text-[#E07A5F]">{data.orphan_count}</span>
+              {" "}orphan{data.orphan_count === 1 ? "" : "s"} on
+              {" "}<span className="font-mono">{data.backend}</span>
+            </p>
+          )}
+        </div>
+
+        {data && orphans.length === 0 && (
+          <p
+            className="text-sm text-emerald-700 italic"
+            data-testid="orphan-audit-empty"
+          >
+            No orphans — every book row points at a real file. The library is tidy.
+          </p>
+        )}
+
+        {orphans.length > 0 && (
+          <>
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-[#FBFAF6] border border-[#E5DDC5] rounded p-2">
+              <label className="inline-flex items-center gap-2 text-xs text-[#2C2C2C] cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={allChecked}
+                  onChange={toggleAll}
+                  data-testid="orphan-audit-toggle-all"
+                  className="w-3.5 h-3.5"
+                />
+                {selected.size} of {orphans.length} selected · {fmtBytes(sizeTotal)}
+              </label>
+              <button
+                type="button"
+                onClick={removeSelected}
+                disabled={deleting || !selected.size}
+                data-testid="orphan-audit-delete-selected"
+                className="px-3 py-1.5 rounded-full bg-[#E07A5F] text-white text-xs font-bold uppercase tracking-[0.15em] hover:bg-[#C8674E] disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+              >
+                {deleting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                {deleting ? "Removing…" : `Delete ${selected.size || ""} selected`}
+              </button>
+            </div>
+            <div className="overflow-x-auto border border-[#E5DDC5] rounded">
+              <table className="w-full text-xs">
+                <thead className="bg-[#FBFAF6] text-[#6B705C] uppercase tracking-[0.12em] text-[10px]">
+                  <tr>
+                    <th className="text-left p-2 w-8"></th>
+                    <th className="text-left p-2">Title</th>
+                    <th className="text-left p-2">Owner</th>
+                    <th className="text-left p-2">Filename</th>
+                    <th className="text-right p-2">Size</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {orphans.map((o) => (
+                    <tr
+                      key={o.book_id}
+                      className="border-t border-[#F0EBDE] hover:bg-[#FBFAF6]"
+                      data-testid={`orphan-row-${o.book_id}`}
+                    >
+                      <td className="p-2 align-top">
+                        <input
+                          type="checkbox"
+                          checked={selected.has(o.book_id)}
+                          onChange={() => toggle(o.book_id)}
+                          data-testid={`orphan-row-checkbox-${o.book_id}`}
+                          className="w-3.5 h-3.5"
+                        />
+                      </td>
+                      <td className="p-2 align-top">
+                        <p className="text-[#2C2C2C] font-medium truncate max-w-[28ch]">{o.title}</p>
+                        {o.author && <p className="text-[10px] text-[#6B705C] truncate max-w-[28ch]">{o.author}</p>}
+                      </td>
+                      <td className="p-2 align-top">
+                        <p className="text-[#2C2C2C] truncate max-w-[24ch]">{o.owner_email || o.user_id}</p>
+                        {o.owner_is_test && (
+                          <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded-full bg-[#EEE9FB] text-[#6B46C1] text-[9px] font-bold uppercase tracking-wider">
+                            Test
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-2 align-top">
+                        <span className="font-mono text-[10px] text-[#6B705C] break-all">{o.filename}</span>
+                      </td>
+                      <td className="p-2 align-top text-right font-mono text-[10px] text-[#6B705C]">
+                        {fmtBytes(o.size_bytes || 0)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+
+        {lastResult && (
+          <p className="text-[11px] text-[#6B705C] italic" data-testid="orphan-audit-last-result">
+            Last run: removed {lastResult.deleted}
+            {lastResult.recovered?.length ? ` · skipped ${lastResult.recovered.length} recovered` : ""}
+            {lastResult.not_found?.length ? ` · ${lastResult.not_found.length} not found` : ""}
+          </p>
+        )}
+        {!data && !loading && (
+          <p className="text-xs text-[#6B705C]">
+            Click <span className="font-semibold">Run audit</span> to HEAD-check every book against R2 and Emergent.
+            Safe — read-only until you click delete.
+          </p>
+        )}
+      </div>
     </Card>
   );
 }
@@ -4179,6 +4388,7 @@ export default function AdminConsole() {
               <SignupRulesCard />
               <AntivirusCard />
               <R2MigrationProgressCard />
+              <OrphanCleanupCard />
               <StorageByUserCard />
               <StorageTrendCard />
               <ViewConsentsCard />

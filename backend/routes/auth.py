@@ -39,6 +39,7 @@ from utils.usernames import (
     username_is_taken,
     suggestion_from_email,
 )
+from utils.test_account_filter import is_test_account
 
 
 # ============================================================
@@ -82,9 +83,14 @@ async def auth_google(request: Request, response: Response):
         # IS issued so the FE can read ``/auth/me`` and route them to the
         # pending-approval screen (lenient dep there).
         is_first_user = (await db.users.count_documents({}, limit=1)) == 0
-        approval_status = "approved" if is_first_user else "pending"
+        # 2026-06-22 — Testing-agent fixtures (see utils.test_account_filter)
+        # bypass the approval gate so QA sessions don't pile up in the
+        # admin inbox.  We also stamp ``is_test_account=True`` so every
+        # admin rollup query can ``$nor`` them out of real stats.
+        is_test = is_test_account(email)
+        approval_status = "approved" if (is_first_user or is_test) else "pending"
         user_id = f"user_{uuid.uuid4().hex[:12]}"
-        await db.users.insert_one({
+        new_doc = {
             "user_id": user_id,
             "email": email,
             "name": name,
@@ -92,7 +98,11 @@ async def auth_google(request: Request, response: Response):
             "is_admin": is_first_user,
             "approval_status": approval_status,
             "created_at": datetime.now(timezone.utc).isoformat(),
-        })
+        }
+        if is_test:
+            new_doc["is_test_account"] = True
+            new_doc["auto_approved_test"] = True
+        await db.users.insert_one(new_doc)
 
     expires_at = datetime.now(timezone.utc) + timedelta(days=7)
     await db.user_sessions.insert_one({
@@ -289,6 +299,12 @@ async def auth_register(body: RegisterBody, response: Response):
     # itself; everyone after that lands in ``"pending"`` until an
     # existing admin approves them from /admin → Pending sign-ups.
     is_first_user = (await db.users.count_documents({}, limit=1)) == 0
+    # 2026-06-22 — Testing-agent fixtures (see utils.test_account_filter)
+    # bypass the approval gate AND the onboarding-question requirement,
+    # so QA seeds always get a live session without cluttering the
+    # admin inbox.  Stamped with ``is_test_account=True`` for stat
+    # isolation.
+    is_test = is_test_account(email)
 
     # 2026-06-18 — Admin-controlled signup config.  When the approval
     # gate is OFF, every new account is auto-approved (still goes
@@ -299,7 +315,7 @@ async def auth_register(body: RegisterBody, response: Response):
     from routes.signup_config import _get_config as _get_signup_config
     cfg = await _get_signup_config()
 
-    if cfg["questions_enabled"] and not is_first_user:
+    if cfg["questions_enabled"] and not is_first_user and not is_test:
         if not body.accepted_rules:
             raise HTTPException(status_code=400, detail="You must agree to the community rules to sign up")
         ob = body.onboarding
@@ -311,7 +327,7 @@ async def auth_register(body: RegisterBody, response: Response):
                 detail="Shelfsort is for readers 13 and older.",
             )
 
-    if is_first_user:
+    if is_first_user or is_test:
         approval_status = "approved"
     elif cfg["approval_gate_enabled"]:
         approval_status = "pending"
@@ -328,6 +344,9 @@ async def auth_register(body: RegisterBody, response: Response):
         "approval_status": approval_status,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
+    if is_test:
+        user_doc["is_test_account"] = True
+        user_doc["auto_approved_test"] = True
     if body.accepted_rules:
         user_doc["accepted_rules_at"] = datetime.now(timezone.utc).isoformat()
     if body.onboarding is not None:

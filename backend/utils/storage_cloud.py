@@ -384,6 +384,67 @@ def _emergent_restore_to_disk(local_path: Path, key: str) -> bool:
         return False
 
 
+def _emergent_head_exists(key: str) -> bool:
+    """HEAD-equivalent probe for Emergent Object Storage.
+
+    Emergent's REST API doesn't expose a true HEAD verb, so we issue
+    a GET with ``stream=True`` and bail out without reading the body.
+    Returns ``True`` if the object exists, ``False`` on 404 or any
+    transport error.  Used by the orphan-audit endpoint to confirm
+    a file is genuinely missing from BOTH backends before we delete
+    the DB record.
+    """
+    if not _emergent_key():
+        return False
+    storage_key = _init_storage()
+    if not storage_key:
+        return False
+    try:
+        resp = requests.get(
+            f"{STORAGE_URL}/objects/{key}",
+            headers={"X-Storage-Key": storage_key},
+            stream=True,
+            timeout=15,
+        )
+        if resp.status_code == 403:
+            storage_key = _init_storage(force=True)
+            if not storage_key:
+                return False
+            resp = requests.get(
+                f"{STORAGE_URL}/objects/{key}",
+                headers={"X-Storage-Key": storage_key},
+                stream=True,
+                timeout=15,
+            )
+        try:
+            resp.close()
+        except Exception:
+            pass
+        return 200 <= resp.status_code < 300
+    except Exception as e:
+        logger.warning("Object storage HEAD failed for %s: %s", key, e)
+        return False
+
+
+def remote_exists(key: str) -> bool:
+    """Public dispatcher — does ``key`` exist in *any* configured backend?
+
+    Used by the admin orphan-audit endpoint.  Returns ``True`` if the
+    primary backend has the file, OR (in r2 mode) if the Emergent
+    fallback still has it.  ``False`` means the bytes are gone and the
+    DB record is an orphan safe to delete.
+    """
+    if not is_enabled():
+        return False
+    if _backend() == "r2":
+        if _r2_head_exists(key):
+            return True
+        if _emergent_key() and _emergent_head_exists(key):
+            return True
+        return False
+    return _emergent_head_exists(key)
+
+
 def _emergent_delete_remote(key: str) -> bool:
     """Best-effort delete of a remote object.
 

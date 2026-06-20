@@ -11,7 +11,7 @@
 - **Backend**: FastAPI + Motor (MongoDB), `ebooklib` for EPUB parsing, BeautifulSoup for HTML strip, `emergentintegrations` for Claude classification
 - **Frontend**: React 19 + react-router-dom 7 + Tailwind + Sonner toasts + Lucide icons
 - **Auth**: Two methods, both issuing the same `session_token` cookie — Emergent-managed Google OAuth **and** email/password (bcrypt, 5-attempt lockout)
-- **Storage**: Local filesystem `/app/uploads/{user_id}/{book_id}.epub` (+ `.cover`)
+- **Storage**: Local filesystem cache `/app/uploads/{user_id}/{book_id}.epub` mirrored to **Cloudflare R2** (primary) with Emergent Object Storage as a lazy fallback for un-migrated rows.  See `utils/storage_cloud.py`.
 - **DB collections**: users, user_sessions, books, categories, reading_activity, year_in_books_shares, view_consents, plus many feature-specific (tags, smart_shelves, bookclubs, friends, dm_threads, etc.)
 
 ## User Personas
@@ -62,6 +62,8 @@
 - `GET  /api/admin/signup-config` · `PUT /api/admin/signup-config` · `GET /api/admin/onboarding-stats` (admin sign-up controls)
 - `GET  /api/health` (public — Mongo · scheduler · object storage · antivirus liveness for monitors)
 - `GET  /api/admin/antivirus/status` · `GET /api/admin/antivirus/quarantine` (ClamAV health + flagged-file audit)
+- `GET  /api/admin/orphan-audit` · `POST /api/admin/orphan-audit/delete-bulk` (find + remove DB rows whose files are missing from storage)
+- `GET  /api/admin/storage-migration-progress` · `POST /api/admin/storage-migration-backfill` (R2 cutover progress + backfill chunks)
 
 ## 3rd-Party Integrations
 - **Emergent LLM Key** — Claude Sonnet 4.6 for classification + tag suggestions
