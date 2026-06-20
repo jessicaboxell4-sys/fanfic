@@ -8,6 +8,54 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-20 (invite-fast-track) — `?ref=...` skips onboarding questions ✅
+
+When a visitor arrives via a tracked invite link (Facebook group
+post, partner site, etc.) they've already self-selected — making
+them answer "what's your favorite fandom" is unnecessary friction.
+This change skips the onboarding panel entirely on fast-track signups.
+
+**Frontend** — `Login.jsx`:
+- New `inviteFastTrack = mode === "register" && !!referral` flag.
+- Step 1 → Step 2 transition is skipped when `inviteFastTrack` is
+  true; the form submits directly from email/password.
+- Submit-button label flips from "Continue" → "Create account" when
+  fast-track is active so the user knows they're done.
+- Consent microcopy ("Welcome from your invite link! By creating an
+  account you agree to the community rules and confirm you're 13 or
+  older.") renders below the button with a link to `/rules`.
+- `accepted_rules` is set implicitly to true; ``onboarding={referral}``
+  is sent so the campaign tag survives.
+
+**Backend** — no changes needed!  `auth.py:322` already accepts
+``onboarding.referral`` alone as a valid "answer" to the
+"at least one" rule, and `is_13_plus=null` (omitted) passes the
+``if is_13_plus is False`` age gate.  The fast-track is just a
+lighter frontend payload that the existing contract already permits.
+
+**Tests** — `tests/test_invite_fast_track.py` (+5 cases):
+- Fast-track with only referral+accepted_rules succeeds (returns
+  pending if approval-gate on)
+- No-referral + empty onboarding → 400 (confirms gate still works)
+- Missing `accepted_rules` even with referral → 400
+- Explicit `is_13_plus=False` still blocks (the gate is age-aware,
+  not consent-blind)
+- `is_13_plus` omitted on fast-track → passes (the whole point)
+All 5 passing.
+
+**Screenshot verified**: `/login?ref=hpfb` auto-flips to register,
+shows "Create account" button + consent line, no step-2 panel.
+`/login` (no ref) keeps "Continue" + step-2 panel.
+
+**For the HP Facebook post**: use URL
+``https://shelfsort.com?ref=hpfb``.  Existing
+``/admin/onboarding-stats`` card will attribute every sign-up that
+came in via that link to the ``hpfb`` campaign.
+
+---
+
+
+
 ## 2026-06-20 (device-picker) — Required device on every suggestion ✅
 
 Triage upgrade: "the reader is laggy" → "the reader is laggy on

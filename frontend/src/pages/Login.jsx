@@ -76,10 +76,25 @@ export default function Login() {
     e.preventDefault();
     if (busy) return;
 
+    // 2026-06-20 — Fast-track for invite-link visitors.  When the
+    // user arrived with ``?ref=...`` they've already self-selected
+    // (they came from a known community/partner channel), so we skip
+    // the onboarding questions panel and submit a minimal payload
+    // straight from step 1.  Backend still requires ``accepted_rules``
+    // and at least one ``onboarding`` answer; the referral itself
+    // satisfies the "answer" check.  Rules consent is folded into
+    // the submit-button microcopy below so the user sees the link.
+    const inviteFastTrack = mode === "register" && !!referral;
+
     // Multi-step register flow: when onboarding questions are enabled
     // we collect email/pw on step 1, advance to a questions panel on
     // step 2, and POST /auth/register only when step 2 is submitted.
-    if (mode === "register" && signupCfg.questions_enabled && registerStep === 1) {
+    if (
+      mode === "register" &&
+      signupCfg.questions_enabled &&
+      registerStep === 1 &&
+      !inviteFastTrack
+    ) {
       if (!email || (password || "").length < 8) {
         toast.error("Email and 8+ char password are required");
         return;
@@ -102,7 +117,7 @@ export default function Login() {
         body = { email, password };
       } else {
         body = { email, password, name: name || undefined };
-        if (signupCfg.questions_enabled) {
+        if (signupCfg.questions_enabled && !inviteFastTrack) {
           if (!acceptedRules) {
             toast.error("Please agree to the community rules.");
             setBusy(false);
@@ -115,6 +130,14 @@ export default function Login() {
             reader_type:     readerType || undefined,
             is_13_plus:      is13Plus,
           };
+        } else if (inviteFastTrack) {
+          // Invite-link fast-track: rules consent is implicit via the
+          // disclaimer microcopy near the submit button.  Backend
+          // requires ``accepted_rules`` whenever questions_enabled is
+          // True, so we set it explicitly here; ``referral`` itself
+          // counts as a valid onboarding answer.
+          body.accepted_rules = true;
+          body.onboarding = { referral };
         } else if (referral) {
           // Tracked invite links still record the referral source
           // even when onboarding questions are disabled — otherwise
@@ -521,9 +544,24 @@ export default function Login() {
               {mode === "login"
                 ? "Sign in"
                 : mode === "register"
-                ? (signupCfg.questions_enabled ? "Continue" : "Create account")
+                ? (signupCfg.questions_enabled && !referral ? "Continue" : "Create account")
                 : "Send reset link"}
             </button>
+            {/* 2026-06-20 — Invite-link fast-track consent microcopy.
+                When the user arrived with ?ref=... we skip the
+                onboarding questions panel; rules consent is folded
+                into this submit-button line so the user still sees
+                the link and the 13+ age confirmation. */}
+            {mode === "register" && referral && signupCfg.questions_enabled && (
+              <p
+                className="text-[11px] text-[#6B705C] mt-2 text-center leading-relaxed"
+                data-testid="invite-fast-track-consent"
+              >
+                Welcome from your invite link! By creating an account you agree to the{" "}
+                <Link to="/rules" className="text-[var(--primary)] underline">community rules</Link>
+                {" "}and confirm you&apos;re 13 or older.
+              </p>
+            )}
           </form>
           </>
           )}
