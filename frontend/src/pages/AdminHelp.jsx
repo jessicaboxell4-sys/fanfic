@@ -5,6 +5,7 @@ import {
   Mail, ShieldAlert, FlaskConical, BarChart3, MessageSquare, Pause,
   Trash2, Sparkles, Eye, Bell, Send,
 } from "lucide-react";
+import WhatsNewFeed from "@/components/WhatsNewFeed";
 
 /**
  * /admin/help — Documentation for the admin console.
@@ -96,6 +97,8 @@ export default function AdminHelp() {
           <p className="text-[#6B705C] mb-6">
             Every card on <Link to="/admin" className="text-[#6B46C1] underline">/admin</Link> documented in one place. Use the table of contents on the left to jump around.
           </p>
+
+          <WhatsNewFeed />
 
           <Section id="users" icon={Users} title="Users & approvals">
             <p>The main users list (<code>/admin/users</code>) shows real users only — test-account fixtures live on a separate quarantine page so they don&apos;t clutter your KPIs.</p>

@@ -8,6 +8,55 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-20 (whats-new) — Admin "What's new in Shelfsort" feed ✅
+
+Surface the CHANGELOG inside the app so the operator has a passive
+"what shipped this week" check-in without leaving /admin/help.
+
+**Backend** — new `GET /api/admin/whats-new?limit=N`
+(`routes/admin_whats_new.py`, ~160 LOC):
+- Parses `/app/memory/CHANGELOG.md` on demand, splits on `---`
+  separators, extracts date/suffix/title/status-emoji/body for each
+  `## YYYY-MM-DD` heading.
+- In-memory cache, 5-min TTL, invalidated automatically when the
+  file's mtime changes.
+- Limit clamped to `[1, 50]`.  Admin-gated (`require_admin`).
+- Returns: `entries[]`, `total`, `cached_at`, `source_mtime`.
+
+**Frontend** — new `<WhatsNewFeed>` component
+(`components/WhatsNewFeed.jsx`, ~270 LOC) injected at the top of
+`/admin/help`, above the existing 14 doc sections:
+- Initial load: 5 most-recent entries with body_preview (first 6
+  non-empty lines).
+- "Show last 20 entries" expander loads up to 20 via re-fetch.
+- Per-entry "Copy link" button writes `/admin/help#<slug>` to the
+  clipboard (toast confirmation).
+- Per-entry "Show full entry / Show less" toggle swaps preview ↔
+  full body.
+- Tiny in-component markdown renderer (no react-markdown dep):
+  handles `**bold**`, `` `code` ``, `- bullets`, paragraph breaks.
+- Refresh button re-hits the endpoint (server returns from cache
+  unless mtime ticked).
+- On mount, if URL has `#YYYY-MM-DD-slug`, auto-expand the matching
+  entry and `scrollIntoView`.
+
+**Tests**: `tests/test_admin_whats_new.py` (+6 cases):
+- 401 unauth, 403 non-admin, response shape & date format
+- limit bounds (`limit=0` → 422, `limit=999` → 422, `limit=1` works)
+- Real CHANGELOG: confirms the `(later)` suffix entry parses with
+  `status_emoji=✅`
+- Unit test of `_parse_changelog()` against synthetic markdown with
+  both kinds of `—`/`-` dash and a `(part 2)` suffix
+All 6 passing.
+
+**Why parse on each request instead of pre-rendering?** The
+CHANGELOG IS the data; one source-of-truth, zero drift.  Parser
+runs <2 ms on 60 entries, cached for 5 min — operator-friendly.
+
+---
+
+
+
 ## 2026-06-20 (later) — AdminHelp lint fix + test repair ✅
 
 **Resume after fork: AdminHelp build blocker cleared**
