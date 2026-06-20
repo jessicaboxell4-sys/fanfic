@@ -160,8 +160,56 @@ def _patched_send(params: dict[str, Any]):
         _queue_in_app_notification(to_email, subject, kind)
         return {"id": f"suppressed-paused-{uuid.uuid4().hex[:8]}"}
 
+    # Gate 3: per-user kind-level opt-out.  ``users.email_prefs[kind]``
+    # set to False means the user opted out of that particular kind
+    # from their /account/emails page.  Defaults to opted-in (True) so
+    # any new user gets all account-update emails by default.
+    if _user_opted_out(to_email, kind):
+        logger.info(
+            "email suppression: user opted out of %s — %s queued as in-app",
+            kind, to_email,
+        )
+        _log_suppressed(to_email, subject, kind, "user_opt_out")
+        _queue_in_app_notification(to_email, subject, kind)
+        return {"id": f"suppressed-optout-{uuid.uuid4().hex[:8]}"}
+
     # All gates clear — proceed with the real Resend send
     return _ORIGINAL_SEND(params)
+
+
+# Kinds that the user can opt out of from /account/emails.  Other
+# kinds (security alerts, password resets) intentionally bypass the
+# user-pref gate — the user needs to receive those even if they've
+# silenced everything else.
+USER_OPTABLE_KINDS = frozenset({
+    "approval_approved",
+    "approval_rejected",
+    "suggestion_status",
+    "year_in_books",
+    "bookclub_invite",
+    "recommendation_weekly",
+    "fandom_overlap",
+})
+
+
+def _user_opted_out(to_email: str, kind: str) -> bool:
+    """Return True if the recipient has explicitly opted out of
+    ``kind`` in their email_prefs.  Unknown emails / un-optable kinds
+    return False (i.e., send normally)."""
+    if kind not in USER_OPTABLE_KINDS:
+        return False
+    try:
+        user = _get_sync_db().users.find_one(
+            {"email": to_email}, {"email_prefs": 1}
+        )
+        if not user:
+            return False
+        prefs = (user.get("email_prefs") or {})
+        # Explicit False = opted out.  Missing key = default-on.
+        return prefs.get(kind) is False
+    except Exception as e:  # noqa: BLE001
+        logger.warning("user_opt_out check failed: %s", e)
+        return False
 
 
 def install() -> None:

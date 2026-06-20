@@ -241,6 +241,7 @@ async def _send_approval_email(
             "subject": subject,
             "html": body_html,
             "text": body_text,
+            "_kind": kind,  # consumed by utils/email_suppression
         }
         await asyncio.to_thread(resend.Emails.send, params)
         await _log(kind, to, "ok")

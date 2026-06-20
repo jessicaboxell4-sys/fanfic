@@ -142,6 +142,42 @@ export default function EmailPreferences() {
   const [operatorDigest, setOperatorDigest] = useState(null);
   const [sendingOperatorPreview, setSendingOperatorPreview] = useState(false);
 
+  // Per-kind email opt-outs (2026-06-20).  Backed by
+  // GET/PUT /api/account/email-prefs.  Each toggle below is the
+  // canonical kind name from utils/email_suppression.USER_OPTABLE_KINDS.
+  const [emailKindPrefs, setEmailKindPrefs] = useState(null);
+  const [savingKind, setSavingKind] = useState(null); // kind currently saving
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get("/account/email-prefs");
+        if (!cancelled) setEmailKindPrefs(data.prefs || {});
+      } catch { /* non-fatal — defaults to all-on shown in UI */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const toggleEmailKind = async (kind) => {
+    if (!emailKindPrefs) return;
+    const next = !emailKindPrefs[kind];
+    setSavingKind(kind);
+    // Optimistic update so the switch feels instant
+    setEmailKindPrefs((p) => ({ ...p, [kind]: next }));
+    try {
+      const { data } = await api.put("/account/email-prefs", { [kind]: next });
+      setEmailKindPrefs(data.prefs);
+      toast.success(next ? "Email turned on" : "We'll send this as an in-app notification instead");
+    } catch (e) {
+      // Revert on failure
+      setEmailKindPrefs((p) => ({ ...p, [kind]: !next }));
+      toast.error("Couldn't save");
+    } finally {
+      setSavingKind(null);
+    }
+  };
+
   const load = async () => {
     setLoading(true);
     try {
@@ -727,10 +763,60 @@ export default function EmailPreferences() {
             className="text-xs text-[#B87A00] bg-[#FDF3E1] rounded-lg p-3 mt-2"
             data-testid="emails-warning"
           >
-            Email delivery isn't configured on this server yet. Your preferences will save,
+            Email delivery isn&apos;t configured on this server yet. Your preferences will save,
             and once the operator adds a Resend API key, your emails will start arriving.
           </p>
         )}
+
+        {/* Per-kind opt-outs — added 2026-06-20 alongside the
+            email_suppression layer.  Each kind in USER_OPTABLE_KINDS
+            (see utils/email_suppression.py) gets a row.  Turning a
+            row off means that kind is queued as an in-app notification
+            instead of sent via Resend. */}
+        <section
+          data-testid="account-updates-card"
+          className="mt-8 bg-white border border-[#E8E6E1] rounded-2xl p-5"
+        >
+          <h2 className="font-serif text-xl text-[#2C2C2C] mb-1">Account updates</h2>
+          <p className="text-sm text-[#6B705C] mb-4">
+            Choose which kinds of one-off emails you want. Turning any off swaps that email
+            for an in-app notification so you still see it next time you open Shelfsort.
+          </p>
+          {!emailKindPrefs ? (
+            <p className="text-sm text-[#6B705C]" data-testid="account-updates-loading">
+              Loading your preferences…
+            </p>
+          ) : (
+            <ul className="divide-y divide-[#F2EDDF]">
+              {[
+                { kind: "approval_approved",     label: "You're approved!",            sub: "Sent when an admin lets you in. Off = banner on next login instead." },
+                { kind: "approval_rejected",     label: "Approval declined",           sub: "Sent if your signup is denied (with a reason)." },
+                { kind: "suggestion_status",     label: "Suggestion status updates",   sub: "When a feature you suggested moves to planned/done/declined." },
+                { kind: "year_in_books",         label: "Year in Books wrapped",       sub: "Your annual reading recap, sent every December." },
+                { kind: "bookclub_invite",       label: "Bookclub invites",            sub: "When a friend invites you to a reading room." },
+                { kind: "recommendation_weekly", label: "Weekly recommendations",      sub: "Hand-picked recs based on your fandoms (separate from the digest)." },
+                { kind: "fandom_overlap",        label: "Fandom overlap with friends", sub: "When a friend adds a book in a fandom you also read." },
+              ].map(({ kind, label, sub }) => {
+                const on = !!emailKindPrefs[kind];
+                const saving = savingKind === kind;
+                return (
+                  <li key={kind} className="py-3 flex items-start gap-3" data-testid={`account-updates-row-${kind}`}>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-[#2C2C2C]">{label}</p>
+                      <p className="text-xs text-[#6B705C] mt-0.5">{sub}</p>
+                    </div>
+                    <ToggleSwitch
+                      checked={on}
+                      disabled={saving}
+                      onChange={() => toggleEmailKind(kind)}
+                      testid={`account-updates-toggle-${kind}`}
+                    />
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
 
         {/* In-app notification mute matrix — separate from email channels */}
         <div className="mt-8">

@@ -422,3 +422,80 @@ async def update_fandom_aliases(body: FandomAliasBody, user: User = Depends(get_
         upsert=True,
     )
     return {"aliases": cleaned}
+
+
+# ============================================================
+# PER-KIND EMAIL OPT-OUTS  (added 2026-06-20 alongside the
+# email_suppression layer in utils/email_suppression.py).
+#
+# The suppression layer reads ``users.email_prefs`` to decide
+# whether to short-circuit a given outbound email and queue it as
+# an in-app notification instead.  These two endpoints power the
+# /account/emails toggles.  Missing keys default to True (opted-in).
+# ============================================================
+
+# Mirror of USER_OPTABLE_KINDS in utils/email_suppression.py — keep
+# in sync.  Items not in this list are always sent (e.g. security
+# alerts), so we don't expose toggles for them.
+_OPTABLE_EMAIL_KINDS = (
+    "approval_approved",
+    "approval_rejected",
+    "suggestion_status",
+    "year_in_books",
+    "bookclub_invite",
+    "recommendation_weekly",
+    "fandom_overlap",
+)
+
+
+class EmailPrefsBody(BaseModel):
+    # Each field is optional so the client can patch one at a time.
+    approval_approved:     Optional[bool] = None
+    approval_rejected:     Optional[bool] = None
+    suggestion_status:     Optional[bool] = None
+    year_in_books:         Optional[bool] = None
+    bookclub_invite:       Optional[bool] = None
+    recommendation_weekly: Optional[bool] = None
+    fandom_overlap:        Optional[bool] = None
+
+
+@api_router.get("/account/email-prefs")
+async def get_email_prefs(user: User = Depends(get_current_user)):
+    """Return the user's per-kind email opt-outs.  Defaults all to
+    ``True`` (opted-in) for any key the user hasn't touched."""
+    doc = await db.users.find_one(
+        {"user_id": user.user_id}, {"email_prefs": 1, "_id": 0}
+    ) or {}
+    prefs = doc.get("email_prefs") or {}
+    return {
+        "prefs": {k: bool(prefs.get(k, True)) for k in _OPTABLE_EMAIL_KINDS},
+        "optable_kinds": list(_OPTABLE_EMAIL_KINDS),
+    }
+
+
+@api_router.put("/account/email-prefs")
+async def update_email_prefs(
+    body: EmailPrefsBody, user: User = Depends(get_current_user)
+):
+    """Patch one or more per-kind opt-outs.  Each field is optional
+    so the toggle UI can fire one PUT per checkbox flip without
+    sending the full doc each time."""
+    patch = body.model_dump(exclude_unset=True)
+    if not patch:
+        return {"prefs": {}, "updated": 0}
+    # Build a $set with the email_prefs.<kind> dotted-path so we don't
+    # clobber other keys in the same sub-doc.
+    set_doc = {f"email_prefs.{k}": bool(v) for k, v in patch.items()}
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": set_doc},
+    )
+    # Return the fresh full prefs object for the client to update state
+    fresh = await db.users.find_one(
+        {"user_id": user.user_id}, {"email_prefs": 1, "_id": 0}
+    ) or {}
+    prefs = fresh.get("email_prefs") or {}
+    return {
+        "prefs": {k: bool(prefs.get(k, True)) for k in _OPTABLE_EMAIL_KINDS},
+        "updated": len(patch),
+    }

@@ -8,6 +8,64 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-20 (per-user-email-opt-out) — Users choose which emails they want ✅
+
+Third gate added to the email suppression layer + a user-facing
+"Account updates" card on `/account/emails`.
+
+**Backend**:
+- `utils/email_suppression.py`: new ``USER_OPTABLE_KINDS`` set
+  (``approval_approved``, ``approval_rejected``, ``suggestion_status``,
+  ``year_in_books``, ``bookclub_invite``, ``recommendation_weekly``,
+  ``fandom_overlap``). A new ``_user_opted_out()`` gate checks
+  ``users.email_prefs[kind]`` — explicit False suppresses + queues
+  an in-app notification. Non-optable kinds (e.g.
+  ``password_reset``) bypass this gate so security-critical mail
+  always sends.
+- New ``GET/PUT /api/account/email-prefs`` endpoints in
+  ``routes/user_prefs.py``. PUT supports per-key patching so each
+  toggle flip is a tiny, atomic request.
+- ``routes/admin.py`` approval-email params now include
+  ``_kind: "approval_approved" | "approval_rejected"`` so the
+  suppression layer can identify it.
+
+**Frontend** — ``pages/EmailPreferences.jsx``:
+- New "Account updates" card mounted right above the existing
+  "In-app notifications" mute matrix. 7 rows, one per optable
+  kind, with concise descriptions ("You're approved! — Sent when
+  an admin lets you in. Off = banner on next login instead.").
+- Optimistic toggles: state flips instantly, PUT fires, reverts
+  on failure with an error toast. Success toast reads "Email
+  turned on" / "We'll send this as an in-app notification instead".
+- ``data-testid`` on every row + toggle so the testing-agent guard
+  stays green.
+
+**Tests** — ``tests/test_email_kind_optout.py`` (+4 cases):
+- Default prefs all True (every optable kind opt-in by default)
+- PUT patches single kind without disturbing others
+- Opted-out kind suppressed AND queues notifications row for the
+  user
+- Non-optable kind (``password_reset``) passes through even when
+  user has another kind opted-out
+
+**Suppression layer now has 3 stacking gates** (any one suppresses):
+  1. Test-recipient match → skip
+  2. Admin ``outbound_emails_enabled=False`` → skip + in-app fallback
+  3. User ``email_prefs[kind]=False`` → skip + in-app fallback
+
+**Sample impact**: today the user hit Resend's 100/day quota with
+122 ``approval_approved`` emails to bulk-approved test users. With
+the test-recipient gate alone, those would have been zero quota
+burn. With user opt-out, any real user who turns off
+``approval_approved`` shifts that email to free in-app
+notifications.
+
+57/57 tests green across today's full session.
+
+---
+
+
+
 ## 2026-06-20 (email-suppression) — Test-recipient skip + emergency outbound brake ✅
 
 Direct response to hitting the Resend 100/day quota: protect real
