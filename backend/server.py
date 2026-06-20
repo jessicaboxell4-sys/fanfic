@@ -112,6 +112,26 @@ async def on_startup():
     except Exception as e:
         logger.warning(f"Test-account backfill failed: {e}")
 
+    # 2026-06-20 — Backfill suggestion ``device`` to "Unknown" for
+    # rows submitted before the device picker was introduced.  Single
+    # update_many; idempotent (only touches rows where the field is
+    # missing).  Also creates a case-insensitive unique index on the
+    # ``custom_devices`` collection so concurrent inserts of the same
+    # novel device don't duplicate.
+    try:
+        sug_res = await db.suggestions.update_many(
+            {"suggestion_id": {"$exists": True}, "device": {"$exists": False}},
+            {"$set": {"device": "Unknown"}},
+        )
+        if sug_res.modified_count:
+            logger.info(
+                "suggestions device backfill: stamped 'Unknown' on %d legacy rows",
+                sug_res.modified_count,
+            )
+        await db.custom_devices.create_index("name_lc", unique=True)
+    except Exception as e:
+        logger.warning(f"Suggestion device backfill: {e}")
+
     # Auto-backfill on startup — fire-and-forget so a slow upload to
     # the object store doesn't delay the server accepting traffic.
     # Catches the "I just deployed, my pod just rebooted, are my files

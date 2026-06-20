@@ -34,6 +34,28 @@ from routes.notifications import create_notification
 CATEGORIES = ("bug", "improvement", "feature")
 STATUSES = ("open", "under_review", "planned", "done", "declined")
 
+# Built-in device options on the suggestion form.  Stored in case-
+# sensitive display form here but matched case-insensitively against
+# user input so "iphone" and "iPhone" don't fork.  Sorted
+# alphabetically, "Other" is handled by the picker (lets the user
+# type a name; the typed value is persisted to ``custom_devices`` so
+# the next person sees it as an option).
+BUILT_IN_DEVICES: tuple[str, ...] = (
+    "Amazon Fire (Kindle Fire, Fire HD, Fire Tablet)",
+    "Android phone",
+    "Android tablet",
+    "Chromebook",
+    "iPad",
+    "iPhone",
+    "Kindle e-reader",
+    "Linux",
+    "Mac",
+    "Windows PC",
+)
+# Cap on custom device names so they fit the chip UI without
+# overflowing and so they don't become rambling free-text.
+_MAX_DEVICE_LEN = 40
+
 # Attachment limits — keeps Mongo doc size manageable AND covers the
 # common bug-report kit: screenshot (≤2 MB), small PDF / log dump
 # (≤10 MB), tiny .zip with a couple of artefacts.  Anything bigger
@@ -69,12 +91,70 @@ def _serialize(doc: Dict[str, Any], me: Optional[str] = None) -> Dict[str, Any]:
         "attachment_mime": doc.get("attachment_mime"),
         "attachment_size": doc.get("attachment_size"),
         "has_attachment":  bool(doc.get("attachment_b64")),
+        # Device the suggestion was filed from (e.g. "iPhone", "Amazon
+        # Fire").  Older suggestions pre-2026-06-20 backfill to
+        # "Unknown" via the startup migration in deps.py.
+        "device": doc.get("device") or "Unknown",
     }
 
 
 # ---------------------------------------------------------------------
 # User endpoints
 # ---------------------------------------------------------------------
+
+async def _resolve_device(raw: str) -> str:
+    """Match ``raw`` against built-in + previously-saved custom
+    devices case-insensitively.  Returns the canonical display name.
+
+    If the input is genuinely new, it's normalized (stripped, length-
+    capped, single-line) and persisted to the ``custom_devices``
+    collection so the picker shows it to the next user.  Empty input
+    is rejected by the caller (Form validator); this helper assumes
+    at least one non-whitespace char.
+    """
+    cleaned = " ".join(raw.split()).strip()[:_MAX_DEVICE_LEN]
+    if not cleaned:
+        raise HTTPException(status_code=422, detail="device_required")
+    lc = cleaned.lower()
+    # 1. Match against built-ins (case-insensitive)
+    for name in BUILT_IN_DEVICES:
+        if name.lower() == lc:
+            return name
+    # 2. Match against existing custom devices
+    existing = await db.custom_devices.find_one(
+        {"name_lc": lc}, {"_id": 0, "name": 1}
+    )
+    if existing:
+        return existing["name"]
+    # 3. New custom device — persist it.  Best-effort; if two users
+    #    add the same novel device at the same instant, the unique
+    #    index on ``name_lc`` (created lazily) avoids dupes.
+    doc = {
+        "name": cleaned,
+        "name_lc": lc,
+        "created_at": datetime.now(timezone.utc),
+    }
+    try:
+        await db.custom_devices.insert_one(doc)
+    except Exception as e:  # noqa: BLE001
+        logger.info("custom_devices race on insert: %s", e)
+    return cleaned
+
+
+@api_router.get("/suggestions/devices")
+async def list_devices(_user: User = Depends(get_current_user)):
+    """Return the picker options: built-ins + any custom entries
+    previously typed in the ``Other`` field.  Sorted alphabetically
+    (case-insensitive) so the dropdown stays predictable."""
+    customs = await db.custom_devices.find({}, {"_id": 0, "name": 1}).to_list(length=200)
+    custom_names = [c["name"] for c in customs if c.get("name")]
+    # Combine + dedupe case-insensitively, preferring the built-in
+    # casing when both exist.
+    seen: dict[str, str] = {n.lower(): n for n in BUILT_IN_DEVICES}
+    for n in custom_names:
+        seen.setdefault(n.lower(), n)
+    return {"devices": sorted(seen.values(), key=lambda x: x.lower())}
+
 
 @api_router.get("/suggestions")
 async def list_suggestions(
@@ -113,6 +193,7 @@ async def submit_suggestion(
     title: str = Form(..., min_length=3, max_length=120),
     body: str = Form(default="", max_length=4000),
     category: Literal["bug", "improvement", "feature"] = Form("feature"),
+    device: str = Form(..., min_length=1, max_length=_MAX_DEVICE_LEN),
     attachment: Optional[UploadFile] = File(None),
     user: User = Depends(get_current_user),
 ):
@@ -124,13 +205,19 @@ async def submit_suggestion(
 
     Attachments are antivirus-scanned (ClamAV) before being base64-
     encoded into the doc so the admin board can preview them inline.
+
+    ``device`` is required so triage knows whether "the reader is
+    laggy" means iPhone Safari or Amazon Fire — see _resolve_device
+    for the auto-add-to-picker behaviour.
     """
+    canonical_device = await _resolve_device(device)
     now = datetime.now(timezone.utc)
     doc: Dict[str, Any] = {
         "suggestion_id": f"sug_{uuid.uuid4().hex[:12]}",
         "title": title.strip(),
         "body": body.strip(),
         "category": category,
+        "device": canonical_device,
         "status": "open",
         "submitter_user_id": user.user_id,
         "submitter_name": user.name or (user.email or "").split("@")[0],

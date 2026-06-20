@@ -24,6 +24,7 @@ export default function DashboardSuggestionsBox() {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [category, setCategory] = useState("feature");
+  const [device, setDevice] = useState("");
   const [attachment, setAttachment] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [lastSent, setLastSent] = useState(null);
@@ -31,6 +32,10 @@ export default function DashboardSuggestionsBox() {
   const submit = async (e) => {
     e?.preventDefault?.();
     if (!title.trim() || submitting) return;
+    if (!device.trim()) {
+      toast.error("Pick the device you're on (helps us triage faster)");
+      return;
+    }
     setSubmitting(true);
     try {
       // Multipart so the optional attachment (screenshot, PDF, small
@@ -39,6 +44,7 @@ export default function DashboardSuggestionsBox() {
       fd.append("title", title.trim());
       fd.append("body", body.trim());
       fd.append("category", category);
+      fd.append("device", device.trim());
       if (attachment) fd.append("attachment", attachment);
       const { data } = await api.post("/suggestions", fd, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -47,6 +53,7 @@ export default function DashboardSuggestionsBox() {
       setTitle("");
       setBody("");
       setAttachment(null);
+      // device stays selected — same session = same device.
       toast.success("Thanks — your suggestion's in.");
     } catch (err) {
       const reason = err?.response?.data?.detail;
@@ -54,6 +61,8 @@ export default function DashboardSuggestionsBox() {
         toast.error("Attachment is larger than 10 MB — try a smaller file.");
       } else if (reason === "attachment_unsafe") {
         toast.error("Attachment didn't pass our antivirus check.");
+      } else if (reason === "device_required") {
+        toast.error("Pick the device you're on — required for triage.");
       } else {
         toast.error(reason || "Couldn't submit. Try the full board.");
       }
@@ -181,7 +190,7 @@ export default function DashboardSuggestionsBox() {
           </Link>
           <button
             type="submit"
-            disabled={!title.trim() || submitting}
+            disabled={!title.trim() || !device.trim() || submitting}
             data-testid="dashboard-suggestion-submit"
             className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold bg-[#6B46C1] text-white hover:bg-[#553397] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >

@@ -3,9 +3,10 @@ import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import {
   ArrowLeft, MessageSquare, Lightbulb, Bug, Sparkles, ChevronUp, Loader2,
-  Trash2, ShieldCheck as ShieldCheckIcon, Send, Paperclip, X,
+  Trash2, ShieldCheck as ShieldCheckIcon, Send, Paperclip, X, Smartphone,
 } from "lucide-react";
 import Navbar from "../components/Navbar";
+import DevicePicker from "../components/DevicePicker";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 
@@ -153,6 +154,7 @@ export default function SuggestionsPage() {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [category, setCategory] = useState("feature");
+  const [device, setDevice] = useState("");
   const [attachment, setAttachment] = useState(null);   // File | null
   const [submitting, setSubmitting] = useState(false);
 
@@ -177,6 +179,10 @@ export default function SuggestionsPage() {
       toast.error("Title needs at least 3 characters");
       return;
     }
+    if (!device.trim()) {
+      toast.error("Pick the device you're on (helps us triage faster)");
+      return;
+    }
     setSubmitting(true);
     try {
       // Multipart so attachments (image / PDF / log / small zip up
@@ -185,6 +191,7 @@ export default function SuggestionsPage() {
       fd.append("title", title.trim());
       fd.append("body", body.trim());
       fd.append("category", category);
+      fd.append("device", device.trim());
       if (attachment) fd.append("attachment", attachment);
       await api.post("/suggestions", fd, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -192,6 +199,8 @@ export default function SuggestionsPage() {
       toast.success("Suggestion submitted — thanks!");
       setTitle(""); setBody(""); setCategory("feature");
       setAttachment(null);
+      // Keep ``device`` selected so a follow-up submission doesn't
+      // make the user re-pick on the same session.
       await load();
     } catch (e) {
       const reason = e?.response?.data?.detail;
@@ -199,6 +208,8 @@ export default function SuggestionsPage() {
         toast.error("Attachment is larger than 10 MB — try a smaller file.");
       } else if (reason === "attachment_unsafe") {
         toast.error("Attachment didn't pass our antivirus check.");
+      } else if (reason === "device_required") {
+        toast.error("Pick the device you're on — required for triage.");
       } else {
         toast.error(reason || "Couldn't submit");
       }
@@ -277,6 +288,12 @@ export default function SuggestionsPage() {
             data-testid="suggestions-body-input"
             rows={3}
             className="w-full text-sm px-3 py-2 rounded-lg border border-[#E5DDC5] bg-white mb-2 focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/30 resize-none"
+          />
+          <DevicePicker
+            value={device}
+            onChange={setDevice}
+            disabled={submitting}
+            testidPrefix="suggestions-device"
           />
           {/* Attachment picker — optional, up to 10 MB.  Any file type
               accepted; the backend AV-scans every upload.  Most folks
@@ -357,7 +374,7 @@ export default function SuggestionsPage() {
             <button
               type="button"
               onClick={submit}
-              disabled={submitting || title.trim().length < 3}
+              disabled={submitting || title.trim().length < 3 || !device.trim()}
               data-testid="suggestions-submit-btn"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--primary)] text-white text-sm font-semibold disabled:opacity-50"
             >
@@ -429,8 +446,18 @@ export default function SuggestionsPage() {
                       <strong>Admin note:</strong> {s.admin_note}
                     </p>
                   )}
-                  <p className="text-[10px] text-[#6B705C] mt-1">
-                    by {s.submitter_name} · {new Date(s.created_at).toLocaleDateString()}
+                  <p className="text-[10px] text-[#6B705C] mt-1 inline-flex items-center gap-1.5 flex-wrap">
+                    <span>by {s.submitter_name} · {new Date(s.created_at).toLocaleDateString()}</span>
+                    {s.device && s.device !== "Unknown" && (
+                      <span
+                        data-testid={`suggestion-device-${s.suggestion_id}`}
+                        className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-[#EEE9FB] text-[#6B46C1] font-semibold"
+                        title="Device the submitter was on"
+                      >
+                        <Smartphone className="w-2.5 h-2.5" />
+                        {s.device}
+                      </span>
+                    )}
                   </p>
                   {isAdmin && (
                     <div className="flex flex-wrap items-center gap-1 mt-2" data-testid={`suggestion-admin-${s.suggestion_id}`}>

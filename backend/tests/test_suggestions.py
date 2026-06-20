@@ -37,7 +37,7 @@ def seed():
 def alice_suggestion():
     r = requests.post(
         f"{BASE}/api/suggestions",
-        data={"title": "Add dark mode reader skin", "body": "Easy on the eyes at night.", "category": "improvement"},
+        data={"title": "Add dark mode reader skin", "body": "Easy on the eyes at night.", "category": "improvement", "device": "iPhone"},
         headers=H(ALICE),
     )
     assert r.status_code == 200, r.text
@@ -115,7 +115,7 @@ class TestSelfDelete:
     def test_alice_deletes_own(self):
         c = requests.post(
             f"{BASE}/api/suggestions",
-            data={"title": "Goner", "category": "bug"},
+            data={"title": "Goner", "category": "bug", "device": "Mac"},
             headers=H(ALICE),
         )
         sid = c.json()["suggestion_id"]
@@ -146,7 +146,7 @@ class TestAdmin:
         # Submit one fresh and ensure count reflects ≥1 open
         c = requests.post(
             f"{BASE}/api/suggestions",
-            data={"title": "Counted suggestion", "category": "feature"},
+            data={"title": "Counted suggestion", "category": "feature", "device": "Mac"},
             headers=H(ALICE),
         )
         r = requests.get(f"{BASE}/api/admin/suggestions/open-count", headers=H(ADMIN))
@@ -194,7 +194,7 @@ class TestAdmin:
     def test_admin_delete(self):
         c = requests.post(
             f"{BASE}/api/suggestions",
-            data={"title": "spam title", "category": "bug"},
+            data={"title": "spam title", "category": "bug", "device": "Mac"},
             headers=H(ALICE),
         )
         sid = c.json()["suggestion_id"]

@@ -8,6 +8,68 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-20 (device-picker) — Required device on every suggestion ✅
+
+Triage upgrade: "the reader is laggy" → "the reader is laggy on
+Amazon Fire" without the back-and-forth.
+
+**Backend** — three changes in `routes/suggestions.py`:
+1. `BUILT_IN_DEVICES` constant (10 entries, alphabetical): Amazon
+   Fire, Android phone, Android tablet, Chromebook, iPad, iPhone,
+   Kindle e-reader, Linux, Mac, Windows PC.
+2. New `GET /api/suggestions/devices` — returns built-ins + any
+   custom devices a user has previously typed in the "Other" box,
+   deduped case-insensitively and sorted alphabetically.
+3. `POST /api/suggestions` now requires `device` as a Form field.
+   `_resolve_device()` matches the input against built-ins and the
+   `custom_devices` Mongo collection (case-insensitive). A genuine
+   new device gets normalized, length-capped at 40, and persisted —
+   so the next user sees it in the picker.
+
+**Startup migration** — backfills `device="Unknown"` on any
+pre-existing suggestion row that lacks the field (idempotent
+`update_many`). Stamped 3 legacy rows on first boot. Creates a
+unique index on `custom_devices.name_lc` so concurrent inserts of
+the same novel device never duplicate.
+
+**Frontend** — new `<DevicePicker>` component (~180 LOC), used on
+both `SuggestionsPage` and `DashboardSuggestionsBox`:
+- Auto-detects from `navigator.userAgent` on first mount (iPad
+  before iPhone before Android, mobile vs tablet split via the
+  "Mobile" UA token, Amazon Fire via `Silk`/`KFTT` codes, etc.)
+- Remembers the last successful pick in `localStorage` so repeat
+  submitters skip the dropdown next time.
+- "Other (type in)…" sentinel reveals an inline text input — the
+  typed value is sent as-is and the backend persists+canonicalizes
+  it.
+- Submit button stays disabled until a device is chosen.
+- Per-card chip with smartphone icon shows the device on every row
+  of the public board (hidden when device is `Unknown` so the 3
+  legacy rows don't get visual noise).
+
+**Tests** — `tests/test_suggestions_device.py` (+9 cases):
+- Auth-gated `/devices` endpoint, contains all 10 built-ins,
+  alphabetical
+- POST without `device` → 422; with built-in (any casing) →
+  canonical name returned
+- New custom device persists + appears in subsequent `/devices`
+  responses; case-mismatched re-submission reuses the canonical
+  casing (no duplicates)
+- `list_suggestions` exposes `device` field on every row
+- Length cap (>40 chars) → 422 from FastAPI Form validator
+
+Also updated 4 existing `tests/test_suggestions.py` POSTs to
+include `device`. **33/33 tests green** including the 6 design-
+system guards.
+
+**Screenshot verified**: picker auto-detected Linux from Playwright
+UA, dropdown shows 12 options (10 built-ins + 1 prior custom + Other),
+switching to "Other" reveals input and keeps Submit enabled.
+
+---
+
+
+
 ## 2026-06-20 (ds-contracts) — data-testid + API instance guards ✅
 
 Two more "design-system contract" pytest tests in the same vein as
