@@ -102,7 +102,7 @@ export default function CatalogSyncCard() {
       </div>
 
       <p className="text-xs text-[#6B705C] mb-3">
-        Read your library on KOReader, Moon+ Reader, Marvin or any other OPDS-compatible e-reader app — no React UI needed.
+        Read your library on KOReader, Moon+ Reader, Marvin or any other OPDS-compatible e-reader app — plus Kindle via email or USB. No React UI needed.
       </p>
 
       {!status.has_password ? (
@@ -194,6 +194,17 @@ export default function CatalogSyncCard() {
               <p><strong className="text-[#2C2C2C]">KOReader</strong>: Top menu → Search → Browse OPDS catalog → New catalog → paste URL + username (email) + password.</p>
               <p><strong className="text-[#2C2C2C]">Moon+ Reader</strong>: Net Library → New net library → OPDS Catalog → paste URL + Basic credentials.</p>
               <p><strong className="text-[#2C2C2C]">Marvin / Foliate / Librera</strong>: Add OPDS / Calibre catalog → use the same URL, username, password.</p>
+              <p>
+                <strong className="text-[#2C2C2C]">Kindle (stock)</strong>: Kindle doesn&apos;t speak OPDS natively, but you have three options:
+              </p>
+              <ul className="list-disc pl-5 text-[#6B705C] space-y-0.5">
+                <li><strong className="text-[#2C2C2C]">Send-to-Kindle email</strong>: download the EPUB from your library, email it to <code className="text-[#6B46C1]">your-name@kindle.com</code> (Amazon&apos;s built-in service). Book appears within ~5 min.</li>
+                <li><strong className="text-[#2C2C2C]">Jailbroken Kindle + KOReader</strong>: install KOReader on the Kindle, then follow the KOReader steps above.</li>
+                <li><strong className="text-[#2C2C2C]">Calibre + USB</strong>: download EPUB → Calibre → plug Kindle in via USB → send.</li>
+              </ul>
+              <p>
+                <strong className="text-[#2C2C2C]">Amazon Fire (Kindle Fire, HD, Tablet)</strong>: install <em>Moon+ Reader</em> or <em>Librera</em> from the Amazon Appstore (or sideload), then follow the steps above for that reader.
+              </p>
               <p className="text-[#6B705C] italic">If your reader fails to connect, double-check the password was copied without trailing spaces, and that the toggle above is on.</p>
             </div>
           )}

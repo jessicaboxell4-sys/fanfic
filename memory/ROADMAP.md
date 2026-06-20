@@ -30,6 +30,29 @@ shipped today.)
   this when the user wants to A/B test post style / wording / time-
   of-day for the same FB group or different groups.
 
+- **"Send to Kindle" button on BookDetail** — parked 2026-06-20.
+  Stock Kindle (Paperwhite/Oasis/Voyage) doesn&apos;t speak OPDS, so
+  we documented the email-to-kindle workaround in `CatalogSyncCard`.
+  The real fix: a per-user `@kindle.com` address in Settings →
+  click "Send to Kindle" on any book → backend uses Resend (already
+  integrated) to email the EPUB to that address. Amazon ingests it
+  within ~5 min.
+  Implementation sketch (~1-2 hours):
+    1. Add `kindle_email` field to `User` model + `/api/account/kindle`
+       PUT endpoint
+    2. New backend route `POST /api/books/{book_id}/send-to-kindle`
+       — pulls bytes from R2, attaches to a Resend email to user's
+       kindle address, logs the send in `email_logs`
+    3. Frontend: "Send to Kindle" button on `BookDetail.jsx`
+       (disabled when `kindle_email` is not set, with a link to
+       /account#kindle to set it)
+    4. Account settings card: input + "Verify by sending a test"
+       button
+  Note: needs `kindle@shelfsort.com` (or our verified sender) added
+  to user's Amazon "Approved Personal Document Email list" — surface
+  this in the Settings card so users know.
+
+
 - **"Top devices reporting bugs this week" admin card** — parked
   2026-06-20.  Now that every suggestion is tagged with a `device`,
   one Mongo aggregate on `db.suggestions` (status=open OR last 7d,
