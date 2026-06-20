@@ -56,6 +56,7 @@ const ADMIN_CARD_MANIFEST = [
   { testid: "admin-health-card", title: "System health", subtitle: "External dependencies + storage snapshot.", keywords: "health system mongo storage disk dependencies status" },
   { testid: "cron-health-card", title: "Scheduled jobs", subtitle: "Last-run telemetry for crons.", keywords: "cron jobs scheduled task background failure last-run" },
   { testid: "route-catalogue-card", title: "Route catalogue", subtitle: "Every /api/* endpoint.", keywords: "route catalogue endpoint api list routes urls" },
+  { testid: "email-system-card", title: "Email system", subtitle: "Master ON/OFF for all outbound Resend mail.", keywords: "email outbound resend pause stop disable quota system master kill switch" },
   { testid: "email-stats-card", title: "Resend deliveries · this week", subtitle: "Send volume, error rate, recent failures.", keywords: "email resend delivery send failure stats bounce mail" },
   { testid: "admin-email-diagnostic-card", title: "Email diagnostic", subtitle: "One-shot diagnostic email.", keywords: "email diagnostic test send resend troubleshoot mail" },
   { testid: "admin-aliases-card", title: "Global fandom aliases", subtitle: "Tenant-wide fandom aliases.", keywords: "fandom aliases global rename remap synonym" },
@@ -4388,6 +4389,113 @@ function Gauge({ label, used, limit, pct, tint, testid }) {
 
 
 // ---------------------------------------------------------------------------
+// Email system master switch — added 2026-06-20 as the prominent
+// counterpart to the buried Feature flags ``outbound_emails_enabled``
+// toggle.  Same backend (PUT /admin/feature-flags), but surfaced as a
+// dedicated card with a big visual ON/PAUSED indicator so the admin
+// can find and flip it in under 5 seconds during a quota emergency.
+function EmailSystemCard() {
+  const [enabled, setEnabled] = useState(null); // null = loading
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get("/admin/feature-flags");
+        if (cancelled) return;
+        const flags = data?.flags || {};
+        // ``outbound_emails_enabled`` defaults to true on the backend;
+        // any missing key here is treated the same.
+        setEnabled(flags.outbound_emails_enabled !== false);
+      } catch {
+        if (!cancelled) setEnabled(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const flip = async () => {
+    const next = !enabled;
+    setBusy(true);
+    setEnabled(next);  // optimistic
+    try {
+      await api.put("/admin/feature-flags", {
+        flag: "outbound_emails_enabled",
+        enabled: next,
+      });
+      toast.success(
+        next
+          ? "Email system ON — Resend will send real emails again."
+          : "Email system PAUSED — outbound mail will queue as in-app notifications instead."
+      );
+    } catch {
+      setEnabled(!next);
+      toast.error("Couldn't toggle the email system");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card
+      icon={Mail}
+      title="Email system"
+      subtitle="Master ON/OFF for ALL outbound Resend mail (the kill switch)."
+      testid="email-system-card"
+    >
+      {enabled === null ? (
+        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+      ) : (
+        <div className="space-y-3">
+          <div
+            data-testid="email-system-state-pill"
+            className={
+              "inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-bold uppercase tracking-wider " +
+              (enabled
+                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                : "bg-rose-50 text-rose-700 border border-rose-200")
+            }
+          >
+            <span className={enabled ? "w-2 h-2 rounded-full bg-emerald-500" : "w-2 h-2 rounded-full bg-rose-500"} />
+            {enabled ? "ON — sending real emails" : "PAUSED — in-app only"}
+          </div>
+          <p className="text-sm text-[#2C2C2C] leading-relaxed">
+            {enabled
+              ? "Resend is delivering every email Shelfsort sends. Use this switch if you hit your Resend quota or need to pause all outbound mail."
+              : "Outbound email is paused. Approval, suggestion-status, year-in-books, etc. are being queued as in-app notifications instead. Test emails still skip Resend (always have)."}
+          </p>
+          <button
+            type="button"
+            onClick={flip}
+            disabled={busy}
+            data-testid="email-system-toggle-btn"
+            className={
+              "inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors " +
+              (enabled
+                ? "bg-rose-600 text-white hover:bg-rose-700"
+                : "bg-emerald-600 text-white hover:bg-emerald-700") +
+              " disabled:opacity-60"
+            }
+          >
+            {enabled ? "🛑 Pause email system" : "✅ Resume email system"}
+          </button>
+          {!enabled && (
+            <p className="text-xs text-[#B87A00] bg-[#FDF3E1] rounded-md px-3 py-2">
+              Note: while paused, all per-user opt-in / opt-out settings on /account/emails are still honoured.
+              Security-critical kinds (password reset, etc.) bypass this switch and always send.
+            </p>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+
+
+
+// ---------------------------------------------------------------------------
 function EmailStatsCard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -4741,6 +4849,7 @@ export default function AdminConsole() {
               <HealthCard />
               <CronHealthCard />
               <RouteCatalogueCard />
+              <EmailSystemCard />
               <EmailStatsCard />
               <EmailDiagnosticCard />
               <GlobalAliasesCard />

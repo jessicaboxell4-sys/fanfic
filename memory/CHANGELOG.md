@@ -8,6 +8,44 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-20 (email-system-card) — Admin master switch card ✅
+
+Promotes the buried `outbound_emails_enabled` feature flag into a
+dedicated, prominent admin card so the admin can find and flip it
+in under 5 seconds during a quota emergency.
+
+**Frontend** — new `EmailSystemCard` in `AdminConsole.jsx`:
+- Indexed under the "email" filter chip with keywords:
+  ``email outbound resend pause stop disable quota system master
+  kill switch``.  Search "email" → card appears immediately under
+  Pending sign-ups.
+- Visual state: large green/emerald pill **"ON — sending real
+  emails"** or rose pill **"PAUSED — in-app only"**.
+- Single big toggle button: ``🛑 Pause email system`` ↔
+  ``✅ Resume email system``.
+- Inline explainer that adapts to state (what happens when on vs
+  paused, including the note that per-user opt-outs + security
+  emails always behave correctly even when paused).
+
+**Backend** — no changes.  Uses the existing
+``PUT /admin/feature-flags`` endpoint with
+``{flag: "outbound_emails_enabled", enabled: bool}``.  The
+suppression layer at ``utils/email_suppression.py`` already reads
+this flag on every send.
+
+**Why a dedicated card instead of just the Feature flags row?**
+The Feature flags card holds 6+ flags and the email kill switch
+is the one an admin reaches for during a fire (Resend quota burn,
+unexpected mail volume, etc.).  Dedicated card + obvious copy +
+keyword-rich search index = "I need to stop the emails" → flipped
+in ~5 seconds.
+
+15/15 design-system + suppression tests green.
+
+---
+
+
+
 ## 2026-06-20 (per-user-email-opt-out) — Users choose which emails they want ✅
 
 Third gate added to the email suppression layer + a user-facing
