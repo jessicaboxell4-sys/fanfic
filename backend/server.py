@@ -76,6 +76,7 @@ async def on_startup():
     # ``update_many``) so safe to run on every boot.
     try:
         from utils.test_account_filter import mongo_test_account_filter
+        # Step 1: stamp the is_test_account flag on every matching user.
         flt = {
             "is_test_account": {"$ne": True},
             **mongo_test_account_filter(),
@@ -88,6 +89,25 @@ async def on_startup():
             logger.info(
                 "test_account_filter backfill: stamped is_test_account=True on %d legacy users",
                 result.modified_count,
+            )
+        # Step 2: flip every test-account user still stuck in
+        # ``approval_status="pending"`` to ``"approved"``.  These
+        # accounts pre-date the auto-accept logic and would otherwise
+        # render with a "Pending" badge on the test-accounts
+        # quarantine page even though they're already excluded from
+        # the main pending-users inbox.  Idempotent — only touches
+        # rows where the status isn't already approved.
+        approval_result = await db.users.update_many(
+            {
+                "is_test_account": True,
+                "approval_status": {"$ne": "approved"},
+            },
+            {"$set": {"approval_status": "approved"}},
+        )
+        if approval_result.modified_count:
+            logger.info(
+                "test_account_filter backfill: flipped approval_status='approved' on %d test fixtures",
+                approval_result.modified_count,
             )
     except Exception as e:
         logger.warning(f"Test-account backfill failed: {e}")

@@ -8,6 +8,28 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-20 — Approval-status flip for legacy test fixtures ✅
+
+User reported 21 test-fixture emails still rendering with a
+"Pending" badge on the `/admin/test-accounts` quarantine page even
+after the `is_test_account` backfill.  Root cause: legacy fixtures
+registered before the auto-accept logic existed, so their
+`approval_status` was still `"pending"` even though they were
+flagged as test.  The regex filter correctly excluded them from
+`/admin/pending-users` (which returned count=0), but the quarantine
+page surfaced the stale status badge.
+
+Extended the startup backfill in `server.py` with a second pass:
+flip `approval_status="approved"` on every doc where
+`is_test_account=True AND approval_status != "approved"`.
+Idempotent — only writes when the status doesn't already match.
+First run flipped **173 fixtures**.
+
+After this run: 0 users in pending status, 188 test fixtures
+approved + isolated, 2 real users (both Jessica).
+
+---
+
 ## 2026-06-20 — Test-account filter expansion + auto-backfill ✅
 
 User flagged ~190 leftover agent fixtures still showing as "real" users.
