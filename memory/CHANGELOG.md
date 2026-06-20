@@ -8,6 +8,52 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-20 (ds-contracts) — data-testid + API instance guards ✅
+
+Two more "design-system contract" pytest tests in the same vein as
+the dark-mode gradient guard from earlier today.  Both use the
+baseline-allowlist pattern so existing tech debt is documented but
+new violations fail the build immediately.
+
+**`tests/test_data_testid_guard.py` (~150 LOC, 2 cases)**
+- Scans `frontend/src/{components,pages}/*.jsx` for `<button>`,
+  `<Button>`, `<input>`, `<Input>`, `<select>`, `<Select>`,
+  `<textarea>`, `<Textarea>` opening tags.
+- Walks forward through JSX expression braces to the matching `>`
+  and checks for `data-testid=`.
+- Fails if a NEW file outside the 42-file baseline allowlist
+  introduces an untestid'd interactive element.
+- Baseline snapshot: 42 files / 74 missing testids at 2026-06-20,
+  frozen in `BASELINE_ALLOWLIST` with a regen recipe in a comment.
+
+**`tests/test_api_instance_guard.py` (~115 LOC, 2 cases)**
+- Scans `frontend/src/**/*.{js,jsx}` for direct
+  `axios.{get|post|put|delete|patch|request|head|options}(` calls
+  and for `fetch("/api/...")` / template-literal fetch URLs
+  containing `/api/`.
+- Intentionally does NOT flag `${REACT_APP_BACKEND_URL}/api/...`
+  template literals (those are overwhelmingly legitimate
+  `<img src>`, `<a href>`, `EventSource`, `window.open` — the
+  browser handles them directly).
+- Baseline: 2 files (`pages/Help.jsx` for announcements + fandoms,
+  `pages/PublicYearInBooks.jsx` for the unauth public-year route).
+- New files must `import { api } from "@/lib/api"` and use
+  `api.get/post/etc.` — keeps `withCredentials: true` and base-URL
+  config consistent across the whole app.
+
+**Self-verified** both detectors with synthetic strings (8 cases
+across the API guard, 2 JSX fixtures for the testid guard) — all
+expected hits/misses confirmed before commit.
+
+The pattern now covers three recurring footguns in this codebase:
+* light-cream gradients in dark mode
+* untestid'd buttons breaking automated tests
+* direct axios/fetch calls bypassing `withCredentials`
+
+---
+
+
+
 ## 2026-06-20 (gradient-guard) — Dark-mode gradient regression test ✅
 
 Locks in the "Tailwind gradient color-stops bypass dark-mode CSS"
