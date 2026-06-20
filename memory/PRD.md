@@ -64,6 +64,9 @@
 - `GET  /api/admin/antivirus/status` · `GET /api/admin/antivirus/quarantine` (ClamAV health + flagged-file audit)
 - `GET  /api/admin/orphan-audit` · `POST /api/admin/orphan-audit/delete-bulk` (find + remove DB rows whose files are missing from storage)
 - `GET  /api/admin/storage-migration-progress` · `POST /api/admin/storage-migration-backfill` (R2 cutover progress + backfill chunks)
+- `POST /api/admin/storage-fallback-pause` (pausable Emergent fallback runtime toggle, persists to ``storage_config`` singleton)
+- `GET  /api/recommendations/similar/{book_id}` (library-local "Finished on device. Want a similar one?" suggestions)
+- `GET  /api/insights/reader-dna` (Reader DNA + trending re-reads — Stats page)
 
 ## 3rd-Party Integrations
 - **Emergent LLM Key** — Claude Sonnet 4.6 for classification + tag suggestions

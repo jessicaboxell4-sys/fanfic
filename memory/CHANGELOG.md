@@ -8,6 +8,62 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-20 — Migration-complete banner + P2/P3 feature bundle ✅
+
+Nine features shipped together after the orphan-audit work:
+
+**Enhancement — Migration-complete banner + pausable R2-only toggle**
+- `utils/storage_cloud.py`: new sync `is_emergent_fallback_paused()` /
+  `set_emergent_fallback_paused()` short-circuit Emergent probes in
+  both `restore_to_disk` and `remote_exists` when paused.
+- `server.py` startup hook hydrates the flag from `db.storage_config`
+  (singleton doc) so the setting survives a pod restart.
+- New admin endpoint `POST /admin/storage-fallback-pause` (pausable,
+  audit-logged). `storage-migration-progress` now returns
+  `emergent_fallback_paused`.
+- AdminConsole `R2MigrationProgressCard`: celebratory ribbon at 100%
+  with "Pause/Resume Emergent fallback" button + status badge.
+
+**P2 — "Finished on device. Want a similar one?" strip**
+- New `GET /api/recommendations/similar/{book_id}` — library-local
+  matches scored on (fandom × 3) + (author × 2) + unfinished + recency.
+- `SimilarBooksStrip.jsx` only renders when `progress_fraction >= 0.95`
+  or `finished_at` is set.  3–6 cards with cover, title, match reason.
+
+**P3 batch (5 features)**
+- **Reader DNA card** on `/stats`: top 3 fandoms + fanfic-vs-original
+  split bar + average word count + "Comfort reads" list of finished
+  books re-opened in last 30 days.  One round-trip
+  (`GET /api/insights/reader-dna`).
+- **Theme shortcut**: `Cmd/Ctrl + Shift + D` toggles light ↔ dark
+  globally via `ThemeKeyboardShortcut` mounted in `AppRouter`.
+  Skips input/textarea/contenteditable so it doesn't clobber
+  paste operations.  Verified flipping `data-theme` attribute.
+- **AV rescan nudge banner**: `AvRescanNudgeBanner.jsx` mounted at
+  app-level shows when last AV rescan > 90 days OR there are
+  unscanned books with no rescan ever. 1-day per-user dismissal
+  cool-down via localStorage.
+- **Homepage social proof strip**: new `SocialProofStrip` on
+  Landing renders 3 large stat tiles (books · readers · fandoms)
+  from `/landing/stats`.  Endpoint extended with `readers` count
+  AND filtered to exclude test-account fixtures so the public
+  counters are honest (3,806 books · 7 readers · 21 fandoms).
+- **Deep-link past welcome tour**: `TourMount` detects
+  `?from=share` / `?ref=share` query params OR a
+  `/read/<book_id>` path and marks tour seen, bypassing the
+  overlay for shared reader links.
+
+**Tests**: `test_insights_and_toggles.py` (+6 cases). All 12 new
+pytests passing alongside the orphan-audit batch (22 total).
+
+Files touched: `storage_cloud.py`, `server.py`, `routes/admin.py`,
+`routes/recommendations.py`, `routes/stats.py`, `App.js`, `Landing.jsx`,
+`StatsPage.jsx`, `BookDetail.jsx`, `AdminConsole.jsx`, plus 4 new
+components (`SimilarBooksStrip`, `ReaderDnaCard`, `AvRescanNudgeBanner`,
+inline `SocialProofStrip` + `ThemeKeyboardShortcut`).
+
+---
+
 ## 2026-06-20 — Orphan audit & auto-accept test accounts ✅
 
 Two complementary admin tools shipped together:
