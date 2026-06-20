@@ -78,7 +78,7 @@ export default function CrossDeviceFinishStrip({ book }) {
   return (
     <section
       data-testid="cross-device-finish-strip"
-      className="mb-4 rounded-lg border border-[#E5DDC5] bg-gradient-to-br from-[#FBFAF6] to-white p-4"
+      className="mb-4 rounded-lg border border-[#E5DDC5] bg-[#FBFAF6] p-4"
     >
       <header className="flex items-start gap-2 mb-3">
         <DeviceIcon className="w-4 h-4 text-[#6B46C1] mt-0.5" aria-hidden="true" />

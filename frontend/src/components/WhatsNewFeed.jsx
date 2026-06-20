@@ -203,7 +203,7 @@ export default function WhatsNewFeed() {
   return (
     <section
       data-testid="whats-new-feed"
-      className="mb-8 border border-[#E5DDC5] rounded-lg bg-gradient-to-br from-[#FBFAF6] to-white p-5"
+      className="mb-8 border border-[#E5DDC5] rounded-lg bg-[#FBFAF6] p-5"
     >
       <header className="flex items-center gap-2 mb-3">
         <Sparkles className="w-4 h-4 text-[#6B46C1]" aria-hidden="true" />
