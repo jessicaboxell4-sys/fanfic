@@ -152,7 +152,10 @@ function AppRouter() {
       <Route path="/library/smart/:id" element={<ProtectedRoute><SmartShelfPage /></ProtectedRoute>} />
       <Route path="/library/tags" element={<ProtectedRoute><TagCloudPage /></ProtectedRoute>} />
       <Route path="/library/tag/:name" element={<ProtectedRoute><TagShelfPage /></ProtectedRoute>} />
-      <Route path="/library/cant-find-online" element={<ProtectedRoute><CantFindOnline /></ProtectedRoute>} />
+      <Route path="/library/lost-found" element={<ProtectedRoute><CantFindOnline /></ProtectedRoute>} />
+      {/* Legacy URL — kept as a redirect so old bookmarks still resolve.
+          The canonical path is /library/lost-found (less indexable). */}
+      <Route path="/library/cant-find-online" element={<Navigate to="/library/lost-found" replace />} />
       <Route path="/library/unread" element={<ProtectedRoute><UnreadLibraryPage /></ProtectedRoute>} />
       <Route path="/library/polish" element={<ProtectedRoute><PolishLibraryPage /></ProtectedRoute>} />
       <Route path="/library/polish-covers" element={<ProtectedRoute><PolishCoversPage /></ProtectedRoute>} />

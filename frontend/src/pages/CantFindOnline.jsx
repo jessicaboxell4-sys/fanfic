@@ -167,7 +167,7 @@ export default function CantFindOnline() {
         <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B705C] mb-2">
-              🚫 Can't find online
+              🔎 Lost &amp; found
             </p>
             <h1 className="font-serif text-4xl sm:text-5xl text-[#2C2C2C] leading-[1.05]" data-testid="page-title">
               Lost & found
