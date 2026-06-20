@@ -22,6 +22,14 @@ shipped today.)
   button.  When you're ready to add a Year-In-Books combo share
   flow, the same renderer pattern applies.*
 
+- **Per-post ref-code A/B testing for invite campaigns** — parked
+  2026-06-20.  Now that `?ref=...` fast-tracks signup AND attributes
+  to a campaign, granular codes (`?ref=hpfb_post1`, `?ref=hpfb_post2`,
+  `?ref=hpfb_carousel`, etc.) cost zero engineering — the existing
+  `/admin/onboarding-stats` card already groups by `ref` tag.  Use
+  this when the user wants to A/B test post style / wording / time-
+  of-day for the same FB group or different groups.
+
 - **"Top devices reporting bugs this week" admin card** — parked
   2026-06-20.  Now that every suggestion is tagged with a `device`,
   one Mongo aggregate on `db.suggestions` (status=open OR last 7d,
