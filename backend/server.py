@@ -58,6 +58,16 @@ async def on_startup():
     except Exception as e:
         logger.warning(f"Index setup: {e}")
 
+    # 2026-06-20 — hydrate the Emergent fallback toggle from Mongo so
+    # an admin-paused fallback survives a pod reboot.  See
+    # ``utils/storage_cloud.set_emergent_fallback_paused``.
+    try:
+        from utils.storage_cloud import set_emergent_fallback_paused
+        cfg = await db.storage_config.find_one({"_id": "singleton"}) or {}
+        set_emergent_fallback_paused(bool(cfg.get("emergent_fallback_paused", False)))
+    except Exception as e:
+        logger.warning(f"Could not hydrate storage_config: {e}")
+
     # Auto-backfill on startup — fire-and-forget so a slow upload to
     # the object store doesn't delay the server accepting traffic.
     # Catches the "I just deployed, my pod just rebooted, are my files

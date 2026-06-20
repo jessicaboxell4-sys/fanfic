@@ -6,7 +6,7 @@ import { Toaster } from "sonner";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import TourOverlay, { hasSeenTour } from "@/components/TourOverlay";
 import GlobalConfettiHost from "@/components/GlobalConfettiHost";
-import { ThemeProvider } from "@/context/ThemeContext";
+import { ThemeProvider, useTheme } from "@/context/ThemeContext";
 import { PaletteProvider } from "@/context/PaletteContext";
 import UrlPasteDetector from "@/components/UrlPasteDetector";
 import { FETCHING_UI_ENABLED } from "@/lib/featureFlags";
@@ -73,6 +73,7 @@ import AuthCallback from "@/pages/AuthCallback";
 import ResetPassword from "@/pages/ResetPassword";
 import MaintenanceBanner from "@/components/MaintenanceBanner";
 import PendingDeletionBanner from "@/components/PendingDeletionBanner";
+import AvRescanNudgeBanner from "@/components/AvRescanNudgeBanner";
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -196,6 +197,7 @@ function AppRouter() {
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
     <TourMount />
+    <ThemeKeyboardShortcut />
     </>
   );
 }
@@ -211,20 +213,62 @@ function MessagesRoomRedirect() {
 
 function TourMount() {
   const { user, loading } = useAuth();
+  const location = useLocation();
   const [open, setOpen] = React.useState(false);
   React.useEffect(() => {
     if (loading || !user) return;
     if (hasSeenTour()) return;
+    // 2026-06-20 — Deep-link past the welcome tour when arriving on
+    // a shared reader URL.  Two heuristics:
+    //   1. The path is `/read/<book_id>` (someone followed a "read
+    //      this!" link) — popping the tour over their book is rude.
+    //   2. The URL carries `?from=share` (or `?ref=share`) explicitly.
+    // We mark the tour seen so the next visit also stays out of the
+    // way — they've already been onboarded by the link giver.
+    try {
+      const params = new URLSearchParams(location.search || "");
+      const fromShare = params.get("from") === "share" || params.get("ref") === "share";
+      const onReader = /^\/read\/[^/]+/.test(location.pathname || "");
+      if (fromShare || onReader) {
+        try { window.localStorage.setItem("shelfsort_tour_seen", "1"); } catch { /* ignore */ }
+        return;
+      }
+    } catch { /* ignore */ }
     // Brief delay so the destination page mounts first.
     const id = setTimeout(() => setOpen(true), 600);
     return () => clearTimeout(id);
-  }, [loading, user]);
+  }, [loading, user, location.pathname, location.search]);
   React.useEffect(() => {
     const fn = () => setOpen(true);
     window.addEventListener("shelfsort:replay-tour", fn);
     return () => window.removeEventListener("shelfsort:replay-tour", fn);
   }, []);
   return <TourOverlay open={open} onClose={() => setOpen(false)} />;
+}
+
+/**
+ * Theme keyboard shortcut — Cmd/Ctrl + Shift + D toggles light/dark.
+ * Mounts a single global listener at the app root so the shortcut
+ * works from any page.  Skipped when the user is typing into an
+ * input/textarea/contenteditable so we don't fight the OS bookmark-
+ * sidebar shortcut.
+ */
+function ThemeKeyboardShortcut() {
+  const { toggleTheme } = useTheme();
+  React.useEffect(() => {
+    const onKey = (e) => {
+      if (!(e.shiftKey && (e.metaKey || e.ctrlKey))) return;
+      if ((e.key || "").toLowerCase() !== "d") return;
+      const t = e.target;
+      const tag = (t?.tagName || "").toLowerCase();
+      if (tag === "input" || tag === "textarea" || t?.isContentEditable) return;
+      e.preventDefault();
+      toggleTheme();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [toggleTheme]);
+  return null;
 }
 
 function App() {
@@ -236,6 +280,7 @@ function App() {
             <AuthProvider>
               <PendingDeletionBanner />
               <MaintenanceBanner />
+              <AvRescanNudgeBanner />
               {FETCHING_UI_ENABLED && <UrlPasteDetector />}
               <AppRouter />
               <GlobalConfettiHost />

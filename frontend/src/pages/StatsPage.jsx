@@ -3,6 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { api, API } from "../lib/api";
 import Navbar from "../components/Navbar";
 import StatsCard from "../components/StatsCard";
+import ReaderDnaCard from "../components/ReaderDnaCard";
 import { ArrowLeft, ArrowRight, TrendingUp, Calendar, UserCircle2, Sparkles, BookCheck, Download } from "lucide-react";
 
 function BarRow({ label, value, max, to, accent }) {
@@ -282,7 +283,7 @@ export default function StatsPage() {
             </section>
 
             {/* Category split */}
-            <section className="shelf-card p-6 mb-12" data-testid="category-breakdown-card">
+            <section className="shelf-card p-6 mb-6" data-testid="category-breakdown-card">
               <h2 className="font-serif text-2xl text-[#2C2C2C] mb-4">Library by category</h2>
               <div className="space-y-3">
                 {(detail.categories || []).map((c) => (
@@ -300,6 +301,8 @@ export default function StatsPage() {
                 ))}
               </div>
             </section>
+
+            <ReaderDnaCard />
           </>
         )}
       </main>

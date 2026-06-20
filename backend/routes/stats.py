@@ -63,14 +63,38 @@ async def landing_public_stats():
         and (now - _LANDING_STATS_CACHE_AT).total_seconds() < _LANDING_STATS_TTL_SECONDS
     ):
         return _LANDING_STATS_CACHE
-    books_sorted = await db.books.count_documents({})
+    # Exclude test-account fixtures so the public counters reflect
+    # real users only.  Without this filter the homepage social
+    # proof strip overstates adoption.
+    from utils.test_account_filter import mongo_test_account_filter
+    test_filter = mongo_test_account_filter()
+    real_user_ids = [
+        u["user_id"]
+        async for u in db.users.find(
+            {"$nor": test_filter["$or"]},
+            {"_id": 0, "user_id": 1},
+        )
+    ]
+    books_match = {"user_id": {"$in": real_user_ids}} if real_user_ids else {"_id": None}
+
+    books_sorted = await db.books.count_documents(books_match)
     # Distinct non-empty fandoms.  ``distinct`` skips null but we still
     # filter the empty string just in case.
-    fandoms_raw = await db.books.distinct("fandom", {"fandom": {"$nin": [None, ""]}})
+    fandoms_raw = await db.books.distinct(
+        "fandom",
+        {**books_match, "fandom": {"$nin": [None, ""]}},
+    )
     fandoms_recognized = len([f for f in fandoms_raw if f and str(f).strip()])
+    # Readers count for the social-proof strip.  We count *distinct
+    # user_ids* in the books collection rather than total users so
+    # the number reflects PEOPLE who actually built a library, not
+    # abandoned-signup ghost accounts.
+    readers_raw = await db.books.distinct("user_id", books_match)
+    readers = len([u for u in readers_raw if u])
     payload = {
         "books_sorted": int(books_sorted),
         "fandoms_recognized": int(fandoms_recognized),
+        "readers": int(readers),
         "as_of": now.isoformat(),
     }
     _LANDING_STATS_CACHE = payload
@@ -358,3 +382,127 @@ async def stats_export_csv(user: User = Depends(get_current_user)):
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
+
+
+# ---------------------------------------------------------------------
+# Reader DNA + trending re-reads  (2026-06-20)
+# ---------------------------------------------------------------------
+# Combined "Insights" rollup for the dashboard.  Two complementary
+# datasets:
+#   • Reader DNA — top 3 fandoms by book count, fanfic-vs-original
+#     ratio, average word count.  A one-glance summary of "what kind
+#     of reader am I?".
+#   • Trending re-reads — books the user has finished AND re-opened
+#     in the last 30 days.  Approximated cheaply by joining
+#     ``cursor_history`` (sessions in last 30 days) with the books
+#     collection (where ``progress_fraction >= 0.95``).
+#
+# Why combine?  Both feed a single "Insights" card on the stats /
+# dashboard surface — fewer round trips, simpler client code.
+@api_router.get("/insights/reader-dna")
+async def reader_dna(user: User = Depends(get_current_user)):
+    """Return Reader DNA + trending re-reads for the calling user.
+
+    Cheap aggregations only — all queries run against indexed fields
+    (``user_id`` is indexed on ``books`` and ``cursor_history``).
+    """
+    # ---- Reader DNA -----------------------------------------------
+    fandoms_pipe = [
+        {"$match": {
+            "user_id": user.user_id,
+            "fandom": {"$nin": [None, ""]},
+            "category": {"$nin": ["Trash"]},
+        }},
+        {"$group": {"_id": "$fandom", "n": {"$sum": 1}}},
+        {"$sort": {"n": -1}},
+        {"$limit": 3},
+    ]
+    top_fandoms = []
+    async for r in db.books.aggregate(fandoms_pipe):
+        top_fandoms.append({"fandom": r["_id"], "count": r["n"]})
+
+    # Category split — used to derive the fanfic ratio.  We treat
+    # the "Fanfiction" category as fanfic and everything else
+    # (Original, Non-fiction, etc.) as original works.
+    cat_pipe = [
+        {"$match": {"user_id": user.user_id, "category": {"$nin": ["Trash"]}}},
+        {"$group": {"_id": "$category", "n": {"$sum": 1}}},
+    ]
+    cats: Dict[str, int] = {}
+    async for r in db.books.aggregate(cat_pipe):
+        cats[r["_id"] or "Uncategorized"] = r["n"]
+    total_books = sum(cats.values())
+    fanfic_count = cats.get("Fanfiction", 0)
+    original_count = max(0, total_books - fanfic_count)
+    fanfic_pct = round(100 * fanfic_count / total_books) if total_books else 0
+
+    # Average word count — read from ``source_meta.words``, fall
+    # back to size_bytes / 6 as a rough heuristic when missing.
+    samples = await db.books.find(
+        {"user_id": user.user_id, "category": {"$nin": ["Trash"]}},
+        {"_id": 0, "source_meta": 1, "size_bytes": 1},
+    ).to_list(length=5000)
+    total_words = 0
+    counted = 0
+    for b in samples:
+        words = None
+        if isinstance(b.get("source_meta"), dict):
+            words = b["source_meta"].get("words")
+        if isinstance(words, (int, float)) and words > 0:
+            total_words += int(words)
+            counted += 1
+        elif (b.get("size_bytes") or 0) > 0:
+            total_words += int(b["size_bytes"]) // 6
+            counted += 1
+    avg_words = int(total_words / counted) if counted else 0
+
+    # ---- Trending re-reads ---------------------------------------
+    # Books the user has finished (>= 95% progress) AND opened a
+    # session in the last 30 days.  This is a cheap approximation
+    # of "re-reading" that doesn't need the expensive backward-jump
+    # detector to run server-wide.
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    recent_book_ids = await db.cursor_history.distinct(
+        "book_id",
+        {"user_id": user.user_id, "ts": {"$gte": cutoff}},
+    )
+    rereads: List[Dict[str, Any]] = []
+    if recent_book_ids:
+        async for b in db.books.find(
+            {
+                "user_id": user.user_id,
+                "book_id": {"$in": recent_book_ids},
+                "progress_fraction": {"$gte": 0.95},
+                "category": {"$nin": ["Trash"]},
+            },
+            {
+                "_id": 0, "book_id": 1, "title": 1, "author": 1,
+                "fandom": 1, "has_cover": 1, "last_opened_at": 1,
+                "progress_fraction": 1,
+            },
+        ):
+            lo = b.get("last_opened_at")
+            if hasattr(lo, "isoformat"):
+                lo = lo.isoformat()
+            rereads.append({
+                "book_id":       b["book_id"],
+                "title":         b.get("title") or "(untitled)",
+                "author":        b.get("author") or "",
+                "fandom":        b.get("fandom") or "",
+                "has_cover":     bool(b.get("has_cover")),
+                "last_opened_at": lo,
+            })
+    # Sort most-recently-opened first so the card surfaces the
+    # comfort-reads the user actually returned to recently.
+    rereads.sort(key=lambda x: x.get("last_opened_at") or "", reverse=True)
+    rereads = rereads[:5]
+
+    return {
+        "top_fandoms":      top_fandoms,
+        "total_books":      total_books,
+        "fanfic_count":     fanfic_count,
+        "original_count":   original_count,
+        "fanfic_pct":       fanfic_pct,
+        "avg_words":        avg_words,
+        "trending_rereads": rereads,
+    }

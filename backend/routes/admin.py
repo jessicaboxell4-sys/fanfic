@@ -2101,6 +2101,54 @@ async def storage_migration_progress(
         "sample_hit": sample_hit,
         "estimated_migrated": estimated,
         "percent": percent,
+        "emergent_fallback_paused": __import__(
+            "utils.storage_cloud", fromlist=["is_emergent_fallback_paused"]
+        ).is_emergent_fallback_paused(),
+    }
+
+
+class StorageFallbackBody(BaseModel):
+    paused: bool
+
+
+@api_router.post("/admin/storage-fallback-pause")
+async def set_storage_fallback_pause(
+    body: StorageFallbackBody,
+    user: User = Depends(require_admin),
+):
+    """Toggle the Emergent fallback on/off at runtime.
+
+    When ``paused=True``, ``utils.storage_cloud.restore_to_disk`` and
+    ``remote_exists`` skip the Emergent secondary entirely — a true R2
+    miss returns ``False`` instead of silently lazy-restoring.  Useful
+    once migration hits 100% so an orphaned key stays an orphan and
+    the operator stops paying for Emergent hits.
+
+    The setting is persisted to ``storage_config`` (singleton doc) so
+    it survives a pod restart, AND mutated in-process so the change
+    takes effect immediately.  Idempotent — flipping to the same value
+    is a no-op write.
+    """
+    from utils.storage_cloud import set_emergent_fallback_paused
+    await db.storage_config.update_one(
+        {"_id": "singleton"},
+        {"$set": {
+            "emergent_fallback_paused": bool(body.paused),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "updated_by": user.user_id,
+        }},
+        upsert=True,
+    )
+    set_emergent_fallback_paused(body.paused)
+    await record_admin_action(
+        user,
+        "storage.fallback_pause",
+        target="emergent",
+        metadata={"paused": bool(body.paused)},
+    )
+    return {
+        "ok": True,
+        "emergent_fallback_paused": bool(body.paused),
     }
 
 

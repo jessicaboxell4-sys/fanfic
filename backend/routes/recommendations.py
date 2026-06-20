@@ -831,3 +831,135 @@ async def affinity_recommendations(
         "top_authors":     top_authors,
         "recommendations": out,
     }
+
+
+
+# ---------------------------------------------------------------------
+# Similar-from-your-library suggestions  (2026-06-20)
+# ---------------------------------------------------------------------
+# Powers the "Finished on device. Want a similar one?" strip on the
+# Book Detail page.  Given a seed book, returns up to ``limit`` other
+# books from the *same* user's library that share the seed's fandom
+# or author, prioritising unfinished ones so the user has somewhere
+# to go after they close the cover.
+#
+# Why library-local instead of community/embedding-based?  The user
+# explicitly wants their own catalogue resurfaced — these are books
+# they've already chosen to keep but might have forgotten about.
+# Embedding-based community recs already live behind
+# ``/recommendations/by-affinity``.
+@api_router.get("/recommendations/similar/{book_id}")
+async def similar_in_library(
+    book_id: str,
+    limit: int = 6,
+    user: User = Depends(get_current_user),
+):
+    """Return books from the user's library similar to ``book_id``.
+
+    Match priority (highest score first):
+      score = (fandom_match × 3) + (author_match × 2)
+            + (unfinished ? 1 : 0)
+            + recency_bonus       # max 1.0
+    """
+    limit = max(1, min(int(limit or 6), 20))
+
+    seed = await db.books.find_one(
+        {"user_id": user.user_id, "book_id": book_id},
+        {
+            "_id": 0, "book_id": 1, "user_id": 1,
+            "title": 1, "author": 1, "fandom": 1, "category": 1,
+        },
+    )
+    if seed is None:
+        raise HTTPException(status_code=404, detail="Book not found")
+
+    seed_fandom = (seed.get("fandom") or "").strip().lower()
+    seed_author = (seed.get("author") or "").strip().lower()
+    if not seed_fandom and not seed_author:
+        return {"seed": {"book_id": book_id}, "recommendations": []}
+
+    # Pull every other book in the library — we filter+rank in-process.
+    # Excludes the seed itself, the Old Stories archive, and the Trash.
+    candidates = await db.books.find(
+        {
+            "user_id": user.user_id,
+            "book_id": {"$ne": book_id},
+            "category": {"$nin": ["Trash", "Old stories"]},
+        },
+        {
+            "_id": 0, "book_id": 1,
+            "title": 1, "author": 1, "fandom": 1, "category": 1,
+            "progress_fraction": 1, "has_cover": 1,
+            "last_opened_at": 1, "created_at": 1,
+        },
+    ).to_list(length=5000)
+
+    now = datetime.now(timezone.utc)
+    ranked: List[Dict[str, Any]] = []
+    for c in candidates:
+        f = (c.get("fandom") or "").strip().lower()
+        a = (c.get("author") or "").strip().lower()
+        fandom_match = bool(seed_fandom) and f == seed_fandom
+        author_match = bool(seed_author) and a == seed_author
+        if not fandom_match and not author_match:
+            continue
+
+        pf = float(c.get("progress_fraction") or 0.0)
+        unfinished = pf < 0.95
+
+        # Recency: prefer books the user hasn't opened in a while
+        # (re-discovery) — but not so old they've forgotten them.
+        # Cap at +1.0 so it never dominates the fandom/author signal.
+        recency_bonus = 0.0
+        last_opened = c.get("last_opened_at")
+        if isinstance(last_opened, datetime):
+            days = (now - last_opened.replace(tzinfo=last_opened.tzinfo or timezone.utc)).days
+            # Sweet spot: 30–180 days untouched.
+            if 30 <= days <= 180:
+                recency_bonus = 1.0
+            elif days > 180:
+                recency_bonus = 0.5
+        elif last_opened is None:
+            # Never opened — perfect candidate for "you should try this".
+            recency_bonus = 1.0
+
+        score = (
+            (3.0 if fandom_match else 0.0)
+            + (2.0 if author_match else 0.0)
+            + (1.0 if unfinished else 0.0)
+            + recency_bonus
+        )
+
+        # Build the reason chip the UI shows below the title.
+        reasons: List[str] = []
+        if fandom_match:
+            reasons.append(f"same fandom: {c.get('fandom') or ''}")
+        if author_match:
+            reasons.append(f"same author: {c.get('author') or ''}")
+
+        ranked.append({
+            "book_id": c["book_id"],
+            "title": c.get("title") or "(untitled)",
+            "author": c.get("author") or "",
+            "fandom": c.get("fandom") or "",
+            "category": c.get("category") or "",
+            "progress_fraction": pf,
+            "has_cover": bool(c.get("has_cover", False)),
+            "match_reason": " · ".join(reasons) or "you might enjoy this",
+            "_score": score,
+        })
+
+    ranked.sort(key=lambda x: x["_score"], reverse=True)
+    out = ranked[:limit]
+    for r in out:
+        r.pop("_score", None)
+
+    return {
+        "seed": {
+            "book_id": seed["book_id"],
+            "title":   seed.get("title") or "",
+            "fandom":  seed.get("fandom") or "",
+            "author":  seed.get("author") or "",
+        },
+        "recommendations": out,
+    }

@@ -96,6 +96,37 @@ def is_enabled() -> bool:
 
 
 # ---------------------------------------------------------------------
+# Emergent fallback runtime toggle (2026-06-20)
+# ---------------------------------------------------------------------
+# Once the R2 migration is complete (sample-based progress hits 100%
+# and stays there for a confidence window), the operator may wish to
+# stop hitting Emergent on misses so a true 404 in R2 stays a 404
+# instead of silently lazy-restoring from a backend we're trying to
+# retire.  This is a *pausable* toggle: when paused, ``restore_to_disk``
+# and ``remote_exists`` short-circuit any Emergent probe in r2 mode.
+#
+# Persisted in Mongo (collection ``storage_config``, doc
+# ``_id="singleton"``).  Loaded once at startup and mutated by the
+# admin endpoint; storage_cloud functions read the module-level
+# flag synchronously so they don't have to thread an async DB read
+# through every hot-path call.
+_emergent_fallback_paused: bool = False
+
+
+def is_emergent_fallback_paused() -> bool:
+    return bool(_emergent_fallback_paused)
+
+
+def set_emergent_fallback_paused(value: bool) -> None:
+    """Sync setter used by both the startup hydration and the admin
+    toggle endpoint.  Module-level so callers don't need a Mongo
+    round-trip on every read."""
+    global _emergent_fallback_paused
+    _emergent_fallback_paused = bool(value)
+    logger.info("storage: emergent_fallback_paused -> %s", _emergent_fallback_paused)
+
+
+# ---------------------------------------------------------------------
 # Cloudflare R2 backend (S3 API via boto3)
 # ---------------------------------------------------------------------
 # Lazily instantiated so the boto3 dependency only runs on R2-mode
@@ -316,10 +347,10 @@ def _emergent_mirror_up(local_path: Path, key: str) -> bool:
 
 def restore_to_disk(local_path: Path, key: str) -> bool:
     """Public dispatcher.  On R2 mode: try R2 first, fall back to
-    Emergent (if Emergent creds are still present) — this is the
-    zero-downtime migration path.  When a file is recovered from
-    Emergent we silently mirror it back to R2 so subsequent reads
-    hit the new backend natively.
+    Emergent (if Emergent creds are still present AND the fallback
+    isn't paused) — this is the zero-downtime migration path.  When
+    a file is recovered from Emergent we silently mirror it back to
+    R2 so subsequent reads hit the new backend natively.
     """
     if not is_enabled():
         return False
@@ -329,6 +360,8 @@ def restore_to_disk(local_path: Path, key: str) -> bool:
         # R2 miss — fall back to Emergent for files that haven't been
         # migrated yet.  If Emergent has it, persist the recovered
         # bytes back to R2 silently so next time we don't double-hop.
+        if _emergent_fallback_paused:
+            return False
         if _emergent_key() and _emergent_restore_to_disk(local_path, key):
             try:
                 _r2_put(local_path, key)
@@ -430,15 +463,18 @@ def remote_exists(key: str) -> bool:
     """Public dispatcher — does ``key`` exist in *any* configured backend?
 
     Used by the admin orphan-audit endpoint.  Returns ``True`` if the
-    primary backend has the file, OR (in r2 mode) if the Emergent
-    fallback still has it.  ``False`` means the bytes are gone and the
-    DB record is an orphan safe to delete.
+    primary backend has the file, OR (in r2 mode, when the Emergent
+    fallback isn't paused) if the secondary still has it.  ``False``
+    means the bytes are gone and the DB record is an orphan safe to
+    delete.
     """
     if not is_enabled():
         return False
     if _backend() == "r2":
         if _r2_head_exists(key):
             return True
+        if _emergent_fallback_paused:
+            return False
         if _emergent_key() and _emergent_head_exists(key):
             return True
         return False

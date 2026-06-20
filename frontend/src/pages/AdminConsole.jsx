@@ -1440,6 +1440,7 @@ function R2MigrationProgressCard() {
   const [loading, setLoading] = useState(false);
   const [backfilling, setBackfilling] = useState(false);
   const [lastBackfill, setLastBackfill] = useState(null);
+  const [togglingPause, setTogglingPause] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -1465,9 +1466,32 @@ function R2MigrationProgressCard() {
     }
   };
 
+  const togglePause = async () => {
+    if (!data) return;
+    const next = !data.emergent_fallback_paused;
+    const verb = next ? "pause" : "resume";
+    if (!window.confirm(
+      next
+        ? "Pause the Emergent fallback?\n\nFrom now on, R2 misses will return a true 404 instead of silently lazy-restoring from Emergent. You can resume any time."
+        : "Resume the Emergent fallback?\n\nR2 misses will once again try Emergent and lazy-migrate any recovered file.",
+    )) return;
+    setTogglingPause(true);
+    try {
+      const { data: r } = await api.post("/admin/storage-fallback-pause", { paused: next });
+      setData({ ...data, emergent_fallback_paused: r.emergent_fallback_paused });
+      toast.success(`Emergent fallback ${r.emergent_fallback_paused ? "paused" : "resumed"}`);
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || `Couldn't ${verb} fallback`);
+    } finally {
+      setTogglingPause(false);
+    }
+  };
+
   if (data && data.enabled === false) return null;
 
   const pct = data?.percent ?? 0;
+  const complete = pct >= 100;
+  const paused = !!data?.emergent_fallback_paused;
   const tint =
     pct >= 95 ? { bar: "bg-emerald-500", rail: "bg-emerald-100", text: "text-emerald-700" } :
     pct >= 60 ? { bar: "bg-amber-500",   rail: "bg-amber-100",   text: "text-amber-700"   } :
@@ -1482,6 +1506,50 @@ function R2MigrationProgressCard() {
     >
       {data ? (
         <div className="space-y-3" data-testid="r2-migration-stats">
+          {complete && (
+            <div
+              className="rounded-lg p-4 bg-gradient-to-br from-emerald-50 to-emerald-100 border border-emerald-300"
+              data-testid="r2-migration-complete-banner"
+            >
+              <div className="flex items-start gap-3">
+                <Sparkles className="w-5 h-5 text-emerald-700 flex-shrink-0 mt-0.5" aria-hidden="true" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-serif text-lg text-emerald-900">
+                    Migration complete · 100% on R2
+                  </p>
+                  <p className="text-xs text-emerald-800 mt-0.5 leading-relaxed">
+                    Every sampled book lives in R2.  Safe to pause the Emergent fallback so a true R2 miss stops silently lazy-restoring from the legacy backend. You can resume any time.
+                  </p>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={togglePause}
+                      disabled={togglingPause}
+                      data-testid="r2-fallback-toggle"
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-[0.15em] inline-flex items-center gap-2 transition-colors ${
+                        paused
+                          ? "bg-white text-emerald-800 border border-emerald-400 hover:bg-emerald-50"
+                          : "bg-emerald-700 text-white hover:bg-emerald-800"
+                      } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                      {togglingPause ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                      {paused ? "Resume Emergent fallback" : "Pause Emergent fallback"}
+                    </button>
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
+                        paused
+                          ? "bg-amber-100 text-amber-800 border border-amber-300"
+                          : "bg-emerald-200 text-emerald-900"
+                      }`}
+                      data-testid="r2-fallback-status"
+                    >
+                      Fallback: {paused ? "PAUSED" : "active"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
           <div>
             <div className="flex items-baseline justify-between text-xs mb-1">
               <span className="text-[#6B705C]">Sample-based estimate</span>
@@ -1507,7 +1575,7 @@ function R2MigrationProgressCard() {
               <p className="font-mono text-[#2C2C2C] text-base">{Math.max(0, data.total - data.estimated_migrated).toLocaleString()}</p>
             </div>
           </div>
-          {pct >= 99 && (
+          {pct >= 99 && !complete && (
             <p className="text-xs text-emerald-700 italic">
               Migration nearly complete. Safe to consider dropping the Emergent fallback after a week of clean reads.
             </p>

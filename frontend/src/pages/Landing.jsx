@@ -186,6 +186,12 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* Social proof strip — three live counters that build credibility
+          without screaming.  Cached server-side (10-min TTL) so the
+          homepage stays fast under load.  Hidden until the API resolves
+          so we never show a flicker of "0 books sorted". */}
+      <SocialProofStrip />
+
       <section id="features" className="max-w-6xl mx-auto px-6 md:px-8 pb-12 grid md:grid-cols-3 gap-6">
         <Feature
           icon={<Sparkles className="w-5 h-5" />}
@@ -457,5 +463,69 @@ function FandomTicker({ className = "" }) {
         {FANDOM_TICKER[idx]}
       </span>
     </div>
+  );
+}
+
+
+// ---------------------------------------------------------------------
+// SocialProofStrip — three live, cached counters above the Features grid
+// ---------------------------------------------------------------------
+// Same data source as the FandomTicker (so we don't make two requests)
+// — public ``/api/landing/stats`` is 10-min TTL cached server-side and
+// returns ``books_sorted`` / ``fandoms_recognized`` / ``readers``.  We
+// hide the strip entirely while loading so visitors never see the
+// "0 books sorted" flicker.
+function SocialProofStrip() {
+  const [stats, setStats] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `${process.env.REACT_APP_BACKEND_URL}/api/landing/stats`,
+          { credentials: "omit" },
+        );
+        if (!res.ok) return;
+        const json = await res.json();
+        if (!cancelled) setStats(json);
+      } catch { /* silent — strip just doesn't render */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  if (!stats) return null;
+  // Bail if every counter is zero — early-stage installs shouldn't
+  // advertise emptiness.
+  const total = (stats.books_sorted || 0) + (stats.readers || 0) + (stats.fandoms_recognized || 0);
+  if (total === 0) return null;
+
+  const cells = [
+    { value: stats.books_sorted, label: "books sorted",      testid: "social-proof-books" },
+    { value: stats.readers,      label: "readers",           testid: "social-proof-readers" },
+    { value: stats.fandoms_recognized, label: "fandoms",     testid: "social-proof-fandoms" },
+  ].filter((c) => (c.value || 0) > 0);
+
+  return (
+    <section
+      className="max-w-6xl mx-auto px-6 md:px-8 pb-10"
+      data-testid="social-proof-strip"
+    >
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
+        {cells.map((c) => (
+          <div
+            key={c.testid}
+            data-testid={c.testid}
+            className="rounded-xl bg-[#FBFAF6] border border-[#E5DDC5] px-4 py-3 sm:px-5 sm:py-4 text-center"
+          >
+            <p className="font-serif text-2xl sm:text-3xl text-[#2C2C2C] tabular-nums">
+              {Number(c.value).toLocaleString()}
+            </p>
+            <p className="text-[10px] sm:text-xs uppercase tracking-[0.18em] text-[#6B705C] mt-0.5">
+              {c.label}
+            </p>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
