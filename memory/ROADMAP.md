@@ -26,14 +26,9 @@ shipped today.)
 ## P2 — parked, ready to ship anytime
 
 - **"You finished this on your iPhone — want a similar one?"
-  suggestion strip** (parked 2026-06-19) — Below the existing
-  BookDetail cross-device hint, surface a tiny 3-card horizontal
-  rail of related books when `progress_fraction ≥ 0.9` AND the last
-  cursor came from a different device.  Turns the completion moment
-  into a discovery moment without being pushy.  Reuses the existing
-  `/api/recommendations/similar/{book_id}` endpoint — pure frontend
-  work (~20 min) in `BookDetail.jsx`.  Hide if no similar books
-  found (no empty state).
+  suggestion strip** ✅ (shipped 2026-06-20 — `CrossDeviceFinishStrip`
+  3-card compact rail on `/book/:id`, gated on `progress_fraction ≥ 0.9`
+  AND cross-device cursor within 14 days; dismissible.  See CHANGELOG.)
 
 ## P1 — high value, ready to pull
 - **Moderators role** ✅ (shipped 2026-06-17 — see CHANGELOG).  Default

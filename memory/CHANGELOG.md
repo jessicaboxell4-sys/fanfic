@@ -8,6 +8,51 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-20 (cdf-strip) — "Finished on your iPhone?" suggestion strip ✅
+
+The parked completion-moment cross-device discovery rail from the
+2026-06-19 backlog, shipped.
+
+**Component** — new `CrossDeviceFinishStrip` mounted on
+`/book/:id` immediately below the existing cross-device hint pill.
+Visibility predicate (all four must be true):
+  1. `book.progress_fraction >= 0.9`
+  2. `book.last_device_id && book.last_device_label` are set
+  3. `localStorage.shelfsort-device-id !== book.last_device_id`
+  4. `(now - book.last_cursor_updated_at) <= 14 days`
+
+If the predicate matches, fetches up to 3 books from the user's
+library via the existing `/api/recommendations/similar/{book_id}?limit=3`
+endpoint.  Hides silently when the recs array is empty so single-
+fandom libraries never see an awkward empty state.
+
+**Layout** — compact 3-column grid (40×56px cover + 2-line title +
+1-line author + `SAME FANDOM` / `SAME AUTHOR` reason pill).
+Differs from the existing bottom-of-page `SimilarBooksStrip` which
+is a 6-card browsable grid.  Both can render together — the top
+one captures the moment, the bottom one is for browsing later.
+
+**Copy** —
+  - `progress >= 0.95` (truly finished): "FINISHED ON YOUR IPHONE — Want a similar one to read next?"
+  - `0.9 <= progress < 0.95` (nearly done): "READING ON YOUR IPHONE — Want a similar one to read next?"
+Device icon switches based on label (iPhone/Android → Smartphone,
+iPad → Tablet, Mac/Windows → Laptop, else generic).
+
+**Dismiss** — small `Hide` link in the strip header that sets
+component-local `skip=true`.  Suggestion comes back the next time
+the page is opened (intentional — no DB persistence; the moment is
+ephemeral).
+
+**Tests** — `tests/test_cross_device_finish_similar.py` (+3 cases):
+limit=3 returns at most 3 with `match_reason`, limit=0 falls back
+to default (existing behavior, not a regression), unknown seed →
+404.  All 3 passing.  27 total green between this, the new
+admin-whats-new suite, and the suggestion regression tests.
+
+---
+
+
+
 ## 2026-06-20 (whats-new) — Admin "What's new in Shelfsort" feed ✅
 
 Surface the CHANGELOG inside the app so the operator has a passive

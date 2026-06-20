@@ -8,6 +8,7 @@ import BookReadingInsights from "../components/BookReadingInsights";
 import BookCohortProgress from "../components/BookCohortProgress";
 import AntivirusBadge from "../components/AntivirusBadge";
 import SimilarBooksStrip from "../components/SimilarBooksStrip";
+import CrossDeviceFinishStrip from "../components/CrossDeviceFinishStrip";
 import { ArrowLeft, Download, Trash2, Sparkles, Book, Edit3, Heart, Link as LinkIcon, BookOpen, RefreshCw, Tag as TagIcon, Loader2, Upload, Smartphone, Laptop, Tablet, MonitorSmartphone } from "lucide-react";
 import { toast } from "sonner";
 import { FETCHING_UI_ENABLED } from "../lib/featureFlags";
@@ -611,6 +612,7 @@ export default function BookDetail() {
                     </div>
                   );
                 })()}
+                <CrossDeviceFinishStrip book={book} />
                 <div className="flex flex-wrap gap-3">
                 <button
                   data-testid="read-book-btn"
