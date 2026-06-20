@@ -4,6 +4,27 @@
 > For prioritized future tasks see [ROADMAP.md](./ROADMAP.md).
 > Pre-2026-06-16 history is preserved verbatim in `PRD.md.bak`.
 
+## User preferences — apply across sessions
+
+- **Bug checks → always run the deep-dive automatically.**  Whenever
+  the user asks "any bugs?", "is anything wrong?", "do a check",
+  "deep dive", or any equivalent, run the full sweep without asking
+  first:
+    1. Backend lint — `mcp_lint_python` on `/app/backend/`
+    2. Frontend lint — `mcp_lint_javascript` on `/app/frontend/src/`
+    3. Full pytest suite — every `tests/test_*.py`
+    4. Backend log scan — last 200 lines of
+       `/var/log/supervisor/backend.err.log`, filtered for
+       `error/traceback/exception/NameError/ImportError`
+    5. Production-critical import smoke test for any modules ruff
+       flagged
+  Report findings ranked by severity (HIGH = runtime crash path,
+  MED = potential 500, LOW = code smell).  Don't truncate the lint
+  output — the worst bugs hide in the long tail.
+- **Reminders** — when the user says "remind later" / "ask later" /
+  "hold for later", append the item to `/app/memory/ROADMAP.md`
+  under "Parked reminders" (newest at top).
+
 ## Original Problem Statement
 > Go through epubs and sort them by fanfiction, Harry Potter, twilight, etc
 
