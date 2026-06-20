@@ -13,14 +13,31 @@ UptimeRobot/BetterStack can hit it without juggling secrets, and it
 *always returns HTTP 200* with ``status: "ok" | "degraded" | "down"``
 so a monitor can branch on the JSON body rather than relying on HTTP
 codes (which proxies sometimes flatten to 502).
+
+There is also a tiny ``GET /api/version`` endpoint used by the frontend
+``NewVersionBanner`` to detect deploys.  Every backend process boot
+generates a fresh ``boot_id`` UUID — when the frontend sees that
+change, it shows a "refresh for the latest version" banner.  No
+admin involvement required; every redeploy is announced
+automatically.
 """
 from __future__ import annotations
 
 import os
+import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict
 
 from deps import api_router, db
+
+
+# ---------------------------------------------------------------------------
+# Process-lifetime identifiers (generated once when this module is imported,
+# which happens during backend startup).  A new container = new BOOT_ID, so
+# the frontend can reliably tell when a deploy has just landed.
+# ---------------------------------------------------------------------------
+BOOT_ID = uuid.uuid4().hex[:12]
+BOOT_TIME = datetime.now(timezone.utc).isoformat()
 
 
 # ---------------------------------------------------------------------------
@@ -103,10 +120,32 @@ async def health():
         "status":    status,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "version":   os.environ.get("APP_VERSION", "dev"),
+        "boot_id":   BOOT_ID,
         "checks": {
             "mongo":      mongo,
             "scheduler":  scheduler,
             "storage":    storage,
             "antivirus":  av,
         },
+    }
+
+
+@api_router.get("/version")
+async def app_version():
+    """Tiny endpoint the frontend polls every ~60s to detect deploys.
+
+    Every backend process boot picks a fresh ``boot_id`` (see top of
+    module).  When the frontend sees the value change from what it
+    captured on initial page load, it surfaces a non-blocking
+    "Refresh for the latest version" banner — the user keeps scrolling
+    until they're ready, then one click reloads them into the new bundle.
+
+    This is unauthenticated and cache-buster-safe: clients should
+    fetch with no caching headers (the frontend uses axios which
+    inherits the same ``no-store`` we already set globally).
+    """
+    return {
+        "version": os.environ.get("APP_VERSION", "dev"),
+        "boot_id": BOOT_ID,
+        "build_time": BOOT_TIME,
     }

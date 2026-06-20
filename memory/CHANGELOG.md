@@ -8,6 +8,61 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-20 (deploy-comms) — Auto-detect deploys, notify users ✅
+
+Three complementary pieces so users always know when a deploy is
+happening AND when it just finished.
+
+**Backend** — `routes/health.py`:
+- Module-level `BOOT_ID` (12-hex UUID) + `BOOT_TIME` generated when
+  the module imports. Every container boot = new ID.
+- New `GET /api/version` endpoint (unauthenticated, cheap). Returns
+  `{version, boot_id, build_time}`. Also surfaced inside the
+  existing `/api/health` response.
+
+**Frontend** — `components/NewVersionBanner.jsx` (~120 LOC):
+- Polls `/api/version` every 60s. On first response, locks in the
+  baseline `boot_id`. When a subsequent poll sees a different
+  `boot_id`, a calm lavender banner slides in at the top of every
+  page: "Shelfsort just updated. Refresh to pick up the latest
+  version — your reading position is already saved."
+- Two actions: `Refresh now` (hard reload) and `Later` (dismisses
+  for the rest of the session via `sessionStorage`).
+- Mounted in `App.js` right below the existing `MaintenanceBanner`.
+
+**Admin** — `AdminConsole.jsx` Maintenance Banner card:
+- New "Deploy presets" row at the bottom of the card with two
+  one-click buttons:
+  - 🛠️ **Deploy starting** → publishes a warn-severity banner
+    ("Shelfsort is updating — you may see brief blips for ~2 min")
+    site-wide.
+  - ✅ **Deploy complete** → clears the maintenance banner. The
+    per-tab `NewVersionBanner` already auto-detects the new
+    `boot_id` and surfaces a refresh prompt, so we deliberately
+    don't double-stack a site-wide "deployed!" message.
+
+**Tests** — `tests/test_version_endpoint.py` (+4 cases):
+- Unauthenticated GET works
+- `boot_id` matches the 12-hex format
+- Multiple calls within a process return the same `boot_id` (no
+  flapping the refresh prompt)
+- `build_time` is a parseable ISO timestamp
+
+**End-to-end verified**: baseline boot captured, backend restarted,
+new boot_id observed by the polling component within ~16s, banner
+appeared on the live `/library` page with both action buttons.
+
+**For the redeploy workflow**:
+1. Click "🛠️ Deploy starting" on `/admin` before pushing
+2. Save to GitHub → redeploy
+3. After deploy lands: `NewVersionBanner` notifies users
+   automatically (each tab sees the change on its next 60s poll)
+4. Click "✅ Deploy complete" to clear the heads-up banner
+
+---
+
+
+
 ## 2026-06-20 (invite-fast-track) — `?ref=...` skips onboarding questions ✅
 
 When a visitor arrives via a tracked invite link (Facebook group

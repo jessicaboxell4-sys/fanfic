@@ -73,6 +73,7 @@ import ModInbox from "@/pages/ModInbox";
 import AuthCallback from "@/pages/AuthCallback";
 import ResetPassword from "@/pages/ResetPassword";
 import MaintenanceBanner from "@/components/MaintenanceBanner";
+import NewVersionBanner from "@/components/NewVersionBanner";
 import PendingDeletionBanner from "@/components/PendingDeletionBanner";
 import AvRescanNudgeBanner from "@/components/AvRescanNudgeBanner";
 
@@ -285,6 +286,7 @@ function App() {
             <AuthProvider>
               <PendingDeletionBanner />
               <MaintenanceBanner />
+              <NewVersionBanner />
               <AvRescanNudgeBanner />
               {FETCHING_UI_ENABLED && <UrlPasteDetector />}
               <AppRouter />

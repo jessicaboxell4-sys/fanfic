@@ -2799,6 +2799,44 @@ function MaintenanceBannerCard() {
     finally { setSaving(false); }
   };
 
+  // Quick presets for deploy windows.  Saves us re-typing every time
+  // we push.  Both call ``save`` afterwards so the change goes live
+  // immediately — no second click required.
+  const applyDeployStarting = async () => {
+    setEnabled(true);
+    setSeverity("warn");
+    setMessage("Shelfsort is updating — you may see brief blips for ~2 min. Your reading position is safe.");
+    setSaving(true);
+    try {
+      await api.put("/admin/maintenance-banner", {
+        enabled: true,
+        message: "Shelfsort is updating — you may see brief blips for ~2 min. Your reading position is safe.",
+        severity: "warn",
+      });
+      toast.success("Deploy-starting banner published.");
+    } catch { toast.error("Couldn't publish deploy banner"); }
+    finally { setSaving(false); }
+  };
+  const applyDeployComplete = async () => {
+    // For "complete" we turn the banner OFF — the NewVersionBanner
+    // component on the frontend already picks up the new boot_id and
+    // surfaces the per-user "refresh now" prompt automatically.
+    // Leaving the site-wide warn banner up would just stack on top of
+    // that prompt and look confusing.
+    setEnabled(false);
+    setMessage("");
+    setSaving(true);
+    try {
+      await api.put("/admin/maintenance-banner", {
+        enabled: false,
+        message: "",
+        severity: "info",
+      });
+      toast.success("Deploy complete — banner cleared. Users will see the auto-refresh prompt.");
+    } catch { toast.error("Couldn't clear banner"); }
+    finally { setSaving(false); }
+  };
+
   return (
     <Card icon={AlertTriangle} title="Maintenance banner" subtitle="Site-wide non-dismissible banner. Use for outages, planned maintenance, or urgent heads-ups." testid="admin-banner-card">
       <div className="space-y-3">
@@ -2847,6 +2885,34 @@ function MaintenanceBannerCard() {
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
           {saving ? "Saving…" : "Save banner"}
         </button>
+        {/* Deploy presets — one-click banners for the most common
+            "I'm about to redeploy" / "just deployed" announcements.
+            Apply-deploy-complete clears the banner because the
+            NewVersionBanner component already auto-detects the new
+            backend boot_id and prompts users to refresh per-tab. */}
+        <div className="pt-2 border-t border-[#E5DDC5] flex flex-wrap gap-2">
+          <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#6B705C] w-full mb-1">
+            Deploy presets
+          </span>
+          <button
+            type="button"
+            onClick={applyDeployStarting}
+            disabled={saving}
+            data-testid="admin-banner-deploy-starting"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FDF3E1] text-[#8C5C00] text-xs font-semibold border border-[#B87A00]/40 hover:bg-[#FCE9C2] disabled:opacity-50"
+          >
+            🛠️ Deploy starting
+          </button>
+          <button
+            type="button"
+            onClick={applyDeployComplete}
+            disabled={saving}
+            data-testid="admin-banner-deploy-complete"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#EEE9FB] text-[#6B46C1] text-xs font-semibold border border-[#6B46C1]/30 hover:bg-[#E5DDF9] disabled:opacity-50"
+          >
+            ✅ Deploy complete
+          </button>
+        </div>
       </div>
     </Card>
   );
