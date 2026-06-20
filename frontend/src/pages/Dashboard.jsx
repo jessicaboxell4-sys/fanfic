@@ -16,7 +16,7 @@ import LibraryReadingStatsCard from "../components/LibraryReadingStatsCard";
 import CoverOfTheWeekStrip from "../components/CoverOfTheWeekStrip";
 import DuplicateResolutionModal from "../components/DuplicateResolutionModal";
 import UrlListDedupeModal from "../components/UrlListDedupeModal";
-import { Library, ArrowRight, Pin, RotateCcw, BarChart3 } from "lucide-react";
+import { Library, ArrowRight, Pin, BarChart3 } from "lucide-react";
 import { toast } from "sonner";
 
 // One-shot "what's new" banner fired on the user's next visit to the
@@ -209,8 +209,6 @@ export default function Dashboard() {
           <Link to="/library/tags" className="hover:text-[#6B46C1]">Tags</Link>
           <span>·</span>
           <Link to="/account" className="hover:text-[#6B46C1]">Backups &amp; account</Link>
-          <span>·</span>
-          <Link to="/library/cant-find-online" className="hover:text-[#6B46C1] inline-flex items-center gap-1"><RotateCcw className="w-3 h-3" /> Can’t find online</Link>
         </div>
       </main>
 
