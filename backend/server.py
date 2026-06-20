@@ -68,6 +68,30 @@ async def on_startup():
     except Exception as e:
         logger.warning(f"Could not hydrate storage_config: {e}")
 
+    # 2026-06-20 — Backfill the ``is_test_account`` flag on every user
+    # whose email matches the current test-fixture patterns.  The
+    # patterns expanded over time, so legacy users won't have the
+    # flag set even though they match.  Idempotent — only writes when
+    # ``is_test_account`` is missing or false. Cheap (single
+    # ``update_many``) so safe to run on every boot.
+    try:
+        from utils.test_account_filter import mongo_test_account_filter
+        flt = {
+            "is_test_account": {"$ne": True},
+            **mongo_test_account_filter(),
+        }
+        result = await db.users.update_many(
+            flt,
+            {"$set": {"is_test_account": True, "auto_approved_test": True}},
+        )
+        if result.modified_count:
+            logger.info(
+                "test_account_filter backfill: stamped is_test_account=True on %d legacy users",
+                result.modified_count,
+            )
+    except Exception as e:
+        logger.warning(f"Test-account backfill failed: {e}")
+
     # Auto-backfill on startup — fire-and-forget so a slow upload to
     # the object store doesn't delay the server accepting traffic.
     # Catches the "I just deployed, my pod just rebooted, are my files

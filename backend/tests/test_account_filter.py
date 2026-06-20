@@ -32,7 +32,11 @@ def test_mongo_filter_has_or_clauses():
     assert "$or" in f
     # At least one regex per domain + one per prefix
     assert len(f["$or"]) >= 8
-    # No backslashes inside f-strings (regression guard for the syntax bug)
+    # Every clause targets the email field with either a direct
+    # ``$regex`` (positive match: domain or prefix) or a ``$not``
+    # wrapper (negative match: malformed email with no @).
     for clause in f["$or"]:
         assert "email" in clause
-        assert "$regex" in clause["email"]
+        cond = clause["email"]
+        assert "$regex" in cond or ("$not" in cond and "$regex" in cond["$not"]), \
+            f"clause has neither $regex nor $not/$regex: {clause}"

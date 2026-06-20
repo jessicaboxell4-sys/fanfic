@@ -8,6 +8,41 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-20 — Test-account filter expansion + auto-backfill ✅
+
+User flagged ~190 leftover agent fixtures still showing as "real" users.
+Expanded `utils/test_account_filter.py` to catch every pattern in the
+provided screenshot, then added a startup hook that backfills the
+`is_test_account=True` flag on every matching legacy user.
+
+**New domain patterns**: `@test.com`, `@test.example`, `@x.com`,
+`@e.com`, `@t.com`, `@ft.local`, `@ft.loca` (truncated agent seed).
+
+**New local-part prefixes**: `reg_`, `check_`, `open_user_`, `user_`
+(catches `user_a_*`, `user_dk_*`, `user_ft_*`, `user_pull_*`,
+`user_test_*`, `user_ui_*`), `iter` (`iter17_`, etc.), `admin-smoke`,
+`admin_smoke`.
+
+**Malformed-email catch**: emails without an `@` are now treated as
+test (only ever produced by agent seeds where the email field got
+set to a raw user_id like `user_ft_a_518edb`).
+
+**Startup backfill**: `server.py` now runs `update_many` at boot to
+stamp the flag on every legacy user matching the current patterns.
+Idempotent — only touches rows where `is_test_account != True`.
+First run wrote 179 + 2 rows; subsequent boots write 0.
+
+**Test fixed**: `test_account_filter.py::test_mongo_filter_has_or_clauses`
+updated to accept both positive (`$regex`) and negative
+(`$not.$regex`) clauses since malformed emails use the latter.
+
+After the update: 188 fixtures isolated, 2 real users remain
+(both Jessica). `/admin/users` shows 2 rows; `/admin/test-accounts`
+shows 188.  Global-stats, today-pulse, and landing/stats counters
+all correctly reflect real users only.
+
+---
+
 ## 2026-06-20 — Migration-complete banner + P2/P3 feature bundle ✅
 
 Nine features shipped together after the orphan-audit work:
