@@ -31,7 +31,6 @@ jobs:
     env:
       MONGO_URL: mongodb://localhost:27017
       DB_NAME: shelfsort_ci
-      EMERGENT_LLM_KEY: ""
       RESEND_API_KEY: ""
       SENDER_EMAIL: "onboarding@resend.dev"
       FRONTEND_URL: "http://localhost:3000"
@@ -40,6 +39,8 @@ jobs:
       COOKIE_SECURE: "false"
       COOKIE_SAMESITE: "lax"
       FICHUB_BASE_URL: "http://127.0.0.1:8766"
+      # Test-only LLM key — short-circuits to SHELFSORT_TEST_AI_RESPONSE
+      # so the CI doesn't actually hit the LLM provider.
       EMERGENT_LLM_KEY: "test-classifier-key"
       SHELFSORT_TEST_AI_RESPONSE: '{"category":"Fanfiction","fandom":"Harry Potter","confidence":0.85,"tags":["fluff","wip","au"]}'
 
