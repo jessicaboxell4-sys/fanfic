@@ -8,6 +8,41 @@ The pre-split verbose history (with every "Added 2026-05-29" line) is preserved 
 
 ---
 
+## 2026-06-20 (gradient-guard) — Dark-mode gradient regression test ✅
+
+Locks in the "Tailwind gradient color-stops bypass dark-mode CSS"
+footgun discovered today (WhatsNewFeed + CrossDeviceFinishStrip
+rendered invisible-on-invisible in dark mode because `from-[#FBFAF6]`
+on a `bg-gradient-to-br` isn't covered by the same attribute-selector
+remap that handles solid `bg-[#FBFAF6]`).
+
+**Test** — `tests/test_dark_mode_gradient_guard.py` (~140 LOC, 2
+cases):
+- Scans `frontend/src/{components,pages}/*.jsx` for any line that
+  combines `bg-gradient-to-<dir>` with a light-cream color-stop
+  (`from-[#FBFAF6]`, `to-white`, 15+ known light tokens including
+  the `/60` opacity variants).
+- Fails when a NEW file lands in the offenders list that isn't on
+  `BASELINE_ALLOWLIST` (4 existing files documented by hand:
+  UrlPasteCard, StatsPage YIB banner, Help top banner, AllBooksPage
+  3 banners).
+- Companion test fails if a baselined file drops its gradient — keeps
+  the allowlist honest as the codebase evolves.
+
+**Self-verified** the detector with synthetic strings: catches three
+common patterns (`from-[#FBFAF6] to-white`, `from-[#EDE7FB] to-white`,
+3-stop `via-white`), ignores solid backgrounds and dark-safe gradients
+(`from-purple-500 to-pink-500`).
+
+Next time someone adds a "pretty cream gradient" in a new card, the
+pytest suite will tell them to either use the solid `bg-[#FBFAF6]`
+(already dark-mode-mapped) or extend `index.css` with an explicit
+gradient stop override.
+
+---
+
+
+
 ## 2026-06-20 (cdf-strip) — "Finished on your iPhone?" suggestion strip ✅
 
 The parked completion-moment cross-device discovery rail from the
