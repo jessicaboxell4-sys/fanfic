@@ -1487,6 +1487,7 @@ function SavingsLine({ savings }) {
   };
   const tooltip =
     `Library: ${savings.total_gb} GB stored · ${savings.monthly_egress_gb} GB est. monthly egress\n` +
+    `(estimate uses STORAGE_EGRESS_MULTIPLIER=${savings.rates.egress_multiplier} — replace with real R2 billing data for an exact number)\n\n` +
     `Emergent: ${fmt(savings.emergent_estimated.total_usd)} (${fmt(savings.emergent_estimated.storage_usd)} storage + ${fmt(savings.emergent_estimated.egress_usd)} egress)\n` +
     `R2: ${fmt(savings.r2_estimated.total_usd)} (${fmt(savings.r2_estimated.storage_usd)} storage + ${fmt(savings.r2_estimated.egress_usd)} egress)\n` +
     `Savings: ${fmt(usd)} (${pct}% off)`;
@@ -1500,7 +1501,9 @@ function SavingsLine({ savings }) {
       <span className="font-semibold not-italic font-mono">{fmt(usd)}</span>
       {" "}
       <span className="text-emerald-700 not-italic">({pct}% off Emergent)</span>
-      <span className="ml-1 text-emerald-700 not-italic">· hover for math</span>
+      <span className="ml-1 text-emerald-700 not-italic">
+        · estimate — hover for math
+      </span>
     </p>
   );
 }
