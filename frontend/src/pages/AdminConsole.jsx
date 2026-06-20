@@ -1474,10 +1474,15 @@ function AntivirusCard() {
  * tiny library shows "$0.0003" and a big one shows "$10".  Hover
  * the line for a transparent tooltip explaining the math.
  */
-function SavingsLine({ savings }) {
+function SavingsLine({ savings, onChanged }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
   if (!savings) return null;
   const usd = Number(savings.savings_usd || 0);
   const pct = Number(savings.savings_pct || 0);
+  const isOverride = !!savings.rates?.egress_multiplier_is_override;
+  const currentMultiplier = Number(savings.rates?.egress_multiplier || 0);
   const fmt = (n) => {
     const v = Number(n || 0);
     if (v >= 100) return `$${v.toFixed(0)}`;
@@ -1487,24 +1492,101 @@ function SavingsLine({ savings }) {
   };
   const tooltip =
     `Library: ${savings.total_gb} GB stored · ${savings.monthly_egress_gb} GB est. monthly egress\n` +
-    `(estimate uses STORAGE_EGRESS_MULTIPLIER=${savings.rates.egress_multiplier} — replace with real R2 billing data for an exact number)\n\n` +
+    `(estimate uses egress multiplier=${currentMultiplier}${isOverride ? ' — tuned by admin' : ' — env default'})\n\n` +
     `Emergent: ${fmt(savings.emergent_estimated.total_usd)} (${fmt(savings.emergent_estimated.storage_usd)} storage + ${fmt(savings.emergent_estimated.egress_usd)} egress)\n` +
     `R2: ${fmt(savings.r2_estimated.total_usd)} (${fmt(savings.r2_estimated.storage_usd)} storage + ${fmt(savings.r2_estimated.egress_usd)} egress)\n` +
     `Savings: ${fmt(usd)} (${pct}% off)`;
+
+  const save = async () => {
+    const v = draft.trim() === "" ? null : parseFloat(draft);
+    if (v !== null && (Number.isNaN(v) || v < 0 || v > 100)) {
+      toast.error("Multiplier must be 0 – 100");
+      return;
+    }
+    setSaving(true);
+    try {
+      await api.post("/admin/storage-cost-savings/multiplier", { multiplier: v });
+      toast.success(v === null ? "Reverted to env default" : `Multiplier set to ${v}`);
+      setEditing(false);
+      setDraft("");
+      onChanged?.();  // parent re-fetches /admin/storage-cost-savings
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't save multiplier");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <p
-      className="text-[11px] text-emerald-900 mt-2 italic cursor-help"
-      data-testid="r2-savings-line"
-      title={tooltip}
-    >
-      Estimated savings this month:{" "}
-      <span className="font-semibold not-italic font-mono">{fmt(usd)}</span>
-      {" "}
-      <span className="text-emerald-700 not-italic">({pct}% off Emergent)</span>
-      <span className="ml-1 text-emerald-700 not-italic">
-        · estimate — hover for math
-      </span>
-    </p>
+    <div className="mt-2" data-testid="r2-savings-line-wrapper">
+      <p
+        className="text-[11px] text-emerald-900 italic cursor-help"
+        data-testid="r2-savings-line"
+        title={tooltip}
+      >
+        Estimated savings this month:{" "}
+        <span className="font-semibold not-italic font-mono">{fmt(usd)}</span>
+        {" "}
+        <span className="text-emerald-700 not-italic">({pct}% off Emergent)</span>
+        <span className="ml-1 text-emerald-700 not-italic">· estimate — hover for math</span>
+      </p>
+      <div className="flex flex-wrap items-center gap-2 mt-1.5" data-testid="r2-multiplier-row">
+        <span className="text-[10px] text-emerald-800 not-italic">
+          Egress multiplier:{" "}
+          <span className="font-mono font-semibold">{currentMultiplier}</span>
+          {isOverride && (
+            <span
+              className="ml-1 px-1.5 py-0.5 rounded-full bg-emerald-200 text-emerald-900 text-[9px] font-bold uppercase tracking-wider"
+              data-testid="r2-multiplier-override-badge"
+            >
+              admin
+            </span>
+          )}
+        </span>
+        {!editing ? (
+          <button
+            type="button"
+            onClick={() => { setDraft(String(currentMultiplier)); setEditing(true); }}
+            data-testid="r2-multiplier-edit"
+            className="text-[10px] text-emerald-700 underline hover:text-emerald-900"
+          >
+            tune
+          </button>
+        ) : (
+          <span className="inline-flex items-center gap-1">
+            <input
+              type="number"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              step="0.1"
+              min="0"
+              max="100"
+              autoFocus
+              placeholder="empty = env default"
+              data-testid="r2-multiplier-input"
+              className="w-32 text-[10px] px-2 py-0.5 border border-emerald-400 rounded bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+            />
+            <button
+              type="button"
+              onClick={save}
+              disabled={saving}
+              data-testid="r2-multiplier-save"
+              className="text-[10px] px-2 py-0.5 rounded bg-emerald-700 text-white hover:bg-emerald-800 disabled:opacity-50"
+            >
+              {saving ? "…" : "save"}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setEditing(false); setDraft(""); }}
+              data-testid="r2-multiplier-cancel"
+              className="text-[10px] text-emerald-700 underline hover:text-emerald-900"
+            >
+              cancel
+            </button>
+          </span>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -1629,7 +1711,7 @@ function R2MigrationProgressCard() {
                     </span>
                   </div>
                   {savings && (
-                    <SavingsLine savings={savings} />
+                    <SavingsLine savings={savings} onChanged={loadSavings} />
                   )}
                 </div>
               </div>

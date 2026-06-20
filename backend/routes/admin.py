@@ -2114,19 +2114,36 @@ _EMERGENT_STORAGE_GB_RATE = float(os.environ.get("EMERGENT_STORAGE_GB_RATE", "0.
 _EMERGENT_EGRESS_GB_RATE  = float(os.environ.get("EMERGENT_EGRESS_GB_RATE", "0.09"))
 _R2_STORAGE_GB_RATE       = float(os.environ.get("R2_STORAGE_GB_RATE", "0.015"))
 _R2_EGRESS_GB_RATE        = float(os.environ.get("R2_EGRESS_GB_RATE", "0.00"))
-# Egress multiplier — without per-request access logs we estimate
-# monthly egress as ``total_stored × multiplier``.  ``2.0`` reflects
-# the typical active-library pattern (every byte read about twice
-# per month).  Override via env if you have real billing data.
-_EGRESS_MULTIPLIER = float(os.environ.get("STORAGE_EGRESS_MULTIPLIER", "2.0"))
+_EGRESS_MULTIPLIER_ENV    = float(os.environ.get("STORAGE_EGRESS_MULTIPLIER", "2.0"))
+
+
+async def _get_egress_multiplier() -> float:
+    """Resolve the egress multiplier — admin override wins over env default.
+
+    The admin can dial this in from the UI (POST /admin/storage-cost-
+    savings/multiplier) without touching .env or redeploying.  Stored
+    in the existing ``storage_config`` singleton doc.
+    """
+    try:
+        cfg = await db.storage_config.find_one(
+            {"_id": "singleton"},
+            {"_id": 0, "egress_multiplier_override": 1},
+        ) or {}
+        override = cfg.get("egress_multiplier_override")
+        if override is not None:
+            return float(override)
+    except Exception:
+        pass
+    return _EGRESS_MULTIPLIER_ENV
 
 
 @api_router.get("/admin/storage-cost-savings")
 async def storage_cost_savings(user: User = Depends(require_admin)):
     """Estimate $ saved this month by being on R2 instead of Emergent.
 
-    Inputs (all configurable via env so you can drop in real billing
-    numbers when you have them):
+    Inputs (all configurable — env defaults, plus the egress
+    multiplier can be tuned at runtime via
+    ``POST /admin/storage-cost-savings/multiplier``):
       - Total bytes stored across the library (sum of ``size_bytes``
         on the books collection — same data the storage gauge uses).
       - Egress multiplier (default 2.0 — typical active library
@@ -2135,10 +2152,9 @@ async def storage_cost_savings(user: User = Depends(require_admin)):
 
     The output exposes every input AND the derived numbers so the
     UI can render a transparent tooltip explaining the math.  Numbers
-    are estimates — replace ``EGRESS_MULTIPLIER`` with your real
-    billing-period egress when you have a month of R2 data.
+    are estimates — replace the multiplier with your real billing-
+    period egress ratio when you have a month of R2 data.
     """
-    # Sum total bytes across non-trash books.
     pipeline = [
         {"$match": {"category": {"$ne": "Trash"}}},
         {"$group": {"_id": None, "bytes": {"$sum": "$size_bytes"}}},
@@ -2146,7 +2162,8 @@ async def storage_cost_savings(user: User = Depends(require_admin)):
     rows = await db.books.aggregate(pipeline).to_list(length=1)
     total_bytes = int(rows[0]["bytes"]) if rows else 0
     total_gb = total_bytes / (1024 ** 3)
-    monthly_egress_gb = total_gb * _EGRESS_MULTIPLIER
+    egress_multiplier = await _get_egress_multiplier()
+    monthly_egress_gb = total_gb * egress_multiplier
 
     emergent_storage = total_gb * _EMERGENT_STORAGE_GB_RATE
     emergent_egress  = monthly_egress_gb * _EMERGENT_EGRESS_GB_RATE
@@ -2159,6 +2176,18 @@ async def storage_cost_savings(user: User = Depends(require_admin)):
     savings = max(0.0, emergent_total - r2_total)
     savings_pct = int(round((savings / emergent_total) * 100)) if emergent_total > 0 else 0
 
+    # Surface whether the multiplier is the env default or an admin
+    # override so the UI can show a small "tuned by admin" badge.
+    is_override = False
+    try:
+        cfg = await db.storage_config.find_one(
+            {"_id": "singleton"},
+            {"_id": 0, "egress_multiplier_override": 1},
+        ) or {}
+        is_override = cfg.get("egress_multiplier_override") is not None
+    except Exception:
+        pass
+
     return {
         "total_bytes": total_bytes,
         "total_gb": round(total_gb, 4),
@@ -2168,7 +2197,8 @@ async def storage_cost_savings(user: User = Depends(require_admin)):
             "emergent_egress_per_gb":  _EMERGENT_EGRESS_GB_RATE,
             "r2_storage_per_gb":       _R2_STORAGE_GB_RATE,
             "r2_egress_per_gb":        _R2_EGRESS_GB_RATE,
-            "egress_multiplier":       _EGRESS_MULTIPLIER,
+            "egress_multiplier":       egress_multiplier,
+            "egress_multiplier_is_override": is_override,
         },
         "emergent_estimated": {
             "storage_usd": round(emergent_storage, 4),
@@ -2182,6 +2212,63 @@ async def storage_cost_savings(user: User = Depends(require_admin)):
         },
         "savings_usd": round(savings, 4),
         "savings_pct": savings_pct,
+    }
+
+
+class EgressMultiplierBody(BaseModel):
+    # ``None`` reverts to the env default; any positive float overrides.
+    multiplier: Optional[float] = None
+
+
+@api_router.post("/admin/storage-cost-savings/multiplier")
+async def set_egress_multiplier(
+    body: EgressMultiplierBody,
+    user: User = Depends(require_admin),
+):
+    """Tune ``STORAGE_EGRESS_MULTIPLIER`` at runtime, no redeploy.
+
+    Pass ``multiplier`` as a positive float to set the override, or
+    ``null`` to clear it (reverts to the env default).  Persisted to
+    the ``storage_config`` singleton so the value survives a pod
+    restart.  Audit-logged.
+
+    Recommended values:
+      - 0.5 — sparse readers, mostly unopened library
+      - 2.0 — typical active library (env default)
+      - 5+  — power readers re-reading the same fics
+    """
+    if body.multiplier is not None:
+        if body.multiplier < 0 or body.multiplier > 100:
+            raise HTTPException(400, "multiplier must be 0–100")
+
+    if body.multiplier is None:
+        await db.storage_config.update_one(
+            {"_id": "singleton"},
+            {"$unset": {"egress_multiplier_override": ""},
+             "$set":   {"updated_at": datetime.now(timezone.utc).isoformat(),
+                        "updated_by": user.user_id}},
+            upsert=True,
+        )
+    else:
+        await db.storage_config.update_one(
+            {"_id": "singleton"},
+            {"$set": {
+                "egress_multiplier_override": float(body.multiplier),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+                "updated_by": user.user_id,
+            }},
+            upsert=True,
+        )
+    await record_admin_action(
+        user,
+        "storage.egress_multiplier",
+        target="storage_config",
+        metadata={"multiplier": body.multiplier},
+    )
+    return {
+        "ok": True,
+        "multiplier": await _get_egress_multiplier(),
+        "is_override": body.multiplier is not None,
     }
 
 

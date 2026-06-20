@@ -65,6 +65,7 @@ def test_cost_savings_shape_and_math():
     for k in (
         "emergent_storage_per_gb", "emergent_egress_per_gb",
         "r2_storage_per_gb", "r2_egress_per_gb", "egress_multiplier",
+        "egress_multiplier_is_override",
     ):
         assert k in body["rates"], f"rates missing {k}"
 
@@ -89,3 +90,48 @@ def test_cost_savings_shape_and_math():
     assert 0 <= body["savings_pct"] <= 100
     # Savings $ is never negative — the endpoint clamps to 0.
     assert body["savings_usd"] >= 0
+
+
+def test_egress_multiplier_runtime_override():
+    """Admin can tune the multiplier without a redeploy.
+
+    Verifies the full round-trip: set → reflected on the savings
+    endpoint → clear → reverts to env default.
+    """
+    tok = _admin_token()
+    h = {"Authorization": f"Bearer {tok}"}
+
+    # Set to a recognisable value.
+    r1 = requests.post(
+        f"{BASE_URL}/api/admin/storage-cost-savings/multiplier",
+        json={"multiplier": 7.5},
+        headers=h, timeout=15,
+    )
+    assert r1.status_code == 200, r1.text
+    assert r1.json()["multiplier"] == 7.5
+    assert r1.json()["is_override"] is True
+
+    # Confirm the savings endpoint now uses the override.
+    r2 = requests.get(
+        f"{BASE_URL}/api/admin/storage-cost-savings", headers=h, timeout=15,
+    )
+    rates = r2.json()["rates"]
+    assert rates["egress_multiplier"] == 7.5
+    assert rates["egress_multiplier_is_override"] is True
+
+    # Clear the override — reverts to env default.
+    r3 = requests.post(
+        f"{BASE_URL}/api/admin/storage-cost-savings/multiplier",
+        json={"multiplier": None},
+        headers=h, timeout=15,
+    )
+    assert r3.status_code == 200, r3.text
+    assert r3.json()["is_override"] is False
+
+    # Out-of-range value is rejected.
+    r4 = requests.post(
+        f"{BASE_URL}/api/admin/storage-cost-savings/multiplier",
+        json={"multiplier": 999},
+        headers=h, timeout=15,
+    )
+    assert r4.status_code == 400
