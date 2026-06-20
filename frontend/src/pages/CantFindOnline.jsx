@@ -129,7 +129,7 @@ export default function CantFindOnline() {
       toast.success(`Updated to "${data.title}"`, { id: t });
       await load();
     } catch (e) {
-      toast.error(e?.response?.data?.detail || "Still can't find it", { id: t });
+      toast.error(e?.response?.data?.detail || "We still can't reach that one", { id: t });
     } finally {
       setBusyId(null);
       // Mark that this book has had at least one retry this session
