@@ -442,6 +442,11 @@ export default function Help() {
           <article className="min-w-0 break-words">
             <Section id="feedback" icon={Lightbulb} title="Send us feedback">
               <p>Got a bug, a feature wish, or a screen that feels confusing? Drop us a note here — every suggestion lands in the team&apos;s triage queue. You can attach a screenshot if showing is easier than telling.</p>
+              <ul>
+                <li><strong>Device picker</strong> (required) — when you submit on the <Link to="/suggestions">Suggestions board</Link>, you pick which device you&apos;re on: <em>iPhone, iPad, Android phone/tablet, Mac, Windows PC, Linux, Chromebook, Amazon Fire, Kindle e-reader,</em> or <em>Other</em>. The picker auto-detects from your browser and remembers your last choice. &ldquo;Other&rdquo; lets you type in a custom device (Steam Deck, BOOX Note, Surface Duo, etc.) — your entry gets added to the picker so other users with the same device see it too.</li>
+                <li><strong>Why required?</strong> A bug that says &ldquo;the reader is laggy&rdquo; is unhelpful; &ldquo;the reader is laggy on Amazon Fire&rdquo; is actionable. The device chip shows on every suggestion card so vote-givers know whether a report applies to their setup.</li>
+                <li><strong>Pictures only</strong> — attachments are limited to images under 10 MB (PNG/JPEG). Other file types should go via our support email.</li>
+              </ul>
               <SuggestionBox source="help-page" />
             </Section>
 
@@ -766,6 +771,7 @@ export default function Help() {
                 <li><strong>Reader pill (you vs you elsewhere)</strong> — when you open a book inside the Reader, a small pill in the top bar shows the cursor age + originating device label so you know whether you&apos;re ahead of, behind, or at the same spot as your other devices.</li>
                 <li><strong>Web push handoff</strong> — opt-in. When you close a book on one device, your other devices get a soft browser notification asking if you want to continue there. Toggle in <Link to="/account#notifications">Account → Notifications</Link>; see <a href="#push">Web push notifications</a> below for the setup walk-through.</li>
                 <li><strong>Realtime updates</strong> — every device&apos;s position is published via Shelfsort&apos;s unified SSE channel, so when you save progress on the laptop, your phone&apos;s Reader pill updates within ~1 second (no polling).</li>
+                <li><strong>&ldquo;Finished on your iPhone — want a similar one?&rdquo; strip</strong> — when you&apos;re near the end of a book (≥ 90 %) on a different device than the one you&apos;re currently on, the BookDetail page surfaces a tiny 3-card rail right under the cross-device hint, pulling related books from your library by fandom/author. Hides silently when no matches exist or you dismiss it. Captures the moment of completion as a moment of discovery without nagging.</li>
               </ul>
               <p className="text-xs text-[#6B705C]">Privacy: position data is per-user only. Friends never see where you are in a fic — that data isn&apos;t shared even when you&apos;re a member of a Book Club room reading the same book.</p>
             </Section>

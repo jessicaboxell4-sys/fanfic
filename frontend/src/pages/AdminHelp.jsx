@@ -187,8 +187,10 @@ export default function AdminHelp() {
           </Section>
 
           <Section id="feedback" icon={MessageSquare} title="Feedback inbox + attachments">
-            <p>The Feedback Inbox card aggregates everything from <code>/suggestions</code> (the public board) and <code>/feedback</code> (the Help-page form). Each row carries the submitter, body, status, vote count, and any attached screenshot.</p>
+            <p>The Feedback Inbox card aggregates everything from <code>/suggestions</code> (the public board) and <code>/feedback</code> (the Help-page form). Each row carries the submitter, body, status, vote count, attached screenshot, and the <strong>device the report was filed from</strong>.</p>
             <ul>
+              <li><strong>Device chip</strong>: as of 2026-06-20 every suggestion is tagged with the submitter&apos;s device (iPhone, Amazon Fire, Mac, etc.). The chip renders next to the submitter line on the public board; in the admin inbox it&apos;s a sorting/triage signal — open `/api/suggestions` and group by `device` to spot platform-specific regressions before they spiral.</li>
+              <li><strong>Custom devices</strong>: users who pick &quot;Other&quot; can type in a name (Steam Deck, BOOX Note, etc.) which is persisted to <code>db.custom_devices</code> and shown to the next user with that device. Case-insensitive dedupe via a unique index on <code>name_lc</code>.</li>
               <li><strong>Attachment badges</strong>: rows with a screenshot show a colored 📎 image badge. Hover for the raw MIME.</li>
               <li><strong>Inline preview</strong>: expand a row to see the body + a clickable filename + size chip that opens the screenshot in a new tab.</li>
               <li><strong>Update status</strong>: open → under-review → planned → done → declined. Sends an in-app notification + optional email to the submitter.</li>
