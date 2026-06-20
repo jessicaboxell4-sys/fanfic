@@ -22,6 +22,14 @@ shipped today.)
   button.  When you're ready to add a Year-In-Books combo share
   flow, the same renderer pattern applies.*
 
+- **"Top devices reporting bugs this week" admin card** — parked
+  2026-06-20.  Now that every suggestion is tagged with a `device`,
+  one Mongo aggregate on `db.suggestions` (status=open OR last 7d,
+  category=bug, group by `device`) + one card on `/admin` between
+  the Pending sign-ups inbox and the Suggestions inbox surfaces
+  platform-specific regression patterns before they spiral.
+  Estimated ~30 min: aggregate endpoint + admin card + 1 pytest.
+
 
 ## P2 — parked, ready to ship anytime
 
