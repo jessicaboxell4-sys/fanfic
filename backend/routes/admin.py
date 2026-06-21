@@ -952,15 +952,42 @@ class MaintenanceBannerBody(BaseModel):
 async def get_maintenance_banner_public():
     """Public read — no auth. The frontend polls this on every navigation
     to decide whether to show the global banner. Returns `null` when off.
+
+    Two banner sources, in priority order:
+      1. Manual admin-set banner (``maintenance_banner`` collection) —
+         takes precedence so the operator can override the automated
+         text during incidents.
+      2. **Auto-banner when uploads are paused** (``uploads_enabled``
+         feature flag is OFF) — surfaces the kill-switch state to users
+         so they understand why drag-and-drop is rejecting files,
+         instead of getting a confusing toast.  Particularly important
+         during the ClamAV auto-pause failsafe (see ``scheduled_jobs::
+         av_health_watchdog``) where the pause happens without an
+         operator at the keyboard.
     """
     doc = await db.maintenance_banner.find_one({"_id": "singleton"}, {"_id": 0})
-    if not doc or not doc.get("enabled"):
-        return None
-    return {
-        "message": doc.get("message", ""),
-        "severity": doc.get("severity", "info"),
-        "updated_at": doc.get("updated_at").isoformat() if isinstance(doc.get("updated_at"), datetime) else None,
-    }
+    if doc and doc.get("enabled"):
+        return {
+            "message": doc.get("message", ""),
+            "severity": doc.get("severity", "info"),
+            "updated_at": doc.get("updated_at").isoformat() if isinstance(doc.get("updated_at"), datetime) else None,
+            "source": "admin",
+        }
+
+    # Fallback: auto-banner when the master uploads kill-switch is off.
+    from utils.feature_flags import is_enabled as _flag_on
+    if not await _flag_on("uploads_enabled"):
+        return {
+            "message": (
+                "Uploads are temporarily paused while we make sure our "
+                "antivirus scanner is healthy. Reading and syncing keep "
+                "working — please try uploading again in a few minutes."
+            ),
+            "severity": "warn",
+            "updated_at": None,
+            "source": "auto_uploads_paused",
+        }
+    return None
 
 
 @api_router.get("/admin/maintenance-banner")

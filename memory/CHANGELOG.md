@@ -7,6 +7,55 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-20 (av-auto-pause-watchdog + uploads-paused-banner) — defence in depth ✅
+
+**Why**: production ClamAV daemon went DOWN on shelfsort.com; uploads
+were silently going through UNSCANNED until the admin happened to
+notice the red "DOWN" card.  On a free-tier infra without oncall,
+that's an unacceptable security gap.
+
+**Backend** — new module `utils/av_watchdog.py`:
+- Runs every minute via the existing APScheduler instance.
+- Probes `antivirus.is_available()` (cheap socket handshake, no scan).
+- If clamd has been DOWN for `AV_DOWN_THRESHOLD_MIN = 5` minutes
+  straight, auto-flips `uploads_enabled` OFF, writes an `av.auto_pause`
+  audit-log entry, and drops an admin notification.
+- Tracks state in `system_health` collection (singleton doc) so the
+  down-streak survives pod restarts.
+- **Does NOT auto re-enable** — once paused, an admin eyeballs the
+  situation and flips it back on (avoids upload flapping if clamd
+  bounces).
+- Idempotent: re-runs while already paused don't write duplicate
+  audit rows or spam notifications.
+- Env-var kill switch `AV_WATCHDOG_ENABLED` (default true).  Preview's
+  `.env` sets it to `false` because preview pods don't have clamd
+  installed — without the override the watchdog would auto-pause
+  every fresh pod after 5 min and block local upload testing.
+
+**Backend** — `routes/admin.py::get_maintenance_banner_public`:
+- Now emits a synthetic `warn`-severity banner with
+  `source: "auto_uploads_paused"` whenever `uploads_enabled` is OFF.
+- Manual admin-set banners still take precedence (so the operator can
+  override the auto-text during a real incident).
+
+**Frontend** — zero code changes needed.  The existing
+`MaintenanceBanner` component polls `/maintenance-banner` every 60s
+and renders any non-null payload site-wide above the navbar.
+
+**Tests** — `tests/test_av_watchdog.py` (5 tests):
+- `test_scanner_up_clears_down_streak`
+- `test_scanner_down_under_threshold_does_not_pause`
+- `test_scanner_down_past_threshold_auto_pauses` (verifies flag flip
+  + audit row + admin notification)
+- `test_idempotent_while_already_paused` (no duplicate side effects)
+- `test_watchdog_disabled_via_env`
+
+**Verified end-to-end**: flipped `uploads_enabled` OFF, confirmed the
+maintenance banner renders site-wide with the explanatory copy; flipped
+it back ON, banner clears.  Screenshot captured at
+`/tmp/uploads_paused_banner.png`.
+
+
 ## 2026-06-20 (feedback-inbox-count-mismatch) — badge said "7 open", list said "none" ✅
 
 **Reported via screenshot from production**: `/admin` feedback inbox

@@ -334,6 +334,24 @@ async def on_startup():
                 replace_existing=True,
             )
             logger.info("Fixture auto-purge job scheduled (daily 03:00 UTC).")
+
+            # ClamAV watchdog — auto-pauses uploads if the scanner has
+            # been unreachable for AV_DOWN_THRESHOLD_MIN minutes
+            # straight.  Runs every minute so the longest a real outage
+            # can leak unscanned uploads is roughly the threshold +
+            # one tick.  See utils/av_watchdog.py for full rationale.
+            try:
+                from utils.av_watchdog import av_health_watchdog_tick
+                digest._scheduler.add_job(
+                    wrap_cron_job(av_health_watchdog_tick, "av_health_watchdog"),
+                    "interval",
+                    minutes=1,
+                    id="av_health_watchdog",
+                    replace_existing=True,
+                )
+                logger.info("ClamAV watchdog job scheduled (every 1 min).")
+            except Exception as e:
+                logger.warning("ClamAV watchdog failed to schedule: %s", e)
     except Exception as e:
         logger.warning("Fixture auto-purge job failed to schedule: %s", e)
 
