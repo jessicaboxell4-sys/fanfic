@@ -151,3 +151,75 @@ async def get_backup_library_state(user: User = Depends(get_current_user)):
         "last_run_at": prev.get("last_run_at"),
         "stats":       prev.get("stats") or {},
     }
+
+
+
+# ---------------------------------------------------------------------
+# Admin-only "stragglers" probe (2026-06-21).
+#
+# After the upload→R2 sync fix, brand-new uploads land in R2 before
+# the success response is returned.  But there can still be stragglers
+# from before the fix: DB rows whose EPUB bytes are nowhere reachable
+# anymore (gone from local disk AND not in R2).  Surfacing them lets
+# the admin proactively contact those users / replay their backups
+# before they get a confusing 404 on a download.
+# ---------------------------------------------------------------------
+
+@api_router.get("/admin/storage/stragglers")
+async def storage_stragglers(
+    limit: int = 200,
+    user: User = Depends(get_current_user),
+):
+    """Books in the DB but with neither local nor R2 storage.
+
+    Use case: after a pod rebuild that happened between cron ticks,
+    some pre-fix uploads can be "lost in spacetime" — the DB row still
+    exists but the bytes are gone.  This endpoint scans all books,
+    HEADs their R2 key, falls back to checking local disk, and returns
+    any whose bytes can't be located anywhere.
+
+    Admin-only.  Capped at ``limit`` results to keep the response
+    bounded; the count of total stragglers is returned separately so
+    the operator can tell whether they got a partial list.
+    """
+    if not getattr(user, "is_admin", False):
+        from fastapi import HTTPException as _HTTPException
+        raise _HTTPException(status_code=403, detail="Admin only")
+    if not cloud_is_enabled():
+        return {"enabled": False, "stragglers": [], "total": 0}
+    from utils.storage_cloud import remote_exists as _r2_exists, storage_key_for as _r2_key
+    import asyncio as _asyncio
+    cursor = db.books.find({}, {"_id": 0, "book_id": 1, "user_id": 1, "title": 1})
+    stragglers: list[dict] = []
+    total = 0
+    async for b in cursor:
+        bid = b.get("book_id")
+        uid = b.get("user_id")
+        if not bid or not uid:
+            continue
+        # Local disk check (cheap)
+        local_path = STORAGE_DIR / uid / f"{bid}.epub"
+        if local_path.exists():
+            continue
+        # R2 check (one HEAD per book — bounded but not free)
+        key = _r2_key(uid, bid, ".epub")
+        try:
+            exists = await _asyncio.to_thread(_r2_exists, key)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("stragglers: R2 head raised for %s: %s", key, e)
+            exists = False
+        if exists:
+            continue
+        total += 1
+        if len(stragglers) < limit:
+            stragglers.append({
+                "book_id": bid, "user_id": uid,
+                "title": b.get("title") or "(untitled)",
+            })
+    return {
+        "enabled":    True,
+        "total":      total,
+        "returned":   len(stragglers),
+        "limit":      limit,
+        "stragglers": stragglers,
+    }

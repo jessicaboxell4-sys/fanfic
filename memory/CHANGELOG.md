@@ -7,6 +7,49 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-21 (upload-r2-sync-mirror) — CRITICAL: stop losing user uploads ✅
+
+**Severity: critical.**  Production data diagnostic showed only **12 of
+65 books** (18%) actually existed in R2 — the other 53 were "lost in
+spacetime", with DB rows pointing at bytes that no longer existed
+anywhere.
+
+**Root cause**: ``routes/books.py::upload_books`` wrote new uploads to
+local disk only and relied on the every-10-min storage backfill cron
+to push them to R2.  Any pod restart inside that 10-min window (idle
+scale-down, redeploy, OOM kill, container migration) wiped the local
+bytes before the cron tick — destroying the user's upload permanently.
+
+This bug had been present since the upload pipeline was written.  It
+only became visible after a sequence of redeploys today (for ClamAV
+support + R2 audit) rebuilt the pod multiple times in quick succession.
+
+**Fix** — `routes/books.py::upload_books`:
+- After the upload loop completes, before returning the success
+  response, synchronously call ``mirror_up`` for every freshly-written
+  file: the EPUB itself, the original-format source (PDF/MOBI/AZW),
+  and the cover thumbnail.
+- Each mirror is wrapped in try/except so an R2 hiccup doesn't fail
+  the whole upload — the cron will retry within 10 min, and the file
+  is still safe on local disk for that window — but failures are
+  logged loudly so they're not silent like before.
+- Makes local disk a cache and R2 the source of truth.
+
+**Bonus** — `routes/storage_admin.py::storage_stragglers`:
+- New `GET /admin/storage/stragglers?limit=200` admin-only endpoint.
+- Scans every book in the DB, HEADs its expected R2 key, falls back
+  to checking local disk; returns any whose bytes can't be located
+  anywhere.
+- Capped to keep the response bounded; total count is returned
+  separately so the operator can tell if they got a partial list.
+
+**Regression guard** — `tests/test_upload_r2_sync_mirror.py`:
+- `test_upload_books_calls_mirror_up_synchronously`: fails CI if
+  the synchronous mirror call is ever removed.
+- `test_upload_books_mirrors_epub_original_and_cover`: verifies all
+  three asset types are mirrored, not just the EPUB.
+
+
 ## 2026-06-21 (post-R2-audit sweep) — 6 more silent regressions found + fixed ✅
 
 After the Download-ZIP empty-bundle bug surfaced an R2-migration gap in

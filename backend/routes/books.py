@@ -2215,6 +2215,60 @@ async def upload_books(
         results,
     )
 
+    # 2026-06-21 — Synchronously mirror every freshly-created file to
+    # R2 before returning success.  Pre-fix, ``upload_books`` wrote to
+    # local disk only and relied on the every-10-min storage backfill
+    # cron to push to R2.  If the pod restarted in that window (idle
+    # scale-down, deploy, OOM kill), the bytes were lost FOREVER —
+    # which is exactly the regression the user hit on 2026-06-21
+    # when their /admin/storage-migration-progress showed only 18% of
+    # books actually in R2.  This loop closes the gap by mirroring
+    # every book + cover synchronously before we tell the user "upload
+    # succeeded".  Each mirror is best-effort — if R2 is briefly
+    # unreachable we log a warning and continue (the cron will retry
+    # within 10 min), but we DON'T silently swallow it.
+    from utils.storage_cloud import (
+        is_enabled as _cloud_on,
+        mirror_up as _r2_mirror_up,
+        storage_key_for as _r2_key,
+    )
+    if _cloud_on() and results:
+        import asyncio as _asyncio
+        for r in results:
+            bid = r.get("book_id")
+            if not bid:
+                continue
+            # Mirror the EPUB (always), the original-format source if
+            # this was a converted upload, and the cover (if any).
+            mirror_targets: List[tuple[Path, str]] = []
+            epub_local = user_dir / f"{bid}.epub"
+            if epub_local.exists():
+                mirror_targets.append((epub_local, _r2_key(user.user_id, bid, ".epub")))
+            orig_fmt = (r.get("original_format") or "").strip()
+            if orig_fmt:
+                src_ext = f".{orig_fmt}"
+                src_local = user_dir / f"{bid}{src_ext}"
+                if src_local.exists():
+                    mirror_targets.append((src_local, _r2_key(user.user_id, bid, src_ext)))
+            cover_local = user_dir / f"{bid}.cover"
+            if cover_local.exists():
+                mirror_targets.append((cover_local, _r2_key(user.user_id, bid, ".cover")))
+            for local_path, key in mirror_targets:
+                try:
+                    ok = await _asyncio.to_thread(_r2_mirror_up, local_path, key)
+                    if not ok:
+                        logger.warning(
+                            "upload_books: R2 mirror returned False for %s (key=%s) — "
+                            "file safe on local disk, cron will retry.",
+                            local_path.name, key,
+                        )
+                except Exception as e:  # noqa: BLE001
+                    logger.warning(
+                        "upload_books: R2 mirror raised for %s (key=%s): %s — "
+                        "file safe on local disk, cron will retry.",
+                        local_path.name, key, e,
+                    )
+
     return {
         "uploaded": len(results),
         "books": results,
