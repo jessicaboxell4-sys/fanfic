@@ -846,6 +846,49 @@ from utils.url_canonical import (  # noqa: E402
 
 # Phase 5 cleanup: helpers that were extracted to other modules but are still
 # referenced from this file (upload_books, list_library_xlsx, etc.).
+
+async def _write_local_and_mirror_to_r2(
+    local_path: Path,
+    payload: bytes,
+    user_id: str,
+    book_id: str,
+    ext: str,
+) -> None:
+    """Write ``payload`` to ``local_path`` AND immediately mirror it to
+    R2 if cloud storage is enabled.
+
+    Same defensive pattern as ``upload_books``'s bulk mirror — see
+    2026-06-21 incident in CHANGELOG.md.  Local disk is the cache,
+    R2 is the source of truth.  Pre-2026-06-21, the entire codebase
+    wrote bytes to local disk and trusted the every-10-min storage
+    backfill cron to push them to R2; pod restarts inside that 10-min
+    window destroyed the bytes permanently (we lost 53 of 65 books to
+    this on prod).
+
+    Mirror failures here log a warning and rely on the cron retry —
+    they MUST NOT raise back to the caller, because the bytes are
+    already safely on local disk and the caller has no idempotent
+    retry path.
+    """
+    local_path.write_bytes(payload)
+    try:
+        from utils.storage_cloud import (
+            is_enabled as _cloud_on,
+            mirror_up as _r2_mirror_up,
+            storage_key_for as _r2_key,
+        )
+        if _cloud_on():
+            await asyncio.to_thread(
+                _r2_mirror_up, local_path, _r2_key(user_id, book_id, ext),
+            )
+    except Exception as e:  # noqa: BLE001
+        logger.warning(
+            "_write_local_and_mirror_to_r2: R2 mirror failed for %s "
+            "(book=%s ext=%s): %s — file safe on local disk, cron will retry.",
+            local_path.name, book_id, ext, e,
+        )
+
+
 def _safe_folder(name: str) -> str:
     """Mirror of routes/exports.py::_safe_folder — sanitised dir/file name."""
     import re as _re
@@ -1494,12 +1537,16 @@ async def apply_refresh(book: Dict[str, Any], user_id: str, source_url: str) -> 
     # Generate a fresh book_id + path for the new copy
     new_book_id = f"book_{uuid.uuid4().hex[:12]}"
     new_epub_path = user_dir / f"{new_book_id}.epub"
-    new_epub_path.write_bytes(epub_bytes)
+    await _write_local_and_mirror_to_r2(
+        new_epub_path, epub_bytes, user_id, new_book_id, ".epub",
+    )
 
     new_meta = extract_epub_metadata(new_epub_path)
     new_cover_path = user_dir / f"{new_book_id}.cover"
     if new_meta.get("cover_bytes"):
-        new_cover_path.write_bytes(new_meta["cover_bytes"])
+        await _write_local_and_mirror_to_r2(
+            new_cover_path, new_meta["cover_bytes"], user_id, new_book_id, ".cover",
+        )
 
     links = extract_urls_from_epub(new_epub_path)
     (user_dir / f"{new_book_id}.links.txt").write_text(
@@ -4370,7 +4417,9 @@ async def upload_new_version(
     # Allocate new book_id and persist the bytes
     new_book_id = f"book_{uuid.uuid4().hex[:12]}"
     new_epub_path = user_dir / f"{new_book_id}.epub"
-    new_epub_path.write_bytes(raw)
+    await _write_local_and_mirror_to_r2(
+        new_epub_path, raw, user.user_id, new_book_id, ".epub",
+    )
 
     # Try to extract fresh metadata (chapters/words) — non-fatal
     new_meta: Dict[str, Any] = {
@@ -4850,7 +4899,11 @@ async def apply_book_cover(
     # re-encoding.
     variant_id = uuid.uuid4().hex[:12]
     variant_filename = f"{book_id}.cover-v-{variant_id}"
-    (user_dir / variant_filename).write_bytes(entry["png_bytes"])
+    await _write_local_and_mirror_to_r2(
+        user_dir / variant_filename,
+        entry["png_bytes"],
+        user.user_id, book_id, f".cover-v-{variant_id}",
+    )
 
     now_iso = datetime.now(timezone.utc).isoformat()
 
@@ -4879,7 +4932,11 @@ async def apply_book_cover(
     # 4. Refresh the active "served" file to point at the new variant
     # bytes (we just write them again — cheap, ~1 MB, avoids symlink
     # quirks on some filesystems).
-    (user_dir / f"{book_id}.cover").write_bytes(entry["png_bytes"])
+    await _write_local_and_mirror_to_r2(
+        user_dir / f"{book_id}.cover",
+        entry["png_bytes"],
+        user.user_id, book_id, ".cover",
+    )
 
     # 5. Persist.
     await db.books.update_one(
@@ -4964,7 +5021,11 @@ async def activate_cover_variant(
     src = user_dir / target["file"]
     if not src.exists():
         raise HTTPException(status_code=410, detail="Variant file missing on disk")
-    (user_dir / f"{book_id}.cover").write_bytes(src.read_bytes())
+    await _write_local_and_mirror_to_r2(
+        user_dir / f"{book_id}.cover",
+        src.read_bytes(),
+        user.user_id, book_id, ".cover",
+    )
     for v in variants:
         v["active"] = (v["variant_id"] == variant_id)
     await db.books.update_one(
@@ -5272,8 +5333,16 @@ async def import_community_cover(
     variant_id = uuid.uuid4().hex[:12]
     variant_filename = f"{book_id}.cover-v-{variant_id}"
     bytes_ = src.read_bytes()
-    (user_dir / variant_filename).write_bytes(bytes_)
-    (user_dir / f"{book_id}.cover").write_bytes(bytes_)
+    await _write_local_and_mirror_to_r2(
+        user_dir / variant_filename,
+        bytes_,
+        user.user_id, book_id, f".cover-v-{variant_id}",
+    )
+    await _write_local_and_mirror_to_r2(
+        user_dir / f"{book_id}.cover",
+        bytes_,
+        user.user_id, book_id, ".cover",
+    )
     now_iso = datetime.now(timezone.utc).isoformat()
 
     variants = list(book.get("cover_variants") or [])

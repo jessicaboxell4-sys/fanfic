@@ -7,6 +7,45 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-21 (mirror-sweep) — all remaining write_bytes sites in books.py wired through R2 ✅
+
+Follow-up to the upload_books sync-mirror fix.  Same architectural
+flaw lived in 7 other call sites that wrote per-user-book bytes to
+local disk without immediate R2 mirror.  Lower-impact than the upload
+route (these features are used less frequently), but still real data-
+loss exposure if a pod restarts in the 10-min gap before the next cron
+tick.
+
+**Helper added** — `routes/books.py::_write_local_and_mirror_to_r2()`:
+- Async helper: writes payload to local disk, then immediately
+  mirrors to R2 via `mirror_up`.
+- Mirror failures log a warning and let the cron retry — they do
+  NOT raise back to the caller (the bytes are already safe on local
+  disk; raising would confuse users about an already-successful
+  write).
+- All future write paths should use this helper instead of bare
+  ``path.write_bytes(...)`` for any per-user-book asset.
+
+**Call sites converted** (all in `routes/books.py`):
+| Line | Endpoint | Asset |
+|---|---|---|
+| 1497 | Copy-from-source EPUB | new EPUB |
+| 1502 | Copy-from-source EPUB | new cover |
+| 4373 | Upload-new-version | replacement EPUB |
+| 4853 | AI cover generation | variant file |
+| 4882 | AI cover generation | active cover |
+| 5024 | Switch active variant | active cover |
+| 5275 | Apply community cover | variant file |
+| 5276 | Apply community cover | active cover |
+
+Community-cover write at line 5159 left as-is — that writes to a
+shared ``_COMMUNITY_COVERS_DIR`` (not per-user-book), so the R2 key
+format is different and community covers can be regenerated.
+
+**Tests** — all 15 storage/AV/migration regression tests still pass
+after the sweep.
+
+
 ## 2026-06-21 (upload-r2-sync-mirror) — CRITICAL: stop losing user uploads ✅
 
 **Severity: critical.**  Production data diagnostic showed only **12 of
