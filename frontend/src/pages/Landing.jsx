@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   BookOpen,
   Sparkles,
@@ -96,10 +96,16 @@ const SAMPLE_SHELVES = [
 export default function Landing() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  // 2026-06-20 — Preserve ?ref= attribution when bouncing into /login.
+  // Without this, a visitor arriving from https://shelfsort.com/?ref=hpfb
+  // would lose the referral tag the moment they clicked "Start sorting",
+  // and the fast-track / onboarding-stats wiring would never fire.
+  const [searchParams] = useSearchParams();
+  const refTag = searchParams.get("ref");
 
   const handleStart = () => {
     if (user) navigate("/library");
-    else navigate("/login");
+    else navigate(refTag ? `/login?ref=${encodeURIComponent(refTag)}` : "/login");
   };
 
   return (
