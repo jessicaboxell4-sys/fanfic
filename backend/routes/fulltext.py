@@ -100,7 +100,16 @@ async def backfill_fulltext(
         book_id = b["book_id"]
         user_id = b["user_id"]
         epub_path = STORAGE_DIR / user_id / f"{book_id}.epub"
-        if not epub_path.exists():
+        # 2026-06-21 R2 migration fix: bare ``.exists()`` was treating
+        # every R2-hosted book as "missing file" and writing an empty
+        # fulltext row, which meant search returned zero results
+        # post-migration even though the EPUB content is sitting in
+        # R2 perfectly intact.
+        from utils.storage_cloud import ensure_local_cached
+        ok = await asyncio.to_thread(
+            ensure_local_cached, epub_path, user_id, book_id, ".epub",
+        )
+        if not ok:
             missing_n += 1
             # Write an empty row so we don't keep retrying this file
             await upsert_fulltext(db, book_id, user_id, "")

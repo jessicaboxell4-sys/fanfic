@@ -480,7 +480,15 @@ async def opds_cover(request: Request, book_id: str):
     if not book:
         raise HTTPException(status_code=404, detail="Book not found")
     cover_path = STORAGE_DIR / user.user_id / f"{book_id}.cover"
-    if not cover_path.exists():
+    # 2026-06-21 R2 migration fix: covers also live in R2 post-migration;
+    # ensure_local_cached transparently restores from R2 if the local
+    # cache is empty (same pattern as the /books/{id}/cover endpoint).
+    from utils.storage_cloud import ensure_local_cached
+    import asyncio as _asyncio
+    ok = await _asyncio.to_thread(
+        ensure_local_cached, cover_path, user.user_id, book_id, ".cover",
+    )
+    if not ok:
         raise HTTPException(status_code=404, detail="Cover not available")
     return FileResponse(str(cover_path), media_type="image/jpeg")
 
@@ -495,7 +503,16 @@ async def opds_download(request: Request, book_id: str):
     if not book:
         raise HTTPException(status_code=404, detail="Book not found")
     epub_path = STORAGE_DIR / user.user_id / f"{book_id}.epub"
-    if not epub_path.exists():
+    # 2026-06-21 R2 migration fix: pre-R2 this used bare ``.exists()``
+    # which meant every OPDS download from a Calibre/Marvin/Moon+ reader
+    # 404'd post-migration.  ensure_local_cached restores from R2 on
+    # miss.  Without this fix, the entire OPDS feature is dead in prod.
+    from utils.storage_cloud import ensure_local_cached
+    import asyncio as _asyncio
+    ok = await _asyncio.to_thread(
+        ensure_local_cached, epub_path, user.user_id, book_id, ".epub",
+    )
+    if not ok:
         raise HTTPException(status_code=404, detail="EPUB file missing on server")
     filename = book.get("filename") or f"{book.get('title','book')}.epub"
     return FileResponse(

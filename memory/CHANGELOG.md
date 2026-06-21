@@ -7,6 +7,50 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-21 (post-R2-audit sweep) — 6 more silent regressions found + fixed ✅
+
+After the Download-ZIP empty-bundle bug surfaced an R2-migration gap in
+`exports.py`, did a codebase-wide grep for the same anti-pattern:
+endpoints constructing `STORAGE_DIR / user_id / book_id.epub` paths and
+then calling bare `.exists()` instead of the R2-aware
+`ensure_local_cached()` helper.
+
+Found **6 more silently-broken endpoints**, all fixed with the same
+one-line swap:
+
+| Endpoint | File | Impact pre-fix |
+|---|---|---|
+| `GET /api/opds/download/{id}` | `routes/opds.py` line 497 | OPDS feed dead — Calibre/Marvin/Moon+ reader downloads 404 |
+| `GET /api/opds/cover/{id}` | `routes/opds.py` line 482 | OPDS covers missing in third-party readers |
+| `POST /api/admin/fulltext/backfill` | `routes/fulltext.py` line 103 | Full-text search returning zero results; backfill wrote empty rows for every R2-hosted book |
+| `POST /api/conversions/{id}/retry` | `routes/conversions.py` line 128 | Retrying a failed PDF/MOBI conversion always 404'd |
+| `POST /api/books/{id}/convert-to-epub` | `routes/conversions.py` line 258 | Re-converting an original-only book always failed |
+| `POST /api/books/refresh-all` | `routes/refresh.py` line 193 | Skipped books whose source_url wasn't cached |
+| `POST /api/books/{id}/refresh` | `routes/refresh.py` line 348 | Single-book refresh 404'd "File missing" |
+| `POST /api/books/{id}/suggest-tags` | `routes/tags.py` line 215 | AI tag suggestions ran without body-text context (much worse quality) |
+
+(The exports.py ZIP fix from earlier is the 9th — total 9 R2-migration
+regressions surfaced and patched on Jun 21.)
+
+All swaps follow the same pattern:
+```python
+fp = STORAGE_DIR / user_id / f"{book_id}.epub"
+ok = await asyncio.to_thread(
+    ensure_local_cached, fp, user_id, book_id, ".epub",
+)
+if not ok:
+    raise HTTPException(404, "...")
+```
+
+This is the canonical pattern that `routes/books.py::download_book`
+has used since the Phase-4 migration completed; the audit just made the
+rest of the codebase consistent with it.
+
+**Verification**: 9 regression-related tests still pass after the sweep
+(av_watchdog × 5, export_zip_r2 × 2, feature_flags_lifecycle × 1,
+tailwind_darkmode × 1).  Lint clean across all 6 modified files.
+
+
 ## 2026-06-21 (download-zip-r2-regression) — empty bulk-download ZIP fixed ✅
 
 **User-reported (screenshot Jun 21)**: `/admin` → Export → "Download ZIP"

@@ -20,6 +20,7 @@ Endpoints
 """
 from __future__ import annotations
 
+import asyncio
 import os
 from typing import List
 
@@ -212,7 +213,15 @@ async def suggest_book_tags(book_id: str, user: User = Depends(get_current_user)
     sample_text = ""
     try:
         epub_path = STORAGE_DIR / book["user_id"] / f"{book_id}.epub"
-        if epub_path.exists():
+        # 2026-06-21 R2 migration fix: tag-suggestion used to read body
+        # text only if the EPUB was on local disk, which skipped every
+        # R2-hosted book post-migration and made the AI suggest tags
+        # off title/description alone (much worse quality).
+        from utils.storage_cloud import ensure_local_cached
+        ok = await asyncio.to_thread(
+            ensure_local_cached, epub_path, book["user_id"], book_id, ".epub",
+        )
+        if ok:
             meta = extract_epub_metadata(epub_path)
             sample_text = (
                 (meta or {}).get("sample_text", "") if isinstance(meta, dict) else ""

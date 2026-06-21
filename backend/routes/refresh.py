@@ -190,7 +190,17 @@ async def refresh_all(user: User = Depends(get_current_user)):
         src = b.get("source_url")
         if not src:
             epub_path = user_dir / f"{b['book_id']}.epub"
-            if epub_path.exists():
+            # 2026-06-21 R2 migration fix: if the DB doesn't have a
+            # source_url cached, we used to peek inside the EPUB to find
+            # one — but only if the file was on local disk.  Post-R2 the
+            # local check failed for every book without a cached URL,
+            # silently excluding them from the "refresh all" sweep.
+            from utils.storage_cloud import ensure_local_cached
+            import asyncio as _asyncio
+            cached_ok = await _asyncio.to_thread(
+                ensure_local_cached, epub_path, user.user_id, b["book_id"], ".epub",
+            )
+            if cached_ok:
                 src = find_source_url(extract_urls_from_epub(epub_path))
         if src:
             eligible.append((b, src))
@@ -345,7 +355,15 @@ async def refresh_book(book_id: str, user: User = Depends(get_current_user)):
 
     user_dir = STORAGE_DIR / user.user_id
     epub_path = user_dir / f"{book_id}.epub"
-    if not epub_path.exists():
+    # 2026-06-21 R2 migration fix: single-book refresh was 404'ing
+    # every R2-hosted book with "File missing" even though the EPUB was
+    # sitting in cold storage perfectly intact.
+    from utils.storage_cloud import ensure_local_cached
+    import asyncio as _asyncio
+    ok = await _asyncio.to_thread(
+        ensure_local_cached, epub_path, user.user_id, book_id, ".epub",
+    )
+    if not ok:
         raise HTTPException(status_code=404, detail="File missing")
 
     source_url = book.get("source_url")

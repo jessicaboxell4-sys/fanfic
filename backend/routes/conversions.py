@@ -125,7 +125,17 @@ async def retry_conversion(job_id: str, user: User = Depends(get_current_user)):
     ext = "." + (job.get("original_format") or "")
     user_dir = STORAGE_DIR / user.user_id
     src_path = user_dir / f"{book_id}{ext}"
-    if not src_path.exists():
+    # 2026-06-21 R2 migration fix: post-migration, original-format files
+    # (PDF/MOBI/AZW) live in R2 alongside their converted EPUBs.  Without
+    # this restore, retrying a failed conversion always 404'd "Original
+    # source file is no longer on disk" — making the conversion-retry
+    # feature unusable in prod.
+    from utils.storage_cloud import ensure_local_cached
+    import asyncio as _asyncio
+    ok = await _asyncio.to_thread(
+        ensure_local_cached, src_path, user.user_id, book_id, ext,
+    )
+    if not ok:
         raise HTTPException(status_code=404, detail="Original source file is no longer on disk")
     epub_target = user_dir / f"{book_id}.epub"
 
@@ -255,7 +265,15 @@ async def convert_original_to_epub(book_id: str, user: User) -> Dict[str, Any]:
     ext = "." + (book.get("original_format") or "")
     user_dir = STORAGE_DIR / user.user_id
     src_path = user_dir / f"{book_id}{ext}"
-    if not src_path.exists():
+    # 2026-06-21 R2 migration fix: same as the retry endpoint above —
+    # the "convert this original-only book to EPUB" path needs to pull
+    # the source from R2 if it's not on local disk.
+    from utils.storage_cloud import ensure_local_cached
+    import asyncio as _asyncio
+    ok = await _asyncio.to_thread(
+        ensure_local_cached, src_path, user.user_id, book_id, ext,
+    )
+    if not ok:
         raise HTTPException(status_code=404, detail="Source file missing on disk")
     epub_target = user_dir / f"{book_id}.epub"
 
