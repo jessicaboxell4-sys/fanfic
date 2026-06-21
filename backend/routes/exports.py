@@ -100,11 +100,51 @@ async def export_zip(
         return cat
 
     buckets: Dict[str, List[Dict[str, Any]]] = {}
+    # 2026-06-21 — R2 migration regression fix: post-migration the local
+    # ``STORAGE_DIR`` is empty for most users, so the original
+    # ``if not fp.exists(): continue`` skipped every book and the ZIP
+    # came back containing only library_index.xlsx + README (user
+    # screenshot Jun 21).  Use the cache-aware ``ensure_local_cached``
+    # helper to pull from R2 (or Emergent fallback) on miss — same
+    # helper every other read endpoint uses since Phase 4 of the R2
+    # migration.  Books that genuinely can't be restored (R2 miss AND
+    # no Emergent fallback) still get skipped, so a stray broken row
+    # doesn't break the whole export.
+    from utils.storage_cloud import ensure_local_cached
+    skipped_books: List[str] = []
     for b in books:
         fp = STORAGE_DIR / user.user_id / f"{b['book_id']}.epub"
-        if not fp.exists():
+        try:
+            ok = await asyncio.to_thread(
+                ensure_local_cached, fp, user.user_id, b["book_id"], ".epub",
+            )
+        except Exception as e:  # noqa: BLE001
+            logger.warning(
+                "export_zip: ensure_local_cached raised for book=%s: %s",
+                b.get("book_id"), e,
+            )
+            ok = False
+        if not ok:
+            skipped_books.append(b.get("book_id") or "?")
             continue
         buckets.setdefault(_folder_for(b), []).append(b)
+    if skipped_books:
+        logger.warning(
+            "export_zip: skipped %d unrestorable book(s) for user=%s "
+            "(first 5: %s)",
+            len(skipped_books), user.user_id, skipped_books[:5],
+        )
+    if not buckets:
+        # Every book was unrestorable — surface a real error instead of
+        # silently shipping an empty zip with just README + xlsx.
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "We couldn't restore any of your books from cold storage "
+                "right now.  This usually clears up within a minute — "
+                "please try again."
+            ),
+        )
     # Sort each bucket alphabetically by title (case-insensitive), tiebreak
     # on author then book_id so the ordering is deterministic.
     for folder in buckets:

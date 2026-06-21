@@ -7,6 +7,50 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-21 (download-zip-r2-regression) — empty bulk-download ZIP fixed ✅
+
+**User-reported (screenshot Jun 21)**: `/admin` → Export → "Download ZIP"
+on shelfsort.com produced a ZIP containing only `library_index.xlsx`
+and `README.txt`.  Zero EPUBs.
+
+**Root cause**: `routes/exports.py` line 104-106 used
+```python
+fp = STORAGE_DIR / user.user_id / f"{b['book_id']}.epub"
+if not fp.exists():
+    continue
+```
+
+The Phase-4 R2 storage migration moved every book's bytes from local
+disk to Cloudflare R2.  Post-migration, `STORAGE_DIR` is empty for
+most users, so this check skipped every book silently and the export
+shipped a metadata-only ZIP.  This is the same bug pattern as the
+ZIP-bomb-quarantine fix from earlier — bare ``if not fp.exists()``
+checks that haven't been migrated to ``ensure_local_cached``.
+
+**Fix** — `routes/exports.py`:
+- Replaced bare ``fp.exists()`` check with
+  ``ensure_local_cached(fp, user_id, book_id, ".epub")`` (the canonical
+  R2-aware cache helper from ``utils/storage_cloud.py`` — same one
+  `routes/books.py` already uses on the single-book download path).
+- Tracks ``skipped_books`` and logs them as a warning so unrestorable
+  books surface in ops instead of disappearing.
+- Returns HTTP 503 with a friendly message when ZERO books can be
+  restored — better than silently shipping an empty zip.
+
+**Regression test** —
+`tests/test_export_zip_r2.py` (static-analysis guard):
+- `test_zip_export_uses_r2_restore_helper`: fails CI if anyone removes
+  the ``ensure_local_cached`` call from exports.py.
+- `test_zip_export_does_not_silently_skip_missing_files`: fails CI if
+  the ``skipped_books`` tracking is removed.
+
+**Verified end-to-end** on preview by seeding 4 fake EPUB stubs in
+`/app/uploads/<user_id>/`, hitting `/api/books/export/zip`, and
+confirming the resulting 7,682-byte ZIP contains exactly 4 EPUBs in
+their proper Fanfiction/<Fandom>/_No_pairing/ folder structure plus
+the README + xlsx index.
+
+
 ## 2026-06-21 (calibre-concurrency-cap) — pre-redeploy OOM protection ✅
 
 Emergent Support baked ClamAV + Calibre into the production build
