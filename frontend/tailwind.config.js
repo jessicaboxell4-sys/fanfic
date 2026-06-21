@@ -1,6 +1,13 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-    darkMode: ["class"],
+    // 2026-06-20 — Match the runtime convention set by ThemeContext.jsx,
+    // which writes ``<html data-theme="dark">`` (not the Tailwind-default
+    // ``.dark`` class).  Without this override every ``dark:*`` variant
+    // in the codebase was silently a no-op, and dark-mode styling was
+    // limited to the handful of components with hand-rolled
+    // ``[data-theme="dark"]`` rules in index.css.  Switching to the
+    // attribute selector flips the entire ``dark:*`` ecosystem ON.
+    darkMode: ['selector', '[data-theme="dark"]'],
     content: [
     "./src/**/*.{js,jsx,ts,tsx}",
     "./public/index.html"

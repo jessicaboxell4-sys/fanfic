@@ -7,6 +7,44 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-20 (dark-mode-selector-fix) — every dark:* Tailwind variant was silently broken ✅
+
+**Root cause:** `tailwind.config.js` was set to `darkMode: ["class"]` —
+Tailwind's default, which looks for a `.dark` class on a parent.  But
+`ThemeContext.jsx` switches themes by writing `<html data-theme="dark">`
+instead.  The two conventions never met, so every single
+`dark:bg-*` / `dark:text-*` / `dark:border-*` Tailwind variant
+across the entire codebase silently NEVER fired in dark mode.  Dark
+appearance only came from the handful of components with hand-rolled
+`[data-theme="dark"]` CSS overrides in `index.css`.
+
+Surfaced when a user spotted the `/admin` Antivirus HEALTHY card
+rendering near-white text on a pale-mint background in dark mode — the
+`dark:bg-emerald-950/40` and `dark:text-zinc-100` variants were both
+inert.
+
+**Fix:** one-line change in `tailwind.config.js`:
+```js
+darkMode: ['selector', '[data-theme="dark"]'],
+```
+
+Tailwind 3.4.1+ supports custom selector strategies, and we're on
+3.4.17.  Every `dark:*` variant in the codebase now fires correctly.
+
+**Verification:**
+- Took before/after screenshots of `/admin?theme=dark`.  Antivirus
+  HEALTHY card background now computes to `rgba(2, 44, 34, 0.4)`
+  (dark emerald) with light text — fully readable.
+- Spot-checked `/library?theme=dark`: clean, consistent, no
+  regressions.
+- Frontend restarted to pick up the new Tailwind compilation.
+
+**Regression guard:**
+- `backend/tests/test_tailwind_darkmode_selector_guard.py` (new) — fails
+  CI if anyone reverts `darkMode` back to `"class"` or strips the
+  `[data-theme="dark"]` selector.
+
+
 ## 2026-06-20 (invite-funnel-clicks + pending-ref-badge) — top-of-funnel tracking ✅
 
 Closed two gaps on the launch-readiness sprint for the HP-fanfic FB invite:
