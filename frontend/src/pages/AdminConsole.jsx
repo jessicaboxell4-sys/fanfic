@@ -1435,6 +1435,30 @@ function AntivirusCard() {
                 ? "DEGRADED — daemon up but EICAR test failed"
                 : `HEALTHY — EICAR test passed in ${status.scan_ms} ms`}
             </p>
+            {!status.available && status?.diagnostics?.reason && (
+              <p
+                className="text-xs text-[#B43F26] dark:text-red-300 mt-2 leading-relaxed"
+                data-testid="av-diagnostic-reason"
+              >
+                <strong className="uppercase tracking-wider text-[10px] mr-1">Why:</strong>
+                {status.diagnostics.reason}
+              </p>
+            )}
+            {!status.available && status?.diagnostics && (
+              <details className="mt-2" data-testid="av-diagnostic-details">
+                <summary className="text-xs text-[#6B705C] dark:text-zinc-400 cursor-pointer hover:text-[#2C2C2C] dark:hover:text-zinc-200">
+                  Show full diagnostics ↓
+                </summary>
+                <ul className="text-xs text-[#6B705C] dark:text-zinc-400 mt-2 space-y-0.5 font-mono">
+                  <li>binary: <span className="text-[#2C2C2C] dark:text-zinc-200">{status.diagnostics.binary_path || "—"}</span></li>
+                  <li>kind: <span className="text-[#2C2C2C] dark:text-zinc-200">{status.diagnostics.binary_kind || "—"}</span></li>
+                  <li>sig dir: <span className="text-[#2C2C2C] dark:text-zinc-200">{status.diagnostics.signature_dir}</span></li>
+                  <li>sig files: <span className="text-[#2C2C2C] dark:text-zinc-200">{status.diagnostics.signature_files?.length ? status.diagnostics.signature_files.join(", ") : "(none)"}</span></li>
+                  <li>clamd unix socket: <span className="text-[#2C2C2C] dark:text-zinc-200">{status.diagnostics.clamd_socket_exists ? "yes" : "no"}</span></li>
+                  <li>clamd tcp 127.0.0.1:3310: <span className="text-[#2C2C2C] dark:text-zinc-200">{status.diagnostics.clamd_tcp_reachable ? "reachable" : "unreachable"}</span></li>
+                </ul>
+              </details>
+            )}
             {status.available && status.signature && (
               <p className="text-xs text-[#6B705C] dark:text-zinc-400 mt-1">
                 Liveness signature: <code className="font-mono">{status.signature}</code>

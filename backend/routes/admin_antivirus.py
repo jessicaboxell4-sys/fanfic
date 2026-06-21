@@ -23,6 +23,56 @@ from utils import antivirus
 @api_router.get("/admin/antivirus/status")
 async def admin_av_status(_admin: User = Depends(require_admin)) -> Dict[str, Any]:
     available = antivirus.is_available()
+    # 2026-06-21 — Detailed diagnostics so a DOWN status tells operators
+    # *why* it's down (binary missing? sig DB missing? daemon not
+    # listening?) without needing a shell on the production pod.  These
+    # fields are best-effort and never raise — a busted clamd config
+    # must still return JSON, not a 500.
+    import shutil as _shutil
+    import socket as _socket
+    from pathlib import Path as _Path
+    binary_path = antivirus._clamscan_path()
+    binary_kind: Optional[str] = None
+    if binary_path:
+        binary_kind = "clamdscan" if binary_path.endswith("clamdscan") else "clamscan"
+    sig_dir = _Path("/var/lib/clamav")
+    sig_files: List[str] = []
+    try:
+        if sig_dir.is_dir():
+            sig_files = sorted(p.name for p in sig_dir.glob("*.c?d"))
+    except Exception:  # noqa: BLE001
+        sig_files = []
+    clamd_socket_exists = _Path("/var/run/clamav/clamd.ctl").exists()
+    clamd_tcp_reachable = False
+    try:
+        with _socket.create_connection(("127.0.0.1", 3310), timeout=0.5):
+            clamd_tcp_reachable = True
+    except Exception:  # noqa: BLE001
+        clamd_tcp_reachable = False
+    diag_reason = ""
+    if not available:
+        if not binary_path:
+            diag_reason = (
+                "ClamAV binary (clamscan/clamdscan) not on PATH — apt "
+                "install probably never ran during build."
+            )
+        elif not sig_files:
+            diag_reason = (
+                "Signature DB missing in /var/lib/clamav (no *.cvd / "
+                "*.cld files).  freshclam didn't download successfully "
+                "during startup — re-run `freshclam` on the pod."
+            )
+        else:
+            diag_reason = "Unknown — see diagnostics block."
+    diagnostics = {
+        "binary_path":          binary_path,
+        "binary_kind":          binary_kind,
+        "signature_dir":        str(sig_dir),
+        "signature_files":      sig_files,
+        "clamd_socket_exists":  clamd_socket_exists,
+        "clamd_tcp_reachable":  clamd_tcp_reachable,
+        "reason":               diag_reason,
+    }
     # Best-effort liveness probe: scan the well-known EICAR test string
     # to confirm both the daemon AND the signature DB are functioning.
     # ~10 ms when clamd is running; we skip this when AV reports
@@ -53,6 +103,7 @@ async def admin_av_status(_admin: User = Depends(require_admin)) -> Dict[str, An
         "scan_ms":       test_ms,
         "quarantine_total":   total,
         "quarantine_last_24h": last_24h,
+        "diagnostics":   diagnostics,
     }
 
 
