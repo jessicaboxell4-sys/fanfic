@@ -7,6 +7,40 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-20 (feedback-inbox-count-mismatch) — badge said "7 open", list said "none" ✅
+
+**Reported via screenshot from production**: `/admin` feedback inbox
+header read "Feedback inbox (7 open)" but clicking the OPEN filter
+showed "No open feedback right now".
+
+**Root cause**: The `suggestions` Mongo collection is shared between two
+writers:
+1. The product board (`POST /suggestions`) — docs have `suggestion_id`,
+   `title`, `body`, `category`, etc.
+2. The Help-page feedback writer (separate route) — docs have
+   `text`, `page`, `photo_b64`, no `suggestion_id`, and default to
+   `status: "open"`.
+
+The list endpoint scoped itself with `suggestion_id: {$exists: true}`
+to keep the two streams separate.  The **count endpoint** at
+`GET /admin/suggestions/open-count` did NOT — it counted every doc with
+`status: "open"`, sweeping in the Help-page writes the inbox UI was
+filtering out.  Live DB had exactly 7 Help-page writes and 0 real
+product-board open items, which is why the badge inflated by exactly 7.
+
+**Fix**: One-line change to `routes/suggestions.py::admin_open_count`
+— add the same `suggestion_id: {$exists: true}` filter.
+
+**Regression test**: `tests/test_suggestions.py::TestAdmin::
+test_open_count_ignores_help_feedback_writes` — plants 3 Help-page-style
+records (no `suggestion_id`) and asserts the count does NOT drift.
+Locks the bug in.
+
+**Verified** end-to-end against preview DB: count endpoint now returns
+0 (matching the list), and after deploy this matches the production
+mismatch the user screenshotted.
+
+
 ## 2026-06-20 (dark-mode-selector-fix) — every dark:* Tailwind variant was silently broken ✅
 
 **Root cause:** `tailwind.config.js` was set to `darkMode: ["class"]` —

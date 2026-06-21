@@ -155,6 +155,38 @@ class TestAdmin:
         # Cleanup
         requests.delete(f"{BASE}/api/suggestions/{c.json()['suggestion_id']}", headers=H(ALICE))
 
+    def test_open_count_ignores_help_feedback_writes(self):
+        """2026-06-20 — The ``suggestions`` collection is shared with the
+        Help-page feedback writer (which inserts ``{text, page, photo_b64,
+        status:"open"}`` with NO ``suggestion_id``).  The list endpoint
+        scopes itself with ``suggestion_id: {$exists: true}``; the count
+        endpoint MUST do the same — otherwise the admin badge says
+        "(N open)" while the inbox renders "No open feedback right now"
+        (real user-reported bug, screenshot Jun 20).
+        """
+        # Snapshot the badge value before we plant any noise
+        before = requests.get(f"{BASE}/api/admin/suggestions/open-count", headers=H(ADMIN)).json()["open"]
+        # Inject 3 help-page-style writes that share the collection but
+        # have no ``suggestion_id``.  These should NOT count.
+        planted = [
+            db.suggestions.insert_one({
+                "text": f"help-page write {i}", "page": "/help",
+                "photo_b64": None, "status": "open",
+                "submitter_user_id": ALICE["user_id"],
+                "created_at": datetime.now(timezone.utc),
+            }).inserted_id
+            for i in range(3)
+        ]
+        try:
+            after = requests.get(f"{BASE}/api/admin/suggestions/open-count", headers=H(ADMIN)).json()["open"]
+            assert after == before, (
+                f"Open count drifted by {after - before} after planting Help-page "
+                f"feedback writes — the count endpoint is missing the "
+                f"suggestion_id existence filter (regression of 2026-06-20 bug)."
+            )
+        finally:
+            db.suggestions.delete_many({"_id": {"$in": planted}})
+
     def test_audit_logged(self, alice_suggestion):
         requests.put(
             f"{BASE}/api/admin/suggestions/{alice_suggestion}",

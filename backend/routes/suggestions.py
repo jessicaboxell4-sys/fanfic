@@ -421,6 +421,18 @@ async def admin_delete(sid: str, user: User = Depends(require_admin)):
 
 @api_router.get("/admin/suggestions/open-count")
 async def admin_open_count(user: User = Depends(require_admin)):
-    """Quick count for the Admin Console badge."""
-    n = await db.suggestions.count_documents({"status": "open"})
+    """Quick count for the Admin Console badge.
+
+    Must match the same scope as the ``GET /suggestions`` list above —
+    the ``suggestions`` collection is shared with the Help-page feedback
+    writer (which writes ``{text, page, photo_b64, status:"open"}`` and
+    has no ``suggestion_id``).  Without the ``suggestion_id`` existence
+    filter, the count picked up those Help-page records too and the
+    badge said "7 open" while the inbox list said "No open feedback"
+    (bug 2026-06-20).
+    """
+    n = await db.suggestions.count_documents({
+        "suggestion_id": {"$exists": True},
+        "status": "open",
+    })
     return {"open": n}
