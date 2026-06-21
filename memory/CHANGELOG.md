@@ -7,6 +7,38 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-21 (ci-admin-users-test-fix) — GitHub Actions backend tests back to green ✅
+
+**Reported via GH Actions email**: `backend-tests / pytest` workflow
+failed on `main` after today's pushes.
+
+**Root cause** (pre-existing, unrelated to today's changes):
+`test_users_list_includes_admin_badge_and_book_count` in
+`tests/test_admin_console.py` queried `/api/admin/users` and looked for
+the fixture admin in the response.  But `/admin/users` excludes
+test-account fixtures by design (they're surfaced separately on
+`/admin/test-accounts` to keep the main page clean) — and our fixture
+admin uses both a `user_` prefix and an `@example.com` domain, both of
+which match the exclusion regex.  The test never actually worked on a
+clean CI database; it only passed on dev pods that happened to have
+other non-fixture users seeded.
+
+**Fix** — split the assertion:
+1. `/admin/users` is shape-checked against whichever real users happen
+   to be in the CI DB (and gracefully no-ops if there are zero).
+2. `/admin/test-accounts` is asserted to contain the fixture admin
+   AND non-admin (the dedicated endpoint that's *supposed* to surface
+   them).
+
+**Verified** — 26/26 admin_console tests pass.  Broader sanity sweep
+across all 2026-06-21 work: 64/64 tests pass.
+
+Legacy flakes still excluded from CI per existing workflow design
+(`test_av_fields`, `test_cover_regen`, `test_cron_*`,
+`test_bookclub_digest_engagement` — these need either ClamAV daemon
+or asyncio fixture reform, both P3 backlog).
+
+
 ## 2026-06-21 (mirror-sweep) — all remaining write_bytes sites in books.py wired through R2 ✅
 
 Follow-up to the upload_books sync-mirror fix.  Same architectural
