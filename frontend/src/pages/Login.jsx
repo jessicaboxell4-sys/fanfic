@@ -16,7 +16,22 @@ export default function Login() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { loginSuccess } = useAuth();
-  const [mode, setMode] = useState("login"); // "login" | "register" | "forgot"
+  // 2026-06-20 — Read ?ref= synchronously in the state initializer so the
+  // very first render is already in REGISTER mode for invite-link visitors.
+  // Previously we flipped via a useEffect after mount, which caused a
+  // visible "Sign in" flash (and on slow devices, users could submit the
+  // login form before the effect landed — the "2/3 times it stays in
+  // sign-in mode" bug reported during the HP-fanfic FB-post dry-run).
+  const initialRef = (() => {
+    if (typeof window === "undefined") return "";
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return (params.get("ref") || "").trim().toLowerCase().slice(0, 40);
+    } catch {
+      return "";
+    }
+  })();
+  const [mode, setMode] = useState(initialRef ? "register" : "login"); // "login" | "register" | "forgot"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -35,7 +50,7 @@ export default function Login() {
     questions_enabled: false,
   });
   const [registerStep, setRegisterStep] = useState(1); // 1 = email/pw, 2 = onboarding
-  const [referral, setReferral] = useState("");
+  const [referral, setReferral] = useState(initialRef);
   const [favoriteFandom, setFavoriteFandom] = useState("");
   const [readerType, setReaderType] = useState("");
   const [is13Plus, setIs13Plus] = useState(null); // true | false | null
