@@ -117,3 +117,34 @@ def test_campaign_stats_organic_baseline(admin_session):
         assert organic["signups"] >= 1
     finally:
         _cleanup([uid])
+
+
+
+def test_campaign_stats_includes_clicks(admin_session):
+    """2026-06-20 — Top-of-funnel ``clicks`` are counted from
+    ``page_views`` rows with ``page_type="ref_click"`` and surface as
+    the leftmost funnel column.  This also verifies a campaign with
+    ZERO signups still shows up if it has clicks (otherwise day-1 of
+    a fresh post would be invisible until the first user signs up).
+    """
+    db = MongoClient(os.environ["MONGO_URL"])[os.environ["DB_NAME"]]
+    ref_tag = f"campfx_click_{uuid.uuid4().hex[:6]}"
+    # Insert 3 click events directly — sidesteps the 30-min ip_hash
+    # dedupe so the test is deterministic across re-runs.
+    now = datetime.now(timezone.utc).isoformat()
+    inserted = db.page_views.insert_many([
+        {"page_type": "ref_click", "slug": ref_tag, "ip_hash": f"fxh{i:02d}",
+         "user_id": "", "is_anon": True, "ref_bucket": "direct",
+         "country": "ZZ", "hour_bucket": now, "ts": now}
+        for i in range(3)
+    ]).inserted_ids
+    try:
+        r = admin_session.get(f"{BASE_URL}/api/admin/campaign-stats", timeout=20)
+        assert r.status_code == 200, r.text[:200]
+        rows = r.json()["campaigns"]
+        row = next((c for c in rows if c["ref"] == ref_tag), None)
+        assert row is not None, "Click-only campaign should surface even with 0 signups"
+        assert row["clicks"] == 3
+        assert row["signups"] == 0  # no users seeded with this referral
+    finally:
+        db.page_views.delete_many({"_id": {"$in": inserted}})

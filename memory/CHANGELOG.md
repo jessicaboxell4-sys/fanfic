@@ -7,6 +7,47 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-20 (invite-funnel-clicks + pending-ref-badge) — top-of-funnel tracking ✅
+
+Closed two gaps on the launch-readiness sprint for the HP-fanfic FB invite:
+
+**Top-of-funnel click tracking**
+- `Landing.jsx` now fires a fire-and-forget `POST /analytics/view` with
+  `{page_type: "ref_click", slug: <tag>}` whenever a visitor lands on
+  `/?ref=<tag>`. `sessionStorage` markers dedupe per session so a reload
+  inside the same tab doesn't double-count; the backend's existing 30-min
+  `ip_hash` dedupe handles cross-session and bot traffic.
+- `GET /admin/campaign-stats` (existing endpoint) now also aggregates
+  `clicks` from `page_views` and emits a new `clicks` field per row.
+  Campaigns with clicks but **zero signups** now surface too, so day-1
+  of a fresh post is visible immediately instead of after the first
+  signup.
+
+**Pending sign-ups card · per-row referral badge**
+- `PendingUsersCard` on `/admin` shows a small `via {ref}` violet pill
+  on every pending user row that came through a tracked invite link.
+  Lets the admin see at a glance which campaign drove each pending
+  signup before approving.
+
+**Frontend** — `Landing.jsx` (click ping useEffect), `AdminConsole.jsx`
+(`Clicks` column in `CampaignStatsWidget`, `via {ref}` badge in
+`PendingUsersCard`).
+
+**Backend** — `routes/admin.py::get_campaign_stats` extended with the
+`clicks` aggregation + the click-only campaign surfacing.
+
+**Tests** — `tests/test_campaign_stats.py::test_campaign_stats_includes_clicks`
+locks in: (1) the new `clicks` field is populated from `page_views` rows
+with `page_type="ref_click"`, and (2) click-only campaigns surface in the
+funnel even with 0 signups. All 4 campaign-stats tests pass.
+
+**Verification** — end-to-end: posted 3 simulated ref clicks for `hpfb`
+and `tiktok`, confirmed via UI screenshot that the new "CLICKS" column
+shows `2 (50%)` for hpfb (2 clicks → 1 signup) and `1 (0%)` for the
+click-only `tiktok` row, and the violet `VIA HPFB` badge renders on the
+pending sign-ups card. Tester admin flag reverted post-test.
+
+
 ## 2026-06-20 (admin-help-email-system) — AdminHelp adds Email-system kill-switch section ✅
 
 Closed a documentation gap: `AdminHelp.jsx` previously had no permanent

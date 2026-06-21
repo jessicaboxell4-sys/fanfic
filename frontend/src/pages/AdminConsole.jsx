@@ -355,6 +355,15 @@ function PendingUsersCard() {
                   <p className="text-xs text-[#6B705C] mt-0.5">
                     Signed up {fmtTime(u.created_at)}
                   </p>
+                  {u?.onboarding?.referral && (
+                    <span
+                      data-testid={`admin-pending-row-ref-${u.user_id}`}
+                      title={`Arrived via the ?ref=${u.onboarding.referral} invite link`}
+                      className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#EFE7FD] dark:bg-violet-900/40 text-[#5B3FBE] dark:text-violet-200 text-[10px] font-semibold uppercase tracking-[0.1em] border border-[#D7C8FA] dark:border-violet-700/60"
+                    >
+                      via {u.onboarding.referral}
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <button
@@ -1267,6 +1276,7 @@ function CampaignStatsWidget() {
             <thead>
               <tr className="text-[10px] uppercase tracking-wider text-[#6B705C] dark:text-zinc-400 border-b border-[#E5DDC5] dark:border-zinc-700">
                 <th className="text-left py-2 px-1 font-semibold">Channel</th>
+                <th className="text-right py-2 px-1 font-semibold" title="Landing-page visits with this ?ref= tag (deduped by IP/30-min window)">Clicks</th>
                 <th className="text-right py-2 px-1 font-semibold">Signups</th>
                 <th className="text-right py-2 px-1 font-semibold" title="Awaiting your approval — click to bulk-approve">Pending</th>
                 <th className="text-right py-2 px-1 font-semibold">Approved</th>
@@ -1289,6 +1299,20 @@ function CampaignStatsWidget() {
                   >
                     <td className={`py-1.5 px-1 ${isOrganic ? "italic text-[#6B705C]" : "text-[#2C2C2C] dark:text-zinc-100 font-medium"}`}>
                       {channelLabel(r.ref)}
+                    </td>
+                    <td className="text-right py-1.5 px-1 font-mono text-[#2C2C2C] dark:text-zinc-100">
+                      {isOrganic ? (
+                        <span className="text-[#6B705C] dark:text-zinc-400">—</span>
+                      ) : (
+                        <>
+                          {r.clicks || 0}
+                          {(r.clicks || 0) > 0 && (
+                            <span className="text-[#6B705C] dark:text-zinc-400 ml-1">
+                              ({pct(r.signups, r.clicks)}%)
+                            </span>
+                          )}
+                        </>
+                      )}
                     </td>
                     <td className="text-right py-1.5 px-1 font-mono text-[#2C2C2C] dark:text-zinc-100">{r.signups}</td>
                     <td className="text-right py-1.5 px-1 font-mono">

@@ -427,6 +427,9 @@ async def get_campaign_stats(user: User = Depends(require_moderator_or_admin)):
     either by the multi-step signup question OR by the ``?ref=<channel>``
     URL tracker on /login):
 
+      - ``clicks``    — landing-page hits with this ``?ref=<channel>``
+                        (deduped per ip_hash / 30-min window via
+                        ``page_views`` with ``page_type="ref_click"``)
       - ``signups``   — total accounts that came via this channel
       - ``approved``  — how many of them passed the approval gate
       - ``uploaded``  — how many own ≥ 1 book (real engagement signal)
@@ -465,12 +468,29 @@ async def get_campaign_stats(user: User = Depends(require_moderator_or_admin)):
         await db.books.distinct("user_id")
     )
 
+    # "Clicks" — count landing-page hits stamped by Landing.jsx via
+    # ``POST /analytics/view`` with ``page_type="ref_click"``.  The
+    # existing 30-min ip_hash dedupe filters bot traffic and refresh
+    # spam, so a "click" here ≈ a unique human in a 30-min window.
+    # Aggregate once and merge into the row map below.
+    click_cursor = db.page_views.aggregate([
+        {"$match": {"page_type": "ref_click"}},
+        {"$group": {"_id": "$slug", "clicks": {"$sum": 1}}},
+    ])
+    clicks_by_ref: dict[str, int] = {
+        row["_id"]: row["clicks"] async for row in click_cursor if row.get("_id")
+    }
+
     out: list[dict] = []
+    seen_refs: set[str] = set()
     for g in groups:
         ref = g["_id"]
         ref_uploaders = sum(1 for uid in g["user_ids"] if uid in uploader_ids)
+        if ref:
+            seen_refs.add(ref)
         out.append({
             "ref":       ref,  # None for organic
+            "clicks":    clicks_by_ref.get(ref, 0) if ref else 0,
             "signups":   g["signups"],
             "approved":  g["approved"],
             "pending":   g["pending"],
@@ -478,7 +498,24 @@ async def get_campaign_stats(user: User = Depends(require_moderator_or_admin)):
             "active_7d": g["active_7d"],
         })
 
-    out.sort(key=lambda r: (-r["signups"], (r["ref"] or "zzz")))
+    # Surface campaigns that have ``clicks`` but zero signups yet —
+    # otherwise a fresh FB post on day-1 (50 clicks, 0 signups) would
+    # be invisible in the funnel until the first user actually signs
+    # up.  Operators want to *see* the top-of-funnel traffic landing.
+    for ref, clicks in clicks_by_ref.items():
+        if ref in seen_refs:
+            continue
+        out.append({
+            "ref":       ref,
+            "clicks":    clicks,
+            "signups":   0,
+            "approved":  0,
+            "pending":   0,
+            "uploaded":  0,
+            "active_7d": 0,
+        })
+
+    out.sort(key=lambda r: (-(r["signups"] + r["clicks"]), (r["ref"] or "zzz")))
     return {"campaigns": out, "computed_at": datetime.now(timezone.utc).isoformat()}
 
 

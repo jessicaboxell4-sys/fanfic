@@ -17,6 +17,7 @@ import {
   Heart,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { api } from "../lib/api";
 import PrimaryCTAButton from "../components/PrimaryCTAButton";
 import SecondaryCTAButton from "../components/SecondaryCTAButton";
 import CommunityShowcase from "../components/CommunityShowcase";
@@ -102,6 +103,29 @@ export default function Landing() {
   // and the fast-track / onboarding-stats wiring would never fire.
   const [searchParams] = useSearchParams();
   const refTag = searchParams.get("ref");
+
+  // 2026-06-20 — Top-of-funnel click tracking for invite campaigns.
+  // Fires a fire-and-forget /analytics/view stamp the first time the
+  // user lands on /?ref=<tag>, using sessionStorage so a reload or
+  // bounce-back inside the same tab doesn't double-count.  The backend
+  // already debounces by ip_hash within 30 min so even without the
+  // session marker we wouldn't fluff up counts — this is just to keep
+  // the data honest for genuinely-curious visitors who reload.
+  useEffect(() => {
+    if (!refTag) return;
+    const tag = refTag.trim().toLowerCase().slice(0, 40);
+    if (!tag) return;
+    const marker = `_ss_ref_click:${tag}`;
+    try {
+      if (sessionStorage.getItem(marker)) return;
+      sessionStorage.setItem(marker, "1");
+    } catch {
+      // sessionStorage blocked (private window etc) — fall through and
+      // let the server-side ip_hash dedupe carry the load.
+    }
+    api.post("/analytics/view", { page_type: "ref_click", slug: tag })
+      .catch(() => { /* best-effort: telemetry must never block UX */ });
+  }, [refTag]);
 
   const handleStart = () => {
     if (user) navigate("/library");
