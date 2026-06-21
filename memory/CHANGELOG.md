@@ -7,6 +7,37 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-21 (calibre-concurrency-cap) — pre-redeploy OOM protection ✅
+
+Emergent Support baked ClamAV + Calibre into the production build
+image and flagged a memory caution in their final reply:
+
+> "Memory at runtime on Launch (2 GiB limit): clamd holds about 960 MB
+> persistently, ebook-convert adds about 200 to 400 MB transiently per
+> conversion.  Single-conversion peak fits with around 400 MB of
+> headroom.  Concurrent ebook conversions could push the pod past the
+> 2 GiB limit.  You may want to cap concurrent conversions to 1 or 2
+> in your app code."
+
+Without a cap, a single user dragging in a folder of MOBI files could
+OOM-kill the entire pod on launch day.
+
+**Fix** — `routes/books.py::convert_to_epub`:
+- Added a lazy ``asyncio.Semaphore(2)`` around the
+  ``run_in_executor(_convert_to_epub_sync, ...)`` call.
+- Lazy init (not module-level) so the semaphore binds to whichever
+  event loop is actually running at request time — avoids the
+  "Future attached to a different loop" footgun under heavy traffic.
+- Chose 2 (not 1) so a single user with a queue doesn't fully block a
+  second user from converting at the same time, while still staying
+  inside the ~400 MB headroom budget.
+
+**Regression test** — `tests/test_calibre_concurrency_cap.py`:
+- Fires 10 simulated conversions in parallel.
+- Asserts peak in-flight count is exactly 2.
+- Locks the cap in so a future refactor can't accidentally remove it.
+
+
 ## 2026-06-20 (av-auto-pause-watchdog + uploads-paused-banner) — defence in depth ✅
 
 **Why**: production ClamAV daemon went DOWN on shelfsort.com; uploads

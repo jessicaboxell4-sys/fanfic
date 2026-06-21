@@ -1658,8 +1658,32 @@ async def convert_to_epub(src_path: Path, dest_path: Path) -> Optional[str]:
     from utils.feature_flags import is_enabled
     if not await is_enabled("calibre_convert_enabled"):
         return "Calibre conversion is temporarily disabled by an administrator."
-    loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(None, _convert_to_epub_sync, src_path, dest_path)
+    # 2026-06-21 — Cap concurrent Calibre invocations to 2 to avoid OOM
+    # on the production Launch tier (2 GiB pod limit).  ebook-convert
+    # holds ~200-400 MB transiently per conversion, and clamd already
+    # claims ~960 MB persistently — Emergent Support flagged in the
+    # ClamAV bake-in thread that "concurrent ebook conversions could
+    # push the pod past the 2 GiB limit. Cap concurrent conversions to
+    # 1 or 2 in your app code."  Chose 2 (not 1) so a single user with
+    # a queue doesn't fully block a second user from converting at the
+    # same time, while still staying inside the headroom budget.
+    sem = _get_calibre_semaphore()
+    async with sem:
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, _convert_to_epub_sync, src_path, dest_path)
+
+
+# Lazy semaphore init — asyncio.Semaphore must be created inside a
+# running event loop, otherwise it captures the wrong loop and raises
+# "Future attached to a different loop" under heavy traffic.
+_calibre_sem: Optional[asyncio.Semaphore] = None
+
+
+def _get_calibre_semaphore() -> asyncio.Semaphore:
+    global _calibre_sem
+    if _calibre_sem is None:
+        _calibre_sem = asyncio.Semaphore(2)
+    return _calibre_sem
 
 
 # Persistent conversion-job tracking — backed by MongoDB so jobs survive
