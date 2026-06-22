@@ -230,14 +230,19 @@ function SafetyStat({ icon: Icon, label, value, total, color, testid }) {
       style={{ background: palette.bg, borderColor: palette.border }}
       data-testid={testid}
     >
-      <div className="flex items-center gap-2 mb-1">
+      <div className="flex items-center gap-2 mb-2">
         <Icon className="w-4 h-4" style={{ color: palette.text }} />
         <p className="text-xs uppercase tracking-[0.15em] font-bold" style={{ color: palette.text }}>
           {label}
         </p>
       </div>
-      <p className="font-serif text-3xl text-[#2C2C2C]">{value}</p>
-      <p className="text-xs mt-0.5" style={{ color: palette.muted }}>
+      <p
+        className="font-serif text-5xl font-bold leading-none"
+        style={{ color: palette.text }}
+      >
+        {value}
+      </p>
+      <p className="text-xs mt-2 font-medium" style={{ color: palette.muted }}>
         {total > 0 ? `${pct}% of your ${total} book${total === 1 ? "" : "s"}` : "no books yet"}
       </p>
     </div>
