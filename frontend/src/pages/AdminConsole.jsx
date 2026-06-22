@@ -5270,11 +5270,18 @@ export default function AdminConsole() {
     const onKey = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setPaletteOpen((v) => !v);
-        setPaletteQuery("");
-        setPaletteIndex(0);
+        setPaletteOpen((v) => {
+          const next = !v;
+          // Reset query + selection every time we toggle so the next
+          // open doesn't show stale state from the previous session.
+          // (Per testing-agent code-review feedback iter 34.)
+          if (!next) { setPaletteQuery(""); setPaletteIndex(0); }
+          return next;
+        });
       } else if (e.key === "Escape" && paletteOpen) {
         setPaletteOpen(false);
+        setPaletteQuery("");
+        setPaletteIndex(0);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -5367,6 +5374,29 @@ export default function AdminConsole() {
         </aside>
 
         <div>
+        {/* Mobile category jump (lg:hidden — sidebar above replaces it on desktop).
+            Sticky so it stays visible while scrolling long sections. */}
+        <div className="lg:hidden mb-4 sticky top-2 z-10 bg-white/90 backdrop-blur-sm rounded-xl p-2 border border-[#E5DDC5]">
+          <label htmlFor="admin-mobile-jump" className="text-[10px] uppercase tracking-wider text-[#6B705C] mb-1 block px-1">
+            Jump to section
+          </label>
+          <select
+            id="admin-mobile-jump"
+            data-testid="admin-mobile-jump"
+            value={activeCategory}
+            onChange={(e) => jumpToCategory(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg border border-[#E5DDC5] bg-white text-sm focus:border-[#6B46C1] focus:outline-none"
+          >
+            {ADMIN_CATEGORIES.map((cat) => {
+              const count = ADMIN_CARD_MANIFEST.filter((c) => c.category === cat.id).length;
+              return (
+                <option key={cat.id} value={cat.id}>{cat.label} ({count})</option>
+              );
+            })}
+          </select>
+        </div>
+
+
         <Link to="/library" className="inline-flex items-center gap-1 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-4">
           <ArrowLeft className="w-4 h-4" /> back to library
         </Link>

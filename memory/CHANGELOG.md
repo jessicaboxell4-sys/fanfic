@@ -7,6 +7,71 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-22 afternoon (admin-navigation-overhaul) — Easier /admin nav ✅
+
+User asked to make `/admin` easier to navigate (33 cards in a flat
+scroll).  Picked options **a + b + d**: categorized sections,
+sticky sidebar, Cmd+K command palette.
+
+**Built**:
+
+1. **Category metadata** — every entry in ``ADMIN_CARD_MANIFEST``
+   now carries a ``category`` field (one of 7 groups defined in
+   the new ``ADMIN_CATEGORIES`` constant: Overview, Users &
+   sign-ups, Feedback & moderation, Storage & files, Email,
+   System & health, Data & diagnostics).
+2. **Sectioned render** — the cards-list output is now a
+   `.map(category)` outer loop with a `<section
+   id="admin-section-<cat>" data-category="<cat>">` and a
+   uppercased category header per group.  Cards inside each
+   section come from a switch-statement on `testid` so the
+   manifest stays the single source of truth.
+3. **Sticky left sidebar** (desktop, `lg:` and up) — 7 category
+   links with live count badges, scroll-spy via
+   IntersectionObserver highlighting the active section as the
+   operator scrolls.  `data-testid='admin-sidebar'` +
+   per-link `data-testid='admin-sidebar-link-<cat>'`.
+4. **Mobile category dropdown** (`lg:hidden`) — sticky `<select>`
+   under the page header for narrow viewports, since the sidebar
+   only shows above the lg breakpoint.
+5. **Cmd+K / Ctrl+K command palette** — global hotkey,
+   autofocused fuzzy-search input, arrow-key navigation, Enter
+   to jump.  When you land on a card it gets a brief purple
+   `box-shadow` highlight so your eye finds it instantly. Esc
+   closes; reopen state is always fresh.
+
+**Files touched**:
+- MODIFIED `frontend/src/pages/AdminConsole.jsx` —
+  + ADMIN_CATEGORIES constant
+  + ``category`` field on every ADMIN_CARD_MANIFEST row
+  + sidebar JSX with scroll-spy useEffect
+  + Cmd+K palette overlay with fuzzy search + arrow keys
+  + mobile section-jump `<select>`
+  + section-grouped render via switch-statement
+  + outer grid layout (`lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-8`)
+
+**Verification**:
+- Lint clean on touched code (7 pre-existing warnings unchanged).
+- Frontend serves `/admin` → HTTP 200.
+- Testing agent (iter 34) confirmed code review correctness:
+  category groups present, sidebar wired, palette overlay
+  wired with all 4 keyboard interactions (Cmd+K, arrows, Enter,
+  Esc).  Could not fully run end-to-end UI due to a Playwright
+  auth flake (welcome-tour modal blocked admin load) — code
+  itself reviewed correct.
+- Polish wins from the testing agent applied: palette state
+  resets on close + mobile dropdown for narrow viewports.
+
+**How to use** (when next on `/admin`):
+- **Desktop**: see the new left sidebar — click any category to
+  scroll-jump.
+- **Mobile**: use the sticky "Jump to section" dropdown under
+  the header.
+- **Anywhere**: press **⌘K** (Mac) or **Ctrl+K** (Windows/Linux)
+  → type a card name → Enter.
+
+---
+
 ## 2026-06-22 midday (hidden-features-card + Send-to-Kindle full hide) ✅
 
 User asked for (a) a central inventory of features parked behind
