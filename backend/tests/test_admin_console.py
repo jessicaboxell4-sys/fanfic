@@ -238,6 +238,12 @@ def test_feature_flags_lifecycle():
         "ai_classify_enabled",
         "fichub_enabled",
         "calibre_convert_enabled",
+        # Added 2026-06-22 — gates the user-facing Send-to-Kindle
+        # endpoint.  Default OFF so the UI hide-out (FETCHING_UI-style
+        # ``SEND_TO_KINDLE_UI_ENABLED`` constant) and the backend
+        # endpoint stay in sync.  Each send burns 1 Resend daily-quota
+        # slot — keep off on the free tier.
+        "send_to_kindle_enabled",
         # Added 2026-06-13 with the cron-failure-alert wiring; kept on by default
         # so admins are emailed when a scheduled job crashes (debounced 60 min/job).
         "cron_failure_alerts",

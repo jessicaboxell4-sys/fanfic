@@ -10,7 +10,7 @@ import CatalogSyncCard from "../components/CatalogSyncCard";
 import PushHandoffToggle from "../components/PushHandoffToggle";
 import ReadingPrivacyToggle from "../components/ReadingPrivacyToggle";
 // PalettePickerCard moved to /account/appearance (linked from the navbar appearance popover)
-import { FETCHING_UI_ENABLED } from "../lib/featureFlags";
+import { FETCHING_UI_ENABLED, SEND_TO_KINDLE_UI_ENABLED } from "../lib/featureFlags";
 import { toast } from "sonner";
 
 function errMsg(d) {
@@ -1637,8 +1637,10 @@ export default function Account() {
         {/* E-reader sync (OPDS catalog) */}
         <CatalogSyncCard />
 
-        {/* Send to Kindle (2026-06-22) — single-click EPUB → Kindle email */}
-        <SendToKindleCard />
+        {/* Send to Kindle (2026-06-22) — single-click EPUB → Kindle email.
+            Gated on SEND_TO_KINDLE_UI_ENABLED so the card disappears
+            cleanly while the feature is hidden (Resend quota brake). */}
+        {SEND_TO_KINDLE_UI_ENABLED && <SendToKindleCard />}
 
         {/* FanFicFare options */}
         {FETCHING_UI_ENABLED && (

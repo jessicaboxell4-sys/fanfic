@@ -3,6 +3,7 @@ import axios from "axios";
 import { Link, useLocation } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import SuggestionBox from "../components/SuggestionBox";
+import { SEND_TO_KINDLE_UI_ENABLED } from "../lib/featureFlags";
 import { api } from "../lib/api";
 import {
   ArrowLeft, ArrowLeftRight, Upload, Sparkles, Layers, RefreshCw, BookOpen, Trash2,
@@ -72,7 +73,7 @@ const SECTIONS = [
   { id: "covers", label: "Community Covers" },
   { id: "recommendations", label: "Friend recommendations" },
   { id: "opds", label: "E-reader sync (OPDS)" },
-  { id: "send-to-kindle", label: "Send to Kindle" },
+  ...(SEND_TO_KINDLE_UI_ENABLED ? [{ id: "send-to-kindle", label: "Send to Kindle" }] : []),
   { id: "notifications", label: "Notifications & mutes" },
   { id: "push", label: "Web push notifications" },
   { id: "auto-theme", label: "Scheduled auto-theme" },
@@ -926,6 +927,7 @@ export default function Help() {
               </ul>
             </Section>
 
+            {SEND_TO_KINDLE_UI_ENABLED && (
             <Section id="send-to-kindle" icon={Send} title="Send to Kindle">
               <p>One-click delivery from any book page straight to your <strong>Amazon Kindle</strong>. Useful when you&apos;d rather read on your e-ink device than in the browser.</p>
 
@@ -980,6 +982,7 @@ export default function Help() {
                 <strong>Privacy:</strong> Send-to-Kindle uses Shelfsort&apos;s normal outbound email provider (Resend) → Amazon&apos;s email gateway. No third party stores the book; the attachment lives in flight for at most a few seconds before Amazon ingests it.
               </p>
             </Section>
+            )}
 
             <Section id="notifications" icon={Settings} title="Notifications & mutes">
               <p>The bell icon in the navbar shows every kind of in-app ping — friend requests, accepted requests, friend uploads in fandoms you collect, bookclub invites + messages + finishers, weekly digests, suggestion status changes.</p>

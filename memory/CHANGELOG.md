@@ -7,6 +7,68 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-22 midday (send-to-kindle-hide) — Mirror the FicHub hide-out ✅
+
+User flagged that Send-to-Kindle burns 1 Resend daily-quota slot per
+send — same risk we just spent the morning braking elsewhere — and
+asked to hide it the same way FicHub / FanFicFare is hidden.
+
+**Two-layer gate** (matches FicHub's design):
+
+1. **Client-side constant** ``SEND_TO_KINDLE_UI_ENABLED = false`` in
+   ``frontend/src/lib/featureFlags.js`` — gates three UI surfaces:
+   - Orange button on every `/book/:id` page (BookDetail.jsx) +
+     the prefetch GET on mount (no wasted API call when hidden).
+   - SendToKindleCard on `/account` (Account.jsx).
+   - "Send to Kindle" section + TOC entry on `/help` (Help.jsx).
+   Flipping the constant to ``true`` re-shows everything — code
+   stays in place, no backend changes needed.
+
+2. **Server-side runtime flag** ``send_to_kindle_enabled`` (default
+   OFF) in ``utils/feature_flags.py`` — gates the
+   ``POST /api/books/{id}/send-to-kindle`` endpoint with a 503
+   response when off.  Catches the "curl-savvy user bypasses the UI
+   hide" attack vector and lets an admin re-enable via
+   `/admin → Feature flags` without a frontend rebuild.
+
+**Files**:
+- MODIFIED `frontend/src/lib/featureFlags.js` — new
+  ``SEND_TO_KINDLE_UI_ENABLED = false`` constant + docstring.
+- MODIFIED `frontend/src/pages/BookDetail.jsx` — gate button +
+  short-circuit the kindle-settings GET when hidden.
+- MODIFIED `frontend/src/pages/Account.jsx` — gate
+  `<SendToKindleCard />`.
+- MODIFIED `frontend/src/pages/Help.jsx` — gate the TOC entry +
+  the entire Section block.
+- MODIFIED `backend/utils/feature_flags.py` — new
+  ``send_to_kindle_enabled`` known flag (default OFF).
+- MODIFIED `backend/routes/books.py` — 503 gate before delegating
+  to the orchestrator.
+- MODIFIED `backend/tests/test_admin_console.py` — flag now part
+  of the pinned ``KNOWN_FLAGS`` set.
+- MODIFIED `backend/tests/test_send_to_kindle_http.py` — fixture
+  flips the flag via the admin API (not Mongo-direct, because
+  the live backend has a 30-s in-process cache that Mongo
+  writes don't bust) + new gate-coverage test
+  ``test_send_book_to_kindle_returns_503_when_feature_disabled``.
+
+**Verification**:
+- 12/12 module pytest + 9/9 HTTP integration (8 previous + 1 new
+  gate test) + 26/26 admin_console = **47/47 pass**.
+- Playwright assertion confirmed
+  ``data-testid='send-to-kindle-btn'`` count is **0** on /book/* —
+  the button is gone.
+- Lint clean (Python + JS).
+
+**To re-enable later** (when off the free Resend tier):
+1. Frontend: flip ``SEND_TO_KINDLE_UI_ENABLED = true`` in
+   ``frontend/src/lib/featureFlags.js`` and redeploy.
+2. Backend: from `/admin → Feature flags` toggle
+   ``send_to_kindle_enabled`` to ON (no rebuild needed for this
+   half).
+
+---
+
 ## 2026-06-22 morning (send-to-kindle-help-docs) — User-facing setup guide ✅
 
 User asked for proper Send-to-Kindle setup instructions for users.

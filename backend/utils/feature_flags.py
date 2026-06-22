@@ -20,6 +20,7 @@ KNOWN_FLAGS: Dict[str, str] = {
     "ai_classify_enabled":  "Use Claude to classify books when metadata is ambiguous",
     "fichub_enabled":       "Fetch fic metadata + chapters via FicHub / FanFicFare",
     "calibre_convert_enabled": "Auto-convert PDF / MOBI / DOCX uploads via Calibre",
+    "send_to_kindle_enabled": "Allow users to email an EPUB to their Amazon Kindle inbox. Each send burns 1 Resend daily-quota slot — keep OFF on the free tier unless the operator has budgeted for it.",
     "cron_failure_alerts":  "Email all admins when a scheduled job fails (debounced, 60 min/job)",
     "cron_alerts_weekly_batch": "Roll cron-failure alerts into a single weekly digest email (Sundays 09:00 UTC) instead of paging immediately — Resend quota brake",
     "outbound_emails_enabled": "Send real emails via Resend (turn OFF to suppress all outbound and queue in-app notifications instead — Resend quota brake)",

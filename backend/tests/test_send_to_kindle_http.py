@@ -47,10 +47,102 @@ def session():
 
 @pytest.fixture(autouse=True)
 def _reset_state(db):
-    """Each test starts with a clean kindle_email + no recent send log for the tester."""
+    """Each test starts with a clean kindle_email + no recent send log for the tester.
+
+    Also flips the ``send_to_kindle_enabled`` feature flag ON for the
+    duration of the test (default is OFF in production — see
+    /app/backend/utils/feature_flags.py — added 2026-06-22 as a
+    Resend-quota safety net).  Without this, every POST returns 503
+    "currently disabled" instead of the targeted 400/404/429.
+
+    Important — Mongo-direct writes don't bust the *live backend's*
+    in-process cache (TTL ~30 s).  We flip the flag through the admin
+    API instead, which runs ``set_flag`` server-side and invalidates
+    the cache atomically. To call the admin endpoint we briefly
+    promote the tester, then demote on teardown.
+    """
     db.users.update_one({"user_id": TESTER_USER_ID}, {"$set": {"kindle_email": ""}})
     db.kindle_send_log.delete_many({"user_id": TESTER_USER_ID})
+    # Temporarily promote tester so we can hit /admin/feature-flags.
+    db.users.update_one({"user_id": TESTER_USER_ID}, {"$set": {"is_admin": True}})
+    admin = requests.Session()
+    lg = admin.post(
+        f"{BASE_URL}/api/auth/login",
+        json={"email": TESTER_EMAIL, "password": TESTER_PASSWORD},
+        timeout=20,
+    )
+    assert lg.status_code == 200
+    flip = admin.put(
+        f"{BASE_URL}/api/admin/feature-flags",
+        json={"flag": "send_to_kindle_enabled", "enabled": True},
+        timeout=15,
+    )
+    assert flip.status_code == 200, f"flag flip failed: {flip.status_code} {flip.text}"
     yield
+    # Restore default (off) + demote.
+    admin.put(
+        f"{BASE_URL}/api/admin/feature-flags",
+        json={"flag": "send_to_kindle_enabled", "enabled": False},
+        timeout=15,
+    )
+    db.users.update_one({"user_id": TESTER_USER_ID}, {"$set": {"is_admin": False}})
+    admin.close()
+
+
+# ---------- Feature-flag gate ----------
+def test_send_book_to_kindle_returns_503_when_feature_disabled(session, db):
+    """The user-facing UI also hides this whole feature behind a
+    client-side ``SEND_TO_KINDLE_UI_ENABLED`` constant.  The backend
+    gate is the runtime defence — flipping ``send_to_kindle_enabled``
+    OFF must reject the endpoint with 503 *regardless* of whether the
+    user has an address configured or not (otherwise a curl-savvy user
+    could bypass the UI hide and keep burning Resend quota).
+    """
+    # Flip the flag OFF via the admin API so the live backend's cache
+    # actually invalidates.  (Mongo-direct writes don't bust the
+    # in-process cache; see _reset_state.)
+    db.users.update_one({"user_id": TESTER_USER_ID}, {"$set": {"is_admin": True}})
+    try:
+        admin = requests.Session()
+        admin.post(
+            f"{BASE_URL}/api/auth/login",
+            json={"email": TESTER_EMAIL, "password": TESTER_PASSWORD},
+            timeout=20,
+        )
+        admin.put(
+            f"{BASE_URL}/api/admin/feature-flags",
+            json={"flag": "send_to_kindle_enabled", "enabled": False},
+            timeout=15,
+        )
+        admin.close()
+        # Set a valid kindle email so we *would* otherwise pass the
+        # 400-no-email guard — proves the flag wins.
+        session.put(
+            f"{BASE_URL}/api/user/kindle-settings",
+            json={"kindle_email": "tester@kindle.com"},
+            timeout=15,
+        )
+        r = session.post(
+            f"{BASE_URL}/api/books/bk_tester_1/send-to-kindle",
+            timeout=15,
+        )
+        assert r.status_code == 503, r.text
+        assert "disabled" in (r.json().get("detail") or "").lower()
+    finally:
+        # _reset_state yield-teardown will demote, but we put the flag
+        # back ON so the rest of the test session keeps working.
+        admin = requests.Session()
+        admin.post(
+            f"{BASE_URL}/api/auth/login",
+            json={"email": TESTER_EMAIL, "password": TESTER_PASSWORD},
+            timeout=20,
+        )
+        admin.put(
+            f"{BASE_URL}/api/admin/feature-flags",
+            json={"flag": "send_to_kindle_enabled", "enabled": True},
+            timeout=15,
+        )
+        admin.close()
 
 
 # ---------- GET kindle-settings ----------

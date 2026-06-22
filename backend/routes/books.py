@@ -2927,6 +2927,11 @@ async def send_book_to_kindle_route(
 ):
     """Email the book's EPUB to the user's configured Kindle address.
 
+    Gated on the ``send_to_kindle_enabled`` feature flag (default OFF,
+    2026-06-22 — Resend quota brake).  When the flag is off, the
+    endpoint returns 503 so the frontend can render a clear toast
+    instead of users blaming the email service.
+
     Returns ``{"ok": true, "resend_id": "...", "to": "...", "size_bytes": int}``
     on success.  Common failure responses (caller surfaces toast text
     straight from the ``detail`` field):
@@ -2937,8 +2942,15 @@ async def send_book_to_kindle_route(
     * 413 — file > Kindle 25 MB gateway cap
     * 429 — same book already sent within the past 30 min
     * 502 — Resend rejected the send (quota, recipient bounce, etc.)
-    * 503 — server has no Resend key configured
+    * 503 — feature flag off or no Resend key configured
     """
+    from utils.feature_flags import is_enabled  # noqa: WPS433
+    if not await is_enabled("send_to_kindle_enabled"):
+        from fastapi import HTTPException as _HE
+        raise _HE(
+            status_code=503,
+            detail="Send-to-Kindle is currently disabled by the operator.",
+        )
     from utils.send_to_kindle import send_book_to_kindle  # noqa: WPS433
     return await send_book_to_kindle(user_id=user.user_id, book_id=book_id)
 

@@ -11,7 +11,7 @@ import SimilarBooksStrip from "../components/SimilarBooksStrip";
 import CrossDeviceFinishStrip from "../components/CrossDeviceFinishStrip";
 import { ArrowLeft, Download, Trash2, Sparkles, Book, Edit3, Heart, Link as LinkIcon, BookOpen, RefreshCw, Tag as TagIcon, Loader2, Upload, Smartphone, Laptop, Tablet, MonitorSmartphone, Send } from "lucide-react";
 import { toast } from "sonner";
-import { FETCHING_UI_ENABLED } from "../lib/featureFlags";
+import { FETCHING_UI_ENABLED, SEND_TO_KINDLE_UI_ENABLED } from "../lib/featureFlags";
 
 const DEFAULT_CATEGORIES = ["Fanfiction", "Original Fiction", "Non-fiction", "Unclassified", "Updated stories", "Old stories"];
 
@@ -255,7 +255,10 @@ export default function BookDetail() {
   // render the button's enabled/disabled state without a click-time
   // round trip.  Failures are non-blocking — if the lookup fails we
   // just leave the button in its "not configured" state.
+  // Gated on SEND_TO_KINDLE_UI_ENABLED so we don't burn a request
+  // when the UI is hidden anyway (default state — Resend quota brake).
   useEffect(() => {
+    if (!SEND_TO_KINDLE_UI_ENABLED) return;
     let cancelled = false;
     (async () => {
       try {
@@ -695,6 +698,7 @@ export default function BookDetail() {
                 >
                   <Download className="w-4 h-4" /> Download EPUB
                 </button>
+                {SEND_TO_KINDLE_UI_ENABLED && (
                 <button
                   data-testid="send-to-kindle-btn"
                   onClick={sendToKindle}
@@ -719,6 +723,7 @@ export default function BookDetail() {
                   )}
                   {sendingToKindle ? "Sending…" : "Send to Kindle"}
                 </button>
+                )}
                 <button
                   data-testid="download-links-btn"
                   onClick={downloadLinks}
