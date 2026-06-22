@@ -241,6 +241,10 @@ def test_feature_flags_lifecycle():
         # Added 2026-06-13 with the cron-failure-alert wiring; kept on by default
         # so admins are emailed when a scheduled job crashes (debounced 60 min/job).
         "cron_failure_alerts",
+        # Added 2026-06-22 — Resend quota brake.  When True (default),
+        # cron-failure alerts go to an in-app queue + ONE weekly digest
+        # email (Sundays 09:00 UTC) instead of paging immediately.
+        "cron_alerts_weekly_batch",
         # Added 2026-06-20 alongside the Email-system kill-switch card on /admin.
         # When False, all outbound Resend mail is suppressed and queued as in-app
         # notifications instead (security-critical kinds bypass).

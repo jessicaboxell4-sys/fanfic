@@ -328,11 +328,33 @@ class TestRegression:
         # cookie until an admin approves them.  This regression check now
         # asserts the gate is in place and the response shape matches what
         # the frontend's "pending approval" screen reads.
-        email = f"test_reg_{uuid.uuid4().hex[:8]}@example.com"
+        #
+        # 2026-06-22 — Email switched off both the test-account domain
+        # AND prefix blocklist (see ``utils.test_account_filter``).
+        # ``reg_`` is a fixture prefix, so any address starting with it
+        # auto-approves; use a neutral one to actually exercise the
+        # approval-gate code path.
+        email = f"newreader{uuid.uuid4().hex[:8]}@shelfsort-prod-test.com"
         pwd = "hunter2pw"
         s = requests.Session()
+        # The signup endpoint requires the rules-acknowledgement
+        # checkbox + at least one onboarding answer when the
+        # ``questions_enabled`` signup-config flag is ON (which it is
+        # in this env).  Supply both so we exercise the approval gate
+        # itself, not the input-validation guard.
         r = s.post(f"{BASE}/api/auth/register",
-                   json={"email": email, "password": pwd, "name": "Reg"})
+                   json={
+                       "email": email,
+                       "password": pwd,
+                       "name": "Reg",
+                       "accepted_rules": True,
+                       "onboarding": {
+                           "referral": "search",
+                           "favorite_fandom": "Harry Potter",
+                           "reader_type": "fanfic",
+                           "is_13_plus": True,
+                       },
+                   })
         assert r.status_code in (200, 201), r.text
         body = r.json()
         assert body.get("pending") is True, body
