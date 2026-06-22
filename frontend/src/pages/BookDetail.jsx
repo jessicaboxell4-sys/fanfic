@@ -51,7 +51,14 @@ export default function BookDetail() {
   // /api/user/kindle-settings.  Button is disabled when the user
   // hasn't configured one; clicking the *disabled* state still routes
   // to /account so they can set it.
-  const [kindleEmail, setKindleEmail] = useState("");
+  //
+  // ``null`` = settings GET in flight (button disabled).
+  // ``""``   = settings loaded, no Kindle email on file (click → /account).
+  // ``"x@kindle.com"`` = ready to send.
+  // Per testing-agent feedback (iter 33) — without this loading
+  // sentinel, a user who taps the button within ~300 ms of page load
+  // got bounced to /account even when their address was already set.
+  const [kindleEmail, setKindleEmail] = useState(null);
   const [sendingToKindle, setSendingToKindle] = useState(false);
 
   const load = async () => {
@@ -691,10 +698,14 @@ export default function BookDetail() {
                 <button
                   data-testid="send-to-kindle-btn"
                   onClick={sendToKindle}
-                  disabled={sendingToKindle}
-                  title={kindleEmail
-                    ? `Email this EPUB to ${kindleEmail}`
-                    : "Add your Kindle email in Account → Send to Kindle"}
+                  disabled={sendingToKindle || kindleEmail === null}
+                  title={
+                    kindleEmail === null
+                      ? "Loading…"
+                      : kindleEmail
+                        ? `Email this EPUB to ${kindleEmail}`
+                        : "Add your Kindle email in Account → Send to Kindle"
+                  }
                   className={`flex items-center gap-2 text-sm px-4 py-2 rounded-lg transition-colors disabled:opacity-50 ${
                     kindleEmail
                       ? "bg-[#FF9900] text-white hover:bg-[#E08800]"

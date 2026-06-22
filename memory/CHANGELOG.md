@@ -7,6 +7,87 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-22 (send-to-kindle) — P1 Ship: one-click EPUB → Kindle ✅
+
+**Built overnight while operator slept.**  Lets users beam any EPUB
+from their library straight to their Amazon Kindle inbox by adding
+a single ``@kindle.com`` address in account settings.  Removes the
+last "I have to download then sideload via cable" friction point.
+
+**Files**:
+- NEW `backend/utils/send_to_kindle.py` (~280 LOC) —
+  `send_book_to_kindle()` orchestrator with file read, AV check,
+  size guard (25 MB Kindle gateway cap), rate-limit (1 send per
+  book per 30 min), Resend attachment send, and email_logs write.
+  Filenames sanitised so a book titled `Weird/Title<>` doesn't
+  break the attachment.  ``is_valid_kindle_email()`` regex matches
+  both ``@kindle.com`` and ``@free.kindle.com``.
+- NEW `backend/tests/test_send_to_kindle.py` — 12 tests covering
+  every error code + happy path + filename sanitisation.
+- NEW `backend/tests/test_send_to_kindle_http.py` — added by the
+  testing agent — 8 live HTTP integration tests against the
+  preview URL.
+- MODIFIED `backend/routes/user_prefs.py` — `GET/PUT
+  /api/user/kindle-settings` with @kindle.com validation.
+- MODIFIED `backend/routes/books.py` — `POST
+  /api/books/{book_id}/send-to-kindle` (4-line wrapper around the
+  util).
+- MODIFIED `frontend/src/pages/BookDetail.jsx` — Amazon-orange
+  Send-to-Kindle button next to Download EPUB; per-error toast
+  text including the 502-specific "Approved Personal Document
+  E-mail List" hint that is the #1 user confusion point.
+- MODIFIED `frontend/src/pages/Account.jsx` — new SendToKindleCard
+  between CatalogSync and the rest of the cards.  Input + Save +
+  Amazon approved-sender reminder block with one-click copy of
+  the Shelfsort sender address + deep link to
+  `amazon.com/myk`.
+
+**Anti-spam guardrails**:
+- 30-min rate limit per (user, book) — prevents double-click
+  duplicates.  Returns 429 with a "wait X min" detail the
+  frontend surfaces as a toast.
+- 25 MB hard cap before base64 encode — saves CPU on oversized
+  files and gives a clean 413 detail.
+- AV quarantine check — refuses to send `av_status="infected"`
+  books with a 403.
+- Sender-side: every send writes to ``email_logs`` with
+  ``kind="send_to_kindle"`` so the volume-forecast card I shipped
+  earlier already includes Kindle sends in the weekly projection.
+
+**Bug caught during testing**:
+- Mongo strips tzinfo on read — the rate-limit `datetime`
+  subtraction blew up with "can't subtract offset-naive and
+  offset-aware datetimes".  Patched to re-attach UTC before the
+  arithmetic.
+- Frontend race: clicking Send-to-Kindle within ~300 ms of page
+  load fired the "no email" branch even when an address was set
+  (GET /user/kindle-settings hadn't resolved yet).  Fixed by
+  defaulting `kindleEmail` to `null` (not `""`) and disabling the
+  button while loading.  Per testing-agent feedback (iter 33).
+
+**Verification**:
+- 12/12 module-level pytest + 8/8 HTTP integration pytest (all
+  added by the testing agent) = **20/20 Send-to-Kindle tests pass**
+- 138/138 broader area tests still pass (admin_console, digest,
+  cron, friends, recommendations, bookclubs, email_*, etc.)
+- Frontend lint clean on touched files
+- Testing agent verified UI: card renders, button renders next to
+  Download EPUB, confirm() dialog fires with correct message,
+  Download regression still works
+- Did NOT trigger live Resend sends (daily quota still locked) —
+  all error codes verified via UI + curl
+
+**How users use it**:
+1. Profile → Account → Send to Kindle card
+2. Enter ``yourname@kindle.com``, hit Save
+3. Copy the displayed sender address, add it to Amazon's
+   "Approved Personal Document E-mail List" at
+   `amazon.com/myk` (one-time)
+4. On any book page, click the orange **Send to Kindle** button
+5. Book appears on Kindle within ~5 min
+
+---
+
 ## 2026-06-22 (email-volume-forecast) — Cliff-warning admin card ✅
 
 **Why** — even after the two earlier quota brakes today (admin weekly
