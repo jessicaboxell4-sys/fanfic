@@ -625,7 +625,14 @@ async def maybe_send_friends_finished_digest(user_doc: Dict[str, Any]) -> bool:
         return False
 
     # Email is opt-in and runs only if the user explicitly enabled it.
-    if prefs.get("email_enabled"):
+    # 2026-06-22 — Resend quota brake: skip when the user opted into
+    # the consolidated Friday weekly_summary email.
+    try:
+        from utils.weekly_user_summary import is_in_weekly_summary_mode  # noqa: WPS433
+        skip_email = is_in_weekly_summary_mode(user_doc)
+    except Exception:
+        skip_email = False
+    if prefs.get("email_enabled") and not skip_email:
         try:
             result = await _send_friends_finished_email(user_doc, payload)
             if result.get("delivered"):

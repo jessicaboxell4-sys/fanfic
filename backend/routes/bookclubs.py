@@ -1169,6 +1169,14 @@ async def maybe_send_bookclub_digest(user_doc: Dict[str, Any]) -> bool:
     already fire per-message via bookclub_message / bookclub_finished kinds.
     Idempotent per ISO-year-week. Returns True if email actually delivered
     (or was logged in test envs)."""
+    # 2026-06-22 — Resend quota brake.  Skip when the user opted into
+    # the consolidated Friday weekly_summary email.
+    try:
+        from utils.weekly_user_summary import is_in_weekly_summary_mode  # noqa: WPS433
+        if is_in_weekly_summary_mode(user_doc):
+            return False
+    except Exception:
+        pass
     prefs = _get_bookclub_digest_prefs(user_doc)
     if not prefs.get("email_enabled"):
         return False

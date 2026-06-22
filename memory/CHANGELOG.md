@@ -7,6 +7,77 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-22 (per-user-weekly-summary) — One Friday email per user opt-in ✅
+
+**Problem (follow-up to admin-alerts fix earlier today)**: Even after
+batching admin alerts, an engaged reader gets 3-5 separate weekly
+emails from Shelfsort (weekly stats digest, fic updates,
+friends-finished, bookclub-week, cover recap). For 100 users that's
+300-500 emails/week — still a heavy slice of the 100/day free tier.
+
+**Fix** — new opt-in `weekly_summary.enabled` user pref:
+
+1. **`utils/weekly_user_summary.py`** (new, ~310 LOC) — orchestrator
+   that runs Fridays 09:00 UTC, walks every opt-in user, gathers
+   6 sections from the DB (reading minutes, stuck books, friends
+   finished, bookclub activity, fic updates, cover recap), and
+   sends ONE consolidated "Your week on Shelfsort" email per user.
+2. **`is_in_weekly_summary_mode(user_doc)`** — pure-sync helper
+   exported for the kind-senders.
+3. **Kind-senders modified** to early-return when the helper
+   returns True:
+     - `routes/digest._send_digest_email` (weekly stats digest)
+     - `routes/digest._send_update_digest_email` (fic updates)
+     - `routes/bookclubs.maybe_send_bookclub_digest` (bookclub
+       week)
+     - `routes/recommendations.maybe_send_friends_finished_digest`
+       (only the email branch; in-app notif still fires)
+4. **New endpoints**:
+     - `GET /api/user/weekly-summary` — current opt-in state +
+       last-sent snapshot
+     - `PUT /api/user/weekly-summary` — `{"enabled": bool}`
+     - `POST /api/user/weekly-summary/preview` — send a sample
+       digest right now using live data (caps quota burn at 1 per
+       call regardless of how many kind-sections are populated)
+5. **New cron**: `user_weekly_summary_tick` registered in
+   `routes/digest.start_digest_scheduler` (Fridays 09:00 UTC).
+   Idempotent — 6-day cooldown per user.
+6. **Test-fixture address filter** — same `is_test_account` guard
+   as the admin alerts. Opt-in fixture users still update their
+   pref but never get an email send attempt.
+7. **Frontend**: new prominent toggle on `/account/emails` —
+   "One Friday email for everything" — with a "Send a sample"
+   button + an active-mode banner explaining that the kind-
+   specific toggles below are paused while it's on.
+
+**Verification**:
+- 7-test backend coverage (`tests/test_weekly_user_summary.py`):
+    * `is_in_weekly_summary_mode` helper
+    * Each kind-sender skips when opted in (digest, update, bookclub)
+    * Orchestrator returns `nothing_to_say` for empty data
+    * Orchestrator sends ONE email with merged sections when data exists
+    * Test-fixture addresses filtered out
+- 88/89 broader tests pass (1 unrelated pre-existing approval-gate
+  failure in test_digest.py — not caused by this change)
+- Live `/api/user/weekly-summary` endpoints respond correctly
+- `preview` returns `nothing_to_say` for the empty-this-week
+  tester — proving the no-burn guard works
+
+**Expected quota impact** (with reasonable opt-in rate):
+- 100 active users × 4 weekly emails ≈ **400 emails/week**
+- Same 100 users opted in × 1 email/week ≈ **100 emails/week**
+- **~75% reduction** in user-facing weekly volume.
+
+**Files**:
+- NEW `backend/utils/weekly_user_summary.py`
+- NEW `backend/tests/test_weekly_user_summary.py`
+- MODIFIED `backend/routes/digest.py` (+ early-return + new endpoints + cron entry)
+- MODIFIED `backend/routes/bookclubs.py` (early-return)
+- MODIFIED `backend/routes/recommendations.py` (skip email branch only)
+- MODIFIED `frontend/src/pages/EmailPreferences.jsx` (new toggle card)
+
+---
+
 ## 2026-06-22 (admin-alerts-weekly-digest) — Resend quota brake ✅
 
 **Problem**: Hit 200% of the Resend free-tier (100 emails/day) on the

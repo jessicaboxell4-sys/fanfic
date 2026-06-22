@@ -302,6 +302,47 @@ export default function EmailPreferences() {
     }
   };
 
+  // 2026-06-22 — Resend quota brake.
+  // When the user opts in, every per-channel weekly email is folded
+  // into ONE consolidated Friday "Your week on Shelfsort" digest.
+  const updateWeeklySummary = async (enabled) => {
+    setSavingDigest(true);
+    try {
+      await api.put("/user/weekly-summary", { enabled });
+      setOverview((o) => ({
+        ...o,
+        weekly_summary: { ...(o.weekly_summary || {}), enabled },
+      }));
+      toast.success(
+        enabled
+          ? "Consolidated Friday digest is on — kind-specific emails will pause."
+          : "Consolidated digest off — kind-specific emails resume.",
+      );
+    } catch (e) {
+      toast.error(errMsg(e?.response?.data?.detail));
+    } finally {
+      setSavingDigest(false);
+    }
+  };
+
+  const sendWeeklySummaryPreview = async () => {
+    setSavingDigest(true);
+    try {
+      const { data } = await api.post("/user/weekly-summary/preview");
+      if (data?.sent) {
+        toast.success(`Sample digest sent · ${data.sections} section(s).`);
+      } else if (data?.reason === "nothing_to_say") {
+        toast.info("Quiet week — nothing to consolidate into a preview.");
+      } else {
+        toast.warning(data?.reason || "Preview not delivered.");
+      }
+    } catch (e) {
+      toast.error(errMsg(e?.response?.data?.detail));
+    } finally {
+      setSavingDigest(false);
+    }
+  };
+
   const sendBookclubDigestPreview = async () => {
     setSendingDigestPreview(true);
     try {
@@ -421,6 +462,7 @@ export default function EmailPreferences() {
     year_recap,
     from_friends,
     bookclub_digest,
+    weekly_summary,
   } = overview;
 
   return (
@@ -500,6 +542,51 @@ export default function EmailPreferences() {
             )}
           </div>
         </div>
+
+        {/* Weekly summary (consolidated digest) — opt-in Resend quota brake (2026-06-22) */}
+        <ChannelCard
+          icon={<Mail className="w-5 h-5" />}
+          iconBg="bg-[#EEE9FB]"
+          iconColor="text-[#6B46C1]"
+          title="One Friday email for everything"
+          subtitle="Fold all your weekly Shelfsort emails (digest, fic updates, friends-finished, bookclub, cover recap) into ONE consolidated Friday 09:00 UTC message. In-app notifications keep firing as usual."
+          enabled={!!(weekly_summary?.enabled)}
+          onToggle={() => updateWeeklySummary(!(weekly_summary?.enabled))}
+          saving={savingDigest}
+          testidPrefix="weekly-summary"
+          lastSent={weekly_summary?.last_sent_at}
+          previewBtn={
+            <>
+              <button
+                type="button"
+                onClick={sendWeeklySummaryPreview}
+                disabled={savingDigest || !weekly_summary?.enabled}
+                data-testid="weekly-summary-preview-btn"
+                className="btn-secondary text-sm flex items-center gap-2 disabled:opacity-60"
+              >
+                {savingDigest ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4" />
+                )}
+                Send a sample
+              </button>
+              <p className="text-xs text-[#6B705C]">
+                Preview the layout without waiting for Friday.
+              </p>
+            </>
+          }
+        >
+          {weekly_summary?.enabled ? (
+            <div className="text-xs text-[#6B46C1] bg-[#EEE9FB] border border-[#D4C5F2] rounded-xl p-3" data-testid="weekly-summary-active-note">
+              ✓ Consolidated mode is on. The kind-specific email toggles below are paused — only the Friday summary will go out.
+            </div>
+          ) : (
+            <p className="text-xs text-[#6B705C] italic">
+              Off — you&rsquo;ll receive each kind-specific email below independently.
+            </p>
+          )}
+        </ChannelCard>
 
         {/* Weekly digest */}
         <ChannelCard

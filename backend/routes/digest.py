@@ -266,6 +266,15 @@ async def _build_digest_payload(user_doc: Dict[str, Any]) -> Dict[str, Any]:
 
 
 async def _send_digest_email(user_doc: Dict[str, Any]) -> Dict[str, Any]:
+    # 2026-06-22 — Resend quota brake.  Users who opted into the
+    # consolidated Friday weekly_summary get all their reading-related
+    # email folded into ONE message; skip the per-channel sends.
+    try:
+        from utils.weekly_user_summary import is_in_weekly_summary_mode  # noqa: WPS433
+        if is_in_weekly_summary_mode(user_doc):
+            return {"delivered": False, "reason": "weekly_summary_mode"}
+    except Exception:
+        pass
     payload = await _build_digest_payload(user_doc)
     to_email = user_doc["email"]
     if not RESEND_API_KEY:
@@ -676,6 +685,13 @@ async def _send_update_digest_email(
     new_book_ids: List[str],
 ) -> Dict[str, Any]:
     """Send the update digest email. Caller should have already checked the user's preference."""
+    # 2026-06-22 — Resend quota brake (weekly_summary opt-in).
+    try:
+        from utils.weekly_user_summary import is_in_weekly_summary_mode  # noqa: WPS433
+        if is_in_weekly_summary_mode(user_doc):
+            return {"delivered": False, "reason": "weekly_summary_mode"}
+    except Exception:
+        pass
     payload = await _build_update_digest_payload(user_doc, new_book_ids)
     if not payload:
         return {"delivered": False, "reason": "no_books"}
@@ -875,7 +891,63 @@ async def email_overview(user: User = Depends(get_current_user)):
             "last_email_sent_at": (user_doc.get("bookclub_digest") or {}).get("last_email_sent_at"),
             "note": "Per-message bell pings already fire unconditionally; toggle to also receive a Monday 08:00 UTC weekly rollup of every room.",
         },
+        "weekly_summary": {
+            "enabled": bool((user_doc.get("weekly_summary") or {}).get("enabled", False)),
+            "last_sent_at": (
+                (user_doc.get("weekly_summary") or {}).get("last_sent_at").isoformat()
+                if isinstance((user_doc.get("weekly_summary") or {}).get("last_sent_at"), datetime)
+                else (user_doc.get("weekly_summary") or {}).get("last_sent_at")
+            ),
+            "last_sections": int((user_doc.get("weekly_summary") or {}).get("last_sections", 0)),
+            "note": "Fold every weekly email (digest, fic updates, friends-finished, bookclub, cover recap) into ONE Friday 09:00 UTC message. When ON, the kind-specific emails above are skipped — in-app notifications still fire.",
+        },
     }
+
+
+# ---------------------------------------------------------------------------
+# Consolidated weekly summary settings (2026-06-22 — Resend quota brake).
+# Backs the new toggle on /account/emails.
+# ---------------------------------------------------------------------------
+
+
+class WeeklySummaryBody(BaseModel):
+    enabled: bool
+
+
+@api_router.get("/user/weekly-summary")
+async def get_weekly_summary_settings(user: User = Depends(get_current_user)):
+    user_doc = await db.users.find_one({"user_id": user.user_id}) or {}
+    prefs = user_doc.get("weekly_summary") or {}
+    last = prefs.get("last_sent_at")
+    return {
+        "enabled":        bool(prefs.get("enabled")),
+        "last_sent_at":   last.isoformat() if isinstance(last, datetime) else last,
+        "last_sections":  int(prefs.get("last_sections", 0)),
+    }
+
+
+@api_router.put("/user/weekly-summary")
+async def update_weekly_summary_settings(
+    body: WeeklySummaryBody,
+    user: User = Depends(get_current_user),
+):
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": {"weekly_summary.enabled": bool(body.enabled)}},
+    )
+    return {"enabled": bool(body.enabled)}
+
+
+@api_router.post("/user/weekly-summary/preview")
+async def send_weekly_summary_preview(user: User = Depends(get_current_user)):
+    """Send the Friday digest right now using the user's live data —
+    useful for sanity-checking the layout before Friday morning."""
+    from utils.weekly_user_summary import _send_one  # noqa: WPS433
+    user_doc = await db.users.find_one({"user_id": user.user_id})
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="User not found")
+    result = await _send_one(user_doc, datetime.now(timezone.utc))
+    return result
 
 
 
@@ -1026,6 +1098,23 @@ def start_digest_scheduler():
         "interval",
         minutes=10,
         id="storage_backfill_tick",
+        replace_existing=True,
+    )
+
+    # Fridays 09:00 UTC — consolidated "Your week on Shelfsort" email
+    # for users who opted into ``weekly_summary.enabled``.  Replaces
+    # the 3-5 kind-specific weekly emails (stats digest, fic updates,
+    # friends-finished, bookclub-week, cover recap) with ONE message
+    # each Friday morning.  Resend quota brake — see
+    # ``utils/weekly_user_summary.py`` for full rationale.
+    from utils.weekly_user_summary import user_weekly_summary_tick
+    sched.add_job(
+        wrap_cron_job(user_weekly_summary_tick, "user_weekly_summary_tick"),
+        "cron",
+        day_of_week="fri",
+        hour=9,
+        minute=0,
+        id="user_weekly_summary_tick",
         replace_existing=True,
     )
 
