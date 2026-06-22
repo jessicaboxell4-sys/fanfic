@@ -124,7 +124,7 @@ def render_og_card(
         width=1,
     )
     f_foot = _font(SANS_BOLD, 22)
-    draw.text((pad, divider_y + 25), "SHELFSORT.APP", fill=(255, 255, 255, 200), font=f_foot)
+    draw.text((pad, divider_y + 25), "SHELFSORT.COM", fill=(255, 255, 255, 200), font=f_foot)
     tag = "YEAR IN BOOKS"
     tw = draw.textlength(tag, font=f_foot)
     draw.text((CARD_W - pad - tw, divider_y + 25), tag, fill=(255, 255, 255, 200), font=f_foot)
