@@ -379,6 +379,17 @@ async def auth_register(body: RegisterBody, response: Response):
         }
 
     await _issue_session(user_id, response)
+    # Smart welcome email — fire-and-forget on the auto-approve path
+    # (approval gate off, OR test/first-user bypass).  When the user
+    # is gated to "pending", they get the welcome from the admin
+    # approve flow instead.  Test accounts are filtered downstream
+    # by ``utils.email_suppression`` so we don't burn quota on QA.
+    if approval_status == "approved" and not is_first_user:
+        try:
+            from utils.welcome_email import send_welcome_email
+            asyncio.create_task(send_welcome_email(user_doc, source="auto_approve"))
+        except Exception:
+            logger.warning("welcome email kickoff failed for %s", email, exc_info=True)
     # Match /auth/me shape so AuthContext gets the full picture on the
     # first-user bootstrap path (where ``is_admin=True``) and beyond.
     return {

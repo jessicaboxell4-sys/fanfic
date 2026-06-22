@@ -7,7 +7,79 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
-## 2026-06-22 evening (llm-key-health) — Universal-Key runway admin card ✅
+## 2026-06-22 evening (smart-welcome-email) — Personalized Resend welcome ✅
+
+Replaces the generic "your account is approved" one-liner with a
+short personalized email that uses the four onboarding answers we
+already collect at sign-up (referral, favorite_fandom, reader_type,
+is_13_plus).  No extra Resend quota burn — same one email per
+new user that was being sent before, just better copy.
+
+**Personalization rules** (all copy is static — no LLM, zero burn):
+- ``reader_type`` selects 1 of 4 curated tips
+  (``fanfic`` / ``original`` / ``mix`` / ``organize``) → drives the
+  body heading + the primary CTA.
+- ``favorite_fandom`` adds a second sentence (only for fanfic / mix
+  readers): *"You mentioned {fandom} — every {fandom} EPUB you
+  upload will land on its own shelf automatically."*
+- ``referral`` adds an opening thank-you line, with specific copy
+  for 11 known sources (Reddit, Tumblr, Twitter, X, TikTok,
+  Discord, AO3, YouTube, friend, word-of-mouth, Google) and a
+  generic "Thanks for finding us" fallback for unknown sources.
+- CTAs re-order so the reader_type-specific destination is the
+  primary button; the other two become subdued text links.
+
+**Two send sites** (both already existed for the old welcome):
+1. ``routes/admin._send_approval_email(approved=True)`` — admin
+   approves a pending user.  Refactored to delegate to
+   ``utils.welcome_email.send_welcome_email`` so the personalized
+   body fires.  Pass-through of the freshly-fetched ``user_doc``
+   so onboarding answers are available without an extra DB read.
+2. ``routes/auth.auth_register`` auto-approve branch (approval
+   gate off, or test/first-user bypass) — new ``asyncio.create_task``
+   fire-and-forget so register-latency doesn't change.  First-user
+   bootstrap is intentionally skipped (no point welcoming the
+   sole admin to their own install).
+
+**Files**:
+- NEW `backend/utils/welcome_email.py` (~200 LOC) —
+  `build_welcome_email()` (pure composer) + `send_welcome_email()`
+  (Resend wrapper, never raises, logs to `email_logs` with
+  `kind=welcome_approval` or `welcome_auto_approve`).
+- NEW `backend/tests/test_welcome_email.py` — 14 tests covering
+  every reader_type branch, the fandom-line gating, all referral
+  paths (known + unknown), CTA re-ordering, frontend_url trailing
+  slash handling, empty-name fallback, Resend-unconfigured bail,
+  email_logs success + error rows.
+- MODIFIED `backend/routes/admin.py` — `_send_approval_email`
+  delegates to the welcome composer for the approved branch.
+  ``approve_user`` + ``approve_pending_bulk`` now fetch + pass
+  ``onboarding`` so the personalization works.
+- MODIFIED `backend/routes/auth.py` — auto-approve branch fires
+  the welcome email as a background task.
+
+**Reuses existing infra** (no new top-level surface):
+- ``utils.email_suppression`` test-account skip — verified live: a
+  ``smoke_welcome_<ts>@example.com`` registration produced an
+  `email_logs` row with ``status="suppressed"`` and
+  ``suppress_reason="test_recipient"`` (zero Resend quota burn).
+- ``utils.email_log.log_email_send`` — every send writes a row, so
+  the new `welcome_approval` + `welcome_auto_approve` kinds are
+  already counted by the email-volume-forecast admin card.
+
+**Tested**:
+- 14/14 new unit tests pass (`tests/test_welcome_email.py`).
+- Regression: 13/13 approval + bulk-approve tests pass
+  (`test_approval_gate.py`, `test_bulk_approve.py`).
+- 11/11 LLM-usage tests still pass.
+- Live end-to-end smoke: registered a fanfic/Stargate/reddit user
+  with the approval gate disabled → server returned
+  ``approval_status: approved`` → ``email_logs`` row written with
+  ``kind: welcome_auto_approve`` and the right subject.
+- Lint clean on touched files.
+
+---
+
 
 P1 follow-up to today's budget-cap incident.  Earlier in the
 session the operator hit their Universal LLM Key cap and silently

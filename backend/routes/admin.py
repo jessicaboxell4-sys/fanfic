@@ -181,57 +181,51 @@ async def _send_approval_email(
     name: str,
     approved: bool,
     reason: str = "",
+    user_doc: Optional[Dict[str, Any]] = None,
 ) -> None:
-    """Best-effort approval / rejection email. Never raises."""
+    """Best-effort approval / rejection email. Never raises.
+
+    For ``approved=True`` we delegate to the smart welcome email
+    (``utils.welcome_email``) which personalizes the body using
+    onboarding answers.  ``user_doc`` is the freshly-approved
+    user document if available — saves a re-fetch and gives the
+    welcome composer access to ``onboarding`` + ``name``.
+    """
+    if approved:
+        # Personalized welcome path — pulls reader_type, fandom,
+        # referral, and re-orders the CTAs accordingly.
+        from utils.welcome_email import send_welcome_email
+        doc = user_doc or {"email": to, "name": name}
+        await send_welcome_email(doc, source="approval")
+        return
+
     if not RESEND_API_KEY or not SENDER_EMAIL or not to:
         # Resend not configured — log and move on. The user can still log
         # in once approved (login checks status, not the email arrival).
         return
-    subject = (
-        "Welcome to Shelfsort — your account is approved"
-        if approved
-        else "Your Shelfsort sign-up wasn't approved"
-    )
+    subject = "Your Shelfsort sign-up wasn't approved"
     body_html = (
         f"<div style='font-family:system-ui,sans-serif;max-width:560px;line-height:1.6'>"
         f"<h2 style='color:#6B46C1;margin:0 0 12px'>Hi {name or 'there'},</h2>"
+        "<p style='margin:0 0 12px;color:#2C2C2C'>We took a look at your "
+        "Shelfsort sign-up but won't be approving the account at this time.</p>"
         + (
-            f"<p style='margin:0 0 12px;color:#2C2C2C'>Your Shelfsort account has been "
-            f"approved. You can sign in now and start uploading your library.</p>"
-            f"<p style='margin:0 0 12px'><a href='{FRONTEND_URL or ''}/login' "
-            f"style='background:#6B46C1;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;display:inline-block'>"
-            f"Sign in to Shelfsort</a></p>"
-            if approved
-            else (
-                "<p style='margin:0 0 12px;color:#2C2C2C'>We took a look at your "
-                "Shelfsort sign-up but won't be approving the account at this time."
-                "</p>"
-                + (
-                    f"<p style='margin:0 0 12px;color:#2C2C2C'><strong>Reason from the admin:</strong> {reason}</p>"
-                    if reason
-                    else ""
-                )
-                + "<p style='margin:0 0 12px;color:#6B705C;font-size:13px'>"
-                f"If you think this was a mistake, you're welcome to re-register at "
-                f"<a href='{FRONTEND_URL or ''}/signup' style='color:#6B46C1'>{FRONTEND_URL or ''}/signup</a>.</p>"
-            )
+            f"<p style='margin:0 0 12px;color:#2C2C2C'><strong>Reason from the admin:</strong> {reason}</p>"
+            if reason
+            else ""
         )
-        + "</div>"
+        + "<p style='margin:0 0 12px;color:#6B705C;font-size:13px'>"
+        f"If you think this was a mistake, you're welcome to re-register at "
+        f"<a href='{FRONTEND_URL or ''}/signup' style='color:#6B46C1'>{FRONTEND_URL or ''}/signup</a>.</p>"
+        "</div>"
     )
     body_text = (
         f"Hi {name or 'there'},\n\n"
-        + (
-            "Your Shelfsort account has been approved. You can sign in now and start uploading your library.\n\n"
-            f"Sign in: {FRONTEND_URL or ''}/login\n"
-            if approved
-            else (
-                "We took a look at your Shelfsort sign-up but won't be approving the account at this time.\n\n"
-                + (f"Reason from the admin: {reason}\n\n" if reason else "")
-                + f"If you think this was a mistake, you're welcome to re-register at {FRONTEND_URL or ''}/signup.\n"
-            )
-        )
+        "We took a look at your Shelfsort sign-up but won't be approving the account at this time.\n\n"
+        + (f"Reason from the admin: {reason}\n\n" if reason else "")
+        + f"If you think this was a mistake, you're welcome to re-register at {FRONTEND_URL or ''}/signup.\n"
     )
-    kind = "approval_approved" if approved else "approval_rejected"
+    kind = "approval_rejected"
     try:
         from utils.email_log import log_email_send as _log
         resend.api_key = RESEND_API_KEY
@@ -324,7 +318,7 @@ async def approve_pending_bulk(
         query["onboarding.referral"] = ref
 
     targets = await db.users.find(
-        query, {"_id": 0, "user_id": 1, "email": 1, "name": 1},
+        query, {"_id": 0, "user_id": 1, "email": 1, "name": 1, "onboarding": 1},
     ).to_list(length=500)
 
     if not targets:
@@ -363,6 +357,7 @@ async def approve_pending_bulk(
                 to=t.get("email") or "",
                 name=t.get("name") or "",
                 approved=True,
+                user_doc=t,
             )
             return True
         except Exception:
@@ -558,7 +553,7 @@ async def approve_user(target_user_id: str, user: User = Depends(require_moderat
     Emails the user (best-effort). Idempotent on already-approved users."""
     target = await db.users.find_one(
         {"user_id": target_user_id},
-        {"_id": 0, "email": 1, "name": 1, "approval_status": 1},
+        {"_id": 0, "email": 1, "name": 1, "approval_status": 1, "onboarding": 1},
     )
     if target is None:
         raise HTTPException(status_code=404, detail="User not found")
@@ -586,6 +581,7 @@ async def approve_user(target_user_id: str, user: User = Depends(require_moderat
         to=target.get("email") or "",
         name=target.get("name") or "",
         approved=True,
+        user_doc=target,
     )
     return {"ok": True, "user_id": target_user_id, "approval_status": "approved"}
 
