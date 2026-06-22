@@ -7,6 +7,35 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-22 morning (send-to-kindle-help-docs) — User-facing setup guide ✅
+
+User asked for proper Send-to-Kindle setup instructions for users.
+Added a comprehensive new help section in `/help`:
+
+- **`Send to Kindle`** — full how-to section with:
+   1. One-time setup (find Kindle email, save in Shelfsort, **whitelist
+      sender on Amazon** — the universally-missed step that breaks 95%
+      of first sends, with direct link to amazon.com/myk)
+   2. Sending a book (where the button is + ~5 min Amazon delivery)
+   3. Limits & guardrails (25 MB cap, 30-min rate limit, EPUB only,
+      quarantine block)
+   4. Troubleshooting (4 common failure modes with the fixes)
+   5. Privacy note (Resend → Amazon, no third-party storage)
+
+Section is in the TOC right after E-reader sync (OPDS) so it sits
+near other "get your books to a device" features.  Send icon (lucide)
+added to the imports.
+
+**Files**:
+- MODIFIED `frontend/src/pages/Help.jsx` — new `<Section id="send-to-kindle">` block, TOC entry, and `Send` icon import.
+
+**Also**:
+- Recovered Notifications section opener — my first search_replace
+  accidentally collapsed the boundary between the new Send-to-Kindle
+  section and the existing Notifications one. Restored cleanly.
+
+---
+
 ## 2026-06-22 (send-to-kindle) — P1 Ship: one-click EPUB → Kindle ✅
 
 **Built overnight while operator slept.**  Lets users beam any EPUB

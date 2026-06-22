@@ -4,8 +4,20 @@
 
 ## ⏰ Parked reminders — bring up next session
 
-(Updated 2026-06-22 — Send-to-Kindle SHIPPED overnight; LLM Key
-health card remains the only parked item.)
+(Updated 2026-06-22 morning — Send-to-Kindle help docs shipped at
+user request; LLM Key health card + Bulk Send-to-Kindle remain
+parked.)
+
+- **Bulk Send-to-Kindle from Library** — parked 2026-06-22 by user.
+  Multi-select books on /library → "Send selected to Kindle" →
+  backend queues with 30-sec spacing between sends to avoid
+  Amazon's rate-limiting + Shelfsort's existing per-book 30-min
+  guard.  Should reuse ``utils.send_to_kindle.send_book_to_kindle``
+  + add a thin orchestrator that drains a per-user
+  ``kindle_bulk_queue`` collection.  UI: checkbox column on
+  library cards (already exists for bulk delete) +
+  "Send N to Kindle" button in the bulk-action bar.  ~45 min
+  implementation + 3-5 tests.
 
 - **`/admin/llm-key-health` card** — parked 2026-06-22 by user.
   Show the Universal LLM Key's API balance + per-day burn rate +
@@ -15,7 +27,7 @@ health card remains the only parked item.)
   Universal Key billing endpoint (or read the LiteLLM proxy
   cost-tracking response) — exact path TBD via integration
   playbook. Pairs naturally with the email-volume forecast card
-  shipped earlier today.  ~30-45 min implementation + 1 test.
+  shipped earlier.  ~30-45 min implementation + 1 test.
 
 - **Resend daily-quota incident (2026-06-22)** — user hit 200% of
   the 100/day free-tier quota on the `jessicaboxell4` Resend team.

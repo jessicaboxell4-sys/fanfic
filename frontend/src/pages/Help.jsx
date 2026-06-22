@@ -9,7 +9,7 @@ import {
   Filter, Heart, AlertTriangle, Settings, GitCompare, Bell, LineChart,
   Globe, Shield, CheckCircle2, Clock, FileWarning, User as UserIcon, X,
   MessageSquare, Search, ListChecks, AtSign, Target, Compass, Lightbulb,
-  Dna, Repeat, Command,
+  Dna, Repeat, Command, Send,
 } from "lucide-react";
 
 // Help guide — kept current with the app. Last updated: 2026-06-20.
@@ -72,6 +72,7 @@ const SECTIONS = [
   { id: "covers", label: "Community Covers" },
   { id: "recommendations", label: "Friend recommendations" },
   { id: "opds", label: "E-reader sync (OPDS)" },
+  { id: "send-to-kindle", label: "Send to Kindle" },
   { id: "notifications", label: "Notifications & mutes" },
   { id: "push", label: "Web push notifications" },
   { id: "auto-theme", label: "Scheduled auto-theme" },
@@ -923,6 +924,61 @@ export default function Help() {
                 <li><strong>Feeds</strong>: root → All books / Recently added / By fandom / By author. Acquisition links download the EPUB; cover thumbnails included.</li>
                 <li><strong>Privacy</strong>: only your own books are served. The toggle gates access independently of the password — switch it off any time without re-rolling the password.</li>
               </ul>
+            </Section>
+
+            <Section id="send-to-kindle" icon={Send} title="Send to Kindle">
+              <p>One-click delivery from any book page straight to your <strong>Amazon Kindle</strong>. Useful when you&apos;d rather read on your e-ink device than in the browser.</p>
+
+              <p className="font-semibold text-[#2C2C2C] mt-3 mb-1">One-time setup (~2 min):</p>
+              <ol className="list-decimal pl-6 space-y-1.5">
+                <li>
+                  <strong>Find your Kindle email address.</strong> In the Amazon app: <em>More → Settings → Personal Documents</em>. Or on the web: <a href="https://www.amazon.com/myk" target="_blank" rel="noreferrer" className="text-[#6B46C1] underline">amazon.com/myk</a> → <em>Preferences</em> → <em>Personal Document Settings</em>. It looks like <code>yourname@kindle.com</code> (or <code>@free.kindle.com</code> on older accounts).
+                </li>
+                <li>
+                  <strong>Save it in Shelfsort.</strong> <Link to="/account#send-to-kindle">Account → Send to Kindle</Link> → paste your address → <em>Save</em>.
+                </li>
+                <li>
+                  <strong>Whitelist the Shelfsort sender on Amazon.</strong> This is the step everyone misses — Amazon silently drops emails from unknown senders. On the same <em>Personal Document Settings</em> page, scroll to <em>Approved Personal Document E-mail List</em> and click <em>Add a new approved e-mail address</em>. Paste the sender address shown in the orange reminder block on your Account → Send to Kindle card (click the Copy button so you don&apos;t typo it). Save.
+                </li>
+                <li>
+                  <strong>You&apos;re done.</strong> The orange <em>Send to Kindle</em> button on every book page is now live.
+                </li>
+              </ol>
+
+              <p className="font-semibold text-[#2C2C2C] mt-4 mb-1">Sending a book:</p>
+              <ul>
+                <li>Open any book → click the orange <strong>Send to Kindle</strong> button next to <em>Download EPUB</em>.</li>
+                <li>Confirm the destination address in the popup.</li>
+                <li>Amazon converts the EPUB and pushes it to every Kindle on your account within <strong>~5 min</strong>. The book shows up under <em>Library</em> on the device home screen.</li>
+              </ul>
+
+              <p className="font-semibold text-[#2C2C2C] mt-4 mb-1">Limits &amp; guardrails:</p>
+              <ul>
+                <li><strong>25 MB cap per send</strong> — Amazon&apos;s Personal Documents gateway rejects anything larger. Most fanfic EPUBs are well under 5 MB; only image-heavy art-books usually trip this.</li>
+                <li><strong>One send per book every 30 min</strong> — prevents accidental double-clicks from spamming your Kindle inbox with duplicates.</li>
+                <li><strong>EPUB only</strong> — Shelfsort stores everything as EPUB after auto-conversion, so this is also Amazon&apos;s safest format for personal documents.</li>
+                <li><strong>Quarantined books are blocked</strong> — anything flagged by antivirus stays in Shelfsort.</li>
+              </ul>
+
+              <p className="font-semibold text-[#2C2C2C] mt-4 mb-1">Troubleshooting:</p>
+              <ul>
+                <li>
+                  <strong>&quot;Approved sender&quot; error / book never arrives:</strong> 95% of the time, the Shelfsort sender wasn&apos;t added to Amazon&apos;s approved list. Re-check step 3 above — the sender shown on your Account card must match what you pasted into Amazon exactly.
+                </li>
+                <li>
+                  <strong>&quot;Wait 30 min between sends&quot;:</strong> the same book was sent recently. Either wait, or send a different book in the meantime.
+                </li>
+                <li>
+                  <strong>&quot;Email service rejected&quot; (502):</strong> usually means the Shelfsort outbound email quota is temporarily full. Tries again on the next send after the quota window resets (typically &lt;24 h).
+                </li>
+                <li>
+                  <strong>Book arrived on Kindle but title is weird:</strong> Amazon uses the EPUB filename as the on-device title. Shelfsort renders this as <code>Title - Author.epub</code> using the metadata you have on file; fix the metadata in <em>Edit details</em> on the book page and the next send will use the corrected name.
+                </li>
+              </ul>
+
+              <p className="text-xs text-[#6B705C] mt-3">
+                <strong>Privacy:</strong> Send-to-Kindle uses Shelfsort&apos;s normal outbound email provider (Resend) → Amazon&apos;s email gateway. No third party stores the book; the attachment lives in flight for at most a few seconds before Amazon ingests it.
+              </p>
             </Section>
 
             <Section id="notifications" icon={Settings} title="Notifications & mutes">
