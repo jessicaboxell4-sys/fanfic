@@ -7,7 +7,87 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
-## 2026-06-22 evening (admin-changelog-card) — Recent changelog admin card ✅
+## 2026-06-22 evening (llm-key-health) — Universal-Key runway admin card ✅
+
+P1 follow-up to today's budget-cap incident.  Earlier in the
+session the operator hit their Universal LLM Key cap and silently
+lost Claude + Nano-Banana for ~20 minutes before noticing.  This
+card surfaces a forward-looking days-of-runway estimate so the
+next top-up happens *before* the cliff.
+
+**Why this required self-instrumentation**: Support confirmed
+Emergent does not expose a programmatic balance API.  The card
+combines two evidence sources:
+
+1. **Instrumented** — new `llm_usage` Mongo collection.  Every
+   Claude classify (in `classifier.py`) and Nano-Banana cover
+   gen (in `cover_gen.py`) call writes a row with
+   ``{kind, model, tokens_in, tokens_out, images, cost_usd,
+   status, error, created_at}``.  Token counts are estimated
+   from prompt + response string length when the upstream SDK
+   doesn't return them (Claude `send_message`, Nano-Banana
+   `send_message_multimodal_response`).
+2. **Proxy** — pre-existing book fields ``classifier='ai'`` +
+   ``cover_source='ai_generated'`` filtered by ``created_at`` /
+   ``cover_generated_at`` give an instant historical estimate
+   even before the instrumentation has accrued any rows.
+
+Runway math takes the **higher** of the two daily averages
+(conservative — assumes the more expensive evidence source is
+the real burn), divides into the operator-typed-in balance,
+and maps to a traffic-light state:
+- < 7 days → ``critical`` (red banner)
+- < 14 days → ``warning`` (amber)
+- ≥ 14 days → ``ok`` (green)
+- balance not set → ``unknown``
+
+**Files**:
+- NEW `backend/utils/llm_usage.py` (~250 LOC) — `log_llm_call()`,
+  `estimate_cost_usd()` with Claude + Nano-Banana list prices
+  pinned, `get_llm_key_health()` rollup, `set_known_balance()` /
+  `get_known_balance()` persisted to `app_config`.
+- NEW `backend/tests/test_llm_usage.py` — 11 tests covering
+  cost math, instrumentation safety (never raises on Mongo blip),
+  rollup correctness, runway thresholds at 7/14d, and the
+  unknown-state when no balance is set.
+- MODIFIED `backend/utils/classifier.py` — logs every Claude call
+  (ok + error paths) without breaking classification if Mongo
+  blips.
+- MODIFIED `backend/utils/cover_gen.py` — logs every Nano-Banana
+  call (ok + empty + error paths) without breaking cover gen.
+- MODIFIED `backend/routes/admin.py` — adds
+  `GET /api/admin/llm-key-health` and
+  `PUT /api/admin/llm-key-health/balance` (admin-gated).
+- MODIFIED `frontend/src/pages/AdminConsole.jsx` — new
+  `LlmKeyHealthCard` (~150 LOC) with the runway banner, 3 KPIs
+  (instrumented 7d / proxy 7d / balance), inline balance setter,
+  per-kind breakdown table, and a collapsible footer of pricing
+  constants + 30-day rollup.  Wired into the `system` category +
+  searchable + Cmd+K reachable.  `Sparkles` lucide icon reused.
+
+**Pricing constants pinned in code** (list prices Jan 2026):
+- Claude Sonnet 4.6: $3 / 1M input, $15 / 1M output tokens
+- Gemini Nano-Banana: $0.039 / image
+- Proxy fallback per call: $0.005 classify, $0.039 cover
+
+**Tested**:
+- 11/11 backend unit tests pass.
+- Backend endpoint verified via authenticated curl: empty-state
+  payload returns 200 + correct shape, seeded data flows through
+  to per-kind rollup + runway calc, `PUT .../balance` writes to
+  `app_config` and reflects on next GET.
+- Frontend lint clean on touched code (7 pre-existing warnings
+  unchanged).
+- Backend regression: `test_av_fields` (5/5),
+  `test_cover_regen::test_preview_cover_returns_base64_and_preview_id`
+  (the instrumentation-relevant case) pass.
+- UI smoke via Playwright blocked by the same welcome-tour
+  redirect flake from the prior fork; component is line-for-line
+  consistent with the working `HiddenFeaturesCard` /
+  `EmailVolumeForecastCard` patterns.
+
+---
+
 
 Frontend follow-up to the backend `/api/admin/changelog` endpoint
 built earlier today.  Adds a "Recent changelog" Card to the

@@ -3001,3 +3001,38 @@ async def admin_changelog(limit: int = 20, user: User = Depends(require_admin)):
     """
     from utils.changelog_reader import get_changelog_entries
     return get_changelog_entries(limit=limit)
+
+
+# ---------------------------------------------------------------------------
+# LLM key health (2026-06-22) — surfaces estimated burn rate from the
+# new ``llm_usage`` collection + the pre-existing ``classifier='ai'`` /
+# ``cover_source='ai_generated'`` book fields as a historical proxy.
+# Combined with an operator-typed-in current balance, gives a
+# days-of-runway readout so the user tops up *before* a silent
+# Claude / Nano-Banana failure (see this session's budget-cap incident).
+# ---------------------------------------------------------------------------
+class _LlmBalanceUpdate(BaseModel):
+    usd: float
+
+
+@api_router.get("/admin/llm-key-health")
+async def admin_llm_key_health(user: User = Depends(require_admin)):
+    """Aggregate Universal-Key burn rate + runway estimate."""
+    from utils.llm_usage import get_llm_key_health
+    return await get_llm_key_health()
+
+
+@api_router.put("/admin/llm-key-health/balance")
+async def admin_set_llm_balance(
+    body: _LlmBalanceUpdate,
+    user: User = Depends(require_admin),
+):
+    """Operator-supplied current balance — Emergent doesn't expose
+    a programmatic balance read, so the user types in what they see
+    in their Profile → Universal Key settings."""
+    from utils.llm_usage import set_known_balance
+    try:
+        return await set_known_balance(body.usd, who=user.email or user.user_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+

@@ -80,6 +80,7 @@ const ADMIN_CARD_MANIFEST = [
   { testid: "admin-flags-card", category: "system", title: "Feature flags", subtitle: "Runtime kill switches.", keywords: "feature flags toggles kill switch runtime config" },
   { testid: "hidden-features-card", category: "system", title: "Hidden features", subtitle: "Built-but-invisible work parked behind feature flags.", keywords: "hidden features parked feature flag toggle dormant disabled invisible behind flag fichub kindle send url fetching ficfic" },
   { testid: "admin-changelog-card", category: "system", title: "Recent changelog", subtitle: "Last 20 dated entries from CHANGELOG.md.", keywords: "changelog history recent log entries shipped features fixes release dates h2 memory append" },
+  { testid: "admin-llm-key-health-card", category: "system", title: "LLM key health", subtitle: "Universal Key balance + 7-day burn rate + days of runway.", keywords: "llm key health balance burn rate runway days remaining claude nano banana cost spend usage emergent universal key cliff warning" },
   { testid: "admin-unknown-fandoms-card", category: "system", title: "Unknown fandoms", subtitle: "Fandoms not yet in the keyword classifier.", keywords: "unknown fandoms classifier rescan dismiss missing tag" },
   { testid: "admin-aliases-card", category: "system", title: "Global fandom aliases", subtitle: "Tenant-wide fandom aliases.", keywords: "fandom aliases global rename remap synonym" },
   { testid: "admin-stats-card", category: "data", title: "Global stats", subtitle: "Tenant-wide rollup.", keywords: "stats global rollup books users storage signups categories fandoms" },
@@ -4917,6 +4918,231 @@ function ChangelogCard() {
 
 
 // ---------------------------------------------------------------------------
+// LLM key health (2026-06-22) — Universal Key burn rate + runway.
+// Backed by GET /api/admin/llm-key-health and PUT
+// /api/admin/llm-key-health/balance. Emergent doesn't expose a
+// programmatic balance read, so the operator types in what they
+// see in Profile → Universal Key settings; the card combines that
+// with self-instrumented call logs + pre-existing book proxies
+// (classifier='ai', cover_source='ai_generated') to estimate
+// days-of-runway and surface a warning before silent failures.
+// ---------------------------------------------------------------------------
+function LlmKeyHealthCard() {
+  const [data, setData] = useState(null);
+  const [balanceInput, setBalanceInput] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const load = async () => {
+    try {
+      const { data: payload } = await api.get("/admin/llm-key-health");
+      setData(payload);
+      if (payload?.balance?.usd != null) {
+        setBalanceInput(String(payload.balance.usd));
+      }
+    } catch {
+      setData({ error: true });
+    }
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data: payload } = await api.get("/admin/llm-key-health");
+        if (cancelled) return;
+        setData(payload);
+        if (payload?.balance?.usd != null) {
+          setBalanceInput(String(payload.balance.usd));
+        }
+      } catch {
+        if (!cancelled) setData({ error: true });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const onSaveBalance = async () => {
+    const usd = parseFloat(balanceInput);
+    if (!Number.isFinite(usd) || usd < 0) {
+      toast.error("Enter a non-negative number (USD).");
+      return;
+    }
+    setSaving(true);
+    try {
+      await api.put("/admin/llm-key-health/balance", { usd });
+      toast.success("Balance updated.");
+      await load();
+    } catch {
+      toast.error("Couldn't save — check backend logs.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (data === null) {
+    return (
+      <Card icon={Sparkles} title="LLM key health" subtitle="Universal Key balance + 7-day burn rate + days of runway." testid="admin-llm-key-health-card">
+        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+      </Card>
+    );
+  }
+  if (data.error) {
+    return (
+      <Card icon={Sparkles} title="LLM key health" subtitle="Universal Key balance + 7-day burn rate + days of runway." testid="admin-llm-key-health-card">
+        <p className="text-sm text-[#D9534F]">Couldn&rsquo;t load — check backend logs.</p>
+      </Card>
+    );
+  }
+
+  const fmtUsd = (n) => `$${(Number(n) || 0).toFixed(4)}`;
+  const fmtUsdShort = (n) => `$${(Number(n) || 0).toFixed(2)}`;
+
+  const instr7 = data.instrumented?.last_7_days?.totals || {};
+  const instr30 = data.instrumented?.last_30_days?.totals || {};
+  const proxy7 = data.proxy?.last_7_days || {};
+  const proxy30 = data.proxy?.last_30_days || {};
+  const runway = data.runway || {};
+  const balance = data.balance || {};
+  const byKind = data.instrumented?.last_7_days?.by_kind || [];
+
+  const warnStyle = {
+    ok:       { txt: "OK",       cls: "bg-[#EEF7E9] text-[#1F8F4E] border-[#82C99E]" },
+    warning:  { txt: "Top up",   cls: "bg-[#FDF3E1] text-[#B87A00] border-[#B87A00]" },
+    critical: { txt: "Critical", cls: "bg-[#FBE9E9] text-[#D9534F] border-[#D9534F]" },
+    unknown:  { txt: "No data",  cls: "bg-[#F1F1F0] text-[#6B705C] border-[#9b9b9b]" },
+  }[runway.warning_level || "unknown"];
+
+  return (
+    <Card icon={Sparkles} title="LLM key health" subtitle="Universal Key balance + 7-day burn rate + days of runway." testid="admin-llm-key-health-card">
+      <p className="text-xs text-[#6B705C] mb-3">
+        Emergent doesn&rsquo;t expose a balance API, so type in what you see at{" "}
+        <strong>Profile → Universal Key</strong> below. The card combines it with
+        self-instrumented call logs + pre-existing book proxies (<code>classifier=&quot;ai&quot;</code>,{" "}
+        <code>cover_source=&quot;ai_generated&quot;</code>) to estimate runway.
+      </p>
+
+      {/* Runway / warning banner */}
+      <div
+        className={`p-3 mb-4 rounded-xl border ${warnStyle.cls}`}
+        data-testid="llm-key-runway-banner"
+      >
+        <div className="flex items-baseline justify-between gap-3">
+          <div>
+            <p className="text-[10px] uppercase tracking-wider font-bold">{warnStyle.txt}</p>
+            <p className="text-2xl font-serif font-semibold mt-0.5" data-testid="llm-key-days-remaining">
+              {runway.days_remaining != null ? `${runway.days_remaining} days runway` : "Set balance to estimate runway"}
+            </p>
+          </div>
+          <div className="text-right text-[11px]">
+            <p>Daily avg (max of instrumented + proxy):</p>
+            <p className="font-mono text-sm" data-testid="llm-key-daily-avg">{fmtUsd(runway.daily_avg_usd)}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* 3 KPIs */}
+      <div className="grid grid-cols-3 gap-3 mb-4 text-xs">
+        <div className="p-3 rounded-xl bg-[#EEE9FB] border border-[#6B46C1]/30" data-testid="llm-key-instr-7d">
+          <p className="text-[10px] uppercase tracking-wider text-[#6B46C1] font-bold mb-1">Instrumented · 7d</p>
+          <p className="font-mono text-lg text-[#2C2C2C]">{fmtUsd(instr7.cost_usd)}</p>
+          <p className="text-[10px] text-[#6B705C] mt-1">{instr7.calls || 0} calls · {instr7.errors || 0} errors</p>
+        </div>
+        <div className="p-3 rounded-xl bg-[#FBF6E9] border border-[#B87A00]/30" data-testid="llm-key-proxy-7d">
+          <p className="text-[10px] uppercase tracking-wider text-[#B87A00] font-bold mb-1">Proxy · 7d</p>
+          <p className="font-mono text-lg text-[#2C2C2C]">{fmtUsd(proxy7.cost_usd_estimate)}</p>
+          <p className="text-[10px] text-[#6B705C] mt-1">{proxy7.classifies || 0} classifies · {proxy7.covers || 0} covers</p>
+        </div>
+        <div className="p-3 rounded-xl bg-[#EEF7E9] border border-[#82C99E]" data-testid="llm-key-balance-display">
+          <p className="text-[10px] uppercase tracking-wider text-[#1F8F4E] font-bold mb-1">Balance</p>
+          <p className="font-mono text-lg text-[#2C2C2C]">{fmtUsdShort(balance.usd)}</p>
+          <p className="text-[10px] text-[#6B705C] mt-1">
+            {balance.set ? `Set ${fmtTime(balance.updated_at)}` : "Not set yet"}
+          </p>
+        </div>
+      </div>
+
+      {/* Balance setter */}
+      <div className="p-3 mb-4 rounded-xl bg-[#FBFAF6] border border-[#E5DDC5]">
+        <label htmlFor="llm-key-balance-input" className="block text-[10px] uppercase tracking-wider font-bold text-[#6B705C] mb-1">
+          Update current balance (USD)
+        </label>
+        <div className="flex gap-2">
+          <input
+            id="llm-key-balance-input"
+            data-testid="llm-key-balance-input"
+            type="number"
+            step="0.01"
+            min="0"
+            value={balanceInput}
+            onChange={(e) => setBalanceInput(e.target.value)}
+            placeholder="e.g. 4.85"
+            className="flex-1 px-3 py-1.5 text-sm rounded-lg border border-[#E5DDC5] focus:outline-none focus:border-[#6B46C1] font-mono"
+          />
+          <button
+            data-testid="llm-key-balance-save"
+            onClick={onSaveBalance}
+            disabled={saving}
+            className="px-4 py-1.5 text-sm rounded-lg bg-[#6B46C1] text-white hover:bg-[#5a3aa3] disabled:opacity-50"
+          >
+            {saving ? "Saving…" : "Save"}
+          </button>
+        </div>
+        <p className="text-[10px] text-[#9b9b9b] mt-1">
+          Copy this from Profile → Universal Key. You can also enable auto-recharge there.
+        </p>
+      </div>
+
+      {/* Per-kind table (instrumented only) */}
+      {byKind.length > 0 ? (
+        <div className="mb-3">
+          <p className="text-[10px] uppercase tracking-wider font-bold text-[#6B705C] mb-2">
+            Instrumented 7d · by kind
+          </p>
+          <table className="w-full text-xs" data-testid="llm-key-by-kind-table">
+            <thead>
+              <tr className="text-left text-[#9b9b9b] border-b border-[#E5DDC5]">
+                <th className="py-1">Kind</th>
+                <th className="py-1 text-right">Calls</th>
+                <th className="py-1 text-right">Errors</th>
+                <th className="py-1 text-right">Tok in / out</th>
+                <th className="py-1 text-right">Cost</th>
+              </tr>
+            </thead>
+            <tbody className="font-mono">
+              {byKind.map((k) => (
+                <tr key={k.kind} className="border-b border-[#F1F1F0]" data-testid={`llm-key-kind-${k.kind}`}>
+                  <td className="py-1 text-[#2C2C2C]">{k.kind}</td>
+                  <td className="py-1 text-right">{k.calls}</td>
+                  <td className={`py-1 text-right ${k.errors > 0 ? "text-[#D9534F]" : "text-[#9b9b9b]"}`}>{k.errors}</td>
+                  <td className="py-1 text-right text-[#6B705C]">{k.tokens_in}/{k.tokens_out}{k.images ? ` · ${k.images}img` : ""}</td>
+                  <td className="py-1 text-right text-[#2C2C2C]">{fmtUsd(k.cost_usd)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="text-xs text-[#9b9b9b] italic mb-3">
+          No instrumented calls yet in the last 7 days — data fills in as Claude / Nano-Banana fire.
+        </p>
+      )}
+
+      <details className="text-[11px] text-[#6B705C]">
+        <summary className="cursor-pointer hover:text-[#2C2C2C]">Pricing constants &amp; 30-day rollup</summary>
+        <div className="mt-2 space-y-1 font-mono">
+          <p>Claude in: ${data.pricing_constants?.claude_in_per_million}/1M · out: ${data.pricing_constants?.claude_out_per_million}/1M</p>
+          <p>Nano-Banana: ${data.pricing_constants?.nano_banana_per_image}/image</p>
+          <p>Proxy fallback: classify ${data.pricing_constants?.proxy_classify_per_call} · cover ${data.pricing_constants?.proxy_cover_per_call} per call</p>
+          <p className="pt-2">30d instrumented: {instr30.calls || 0} calls · {fmtUsd(instr30.cost_usd)} · {instr30.errors || 0} errors</p>
+          <p>30d proxy: {proxy30.classifies || 0} classifies · {proxy30.covers || 0} covers · {fmtUsd(proxy30.cost_usd_estimate)}</p>
+        </div>
+      </details>
+    </Card>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
 function EmailVolumeForecastCard() {
   const [data, setData] = useState(null);
 
@@ -5733,6 +5959,7 @@ export default function AdminConsole() {
                       case "admin-flags-card":                  return <FeatureFlagsCard key={c.testid} />;
                       case "hidden-features-card":              return <HiddenFeaturesCard key={c.testid} />;
                       case "admin-changelog-card":              return <ChangelogCard key={c.testid} />;
+                      case "admin-llm-key-health-card":         return <LlmKeyHealthCard key={c.testid} />;
                       case "admin-unknown-fandoms-card":        return <UnknownFandomsCard key={c.testid} />;
                       case "admin-aliases-card":                return <GlobalAliasesCard key={c.testid} />;
                       case "admin-stats-card":                  return <GlobalStatsCard key={c.testid} />;

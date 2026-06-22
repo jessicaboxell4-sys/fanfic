@@ -152,12 +152,44 @@ async def generate_cover(
     chat.with_params(modalities=["image", "text"])
 
     msg = UserMessage(text=prompt)
-    _text, images = await chat.send_message_multimodal_response(msg)
+    try:
+        _text, images = await chat.send_message_multimodal_response(msg)
+    except Exception as e:
+        try:
+            from utils.llm_usage import log_llm_call
+            await log_llm_call(
+                "cover", "gemini-3.1-flash-image-preview",
+                prompt_text=prompt,
+                status="error",
+                error=str(e),
+            )
+        except Exception:
+            pass
+        raise
 
     if not images:
+        try:
+            from utils.llm_usage import log_llm_call
+            await log_llm_call(
+                "cover", "gemini-3.1-flash-image-preview",
+                prompt_text=prompt,
+                status="empty",
+            )
+        except Exception:
+            pass
         raise RuntimeError("nano-banana returned no image")
     # Take the first image only — system message instructs the model
     # to return exactly one.
     img = images[0]
     png_bytes = base64.b64decode(img["data"])
+    try:
+        from utils.llm_usage import log_llm_call
+        await log_llm_call(
+            "cover", "gemini-3.1-flash-image-preview",
+            prompt_text=prompt,
+            images=1,
+            status="ok",
+        )
+    except Exception:
+        pass
     return png_bytes, prompt

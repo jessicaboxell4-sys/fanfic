@@ -145,6 +145,18 @@ async def classify_with_ai(meta: Dict[str, Any]) -> Dict[str, Any]:
         ).with_model("anthropic", "claude-sonnet-4-6")
         resp = await chat.send_message(UserMessage(text=user_text))
         text = resp.strip()
+        # Instrument — log call to llm_usage for the admin key-health card.
+        # Imported lazily so a Mongo blip can't break classification.
+        try:
+            from utils.llm_usage import log_llm_call
+            await log_llm_call(
+                "classify", "claude-sonnet-4-6",
+                prompt_text=system_msg + "\n" + user_text,
+                response_text=text,
+                status="ok",
+            )
+        except Exception:
+            pass
         m = re.search(r'\{.*\}', text, re.DOTALL)
         if m:
             obj = json.loads(m.group(0))
@@ -162,6 +174,16 @@ async def classify_with_ai(meta: Dict[str, Any]) -> Dict[str, Any]:
             }
     except Exception as e:
         logger.error(f"AI classify failed: {e}")
+        try:
+            from utils.llm_usage import log_llm_call
+            await log_llm_call(
+                "classify", "claude-sonnet-4-6",
+                prompt_text=system_msg + "\n" + user_text,
+                status="error",
+                error=str(e),
+            )
+        except Exception:
+            pass
     return {"category": "Unclassified", "fandom": None, "confidence": 0.0, "classifier": "ai"}
 
 
