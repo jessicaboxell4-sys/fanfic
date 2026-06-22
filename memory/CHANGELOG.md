@@ -7,6 +7,74 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-22 (admin-alerts-weekly-digest) — Resend quota brake ✅
+
+**Problem**: Hit 200% of the Resend free-tier (100 emails/day) on the
+`jessicaboxell4` team.  Root cause: every cron-job failure on prod
+fans an immediate alert to every admin (5 admins seeded — 4 are test
+fixtures that bounce hard but still count against the quota), and
+prod ClamAV / Calibre missing means several crons fail every hour.
+
+**Fix** — admin alerts now go through a queue and digest pipeline:
+
+1. **New `utils/admin_alerts.py`** — `queue_admin_alert()` writes a
+   row to `admin_pending_alerts` + pushes an in-app notification to
+   every real admin (test-fixture admins are filtered via
+   `is_test_account`).  Dedupe by `dedupe_key` so a flaky cron
+   registers once with a `count` bump instead of N rows.
+2. **`cron_health._maybe_alert_admins`** now routes through the
+   queue when the new `cron_alerts_weekly_batch` feature flag is on
+   (default).  Legacy immediate-email path stays available — flip
+   the flag OFF to restore it.
+3. **New cron `weekly_admin_digest_tick`** — Sundays 09:00 UTC.
+   Drains every pending alert into ONE consolidated email per
+   real admin ("3 cron failures, 12 sign-ups, 2 feedbacks").
+   Idempotent within 20 h.
+4. **Emergency burst bypass** — if >10 pending alerts pile up in a
+   24 h rolling window, an out-of-cycle digest goes out
+   (debounced 12 h) so a prod fire still pages the operator
+   without waiting for Sunday.
+5. **Test-fixture filter on the legacy path** — even when an
+   operator flips back to immediate mode, fixture admins
+   (`@example.*`, `@ft.local`, `user_*` local-parts) are stripped
+   from the recipient list.
+
+**New endpoints**:
+- `GET  /api/admin/email-mode` — current mode + last-digest snapshot
+- `PUT  /api/admin/email-mode` — `{"mode": "immediate"|"weekly_batch"|"off"}`
+- `GET  /api/admin/pending-alerts` — bell-icon list
+- `POST /api/admin/pending-alerts/dismiss` — clear one / many / all
+- `POST /api/admin/pending-alerts/send-digest-now` — debug trigger
+
+**New /admin cards**:
+- `AdminEmailModeCard` (3-radio: Weekly digest / Immediate / Off
+  + "Send digest now" debug button + last-digest timestamp)
+- `AdminPendingAlertsCard` (bell list with per-alert + bulk dismiss)
+
+**Files**:
+- NEW `backend/utils/admin_alerts.py` (~360 lines)
+- NEW `backend/tests/test_admin_alerts.py` (7 tests)
+- MODIFIED `backend/utils/cron_health.py` (queue route + fixture filter)
+- MODIFIED `backend/utils/feature_flags.py` (new `cron_alerts_weekly_batch` flag)
+- MODIFIED `backend/server.py` (scheduler entry)
+- MODIFIED `backend/routes/admin.py` (5 new endpoints)
+- MODIFIED `backend/tests/test_cron_failure_alerts.py` + `test_cron_alert_suppression.py` (flip flag in fixture so legacy-path tests still pass)
+- MODIFIED `frontend/src/pages/AdminConsole.jsx` (2 new cards + Bell icon import + search manifest)
+
+**Verification**:
+- 43/43 tests pass across the touched files
+- Live API endpoints return correct mode + persist flag flips
+- End-to-end `send-digest-now` triggered a real Resend call
+  (returned 429 = quota exceeded as expected — proves the
+  pipeline is wired all the way to the SDK)
+- Cron failure routing verified: a test failure produced an
+  `admin_pending_alerts` row with the expected dedupe key
+
+**Expected quota impact**: ~50-150 admin emails/day → ~1 per week.
+Frees ~95% of the Resend daily cap for actual user-facing emails.
+
+---
+
 ## 2026-06-22 (legacy-test-cleanup) — Legacy test suite back to green ✅
 
 User-approved Task (c) from the fork ask_human plan.  Five long-standing

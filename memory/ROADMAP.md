@@ -4,6 +4,28 @@
 
 ## ⏰ Parked reminders — bring up next session
 
+(Updated 2026-06-22 — Send-to-Kindle parked at user request after the
+legacy-test-cleanup task.)
+
+- **"Send to Kindle" P1 feature** — parked 2026-06-22 by user.
+  Resend-based EPUB delivery to per-user `@kindle.com` from
+  BookDetail. Implementation sketch already lives further down this
+  file under "Send to Kindle button on BookDetail". Bring up at
+  start of next session unless the Resend-quota incident below
+  changes priorities.
+
+- **Resend daily-quota incident (2026-06-22)** — user hit 200% of
+  the 100/day free-tier quota on the `jessicaboxell4` Resend team.
+  Most likely cause: cron-failure alert fan-out while prod ClamAV
+  / Calibre is missing. Suggested next steps when revisited:
+    1. Audit `email_logs` collection grouped by `kind` for the
+       last 24h to identify the worst offender.
+    2. Either pause noisy crons (`cron_failure_alerts` feature
+       flag, `stuck_books_reengagement_tick`) until prod deps
+       come back, or upgrade Resend plan.
+    3. Add a `/admin/email-usage` card so the operator sees
+       per-kind volume + day-over-day trend before it spikes.
+
 (Updated 2026-06-20 — MIME-family badge + Reader DNA share-card
 shipped today.)
 

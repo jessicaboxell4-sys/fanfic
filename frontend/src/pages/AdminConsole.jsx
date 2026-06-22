@@ -9,7 +9,7 @@ import {
   Check, ChevronRight, ChevronDown, Download, AlertOctagon, RotateCcw, Send,
   Mail, MessageSquare, Clock, CircleAlert, Route as RouteIcon, Search,
   Inbox, Database, Siren, HardDrive, TrendingUp, Eye, BookOpen, Sparkles, ShieldAlert, FlaskConical,
-  Paperclip, HelpCircle,
+  Paperclip, HelpCircle, Bell,
 } from "lucide-react";
 import MongoInspectorCard from "../components/MongoInspectorCard";
 import ModerationLogCard from "../components/ModerationLogCard";
@@ -57,6 +57,8 @@ const ADMIN_CARD_MANIFEST = [
   { testid: "cron-health-card", title: "Scheduled jobs", subtitle: "Last-run telemetry for crons.", keywords: "cron jobs scheduled task background failure last-run" },
   { testid: "route-catalogue-card", title: "Route catalogue", subtitle: "Every /api/* endpoint.", keywords: "route catalogue endpoint api list routes urls" },
   { testid: "email-system-card", title: "Email system", subtitle: "Master ON/OFF for all outbound Resend mail.", keywords: "email outbound resend pause stop disable quota system master kill switch" },
+  { testid: "admin-email-mode-card", title: "Admin alert email frequency", subtitle: "Immediate / Weekly digest / Off — Resend quota brake.", keywords: "admin alert email frequency digest weekly batch immediate off cron failure resend quota" },
+  { testid: "admin-pending-alerts-card", title: "Admin bell · pending alerts", subtitle: "In-app queue replacing per-failure emails.", keywords: "bell pending alerts admin in-app notifications cron failure queue digest" },
   { testid: "email-stats-card", title: "Resend deliveries · this week", subtitle: "Send volume, error rate, recent failures.", keywords: "email resend delivery send failure stats bounce mail" },
   { testid: "admin-email-diagnostic-card", title: "Email diagnostic", subtitle: "One-shot diagnostic email.", keywords: "email diagnostic test send resend troubleshoot mail" },
   { testid: "admin-aliases-card", title: "Global fandom aliases", subtitle: "Tenant-wide fandom aliases.", keywords: "fandom aliases global rename remap synonym" },
@@ -4436,6 +4438,241 @@ function Gauge({ label, used, limit, pct, tint, testid }) {
 }
 
 
+
+// ---------------------------------------------------------------------------
+// Admin alert email frequency (2026-06-22) — Resend quota brake.
+// Backed by GET/PUT /api/admin/email-mode which toggles the
+// ``cron_failure_alerts`` and ``cron_alerts_weekly_batch`` flags
+// under the hood.  Three radios so the operator doesn't have to
+// reason about two-flag combinations.
+// ---------------------------------------------------------------------------
+function AdminEmailModeCard() {
+  const [mode, setMode] = useState(null); // null = loading
+  const [lastDigest, setLastDigest] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = async () => {
+    try {
+      const { data } = await api.get("/admin/email-mode");
+      setMode(data?.mode || "weekly_batch");
+      setLastDigest(data?.last_digest || null);
+    } catch {
+      setMode("weekly_batch");
+    }
+  };
+  useEffect(() => { load(); }, []);
+
+  const setModeRemote = async (next) => {
+    if (next === mode) return;
+    setBusy(true);
+    const prev = mode;
+    setMode(next); // optimistic
+    try {
+      await api.put("/admin/email-mode", { mode: next });
+      const label = { immediate: "Immediate emails", weekly_batch: "Weekly digest", off: "In-app only" }[next];
+      toast.success(`Admin alerts → ${label}`);
+    } catch {
+      setMode(prev);
+      toast.error("Couldn't update mode");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const sendNow = async () => {
+    setBusy(true);
+    try {
+      const { data } = await api.post("/admin/pending-alerts/send-digest-now");
+      if (data?.sent) {
+        toast.success(`Digest sent · ${data?.recipients ?? 0} recipient(s), ${data?.alerts ?? 0} alert(s)`);
+        load();
+      } else {
+        toast(`Digest skipped: ${data?.reason || "no_change"}`);
+      }
+    } catch {
+      toast.error("Couldn't send digest");
+    } finally { setBusy(false); }
+  };
+
+  const options = [
+    {
+      key: "weekly_batch",
+      title: "Weekly digest (default)",
+      sub: "One email per real admin, every Sunday 09:00 UTC. Burst-bypass if >10 alerts in 24 h.",
+    },
+    {
+      key: "immediate",
+      title: "Immediate emails",
+      sub: "Every cron failure fans out an email (debounced 60 min/job). Old behaviour — quota-heavy.",
+    },
+    {
+      key: "off",
+      title: "In-app only",
+      sub: "Never email admins about cron failures. Bell card below still shows them.",
+    },
+  ];
+
+  return (
+    <Card icon={Bell} title="Admin alert email frequency" subtitle="How often the platform pages you about cron failures and admin signals." testid="admin-email-mode-card">
+      {mode === null ? (
+        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+      ) : (
+        <div className="space-y-3" data-testid="admin-email-mode-options">
+          {options.map((o) => {
+            const active = mode === o.key;
+            return (
+              <button
+                key={o.key}
+                type="button"
+                onClick={() => setModeRemote(o.key)}
+                disabled={busy}
+                data-testid={`admin-email-mode-${o.key}`}
+                className={`w-full text-left px-3 py-3 rounded-xl border-2 transition-colors ${
+                  active
+                    ? "border-[#6B46C1] bg-[#EEE9FB]"
+                    : "border-[#E5DDC5] bg-[#FBFAF6] hover:border-[#C9BFAE]"
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`mt-1 w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${active ? "border-[#6B46C1] bg-[#6B46C1]" : "border-[#9b9b9b]"}`}>
+                    {active && <Check className="w-3 h-3 text-white" />}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-[#2C2C2C]">{o.title}</p>
+                    <p className="text-xs text-[#6B705C] mt-0.5">{o.sub}</p>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+          <div className="flex items-center justify-between pt-2 mt-2 border-t border-[#E5DDC5] gap-2 flex-wrap">
+            <div className="text-xs text-[#6B705C]">
+              {lastDigest ? (
+                <>Last digest: <span className="font-mono">{new Date(lastDigest.sent_at).toLocaleString()}</span> · {lastDigest.ok}/{(lastDigest.ok ?? 0) + (lastDigest.errors ?? 0)} delivered</>
+              ) : (
+                <>No digest sent yet.</>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={sendNow}
+              disabled={busy}
+              data-testid="admin-email-mode-send-now"
+              className="text-xs px-3 py-1.5 rounded-full bg-[#6B46C1] text-white hover:bg-[#5a3aa3] disabled:opacity-50 inline-flex items-center gap-1.5"
+            >
+              {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+              Send digest now
+            </button>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// Pending admin alerts (bell list) — companion to AdminEmailModeCard.
+// Shows what's queued for the next digest so the operator can act on
+// individual items without waiting for Sunday.
+// ---------------------------------------------------------------------------
+function AdminPendingAlertsCard() {
+  const [rows, setRows] = useState(null);
+  const [busy, setBusy] = useState(null);
+
+  const load = async () => {
+    try {
+      const { data } = await api.get("/admin/pending-alerts");
+      setRows(Array.isArray(data?.alerts) ? data.alerts : []);
+    } catch {
+      setRows([]);
+    }
+  };
+  useEffect(() => { load(); }, []);
+
+  const dismissOne = async (id) => {
+    setBusy(id);
+    try {
+      await api.post("/admin/pending-alerts/dismiss", { alert_id: id });
+      setRows((r) => (r || []).filter((x) => x.alert_id !== id));
+    } catch {
+      toast.error("Couldn't dismiss");
+    } finally { setBusy(null); }
+  };
+
+  const dismissAll = async () => {
+    if (!window.confirm(`Dismiss all ${(rows || []).length} pending alert(s)? They'll still appear in the next digest history.`)) return;
+    setBusy("ALL");
+    try {
+      const { data } = await api.post("/admin/pending-alerts/dismiss", {});
+      toast.success(`Dismissed ${data?.dismissed ?? 0}`);
+      setRows([]);
+    } catch {
+      toast.error("Couldn't dismiss");
+    } finally { setBusy(null); }
+  };
+
+  return (
+    <Card icon={Bell} title="Admin bell · pending alerts" subtitle="In-app queue replacing per-failure emails. Drained by the weekly digest cron." testid="admin-pending-alerts-card">
+      {rows === null ? (
+        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+      ) : rows.length === 0 ? (
+        <p className="text-sm text-[#1F8F4E] italic" data-testid="admin-pending-alerts-empty">
+          <Check className="inline w-4 h-4 mr-1" />
+          No pending alerts — quiet right now.
+        </p>
+      ) : (
+        <div className="space-y-2" data-testid="admin-pending-alerts-list">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm font-semibold text-[#2C2C2C]">
+              {rows.length} pending · queued for next digest
+            </p>
+            <button
+              type="button"
+              onClick={dismissAll}
+              disabled={busy !== null}
+              data-testid="admin-pending-alerts-dismiss-all"
+              className="text-xs px-3 py-1 rounded-full border border-[#E5DDC5] hover:bg-[#FBE9E7] text-[#9B3531] disabled:opacity-50"
+            >
+              Dismiss all
+            </button>
+          </div>
+          <ul className="space-y-1.5">
+            {rows.map((r) => (
+              <li
+                key={r.alert_id}
+                data-testid={`admin-pending-alert-${r.alert_id}`}
+                className={`flex items-start gap-2 px-3 py-2 rounded-lg border ${
+                  r.severity === "critical" ? "border-[#D9534F] bg-[#FBE9E7]" : "border-[#E5DDC5] bg-[#FBFAF6]"
+                }`}
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-[#2C2C2C] truncate">{r.title}</p>
+                  <p className="text-xs text-[#6B705C] mt-0.5 line-clamp-2">{r.body}</p>
+                  <p className="text-[11px] text-[#9b9b9b] mt-1 font-mono">
+                    {r.kind} · {r.count > 1 ? `×${r.count} · ` : ""}{new Date(r.last_seen_at).toLocaleString()}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => dismissOne(r.alert_id)}
+                  disabled={busy === r.alert_id}
+                  data-testid={`admin-pending-alert-dismiss-${r.alert_id}`}
+                  className="flex-shrink-0 p-1 rounded hover:bg-[#E5DDC5] disabled:opacity-50"
+                  title="Dismiss"
+                >
+                  {busy === r.alert_id ? <Loader2 className="w-4 h-4 animate-spin" /> : <XIcon className="w-4 h-4 text-[#6B705C]" />}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+
 // ---------------------------------------------------------------------------
 // Email system master switch — added 2026-06-20 as the prominent
 // counterpart to the buried Feature flags ``outbound_emails_enabled``
@@ -4898,6 +5135,8 @@ export default function AdminConsole() {
               <CronHealthCard />
               <RouteCatalogueCard />
               <EmailSystemCard />
+              <AdminEmailModeCard />
+              <AdminPendingAlertsCard />
               <EmailStatsCard />
               <EmailDiagnosticCard />
               <GlobalAliasesCard />

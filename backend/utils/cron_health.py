@@ -80,6 +80,13 @@ async def _maybe_alert_admins(job_id: str, error: str | None) -> None:
     ``/admin/alert-health`` doesn't perpetually flag the same run as
     "uncovered."  Without this, the admin banner kept showing the
     same drop-out forever even after the operator acknowledged it.
+
+    **2026-06-22 — Resend quota brake**:  when the
+    ``cron_alerts_weekly_batch`` feature flag is on (default), the
+    alert is enqueued via ``utils.admin_alerts.queue_admin_alert``
+    instead of mailing immediately.  The weekly digest cron then
+    rolls every queued alert into a single Sunday email.  See
+    ``utils/admin_alerts.py`` for the full rationale.
     """
     async def _mark_suppressed(reason: str) -> None:
         try:
@@ -102,8 +109,38 @@ async def _maybe_alert_admins(job_id: str, error: str | None) -> None:
         if not flags.get("cron_failure_alerts", True):
             await _mark_suppressed("feature_flag_off")
             return
+        weekly_batch = flags.get("cron_alerts_weekly_batch", True)
     except Exception as exc:
         logger.warning("cron alert: couldn't read feature flag, defaulting on: %s", exc)
+        weekly_batch = True
+
+    # ------------------------------------------------------------------
+    # Weekly-batch path (default).  Enqueue + in-app push + return.
+    # Resend isn't touched for non-emergency runs — the Sunday digest
+    # cron flushes everything in one email per admin.
+    # ------------------------------------------------------------------
+    if weekly_batch:
+        try:
+            from utils.admin_alerts import queue_admin_alert  # noqa: WPS433
+            await queue_admin_alert(
+                "cron_failure",
+                f"Cron job failed: {job_id}",
+                (error or "(no error detail captured)")[:2000],
+                severity="warning",
+                meta={"job_id": job_id, "error": error},
+                dedupe_key=f"cron_failure:{job_id}",
+            )
+        except Exception as exc:
+            logger.warning("cron alert: queue_admin_alert failed for %s: %s", job_id, exc)
+        # Always mark the cron_alerts row so /admin/alert-health
+        # doesn't keep nagging about an uncovered failure.
+        await _mark_suppressed("queued_for_weekly_digest")
+        return
+
+    # ------------------------------------------------------------------
+    # Legacy immediate-email path.  Active only when an operator
+    # explicitly flips ``cron_alerts_weekly_batch`` OFF.
+    # ------------------------------------------------------------------
 
     now = datetime.now(timezone.utc)
     cutoff = now - timedelta(minutes=ALERT_DEBOUNCE_MINUTES)
@@ -126,6 +163,15 @@ async def _maybe_alert_admins(job_id: str, error: str | None) -> None:
         await _mark_suppressed("admin_lookup_failed")
         return
     recipients = [a["email"] for a in admins if a.get("email")]
+    # Filter out test-fixture admins — they bounce hard and waste
+    # Resend quota.  See utils.test_account_filter.is_test_account
+    # for the full pattern (matches @example.*, @ft.local, malformed
+    # addresses, agent-created seed rows, etc.).
+    try:
+        from utils.test_account_filter import is_test_account  # noqa: WPS433
+        recipients = [e for e in recipients if not is_test_account(e)]
+    except Exception as exc:
+        logger.warning("cron alert: test_account_filter import failed: %s", exc)
     if not recipients:
         await _mark_suppressed("no_admin_recipients")
         return

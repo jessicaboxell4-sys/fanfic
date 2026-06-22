@@ -72,10 +72,34 @@ def _seed_and_cleanup():
     os.environ.setdefault("SENDER_EMAIL", "test@shelfsort.test")
     sync_db.cron_alerts.delete_many({"job_id": {"$regex": "^pytest_cron_"}})
     sync_db.cron_runs.delete_many({"job_id": {"$regex": "^pytest_cron_"}})
+    # These tests cover the legacy immediate-email path; the default
+    # changed to ``weekly_batch`` on 2026-06-22.  Force the immediate
+    # branch by flipping the flag off + bust the in-process cache.
+    sync_db.feature_flags.update_one(
+        {"_id": "singleton"},
+        {"$set": {"cron_alerts_weekly_batch": False}},
+        upsert=True,
+    )
+    try:
+        from utils.feature_flags import _invalidate_cache as _bust  # noqa: WPS433
+        _bust()
+    except Exception:
+        pass
     yield
     sync_db.users.delete_many({"user_id": {"$in": [ADMIN_A_ID, ADMIN_B_ID, NON_ADMIN_ID]}})
     sync_db.cron_alerts.delete_many({"job_id": {"$regex": "^pytest_cron_"}})
     sync_db.cron_runs.delete_many({"job_id": {"$regex": "^pytest_cron_"}})
+    # Restore default weekly_batch.
+    sync_db.feature_flags.update_one(
+        {"_id": "singleton"},
+        {"$set": {"cron_alerts_weekly_batch": True}},
+        upsert=True,
+    )
+    try:
+        from utils.feature_flags import _invalidate_cache as _bust  # noqa: WPS433
+        _bust()
+    except Exception:
+        pass
 
 
 def _run(loop, coro):

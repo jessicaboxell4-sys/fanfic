@@ -44,8 +44,15 @@ def loop(shared_event_loop):
 
 
 def test_suppression_records_row_when_no_admin_emails(loop, db):
-    """Forcing zero admin recipients triggers the no_admin_recipients branch."""
+    """Forcing zero admin recipients triggers the no_admin_recipients branch.
+
+    The new weekly-batch path doesn't bother looking up recipients,
+    so this test pins the legacy immediate-email behaviour.  We
+    flip the feature flag off + bust the cache for the duration
+    of the test.
+    """
     from utils.cron_health import _maybe_alert_admins
+    from utils.feature_flags import _invalidate_cache
 
     JID = "test_supp_no_admin"
     # Demote every admin so the recipient list comes back empty.  Going
@@ -54,6 +61,10 @@ def test_suppression_records_row_when_no_admin_emails(loop, db):
     admin_ids = [a["user_id"] for a in db.users.find({"is_admin": True}, {"_id": 0, "user_id": 1})]
     db.users.update_many({"user_id": {"$in": admin_ids}}, {"$set": {"is_admin": False}})
     db.cron_alerts.delete_many({"job_id": JID})
+    db.feature_flags.update_one(
+        {"_id": "singleton"}, {"$set": {"cron_alerts_weekly_batch": False}}, upsert=True,
+    )
+    _invalidate_cache()
     try:
         loop.run_until_complete(_maybe_alert_admins(JID, "boom"))
         row = db.cron_alerts.find_one({"job_id": JID})
@@ -63,16 +74,28 @@ def test_suppression_records_row_when_no_admin_emails(loop, db):
     finally:
         db.users.update_many({"user_id": {"$in": admin_ids}}, {"$set": {"is_admin": True}})
         db.cron_alerts.delete_many({"job_id": JID})
+        db.feature_flags.update_one(
+            {"_id": "singleton"}, {"$set": {"cron_alerts_weekly_batch": True}}, upsert=True,
+        )
+        _invalidate_cache()
 
 
 def test_suppression_records_row_when_resend_missing(loop, db, monkeypatch):
-    """Blanking Resend env vars forces the resend_not_configured branch."""
+    """Blanking Resend env vars forces the resend_not_configured branch.
+
+    Legacy immediate-email path — flag-flip same as the test above.
+    """
     from utils.cron_health import _maybe_alert_admins
+    from utils.feature_flags import _invalidate_cache
 
     JID = "test_supp_no_resend"
     monkeypatch.setenv("RESEND_API_KEY", "")
     monkeypatch.setenv("SENDER_EMAIL", "")
     db.cron_alerts.delete_many({"job_id": JID})
+    db.feature_flags.update_one(
+        {"_id": "singleton"}, {"$set": {"cron_alerts_weekly_batch": False}}, upsert=True,
+    )
+    _invalidate_cache()
     try:
         loop.run_until_complete(_maybe_alert_admins(JID, "boom"))
         row = db.cron_alerts.find_one({"job_id": JID})
@@ -81,6 +104,10 @@ def test_suppression_records_row_when_resend_missing(loop, db, monkeypatch):
         assert row.get("reason") == "resend_not_configured"
     finally:
         db.cron_alerts.delete_many({"job_id": JID})
+        db.feature_flags.update_one(
+            {"_id": "singleton"}, {"$set": {"cron_alerts_weekly_batch": True}}, upsert=True,
+        )
+        _invalidate_cache()
 
 
 def test_alert_health_filters_test_pytest_fixtures(loop, db):

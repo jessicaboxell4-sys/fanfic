@@ -352,6 +352,27 @@ async def on_startup():
                 logger.info("ClamAV watchdog job scheduled (every 1 min).")
             except Exception as e:
                 logger.warning("ClamAV watchdog failed to schedule: %s", e)
+
+            # Weekly admin digest — Sundays 09:00 UTC.  Drains the
+            # admin_pending_alerts queue (populated by cron-failure
+            # alerts + other admin signals) into one consolidated
+            # email per real admin.  Resend quota brake — replaces
+            # the per-failure fan-out that was burning 100+
+            # emails/day.  See utils/admin_alerts.py.
+            try:
+                from utils.admin_alerts import weekly_admin_digest_tick
+                digest._scheduler.add_job(
+                    wrap_cron_job(weekly_admin_digest_tick, "weekly_admin_digest"),
+                    "cron",
+                    day_of_week="sun",
+                    hour=9,
+                    minute=0,
+                    id="weekly_admin_digest",
+                    replace_existing=True,
+                )
+                logger.info("Weekly admin digest scheduled (Sundays 09:00 UTC).")
+            except Exception as e:
+                logger.warning("Weekly admin digest failed to schedule: %s", e)
     except Exception as e:
         logger.warning("Fixture auto-purge job failed to schedule: %s", e)
 

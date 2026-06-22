@@ -2839,3 +2839,121 @@ async def list_watched_bookclubs(user: User = Depends(require_admin)):
     # then by creation date.
     out.sort(key=lambda x: (x.get("last_message_at") or x.get("created_at") or ""), reverse=True)
     return {"rooms": out, "total": len(out)}
+
+
+
+# ---------------------------------------------------------------------
+# Admin pending-alerts queue + weekly digest controls (2026-06-22).
+# Backs the AdminBellIcon dropdown + the "Admin email frequency" card
+# on /admin.  See utils/admin_alerts.py for the full design rationale.
+# ---------------------------------------------------------------------
+
+@api_router.get("/admin/pending-alerts")
+async def admin_pending_alerts_list(
+    limit: int = 50,
+    user: User = Depends(require_admin),
+):
+    """Bell-icon list — every pending admin alert, newest first.
+
+    Includes ``count`` (deduped occurrences) so a flaky cron that
+    keeps failing doesn't bury the rest of the list.  Hard-capped
+    at 200 to keep the response small.
+    """
+    from utils.admin_alerts import list_pending_alerts
+    rows = await list_pending_alerts(limit=min(max(limit, 1), 200))
+    # ISO-ify datetimes so the frontend gets serialisable strings.
+    for r in rows:
+        for k in ("created_at", "last_seen_at", "delivered_at"):
+            v = r.get(k)
+            if hasattr(v, "isoformat"):
+                r[k] = v.isoformat()
+    return {"alerts": rows, "count": len(rows)}
+
+
+@api_router.post("/admin/pending-alerts/dismiss")
+async def admin_pending_alerts_dismiss(
+    body: dict | None = None,
+    user: User = Depends(require_admin),
+):
+    """Dismiss one alert (``{"alert_id": "abc"}``), several
+    (``{"alert_ids": ["abc","def"]}``), or all pending if the body
+    is empty / missing.  Returns the number of rows updated."""
+    from utils.admin_alerts import dismiss_alerts
+    body = body or {}
+    ids: list[str] = []
+    if isinstance(body.get("alert_id"), str):
+        ids = [body["alert_id"]]
+    elif isinstance(body.get("alert_ids"), list):
+        ids = [str(x) for x in body["alert_ids"] if isinstance(x, str)]
+    n = await dismiss_alerts(ids or None)
+    return {"dismissed": int(n)}
+
+
+@api_router.post("/admin/pending-alerts/send-digest-now")
+async def admin_pending_alerts_send_digest_now(
+    user: User = Depends(require_admin),
+):
+    """Manually trigger the weekly digest cron — useful for sanity-
+    checking the formatter without waiting for Sunday.  Idempotent
+    within ~20 hours via the same debounce as the scheduled run."""
+    from utils.admin_alerts import weekly_admin_digest_tick
+    result = await weekly_admin_digest_tick()
+    return result
+
+
+@api_router.get("/admin/email-mode")
+async def admin_email_mode_get(user: User = Depends(require_admin)):
+    """Return the current admin-alert email mode + per-flag detail
+    for the /admin "Email frequency" card."""
+    from utils.feature_flags import get_flags
+    flags = await get_flags()
+    weekly = bool(flags.get("cron_alerts_weekly_batch", True))
+    immediate_on = bool(flags.get("cron_failure_alerts", True))
+    if not immediate_on:
+        mode = "off"
+    elif weekly:
+        mode = "weekly_batch"
+    else:
+        mode = "immediate"
+    # Last digest run snapshot, for the "Next digest ETA" line.
+    last = await db.admin_digest_runs.find_one(
+        {"kind": "weekly"}, sort=[("sent_at", -1)],
+    )
+    if last and hasattr(last.get("sent_at"), "isoformat"):
+        last["sent_at"] = last["sent_at"].isoformat()
+        last.pop("_id", None)
+    return {
+        "mode": mode,
+        "cron_failure_alerts": immediate_on,
+        "cron_alerts_weekly_batch": weekly,
+        "last_digest": last,
+    }
+
+
+@api_router.put("/admin/email-mode")
+async def admin_email_mode_set(
+    body: dict,
+    user: User = Depends(require_admin),
+):
+    """Persist the admin-alert email mode.
+
+    Accepted values for ``mode``:
+      * ``immediate`` — old per-failure emails
+      * ``weekly_batch`` — default; one Sunday digest
+      * ``off`` — no admin alert emails ever (in-app only)
+    """
+    from utils.feature_flags import set_flag
+    mode = (body or {}).get("mode")
+    if mode not in {"immediate", "weekly_batch", "off"}:
+        from fastapi import HTTPException as _HTTPException
+        raise _HTTPException(status_code=400, detail="mode must be one of immediate / weekly_batch / off")
+    if mode == "off":
+        await set_flag("cron_failure_alerts", False)
+        await set_flag("cron_alerts_weekly_batch", True)  # irrelevant when failures alert is off
+    elif mode == "immediate":
+        await set_flag("cron_failure_alerts", True)
+        await set_flag("cron_alerts_weekly_batch", False)
+    else:  # weekly_batch
+        await set_flag("cron_failure_alerts", True)
+        await set_flag("cron_alerts_weekly_batch", True)
+    return {"mode": mode}
