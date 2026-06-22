@@ -2970,3 +2970,20 @@ async def admin_email_volume_forecast(user: User = Depends(require_admin)):
     """
     from utils.email_volume_forecast import email_volume_forecast
     return await email_volume_forecast()
+
+
+@api_router.get("/admin/hidden-features")
+async def admin_hidden_features(user: User = Depends(require_admin)):
+    """Inventory of every feature that's *built but invisible*
+    behind a feature flag.  Two-source truth: the client-side
+    ``frontend/src/lib/featureFlags.js`` constants (parsed at
+    runtime) and the backend ``feature_flags`` collection.
+
+    A feature is reported as ``hidden`` when both gates are off,
+    ``partial`` when only one side is, and ``visible`` when both
+    are on.  Used by the /admin → Hidden features card so the
+    operator doesn't lose track of work that's been parked behind
+    a flag.
+    """
+    from utils.hidden_features import hidden_features
+    return await hidden_features()

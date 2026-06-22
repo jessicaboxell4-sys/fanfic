@@ -7,6 +7,55 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-22 midday (hidden-features-card + Send-to-Kindle full hide) ✅
+
+User asked for (a) a central inventory of features parked behind
+flags + (b) confirmation that Send-to-Kindle is fully hidden from
+view.  Audit + new admin card delivered.
+
+**Audit findings**:
+- Every UI mention of Send-to-Kindle is behind
+  ``SEND_TO_KINDLE_UI_ENABLED`` — the orange button on BookDetail,
+  the SendToKindleCard on /account, the help section + TOC entry on
+  /help, and the prefetch GET on mount.
+- Remaining "Kindle" strings on the site are about Kindle as a
+  *device* (bug-report device picker, DevicePicker model list) or
+  Kindle as a *file format* (.azw/.mobi accepted by UploadZone), or
+  Kindle as an external reader app users might *use* (Help
+  troubleshooting line).  None promote our feature.
+
+**Backend default-flag bug caught + fixed**:
+- ``DEFAULT_FLAGS`` was ``{k: True for k in KNOWN_FLAGS}`` →
+  ``send_to_kindle_enabled`` defaulted ON if the flag row didn't
+  exist in Mongo.  Pinned an explicit override
+  ``DEFAULT_FLAGS["send_to_kindle_enabled"] = False`` so a fresh
+  install / cache miss can't accidentally expose the endpoint.
+- DB row updated to ``send_to_kindle_enabled = false`` to clean up
+  test-suite residue from earlier today.
+
+**Files**:
+- NEW `backend/utils/hidden_features.py` (~140 LOC) — registry +
+  client-constant parser + server-flag merger.
+- NEW `backend/tests/test_hidden_features.py` — 3 tests pinning the
+  payload shape, effective-state logic, and the
+  send_to_kindle_enabled OFF default.
+- MODIFIED `backend/utils/feature_flags.py` — explicit OFF default.
+- MODIFIED `backend/routes/admin.py` — `GET /api/admin/hidden-features`.
+- MODIFIED `frontend/src/pages/AdminConsole.jsx` — new
+  ``HiddenFeaturesCard`` (rendered between EmailVolumeForecastCard
+  and AdminEmailModeCard) + EyeOff icon import + search-manifest entry.
+
+**Live state after this change** (verified via curl):
+- Send-to-Kindle: ``effective = hidden`` (client OFF + server OFF) ✅
+- FicHub URL→EPUB: ``effective = partial`` (client OFF, server ON —
+  fichub_enabled has been ON forever because the server flag was
+  never explicitly turned off).  The frontend constant is the
+  practical defence so no user-visible promotion exists; flipping
+  the server flag OFF is a one-line operator action via /admin →
+  Feature flags if they want full hide.
+
+---
+
 ## 2026-06-22 midday (send-to-kindle-hide) — Mirror the FicHub hide-out ✅
 
 User flagged that Send-to-Kindle burns 1 Resend daily-quota slot per

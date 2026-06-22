@@ -9,7 +9,7 @@ import {
   Check, ChevronRight, ChevronDown, Download, AlertOctagon, RotateCcw, Send,
   Mail, MessageSquare, Clock, CircleAlert, Route as RouteIcon, Search,
   Inbox, Database, Siren, HardDrive, TrendingUp, Eye, BookOpen, Sparkles, ShieldAlert, FlaskConical,
-  Paperclip, HelpCircle, Bell,
+  Paperclip, HelpCircle, Bell, EyeOff,
 } from "lucide-react";
 import MongoInspectorCard from "../components/MongoInspectorCard";
 import ModerationLogCard from "../components/ModerationLogCard";
@@ -58,6 +58,7 @@ const ADMIN_CARD_MANIFEST = [
   { testid: "route-catalogue-card", title: "Route catalogue", subtitle: "Every /api/* endpoint.", keywords: "route catalogue endpoint api list routes urls" },
   { testid: "email-system-card", title: "Email system", subtitle: "Master ON/OFF for all outbound Resend mail.", keywords: "email outbound resend pause stop disable quota system master kill switch" },
   { testid: "email-volume-forecast-card", title: "Email volume forecast", subtitle: "7/30-day past sends + projected weekly volume vs Resend cap.", keywords: "email volume forecast quota cap resend project past 7 30 days cliff projection prediction warning" },
+  { testid: "hidden-features-card", title: "Hidden features", subtitle: "Built-but-invisible work parked behind feature flags.", keywords: "hidden features parked feature flag toggle dormant disabled invisible behind flag fichub kindle send url fetching ficfic" },
   { testid: "admin-email-mode-card", title: "Admin alert email frequency", subtitle: "Immediate / Weekly digest / Off — Resend quota brake.", keywords: "admin alert email frequency digest weekly batch immediate off cron failure resend quota" },
   { testid: "admin-pending-alerts-card", title: "Admin bell · pending alerts", subtitle: "In-app queue replacing per-failure emails.", keywords: "bell pending alerts admin in-app notifications cron failure queue digest" },
   { testid: "email-stats-card", title: "Resend deliveries · this week", subtitle: "Send volume, error rate, recent failures.", keywords: "email resend delivery send failure stats bounce mail" },
@@ -4681,6 +4682,128 @@ function AdminPendingAlertsCard() {
 // Backed by GET /api/admin/email-volume-forecast.  Shows past 7/30-day
 // volume + a forward projection so the operator sees a quota cliff
 // before they hit it.
+
+// ---------------------------------------------------------------------------
+// Hidden features inventory (2026-06-22) — what's *built but invisible*.
+// Backed by GET /api/admin/hidden-features.  Reads both the client-side
+// ``featureFlags.js`` constants (parsed live) and the backend feature_flags
+// collection so the operator sees the effective state at a glance and
+// doesn't accidentally rebuild work that already exists behind a flag.
+// ---------------------------------------------------------------------------
+function HiddenFeaturesCard() {
+  const [data, setData] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data: payload } = await api.get("/admin/hidden-features");
+        if (!cancelled) setData(payload);
+      } catch {
+        if (!cancelled) setData({ error: true });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  if (data === null) {
+    return (
+      <Card icon={EyeOff} title="Hidden features" subtitle="Built-but-invisible work parked behind feature flags." testid="hidden-features-card">
+        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+      </Card>
+    );
+  }
+  if (data.error) {
+    return (
+      <Card icon={EyeOff} title="Hidden features" subtitle="Built-but-invisible work parked behind feature flags." testid="hidden-features-card">
+        <p className="text-sm text-[#D9534F]">Couldn&rsquo;t load — check backend logs.</p>
+      </Card>
+    );
+  }
+
+  const stateLabel = {
+    hidden:  { txt: "Hidden",   cls: "bg-[#EEF7E9] text-[#1F8F4E] border-[#82C99E]" },
+    partial: { txt: "Partial",  cls: "bg-[#FDF3E1] text-[#B87A00] border-[#B87A00]" },
+    visible: { txt: "Visible",  cls: "bg-[#EEE9FB] text-[#6B46C1] border-[#6B46C1]" },
+  };
+
+  return (
+    <Card icon={EyeOff} title="Hidden features" subtitle="Built-but-invisible work parked behind feature flags." testid="hidden-features-card">
+      <p className="text-xs text-[#6B705C] mb-3">
+        Code stays in place when a feature is hidden — flip both the client-side constant in <code>{data.client_file?.replace("/app/frontend/src", "src")}</code> <em>and</em> the backend flag to bring it back.
+      </p>
+      <div className="flex gap-3 mb-4 text-xs">
+        <span className="px-2 py-1 rounded-full bg-[#EEF7E9] text-[#1F8F4E] border border-[#82C99E]" data-testid="hidden-features-summary">
+          {data.hidden_count} hidden
+        </span>
+        {data.partial_count > 0 && (
+          <span className="px-2 py-1 rounded-full bg-[#FDF3E1] text-[#B87A00] border border-[#B87A00]">
+            {data.partial_count} partial
+          </span>
+        )}
+        {data.visible_count > 0 && (
+          <span className="px-2 py-1 rounded-full bg-[#EEE9FB] text-[#6B46C1] border border-[#6B46C1]">
+            {data.visible_count} visible
+          </span>
+        )}
+      </div>
+      <ul className="space-y-3" data-testid="hidden-features-list">
+        {(data.features || []).map((f) => {
+          const s = stateLabel[f.effective] || stateLabel.hidden;
+          return (
+            <li
+              key={f.id}
+              data-testid={`hidden-feature-${f.id}`}
+              className="p-3 rounded-xl border border-[#E5DDC5] bg-[#FBFAF6]"
+            >
+              <div className="flex items-start gap-2 mb-1">
+                <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border ${s.cls}`}>
+                  {s.txt}
+                </span>
+                <h4 className="text-sm font-semibold text-[#2C2C2C] flex-1">{f.name}</h4>
+              </div>
+              <p className="text-xs text-[#6B705C] mb-2">{f.reason}</p>
+
+              <div className="text-[11px] font-mono text-[#6B705C] mb-2">
+                <span className="mr-3">
+                  Client: <strong className={f.client_on ? "text-[#1F8F4E]" : "text-[#9b9b9b]"}>{f.client_flag}={String(f.client_on)}</strong>
+                </span>
+                {f.server_flag && (
+                  <span>
+                    Server: <strong className={f.server_on ? "text-[#1F8F4E]" : "text-[#9b9b9b]"}>{f.server_flag}={String(f.server_on)}</strong>
+                  </span>
+                )}
+              </div>
+
+              <details className="text-xs text-[#6B705C]">
+                <summary className="cursor-pointer hover:text-[#2C2C2C]">
+                  {f.surfaces.length} hidden surface{f.surfaces.length === 1 ? "" : "s"} · how to bring it back
+                </summary>
+                <p className="font-semibold text-[#2C2C2C] mt-2 mb-1">Surfaces currently hidden:</p>
+                <ul className="list-disc pl-5 space-y-0.5">
+                  {f.surfaces.map((sf) => <li key={sf}>{sf}</li>)}
+                </ul>
+                <p className="font-semibold text-[#2C2C2C] mt-3 mb-1">To bring it back:</p>
+                <ol className="list-decimal pl-5 space-y-0.5">
+                  {f.rehydrate.map((step, i) => (
+                    <li key={i} dangerouslySetInnerHTML={{
+                      __html: step.replace(/``([^`]+)``/g, "<code>$1</code>"),
+                    }} />
+                  ))}
+                </ol>
+              </details>
+            </li>
+          );
+        })}
+        {(data.features || []).length === 0 && (
+          <li className="text-sm text-[#6B705C] italic">No hidden features registered.</li>
+        )}
+      </ul>
+    </Card>
+  );
+}
+
+
 // ---------------------------------------------------------------------------
 function EmailVolumeForecastCard() {
   const [data, setData] = useState(null);
@@ -5278,6 +5401,7 @@ export default function AdminConsole() {
               <RouteCatalogueCard />
               <EmailSystemCard />
               <EmailVolumeForecastCard />
+              <HiddenFeaturesCard />
               <AdminEmailModeCard />
               <AdminPendingAlertsCard />
               <EmailStatsCard />

@@ -27,6 +27,11 @@ KNOWN_FLAGS: Dict[str, str] = {
 }
 
 DEFAULT_FLAGS: Dict[str, bool] = {k: True for k in KNOWN_FLAGS}
+# 2026-06-22 — keep Send-to-Kindle OFF on first boot.  Every send burns
+# a Resend daily-quota slot, so we don't want a fresh install to expose
+# the orange "Send to Kindle" button until the operator deliberately
+# turns it on from /admin → Feature flags.
+DEFAULT_FLAGS["send_to_kindle_enabled"] = False
 
 _cache: Dict[str, bool] = {}
 _cache_ts: float = 0.0
