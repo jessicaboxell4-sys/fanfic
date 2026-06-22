@@ -14,7 +14,7 @@ Two-paragraph drop, multi-platform. Pick one based on the channel:
 >
 > Free, no ads, runs in the browser. Built for the AO3 → re-read pile.
 >
-> Try it 👉 https://shelfsort.app
+> Try it 👉 https://shelfsort.com
 
 Asset suggestion: 4-up grid of the top "Cover of the Week" entries
 from `/api/cover/leaderboard`. Pair with `@username` on the tweet so
@@ -30,7 +30,7 @@ the original sharer gets a notification.
 > moment you stop turning pages. EPUB + AI-generated covers + private
 > bookclubs. Free, no ads.
 >
-> https://shelfsort.app
+> https://shelfsort.com
 
 Asset: animated GIF of cursor jumping from a Mac browser → iPhone with
 the "Resume" badge lighting up.
@@ -49,14 +49,14 @@ the "Resume" badge lighting up.
 > Zero ads. Your reading data never leaves the app. The cover heatmap
 > + community pool are 100% opt-in.
 >
-> https://shelfsort.app — would love to hear what's missing.
+> https://shelfsort.com — would love to hear what's missing.
 
 ---
 
 ## Posting checklist
 
 - [ ] Deploy to production first (Platform "Deploy" button)
-- [ ] Verify https://shelfsort.app/explore/covers renders nice OG tags
+- [ ] Verify https://shelfsort.com/explore/covers renders nice OG tags
       (Cmd+L → paste link into a Discord channel for the preview test)
 - [ ] Pick a top community cover, attach its image, tag the sharer's
       username in the tweet body

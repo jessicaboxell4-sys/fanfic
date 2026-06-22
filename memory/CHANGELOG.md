@@ -7,7 +7,81 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
-## 2026-06-22 evening (admin-help-coverage) — Help docs for today's cards ✅
+## 2026-06-22 evening (launch-prep-legal) — Privacy + Terms + Footer ✅
+
+Hard launch blocker resolved.  Shelfsort had been live in
+production with 274 users + 3,897 books for some time without
+any privacy disclosure or terms — both a GDPR/UK-GDPR
+non-compliance risk and a Stripe-onboarding blocker for future
+monetization.  Closed today.
+
+**What shipped**:
+- NEW `frontend/src/pages/Privacy.jsx` (~380 LOC) — 12 stable
+  anchored sections.  Plain-English, Shelfsort-specific, no
+  boilerplate.  Verified every claim against actual data flows
+  in the code:
+  - Section 2 lists the actual three data categories we
+    collect (account data, library content, operational logs)
+    and explicitly enumerates what we *don't* collect (IP
+    addresses, analytics pixels, fingerprints).
+  - Section 4 lists the five real third parties (Cloudflare R2,
+    Resend, Emergent → Anthropic/Google, Google OAuth, ClamAV +
+    Calibre in our infra) with the narrow purpose each one
+    serves.
+  - Section 5 declares the *one* cookie (session_token) and
+    explains why we don't show a cookie consent banner.
+  - Section 6 ties each GDPR right to a concrete UI / endpoint
+    (Account export, Account delete, edit metadata in-place).
+- NEW `frontend/src/pages/Terms.jsx` (~330 LOC) — 11 anchored
+  sections.  Acceptable Use (&sect;3) is the section users will
+  actually read, written for the fanfic + ebook reader
+  audience.  Spells out the AI-generated-cover IP situation,
+  the DMCA process, and the dormant-account 24-month sweep.
+- NEW `frontend/src/components/SiteFooter.jsx` (~140 LOC) —
+  4-column footer (Shelfsort / About / Legal / Contact) with
+  data-testids on every link.  Wired into Landing.jsx; will
+  also be wired into Login + Help in a future pass if needed.
+- MODIFIED `frontend/src/App.js` — registered `/privacy` and
+  `/terms` as unauthenticated public routes.
+- MODIFIED `frontend/src/pages/Landing.jsx` — imports
+  `SiteFooter`, renders it after the final CTA.
+
+**Launch tweet domain fix**:
+- `memory/LAUNCH_TWEET.md` — replaced 4 instances of
+  `https://shelfsort.app` with `https://shelfsort.com` (the
+  real production domain).  The tweet drafts would have sent
+  every clicker to a dead link.
+
+**Smoke-tested live (preview env)**:
+- `/privacy` — renders, 12 sections present, "Cloudflare R2"
+  mentioned in third-parties, the "One cookie. One." cookie
+  declaration is on-page, document.title set correctly.
+- `/terms` — renders, 11 sections present, "Acceptable use"
+  heading on-page, document.title set correctly.
+- `/` (Landing) — footer renders, `footer-link-privacy` and
+  `footer-link-terms` testids present, 4-column layout
+  responsive at 1920px.
+
+**Files**:
+- NEW `frontend/src/pages/Privacy.jsx`
+- NEW `frontend/src/pages/Terms.jsx`
+- NEW `frontend/src/components/SiteFooter.jsx`
+- MODIFIED `frontend/src/App.js`
+- MODIFIED `frontend/src/pages/Landing.jsx`
+- MODIFIED `memory/LAUNCH_TWEET.md`
+
+**Still parked for the operator** (no code, ~10 min of legal
+review or finger-touching the Stripe dashboard):
+- Pick a US state of residence (Section 10 of Terms refers
+  generically to "the operator's state of residence" — once
+  you pick, drop us a one-line edit and we'll bake it in).
+- If you incorporate as an LLC, add the legal entity name to
+  Section 1 of Privacy.
+- Footer-wire Login and Help pages too if you want the legal
+  links to be reachable from logged-out states beyond Landing.
+
+---
+
 
 Tail-end of the deep-dive sweep — making sure the documentation
 keeps pace with the code.

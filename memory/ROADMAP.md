@@ -27,6 +27,24 @@ user-action items + a small handful of P1 candidates remain.)
   as an EPUB.  Takes about 30 seconds; high confidence; closes
   the last loop on today's deploy.
 
+### 🟢 Launch-prep items still pending (after Privacy + Terms shipped)
+
+- **Pick a US state of residence** for Terms section 10 (currently
+  reads "the operator's state of residence" generically).  Once
+  picked, one-line edit + redeploy.  Required before any monetization
+  via Stripe — they ask for jurisdiction at onboarding.
+- **Add `robots.txt` + `sitemap.xml`** to `/app/frontend/public/`.
+  Allows search engines to index without ambiguity; sitemap.xml
+  improves crawl coverage for the public pages
+  (Landing, Privacy, Terms, Help, Rules, ExploreCovers).  Tiny.
+- **Footer-wire Login + Help pages** so the Privacy + Terms links
+  are reachable from logged-out states beyond Landing.  Two
+  `<SiteFooter />` insertions, ~30 sec.
+- **Public launch announcement** — LAUNCH_TWEET.md now has the
+  correct shelfsort.com domain in all 4 places; ready to post
+  when you're ready.  Three platform variants drafted
+  (Twitter/Bluesky/Mastodon).
+
 - **Bulk Send-to-Kindle from Library** — parked 2026-06-22 by user.
   *Currently DEFERRED — the parent Send-to-Kindle feature was hidden
   the same morning (mirrors the FicHub hide-out) to preserve Resend

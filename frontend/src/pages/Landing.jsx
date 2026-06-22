@@ -21,6 +21,7 @@ import { api } from "../lib/api";
 import PrimaryCTAButton from "../components/PrimaryCTAButton";
 import SecondaryCTAButton from "../components/SecondaryCTAButton";
 import CommunityShowcase from "../components/CommunityShowcase";
+import SiteFooter from "../components/SiteFooter";
 
 // A curated rotation of well-known fandoms we already sort into. Stays static
 // (no API call from the unauthenticated Landing) so the page paints instantly.
@@ -342,6 +343,7 @@ export default function Landing() {
           Start sorting — it&apos;s free
         </PrimaryCTAButton>
       </section>
+      <SiteFooter />
     </div>
   );
 }

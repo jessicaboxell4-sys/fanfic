@@ -12,6 +12,8 @@ import UrlPasteDetector from "@/components/UrlPasteDetector";
 import { FETCHING_UI_ENABLED } from "@/lib/featureFlags";
 import Landing from "@/pages/Landing";
 import Login from "@/pages/Login";
+import Privacy from "@/pages/Privacy";
+import Terms from "@/pages/Terms";
 import Dashboard from "@/pages/Dashboard";
 import BookDetail from "@/pages/BookDetail";
 import FandomShelf from "@/pages/FandomShelf";
@@ -133,6 +135,8 @@ function AppRouter() {
       <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/privacy" element={<Privacy />} />
+      <Route path="/terms" element={<Terms />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/share/yib/:token" element={<PublicYearInBooks />} />
       <Route path="/u/:username" element={<PublicCoverProfile />} />
