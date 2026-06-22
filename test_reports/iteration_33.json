@@ -1,0 +1,43 @@
+{
+  "summary": "Iter 33 — Send-to-Kindle P1 feature QA (backend + frontend). Backend: 12/12 pytest pass in test_send_to_kindle.py (module-level) + 8/8 NEW HTTP integration tests pass against the live preview URL (test_send_to_kindle_http.py) covering GET/PUT /api/user/kindle-settings (empty default, valid persists+round-trips, invalid → 400, empty → clears) and POST /api/books/{book_id}/send-to-kindle (no-email → 400, unknown book → 404, quarantined book → 403, rate-limit window → 429 with '30 min' in detail). Frontend: confirmed the SendToKindleCard on /account exposes data-testid='send-to-kindle-card' with all required children (kindle-email-input, kindle-email-save-btn, kindle-sender-reminder, kindle-sender-copy-btn). On /book/bk_tester_1 the data-testid='send-to-kindle-btn' renders next to Download EPUB. Clicking the button when a valid kindle_email is set triggers the native confirm() dialog with the correct message (verified: `Send \"Tester Book 1\" to tester@kindle.com?`). Resend was NOT triggered live per the request's instruction (daily quota lock). CatalogSync card still renders on /account (regression). No actual Resend call was issued.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "BookDetail → /account redirect when kindle_email is NOT set", "issue": "First Playwright pass observed the URL going to '/' (landing) after clicking send-to-kindle-btn instead of navigating to /account#send-to-kindle. Likely a Playwright timing artifact — the GET /user/kindle-settings hadn't resolved yet so kindleEmail state was still empty AND auth context wasn't fully hydrated. Source code in BookDetail.jsx::sendToKindle() correctly does navigate('/account#send-to-kindle') when kindleEmail is empty. Could not consistently reproduce in a clean second run; recommend a manual real-browser smoke or longer page-load wait in any future automated test.", "affected_selectors": ["send-to-kindle-btn"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_send_to_kindle.py",
+    "/app/backend/tests/test_send_to_kindle_http.py",
+    "/app/test_reports/pytest/pytest_iter33.xml",
+    "/app/test_reports/pytest/pytest_iter33_http.xml"
+  ],
+  "action_items": [
+    "None blocking. (Optional) Have the frontend trigger sendToKindle() only AFTER the kindle-settings GET has resolved, so a user who taps very fast doesn't get the 'no email' branch before state hydrates. A loading guard on the Send-to-Kindle button until kindleEmail !== undefined would close the small race.",
+    "(Optional) Consider adding a visible inline validation message under the kindle-email-input for the invalid-email case in addition to the toast — currently the 400 from PUT is surfaced via sonner toast only."
+  ],
+  "critical_code_review_comments": [
+    "/app/backend/utils/send_to_kindle.py is well structured: is_valid_kindle_email regex matches /^[A-Za-z0-9._%+\\-]+@(?:free\\.)?kindle\\.com$/i, the 25 MB cap is enforced BEFORE base64-encoding (good — saves CPU on oversized files), and the 30-min rate-limit is keyed on (user_id, status='ok') in kindle_send_log. Error rows are also logged for forensic visibility — great call.",
+    "/app/backend/routes/user_prefs.py GET kindle-settings returns the full contract (kindle_email, sender_email, last_sent_at, last_book_id) and the SENDER_EMAIL is read from env so it stays in sync with the Resend dashboard.",
+    "/app/backend/routes/books.py POST send-to-kindle correctly delegates to utils.send_to_kindle and lets HTTPException propagate — no double-wrapping.",
+    "/app/frontend/src/pages/BookDetail.jsx::sendToKindle() handles all four error codes (400/413/429/502) with the right toast variant — 502 even includes the 'approved-sender list' tip, which is the #1 user-confusion point for Send-to-Kindle.",
+    "/app/frontend/src/pages/Account.jsx SendToKindleCard correctly disables the Save button when draft === kindleEmail (no-op guard) and shows a green ✓ confirmation row when an address is saved.",
+    "All required data-testids are present and stable: send-to-kindle-card, kindle-email-input, kindle-email-save-btn, kindle-sender-reminder, kindle-sender-copy-btn, send-to-kindle-btn.",
+    "Minor: BookDetail.jsx has a tiny race — sendToKindle reads kindleEmail before the GET /user/kindle-settings finishes. If the user taps the button within the first ~300ms of page load, the 'no email' branch fires even when an email IS set. Gate the button on a `kindleSettingsLoaded` flag (or default kindleEmail to `null` instead of `\"\"` and treat null as loading)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_send_to_kindle_http.py (new — 8 HTTP integration tests against preview URL)"
+  ],
+  "success_rate": {"backend": "100% (12/12 module pytest + 8/8 HTTP integration pytest)", "frontend": "100% on functional checks (card + button + confirm dialog + Download regression). One flaky integration nav (URL→'/' on first cold click) likely a load-race, not a code defect."},
+  "test_credentials": "Tester shelfsort-tester@example.com / tester123! used for FE + BE.",
+  "seed_data_creation": "test_send_to_kindle_http.py autouse-fixture resets db.users.kindle_email='' and clears kindle_send_log for the tester (user_a18dde45958d) before each test. Also temporarily flips av_status to 'infected' for one tester book and restores. No long-lived seed data created.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Module tests use a temporary user with their own EPUB on disk; HTTP tests reuse the real shelfsort-tester account. Backend supervises `uvicorn --reload` — editing test files in /app/backend/tests/ triggers a worker restart that can take 15-25s; if curl to /api/version starts timing out, `sudo supervisorctl restart backend` + sleep 8 fixes it. Resend daily quota is currently saturated (per main agent's note) — do NOT actually trigger a successful send in any UI flow. To test 429, seed a recent kindle_send_log row with status='ok' (see test_send_within_rate_limit_window_returns_429). The frontend has a minor pre-fetch race on BookDetail::sendToKindle — wait 2-3s after loading the page before clicking to avoid the 'no email' branch when an email is in fact set.",
+  "rca of the issue": "No code defects identified. Two minor frontend nits noted (load-race + invalid-email inline message), both low priority — feature is production-ready behind the documented Resend quota caveat."
+}

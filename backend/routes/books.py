@@ -2913,6 +2913,36 @@ async def download_book(book_id: str, user: User = Depends(get_current_user)):
     return FileResponse(str(fp), media_type="application/epub+zip", filename=download_name)
 
 
+# ---------------------------------------------------------------------
+# Send to Kindle (2026-06-22) — emails the book's EPUB to the user's
+# Amazon Kindle inbox.  Heavy lifting (file read, AV check, rate
+# limit, Resend attachment send, email_logs write) lives in
+# ``utils/send_to_kindle.py``; this route is a thin wrapper that
+# enforces the auth context.
+# ---------------------------------------------------------------------
+@api_router.post("/books/{book_id}/send-to-kindle")
+async def send_book_to_kindle_route(
+    book_id: str,
+    user: User = Depends(get_current_user),
+):
+    """Email the book's EPUB to the user's configured Kindle address.
+
+    Returns ``{"ok": true, "resend_id": "...", "to": "...", "size_bytes": int}``
+    on success.  Common failure responses (caller surfaces toast text
+    straight from the ``detail`` field):
+
+    * 400 — no Kindle email configured / invalid format
+    * 403 — book quarantined by antivirus
+    * 404 — book or file missing
+    * 413 — file > Kindle 25 MB gateway cap
+    * 429 — same book already sent within the past 30 min
+    * 502 — Resend rejected the send (quota, recipient bounce, etc.)
+    * 503 — server has no Resend key configured
+    """
+    from utils.send_to_kindle import send_book_to_kindle  # noqa: WPS433
+    return await send_book_to_kindle(user_id=user.user_id, book_id=book_id)
+
+
 @api_router.delete("/books/{book_id}")
 async def delete_book(book_id: str, user: User = Depends(get_current_user)):
     book = await db.books.find_one({"book_id": book_id, "user_id": user.user_id}, {"_id": 0})

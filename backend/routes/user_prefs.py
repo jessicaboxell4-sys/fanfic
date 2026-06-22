@@ -499,3 +499,39 @@ async def update_email_prefs(
         "prefs": {k: bool(prefs.get(k, True)) for k in _OPTABLE_EMAIL_KINDS},
         "updated": len(patch),
     }
+
+
+
+# ============================================================
+# SEND TO KINDLE (2026-06-22) — per-user Amazon Kindle email
+# ============================================================
+class KindleEmailBody(BaseModel):
+    kindle_email: str = ""
+
+
+@api_router.get("/user/kindle-settings")
+async def get_kindle_settings_route(user: User = Depends(get_current_user)):
+    """Return the user's configured Kindle email + the sender they
+    need to whitelist in Amazon + last-sent timestamp.
+
+    Frontend uses this to render the Account → Send to Kindle card
+    with both the editor + an "Approved sender list" reminder.
+    """
+    from utils.send_to_kindle import get_kindle_settings  # noqa: WPS433
+    return await get_kindle_settings(user.user_id)
+
+
+@api_router.put("/user/kindle-settings")
+async def set_kindle_settings_route(
+    body: KindleEmailBody,
+    user: User = Depends(get_current_user),
+):
+    """Persist the user's Kindle send-to address.
+
+    Passing an empty string clears it (which then disables the
+    Send-to-Kindle button across the library UI).  Validates against
+    the ``@kindle.com`` / ``@free.kindle.com`` pattern so a typo
+    doesn't burn a Resend send to an invalid address.
+    """
+    from utils.send_to_kindle import set_kindle_email  # noqa: WPS433
+    return await set_kindle_email(user.user_id, body.kindle_email)

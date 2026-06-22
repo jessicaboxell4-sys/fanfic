@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
-import { User as UserIcon, Mail, Lock, Loader2, Mail as MailIcon, Settings2, AlertTriangle, Layers, Plus, X as XIcon, Download, Sparkles, Trash2, Users as UsersIcon, ShieldCheck as ShieldCheckIcon, Wand2, HelpCircle } from "lucide-react";
+import { User as UserIcon, Mail, Lock, Loader2, Mail as MailIcon, Settings2, AlertTriangle, Layers, Plus, X as XIcon, Download, Sparkles, Trash2, Users as UsersIcon, ShieldCheck as ShieldCheckIcon, Wand2, HelpCircle, Send } from "lucide-react";
 import LibraryStatsCard from "../components/LibraryStatsCard";
 import FandomTreemap from "../components/FandomTreemap";
 import CatalogSyncCard from "../components/CatalogSyncCard";
@@ -991,6 +991,184 @@ function AnnouncementsCard() {
 }
 
 
+// ---------------------------------------------------------------------------
+// Send-to-Kindle card (2026-06-22) — per-user Amazon Kindle send-to email.
+// Pairs with the "Send to Kindle" button on every BookDetail page.
+// Amazon requires the SENDER address to be on the user's "Approved
+// Personal Document E-mail List" — that one-time setup step is the
+// most common gotcha, so we surface the sender email right here with
+// a copy button + a deep link to Amazon's setup page.
+// ---------------------------------------------------------------------------
+function SendToKindleCard() {
+  const [loading, setLoading] = useState(true);
+  const [kindleEmail, setKindleEmail] = useState("");
+  const [draft, setDraft] = useState("");
+  const [senderEmail, setSenderEmail] = useState("");
+  const [lastSentAt, setLastSentAt] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [showCopied, setShowCopied] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const { data } = await api.get("/user/kindle-settings");
+      setKindleEmail(data?.kindle_email || "");
+      setDraft(data?.kindle_email || "");
+      setSenderEmail(data?.sender_email || "");
+      setLastSentAt(data?.last_sent_at || null);
+    } catch (e) {
+      toast.error(errMsg(e?.response?.data?.detail));
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => { load(); }, []);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const { data } = await api.put("/user/kindle-settings", { kindle_email: draft.trim() });
+      setKindleEmail(data?.kindle_email || "");
+      toast.success(data?.kindle_email
+        ? `Kindle address saved · ${data.kindle_email}`
+        : "Kindle address cleared. Send-to-Kindle is now disabled.");
+    } catch (e) {
+      toast.error(errMsg(e?.response?.data?.detail));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const copySender = async () => {
+    try {
+      await navigator.clipboard.writeText(senderEmail);
+      setShowCopied(true);
+      setTimeout(() => setShowCopied(false), 2000);
+    } catch {
+      toast.error("Couldn't copy — copy it manually instead.");
+    }
+  };
+
+  return (
+    <section
+      className="shelf-card p-6 mb-6"
+      id="send-to-kindle"
+      data-testid="send-to-kindle-card"
+    >
+      <div className="flex items-start gap-3 mb-2">
+        <div className="w-10 h-10 rounded-xl bg-[#FFF2DE] text-[#FF9900] flex items-center justify-center flex-shrink-0">
+          <Send className="w-5 h-5" />
+        </div>
+        <div className="min-w-0">
+          <h2 className="font-serif text-2xl text-[#2C2C2C]">Send to Kindle</h2>
+          <p className="text-sm text-[#6B705C] mt-0.5">
+            Beam any EPUB straight to your Amazon Kindle. One-tap from the book page.
+          </p>
+        </div>
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-[#6B705C] italic mt-4">Loading…</p>
+      ) : (
+        <>
+          {/* Step 1 — capture the user's @kindle.com address */}
+          <div className="mt-4 mb-4">
+            <label className="block text-sm font-semibold text-[#2C2C2C] mb-1">
+              Your Kindle email
+            </label>
+            <p className="text-xs text-[#6B705C] mb-2">
+              Find this in the Amazon app under <em>More → Settings → Personal Documents</em>.
+              It looks like <code className="text-[#6B46C1]">yourname@kindle.com</code>.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <input
+                type="email"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                placeholder="yourname@kindle.com"
+                data-testid="kindle-email-input"
+                className="flex-1 min-w-[240px] px-3 py-2 rounded-lg border border-[#E5DDC5] bg-white text-sm focus:border-[#6B46C1] focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={save}
+                disabled={saving || draft.trim() === kindleEmail.trim()}
+                data-testid="kindle-email-save-btn"
+                className="btn-primary text-sm disabled:opacity-50"
+              >
+                {saving ? "Saving…" : "Save"}
+              </button>
+            </div>
+            {kindleEmail && (
+              <p className="text-xs text-[#1F8F4E] mt-2" data-testid="kindle-email-saved">
+                ✓ Currently saved: <code>{kindleEmail}</code>
+              </p>
+            )}
+          </div>
+
+          {/* Step 2 — Amazon approved-sender list reminder */}
+          {senderEmail && (
+            <div className="mt-4 p-3 rounded-xl border-2 border-dashed border-[#FF9900]/40 bg-[#FFF8EC]" data-testid="kindle-sender-reminder">
+              <p className="text-sm font-semibold text-[#2C2C2C] mb-1">
+                One-time setup on Amazon
+              </p>
+              <p className="text-xs text-[#6B705C] mb-2">
+                Amazon will drop your books unless this sender is on your
+                <em> Approved Personal Document E-mail List</em>:
+              </p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <code className="px-2 py-1 rounded bg-[#FFE9C2] text-[#9B5A00] text-xs font-mono break-all">
+                  {senderEmail}
+                </code>
+                <button
+                  type="button"
+                  onClick={copySender}
+                  data-testid="kindle-sender-copy-btn"
+                  className="text-xs px-3 py-1 rounded-full border border-[#FF9900] text-[#9B5A00] hover:bg-[#FFE9C2]"
+                >
+                  {showCopied ? "✓ Copied" : "Copy"}
+                </button>
+                <a
+                  href="https://www.amazon.com/myk"
+                  target="_blank"
+                  rel="noreferrer"
+                  data-testid="kindle-amazon-link"
+                  className="text-xs text-[#6B46C1] underline hover:text-[#5a3aa3]"
+                >
+                  Open Manage Your Content & Devices ↗
+                </a>
+              </div>
+            </div>
+          )}
+
+          {/* Last-sent line, if any */}
+          {lastSentAt && (
+            <p className="text-xs text-[#6B705C] mt-3 italic" data-testid="kindle-last-sent">
+              Last successful send: {new Date(lastSentAt).toLocaleString()}
+            </p>
+          )}
+
+          {/* How it works */}
+          <details className="mt-4">
+            <summary className="text-xs text-[#6B705C] cursor-pointer hover:text-[#2C2C2C]">
+              How does this work?
+            </summary>
+            <ul className="text-xs text-[#6B705C] mt-2 ml-4 list-disc space-y-1">
+              <li>You hit <strong>Send to Kindle</strong> on any book in your library.</li>
+              <li>Shelfsort emails the EPUB to your <code>@kindle.com</code> address.</li>
+              <li>Amazon converts it and pushes it to every Kindle on your account within ~5 min.</li>
+              <li>Files larger than 25 MB are rejected by Amazon&apos;s gateway — try a different format if that happens.</li>
+              <li>To prevent accidental duplicates, the same book can&apos;t be re-sent within 30 min.</li>
+            </ul>
+          </details>
+        </>
+      )}
+    </section>
+  );
+}
+
+
+
 
 export default function Account() {
   const navigate = useNavigate();
@@ -1458,6 +1636,9 @@ export default function Account() {
 
         {/* E-reader sync (OPDS catalog) */}
         <CatalogSyncCard />
+
+        {/* Send to Kindle (2026-06-22) — single-click EPUB → Kindle email */}
+        <SendToKindleCard />
 
         {/* FanFicFare options */}
         {FETCHING_UI_ENABLED && (

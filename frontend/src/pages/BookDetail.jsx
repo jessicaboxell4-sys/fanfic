@@ -9,7 +9,7 @@ import BookCohortProgress from "../components/BookCohortProgress";
 import AntivirusBadge from "../components/AntivirusBadge";
 import SimilarBooksStrip from "../components/SimilarBooksStrip";
 import CrossDeviceFinishStrip from "../components/CrossDeviceFinishStrip";
-import { ArrowLeft, Download, Trash2, Sparkles, Book, Edit3, Heart, Link as LinkIcon, BookOpen, RefreshCw, Tag as TagIcon, Loader2, Upload, Smartphone, Laptop, Tablet, MonitorSmartphone } from "lucide-react";
+import { ArrowLeft, Download, Trash2, Sparkles, Book, Edit3, Heart, Link as LinkIcon, BookOpen, RefreshCw, Tag as TagIcon, Loader2, Upload, Smartphone, Laptop, Tablet, MonitorSmartphone, Send } from "lucide-react";
 import { toast } from "sonner";
 import { FETCHING_UI_ENABLED } from "../lib/featureFlags";
 
@@ -47,6 +47,12 @@ export default function BookDetail() {
   const [savingTags, setSavingTags] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
   const [suggested, setSuggested] = useState([]);
+  // Send-to-Kindle (2026-06-22) — Kindle email comes from
+  // /api/user/kindle-settings.  Button is disabled when the user
+  // hasn't configured one; clicking the *disabled* state still routes
+  // to /account so they can set it.
+  const [kindleEmail, setKindleEmail] = useState("");
+  const [sendingToKindle, setSendingToKindle] = useState(false);
 
   const load = async () => {
     try {
@@ -236,6 +242,60 @@ export default function BookDetail() {
 
   const downloadLinks = () => {
     window.open(`${API}/books/${id}/links`, "_blank");
+  };
+
+  // Fetch the user's Kindle send-to address once on mount so we can
+  // render the button's enabled/disabled state without a click-time
+  // round trip.  Failures are non-blocking — if the lookup fails we
+  // just leave the button in its "not configured" state.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get("/user/kindle-settings");
+        if (!cancelled) setKindleEmail((data?.kindle_email || "").trim());
+      } catch {
+        if (!cancelled) setKindleEmail("");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const sendToKindle = async () => {
+    if (!kindleEmail) {
+      // No address — bounce the user to the settings page where they
+      // can set one.  Keeps the disabled-button click path useful.
+      toast.info("Add your Kindle email in Account → Send to Kindle first.");
+      navigate("/account#send-to-kindle");
+      return;
+    }
+    if (!window.confirm(`Send "${book?.title || 'this book'}" to ${kindleEmail}?`)) return;
+    setSendingToKindle(true);
+    try {
+      const { data } = await api.post(`/books/${id}/send-to-kindle`);
+      const mb = data?.size_bytes ? `${(data.size_bytes / 1024 / 1024).toFixed(1)} MB` : "";
+      toast.success(
+        `Sent to ${data?.to || kindleEmail}${mb ? ` · ${mb}` : ""}. ` +
+        `Should appear on your Kindle within ~5 min.`,
+      );
+    } catch (e) {
+      const status = e?.response?.status;
+      const detail = e?.response?.data?.detail || "Couldn't send";
+      // Help the user along when Amazon's approved-sender list is the
+      // likely culprit (502 from Resend usually means bounce or
+      // recipient rejection rather than send-side error).
+      if (status === 502) {
+        toast.error(`${detail}  (If this is the first send, make sure you've added the Shelfsort sender address to your Amazon "Approved Personal Document E-mail List".)`);
+      } else if (status === 413) {
+        toast.error(detail);
+      } else if (status === 429) {
+        toast.warning(detail);
+      } else {
+        toast.error(detail);
+      }
+    } finally {
+      setSendingToKindle(false);
+    }
   };
 
   if (loading || !book) {
@@ -627,6 +687,26 @@ export default function BookDetail() {
                   className="btn-secondary flex items-center gap-2 text-sm"
                 >
                   <Download className="w-4 h-4" /> Download EPUB
+                </button>
+                <button
+                  data-testid="send-to-kindle-btn"
+                  onClick={sendToKindle}
+                  disabled={sendingToKindle}
+                  title={kindleEmail
+                    ? `Email this EPUB to ${kindleEmail}`
+                    : "Add your Kindle email in Account → Send to Kindle"}
+                  className={`flex items-center gap-2 text-sm px-4 py-2 rounded-lg transition-colors disabled:opacity-50 ${
+                    kindleEmail
+                      ? "bg-[#FF9900] text-white hover:bg-[#E08800]"
+                      : "btn-secondary opacity-70"
+                  }`}
+                >
+                  {sendingToKindle ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4" />
+                  )}
+                  {sendingToKindle ? "Sending…" : "Send to Kindle"}
                 </button>
                 <button
                   data-testid="download-links-btn"
