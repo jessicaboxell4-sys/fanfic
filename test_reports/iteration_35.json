@@ -1,0 +1,44 @@
+{
+  "summary": "Deep-dive regression sweep for today's 4 features (Changelog card, LLM Key Health card, Antivirus/Calibre infra check, Smart welcome email + admin approve/reject). 15/16 backend tests pass, 1 skipped. All endpoint contracts confirmed. Cover-regen instrumentation confirmed via live llm_usage write (model='gemini-3.1-flash-image-preview', kind='cover'). Welcome-email pipeline confirmed via 3 distinct email_logs rows (welcome_auto_approve / welcome_approval / approval_rejected) — Resend daily quota IS exhausted in the preview env so status='error' downstream, but the kind+to columns are written correctly so the regression contract holds. Frontend smoke tests pass at HTTP layer for /login /library /admin /help /friends /shelves. Browser-level admin UI testing hit the SAME welcome-tour redirect flake reported in iterations 33/34 — fell back to backend curl validation per the agent-to-agent note. Caught one new frontend hydration error: '<span> cannot be a child of <option>' from a Palette/Select component.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "Resend email provider", "issue": "Daily email-sending quota exhausted in preview env — every welcome/approval/rejection email_logs row written today has status='error' / 'You have reached your daily email sending quota.' Not a Shelfsort code regression but blocks any e2e SMTP delivery verification until the quota resets."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Login/Palette Select (option element)", "issue": "React hydration error in console: 'In HTML, <span> cannot be a child of <option>. This will cause a hydration error.' Triggered on /login page load — a <span> is being rendered inside a native <option> element somewhere in PaletteProvider or Login's signup-question Select.", "selector": "(see console; PaletteProvider chain)", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [
+      {"flow": "Programmatic login → /admin navigation", "issue": "Same flake as iterations 33/34: page.request.post /api/auth/login returns 200 + session cookie, but page.goto('/admin') is redirected to '/' (Landing) with the welcome-tour modal overlaying. Cookie is set but the SPA's auth hydration on Landing decides 'not authenticated' on the first paint and bounces. Recommended fix: have Landing.jsx await GET /api/auth/me before deciding to render the tour, or short-circuit /admin to AdminRoute without the redirect.", "affected_selectors": ["[data-testid='admin-console']", "[data-testid='admin-changelog-card']", "[data-testid='admin-llm-key-health-card']"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_session_regression.py",
+    "/app/test_reports/pytest/session_regression.xml"
+  ],
+  "action_items": [
+    "Investigate & fix the Landing.jsx / AdminRoute auth-hydration race that bounces a logged-in admin from /admin back to / (now blocking 3 consecutive Playwright iterations).",
+    "Fix the '<span> inside <option>' hydration error — find the Select that puts a span (icon?) inside a raw <option>. Likely needs to migrate to shadcn SelectItem (which uses divs) or strip the icon from the option label.",
+    "Resend daily quota — monitor; once it resets, re-run TestWelcomeEmail to confirm status='ok' on the email_logs rows (the kind+to writes are already proven correct).",
+    "Optional: split AdminConsole.jsx (still >5800 LOC) — recommendation carried over from iteration 34."
+  ],
+  "critical_code_review_comments": [
+    "/api/admin/llm-key-health/balance accepts {usd: float} but the frontend LlmKeyHealthCard prompt in the PRD mentions an inline 'balance' input — double-check the React component sends {usd: ...} not {balance: ...} (422 if wrong).",
+    "Reclassify endpoint /api/books/{id}/reclassify requires the .epub file on disk (STORAGE_DIR/.../{book_id}.epub). The TESTER seed has 4 books with no on-disk file → 404 'File missing'. Either seed the files at fixture-create time or the test_classifier_logs_llm_usage will always skip in CI.",
+    "Backend has a 'WatchFiles' uvicorn reload that picks up new files anywhere under /app/backend (incl. tests/). Each test-file rewrite reloads the app — flaky in CI. Consider --reload-dir limited to source dirs only.",
+    "Login cookie is set with secure=COOKIE_SECURE — fine for HTTPS public URL, but breaks any local HTTP integration test that relies on cookies (must use Bearer fallback). Document this in /app/auth_testing.md."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_session_regression.py (NEW — 16 tests)"
+  ],
+  "success_rate": {"backend": "15/16 passed (93.75%), 1 skipped", "frontend": "structural-only (HTTP 200 on all 6 routes); browser-level admin UI testing blocked by login redirect flake"},
+  "test_credentials": "shelfsort-tester@example.com / tester123! — was promoted to is_admin=true during testing, demoted to is_admin=false after. app_config.signup.approval_gate_enabled restored to true. All TEST_/shelfregr_ users deleted.",
+  "seed_data_creation": "Created 3 transient registration users (shelfregr_*@real-domain-acme.shop) during welcome-email tests — all cleaned up after the run.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend coverage for today's 4 features is complete (test_session_regression.py). When testing /admin in Playwright on this preview URL, EXPECT the redirect-to-/ flake — it has now hit 3 sessions in a row. The cleanest workaround is to validate JSX structure + use backend curls (as done here). The endpoint paths confirmed working: GET /api/admin/changelog?limit=20, GET /api/admin/llm-key-health, PUT /api/admin/llm-key-health/balance with body {usd: float}, GET /api/admin/antivirus/status (returns ClamAV 'available':true), POST /api/admin/users/{user_id}/approve, POST /api/admin/users/{user_id}/reject. Approval gate config lives in db.app_config._id='signup'.approval_gate_enabled (NOT db.settings).",
+  "rca_of_the_issue": "Auth flake RCA (still unresolved): page.request.post('/api/auth/login') returns 200 and sets the secure session_token cookie in Playwright's browser context, but immediately calling page.goto('/admin') causes Landing.jsx to render BEFORE the auth-context hydrates from /api/auth/me, and the welcome-tour modal opens on '/'. Subsequent /admin navigations are caught by AdminRoute (?) and redirect back. Reproduce: in any fresh browser context with an issued session_token cookie, goto /admin → ends up at /. Mitigation for testing: call /api/auth/me at least once and wait for response before goto('/admin'), OR fix the underlying race in Landing.jsx auth hydration."
+}

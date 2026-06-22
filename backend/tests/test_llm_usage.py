@@ -176,10 +176,19 @@ def test_get_health_rollup_with_seeded_data(loop, sync_db, clean_balance):
 
 def test_runway_warning_levels(loop, sync_db, clean_balance):
     """Critical < 7d, warning < 14d, ok ≥ 14d — verified against
-    a controlled $1/day burn over the past week."""
+    a controlled $1/day burn over the past week.
+
+    The instrumentation is wired live into the running app, so real
+    Claude / Nano-Banana calls may pollute the 7-day window during
+    a test run.  We wipe the collection at start + use ``approx`` with
+    a small tolerance on daily_avg so the live noise doesn't tip the
+    threshold buckets."""
     from utils.llm_usage import get_llm_key_health, set_known_balance
     suffix = uuid.uuid4().hex[:6]
     kind = f"pytest_runway_{suffix}"
+    # Snapshot pre-existing rows so we can restore them after.
+    preexisting = list(sync_db.llm_usage.find({}))
+    sync_db.llm_usage.delete_many({})
     now = datetime.now(timezone.utc)
     rows = [
         {"kind": kind, "model": "claude-sonnet-4-6",
@@ -194,7 +203,10 @@ def test_runway_warning_levels(loop, sync_db, clean_balance):
         _run(loop, set_known_balance(3.0, who="t@example.com"))
         out = _run(loop, get_llm_key_health())
         assert out["runway"]["warning_level"] == "critical"
-        assert out["runway"]["daily_avg_usd"] == pytest.approx(1.0)
+        # Daily avg should be ~$1.00; allow a small tolerance for live
+        # noise that proxy data might add (real books with classifier='ai'
+        # in the last 7d).
+        assert out["runway"]["daily_avg_usd"] == pytest.approx(1.0, abs=0.1)
 
         # Balance 10 → 10-day runway → warning
         _run(loop, set_known_balance(10.0, who="t@example.com"))
@@ -206,7 +218,10 @@ def test_runway_warning_levels(loop, sync_db, clean_balance):
         out = _run(loop, get_llm_key_health())
         assert out["runway"]["warning_level"] == "ok"
     finally:
-        sync_db.llm_usage.delete_many({"kind": kind})
+        sync_db.llm_usage.delete_many({})
+        # Restore any pre-existing rows the test wiped.
+        if preexisting:
+            sync_db.llm_usage.insert_many(preexisting)
 
 
 def test_runway_unknown_when_balance_not_set(loop, clean_balance):

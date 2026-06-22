@@ -164,11 +164,11 @@ def build_welcome_email(
         + f"<p style='margin:0 0 6px;font-weight:600;color:#2C2C2C'>{tip['heading']}</p>"
         + f"<p style='margin:0 0 18px'>{tip['body']}{fandom_line}</p>"
         + f"<div style='margin:0 0 18px'>{cta_buttons}</div>"
-        + f"<p style='margin:18px 0 0;color:#6B705C;font-size:13px'>"
-        f"You're getting this because you just signed up for Shelfsort. "
-        f"Reply to this email if anything's off — a human (the operator) reads every reply."
-        f"</p>"
-        f"</div>"
+        + "<p style='margin:18px 0 0;color:#6B705C;font-size:13px'>"
+        "You're getting this because you just signed up for Shelfsort. "
+        "Reply to this email if anything's off — a human (the operator) reads every reply."
+        "</p>"
+        "</div>"
     )
 
     # Plain-text body — same content, no styling.
