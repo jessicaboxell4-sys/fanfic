@@ -265,11 +265,12 @@ export default function Terms() {
 
         <Section id="law" title="10. Governing law">
           <p>
-            These Terms are governed by the laws of the United States.
-            Any disputes will be resolved in the courts of the
-            operator&rsquo;s state of residence. Nothing in this section
-            limits any non-waivable consumer rights you have under the
-            law of your country of residence.
+            These Terms are governed by the laws of the State of Indiana,
+            United States. Any disputes arising from these Terms or your
+            use of Shelfsort will be resolved in the state or federal
+            courts located in Indiana. Nothing in this section limits any
+            non-waivable consumer rights you have under the law of your
+            country of residence.
           </p>
         </Section>
 
