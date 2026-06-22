@@ -52,7 +52,7 @@ _COMMUNITY_COVERS_DIR = Path("/app/community_covers")
 def _public_base() -> str:
     """Best-effort guess at the user-facing origin so share URLs in
     sitemap / RSS / meta-tags point at the SPA, not at ``api/...``."""
-    return (FRONTEND_URL or "https://shelfsort.app").rstrip("/")
+    return (FRONTEND_URL or "https://shelfsort.com").rstrip("/")
 
 
 def _cover_thumb_b64(cover_id: str) -> str:
@@ -301,7 +301,7 @@ def _draw_profile_og_png(handle: str, totals: Dict[str, int], thumb_path: Option
         draw.text((col_x, stat_y), str(n), font=font_stat, fill=(44, 44, 44))
         draw.text((col_x, stat_y + 110), label, font=font_label, fill=(107, 112, 92))
 
-    draw.text((text_x, 540), "shelfsort.app", font=font_h2, fill=(107, 70, 193))
+    draw.text((text_x, 540), "shelfsort.com", font=font_h2, fill=(107, 70, 193))
 
     buf = io.BytesIO()
     img.save(buf, "PNG", optimize=True)

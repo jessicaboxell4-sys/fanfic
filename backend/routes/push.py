@@ -42,7 +42,7 @@ from auth_dep import get_current_user
 
 VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY", "")
 VAPID_PRIVATE_PEM = os.environ.get("VAPID_PRIVATE_KEY_PEM", "").encode("ascii") if os.environ.get("VAPID_PRIVATE_KEY_PEM") else b""
-VAPID_SUB = os.environ.get("VAPID_CONTACT_EMAIL", "mailto:noreply@shelfsort.app")
+VAPID_SUB = os.environ.get("VAPID_CONTACT_EMAIL", "mailto:noreply@shelfsort.com")
 
 
 # ---------------------------------------------------------------------

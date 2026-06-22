@@ -289,7 +289,7 @@ const YearInBooksShareCard = forwardRef(function YearInBooksShareCard(
               lineHeight: 1,
             }}
           >
-            {ownerName || "shelfsort.app"}
+            {ownerName || "shelfsort.com"}
           </div>
         </div>
         <div
