@@ -4,15 +4,25 @@
 
 ## ⏰ Parked reminders — bring up next session
 
-(Updated 2026-06-22 — Send-to-Kindle parked at user request after the
-legacy-test-cleanup task.)
+(Updated 2026-06-22 — LLM Key health card parked alongside
+Send-to-Kindle after the Resend-quota incident and Universal Key
+budget cap surfaced.)
+
+- **`/admin/llm-key-health` card** — parked 2026-06-22 by user.
+  Show the Universal LLM Key's API balance + per-day burn rate +
+  remaining-cap headroom, so the operator sees a budget cliff
+  before AI features (Claude classification, Gemini Nano Banana
+  covers) silently fail. Source: backend can call the Emergent
+  Universal Key billing endpoint (or read the LiteLLM proxy
+  cost-tracking response) — exact path TBD via integration
+  playbook. Pairs naturally with the email-volume forecast card
+  shipped today.  ~15 min implementation + 1 test.
 
 - **"Send to Kindle" P1 feature** — parked 2026-06-22 by user.
   Resend-based EPUB delivery to per-user `@kindle.com` from
   BookDetail. Implementation sketch already lives further down this
   file under "Send to Kindle button on BookDetail". Bring up at
-  start of next session unless the Resend-quota incident below
-  changes priorities.
+  start of next session unless something more urgent surfaces.
 
 - **Resend daily-quota incident (2026-06-22)** — user hit 200% of
   the 100/day free-tier quota on the `jessicaboxell4` Resend team.
