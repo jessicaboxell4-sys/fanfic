@@ -57,6 +57,7 @@ const ADMIN_CARD_MANIFEST = [
   { testid: "cron-health-card", title: "Scheduled jobs", subtitle: "Last-run telemetry for crons.", keywords: "cron jobs scheduled task background failure last-run" },
   { testid: "route-catalogue-card", title: "Route catalogue", subtitle: "Every /api/* endpoint.", keywords: "route catalogue endpoint api list routes urls" },
   { testid: "email-system-card", title: "Email system", subtitle: "Master ON/OFF for all outbound Resend mail.", keywords: "email outbound resend pause stop disable quota system master kill switch" },
+  { testid: "email-volume-forecast-card", title: "Email volume forecast", subtitle: "7/30-day past sends + projected weekly volume vs Resend cap.", keywords: "email volume forecast quota cap resend project past 7 30 days cliff projection prediction warning" },
   { testid: "admin-email-mode-card", title: "Admin alert email frequency", subtitle: "Immediate / Weekly digest / Off — Resend quota brake.", keywords: "admin alert email frequency digest weekly batch immediate off cron failure resend quota" },
   { testid: "admin-pending-alerts-card", title: "Admin bell · pending alerts", subtitle: "In-app queue replacing per-failure emails.", keywords: "bell pending alerts admin in-app notifications cron failure queue digest" },
   { testid: "email-stats-card", title: "Resend deliveries · this week", subtitle: "Send volume, error rate, recent failures.", keywords: "email resend delivery send failure stats bounce mail" },
@@ -4673,6 +4674,147 @@ function AdminPendingAlertsCard() {
 }
 
 
+
+
+// ---------------------------------------------------------------------------
+// Email volume forecast (2026-06-22) — Resend cliff warning.
+// Backed by GET /api/admin/email-volume-forecast.  Shows past 7/30-day
+// volume + a forward projection so the operator sees a quota cliff
+// before they hit it.
+// ---------------------------------------------------------------------------
+function EmailVolumeForecastCard() {
+  const [data, setData] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data: payload } = await api.get("/admin/email-volume-forecast");
+        if (!cancelled) setData(payload);
+      } catch {
+        if (!cancelled) setData({ error: true });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const fmt = (n) => (typeof n === "number" ? n.toLocaleString() : "—");
+
+  if (data === null) {
+    return (
+      <Card icon={TrendingUp} title="Email volume forecast" subtitle="Past sends + projected next 7/30 days vs the Resend daily cap." testid="email-volume-forecast-card">
+        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+      </Card>
+    );
+  }
+  if (data.error) {
+    return (
+      <Card icon={TrendingUp} title="Email volume forecast" subtitle="Past sends + projected next 7/30 days vs the Resend daily cap." testid="email-volume-forecast-card">
+        <p className="text-sm text-[#D9534F]">Couldn&rsquo;t load the forecast — check backend logs.</p>
+      </Card>
+    );
+  }
+
+  const warnColor = {
+    critical: "text-[#9B3531] bg-[#FBE9E7] border-[#D9534F]",
+    warning:  "text-[#B87A00] bg-[#FDF3E1] border-[#B87A00]",
+    ok:       "text-[#1F8F4E] bg-[#EEF7E9] border-[#82C99E]",
+  }[data.warning_level] || "text-[#6B705C] bg-[#FBFAF6] border-[#E5DDC5]";
+
+  const warnLabel = {
+    critical: "⚠️  Critical — forecast exceeds daily cap",
+    warning:  "⚠  Warning — forecast > 70% of daily cap",
+    ok:       "✓ Healthy — well below the cap",
+  }[data.warning_level] || "—";
+
+  // Past-7d bars: kind buckets sorted by total desc
+  const pastKinds = Object.entries(data.past_7d?.by_kind || {})
+    .map(([k, v]) => ({ kind: k, ...v }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 8);
+  const maxPast = Math.max(1, ...pastKinds.map((k) => k.total));
+
+  return (
+    <Card icon={TrendingUp} title="Email volume forecast" subtitle="Past sends + projected next 7/30 days vs the Resend daily cap." testid="email-volume-forecast-card">
+      <div className={`mb-4 p-3 rounded-xl border-2 text-sm font-semibold ${warnColor}`} data-testid="email-volume-warning">
+        {warnLabel}
+        <div className="text-xs mt-1 font-normal opacity-90">
+          Cap: <strong>{data.daily_cap}/day</strong> · Past 7d daily avg: <strong>{data.daily_avg_7d}</strong> ({data.daily_avg_7d > 0 ? Math.round(data.daily_avg_7d / data.daily_cap * 100) : 0}% of cap)
+          {data.cliff_eta_days !== null && data.cliff_eta_days >= 0 && (
+            <> · Projected cliff: <strong>{data.cliff_eta_days === 0 ? "today" : `${data.cliff_eta_days}d`}</strong></>
+          )}
+        </div>
+      </div>
+
+      <div className="grid sm:grid-cols-3 gap-3 mb-4">
+        <div className="p-3 rounded-xl bg-[#FBFAF6] border border-[#E5DDC5]" data-testid="email-volume-past-7d">
+          <p className="text-xs uppercase tracking-wider text-[#6B705C] mb-1">Past 7 days</p>
+          <p className="text-2xl font-serif text-[#2C2C2C]">{fmt(data.past_7d?.total)}</p>
+        </div>
+        <div className="p-3 rounded-xl bg-[#FBFAF6] border border-[#E5DDC5]" data-testid="email-volume-past-30d">
+          <p className="text-xs uppercase tracking-wider text-[#6B705C] mb-1">Past 30 days</p>
+          <p className="text-2xl font-serif text-[#2C2C2C]">{fmt(data.past_30d?.total)}</p>
+        </div>
+        <div className="p-3 rounded-xl bg-[#EEE9FB] border border-[#6B46C1]/30" data-testid="email-volume-forecast-7d">
+          <p className="text-xs uppercase tracking-wider text-[#6B46C1] mb-1">Projected · next 7d</p>
+          <p className="text-2xl font-serif text-[#6B46C1]">{fmt(data.forecast_7d_total)}</p>
+          <p className="text-[11px] text-[#6B705C] mt-1">≈ {data.forecast_daily_avg}/day</p>
+        </div>
+      </div>
+
+      <h4 className="text-xs uppercase tracking-wider text-[#6B705C] mb-2">Past 7 days by kind</h4>
+      <ul className="space-y-1 mb-4" data-testid="email-volume-past-by-kind">
+        {pastKinds.length === 0 && (
+          <li className="text-xs text-[#9b9b9b] italic">No sends in the past 7 days.</li>
+        )}
+        {pastKinds.map((k) => (
+          <li key={k.kind} className="flex items-center gap-3 text-xs">
+            <span className="font-mono text-[#2C2C2C] w-44 truncate">{k.kind}</span>
+            <div className="flex-1 h-2 bg-[#F5F3EC] rounded-full overflow-hidden">
+              <div
+                className="h-full bg-[#6B46C1]"
+                style={{ width: `${(k.total / maxPast * 100).toFixed(1)}%` }}
+              />
+            </div>
+            <span className="text-[#6B705C] tabular-nums w-12 text-right">{k.total}</span>
+            {k.error > 0 && (
+              <span className="text-[#D9534F] text-[10px]">·{k.error} err</span>
+            )}
+          </li>
+        ))}
+      </ul>
+
+      <h4 className="text-xs uppercase tracking-wider text-[#6B705C] mb-2">Projected weekly · by channel</h4>
+      <ul className="space-y-1 mb-4" data-testid="email-volume-forecast-by-kind">
+        {Object.entries(data.forecast_weekly || {})
+          .filter(([k]) => k !== "total")
+          .sort(([, a], [, b]) => b - a)
+          .map(([k, v]) => (
+            <li key={k} className="flex items-center justify-between text-xs px-2 py-1 rounded bg-[#FBFAF6] border border-[#E5DDC5]">
+              <span className="font-mono text-[#2C2C2C]">{k}</span>
+              <span className="text-[#6B705C] tabular-nums">{v}/week</span>
+            </li>
+          ))}
+      </ul>
+
+      <h4 className="text-xs uppercase tracking-wider text-[#6B705C] mb-2">Opt-in counts (real users only)</h4>
+      <ul className="grid grid-cols-2 gap-1 text-xs" data-testid="email-volume-opt-in-counts">
+        {Object.entries(data.opt_in_counts || {}).map(([k, v]) => (
+          <li key={k} className="px-2 py-1 rounded bg-[#FBFAF6] border border-[#E5DDC5] flex justify-between">
+            <span className="font-mono text-[#2C2C2C]">{k}</span>
+            <span className="text-[#6B705C] tabular-nums">{v}</span>
+          </li>
+        ))}
+      </ul>
+
+      <p className="text-[11px] text-[#9b9b9b] mt-3 italic">
+        Generated {data.generated_at ? new Date(data.generated_at).toLocaleString() : ""}
+      </p>
+    </Card>
+  );
+}
+
+
 // ---------------------------------------------------------------------------
 // Email system master switch — added 2026-06-20 as the prominent
 // counterpart to the buried Feature flags ``outbound_emails_enabled``
@@ -5135,6 +5277,7 @@ export default function AdminConsole() {
               <CronHealthCard />
               <RouteCatalogueCard />
               <EmailSystemCard />
+              <EmailVolumeForecastCard />
               <AdminEmailModeCard />
               <AdminPendingAlertsCard />
               <EmailStatsCard />

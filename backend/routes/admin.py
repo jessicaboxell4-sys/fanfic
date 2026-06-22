@@ -2957,3 +2957,16 @@ async def admin_email_mode_set(
         await set_flag("cron_failure_alerts", True)
         await set_flag("cron_alerts_weekly_batch", True)
     return {"mode": mode}
+
+
+@api_router.get("/admin/email-volume-forecast")
+async def admin_email_volume_forecast(user: User = Depends(require_admin)):
+    """Past 7/30-day volume + a forward projection so the operator
+    can see a Resend-cap cliff before they hit it.
+
+    See ``utils/email_volume_forecast.py`` for the full formula —
+    in short: count from ``email_logs`` for the past windows, then
+    extrapolate weekly cron-volume from current opt-in counts.
+    """
+    from utils.email_volume_forecast import email_volume_forecast
+    return await email_volume_forecast()

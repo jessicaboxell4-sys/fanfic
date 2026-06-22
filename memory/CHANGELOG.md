@@ -7,6 +7,54 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-22 (email-volume-forecast) — Cliff-warning admin card ✅
+
+**Why** — even after the two earlier quota brakes today (admin weekly
+digest + per-user weekly summary), the operator had no way to *see*
+whether the runway was actually safe.  Manual mongo queries against
+``email_logs`` only show the past; this card adds a forward
+projection.
+
+**Built**:
+
+1. **`utils/email_volume_forecast.py`** — pure async helper.
+   * `_past_counts(window_days)` — groups ``email_logs`` by kind +
+     status (ok / error / suppressed) for the window.
+   * `_opt_in_counts()` — distinct counts per channel, excluding
+     test-fixture accounts via ``mongo_test_account_filter``.
+   * `_weekly_projection(opt_in)` — per-channel weekly send count.
+     The ``weekly_summary`` opt-in REPLACES the four kind-specific
+     channels for the same users (matches server-side skip
+     behaviour), so they're subtracted to avoid double-counting.
+   * `email_volume_forecast()` — full payload with cliff ETA,
+     warning level (ok / warning / critical based on % of cap),
+     and a generated_at timestamp.
+2. **`GET /api/admin/email-volume-forecast`** — admin-gated.
+3. **`EmailVolumeForecastCard`** on /admin (between Email system
+   and Email mode cards) — renders the warning banner, 3 KPIs
+   (past 7d, past 30d, projected 7d), per-kind bars for the past
+   week, projected weekly by channel, and the opt-in counts that
+   drive the forecast.
+4. **5-test backend coverage** (`test_email_volume_forecast.py`):
+   shape, projection-subtraction math, status bucketing, window
+   exclusion, daily-cap constant pin.
+
+**Live data check** (genre-sort preview, 2026-06-22):
+* Past 7d: 359 emails (daily avg 51.3 — half of cap)
+* Forecast next 7d: **2** — admin/user batching cut the projected
+  weekly cron volume to essentially zero
+* `warning_level`: `ok`
+* Cliff ETA: 8 days if past 7d trend extrapolated, but forecast
+  is already well below the cap so this is conservative
+
+**Files**:
+- NEW `backend/utils/email_volume_forecast.py`
+- NEW `backend/tests/test_email_volume_forecast.py`
+- MODIFIED `backend/routes/admin.py` (+1 endpoint)
+- MODIFIED `frontend/src/pages/AdminConsole.jsx` (new card + search manifest)
+
+---
+
 ## 2026-06-22 (per-user-weekly-summary) — One Friday email per user opt-in ✅
 
 **Problem (follow-up to admin-alerts fix earlier today)**: Even after
