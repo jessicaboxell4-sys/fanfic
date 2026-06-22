@@ -517,6 +517,25 @@ def test_top_of_week_scheduler_grants_achievement_and_notifies():
         # Seed at least one vote so the cover qualifies (votes > 0).
         sa.post(f"{BASE}/api/community-covers/{cover_id}/vote")
 
+        # The shared `TEST_cover_*` fixtures (kept around for
+        # test_iter22_review_sweep) carry up to 9 votes each, which
+        # would beat our brand-new 1-vote cover and trip the
+        # leaderboard tick.  Snapshot + zero them for the duration
+        # of the test, then restore in the finally block.  Local
+        # cleanup-only — production data is untouched.
+        snapshot_votes = asyncio.get_event_loop().run_until_complete(
+            db.community_covers.find(
+                {"cover_id": {"$regex": "^TEST_cover_"}},
+                {"_id": 0, "cover_id": 1, "votes": 1},
+            ).to_list(length=50)
+        )
+        asyncio.get_event_loop().run_until_complete(
+            db.community_covers.update_many(
+                {"cover_id": {"$regex": "^TEST_cover_"}},
+                {"$set": {"votes": 0}},
+            )
+        )
+
         # Reset any prior state so we're guaranteed a "changed" tick.
         asyncio.get_event_loop().run_until_complete(
             db.system_state.delete_many({"_id": "cover_ecosystem_state"})
@@ -553,6 +572,19 @@ def test_top_of_week_scheduler_grants_achievement_and_notifies():
         )
         assert top_count == 1, "Achievement should only be stamped once"
     finally:
+        # Restore TEST_cover_* vote counts so test_iter22_review_sweep
+        # and the public surfaces still see them at their seeded weight.
+        try:
+            for snap in (snapshot_votes or []):  # noqa: F821 — only defined inside try
+                asyncio.get_event_loop().run_until_complete(
+                    db.community_covers.update_one(
+                        {"cover_id": snap["cover_id"]},
+                        {"$set": {"votes": snap.get("votes", 0)}},
+                    )
+                )
+        except NameError:
+            # `snapshot_votes` wasn't reached (early skip) — nothing to restore.
+            pass
         asyncio.get_event_loop().run_until_complete(
             db.community_covers.delete_many({"shared_by_user_id": a_uid})
         )
@@ -846,6 +878,21 @@ def test_cover_archive_index_and_week_lookup():
         cover_id = sr.json()["community_cover_id"]
 
         sa.post(f"{BASE}/api/community-covers/{cover_id}/vote")
+        # Park the seeded TEST_cover_* fixtures' vote counts for the
+        # duration of this test so our 1-vote cover wins the
+        # leaderboard tick.  Restored in `finally`.
+        snapshot_votes = asyncio.get_event_loop().run_until_complete(
+            db.community_covers.find(
+                {"cover_id": {"$regex": "^TEST_cover_"}},
+                {"_id": 0, "cover_id": 1, "votes": 1},
+            ).to_list(length=50)
+        )
+        asyncio.get_event_loop().run_until_complete(
+            db.community_covers.update_many(
+                {"cover_id": {"$regex": "^TEST_cover_"}},
+                {"$set": {"votes": 0}},
+            )
+        )
         asyncio.get_event_loop().run_until_complete(
             db.system_state.delete_many({"_id": "cover_ecosystem_state"})
         )
@@ -871,6 +918,17 @@ def test_cover_archive_index_and_week_lookup():
         nf = anon.get(f"{BASE}/api/cover-archive/{iso_year + 5}/1")
         assert nf.status_code == 404
     finally:
+        # Restore TEST_cover_* vote counts.
+        try:
+            for snap in (snapshot_votes or []):  # noqa: F821
+                asyncio.get_event_loop().run_until_complete(
+                    db.community_covers.update_one(
+                        {"cover_id": snap["cover_id"]},
+                        {"$set": {"votes": snap.get("votes", 0)}},
+                    )
+                )
+        except NameError:
+            pass
         asyncio.get_event_loop().run_until_complete(
             db.cover_archive.delete_many({})
         )

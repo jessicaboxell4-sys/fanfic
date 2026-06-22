@@ -162,11 +162,19 @@ def test_feature_flag_disables_alert(loop, monkeypatch):
     try:
         with pytest.raises(RuntimeError):
             _run(loop, boom())
+        # No email sent…
         assert len(sent_calls) == 0
-        assert sync_db.cron_alerts.find_one({"job_id": job_id}) is None
+        # …but a suppression row IS written so /admin/alert-health
+        # doesn't keep flagging this job as "uncovered" (2026-06-18
+        # behaviour change — see test_cron_alert_suppression.py).
+        row = sync_db.cron_alerts.find_one({"job_id": job_id})
+        assert row is not None, "expected a suppression row, got None"
+        assert row.get("suppressed") is True
+        assert row.get("reason") == "feature_flag_off"
     finally:
         # Reset for other tests.
         _run(loop, feature_flags.set_flag("cron_failure_alerts", True))
+        sync_db.cron_alerts.delete_many({"job_id": job_id})
 
 
 def test_no_resend_config_is_silent_noop(loop, monkeypatch):
@@ -185,13 +193,22 @@ def test_no_resend_config_is_silent_noop(loop, monkeypatch):
     async def boom():
         raise RuntimeError("no key configured")
 
-    with pytest.raises(RuntimeError):
-        _run(loop, boom())
-    # The cron_runs row is still written…
-    assert sync_db.cron_runs.find_one({"job_id": job_id}) is not None
-    # …but no email was sent and no debounce row was created either.
-    assert len(sent_calls) == 0
-    assert sync_db.cron_alerts.find_one({"job_id": job_id}) is None
+    try:
+        with pytest.raises(RuntimeError):
+            _run(loop, boom())
+        # The cron_runs row is still written…
+        assert sync_db.cron_runs.find_one({"job_id": job_id}) is not None
+        # …no email goes out…
+        assert len(sent_calls) == 0
+        # …and the suppression row is recorded with the expected
+        # reason so the alert-health endpoint can stop nagging
+        # about this run (2026-06-18 behaviour change).
+        row = sync_db.cron_alerts.find_one({"job_id": job_id})
+        assert row is not None
+        assert row.get("suppressed") is True
+        assert row.get("reason") == "resend_not_configured"
+    finally:
+        sync_db.cron_alerts.delete_many({"job_id": job_id})
 
 
 def test_successful_job_does_not_email(loop, monkeypatch):

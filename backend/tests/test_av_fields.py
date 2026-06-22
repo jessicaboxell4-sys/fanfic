@@ -6,6 +6,7 @@ the seeded tester books, and that the values match the spec
 (bk_tester_1/2 clean, bk_tester_3 infected with signature).
 """
 import os
+import re
 import pytest
 import requests
 
@@ -16,11 +17,25 @@ PASSWORD = "tester123!"
 
 @pytest.fixture(scope="module")
 def auth_session():
+    """Login and return a requests.Session pre-configured with the
+    session_token as a Bearer header.
+
+    Why Bearer instead of cookies: the login Set-Cookie carries the
+    ``Secure`` flag, and the requests library refuses to send Secure
+    cookies over plain HTTP (which is what BASE_URL is set to in
+    local CI). Switching to Authorization: Bearer mirrors what
+    ``test_account_safety.py`` does and works against both http://
+    and https:// (2026-06-22 fix).
+    """
     s = requests.Session()
     r = s.post(f"{BASE_URL}/api/auth/login",
                json={"email": EMAIL, "password": PASSWORD},
                timeout=20)
     assert r.status_code == 200, f"login failed: {r.status_code} {r.text[:200]}"
+    cookies = r.headers.get("set-cookie", "") + " " + r.headers.get("Set-Cookie", "")
+    m = re.search(r"session_token=([A-Za-z0-9_\-\.]+)", cookies)
+    assert m, f"no session_token in Set-Cookie header: {cookies!r}"
+    s.headers.update({"Authorization": f"Bearer {m.group(1)}"})
     return s
 
 

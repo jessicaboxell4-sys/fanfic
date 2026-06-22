@@ -7,6 +7,65 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-22 (legacy-test-cleanup) — Legacy test suite back to green ✅
+
+User-approved Task (c) from the fork ask_human plan.  Five long-standing
+P2 flaky/failing test files now pass cleanly in any order.
+
+**Files touched**:
+- `tests/conftest.py` — added a session-scoped autouse fixture
+  (`_pin_session_loop`) that calls `asyncio.set_event_loop(shared_event_loop)`
+  before any test runs.  Without this, the first test that called
+  `asyncio.get_event_loop()` (legacy pattern in `test_cover_regen.py`)
+  spawned a brand-new loop and Motor permanently bound to it, then later
+  tests using the shared fixture hit `RuntimeError: Future attached to a
+  different loop`.
+- `tests/test_av_fields.py` — switched the auth fixture from
+  cookie-based to `Authorization: Bearer` (same pattern as
+  `test_account_safety.py`).  Cause: `requests` refuses to send `Secure`
+  cookies over plain HTTP, which is what `BASE_URL` defaults to in local
+  CI, so every API call after login was 401.
+- `tests/test_cron_alert_suppression.py` — replaced the module-local
+  `asyncio.new_event_loop()` fixture with the shared one; otherwise
+  Motor rebound itself per-module and broke later tests.
+- `tests/test_cron_failure_alerts.py` — two stale assertions
+  (`test_feature_flag_disables_alert`, `test_no_resend_config_is_silent_noop`)
+  still expected the pre-2026-06-18 silent-drop behaviour.  Updated them
+  to assert the new contract: no email + a `cron_alerts` row with
+  `suppressed=True` and the expected `reason`, matching the alert-health
+  endpoint coverage from `test_cron_alert_suppression.py`.
+- `tests/test_cover_regen.py` — two leaderboard tests
+  (`test_top_of_week_scheduler_grants_achievement_and_notifies`,
+  `test_cover_archive_index_and_week_lookup`) were beaten by the seeded
+  `TEST_cover_*` fixtures that `test_iter22_review_sweep.py` depends on
+  (votes=8/9 vs the test's brand-new 1-vote cover).  Now snapshot the
+  fixtures' votes to zero for the duration of the test, then restore in
+  `finally` — `test_iter22_review_sweep` still sees them at full weight.
+
+**Verification**:
+- Targeted re-run of all six previously-failing files:
+  `42 passed, 1 skipped, 0 failed in 2m26s` (skip is the LLM-billed
+  `preview-cover` happy path, expected when no key is configured).
+- `test_iter22_review_sweep.py` still 13/13 — vote snapshots restore
+  correctly.
+- TEST_cover_* votes verified post-suite at their seeded values
+  (1 / 9 / 8) so other tests/UIs that depend on them are unaffected.
+
+---
+## 2026-06-22 (stragglers-verify) — Cloudflare 524 fix verified ✅
+
+User-approved Task (a) from the fork ask_human plan.  Confirmed the
+parallelized `/api/admin/storage/stragglers` endpoint no longer times
+out.  Hit it locally with the seeded tester (temp-promoted to admin):
+
+```
+HTTP=200, TIME=8.6s, returned 10 of 99 stragglers
+```
+
+— well under Cloudflare's 100s ceiling.  Endpoint is production-safe.
+
+---
+
 ## 2026-06-21 (ci-admin-users-test-fix) — GitHub Actions backend tests back to green ✅
 
 **Reported via GH Actions email**: `backend-tests / pytest` workflow

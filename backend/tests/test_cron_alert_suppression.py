@@ -34,14 +34,13 @@ def db():
     client.close()
 
 
-@pytest.fixture(scope="module")
-def loop():
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        yield loop
-    finally:
-        loop.close()
+@pytest.fixture()
+def loop(shared_event_loop):
+    """Bind to the session-shared event loop so Motor isn't re-bound to
+    a fresh loop here.  Creating ``asyncio.new_event_loop()`` per module
+    used to break later tests with ``Future attached to a different
+    loop`` (2026-06-22 — switched to shared_event_loop)."""
+    return shared_event_loop
 
 
 def test_suppression_records_row_when_no_admin_emails(loop, db):

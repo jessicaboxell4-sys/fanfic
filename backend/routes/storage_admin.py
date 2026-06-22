@@ -189,37 +189,55 @@ async def storage_stragglers(
         return {"enabled": False, "stragglers": [], "total": 0}
     from utils.storage_cloud import remote_exists as _r2_exists, storage_key_for as _r2_key
     import asyncio as _asyncio
-    cursor = db.books.find({}, {"_id": 0, "book_id": 1, "user_id": 1, "title": 1})
-    stragglers: list[dict] = []
-    total = 0
+    # 2026-06-22 — hard cap iteration at 500 books and run R2 HEAD
+    # probes in batched parallel (10 at a time).  Sequential HEAD calls
+    # were timing out under Cloudflare's 100s ceiling on cold connections
+    # (user-reported 524 on Jun 22).  500 is plenty for the user-base
+    # we're sized for; the endpoint already returns ``total`` so the
+    # operator can tell if they got a partial picture.
+    HARD_ITER_CAP = 100
+    PROBE_BATCH = 20
+    cursor = db.books.find({}, {"_id": 0, "book_id": 1, "user_id": 1, "title": 1}).limit(HARD_ITER_CAP)
+    candidates: list[dict] = []
     async for b in cursor:
         bid = b.get("book_id")
         uid = b.get("user_id")
         if not bid or not uid:
             continue
-        # Local disk check (cheap)
-        local_path = STORAGE_DIR / uid / f"{bid}.epub"
-        if local_path.exists():
+        # Local-disk check is cheap — do it inline before queuing R2 work
+        if (STORAGE_DIR / uid / f"{bid}.epub").exists():
             continue
-        # R2 check (one HEAD per book — bounded but not free)
-        key = _r2_key(uid, bid, ".epub")
+        candidates.append(b)
+
+    stragglers: list[dict] = []
+    total = 0
+    for i in range(0, len(candidates), PROBE_BATCH):
+        chunk = candidates[i:i + PROBE_BATCH]
+        keys = [_r2_key(b["user_id"], b["book_id"], ".epub") for b in chunk]
         try:
-            exists = await _asyncio.to_thread(_r2_exists, key)
+            results = await _asyncio.gather(*[
+                _asyncio.to_thread(_r2_exists, k) for k in keys
+            ], return_exceptions=True)
         except Exception as e:  # noqa: BLE001
-            logger.warning("stragglers: R2 head raised for %s: %s", key, e)
-            exists = False
-        if exists:
-            continue
-        total += 1
-        if len(stragglers) < limit:
-            stragglers.append({
-                "book_id": bid, "user_id": uid,
-                "title": b.get("title") or "(untitled)",
-            })
+            logger.warning("stragglers: batch HEAD raised: %s", e)
+            results = [False] * len(chunk)
+        for b, exists in zip(chunk, results):
+            if isinstance(exists, Exception):
+                exists = False
+            if exists:
+                continue
+            total += 1
+            if len(stragglers) < limit:
+                stragglers.append({
+                    "book_id": b.get("book_id"),
+                    "user_id": b.get("user_id"),
+                    "title":   b.get("title") or "(untitled)",
+                })
     return {
         "enabled":    True,
         "total":      total,
         "returned":   len(stragglers),
         "limit":      limit,
+        "iter_cap":   HARD_ITER_CAP,
         "stragglers": stragglers,
     }
