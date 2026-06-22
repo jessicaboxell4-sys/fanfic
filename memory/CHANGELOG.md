@@ -7,6 +7,42 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-22 afternoon (admin-recent-cards) — "Recent" sidebar list ✅
+
+Follow-up to the admin nav overhaul.  The sidebar now shows the last
+3 cards the operator expanded, newest first, above the category list.
+Saves the muscle-memory tax of relearning where every card lives.
+
+**Implementation**:
+- `pushRecent(testid)` lives on ``AdminCardsContext`` so any Card can
+  call it without prop-drilling.
+- The `Card` component fires `pushRecent` on the *open transition*
+  only — closing isn't a "view", and scrolling past isn't either.
+- The Cmd+K palette also fires `pushRecent` on Enter → keyboard
+  navigation feeds Recent the same way mouse navigation does.
+- State is persisted to ``localStorage`` under
+  ``admin.recent_cards`` (capped at 3, deduped, newest-first).
+  Survives a refresh and a new tab.
+- Render: a small ``Recent`` block above ``Sections`` in the
+  sticky sidebar, each row showing a ↻ glyph + the card title.
+  Click → smooth-scrolls to the card with the same purple
+  highlight ring as the Cmd+K jump.
+
+**Files**:
+- MODIFIED `frontend/src/pages/AdminConsole.jsx` —
+  + recentIds state + pushRecent + recentCards derivation
+  + Card.handleToggle pushes on open
+  + jumpToCard (Cmd+K target) pushes on jump
+  + sidebar adds the "Recent" sub-list
+
+**Tested**:
+- Lint clean on touched code (7 pre-existing warnings unchanged).
+- `/admin` HTTP 200 on the dev server.
+- React conditional renders Recent only when at least one card
+  has been opened (empty-state safe).
+
+---
+
 ## 2026-06-22 afternoon (admin-navigation-overhaul) — Easier /admin nav ✅
 
 User asked to make `/admin` easier to navigate (33 cards in a flat

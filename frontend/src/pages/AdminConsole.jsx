@@ -28,7 +28,7 @@ import AdminAnalyticsCard from "../components/AdminAnalyticsCard";
 // `query` is the live search box value. Cards whose title + subtitle don't
 // contain the (lowercased) query string render null so the page becomes a
 // targeted view when an admin is firefighting a specific subsystem.
-const AdminCardsContext = React.createContext({ openTick: 0, closeTick: 0, remember: false, query: "" });
+const AdminCardsContext = React.createContext({ openTick: 0, closeTick: 0, remember: false, query: "", pushRecent: () => {} });
 const REMEMBER_PREF_KEY = "shelfsort.admin.remember-open";
 const CARD_STATE_PREFIX = "shelfsort.admin.card.";
 
@@ -117,7 +117,7 @@ function Card({ icon: Icon, title, subtitle, children, testid }) {
   // index of category headers. Click the header (or chevron) to reveal.
   // If the user opted into "remember open sections", we hydrate the
   // initial value from localStorage and persist on every change.
-  const { openTick, closeTick, remember, query } = useContext(AdminCardsContext);
+  const { openTick, closeTick, remember, query, pushRecent } = useContext(AdminCardsContext);
   const storageKey = testid ? `${CARD_STATE_PREFIX}${testid}` : null;
   const [open, setOpen] = useState(() => {
     if (!remember || !storageKey) return false;
@@ -129,6 +129,17 @@ function Card({ icon: Icon, title, subtitle, children, testid }) {
     if (!remember || !storageKey) return;
     try { localStorage.setItem(storageKey, open ? "1" : "0"); } catch { /* ignore */ }
   }, [open, remember, storageKey]);
+  // Track expand events so the sidebar's "Recent" list reflects what
+  // the operator actually opens (not what they merely scrolled past).
+  // Push on the transition to open only — closing isn't a "use".
+  // 2026-06-22 — added with the Recent-cards sidebar feature.
+  const handleToggle = () => {
+    setOpen((v) => {
+      const next = !v;
+      if (next && pushRecent && testid) pushRecent(testid);
+      return next;
+    });
+  };
 
   // Search filter: hide this card entirely when the page-level query
   // doesn't match title / subtitle / extra keywords from the manifest.
@@ -147,7 +158,7 @@ function Card({ icon: Icon, title, subtitle, children, testid }) {
     >
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={handleToggle}
         aria-expanded={open}
         data-testid={testid ? `${testid}-toggle` : undefined}
         className={`w-full flex items-start gap-3 text-left ${open ? "mb-4" : "mb-0"}`}
@@ -5237,6 +5248,30 @@ export default function AdminConsole() {
   const [rawQuery, setRawQuery] = useState("");
   const query = rawQuery.trim().toLowerCase();
   const visibleCards = ADMIN_CARD_MANIFEST.filter((c) => cardMatchesQuery(c, query));
+
+  // "Recently viewed" sidebar list — last 3 testids the operator
+  // expanded, newest first.  Persisted to localStorage so it survives
+  // a refresh / new tab.  Hydrated lazily so SSR / first-paint is
+  // identical regardless of the saved state.  (2026-06-22.)
+  const RECENT_KEY = "admin.recent_cards";
+  const RECENT_MAX = 3;
+  const [recentIds, setRecentIds] = useState(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(RECENT_KEY) || "[]");
+      return Array.isArray(raw) ? raw.slice(0, RECENT_MAX) : [];
+    } catch { return []; }
+  });
+  const pushRecent = (testid) => {
+    setRecentIds((prev) => {
+      // Dedupe + newest-first + capped.
+      const next = [testid, ...prev.filter((x) => x !== testid)].slice(0, RECENT_MAX);
+      try { localStorage.setItem(RECENT_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  };
+  const recentCards = recentIds
+    .map((id) => ADMIN_CARD_MANIFEST.find((c) => c.testid === id))
+    .filter(Boolean);
   const [remember, setRemember] = useState(() => {
     try { return localStorage.getItem(REMEMBER_PREF_KEY) === "1"; } catch { return false; }
   });
@@ -5292,6 +5327,10 @@ export default function AdminConsole() {
     : ADMIN_CARD_MANIFEST.slice(0, 8);
   const jumpToCard = (testid) => {
     setPaletteOpen(false);
+    setPaletteQuery("");
+    setPaletteIndex(0);
+    // Cmd+K → Enter counts as a "view" for the Recent sidebar list.
+    pushRecent(testid);
     setTimeout(() => {
       const el = document.querySelector(`[data-testid="${testid}"]`);
       if (el) {
@@ -5344,6 +5383,33 @@ export default function AdminConsole() {
       <main className="max-w-7xl mx-auto px-6 py-10 lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-8" data-testid="admin-console">
         {/* ─── Sticky category sidebar (2026-06-22) — jump-nav across the 33 cards. ─── */}
         <aside className="hidden lg:block sticky top-6 self-start" data-testid="admin-sidebar">
+          {recentCards.length > 0 && (
+            <>
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#6B705C] mb-3 px-2">Recent</p>
+              <nav className="space-y-0.5 mb-4" aria-label="Recently viewed" data-testid="admin-sidebar-recent">
+                {recentCards.map((card) => (
+                  <button
+                    key={card.testid}
+                    type="button"
+                    onClick={() => {
+                      const el = document.querySelector(`[data-testid="${card.testid}"]`);
+                      if (el) {
+                        el.scrollIntoView({ behavior: "smooth", block: "start" });
+                        el.style.transition = "box-shadow 0.4s ease-in-out";
+                        el.style.boxShadow = "0 0 0 3px #6B46C1";
+                        setTimeout(() => { el.style.boxShadow = ""; }, 1400);
+                      }
+                    }}
+                    title={card.subtitle}
+                    data-testid={`admin-sidebar-recent-${card.testid}`}
+                    className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-[#6B705C] hover:bg-[#FFF4E0] hover:text-[#9B5A00] transition-colors truncate"
+                  >
+                    <span className="text-[10px] mr-1.5 opacity-60">↻</span>{card.title}
+                  </button>
+                ))}
+              </nav>
+            </>
+          )}
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#6B705C] mb-3 px-2">Sections</p>
           <nav className="space-y-0.5" aria-label="Admin sections">
             {ADMIN_CATEGORIES.map((cat) => {
@@ -5507,7 +5573,7 @@ export default function AdminConsole() {
           {remember ? " Your open sections will be remembered on your next visit." : ""}
         </p>
 
-        <AdminCardsContext.Provider value={{ openTick, closeTick, remember, query }}>
+        <AdminCardsContext.Provider value={{ openTick, closeTick, remember, query, pushRecent }}>
           {visibleCards.length === 0 ? (
             <div
               className="shelf-card p-8 text-center"
