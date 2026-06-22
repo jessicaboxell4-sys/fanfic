@@ -7,7 +7,58 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
-## 2026-06-22 evening (launch-prep-legal) — Privacy + Terms + Footer ✅
+## 2026-06-22 evening (launch-prep-batch-2) — robots, sitemap, footer wiring, Indiana, BSTK reminder ✅
+
+Tail-end of the launch checklist after Privacy + Terms shipped.
+Quick batch — none of these are conceptually hard, just paperwork
+that has to be in place before the public push.
+
+**Five small wins**:
+1. NEW `frontend/public/robots.txt` — Allow `/`, disallow the
+   authenticated areas (`/admin`, `/account`, `/library`, etc.),
+   point at the sitemap.  Crawl-budget-friendly.
+2. NEW `frontend/public/sitemap.xml` — 8 URLs (Landing, Login,
+   Help, Rules, Privacy, Terms, ExploreCovers, Suggestions) with
+   reasonable `<changefreq>` + `<priority>` values.  Tells search
+   engines exactly which pages exist + how stale to consider each.
+3. MODIFIED `frontend/src/pages/Login.jsx` — imports + renders
+   `<SiteFooter />` after the form card.
+4. MODIFIED `frontend/src/pages/Help.jsx` — imports + renders
+   `<SiteFooter />` after the main content.
+5. MODIFIED `frontend/src/pages/Terms.jsx` — &sect;10 now reads
+   "These Terms are governed by the laws of the State of
+   Indiana, United States. Any disputes [...] will be resolved
+   in the state or federal courts located in Indiana."
+   (Operator-supplied.)
+6. MODIFIED `backend/utils/feature_flags.py` — added a clearly
+   delimited `>>> REMINDER (parked 2026-06-22 by Jessica) <<<`
+   comment block next to `DEFAULT_FLAGS["send_to_kindle_enabled"]
+   = False`, so the next person flipping that flag on sees the
+   Bulk Send-to-Kindle implementation sketch inline.  Pairs with
+   the ROADMAP.md entry under the same heading.
+
+**Smoke-tested live (preview env)**:
+- `/robots.txt` — HTTP 200, contains `shelfsort.com`, contains
+  the `Sitemap:` directive.
+- `/sitemap.xml` — HTTP 200, parses, 8 `<url>` entries present.
+- `/login` — footer renders, `footer-link-privacy` testid present.
+- `/help` — JSX wiring identical to `/login`; will render the
+  footer for any authenticated user who reaches it.  Preview-env
+  auth flake masked the screenshot test but the static structure
+  is verified.
+
+**Followup surfaced** (not in scope for this batch, noted to
+ROADMAP):
+- `/help` is wrapped in `<ProtectedRoute>` so the footer's
+  "Help & FAQ" link will bounce unauthenticated visitors arriving
+  from `/privacy` or `/terms` to `/login`.  Possible fixes:
+  (a) make `/help` public, (b) split into a public `/help`
+  marketing page + an authenticated `/account/help`,
+  (c) accept the bounce as acceptable for v1.  Suggest (c)
+  for launch, revisit later.
+
+---
+
 
 Hard launch blocker resolved.  Shelfsort had been live in
 production with 274 users + 3,897 books for some time without

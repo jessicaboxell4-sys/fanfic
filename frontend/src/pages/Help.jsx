@@ -3,6 +3,7 @@ import axios from "axios";
 import { Link, useLocation } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import SuggestionBox from "../components/SuggestionBox";
+import SiteFooter from "../components/SiteFooter";
 import { SEND_TO_KINDLE_UI_ENABLED } from "../lib/featureFlags";
 import { api } from "../lib/api";
 import {
@@ -1109,6 +1110,7 @@ export default function Help() {
           </div>{/* /right column */}
         </div>{/* /flex wrapper */}
       </main>
+      <SiteFooter />
     </div>
   );
 }

@@ -31,6 +31,16 @@ DEFAULT_FLAGS: Dict[str, bool] = {k: True for k in KNOWN_FLAGS}
 # a Resend daily-quota slot, so we don't want a fresh install to expose
 # the orange "Send to Kindle" button until the operator deliberately
 # turns it on from /admin → Feature flags.
+#
+# >>> REMINDER (parked 2026-06-22 by Jessica) <<<
+# When you flip ``send_to_kindle_enabled`` back ON, also build the
+# **Bulk Send-to-Kindle from Library** feature: multi-select books on
+# /library → "Send selected to Kindle" → backend queues with 30-sec
+# spacing between sends to avoid Amazon's rate-limit + Shelfsort's
+# Resend quota.  Implementation sketch lives in
+# /app/memory/ROADMAP.md under the same heading.  Worthless to build
+# while the parent feature is hidden; ship-worthy the moment it's
+# back on.
 DEFAULT_FLAGS["send_to_kindle_enabled"] = False
 
 _cache: Dict[str, bool] = {}

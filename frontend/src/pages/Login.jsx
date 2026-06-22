@@ -4,6 +4,7 @@ import { BookOpen, Mail, Lock, User as UserIcon, AtSign, Loader2 } from "lucide-
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "sonner";
+import SiteFooter from "../components/SiteFooter";
 
 function errMsg(detail) {
   if (!detail) return "Something went wrong";
@@ -624,6 +625,7 @@ export default function Login() {
           )}
         </div>
       </div>
+      <SiteFooter />
     </div>
   );
 }

@@ -27,23 +27,30 @@ user-action items + a small handful of P1 candidates remain.)
   as an EPUB.  Takes about 30 seconds; high confidence; closes
   the last loop on today's deploy.
 
-### 🟢 Launch-prep items still pending (after Privacy + Terms shipped)
+### 🟢 Launch-prep items still pending (after Privacy + Terms + robots/sitemap/footer-wire/Indiana shipped)
 
-- **Pick a US state of residence** for Terms section 10 (currently
-  reads "the operator's state of residence" generically).  Once
-  picked, one-line edit + redeploy.  Required before any monetization
-  via Stripe — they ask for jurisdiction at onboarding.
-- **Add `robots.txt` + `sitemap.xml`** to `/app/frontend/public/`.
-  Allows search engines to index without ambiguity; sitemap.xml
-  improves crawl coverage for the public pages
-  (Landing, Privacy, Terms, Help, Rules, ExploreCovers).  Tiny.
-- **Footer-wire Login + Help pages** so the Privacy + Terms links
-  are reachable from logged-out states beyond Landing.  Two
-  `<SiteFooter />` insertions, ~30 sec.
-- **Public launch announcement** — LAUNCH_TWEET.md now has the
-  correct shelfsort.com domain in all 4 places; ready to post
-  when you're ready.  Three platform variants drafted
-  (Twitter/Bluesky/Mastodon).
+- **Redeploy to production** — Manage deployments → Redeploy.
+  Pushes everything from today's session to shelfsort.com:
+  Privacy, Terms, footer, robots.txt, sitemap.xml, Indiana
+  governing-law clause, admin changelog card, LLM key health
+  card, smart welcome email, tour bypass `?notour=1`, BSTK
+  inline reminder, AdminHelp doc updates.  Until you click
+  Redeploy, all of the above exist only in preview.
+- **Public launch announcement** — `/app/memory/LAUNCH_TWEET.md`
+  has 3 platform variants (Twitter/Bluesky/Mastodon) with the
+  correct `shelfsort.com` domain.  Post when ready.  Recommend
+  Bluesky first (warm audience for indie tools) → Twitter →
+  Mastodon.  Reply to your own post with the static
+  `landing-hero.png` from `/frontend/public/`.
+- **`/help` footer bounce** — `/help` is wrapped in
+  `<ProtectedRoute>` so unauthenticated visitors clicking the
+  footer "Help & FAQ" link from `/privacy` or `/terms` will
+  bounce to `/login`.  Acceptable for v1 launch; revisit later
+  with one of: (a) make `/help` public, (b) split into a
+  public marketing `/help` + an authenticated `/account/help`.
+- **Optional: legal entity on Privacy &sect;1** — if you ever
+  incorporate as an LLC, drop the legal entity name into
+  Privacy.jsx section 1.
 
 - **Bulk Send-to-Kindle from Library** — parked 2026-06-22 by user.
   *Currently DEFERRED — the parent Send-to-Kindle feature was hidden
