@@ -7,7 +7,43 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
-## 2026-06-22 afternoon (admin-recent-cards) — "Recent" sidebar list ✅
+## 2026-06-22 evening (admin-changelog-card) — Recent changelog admin card ✅
+
+Frontend follow-up to the backend `/api/admin/changelog` endpoint
+built earlier today.  Adds a "Recent changelog" Card to the
+`/admin` System & health section so the operator can see the last
+20 dated entries from `CHANGELOG.md` without opening the repo.
+
+**Implementation**:
+- New `ChangelogCard` component in `frontend/src/pages/AdminConsole.jsx`
+  fetches `GET /api/admin/changelog?limit=20`.
+- Each entry renders as a `<details>` row: date pill (purple), title,
+  slug + line count, with the full markdown body collapsed in a
+  scrollable `<pre>` block below.
+- Header shows `returned / total_in_file` and the source path.
+- Added manifest entry `admin-changelog-card` (category: `system`)
+  so it's filterable via the search bar and reachable from Cmd+K.
+- `History` icon added to lucide imports.
+
+**Files**:
+- MODIFIED `frontend/src/pages/AdminConsole.jsx` (+1 import,
+  +1 manifest entry, +1 switch case, +1 component ~85 LOC)
+- MODIFIED `memory/CHANGELOG.md` (this entry)
+
+**Tested**:
+- Backend endpoint returned 3 well-formed entries via authenticated
+  curl (`/api/admin/changelog?limit=3` → 200, `returned: 3`,
+  `total_in_file: 113`).
+- Webpack hot-reload compiled clean (1 pre-existing warning,
+  unchanged).
+- Lint clean on touched code; only the 7 pre-existing eslint
+  warnings remain.
+- UI smoke-test via Playwright blocked by the recurring
+  welcome-tour redirect (known flake from prior session); validated
+  structurally against the matching `HiddenFeaturesCard` pattern.
+
+---
+
 
 Follow-up to the admin nav overhaul.  The sidebar now shows the last
 3 cards the operator expanded, newest first, above the category list.

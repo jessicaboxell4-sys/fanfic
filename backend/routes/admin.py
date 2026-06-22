@@ -2987,3 +2987,17 @@ async def admin_hidden_features(user: User = Depends(require_admin)):
     """
     from utils.hidden_features import hidden_features
     return await hidden_features()
+
+
+@api_router.get("/admin/changelog")
+async def admin_changelog(limit: int = 20, user: User = Depends(require_admin)):
+    """Recent CHANGELOG.md entries as structured rows.
+
+    Default 20 newest entries.  Hard-capped at 100 inside the
+    parser so the admin card stays snappy even after the
+    changelog grows to thousands of entries.  See
+    ``utils/changelog_reader.py`` for the H2 heading convention
+    we slice on.
+    """
+    from utils.changelog_reader import get_changelog_entries
+    return get_changelog_entries(limit=limit)

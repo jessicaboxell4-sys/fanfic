@@ -9,7 +9,7 @@ import {
   Check, ChevronRight, ChevronDown, Download, AlertOctagon, RotateCcw, Send,
   Mail, MessageSquare, Clock, CircleAlert, Route as RouteIcon, Search,
   Inbox, Database, Siren, HardDrive, TrendingUp, Eye, BookOpen, Sparkles, ShieldAlert, FlaskConical,
-  Paperclip, HelpCircle, Bell, EyeOff,
+  Paperclip, HelpCircle, Bell, EyeOff, History,
 } from "lucide-react";
 import MongoInspectorCard from "../components/MongoInspectorCard";
 import ModerationLogCard from "../components/ModerationLogCard";
@@ -79,6 +79,7 @@ const ADMIN_CARD_MANIFEST = [
   { testid: "route-catalogue-card", category: "system", title: "Route catalogue", subtitle: "Every /api/* endpoint.", keywords: "route catalogue endpoint api list routes urls" },
   { testid: "admin-flags-card", category: "system", title: "Feature flags", subtitle: "Runtime kill switches.", keywords: "feature flags toggles kill switch runtime config" },
   { testid: "hidden-features-card", category: "system", title: "Hidden features", subtitle: "Built-but-invisible work parked behind feature flags.", keywords: "hidden features parked feature flag toggle dormant disabled invisible behind flag fichub kindle send url fetching ficfic" },
+  { testid: "admin-changelog-card", category: "system", title: "Recent changelog", subtitle: "Last 20 dated entries from CHANGELOG.md.", keywords: "changelog history recent log entries shipped features fixes release dates h2 memory append" },
   { testid: "admin-unknown-fandoms-card", category: "system", title: "Unknown fandoms", subtitle: "Fandoms not yet in the keyword classifier.", keywords: "unknown fandoms classifier rescan dismiss missing tag" },
   { testid: "admin-aliases-card", category: "system", title: "Global fandom aliases", subtitle: "Tenant-wide fandom aliases.", keywords: "fandom aliases global rename remap synonym" },
   { testid: "admin-stats-card", category: "data", title: "Global stats", subtitle: "Tenant-wide rollup.", keywords: "stats global rollup books users storage signups categories fandoms" },
@@ -4831,6 +4832,91 @@ function HiddenFeaturesCard() {
 
 
 // ---------------------------------------------------------------------------
+// Recent changelog (2026-06-22) — last 20 entries from CHANGELOG.md.
+// Backed by GET /api/admin/changelog. Lets the operator see what's
+// shipped recently without opening the repo. Each entry is collapsed
+// by default; click to expand the body of that dated section.
+// ---------------------------------------------------------------------------
+function ChangelogCard() {
+  const [data, setData] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data: payload } = await api.get("/admin/changelog", { params: { limit: 20 } });
+        if (!cancelled) setData(payload);
+      } catch {
+        if (!cancelled) setData({ error: true });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  if (data === null) {
+    return (
+      <Card icon={History} title="Recent changelog" subtitle="Last 20 dated entries from CHANGELOG.md." testid="admin-changelog-card">
+        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+      </Card>
+    );
+  }
+  if (data.error) {
+    return (
+      <Card icon={History} title="Recent changelog" subtitle="Last 20 dated entries from CHANGELOG.md." testid="admin-changelog-card">
+        <p className="text-sm text-[#D9534F]">Couldn&rsquo;t load — check backend logs.</p>
+      </Card>
+    );
+  }
+
+  const entries = data.entries || [];
+
+  return (
+    <Card icon={History} title="Recent changelog" subtitle="Last 20 dated entries from CHANGELOG.md." testid="admin-changelog-card">
+      <p className="text-xs text-[#6B705C] mb-3">
+        Showing <strong data-testid="admin-changelog-returned">{data.returned}</strong> of{" "}
+        <strong data-testid="admin-changelog-total">{data.total_in_file}</strong> total entries from{" "}
+        <code className="text-[11px]">{(data.path || "").replace("/app/", "")}</code>.
+      </p>
+
+      {entries.length === 0 ? (
+        <p className="text-sm text-[#6B705C] italic">No entries yet.</p>
+      ) : (
+        <ul className="space-y-2" data-testid="admin-changelog-list">
+          {entries.map((e, i) => (
+            <li
+              key={`${e.date}-${e.slug}-${i}`}
+              data-testid={`admin-changelog-entry-${i}`}
+              className="p-3 rounded-xl border border-[#E5DDC5] bg-[#FBFAF6]"
+            >
+              <details>
+                <summary className="cursor-pointer list-none">
+                  <div className="flex items-start gap-3">
+                    <span className="text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded border bg-[#EEE9FB] text-[#6B46C1] border-[#6B46C1]/30 shrink-0 mt-0.5">
+                      {e.date}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-semibold text-[#2C2C2C] leading-snug">{e.title}</h4>
+                      {e.slug && (
+                        <p className="text-[11px] font-mono text-[#6B705C] truncate">({e.slug}) · {e.lines} line{e.lines === 1 ? "" : "s"}</p>
+                      )}
+                    </div>
+                    <ChevronDown className="w-4 h-4 text-[#9b9b9b] shrink-0 mt-1" />
+                  </div>
+                </summary>
+                <pre className="mt-3 text-[11px] leading-relaxed text-[#2C2C2C] whitespace-pre-wrap font-sans bg-white border border-[#E5DDC5] rounded-lg p-3 max-h-80 overflow-auto">
+                  {e.body || "(empty)"}
+                </pre>
+              </details>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
 function EmailVolumeForecastCard() {
   const [data, setData] = useState(null);
 
@@ -5646,6 +5732,7 @@ export default function AdminConsole() {
                       case "route-catalogue-card":              return <RouteCatalogueCard key={c.testid} />;
                       case "admin-flags-card":                  return <FeatureFlagsCard key={c.testid} />;
                       case "hidden-features-card":              return <HiddenFeaturesCard key={c.testid} />;
+                      case "admin-changelog-card":              return <ChangelogCard key={c.testid} />;
                       case "admin-unknown-fandoms-card":        return <UnknownFandomsCard key={c.testid} />;
                       case "admin-aliases-card":                return <GlobalAliasesCard key={c.testid} />;
                       case "admin-stats-card":                  return <GlobalStatsCard key={c.testid} />;
