@@ -36,40 +36,55 @@ const CARD_STATE_PREFIX = "shelfsort.admin.card.";
 // and the suggestion chips. Kept in sync with the Card title/subtitle strings
 // below; extra `keywords` make the search forgiving (e.g. "outage" matches
 // the Maintenance banner card whose title doesn't contain that word).
+// Card sections (2026-06-22) — adds category grouping + sticky sidebar
+// + Cmd+K command palette navigation across the 33-card admin page.
+// Each manifest entry now carries a ``category`` slug that ties it to
+// one of the sections rendered below.  Search still filters across the
+// whole manifest regardless of category.
+const ADMIN_CATEGORIES = [
+  { id: "overview",  label: "Overview",            icon: "BarChart3" },
+  { id: "users",     label: "Users & sign-ups",    icon: "Users" },
+  { id: "feedback",  label: "Feedback & moderation", icon: "MessageSquare" },
+  { id: "storage",   label: "Storage & files",     icon: "HardDrive" },
+  { id: "email",     label: "Email",               icon: "Mail" },
+  { id: "system",    label: "System & health",     icon: "Activity" },
+  { id: "data",      label: "Data & diagnostics",  icon: "Database" },
+];
+
 const ADMIN_CARD_MANIFEST = [
-  { testid: "admin-pending-users-card", title: "Pending sign-ups", subtitle: "Approve or reject new users.", keywords: "pending sign-up approval new user gate queue invite waitlist" },
-  { testid: "admin-today-pulse-card", title: "Today · 24h pulse", subtitle: "Signups, uploads, errors at a glance.", keywords: "today pulse signups uploads errors fandoms 24h daily summary" },
-  { testid: "admin-feedback-inbox-card", title: "Feedback inbox", subtitle: "User-submitted bugs, ideas, and feature requests.", keywords: "feedback suggestions bug feature request inbox users reports tickets" },
-  { testid: "admin-help-feedback-card", title: "Help-page feedback", subtitle: "Per-page friction reports with screenshots.", keywords: "help suggestion friction page screenshot photo feedback short-form by-page" },
-  { testid: "admin-signup-rules-card", title: "Sign-up rules & questions", subtitle: "Approval gate, onboarding questions, community rules.", keywords: "signup register approval gate onboarding questions rules community moderation referral fandom reader type" },
-  { testid: "admin-antivirus-card", title: "Antivirus", subtitle: "ClamAV scanner status + recent flags.", keywords: "antivirus clamav virus malware scan quarantine infected eicar signature" },
-  { testid: "admin-storage-by-user-card", title: "Top storage users", subtitle: "Top 20 accounts by uploaded bytes.", keywords: "storage user disk bytes top biggest heavy quota power outliers abandoned" },
-  { testid: "admin-r2-migration-card", title: "R2 migration progress", subtitle: "Lazy Emergent → R2 migration sampled progress.", keywords: "r2 migration storage emergent cloudflare progress sample backfill" },
-  { testid: "admin-orphan-audit-card", title: "Orphan audit & cleanup", subtitle: "Find books whose files are missing in both R2 and Emergent.", keywords: "orphan audit cleanup missing files head-check r2 emergent storage dead row dangling" },
-  { testid: "admin-storage-trend-card", title: "Storage trend · 30 days", subtitle: "Cumulative bytes over time.", keywords: "storage trend disk growth chart graph history snapshot 30d size bytes" },
-  { testid: "admin-view-consents-card", title: "View-as-user consents", subtitle: "Request read-only access to a user's library.", keywords: "view as user impersonate consent privacy access permission timeline" },
-  { testid: "admin-users-card", title: "Users & admins", subtitle: "Promote or demote any account.", keywords: "users admins promote demote roles accounts" },
-  { testid: "admin-watching-bookclubs-card", title: "Rooms I'm watching", subtitle: "Every bookclub the platform owner has been auto-added to.", keywords: "bookclubs rooms watching oversight admin auto-join clubs moderate" },
-  { testid: "admin-chat-rooms-card", title: "Chat rooms", subtitle: "Direct-message rooms.", keywords: "chat rooms messages dm direct message conversations" },
-  { testid: "admin-unknown-fandoms-card", title: "Unknown fandoms", subtitle: "Fandoms not yet in the keyword classifier.", keywords: "unknown fandoms classifier rescan dismiss missing tag" },
-  { testid: "admin-banner-card", title: "Maintenance banner", subtitle: "Site-wide announcement banner.", keywords: "maintenance banner outage announcement downtime planned heads-up" },
-  { testid: "admin-health-card", title: "System health", subtitle: "External dependencies + storage snapshot.", keywords: "health system mongo storage disk dependencies status" },
-  { testid: "cron-health-card", title: "Scheduled jobs", subtitle: "Last-run telemetry for crons.", keywords: "cron jobs scheduled task background failure last-run" },
-  { testid: "route-catalogue-card", title: "Route catalogue", subtitle: "Every /api/* endpoint.", keywords: "route catalogue endpoint api list routes urls" },
-  { testid: "email-system-card", title: "Email system", subtitle: "Master ON/OFF for all outbound Resend mail.", keywords: "email outbound resend pause stop disable quota system master kill switch" },
-  { testid: "email-volume-forecast-card", title: "Email volume forecast", subtitle: "7/30-day past sends + projected weekly volume vs Resend cap.", keywords: "email volume forecast quota cap resend project past 7 30 days cliff projection prediction warning" },
-  { testid: "hidden-features-card", title: "Hidden features", subtitle: "Built-but-invisible work parked behind feature flags.", keywords: "hidden features parked feature flag toggle dormant disabled invisible behind flag fichub kindle send url fetching ficfic" },
-  { testid: "admin-email-mode-card", title: "Admin alert email frequency", subtitle: "Immediate / Weekly digest / Off — Resend quota brake.", keywords: "admin alert email frequency digest weekly batch immediate off cron failure resend quota" },
-  { testid: "admin-pending-alerts-card", title: "Admin bell · pending alerts", subtitle: "In-app queue replacing per-failure emails.", keywords: "bell pending alerts admin in-app notifications cron failure queue digest" },
-  { testid: "email-stats-card", title: "Resend deliveries · this week", subtitle: "Send volume, error rate, recent failures.", keywords: "email resend delivery send failure stats bounce mail" },
-  { testid: "admin-email-diagnostic-card", title: "Email diagnostic", subtitle: "One-shot diagnostic email.", keywords: "email diagnostic test send resend troubleshoot mail" },
-  { testid: "admin-aliases-card", title: "Global fandom aliases", subtitle: "Tenant-wide fandom aliases.", keywords: "fandom aliases global rename remap synonym" },
-  { testid: "admin-stats-card", title: "Global stats", subtitle: "Tenant-wide rollup.", keywords: "stats global rollup books users storage signups categories fandoms" },
-  { testid: "admin-flags-card", title: "Feature flags", subtitle: "Runtime kill switches.", keywords: "feature flags toggles kill switch runtime config" },
-  { testid: "admin-audit-card", title: "Audit log", subtitle: "Every admin write action.", keywords: "audit log history admin actions write changes" },
-  { testid: "admin-moderation-log-card", title: "Moderation log", subtitle: "All-time history of mod actions.", keywords: "moderation log mod history actions approvals rejections locks bookclub" },
-  { testid: "admin-mongo-inspector-card", title: "Mongo inspector", subtitle: "Read-only browse of every collection.", keywords: "mongo db database collections docs raw browse inspect" },
-  { testid: "admin-fulltext-card", title: "Full-text index", subtitle: "Backfill EPUB body text for search.", keywords: "fulltext full-text search epub index backfill body" },
+  { testid: "admin-today-pulse-card", category: "overview", title: "Today · 24h pulse", subtitle: "Signups, uploads, errors at a glance.", keywords: "today pulse signups uploads errors fandoms 24h daily summary" },
+  { testid: "admin-pending-users-card", category: "users", title: "Pending sign-ups", subtitle: "Approve or reject new users.", keywords: "pending sign-up approval new user gate queue invite waitlist" },
+  { testid: "admin-signup-rules-card", category: "users", title: "Sign-up rules & questions", subtitle: "Approval gate, onboarding questions, community rules.", keywords: "signup register approval gate onboarding questions rules community moderation referral fandom reader type" },
+  { testid: "admin-users-card", category: "users", title: "Users & admins", subtitle: "Promote or demote any account.", keywords: "users admins promote demote roles accounts" },
+  { testid: "admin-view-consents-card", category: "users", title: "View-as-user consents", subtitle: "Request read-only access to a user's library.", keywords: "view as user impersonate consent privacy access permission timeline" },
+  { testid: "admin-feedback-inbox-card", category: "feedback", title: "Feedback inbox", subtitle: "User-submitted bugs, ideas, and feature requests.", keywords: "feedback suggestions bug feature request inbox users reports tickets" },
+  { testid: "admin-help-feedback-card", category: "feedback", title: "Help-page feedback", subtitle: "Per-page friction reports with screenshots.", keywords: "help suggestion friction page screenshot photo feedback short-form by-page" },
+  { testid: "admin-watching-bookclubs-card", category: "feedback", title: "Rooms I'm watching", subtitle: "Every bookclub the platform owner has been auto-added to.", keywords: "bookclubs rooms watching oversight admin auto-join clubs moderate" },
+  { testid: "admin-chat-rooms-card", category: "feedback", title: "Chat rooms", subtitle: "Direct-message rooms.", keywords: "chat rooms messages dm direct message conversations" },
+  { testid: "admin-moderation-log-card", category: "feedback", title: "Moderation log", subtitle: "All-time history of mod actions.", keywords: "moderation log mod history actions approvals rejections locks bookclub" },
+  { testid: "admin-antivirus-card", category: "storage", title: "Antivirus", subtitle: "ClamAV scanner status + recent flags.", keywords: "antivirus clamav virus malware scan quarantine infected eicar signature" },
+  { testid: "admin-storage-by-user-card", category: "storage", title: "Top storage users", subtitle: "Top 20 accounts by uploaded bytes.", keywords: "storage user disk bytes top biggest heavy quota power outliers abandoned" },
+  { testid: "admin-r2-migration-card", category: "storage", title: "R2 migration progress", subtitle: "Lazy Emergent → R2 migration sampled progress.", keywords: "r2 migration storage emergent cloudflare progress sample backfill" },
+  { testid: "admin-orphan-audit-card", category: "storage", title: "Orphan audit & cleanup", subtitle: "Find books whose files are missing in both R2 and Emergent.", keywords: "orphan audit cleanup missing files head-check r2 emergent storage dead row dangling" },
+  { testid: "admin-storage-trend-card", category: "storage", title: "Storage trend · 30 days", subtitle: "Cumulative bytes over time.", keywords: "storage trend disk growth chart graph history snapshot 30d size bytes" },
+  { testid: "email-system-card", category: "email", title: "Email system", subtitle: "Master ON/OFF for all outbound Resend mail.", keywords: "email outbound resend pause stop disable quota system master kill switch" },
+  { testid: "email-volume-forecast-card", category: "email", title: "Email volume forecast", subtitle: "7/30-day past sends + projected weekly volume vs Resend cap.", keywords: "email volume forecast quota cap resend project past 7 30 days cliff projection prediction warning" },
+  { testid: "admin-email-mode-card", category: "email", title: "Admin alert email frequency", subtitle: "Immediate / Weekly digest / Off — Resend quota brake.", keywords: "admin alert email frequency digest weekly batch immediate off cron failure resend quota" },
+  { testid: "admin-pending-alerts-card", category: "email", title: "Admin bell · pending alerts", subtitle: "In-app queue replacing per-failure emails.", keywords: "bell pending alerts admin in-app notifications cron failure queue digest" },
+  { testid: "email-stats-card", category: "email", title: "Resend deliveries · this week", subtitle: "Send volume, error rate, recent failures.", keywords: "email resend delivery send failure stats bounce mail" },
+  { testid: "admin-email-diagnostic-card", category: "email", title: "Email diagnostic", subtitle: "One-shot diagnostic email.", keywords: "email diagnostic test send resend troubleshoot mail" },
+  { testid: "admin-banner-card", category: "system", title: "Maintenance banner", subtitle: "Site-wide announcement banner.", keywords: "maintenance banner outage announcement downtime planned heads-up" },
+  { testid: "admin-health-card", category: "system", title: "System health", subtitle: "External dependencies + storage snapshot.", keywords: "health system mongo storage disk dependencies status" },
+  { testid: "cron-health-card", category: "system", title: "Scheduled jobs", subtitle: "Last-run telemetry for crons.", keywords: "cron jobs scheduled task background failure last-run" },
+  { testid: "route-catalogue-card", category: "system", title: "Route catalogue", subtitle: "Every /api/* endpoint.", keywords: "route catalogue endpoint api list routes urls" },
+  { testid: "admin-flags-card", category: "system", title: "Feature flags", subtitle: "Runtime kill switches.", keywords: "feature flags toggles kill switch runtime config" },
+  { testid: "hidden-features-card", category: "system", title: "Hidden features", subtitle: "Built-but-invisible work parked behind feature flags.", keywords: "hidden features parked feature flag toggle dormant disabled invisible behind flag fichub kindle send url fetching ficfic" },
+  { testid: "admin-unknown-fandoms-card", category: "system", title: "Unknown fandoms", subtitle: "Fandoms not yet in the keyword classifier.", keywords: "unknown fandoms classifier rescan dismiss missing tag" },
+  { testid: "admin-aliases-card", category: "system", title: "Global fandom aliases", subtitle: "Tenant-wide fandom aliases.", keywords: "fandom aliases global rename remap synonym" },
+  { testid: "admin-stats-card", category: "data", title: "Global stats", subtitle: "Tenant-wide rollup.", keywords: "stats global rollup books users storage signups categories fandoms" },
+  { testid: "admin-audit-card", category: "data", title: "Audit log", subtitle: "Every admin write action.", keywords: "audit log history admin actions write changes" },
+  { testid: "admin-mongo-inspector-card", category: "data", title: "Mongo inspector", subtitle: "Read-only browse of every collection.", keywords: "mongo db database collections docs raw browse inspect" },
+  { testid: "admin-fulltext-card", category: "data", title: "Full-text index", subtitle: "Backfill EPUB body text for search.", keywords: "fulltext full-text search epub index backfill body" },
 ];
 
 function cardMatchesQuery(card, q) {
@@ -5246,10 +5261,112 @@ export default function AdminConsole() {
   // don't have to guess what keywords are wired up. One-click sets the
   // search and immediately filters the cards below.
   const SEARCH_SUGGESTIONS = ["users", "email", "fandom", "cron", "stats", "flags", "chat", "audit", "route"];
+
+  // Cmd+K command palette state (2026-06-22 navigation overhaul).
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [paletteQuery, setPaletteQuery] = useState("");
+  const [paletteIndex, setPaletteIndex] = useState(0);
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+        setPaletteQuery("");
+        setPaletteIndex(0);
+      } else if (e.key === "Escape" && paletteOpen) {
+        setPaletteOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [paletteOpen]);
+  const paletteResults = paletteQuery.trim()
+    ? ADMIN_CARD_MANIFEST.filter((c) => cardMatchesQuery(c, paletteQuery.trim().toLowerCase())).slice(0, 8)
+    : ADMIN_CARD_MANIFEST.slice(0, 8);
+  const jumpToCard = (testid) => {
+    setPaletteOpen(false);
+    setTimeout(() => {
+      const el = document.querySelector(`[data-testid="${testid}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+        // Briefly highlight the target card so the eye finds it.
+        el.style.transition = "box-shadow 0.4s ease-in-out";
+        el.style.boxShadow = "0 0 0 3px #6B46C1";
+        setTimeout(() => { el.style.boxShadow = ""; }, 1400);
+      }
+    }, 80);
+  };
+
+  // Scroll-spy for the sticky sidebar — track which category section is
+  // currently in the viewport so we can highlight its sidebar link.
+  const [activeCategory, setActiveCategory] = useState(ADMIN_CATEGORIES[0].id);
+  useEffect(() => {
+    if (query) return; // skip while filtering
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.filter((e) => e.isIntersecting);
+        if (visible.length > 0) {
+          // Pick the top-most visible section.
+          visible.sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+          const id = visible[0].target.getAttribute("data-category");
+          if (id) setActiveCategory(id);
+        }
+      },
+      { rootMargin: "-15% 0px -75% 0px", threshold: 0 },
+    );
+    ADMIN_CATEGORIES.forEach((c) => {
+      const el = document.getElementById(`admin-section-${c.id}`);
+      if (el) observer.observe(el);
+    });
+    return () => observer.disconnect();
+  }, [query]);
+  const jumpToCategory = (id) => {
+    const el = document.getElementById(`admin-section-${id}`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  // Group cards by category for sectioned render — preserves manifest
+  // order within each category.
+  const visibleByCategory = ADMIN_CATEGORIES.map((cat) => ({
+    ...cat,
+    cards: visibleCards.filter((c) => c.category === cat.id),
+  })).filter((cat) => cat.cards.length > 0);
   return (
     <div className="min-h-screen bg-[#FAF6EE]">
       <Navbar />
-      <main className="max-w-5xl mx-auto px-6 py-10" data-testid="admin-console">
+      <main className="max-w-7xl mx-auto px-6 py-10 lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-8" data-testid="admin-console">
+        {/* ─── Sticky category sidebar (2026-06-22) — jump-nav across the 33 cards. ─── */}
+        <aside className="hidden lg:block sticky top-6 self-start" data-testid="admin-sidebar">
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#6B705C] mb-3 px-2">Sections</p>
+          <nav className="space-y-0.5" aria-label="Admin sections">
+            {ADMIN_CATEGORIES.map((cat) => {
+              const count = ADMIN_CARD_MANIFEST.filter((c) => c.category === cat.id).length;
+              const active = activeCategory === cat.id && !query;
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => jumpToCategory(cat.id)}
+                  data-testid={`admin-sidebar-link-${cat.id}`}
+                  data-active={active ? "true" : "false"}
+                  className={`w-full text-left flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
+                    active
+                      ? "bg-[#6B46C1] text-white font-semibold"
+                      : "text-[#6B705C] hover:bg-[#EEE9FB] hover:text-[#6B46C1]"
+                  }`}
+                >
+                  <span>{cat.label}</span>
+                  <span className={`text-[10px] tabular-nums ${active ? "text-[#EEE9FB]" : "text-[#9b9b9b]"}`}>{count}</span>
+                </button>
+              );
+            })}
+          </nav>
+          <div className="mt-4 px-2 text-[10px] text-[#9b9b9b]">
+            <kbd className="px-1.5 py-0.5 rounded bg-[#FBFAF6] border border-[#E5DDC5] font-mono">⌘K</kbd> · jump to a card
+          </div>
+        </aside>
+
+        <div>
         <Link to="/library" className="inline-flex items-center gap-1 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-4">
           <ArrowLeft className="w-4 h-4" /> back to library
         </Link>
@@ -5380,55 +5497,143 @@ export default function AdminConsole() {
             </div>
           ) : (
             <>
-              <PendingUsersCard />
-              <TodayPulseCard />
-              <FeedbackInboxCard />
-              <HelpFeedbackCard />
-              <SignupRulesCard />
-              <AntivirusCard />
-              <R2MigrationProgressCard />
-              <OrphanCleanupCard />
-              <StorageByUserCard />
-              <StorageTrendCard />
-              <ViewConsentsCard />
-              <UsersCard />
-              <WatchingBookclubsCard />
-              <ChatRoomsCard />
-              <UnknownFandomsCard />
-              <MaintenanceBannerCard />
-              <HealthCard />
-              <CronHealthCard />
-              <RouteCatalogueCard />
-              <EmailSystemCard />
-              <EmailVolumeForecastCard />
-              <HiddenFeaturesCard />
-              <AdminEmailModeCard />
-              <AdminPendingAlertsCard />
-              <EmailStatsCard />
-              <EmailDiagnosticCard />
-              <GlobalAliasesCard />
-              <GlobalStatsCard />
-              <FeatureFlagsCard />
-              <AuditLogCard />
-              {/* All-time append-only history of moderation actions.
-                  Distinct from the broader admin Audit Log above —
-                  scoped to the action slugs in the new
-                  /admin/moderation-log endpoint. */}
-              <Card
-                icon={ShieldCheck}
-                title="Moderation log"
-                subtitle="All-time, append-only history of every mod action: approvals, rejections, room locks, and mod promotions."
-                testid="admin-moderation-log-card"
-              >
-                <ModerationLogCard pageSize={25} />
-                <AdminAnalyticsCard />
-              </Card>
-              <MongoInspectorCardWrap />
-              <FulltextBackfillCard />
+              {/* Each component owns its data-testid that maps back to the
+                  ADMIN_CARD_MANIFEST entry.  We render them in category
+                  groups: a tiny header bar with anchor id introduces
+                  each group so the sticky sidebar can scroll to it and
+                  the scroll-spy IntersectionObserver can highlight the
+                  active category as the operator scrolls. */}
+              {visibleByCategory.map((cat) => (
+                <section
+                  key={cat.id}
+                  id={`admin-section-${cat.id}`}
+                  data-category={cat.id}
+                  data-testid={`admin-section-${cat.id}`}
+                  className="mb-8 scroll-mt-24"
+                >
+                  <h2 className="font-serif text-xl text-[#6B46C1] uppercase tracking-[0.18em] text-xs font-bold mb-3 pb-2 border-b border-[#E5DDC5]">
+                    {cat.label} <span className="ml-2 text-[10px] text-[#9b9b9b] font-normal">{cat.cards.length}</span>
+                  </h2>
+                  {cat.cards.map((c) => {
+                    switch (c.testid) {
+                      case "admin-today-pulse-card":            return <TodayPulseCard key={c.testid} />;
+                      case "admin-pending-users-card":          return <PendingUsersCard key={c.testid} />;
+                      case "admin-signup-rules-card":           return <SignupRulesCard key={c.testid} />;
+                      case "admin-users-card":                  return <UsersCard key={c.testid} />;
+                      case "admin-view-consents-card":          return <ViewConsentsCard key={c.testid} />;
+                      case "admin-feedback-inbox-card":         return <FeedbackInboxCard key={c.testid} />;
+                      case "admin-help-feedback-card":          return <HelpFeedbackCard key={c.testid} />;
+                      case "admin-watching-bookclubs-card":     return <WatchingBookclubsCard key={c.testid} />;
+                      case "admin-chat-rooms-card":             return <ChatRoomsCard key={c.testid} />;
+                      case "admin-moderation-log-card":         return (
+                        <Card key={c.testid} icon={ShieldCheck} title="Moderation log"
+                          subtitle="All-time, append-only history of every mod action: approvals, rejections, room locks, and mod promotions."
+                          testid="admin-moderation-log-card">
+                          <ModerationLogCard pageSize={25} />
+                          <AdminAnalyticsCard />
+                        </Card>
+                      );
+                      case "admin-antivirus-card":              return <AntivirusCard key={c.testid} />;
+                      case "admin-storage-by-user-card":        return <StorageByUserCard key={c.testid} />;
+                      case "admin-r2-migration-card":           return <R2MigrationProgressCard key={c.testid} />;
+                      case "admin-orphan-audit-card":           return <OrphanCleanupCard key={c.testid} />;
+                      case "admin-storage-trend-card":          return <StorageTrendCard key={c.testid} />;
+                      case "email-system-card":                 return <EmailSystemCard key={c.testid} />;
+                      case "email-volume-forecast-card":        return <EmailVolumeForecastCard key={c.testid} />;
+                      case "admin-email-mode-card":             return <AdminEmailModeCard key={c.testid} />;
+                      case "admin-pending-alerts-card":         return <AdminPendingAlertsCard key={c.testid} />;
+                      case "email-stats-card":                  return <EmailStatsCard key={c.testid} />;
+                      case "admin-email-diagnostic-card":       return <EmailDiagnosticCard key={c.testid} />;
+                      case "admin-banner-card":                 return <MaintenanceBannerCard key={c.testid} />;
+                      case "admin-health-card":                 return <HealthCard key={c.testid} />;
+                      case "cron-health-card":                  return <CronHealthCard key={c.testid} />;
+                      case "route-catalogue-card":              return <RouteCatalogueCard key={c.testid} />;
+                      case "admin-flags-card":                  return <FeatureFlagsCard key={c.testid} />;
+                      case "hidden-features-card":              return <HiddenFeaturesCard key={c.testid} />;
+                      case "admin-unknown-fandoms-card":        return <UnknownFandomsCard key={c.testid} />;
+                      case "admin-aliases-card":                return <GlobalAliasesCard key={c.testid} />;
+                      case "admin-stats-card":                  return <GlobalStatsCard key={c.testid} />;
+                      case "admin-audit-card":                  return <AuditLogCard key={c.testid} />;
+                      case "admin-mongo-inspector-card":        return <MongoInspectorCardWrap key={c.testid} />;
+                      case "admin-fulltext-card":               return <FulltextBackfillCard key={c.testid} />;
+                      default:                                  return null;
+                    }
+                  })}
+                </section>
+              ))}
             </>
           )}
         </AdminCardsContext.Provider>
+        </div>
       </main>
+
+      {/* ─── Cmd+K command palette (2026-06-22) — fuzzy-jump to any card. ─── */}
+      {paletteOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          data-testid="admin-command-palette"
+          className="fixed inset-0 z-50 flex items-start justify-center pt-[14vh] bg-black/40 backdrop-blur-sm"
+          onClick={() => setPaletteOpen(false)}
+        >
+          <div
+            className="w-full max-w-xl mx-4 bg-white rounded-2xl shadow-2xl border border-[#E5DDC5] overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-4 py-3 border-b border-[#E5DDC5] flex items-center gap-2">
+              <Search className="w-4 h-4 text-[#9b9b9b]" />
+              <input
+                autoFocus
+                type="text"
+                value={paletteQuery}
+                onChange={(e) => { setPaletteQuery(e.target.value); setPaletteIndex(0); }}
+                onKeyDown={(e) => {
+                  if (e.key === "ArrowDown") { e.preventDefault(); setPaletteIndex((i) => Math.min(i + 1, paletteResults.length - 1)); }
+                  else if (e.key === "ArrowUp") { e.preventDefault(); setPaletteIndex((i) => Math.max(i - 1, 0)); }
+                  else if (e.key === "Enter" && paletteResults[paletteIndex]) { jumpToCard(paletteResults[paletteIndex].testid); }
+                }}
+                placeholder="Jump to a card…"
+                data-testid="admin-command-palette-input"
+                className="flex-1 bg-transparent text-sm text-[#2C2C2C] placeholder:text-[#9A9580] focus:outline-none"
+              />
+              <kbd className="text-[10px] text-[#9b9b9b] font-mono">ESC</kbd>
+            </div>
+            <ul className="max-h-72 overflow-y-auto py-2" data-testid="admin-command-palette-results">
+              {paletteResults.length === 0 && (
+                <li className="px-4 py-3 text-sm text-[#6B705C] italic">No matches.</li>
+              )}
+              {paletteResults.map((c, i) => {
+                const cat = ADMIN_CATEGORIES.find((x) => x.id === c.category);
+                return (
+                  <li
+                    key={c.testid}
+                    role="button"
+                    tabIndex={0}
+                    onMouseEnter={() => setPaletteIndex(i)}
+                    onClick={() => jumpToCard(c.testid)}
+                    data-testid={`admin-command-palette-item-${c.testid}`}
+                    className={`px-4 py-2 cursor-pointer flex items-center justify-between gap-2 ${
+                      paletteIndex === i ? "bg-[#EEE9FB]" : "hover:bg-[#FBFAF6]"
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-[#2C2C2C] truncate">{c.title}</p>
+                      <p className="text-[11px] text-[#6B705C] truncate">{c.subtitle}</p>
+                    </div>
+                    <span className="text-[10px] uppercase tracking-wider text-[#9b9b9b] flex-shrink-0">
+                      {cat?.label}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="px-4 py-2 text-[10px] text-[#9b9b9b] border-t border-[#E5DDC5] flex items-center justify-between">
+              <span><kbd className="font-mono">↑↓</kbd> navigate · <kbd className="font-mono">↵</kbd> jump</span>
+              <span>{paletteResults.length} of {ADMIN_CARD_MANIFEST.length}</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

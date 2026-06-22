@@ -1,0 +1,42 @@
+{
+  "summary": "Frontend Playwright testing of the Admin Console navigation overhaul (sidebar + scroll-spy + Cmd+K palette). Verified the new sidebar + sectioning render. Could NOT complete end-to-end flow testing (scroll-spy active state, palette open/close, Expand-All) due to a persistent test flake: after login the tester is dropped at `/` (Landing page) and the welcome-tour modal sometimes redirects the SPA back to `/` when navigating to `/admin`. In one successful run, `/admin` did mount with sidebar + all 7 section anchors, but only 19 of 33 card data-testids were findable in the DOM — pointing to a possible lazy-mount issue.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "AdminConsole - cards",
+        "issue": "Only 19/33 expected card data-testids were present in the DOM when /admin first rendered (sidebar shows them all wired in code). 14 card testids are missing on initial mount. This is likely because the cards' Card wrapper only stamps data-testid once an internal async fetch resolves, OR because the inner-component variants do not propagate the testid prop. Manifest at AdminConsole.jsx:54-88 lists all 33; the switch at line ~5518 maps each testid to a component, but only a subset of cards (e.g. the explicit `<Card testid='admin-moderation-log-card'>` wrapper) have a visible data-testid before scroll/expand.",
+        "selector": "[data-testid=\"admin-*-card\"]",
+        "priority": "MEDIUM"
+      },
+      {
+        "component": "Welcome-tour overlay vs admin route",
+        "issue": "After UI login, the tester is left at `/` with the welcome-tour modal — even though /api/auth/me returns is_admin=true. Navigating to /admin sometimes redirects back to `/` before AdminRoute can read the freshly-hydrated user, making automated testing of /admin flaky. Setting welcome_tour_completed_at in Mongo did not prevent the modal from appearing.",
+        "selector": "n/a",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Verify every one of the 33 cards stamps its data-testid on first paint (before any data fetch) — test by reloading /admin and dumping all [data-testid$='-card'] elements. If some only appear after data loads, refactor so the outer Card wrapper renders the testid synchronously and the inner content swaps loading→loaded inside.",
+    "Investigate why the SPA login flow leaves the user at `/` instead of `/library` (Login.jsx:176 calls navigate('/library')). Likely an order-of-effect issue between the welcome-tour overlay component and the auth-hydration redirect in Landing.jsx:131. This caused 3 failed Playwright runs in this iteration.",
+    "Manually self-verify (E1) the four flows that I could not finish: (a) Cmd+K opens the palette and Esc closes, (b) arrow-keys + Enter jump and apply purple ring, (c) sidebar link click → smooth-scroll + scroll-spy active highlighting, (d) Expand-All / Collapse-All. The code at lines 5266-5326 and 5570-5636 looks correct on review."
+  ],
+  "critical_code_review_comments": [
+    "AdminConsole.jsx is now 5640 lines — far over the 700-line guideline. The new sidebar/sections/palette make this even more critical. Split into AdminConsole/Sidebar.jsx, AdminConsole/CommandPalette.jsx, AdminConsole/sections/*.jsx for maintainability.",
+    "Scroll-spy IntersectionObserver at line 5305 listens on visibility but disconnects whenever `query` changes. While filtering, no active highlight is shown — could leave a stale `data-active='true'` from before the filter. Consider clearing activeCategory when query is non-empty.",
+    "The palette Enter handler at 5593 calls jumpToCard with paletteResults[paletteIndex] but does not reset paletteIndex/Query — re-opening the palette later retains stale state if state isn't reset on close. Reset on close for cleaner UX.",
+    "Cmd+K listener at line 5269-5282 is attached at window-level — fine, but it does not stop propagation when the palette is already open, so a second Cmd+K toggles it closed (intentional?). If unintended, gate on !paletteOpen.",
+    "Sidebar is `hidden lg:block` (line 5339) — at <1024px width the entire jump-nav disappears with no mobile alternative. Cmd+K palette is the only fallback on mobile, and mobile keyboards rarely have Cmd. Add a mobile category dropdown."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a (frontend only)", "frontend": "~40% (sidebar+sections verified, palette+scroll-spy+expand/collapse could not be fully exercised)" },
+  "test_credentials": "shelfsort-tester@example.com / tester123! — temporarily promoted to is_admin=true via mongosh during this test. PLEASE DEMOTE after main agent's verification: db.users.updateOne({email:'shelfsort-tester@example.com'},{$set:{is_admin:false}})",
+  "seed_data_creation": "Mongo: set is_admin=true and welcome_tour_completed_at on shelfsort-tester@example.com.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Login flow on this preview env lands tester at `/` not `/library`, and the welcome-tour modal causes /admin navigations to sometimes bounce back. To reliably reach /admin in Playwright: (1) page.request.post to /api/auth/login first to set the cookie in the browser context, (2) await page.goto('/admin') AND immediately wait_for_selector('[data-testid=\"admin-console\"]', timeout=20000), (3) skip the tour close — querySelector still works through the overlay. Do NOT call goto('/library') in between — it 30s-timeouts on networkidle. Once /admin mounts, the sidebar + all 7 section anchors are reliably present. The 33-card testid count needs investigation — only 19 were stamped in DOM in my run."
+}
