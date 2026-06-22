@@ -7,7 +7,86 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
-## 2026-06-22 evening (launch-prep-batch-2) — robots, sitemap, footer wiring, Indiana, BSTK reminder ✅
+## 2026-06-23 morning (calibre-friendly-errors) — Stack traces → human copy ✅
+
+Pre-launch UX polish — operator was about to push the FB-group
+post and noticed that PDF conversion failures show users a raw
+Python stack trace.  Triggered on a real "Class of 1956" PDF
+that Calibre's reflow engine choked on with an
+``IndexError: list index out of range`` deep in
+``calibre/ebooks/pdf/reflow.py``.  That stack trace was the
+description text on the user's library card.  Not okay for a
+first impression.
+
+**Fix**: replace the raw stderr tail with a mapped friendly
+sentence.
+
+- NEW `_CALIBRE_FRIENDLY_ERRORS` tuple in `routes/books.py` — 7
+  pattern → message pairs covering the most common PDF
+  conversion failures (PDF layout / memory / DRM / password /
+  invalid PDF / corrupted PDF / image-only).
+- NEW `_friendly_calibre_error()` helper — lowercases the
+  stderr, matches against the patterns, falls back to a calm
+  generic sentence when nothing matches.  Critically, the raw
+  stderr text never leaks through — even on unrecognized
+  errors.  Confirmed by a regression test
+  (``test_unknown_pattern_falls_back_to_generic``).
+- Updated `_convert_to_epub_sync()` to:
+  - log the full raw stderr via ``logger.warning`` (preserved
+    for operator debugging in supervisor logs)
+  - return only the friendly mapped string to the caller
+  - rephrased the existing "FileNotFoundError",
+    "TimeoutExpired", and generic-exception fallbacks to be
+    end-user-readable too (no more "ebook-convert is not
+    installed on the server" jargon — now reads "Our converter
+    isn't ready yet (Calibre is still installing). Please try
+    again in a minute.").
+- Updated the upload-route description text in `books.py`:
+  - OLD: "Uploaded as .{ext} but auto-conversion failed: {err}.
+    Convert it manually with Calibre's 'Convert books' tool
+    and re-upload."
+  - NEW: "Auto-conversion failed. {friendly_err} Tip: convert
+    it to EPUB on your own device first (Calibre desktop,
+    online converter, etc.) and re-upload the .epub."
+
+**Before / after** (Jessica's actual live error):
+
+> **Before**: ``ebook-convert failed (rc=1): t(xml, self.opts,
+>   self.log) ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+>   File "/usr/lib/calibre/calibre/ebooks/pdf/reflow.py", line
+>   1477, in __init__ self.find_header_footer() [...] IndexError:
+>   list index out of range``
+
+> **After**: "This PDF's layout couldn't be auto-parsed (likely
+>   an empty page, a scanned page with no extractable text, or
+>   an unusual layout)."
+
+**Files**:
+- MODIFIED `backend/routes/books.py` — added `_CALIBRE_FRIENDLY_ERRORS`
+  table + `_friendly_calibre_error()`; updated
+  `_convert_to_epub_sync()` to use it; updated upload-route
+  description string.
+- NEW `backend/tests/test_calibre_friendly_errors.py` — 10
+  tests pinning every mapping, the fallback, the empty-input
+  case, and a length-and-formatting check.  Includes a
+  regression pinning Jessica's exact live error.
+
+**Tested**:
+- 10/10 new unit tests pass.
+- Lint clean.
+- The exact stderr blob from Jessica's "Class of 1956" PDF
+  was run through the mapper and produced the expected friendly
+  sentence — confirmed in-shell before pushing.
+
+**Operator follow-up after the next redeploy**:
+- Jessica's existing "Class of 1956" library entry still shows
+  the old raw stack trace in its description (it was stored
+  *before* this change).  She can either delete the book and
+  re-upload (the new path will write the friendly description)
+  or live with one legacy stack trace in her own library.
+
+---
+
 
 Tail-end of the launch checklist after Privacy + Terms shipped.
 Quick batch — none of these are conceptually hard, just paperwork

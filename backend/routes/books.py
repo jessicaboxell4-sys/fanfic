@@ -1674,10 +1674,52 @@ NEEDS_CONVERSION_EXTS = {
 NEEDS_CONVERSION_SHELF = "Needs conversion"
 
 
+_CALIBRE_FRIENDLY_ERRORS = (
+    # (lowercased substring to look for in stderr, friendly message)
+    ("indexerror", "list index out of range",
+        "This PDF's layout couldn't be auto-parsed (likely an empty page, a scanned page with no extractable text, or an unusual layout)."),
+    ("memoryerror", None,
+        "This file is too large for our server to convert. Try compressing it first or converting it manually."),
+    ("drmerror", None,
+        "This file is DRM-protected. We can't convert protected files — please convert it on your own device first."),
+    ("is encrypted", None,
+        "This PDF is password-protected. Remove the password first, then re-upload."),
+    ("not a valid pdf", None,
+        "This doesn't look like a valid PDF file. It may be corrupted."),
+    ("bad encrypt dict", None,
+        "This PDF appears to be corrupted or non-standard. Try re-saving it from the original source."),
+    ("no text", None,
+        "This PDF appears to be image-only (scanned, no OCR'd text). We can't reflow it into an EPUB."),
+)
+
+
+def _friendly_calibre_error(raw_stderr: str) -> str:
+    """Map a Calibre ebook-convert stderr blob to a one-sentence
+    end-user message.  Calibre's stack traces are precise but
+    intimidating to non-developer readers; we collapse them to a
+    single calm sentence and keep the actionable fix.
+
+    Falls back to a generic line when no pattern matches.  The full
+    raw stderr is still logged server-side via ``logger.warning`` so
+    the operator can debug — only the *displayed* description is
+    cleaned up.
+    """
+    haystack = (raw_stderr or "").lower()
+    for needle1, needle2, friendly in _CALIBRE_FRIENDLY_ERRORS:
+        if needle1 in haystack and (needle2 is None or needle2 in haystack):
+            return friendly
+    return "We couldn't auto-convert this file — Calibre returned an error we don't have a friendly explanation for yet."
+
+
 def _convert_to_epub_sync(src_path: Path, dest_path: Path) -> Optional[str]:
     """Run `ebook-convert <src> <dest>` synchronously. Returns None on success,
-    or an error message on failure. Called from an executor so the FastAPI
-    event loop stays responsive."""
+    or a *user-friendly* error message on failure. Called from an executor
+    so the FastAPI event loop stays responsive.
+
+    Raw stderr is logged for the operator (`logger.warning`) but only
+    the mapped friendly message is returned to the caller, so the user's
+    library description doesn't show a Python stack trace.
+    """
     import subprocess
     try:
         proc = subprocess.run(
@@ -1687,17 +1729,21 @@ def _convert_to_epub_sync(src_path: Path, dest_path: Path) -> Optional[str]:
             timeout=180,  # 3 min cap per book — heavy PDFs can be slow
         )
         if proc.returncode != 0:
-            tail = (proc.stderr or proc.stdout or "")[-400:]
-            return f"ebook-convert failed (rc={proc.returncode}): {tail.strip()}"
+            raw = (proc.stderr or proc.stdout or "")
+            # Operator-visible full log for debugging.
+            logger.warning("ebook-convert failed for %s (rc=%s): %s",
+                           src_path.name, proc.returncode, raw[-800:].strip())
+            return _friendly_calibre_error(raw)
         if not dest_path.exists() or dest_path.stat().st_size < 256:
-            return "ebook-convert produced no usable output"
+            return "Calibre converted the file but the result was empty — the source may be image-only or otherwise unreadable."
         return None
     except FileNotFoundError:
-        return "ebook-convert is not installed on the server"
+        return "Our converter isn't ready yet (Calibre is still installing). Please try again in a minute."
     except subprocess.TimeoutExpired:
-        return "ebook-convert timed out (>3 min)"
+        return "This file took longer than 3 minutes to convert and was stopped. Try a smaller / compressed version."
     except Exception as e:
-        return f"ebook-convert crashed: {e}"
+        logger.warning("ebook-convert crashed for %s: %s", src_path.name, e)
+        return "Something unexpected went wrong while converting this file. Try uploading the EPUB version instead."
 
 
 async def convert_to_epub(src_path: Path, dest_path: Path) -> Optional[str]:
@@ -1981,8 +2027,9 @@ async def upload_books(
                     "title": base_name,
                     "author": "Unknown",
                     "description": (
-                        f"Uploaded as .{ext.lstrip('.')} but auto-conversion failed: {err}. "
-                        f"Convert it manually with Calibre's 'Convert books' tool and re-upload."
+                        f"Auto-conversion failed. {err} "
+                        f"Tip: convert it to EPUB on your own device first (Calibre desktop, "
+                        f"online converter, etc.) and re-upload the .epub."
                     ),
                     "language": "",
                     "publisher": "",
