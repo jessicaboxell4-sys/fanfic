@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import {
   ArrowLeft, Shield, Inbox, Users, HardDrive, AlertOctagon, Database,
   Mail, ShieldAlert, FlaskConical, BarChart3, MessageSquare, Pause,
-  Trash2, Sparkles, Eye, Bell, Send,
+  Trash2, Sparkles, Eye, Bell, Send, History,
 } from "lucide-react";
 import WhatsNewFeed from "@/components/WhatsNewFeed";
 
@@ -29,6 +29,8 @@ const SECTIONS = [
   { id: "notifications",    label: "Operator digest + cron",  icon: Bell },
   { id: "email-system",     label: "Email system kill switch", icon: Pause },
   { id: "email-logs",       label: "Email logs & retry",      icon: Mail },
+  { id: "llm-key-health",   label: "LLM key health & runway", icon: Sparkles },
+  { id: "changelog",        label: "Recent changelog",        icon: History },
   { id: "bookclubs",        label: "Book-club moderation",    icon: Users },
   { id: "unknown-sources",  label: "Unknown sources triage",  icon: Eye },
 ];
@@ -222,11 +224,34 @@ export default function AdminHelp() {
           </Section>
 
           <Section id="email-logs" icon={Mail} title="Email logs & retry">
-            <p>Every transactional email (welcome, approval, rejection, year-in-books, digest, password reset) is logged to Mongo with status + Resend message ID.</p>
+            <p>Every transactional email (smart welcome, approval, rejection, year-in-books, digest, password reset) is logged to Mongo with status + Resend message ID.</p>
             <ul>
+              <li><strong>Smart welcome (2026-06-22)</strong>: replaces the old &ldquo;your account is approved&rdquo; one-liner. Picks copy from a curated bank using the four onboarding answers (reader_type, favorite_fandom, referral, is_13_plus). Logged under <code>welcome_approval</code> (admin-approved) or <code>welcome_auto_approve</code> (signup with gate off).</li>
               <li><strong>Retry failed</strong>: failed sends can be re-fired from the card. We&apos;ve throttled retries to 4/sec.</li>
               <li><strong>Pre-cutover purge</strong>: <code>POST /admin/email-logs/clear-pre-cutover-failures</code> removes log rows older than the Resend domain verification cutover so the failure rate widget stays meaningful.</li>
               <li><strong>Domain check</strong>: the card shows whether your Resend domain is verified. If it&apos;s not, all emails will silently bounce.</li>
+            </ul>
+          </Section>
+
+          <Section id="llm-key-health" icon={Sparkles} title="LLM key health & runway">
+            <p>Universal-Key burn-rate watchdog — added 2026-06-22 after a budget-cap incident silently broke Claude + Nano-Banana for ~20 minutes. Tells you days-of-runway so you top up <em>before</em> the next cliff.</p>
+            <ul>
+              <li><strong>Why we self-instrument</strong>: Emergent does not expose a programmatic balance API. The card combines two evidence sources: (1) the new <code>llm_usage</code> Mongo collection (every Claude classify + Nano-Banana cover-gen call logs <code>kind, model, tokens_in, tokens_out, images, cost_usd, status</code>); (2) proxy counts via <code>books.classifier=&quot;ai&quot;</code> and <code>books.cover_source=&quot;ai_generated&quot;</code> for instant historical depth before the new collection accrues data.</li>
+              <li><strong>How to read the card</strong>: 3 KPIs (instrumented 7d cost, proxy 7d cost, current balance) + a runway banner (<code>critical</code> &lt; 7 days, <code>warning</code> &lt; 14 days, <code>ok</code> &ge; 14 days, <code>unknown</code> if no balance set).</li>
+              <li><strong>What you have to do</strong>: open Profile → Universal Key, copy the current USD balance, and paste it into the &ldquo;Update current balance&rdquo; input on the card. Click <strong>Save</strong>. Runway is now live. Repeat after each top-up.</li>
+              <li><strong>Auto-recharge</strong>: enable it in Profile → Universal Key → <em>Auto top up</em> so you don&apos;t have to keep coming back.</li>
+              <li><strong>Pricing constants</strong> (footer of the card): Claude Sonnet 4.6 list price (in / out per million tokens) + Nano-Banana per-image. These are <em>estimates</em>; Emergent&apos;s actual markup may differ, but the math is conservative (it takes the max of the instrumented and proxy daily averages).</li>
+              <li><strong>Backend endpoints</strong>: <code>GET /admin/llm-key-health</code> returns the full payload; <code>PUT /admin/llm-key-health/balance</code> with body <code>{`{usd: 4.85}`}</code> persists the operator-supplied balance to <code>app_config</code>.</li>
+            </ul>
+          </Section>
+
+          <Section id="changelog" icon={History} title="Recent changelog">
+            <p>Surfaces the last 20 dated entries from <code>/app/memory/CHANGELOG.md</code> so you can see what was shipped recently without opening the repo. Each entry is collapsed by default; click to expand the full body (markdown rendered as preformatted text).</p>
+            <ul>
+              <li><strong>What counts as an entry</strong>: an <code>## YYYY-MM-DD (slug) — Title</code> H2 heading in <code>CHANGELOG.md</code>. The parser slices on H2 boundaries, so make sure you don&apos;t accidentally double-prefix with <code>###</code>.</li>
+              <li><strong>Hard cap</strong>: 100 entries server-side regardless of <code>limit=</code> param, so the card stays fast even when the changelog grows to thousands of entries.</li>
+              <li><strong>Backend endpoint</strong>: <code>GET /admin/changelog?limit=20</code>. Returns each entry as <code>{`{date, slug, title, body, lines}`}</code>.</li>
+              <li><strong>Pairs well with</strong>: the LLM key health card above. When you flip a new feature on, append a dated entry; the next page-load of <code>/admin</code> will surface it here for you to verify the deploy actually shipped what you expect.</li>
             </ul>
           </Section>
 

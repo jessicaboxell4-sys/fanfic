@@ -4,21 +4,28 @@
 
 ## ⏰ Parked reminders — bring up next session
 
-(Updated 2026-06-22 midday — Hidden Features card shipped; FicHub
-also flipped fully OFF.  Changelog admin view + LLM Key health card
-+ Bulk Send-to-Kindle remain parked.)
+(Updated 2026-06-22 evening — Big shipping day: Changelog admin
+card, LLM Key Health card, Smart welcome email, Tour-bypass
+`?notour=1`, Admin help docs all shipped.  ClamAV + Calibre infra
+fix landed in production via Emergent Senior Support.  Three
+user-action items + a small handful of P1 candidates remain.)
 
-- **`/admin/changelog` log view** — parked 2026-06-22 by user.
-  Surface the last ~10 entries from `/app/memory/CHANGELOG.md`
-  inside the admin console so the operator can scan what was
-  built / parked / fixed without opening the repo.  Pairs with
-  the Hidden Features card (recent ROADMAP / CHANGELOG entries
-  often explain *why* something is hidden).  Implementation
-  sketch: tiny backend endpoint that reads + parses the first
-  ~500 lines of CHANGELOG.md into structured entries
-  (title, date, body, files-touched), admin endpoint returns
-  them, frontend card renders a collapsible list.  ~20 min
-  implementation + 1 test.
+### 🟡 Two user-action items (no code, just operator touch)
+
+- **Paste your Universal Key balance into `/admin → LLM key health`**
+  to activate the runway calculator.  Today's instrumentation is
+  already collecting per-call data on every live Claude classify
+  and Nano-Banana cover-gen, but the days-of-runway readout
+  needs a starting balance to do its math.  Copy from Profile →
+  Universal Key.  While you're there, enable auto top-up so you
+  don't have to keep coming back.
+
+- **Verify a real PDF upload auto-converts on production**.  The
+  ClamAV + Calibre infra fix landed and `/api/admin/antivirus/status`
+  returns UP — but the only end-to-end proof is uploading one
+  small PDF on shelfsort.com and watching it land in the library
+  as an EPUB.  Takes about 30 seconds; high confidence; closes
+  the last loop on today's deploy.
 
 - **Bulk Send-to-Kindle from Library** — parked 2026-06-22 by user.
   *Currently DEFERRED — the parent Send-to-Kindle feature was hidden

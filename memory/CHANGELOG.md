@@ -7,7 +7,54 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
-## 2026-06-22 evening (tour-bypass-for-testing) — `?notour=1` flag ✅
+## 2026-06-22 evening (admin-help-coverage) — Help docs for today's cards ✅
+
+Tail-end of the deep-dive sweep — making sure the documentation
+keeps pace with the code.
+
+**AdminHelp.jsx updates** (operator-facing docs at `/admin/help`):
+- Added TOC entry + `<Section>` for the new **LLM key health &
+  runway** card.  Documents why we self-instrument (no public
+  balance API from Emergent), how to read the 3 KPIs + runway
+  banner, what the operator has to do (paste balance from
+  Profile → Universal Key), how to enable auto-recharge, the
+  pinned pricing constants in the footer, and the two backend
+  endpoints (`GET /admin/llm-key-health`,
+  `PUT /admin/llm-key-health/balance`).
+- Added TOC entry + `<Section>` for the new **Recent changelog**
+  card.  Documents the H2 heading convention the parser slices
+  on, the 100-entry hard cap, the endpoint shape, and the natural
+  pairing with the key-health card for verifying deploys.
+- Updated the **Email logs & retry** section's opening paragraph
+  to mention the smart welcome email (replaces the old generic
+  "your account is approved" line) and added a bullet describing
+  the `welcome_approval` / `welcome_auto_approve` kinds the
+  operator will now see in `email_logs`.
+- `History` icon added to lucide imports for the changelog TOC
+  entry.
+
+**Help.jsx** (user-facing docs at `/help`):
+- No changes.  Today's user-visible work is exactly one
+  transactional email (smart welcome at signup) — auto-fired,
+  no user action, doesn't warrant a help section.  The
+  `WhatsNewFeed` in AdminHelp already auto-surfaces every
+  CHANGELOG.md entry without code changes.
+
+**Smoke-tested live**:
+- Logged in as the tester (briefly promoted to admin via
+  `mongosh`, demoted after), navigated to `/admin/help`, verified
+  both new sections render — `admin-help-llm-key-health` 702px
+  tall, `admin-help-changelog` 438px tall, both visible.  The
+  "Smart welcome (2026-06-22)" bullet shows up in the email-logs
+  section.  `?notour=1` keeps the welcome-tour modal out of the
+  screenshot for a clean shot.
+
+**Net outcome**: Every feature shipped today has matching docs
+the operator can self-serve from.  No deferred documentation
+debt.
+
+---
+
 
 Permanent fix for the welcome-tour overlay that's been masking
 admin testids in every Playwright run for the last 3 sessions
