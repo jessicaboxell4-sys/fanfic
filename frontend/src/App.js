@@ -240,7 +240,25 @@ function TourMount() {
         return;
       }
     } catch { /* ignore */ }
-    // Brief delay so the destination page mounts first.
+    // Brief delay so the destination page mounts first.  Honors three
+    // bypass signals so testing harnesses (Playwright in fresh browser
+    // contexts always lacks localStorage) and demo screenshots can
+    // suppress the tour without touching localStorage manually:
+    //   1. `?notour=1` query string on the destination URL
+    //   2. `?test=1` query string (also used by the testing agent for
+    //      other test-mode hints; surfaced here so the tour overlay
+    //      doesn't mask admin testids)
+    //   3. Presence of a `window.__shelfsort_disable_tour__` flag on
+    //      the window object (script-injection escape hatch)
+    try {
+      const params = new URLSearchParams(location.search || "");
+      const noTourParam = params.get("notour") === "1" || params.get("test") === "1";
+      const windowFlag = typeof window !== "undefined" && window.__shelfsort_disable_tour__ === true;
+      if (noTourParam || windowFlag) {
+        try { window.localStorage.setItem("shelfsort_tour_seen", "1"); } catch { /* ignore */ }
+        return;
+      }
+    } catch { /* ignore */ }
     const id = setTimeout(() => setOpen(true), 600);
     return () => clearTimeout(id);
   }, [loading, user, location.pathname, location.search]);

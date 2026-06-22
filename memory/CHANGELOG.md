@@ -7,7 +7,50 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
-## 2026-06-22 evening (deep-dive-regression) — Post-deploy bug sweep ✅
+## 2026-06-22 evening (tour-bypass-for-testing) — `?notour=1` flag ✅
+
+Permanent fix for the welcome-tour overlay that's been masking
+admin testids in every Playwright run for the last 3 sessions
+(see iteration_33–35 reports).
+
+**Root cause**: `TourMount` in `frontend/src/App.js` (line 220+)
+opens the tour modal 600ms after auth context hydrates, whenever
+``localStorage["shelfsort_tour_seen"]`` is unset.  Fresh Playwright
+browser contexts always start with empty localStorage, so every
+test that logs in and navigates to `/admin` (or any logged-in
+route) ends up with the tour modal covering the testid the test
+is trying to click.  Real users only see this once on first login
+by design — not a production bug, just a test-harness flake.
+
+**Fix**: 3 bypass signals in `TourMount`'s effect, in order of
+preference:
+1. **URL query param** — `?notour=1` or `?test=1` on the
+   destination URL.  Easiest for `page.goto(...)` calls.
+2. **Window flag** — `window.__shelfsort_disable_tour__ = true`.
+   For Playwright `add_init_script` workflows.
+3. **localStorage seed** — pre-set `shelfsort_tour_seen=1` before
+   navigation.  Legacy fallback that already worked but required
+   timing care.
+
+Any of the three sets the localStorage flag so subsequent
+in-session nav also stays clean.  Smoke-tested via the live
+preview env: login + `?notour=1` → `visible_overlays: 0`,
+`tour_seen_flag: '1'`, library renders cleanly.
+
+**Files**:
+- MODIFIED `frontend/src/App.js` — `TourMount` useEffect grew a
+  bypass branch (~15 LOC) before the existing 600ms setTimeout.
+- MODIFIED `memory/test_credentials.md` — added a "Welcome-tour
+  bypass for testing agents" section documenting all three
+  signals + example snippets, so future testing agents pick
+  this up automatically from the brief.
+
+**Net win**: Next 3+ sessions don't re-discover the same flake.
+Testing agent can now drive the full `/admin` flow without
+backend-curl fallbacks.
+
+---
+
 
 Layered regression after today's 4 features shipped + production
 redeploy went green. Three layers run in sequence:
