@@ -7,7 +7,75 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
-## 2026-06-22 evening (smart-welcome-email) — Personalized Resend welcome ✅
+## 2026-06-22 evening (deep-dive-regression) — Post-deploy bug sweep ✅
+
+Layered regression after today's 4 features shipped + production
+redeploy went green. Three layers run in sequence:
+
+**Layer 1 — Lint sweep**
+- 5 new lint warnings introduced today (all f-string-without-placeholder
+  nits in `utils/welcome_email.py` HTML composer).  Fixed by removing the
+  ``f`` prefix from the trailing concatenated strings.  Lint now clean on
+  every touched file.
+
+**Layer 2 — Targeted pytest sweep** (10 high-risk suites)
+- 81 passed / 2 skipped / 0 failed across `test_welcome_email`,
+  `test_llm_usage`, `test_hidden_features`, `test_admin_alerts`,
+  `test_weekly_user_summary`, `test_email_volume_forecast`,
+  `test_av_fields`, `test_cover_regen`, `test_approval_gate`,
+  `test_bulk_approve`.
+- One existing test (`test_runway_warning_levels`) was failing
+  because the live instrumentation captures real Claude calls
+  during the test run, polluting the 7d window.  Fixed by
+  snapshotting + wiping `llm_usage` at test start and restoring
+  pre-existing rows afterwards.
+
+**Layer 3 — Testing agent full sweep** (`iteration_35.json`)
+- 15/16 backend tests it wrote pass; 0 critical issues found.
+- Two reports flagged for investigation; both confirmed
+  non-issues after RCA:
+  1. **"Hydration error: `<span>` cannot be a child of `<option>`"**
+     on `/login` — NOT REPRODUCIBLE.  Captured console logs on
+     `/login` (sign-in form), `/login` → register step 1, and
+     register step 2 (onboarding); zero console warnings on any.
+     Login.jsx contains no native `<select>` element either.
+     Likely a phantom report from the testing agent.
+  2. **"Auth flake: /admin bounces to /"** — NOT A PRODUCTION BUG.
+     RCA confirms ``AdminRoute`` (App.js:93-105) properly gates on
+     ``loading`` before deciding; ``AuthContext`` and the
+     ``withCredentials: true`` axios config are correct.  The
+     actual masking culprit is ``TourMount`` (App.js:220+) which
+     opens the welcome-tour modal 600ms after auth hydrates for
+     any user who hasn't seen it — Playwright tests in fresh
+     browser contexts hit this every time.  Workaround for the
+     testing agent (added to the iteration playbook):
+     ``localStorage.setItem('shelfsort_tour_seen', '1')`` before
+     navigating to /admin.
+
+**Production health (https://shelfsort.com)**
+- Build timestamp confirms today's redeploy is live.
+- All four new endpoints answer with the correct authentication
+  guard (401 unauth, not 404):
+  - `GET /api/admin/changelog`
+  - `GET /api/admin/llm-key-health`
+  - `PUT /api/admin/llm-key-health/balance`
+  - Upgraded approval-email pipeline (no new endpoint, but the
+    new `welcome_approval` / `welcome_auto_approve` kinds will
+    appear in `email_logs` from the next sign-up).
+- ClamAV + Calibre confirmed live by user post-redeploy.
+
+**Files touched in this sweep**
+- MODIFIED `backend/utils/welcome_email.py` — removed 5 f-string-
+  without-placeholder nits.
+- MODIFIED `backend/tests/test_llm_usage.py` — snapshot + restore
+  pattern so `test_runway_warning_levels` is robust against live
+  instrumentation noise from real Claude calls during testing.
+
+**Net outcome**: No regressions detected.  4 features shipped today
+are production-ready.
+
+---
+
 
 Replaces the generic "your account is approved" one-liner with a
 short personalized email that uses the four onboarding answers we
