@@ -4,9 +4,21 @@
 
 ## ⏰ Parked reminders — bring up next session
 
-(Updated 2026-06-22 morning — Send-to-Kindle help docs shipped at
-user request; LLM Key health card + Bulk Send-to-Kindle remain
-parked.)
+(Updated 2026-06-22 midday — Hidden Features card shipped; FicHub
+also flipped fully OFF.  Changelog admin view + LLM Key health card
++ Bulk Send-to-Kindle remain parked.)
+
+- **`/admin/changelog` log view** — parked 2026-06-22 by user.
+  Surface the last ~10 entries from `/app/memory/CHANGELOG.md`
+  inside the admin console so the operator can scan what was
+  built / parked / fixed without opening the repo.  Pairs with
+  the Hidden Features card (recent ROADMAP / CHANGELOG entries
+  often explain *why* something is hidden).  Implementation
+  sketch: tiny backend endpoint that reads + parses the first
+  ~500 lines of CHANGELOG.md into structured entries
+  (title, date, body, files-touched), admin endpoint returns
+  them, frontend card renders a collapsible list.  ~20 min
+  implementation + 1 test.
 
 - **Bulk Send-to-Kindle from Library** — parked 2026-06-22 by user.
   *Currently DEFERRED — the parent Send-to-Kindle feature was hidden
