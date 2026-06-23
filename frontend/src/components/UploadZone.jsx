@@ -297,18 +297,34 @@ export default function UploadZone({ onUploaded }) {
         return { ok: false, file, error: detail, status };
       };
 
+      // 2026-07-04 — Smooth progress ticker.  Originally we incremented
+      // `uploaded` inside the for-of-settled loop *after* a whole round
+      // of CONCURRENCY=4 files finished, which made the counter visibly
+      // jump 0→4→8→12.  Now we bump it inside sendOne the moment each
+      // individual file resolves (success OR failure), so the user sees
+      // it tick 1, 2, 3, 4… in real time even while files upload in
+      // parallel.  JS is single-threaded so the `uploaded += 1` is safe
+      // across the 4 concurrent promises, and React batches the rapid
+      // setProgress calls naturally.
+      const tickProgress = () => {
+        uploaded += 1;
+        setProgress({ done: uploaded, total: filesToSend.length });
+      };
+
       // Walk the files list in rounds of CONCURRENCY.
       for (let i = 0; i < filesToSend.length; i += CONCURRENCY) {
         const round = filesToSend.slice(i, i + CONCURRENCY);
-        const settled = await Promise.allSettled(round.map(sendOne));
+        const settled = await Promise.allSettled(round.map(async (file) => {
+          const result = await sendOne(file);
+          tickProgress();  // bump the counter as soon as THIS file finishes
+          return result;
+        }));
         for (const r of settled) {
           // sendOne never throws — it returns {ok:false}.  Defensive
           // handling here in case a future refactor breaks that.
           const val = r.status === "fulfilled" ? r.value : { ok: false, file: null, error: String(r.reason) };
           if (!val.ok) {
             if (val.file) failedFiles.push({ file: val.file, error: val.error });
-            uploaded += 1;
-            setProgress({ done: uploaded, total: filesToSend.length });
             continue;
           }
           const data = val.data;
@@ -345,8 +361,6 @@ export default function UploadZone({ onUploaded }) {
           }
           totalAuto += data?.auto_resolved || 0;
           if (data?.policy) lastPolicy = data.policy;
-          uploaded += 1;
-          setProgress({ done: uploaded, total: filesToSend.length });
         }
       }
       resp = { auto_resolved: totalAuto, policy: lastPolicy, actions: allActions };
