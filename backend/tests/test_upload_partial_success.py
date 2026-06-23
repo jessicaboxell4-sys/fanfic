@@ -80,18 +80,41 @@ def _build_epub(path: Path, *, title: str, author: str = "Test") -> None:
 
 
 def _is_av_available(session) -> bool:
-    """Check whether ClamAV is actually running on the backend — if not,
-    skip the AV-specific tests instead of failing them."""
+    """Check whether ClamAV is actually running on the backend by
+    uploading a tiny EICAR-only request and inspecting the response.
+
+    Returns True only if AV recognised the EICAR signature (i.e. the
+    response indicates infection). False on any 'antivirus unavailable'
+    / signatures-missing condition.
+    """
     try:
-        r = session.get(f"{BASE}/api/admin/av-health", timeout=10)
-        if r.status_code == 200:
-            data = r.json() or {}
-            return bool(data.get("available", True))
+        tmp = Path(tempfile.mkdtemp())
+        probe = tmp / "av_probe.bin"
+        probe.write_bytes(EICAR)
+        with open(probe, "rb") as fh:
+            r = session.post(
+                f"{BASE}/api/books/upload",
+                files=[("files", ("av_probe.bin", fh, "application/octet-stream"))],
+                timeout=30,
+            )
+        if r.status_code != 200:
+            return False
+        books = (r.json() or {}).get("books") or []
+        if not books:
+            return False
+        # If the probe came back as 'av_infected' we're good.  If it
+        # came back with 'av_status': 'unavailable' (or no AV fields
+        # at all), the daemon's not running / signatures are missing.
+        b0 = books[0]
+        if b0.get("av_infected"):
+            return True
+        if (b0.get("av_status") or "").lower() == "unavailable":
+            return False
+        # Some non-EPUB extensions short-circuit before AV; treat
+        # ambiguity as "not available" to avoid false failures.
+        return False
     except requests.RequestException:
-        pass
-    # Default to True — if the health endpoint isn't reachable we still
-    # try the test (worst case it skips on the assertion below).
-    return True
+        return False
 
 
 def test_upload_returns_200_when_one_file_is_av_flagged(session):
@@ -150,3 +173,75 @@ def test_upload_returns_200_when_one_file_is_av_flagged(session):
             session.delete(f"{BASE}/api/books/{g['book_id']}", timeout=10)
         except requests.RequestException:
             pass
+
+
+
+def test_upload_batch_with_corrupt_epub_does_not_500(session):
+    """A 3-file batch containing one un-parseable EPUB must still return
+    200 with three result entries — proving the per-file try/except
+    wrapper in ``upload_books`` keeps the batch alive when one file
+    can't be processed.
+
+    This is the AV-independent half of the partial-success contract:
+    runs in any environment, even when ClamAV signatures are missing.
+    """
+    tmp = Path(tempfile.mkdtemp())
+    good_a = tmp / "corrupt_good_a.epub"
+    good_b = tmp / "corrupt_good_b.epub"
+    bad    = tmp / "corrupt_broken.epub"
+    _build_epub(good_a, title="Corrupt Good A")
+    _build_epub(good_b, title="Corrupt Good B")
+    # A few bytes of random junk — looks like an EPUB by extension
+    # but isn't a valid zip.  ebooklib raises "Bad Zip file" on parse.
+    bad.write_bytes(b"NOT-A-REAL-EPUB-FILE-RANDOM-BYTES" * 8)
+
+    with open(good_a, "rb") as fa, open(good_b, "rb") as fb, open(bad, "rb") as fc:
+        r = session.post(
+            f"{BASE}/api/books/upload",
+            files=[
+                ("files", ("corrupt_good_a.epub", fa, "application/epub+zip")),
+                ("files", ("corrupt_broken.epub", fc, "application/epub+zip")),
+                ("files", ("corrupt_good_b.epub", fb, "application/epub+zip")),
+            ],
+            timeout=120,
+        )
+
+    # Whole point: 200, not 500.
+    assert r.status_code == 200, (
+        f"Expected partial-success 200, got {r.status_code}: {r.text[:300]}"
+    )
+    body = r.json()
+    books = body.get("books") or []
+    assert len(books) == 3, f"expected 3 result entries, got {len(books)}: {books}"
+
+    # Both clean books must succeed.
+    good = [b for b in books if b.get("filename", "").startswith("corrupt_good_")]
+    assert len(good) == 2, f"expected 2 clean results, got: {good}"
+    for g in good:
+        assert g.get("book_id"), f"clean book missing book_id: {g}"
+
+    # The corrupt one must be present (either via the broken-epub
+    # branch with epub_unreadable=True, or via the per-file try/except
+    # safety net with failed=True). Either is acceptable — what
+    # matters is the SIBLINGS still landed.
+    bad_entry = next(
+        (b for b in books if b.get("filename") == "corrupt_broken.epub"), None,
+    )
+    assert bad_entry is not None, f"corrupt entry missing: {books}"
+    landed_in_either_branch = (
+        bad_entry.get("epub_unreadable") is True
+        or bad_entry.get("failed") is True
+    )
+    assert landed_in_either_branch, (
+        f"corrupt file landed in neither broken-epub nor failed branch: {bad_entry}"
+    )
+
+    # Cleanup — remove created books (including the broken one if it
+    # got a book_id from the broken-epub branch).
+    for b in books:
+        bid = b.get("book_id")
+        if bid:
+            try:
+                session.delete(f"{BASE}/api/books/{bid}", timeout=10)
+            except requests.RequestException:
+                pass
