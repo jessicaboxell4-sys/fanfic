@@ -15,6 +15,47 @@
   See `test_upload_partial_success.py` for the contract spec.
 
 
+## 🆕 Persistent Upload Retry Queue (proposed — P1, ~2-3 hours)
+
+**Why**: the new sticky "Retry N" summary toast (shipped 2026-07-04) gives
+one chance to retry failed uploads. If the user dismisses the toast or
+closes the tab mid-upload, they lose track of which files didn't land. For
+power users importing 100+ books at once, this is a real "did I lose my
+books?" anxiety moment. Eliminating it builds trust.
+
+**Scope (MVP)**:
+1. Persist `failedFiles[]` to IndexedDB (or localStorage with File-Handle
+   refs where supported) keyed by `user_id + batch_started_at`.
+2. New `<UploadRetryQueueCard />` on the Library page (above the upload
+   zone): shows pending failed files with filename, error reason, and
+   per-file retry/dismiss/dismiss-all actions.
+3. Auto-show the card on Library mount when the queue has items.
+4. Wire the existing `failedFiles` list in `UploadZone.jsx` to seed the
+   queue alongside the toast.
+
+**Non-goals (defer to v2)**:
+- Background auto-retry after network restore (use Service Worker — out of
+  scope for v1)
+- Cross-device sync of the retry queue (would require backend storage and
+  is overkill for transient failures)
+
+**Implementation notes for next agent**:
+- Browsers can't persist `File` objects across page reloads — only File
+  refs from the FileSystem Access API (Chrome 86+) survive. For Safari/
+  Firefox the queue should gracefully degrade to: show the filenames and
+  errors, but prompt the user to re-select the files from disk to retry.
+- Stale entries should auto-expire after 24h to prevent the queue from
+  bloating with files the user has already manually re-uploaded.
+
+**Test plan**:
+- New `tests/test_upload_retry_queue.spec.jsx` (frontend) — mock 100-file
+  upload with 20 failures, verify the queue persists after a page reload.
+- Manual smoke test on shelfsort.com: drop 100 EPUBs, simulate a network
+  drop on batch #5, verify the queue card appears and one-click retry
+  recovers everything.
+
+
+
 ## ⏰ Parked reminders — bring up next session
 
 (Updated 2026-06-22 evening — Big shipping day: Changelog admin
