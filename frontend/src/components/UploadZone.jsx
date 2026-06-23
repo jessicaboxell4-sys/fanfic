@@ -222,7 +222,7 @@ export default function UploadZone({ onUploaded }) {
     const failedFiles = []; // {file, error} — files we couldn't upload (after retry)
     let resp = null;
     try {
-      // Upload in batches of 3 for responsiveness.
+      // Upload one file at a time (see batchSize note below for why).
       // 2026-07-04 fix — Pre-fix, the try/catch wrapped the WHOLE loop so a
       // single batch failure (transient network, R2 hiccup, ClamAV crash on
       // one file) would abort the remaining ~80 files of a 100-book drop
@@ -231,7 +231,18 @@ export default function UploadZone({ onUploaded }) {
       // fails we record the affected files in `failedFiles` and CONTINUE
       // with the next batch. At the end we surface a single summary toast
       // with a one-click "Retry failed" action.
-      const batchSize = 3;
+      // 2026-07-04 EVENING HOTFIX — batch size dropped 3 → 1.
+      // Even with the 8s classifier timeout and 5xx-fail-fast guards,
+      // production was still hitting Cloudflare 524 on batches of 3
+      // when something OTHER than the classifier was slow (ClamAV scan,
+      // R2 upload, or the classifier's own HTTP call not respecting
+      // asyncio cancellation).  3 files × ~40s = 120s = 524.  Dropping
+      // to 1 file per request keeps each call well under Cloudflare's
+      // 100s window even on a slow upstream day.  Throughput is
+      // preserved because the per-file loop is fast and we can revisit
+      // a parallel-batch strategy with `Promise.all` later — for now
+      // the priority is making uploads RELIABLY land.
+      const batchSize = 1;
       let uploaded = 0;
       let totalAuto = 0;
       let lastPolicy = null;
