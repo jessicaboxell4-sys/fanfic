@@ -33,7 +33,7 @@ import {
  * Browser support: Chrome, Edge, Safari, Firefox ≥49.  Fail-soft —
  * if speechSynthesis is missing the button hides itself.
  */
-export default function TTSControls({ rendition, flow, onPageChange }) {
+export default function TTSControls({ rendition }) {
   const supported =
     typeof window !== "undefined" && "speechSynthesis" in window;
 
@@ -253,13 +253,12 @@ export default function TTSControls({ rendition, flow, onPageChange }) {
         // reaching the end — must've been the user.  Stop.
         stopAll();
       }
-      onPageChange?.();
     };
     rendition.on("relocated", onRelocated);
     return () => {
       try { rendition.off("relocated", onRelocated); } catch {/* ignore */}
     };
-  }, [rendition, playing, stopAll, onPageChange]);
+  }, [rendition, playing, stopAll]);
 
   // Hard-stop when this component unmounts (user closed the reader).
   useEffect(() => {

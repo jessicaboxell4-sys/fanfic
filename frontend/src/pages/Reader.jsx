@@ -745,8 +745,6 @@ export default function Reader() {
                 request. */}
             <TTSControls
               rendition={renditionRef.current}
-              flow={flow}
-              onPageChange={() => {/* future hook */}}
             />
 
             {/* Flow toggle */}

@@ -83,6 +83,14 @@ async function filesFromDataTransfer(dt) {
 export default function UploadZone({ onUploaded }) {
   const inputRef = useRef(null);
   const folderInputRef = useRef(null);
+  // 2026-07-04 — guard against parallel uploads.  The retry-failed
+  // toast surfaces a "Retry N" action that calls handleFiles again.
+  // If a user has started a second upload (drag-drop, file picker) in
+  // the ~20s the toast is sticky, we'd otherwise have two concurrent
+  // upload loops racing on `progress`, the duplicates list, and the
+  // `uploading` state.  A ref-based mutex is simpler than a setState
+  // race because `useState` reads are stale inside the async callback.
+  const inFlightRef = useRef(false);
   const [drag, setDrag] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
@@ -104,6 +112,15 @@ export default function UploadZone({ onUploaded }) {
   }, []);
 
   const handleFiles = useCallback(async (filesList) => {
+    // Hard guard: never run two upload loops at once. The retry-failed
+    // toast can fire `handleFiles(retryFiles)` while another upload is
+    // already in progress (e.g. user drag-dropped a fresh batch).  In
+    // that case, politely tell them to wait — we don't want to mix
+    // batches mid-flight.
+    if (inFlightRef.current) {
+      toast("Already uploading — please wait for the current batch to finish before starting another.");
+      return;
+    }
     const all = Array.from(filesList);
     const files = all.filter((f) => isAccepted(f.name));
     const skipped = all.length - files.length;
@@ -194,6 +211,7 @@ export default function UploadZone({ onUploaded }) {
     }
 
     setUploading(true);
+    inFlightRef.current = true;
     setProgress({ done: 0, total: filesToSend.length });
     const duplicates = [];
     const allActions = [];
@@ -383,6 +401,7 @@ export default function UploadZone({ onUploaded }) {
     } finally {
       setUploading(false);
       setProgress({ done: 0, total: 0 });
+      inFlightRef.current = false;
     }
   }, [onUploaded, formatPrefs]);
 
