@@ -245,7 +245,17 @@ export default function UploadZone({ onUploaded }) {
         });
         let data = null;
         let lastErr = null;
-        // 2 attempts: first try + one retry with 800ms backoff for transients.
+        // Retry strategy: only retry transient *network* errors (no
+        // response, fetch aborted, DNS hiccup).  5xx responses (incl.
+        // Cloudflare 524 timeout) are NOT transient — the server gave
+        // up, retrying would just hit the same timeout.  Same for 4xx
+        // — auth/validation failures won't change on retry.
+        //
+        // 2026-07-04 update — before this guard, a slow backend (Claude
+        // classify on a throttled upstream LLM) would hit Cloudflare
+        // 524 after 100s, we'd auto-retry, hit another 524 at 200s,
+        // and only THEN move on.  Users saw "0 of N" for 4+ minutes.
+        // Now: 5xx fails fast, we move to the next batch immediately.
         for (let attempt = 0; attempt < 2; attempt++) {
           try {
             const res = await api.post("/books/upload", form, {
@@ -256,19 +266,33 @@ export default function UploadZone({ onUploaded }) {
             break;
           } catch (e) {
             lastErr = e;
+            const status = e?.response?.status;
+            // Server returned a real status — not transient.  Don't retry.
+            if (typeof status === "number" && status >= 400) {
+              break;
+            }
             if (attempt === 0) {
               await new Promise((r) => setTimeout(r, 800));
             }
           }
         }
         if (lastErr) {
-          // Batch failed twice — record every file in it as failed and
-          // continue. Don't abort the queue.
-          const detail =
+          // Batch failed (no retry on 5xx).  Map common server statuses
+          // to user-friendly messages so the summary toast tells the
+          // user WHY rather than a generic "Upload failed".
+          const status = lastErr?.response?.status;
+          let detail =
             lastErr?.response?.data?.detail ||
             lastErr?.message ||
             "Upload failed";
-          console.error("Batch upload failed:", detail, lastErr);
+          if (status === 524 || status === 504) {
+            detail = "Server took too long to process this batch (likely the AI classifier is slow). Try again in a few minutes.";
+          } else if (status === 502 || status === 503) {
+            detail = "Server is temporarily unavailable. Try again in a moment.";
+          } else if (status === 413) {
+            detail = "Files too large for this upload — split into smaller batches.";
+          }
+          console.error("Batch upload failed:", status, detail, lastErr);
           batch.forEach((f) => failedFiles.push({ file: f, error: detail }));
           uploaded += batch.length;
           setProgress({ done: uploaded, total: filesToSend.length });

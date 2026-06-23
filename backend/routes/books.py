@@ -2127,7 +2127,37 @@ async def upload_books(
                 results.append({k: v for k, v in doc.items() if k != "_id"})
                 continue
 
-            classification = await classify_book(meta)
+            # 2026-07-04 — Tight timeout on the AI classifier so a slow
+            # upstream LLM (Claude/Gemini) doesn't push the whole upload
+            # past Cloudflare's 100s edge timeout.  When upstream is
+            # throttled, classify_book can take 30-60s per file, and a
+            # batch of 3 then takes 90-180s → Cloudflare returns 524
+            # and the user sees an "Upload failed" with zero books
+            # landing.  Now: classify gets at most 8 seconds; on
+            # timeout we fall back to the pure-Python metadata
+            # heuristic (no LLM) — slower to land on the right fandom
+            # but always fast and offline.
+            try:
+                classification = await _asyncio.wait_for(
+                    classify_book(meta), timeout=8.0,
+                )
+            except _asyncio.TimeoutError:
+                logger.warning(
+                    "classify_book timed out for %s — falling back to rule-based classifier",
+                    meta.get("title") or f.filename,
+                )
+                # Pure-Python regex matching against the fandom name
+                # table — no network calls, runs in <1ms.  Books
+                # classified this way can be re-classified later
+                # via the "Reclassify" admin action once upstream
+                # LLMs recover.
+                try:
+                    classification = classify_by_metadata(meta) or {}
+                except Exception:  # noqa: BLE001
+                    classification = {}
+                # Tag the classifier so admin can audit which books
+                # landed in fallback mode and bulk-reclassify them.
+                classification["classifier"] = "timeout-fallback"
 
             # Save cover separately if exists
             cover_path = user_dir / f"{book_id}.cover"
