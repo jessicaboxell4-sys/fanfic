@@ -15,6 +15,60 @@
   See `test_upload_partial_success.py` for the contract spec.
 
 
+## 🚨 P0 NEXT SESSION — Async-ify the upload endpoint (~2 hrs)
+
+**Why**: At 8pm on launch day, the operator's "drop 10 books" failed because
+each batch was hitting Cloudflare's 100s edge timeout — caused by a slow
+upstream LLM classifier. We shipped an 8-second classifier timeout +
+metadata-heuristic fallback as a hotfix (it works), but the *correct* fix
+is to decouple the upload's HTTP-response time from its processing time.
+
+**Concrete plan**:
+1. **Backend**:
+   - New `upload_tasks` MongoDB collection with TTL index (24h expiry):
+     `{task_id, user_id, created_at, status, total, processed, results: [], failed: [], duplicates: []}`.
+   - Modify `POST /api/books/upload` to:
+     a. Read all uploaded files into memory (NOT lazily — UploadFile streams
+        die after the response is sent, so we must drain them upfront).
+     b. Insert a fresh `upload_tasks` doc with `status: "pending"`.
+     c. Spawn a `FastAPI.BackgroundTasks` callback that runs the existing
+        per-file loop with task-record updates after each file.
+     d. Return `202 Accepted` with `{task_id, total_files, status: "pending"}`
+        immediately (~1-2s total).
+   - New endpoint `GET /api/books/upload-status/{task_id}` returns the
+     task doc (with auth gate: user can only read their own tasks).
+2. **Frontend (`UploadZone.jsx`)**:
+   - Submit the multipart, get `task_id` back.
+   - Start a 2-second polling loop on the status endpoint.
+   - Update the existing progress UI from `task.processed / task.total`.
+   - Stop polling when `status` is `completed` or `failed`.
+   - Render the existing duplicates/actions/url_lists from the final task doc.
+   - Preserve all existing UX (sticky retry toast, format-prefs prompts,
+     unknown-source warnings, cross-format-dupes flow).
+3. **Tests**:
+   - Update `test_upload_partial_success.py` to follow the new contract.
+   - Add a smoke test that proves a slow-classifier (mocked timeout)
+     doesn't block the upload response.
+4. **Smoke + deploy**.
+
+**Risk profile**: HIGH on launch day, MEDIUM on a quiet morning. The
+upload endpoint is the most-touched route in the app — any regression
+hits every user. Best done when there's no other concurrent change
+moving through.
+
+**Reference files**:
+- `backend/routes/books.py` — `upload_books` handler at line ~1843
+- `frontend/src/components/UploadZone.jsx` — `handleFiles` callback
+- `backend/tests/test_upload_partial_success.py` — contract spec to evolve
+
+**Note for next agent**: the operator explicitly approved this as the
+TOP priority for the next session (during 2026-07-04 late-night launch
+debug). The hotfix shipped tonight (8s classifier timeout + no-retry-on-5xx)
+is good defensive code that should STAY even after the async refactor —
+it's belt-and-suspenders.
+
+
+
 ## ✨ "Built from your suggestion" badges (proposed — P2, ~1-2 hrs)
 
 **Why**: Today (2026-07-04) we shipped two features within hours of FB-group
