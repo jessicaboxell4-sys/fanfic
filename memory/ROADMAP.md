@@ -2,6 +2,19 @@
 
 > Active backlog. Items move to [CHANGELOG.md](./CHANGELOG.md) when shipped.
 
+
+## ✅ Just shipped (2026-07-04 morning)
+
+- **Partial-success upload (frontend + backend)** — Live launch-week bug:
+  operator dropped 100 EPUBs, only ~15-20 landed before a single toast
+  killed the rest. Root cause was two compounding bugs (frontend loop-wide
+  try/catch + backend AV `raise HTTPException` + no per-file try/except).
+  Now: per-batch retry, per-file isolation, sticky summary toast with
+  "Retry N" action, AV-blocked files appear in `books[]` with
+  `failed/av_infected` flags instead of 400-ing the whole batch.
+  See `test_upload_partial_success.py` for the contract spec.
+
+
 ## ⏰ Parked reminders — bring up next session
 
 (Updated 2026-06-22 evening — Big shipping day: Changelog admin

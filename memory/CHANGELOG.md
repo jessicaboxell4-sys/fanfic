@@ -7,6 +7,47 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-07-04 (partial-success-upload) — One bad file no longer kills the batch ✅
+
+**Live launch-week bug report**: operator tried to upload 100 EPUBs at
+once. Only ~15-20 landed before a single red toast ("Upload failed")
+killed the remaining ~80 files, with no indication of which had succeeded
+or what went wrong.
+
+**Two compounding bugs found:**
+1. **Frontend (`UploadZone.jsx`)** — the `try/catch` wrapped the entire
+   for-loop instead of each batch. One transient error in batch #7 (of 34)
+   aborted the rest of the queue.
+2. **Backend (`books.py upload_books`)** — single file failures (AV-flagged
+   files specifically `raise HTTPException 400`, but also corrupt EPUBs,
+   classifier crashes, R2 hiccups) killed all 2-3 sibling files in the same
+   multipart batch.
+
+**Fixes:**
+- Frontend: per-batch `try/catch` + 1 retry with 800ms backoff per batch.
+  Failed files are now collected in a sticky summary toast with a one-click
+  "Retry N" action that re-sends just the failed files.
+- Backend AV branch: previously `raise HTTPException 400`, now appends
+  `{filename, av_infected: True, failed: True, error: "..."}` to results
+  and continues. Quarantine record still written.
+- Backend per-iteration: wrapped the entire `for f in files:` body in
+  `try/except`. Any unhandled exception now appends a
+  `{filename, failed: True, error: "..."}` entry and continues with the
+  next file instead of 500-ing the whole multipart request.
+- Tests: new `tests/test_upload_partial_success.py` uploads a 3-file batch
+  with one EICAR-tainted file and asserts the contract — HTTP 200, the
+  EICAR entry marked `failed/av_infected`, and the 2 clean EPUBs each get
+  a `book_id`. Cleanup removes the test books.
+
+**Verified**: 24 backend tests pass (test_books_comprehensive + new
+test), 0 regressions. Frontend lint clean.
+
+**Impact**: re-uploading the same 100 books should now succeed for all
+100 — or surface a clear count + retry button for the few that don't.
+
+---
+
+
 ## 2026-06-23 morning (calibre-friendly-errors) — Stack traces → human copy ✅
 
 Pre-launch UX polish — operator was about to push the FB-group

@@ -1872,352 +1872,388 @@ async def upload_books(
     upload_unknown_urls: List[Dict[str, Any]] = []  # {url, book_id, title, author}
 
     for f in files:
-        lower = (f.filename or "").lower()
-        ext = "." + lower.rsplit(".", 1)[-1] if "." in lower else ""
+        # 2026-07-04 — Per-file isolation. Previously, a single bad
+        # EPUB (corrupt zip, Calibre crash, classifier exception,
+        # transient R2 failure, etc.) bubbled up and 500'd the
+        # entire 3-file multipart batch, killing the 2 healthy
+        # siblings AND causing the frontend to abort the remaining
+        # ~80 files of a 100-book drop.  Now each file's processing
+        # is wrapped in try/except: on any unhandled exception we
+        # record `{filename, failed: True, error: ...}` in the
+        # response and continue with the next file.  The pre-loop
+        # 503 for `uploads_enabled` still short-circuits — only
+        # per-file exceptions are softened here.
+        try:
+            lower = (f.filename or "").lower()
+            ext = "." + lower.rsplit(".", 1)[-1] if "." in lower else ""
 
-        # ---- Antivirus pre-scan (2026-06-18) --------------------------
-        # Synchronous ClamAV scan before ANY other processing — anything
-        # the scanner flags is rejected with a hard 400 and recorded in
-        # the ``av_quarantine`` collection for admin review.  Read once,
-        # rewind, then proceed; downstream branches all re-read ``f`` or
-        # use the buffered bytes.  Failing to run the scanner (daemon
-        # not up, sig DB missing) returns ok=False and we fail-open so
-        # uploads keep working — the missing-AV state surfaces in the
-        # admin Health card instead of breaking user uploads.
-        from utils.antivirus import scan_bytes, record_quarantine
-        import asyncio as _asyncio
-        _av_bytes = await f.read()
-        await f.seek(0)
-        _av_result = await _asyncio.to_thread(scan_bytes, _av_bytes, hint_name=(f.filename or "upload.bin"))
-        if _av_result.get("infected"):
-            await record_quarantine(
-                user_id=user.user_id,
-                filename=f.filename or "",
-                scan=_av_result,
-                source="upload",
-                extra={"size_bytes": len(_av_bytes)},
-            )
-            raise HTTPException(
-                status_code=400,
-                detail=f"\"{f.filename or 'this file'}\" appears unsafe ({_av_result.get('signature') or 'flagged by antivirus'}). Upload blocked.",
-            )
-        # -------------------------------------------------------------
-
-        # `.txt` is a special case — it could be a plain-text manuscript
-        # (Calibre-convertible) OR a wishlist of fanfic URLs. If it's
-        # dominantly URLs we route it through the dedupe pipeline instead of
-        # converting it as a book.
-        if ext == ".txt":
-            try:
-                raw_bytes = await f.read()
-                text = raw_bytes.decode("utf-8", errors="ignore")
-            except Exception:
-                text, raw_bytes = "", b""
-            looks_like_url_list = _looks_like_url_list(text)
-            if looks_like_url_list:
-                report = await _dedupe_url_list(text, user.user_id)
-                report["filename"] = f.filename
-                url_list_reports.append(report)
-                continue
-            # Not a URL list — restore the read pointer so the standard
-            # Calibre-convert branch below picks it up. We re-write the file
-            # to disk and skip ahead.
+            # ---- Antivirus pre-scan (2026-06-18) --------------------------
+            # Synchronous ClamAV scan before ANY other processing — anything
+            # the scanner flags is rejected with a hard 400 and recorded in
+            # the ``av_quarantine`` collection for admin review.  Read once,
+            # rewind, then proceed; downstream branches all re-read ``f`` or
+            # use the buffered bytes.  Failing to run the scanner (daemon
+            # not up, sig DB missing) returns ok=False and we fail-open so
+            # uploads keep working — the missing-AV state surfaces in the
+            # admin Health card instead of breaking user uploads.
+            from utils.antivirus import scan_bytes, record_quarantine
+            import asyncio as _asyncio
+            _av_bytes = await f.read()
             await f.seek(0)
-
-        # Non-EPUB but a known ebook format → auto-convert to EPUB via
-        # Calibre's `ebook-convert`, then fall through to the normal EPUB
-        # pipeline below (metadata / classification / fanfic / template).
-        # On conversion failure we keep the original file under the
-        # "Needs conversion" shelf with a friendly error message.
-        original_format: Optional[str] = None
-        if ext != ".epub" and ext in NEEDS_CONVERSION_EXTS:
-            book_id = f"book_{uuid.uuid4().hex[:12]}"
-            src_target = user_dir / f"{book_id}{ext}"
-            content = await f.read()
-            src_target.write_bytes(content)
-
-            # Path 1 — "Keep original": user wants this file on the Originals
-            # shelf without Calibre conversion. We do a quick title/author
-            # guess from the filename (and cross-format dup check against
-            # existing EPUBs) and store an original-only doc.
-            if (f.filename or "") in keep_original_set:
-                base_name = (f.filename or "Untitled").rsplit(".", 1)[0]
-                # Title - Author pattern, common from manual exports
-                guess_title = base_name
-                guess_author = "Unknown"
-                if " - " in base_name:
-                    left, right = base_name.rsplit(" - ", 1)
-                    if len(left) > 1 and len(right) > 1:
-                        guess_title, guess_author = left.strip(), right.strip()
-                # Cross-format duplicate detection — match title+author
-                # case-insensitively against existing EPUB books.
-                dup_match = await db.books.find_one(
-                    {
-                        "user_id": user.user_id,
-                        "original_only": {"$ne": True},
-                        "title": {"$regex": f"^{re.escape(guess_title)}$", "$options": "i"},
-                        "author": {"$regex": f"^{re.escape(guess_author)}$", "$options": "i"},
-                    },
-                    {"_id": 0, "book_id": 1, "title": 1, "author": 1},
+            _av_result = await _asyncio.to_thread(scan_bytes, _av_bytes, hint_name=(f.filename or "upload.bin"))
+            if _av_result.get("infected"):
+                await record_quarantine(
+                    user_id=user.user_id,
+                    filename=f.filename or "",
+                    scan=_av_result,
+                    source="upload",
+                    extra={"size_bytes": len(_av_bytes)},
                 )
-                dup_ids = [dup_match["book_id"]] if dup_match else []
-                if dup_match:
-                    cross_format_dupes.append({
-                        "new_filename": f.filename,
-                        "new_book_id": book_id,
-                        "matched_book_id": dup_match["book_id"],
-                        "matched_title": dup_match.get("title"),
-                        "matched_author": dup_match.get("author"),
-                    })
-                now_iso = datetime.now(timezone.utc).isoformat()
-                doc = {
-                    "book_id": book_id,
-                    "user_id": user.user_id,
+                # 2026-07-04 — Previously raised HTTPException 400, which
+                # killed the whole multipart batch (typically 3 files) and
+                # then the frontend aborted the remaining ~80 books from
+                # a 100-book drop.  Now we record the rejection in the
+                # response and continue with the next file so one bad
+                # apple doesn't take down its siblings.
+                results.append({
                     "filename": f.filename,
-                    "title": guess_title,
-                    "author": guess_author,
-                    "description": f"Original {ext.lstrip('.').upper()} kept as-is (no Calibre conversion).",
-                    "language": "",
-                    "publisher": "",
-                    "has_cover": False,
-                    # Use a distinct shelf so these don't pollute the main library.
-                    "category": "Originals",
-                    "fandom": None,
-                    "confidence": 1.0,
-                    "classifier": "kept-original",
-                    "tags": [],
-                    "size_bytes": len(content),
-                    "links_count": 0,
-                    "source_url": None,
-                    "fanfic_urls": [],
-                    "last_refreshed_at": None,
-                    "series_name": None,
-                    "series_index": None,
-                    "original_only": True,
-                    "original_format": ext.lstrip("."),
-                    "cross_format_duplicate_of": dup_ids,
-                    "created_at": now_iso,
-                }
-                await db.books.insert_one(doc)
-                results.append({k: v for k, v in doc.items() if k != "_id"})
-                continue
-
-            # Path 2 — normal "Convert" flow (existing behavior).
-            epub_target = user_dir / f"{book_id}.epub"
-            job_id = uuid.uuid4().hex
-            await _conversion_start(user.user_id, {
-                "id": job_id,
-                "book_id": book_id,
-                "title": (f.filename or "Untitled").rsplit(".", 1)[0],
-                "original_format": ext.lstrip("."),
-                "started_at": datetime.now(timezone.utc).isoformat(),
-            })
-            err = None
-            try:
-                err = await convert_to_epub(src_target, epub_target)
-            finally:
-                await _conversion_end(user.user_id, job_id, error=err)
-            if err:
-                base_name = (f.filename or "Untitled").rsplit(".", 1)[0]
-                now_iso = datetime.now(timezone.utc).isoformat()
-                doc = {
-                    "book_id": book_id,
-                    "user_id": user.user_id,
-                    "filename": f.filename,
-                    "title": base_name,
-                    "author": "Unknown",
-                    "description": (
-                        f"Auto-conversion failed. {err} "
-                        f"Tip: convert it to EPUB on your own device first (Calibre desktop, "
-                        f"online converter, etc.) and re-upload the .epub."
+                    "av_infected": True,
+                    "av_signature": _av_result.get("signature"),
+                    "error": (
+                        f"\"{f.filename or 'this file'}\" appears unsafe "
+                        f"({_av_result.get('signature') or 'flagged by antivirus'}). Upload blocked."
                     ),
+                    "failed": True,
+                })
+                continue
+            # -------------------------------------------------------------
+
+            # `.txt` is a special case — it could be a plain-text manuscript
+            # (Calibre-convertible) OR a wishlist of fanfic URLs. If it's
+            # dominantly URLs we route it through the dedupe pipeline instead of
+            # converting it as a book.
+            if ext == ".txt":
+                try:
+                    raw_bytes = await f.read()
+                    text = raw_bytes.decode("utf-8", errors="ignore")
+                except Exception:
+                    text, raw_bytes = "", b""
+                looks_like_url_list = _looks_like_url_list(text)
+                if looks_like_url_list:
+                    report = await _dedupe_url_list(text, user.user_id)
+                    report["filename"] = f.filename
+                    url_list_reports.append(report)
+                    continue
+                # Not a URL list — restore the read pointer so the standard
+                # Calibre-convert branch below picks it up. We re-write the file
+                # to disk and skip ahead.
+                await f.seek(0)
+
+            # Non-EPUB but a known ebook format → auto-convert to EPUB via
+            # Calibre's `ebook-convert`, then fall through to the normal EPUB
+            # pipeline below (metadata / classification / fanfic / template).
+            # On conversion failure we keep the original file under the
+            # "Needs conversion" shelf with a friendly error message.
+            original_format: Optional[str] = None
+            if ext != ".epub" and ext in NEEDS_CONVERSION_EXTS:
+                book_id = f"book_{uuid.uuid4().hex[:12]}"
+                src_target = user_dir / f"{book_id}{ext}"
+                content = await f.read()
+                src_target.write_bytes(content)
+
+                # Path 1 — "Keep original": user wants this file on the Originals
+                # shelf without Calibre conversion. We do a quick title/author
+                # guess from the filename (and cross-format dup check against
+                # existing EPUBs) and store an original-only doc.
+                if (f.filename or "") in keep_original_set:
+                    base_name = (f.filename or "Untitled").rsplit(".", 1)[0]
+                    # Title - Author pattern, common from manual exports
+                    guess_title = base_name
+                    guess_author = "Unknown"
+                    if " - " in base_name:
+                        left, right = base_name.rsplit(" - ", 1)
+                        if len(left) > 1 and len(right) > 1:
+                            guess_title, guess_author = left.strip(), right.strip()
+                    # Cross-format duplicate detection — match title+author
+                    # case-insensitively against existing EPUB books.
+                    dup_match = await db.books.find_one(
+                        {
+                            "user_id": user.user_id,
+                            "original_only": {"$ne": True},
+                            "title": {"$regex": f"^{re.escape(guess_title)}$", "$options": "i"},
+                            "author": {"$regex": f"^{re.escape(guess_author)}$", "$options": "i"},
+                        },
+                        {"_id": 0, "book_id": 1, "title": 1, "author": 1},
+                    )
+                    dup_ids = [dup_match["book_id"]] if dup_match else []
+                    if dup_match:
+                        cross_format_dupes.append({
+                            "new_filename": f.filename,
+                            "new_book_id": book_id,
+                            "matched_book_id": dup_match["book_id"],
+                            "matched_title": dup_match.get("title"),
+                            "matched_author": dup_match.get("author"),
+                        })
+                    now_iso = datetime.now(timezone.utc).isoformat()
+                    doc = {
+                        "book_id": book_id,
+                        "user_id": user.user_id,
+                        "filename": f.filename,
+                        "title": guess_title,
+                        "author": guess_author,
+                        "description": f"Original {ext.lstrip('.').upper()} kept as-is (no Calibre conversion).",
+                        "language": "",
+                        "publisher": "",
+                        "has_cover": False,
+                        # Use a distinct shelf so these don't pollute the main library.
+                        "category": "Originals",
+                        "fandom": None,
+                        "confidence": 1.0,
+                        "classifier": "kept-original",
+                        "tags": [],
+                        "size_bytes": len(content),
+                        "links_count": 0,
+                        "source_url": None,
+                        "fanfic_urls": [],
+                        "last_refreshed_at": None,
+                        "series_name": None,
+                        "series_index": None,
+                        "original_only": True,
+                        "original_format": ext.lstrip("."),
+                        "cross_format_duplicate_of": dup_ids,
+                        "created_at": now_iso,
+                    }
+                    await db.books.insert_one(doc)
+                    results.append({k: v for k, v in doc.items() if k != "_id"})
+                    continue
+
+                # Path 2 — normal "Convert" flow (existing behavior).
+                epub_target = user_dir / f"{book_id}.epub"
+                job_id = uuid.uuid4().hex
+                await _conversion_start(user.user_id, {
+                    "id": job_id,
+                    "book_id": book_id,
+                    "title": (f.filename or "Untitled").rsplit(".", 1)[0],
+                    "original_format": ext.lstrip("."),
+                    "started_at": datetime.now(timezone.utc).isoformat(),
+                })
+                err = None
+                try:
+                    err = await convert_to_epub(src_target, epub_target)
+                finally:
+                    await _conversion_end(user.user_id, job_id, error=err)
+                if err:
+                    base_name = (f.filename or "Untitled").rsplit(".", 1)[0]
+                    now_iso = datetime.now(timezone.utc).isoformat()
+                    doc = {
+                        "book_id": book_id,
+                        "user_id": user.user_id,
+                        "filename": f.filename,
+                        "title": base_name,
+                        "author": "Unknown",
+                        "description": (
+                            f"Auto-conversion failed. {err} "
+                            f"Tip: convert it to EPUB on your own device first (Calibre desktop, "
+                            f"online converter, etc.) and re-upload the .epub."
+                        ),
+                        "language": "",
+                        "publisher": "",
+                        "has_cover": False,
+                        "category": NEEDS_CONVERSION_SHELF,
+                        "fandom": None,
+                        "confidence": 1.0,
+                        "classifier": "needs-conversion",
+                        "size_bytes": len(content),
+                        "links_count": 0,
+                        "source_url": None,
+                        "last_refreshed_at": None,
+                        "series_name": None,
+                        "series_index": None,
+                        "needs_conversion": True,
+                        "original_format": ext.lstrip("."),
+                        "conversion_error": err,
+                        "created_at": now_iso,
+                    }
+                    await db.books.insert_one(doc)
+                    results.append({k: v for k, v in doc.items() if k != "_id"})
+                    continue
+                # Conversion succeeded — keep the original file too (so the user
+                # has the source) but route the rest of the pipeline at the EPUB.
+                original_format = ext.lstrip(".")
+                content = epub_target.read_bytes()
+                target = epub_target
+                # Fall through to the standard EPUB processing below using the
+                # already-written EPUB. We jump straight to metadata extraction by
+                # reusing the local `book_id` we generated above.
+            elif ext != ".epub":
+                results.append({"filename": f.filename, "error": "Not an EPUB"})
+                continue
+            else:
+                book_id = f"book_{uuid.uuid4().hex[:12]}"
+                target = user_dir / f"{book_id}.epub"
+                content = await f.read()
+                target.write_bytes(content)
+
+            meta = extract_epub_metadata(target)
+
+            # Short-circuit: if the EPUB can't be opened at all, file it under
+            # "Can't Open" and skip classification / AI / links / series detection.
+            if meta.get("parse_failed"):
+                doc = {
+                    "book_id": book_id,
+                    "user_id": user.user_id,
+                    "filename": f.filename,
+                    "title": meta.get("title") or f.filename,
+                    "author": "Unknown",
+                    "description": "",
                     "language": "",
                     "publisher": "",
                     "has_cover": False,
-                    "category": NEEDS_CONVERSION_SHELF,
+                    "category": "Can't Open",
                     "fandom": None,
                     "confidence": 1.0,
-                    "classifier": "needs-conversion",
+                    "classifier": "broken-epub",
                     "size_bytes": len(content),
                     "links_count": 0,
                     "source_url": None,
                     "last_refreshed_at": None,
                     "series_name": None,
                     "series_index": None,
-                    "needs_conversion": True,
-                    "original_format": ext.lstrip("."),
-                    "conversion_error": err,
-                    "created_at": now_iso,
+                    "epub_unreadable": True,
+                    "epub_parse_error": meta.get("parse_error"),
+                    "created_at": datetime.now(timezone.utc).isoformat(),
                 }
                 await db.books.insert_one(doc)
                 results.append({k: v for k, v in doc.items() if k != "_id"})
                 continue
-            # Conversion succeeded — keep the original file too (so the user
-            # has the source) but route the rest of the pipeline at the EPUB.
-            original_format = ext.lstrip(".")
-            content = epub_target.read_bytes()
-            target = epub_target
-            # Fall through to the standard EPUB processing below using the
-            # already-written EPUB. We jump straight to metadata extraction by
-            # reusing the local `book_id` we generated above.
-        elif ext != ".epub":
-            results.append({"filename": f.filename, "error": "Not an EPUB"})
-            continue
-        else:
-            book_id = f"book_{uuid.uuid4().hex[:12]}"
-            target = user_dir / f"{book_id}.epub"
-            content = await f.read()
-            target.write_bytes(content)
 
-        meta = extract_epub_metadata(target)
+            classification = await classify_book(meta)
 
-        # Short-circuit: if the EPUB can't be opened at all, file it under
-        # "Can't Open" and skip classification / AI / links / series detection.
-        if meta.get("parse_failed"):
+            # Save cover separately if exists
+            cover_path = user_dir / f"{book_id}.cover"
+            if meta.get('cover_bytes'):
+                cover_path.write_bytes(meta['cover_bytes'])
+
+            # Extract URLs and save to a notepad-friendly .txt file
+            links = extract_urls_from_epub(target)
+            links_path = user_dir / f"{book_id}.links.txt"
+            links_path.write_text(
+                format_links_txt(meta['title'], meta['author'], links),
+                encoding='utf-8',
+            )
+            source_url = find_source_url(links)
+            fanfic_urls = extract_fanfic_urls(links)
+
+            # Stash URLs that look story-shaped but didn't canonicalize so we
+            # can record their hosts as "potential new sources" after the
+            # batch finishes (one Mongo write per host, not per URL).
+            for _link in links or []:
+                _u = (_link.get("url") or "").strip()
+                if _u and not normalize_fanfic_url(_u):
+                    upload_unknown_urls.append({
+                        "url": _u, "book_id": book_id,
+                        "title": meta.get("title"), "author": meta.get("author"),
+                    })
+
+            # Series detection: prefer EPUB Calibre meta, fall back to title regex
+            series_name = meta.get('series_name')
+            series_index = meta.get('series_index')
+            if not series_name:
+                sn, si = detect_series_from_title(meta['title'])
+                if sn:
+                    series_name = sn
+                    series_index = si if si is not None else series_index
+
             doc = {
                 "book_id": book_id,
                 "user_id": user.user_id,
                 "filename": f.filename,
-                "title": meta.get("title") or f.filename,
-                "author": "Unknown",
-                "description": "",
-                "language": "",
-                "publisher": "",
-                "has_cover": False,
-                "category": "Can't Open",
-                "fandom": None,
-                "confidence": 1.0,
-                "classifier": "broken-epub",
+                "title": meta['title'],
+                "author": meta['author'],
+                "description": meta['description'],
+                "language": meta['language'],
+                "publisher": meta['publisher'],
+                "has_cover": bool(meta.get('cover_bytes')),
+                "category": classification['category'],
+                "fandom": _canonicalize_fandom(classification.get('fandom'), fandom_aliases),
+                "confidence": classification.get('confidence'),
+                "classifier": classification.get('classifier'),
                 "size_bytes": len(content),
-                "links_count": 0,
-                "source_url": None,
+                "links_count": len(links),
+                "source_url": source_url,
+                "fanfic_urls": fanfic_urls,
                 "last_refreshed_at": None,
-                "series_name": None,
-                "series_index": None,
-                "epub_unreadable": True,
-                "epub_parse_error": meta.get("parse_error"),
+                "series_name": series_name,
+                "series_index": series_index,
+                "relationships": meta.get("relationships") or [],
+                "rating": meta.get("rating"),
+                "warnings": meta.get("warnings") or [],
+                "categories": meta.get("categories") or [],
+                "ao3_freeform_tags": meta.get("ao3_freeform_tags") or [],
+                # Auto-detected completion status (complete | ongoing). User
+                # override lives at `manual_status`; effective_status() picks
+                # the override when set. Detection runs only at upload time —
+                # users said they don't want re-detection on refresh (5a).
+                "status": detect_status(
+                    title=meta.get("title"),
+                    description=meta.get("description"),
+                    raw_meta_text=meta.get("rawExtendedMeta_text"),
+                    tags=meta.get("tags") or [],
+                ),
                 "created_at": datetime.now(timezone.utc).isoformat(),
             }
+            if original_format:
+                # Surface the source format so the UI can show e.g. "Converted from PDF"
+                doc["original_format"] = original_format
+                doc["converted_from"] = original_format
+
+            # Duplicate detection — flag, don't block. The UI pops a modal letting
+            # the user choose: keep both / discard this upload / promote as new
+            # version of the existing book.
+            dupes = await find_duplicate_candidates(
+                user.user_id,
+                title=meta['title'],
+                author=meta.get('author'),
+                source_url=source_url,
+                fanfic_urls=fanfic_urls,
+            )
+            if dupes:
+                doc["duplicate_pending"] = True
+                doc["duplicate_of"] = dupes
+
             await db.books.insert_one(doc)
-            results.append({k: v for k, v in doc.items() if k != "_id"})
+            # Hook in full-text index — extract the EPUB body so the new book
+            # is searchable from `/library/search/fulltext` immediately. Any
+            # failure here is logged inside the helper; we never want a
+            # fulltext glitch to break the upload itself, so we swallow.
+            try:
+                from utils.epub_fulltext import extract_epub_text, upsert_fulltext, count_words  # noqa: WPS433
+                from pathlib import Path as _P  # noqa: WPS433
+                # Reconstruct the on-disk path from STORAGE_DIR + user_id + book_id.
+                _epub_path = STORAGE_DIR / user.user_id / f"{doc['book_id']}.epub"
+                _ft_text = extract_epub_text(_epub_path)
+                await upsert_fulltext(db, doc["book_id"], user.user_id, _ft_text)
+                _wc = count_words(_ft_text)
+                if _wc > 0:
+                    await db.books.update_one(
+                        {"book_id": doc["book_id"]},
+                        {"$set": {"word_count": _wc}},
+                    )
+                    doc["word_count"] = _wc
+            except Exception as _ft_exc:
+                logger.warning("fulltext index on upload failed for %s: %s", doc.get("book_id"), _ft_exc)
+            results.append({k: v for k, v in doc.items() if k != '_id'})
+        except Exception as _file_err:  # noqa: BLE001 — per-file isolation
+            logger.exception(
+                "upload_books: per-file failure for %s — recording in response and continuing",
+                getattr(f, "filename", "<unknown>"),
+            )
+            results.append({
+                "filename": getattr(f, "filename", None),
+                "failed": True,
+                "error": f"Couldn't process this file ({type(_file_err).__name__}). Try again, or re-upload it on its own to see the detailed error.",
+            })
             continue
-
-        classification = await classify_book(meta)
-
-        # Save cover separately if exists
-        cover_path = user_dir / f"{book_id}.cover"
-        if meta.get('cover_bytes'):
-            cover_path.write_bytes(meta['cover_bytes'])
-
-        # Extract URLs and save to a notepad-friendly .txt file
-        links = extract_urls_from_epub(target)
-        links_path = user_dir / f"{book_id}.links.txt"
-        links_path.write_text(
-            format_links_txt(meta['title'], meta['author'], links),
-            encoding='utf-8',
-        )
-        source_url = find_source_url(links)
-        fanfic_urls = extract_fanfic_urls(links)
-
-        # Stash URLs that look story-shaped but didn't canonicalize so we
-        # can record their hosts as "potential new sources" after the
-        # batch finishes (one Mongo write per host, not per URL).
-        for _link in links or []:
-            _u = (_link.get("url") or "").strip()
-            if _u and not normalize_fanfic_url(_u):
-                upload_unknown_urls.append({
-                    "url": _u, "book_id": book_id,
-                    "title": meta.get("title"), "author": meta.get("author"),
-                })
-
-        # Series detection: prefer EPUB Calibre meta, fall back to title regex
-        series_name = meta.get('series_name')
-        series_index = meta.get('series_index')
-        if not series_name:
-            sn, si = detect_series_from_title(meta['title'])
-            if sn:
-                series_name = sn
-                series_index = si if si is not None else series_index
-
-        doc = {
-            "book_id": book_id,
-            "user_id": user.user_id,
-            "filename": f.filename,
-            "title": meta['title'],
-            "author": meta['author'],
-            "description": meta['description'],
-            "language": meta['language'],
-            "publisher": meta['publisher'],
-            "has_cover": bool(meta.get('cover_bytes')),
-            "category": classification['category'],
-            "fandom": _canonicalize_fandom(classification.get('fandom'), fandom_aliases),
-            "confidence": classification.get('confidence'),
-            "classifier": classification.get('classifier'),
-            "size_bytes": len(content),
-            "links_count": len(links),
-            "source_url": source_url,
-            "fanfic_urls": fanfic_urls,
-            "last_refreshed_at": None,
-            "series_name": series_name,
-            "series_index": series_index,
-            "relationships": meta.get("relationships") or [],
-            "rating": meta.get("rating"),
-            "warnings": meta.get("warnings") or [],
-            "categories": meta.get("categories") or [],
-            "ao3_freeform_tags": meta.get("ao3_freeform_tags") or [],
-            # Auto-detected completion status (complete | ongoing). User
-            # override lives at `manual_status`; effective_status() picks
-            # the override when set. Detection runs only at upload time —
-            # users said they don't want re-detection on refresh (5a).
-            "status": detect_status(
-                title=meta.get("title"),
-                description=meta.get("description"),
-                raw_meta_text=meta.get("rawExtendedMeta_text"),
-                tags=meta.get("tags") or [],
-            ),
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        }
-        if original_format:
-            # Surface the source format so the UI can show e.g. "Converted from PDF"
-            doc["original_format"] = original_format
-            doc["converted_from"] = original_format
-
-        # Duplicate detection — flag, don't block. The UI pops a modal letting
-        # the user choose: keep both / discard this upload / promote as new
-        # version of the existing book.
-        dupes = await find_duplicate_candidates(
-            user.user_id,
-            title=meta['title'],
-            author=meta.get('author'),
-            source_url=source_url,
-            fanfic_urls=fanfic_urls,
-        )
-        if dupes:
-            doc["duplicate_pending"] = True
-            doc["duplicate_of"] = dupes
-
-        await db.books.insert_one(doc)
-        # Hook in full-text index — extract the EPUB body so the new book
-        # is searchable from `/library/search/fulltext` immediately. Any
-        # failure here is logged inside the helper; we never want a
-        # fulltext glitch to break the upload itself, so we swallow.
-        try:
-            from utils.epub_fulltext import extract_epub_text, upsert_fulltext, count_words  # noqa: WPS433
-            from pathlib import Path as _P  # noqa: WPS433
-            # Reconstruct the on-disk path from STORAGE_DIR + user_id + book_id.
-            _epub_path = STORAGE_DIR / user.user_id / f"{doc['book_id']}.epub"
-            _ft_text = extract_epub_text(_epub_path)
-            await upsert_fulltext(db, doc["book_id"], user.user_id, _ft_text)
-            _wc = count_words(_ft_text)
-            if _wc > 0:
-                await db.books.update_one(
-                    {"book_id": doc["book_id"]},
-                    {"$set": {"word_count": _wc}},
-                )
-                doc["word_count"] = _wc
-        except Exception as _ft_exc:
-            logger.warning("fulltext index on upload failed for %s: %s", doc.get("book_id"), _ft_exc)
-        results.append({k: v for k, v in doc.items() if k != '_id'})
 
     # Auto-resolve based on the user's default duplicate policy. When the
     # policy is "ask" we leave duplicate_pending on every flagged book so the

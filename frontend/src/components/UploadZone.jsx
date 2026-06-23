@@ -201,9 +201,18 @@ export default function UploadZone({ onUploaded }) {
     const allSuggestions = [];
     const allCrossDupes = [];
     const allUnknownHosts = new Set();
+    const failedFiles = []; // {file, error} — files we couldn't upload (after retry)
     let resp = null;
     try {
-      // Upload in batches of 3 for responsiveness
+      // Upload in batches of 3 for responsiveness.
+      // 2026-07-04 fix — Pre-fix, the try/catch wrapped the WHOLE loop so a
+      // single batch failure (transient network, R2 hiccup, ClamAV crash on
+      // one file) would abort the remaining ~80 files of a 100-book drop
+      // with a generic "Upload failed" toast. Now each batch is its own
+      // isolated unit: we retry once with a small backoff, and if it still
+      // fails we record the affected files in `failedFiles` and CONTINUE
+      // with the next batch. At the end we surface a single summary toast
+      // with a one-click "Retry failed" action.
       const batchSize = 3;
       let uploaded = 0;
       let totalAuto = 0;
@@ -216,12 +225,53 @@ export default function UploadZone({ onUploaded }) {
           form.append("files", f);
           if (keepSet.has(f.name)) form.append("keep_originals", f.name);
         });
-        const { data } = await api.post("/books/upload", form, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
+        let data = null;
+        let lastErr = null;
+        // 2 attempts: first try + one retry with 800ms backoff for transients.
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            const res = await api.post("/books/upload", form, {
+              headers: { "Content-Type": "multipart/form-data" },
+            });
+            data = res.data;
+            lastErr = null;
+            break;
+          } catch (e) {
+            lastErr = e;
+            if (attempt === 0) {
+              await new Promise((r) => setTimeout(r, 800));
+            }
+          }
+        }
+        if (lastErr) {
+          // Batch failed twice — record every file in it as failed and
+          // continue. Don't abort the queue.
+          const detail =
+            lastErr?.response?.data?.detail ||
+            lastErr?.message ||
+            "Upload failed";
+          console.error("Batch upload failed:", detail, lastErr);
+          batch.forEach((f) => failedFiles.push({ file: f, error: detail }));
+          uploaded += batch.length;
+          setProgress({ done: uploaded, total: filesToSend.length });
+          continue;
+        }
+        // Backend may now return per-file `failed: true` entries when one
+        // file in a batch couldn't be processed (corrupt EPUB, AV-flagged,
+        // classifier crash). Surface those in the failed list too so the
+        // user sees them in the summary toast and can retry.
         for (const b of (data?.books || [])) {
           if (b?.duplicate_pending && (b.duplicate_of || []).length > 0) {
             duplicates.push(b);
+          }
+          if (b?.failed) {
+            // Match the original File object by filename so the Retry
+            // button can resend it. Falls back to a stub if we somehow
+            // can't find it (shouldn't happen).
+            const orig = batch.find((x) => x.name === b.filename);
+            if (orig) {
+              failedFiles.push({ file: orig, error: b.error || "Upload failed" });
+            }
           }
         }
         if (Array.isArray(data?.actions)) allActions.push(...data.actions);
@@ -249,11 +299,33 @@ export default function UploadZone({ onUploaded }) {
         setProgress({ done: uploaded, total: filesToSend.length });
       }
       resp = { auto_resolved: totalAuto, policy: lastPolicy, actions: allActions };
-      if (allUrlLists.length > 0 && filesToSend.length === allUrlLists.length) {
+      const succeededCount = filesToSend.length - failedFiles.length;
+      if (failedFiles.length > 0) {
+        // Some files failed even after retry. Pop a sticky summary toast
+        // with a one-click retry button so the user doesn't lose their work.
+        const retryFiles = failedFiles.map((x) => x.file);
+        toast.error(
+          `Uploaded ${succeededCount} of ${filesToSend.length} · ${failedFiles.length} failed`,
+          {
+            duration: 20000,
+            description:
+              failedFiles[0]?.error
+                ? `First failure: ${String(failedFiles[0].error).slice(0, 140)}`
+                : undefined,
+            action: {
+              label: `Retry ${failedFiles.length}`,
+              onClick: () => handleFiles(retryFiles),
+            },
+          },
+        );
+        // Still notify parent of any successful work so the library refreshes.
+        onUploaded && onUploaded(duplicates, allActions, allUrlLists);
+      } else if (allUrlLists.length > 0 && filesToSend.length === allUrlLists.length) {
         // Only URL list(s) — no books actually ingested
         const totalNew = allUrlLists.reduce((acc, r) => acc + (r.new_urls?.length || 0), 0);
         const totalOwned = allUrlLists.reduce((acc, r) => acc + (r.already_owned?.length || 0), 0);
         toast.success(`Found ${totalNew} new URL${totalNew === 1 ? "" : "s"} · ${totalOwned} already in your library`);
+        onUploaded && onUploaded(duplicates, allActions, allUrlLists);
       } else if (duplicates.length === 0) {
         const autoCount = (resp && resp.auto_resolved) || 0;
         const policy = resp && resp.policy;
@@ -263,12 +335,13 @@ export default function UploadZone({ onUploaded }) {
         } else {
           toast.success(`Sorted ${filesToSend.length} file${filesToSend.length > 1 ? "s" : ""} into your library`);
         }
+        onUploaded && onUploaded(duplicates, allActions, allUrlLists);
       } else {
         toast.success(
           `Sorted ${filesToSend.length} file${filesToSend.length > 1 ? "s" : ""} — ${duplicates.length} possible duplicate${duplicates.length > 1 ? "s" : ""} to review`,
         );
+        onUploaded && onUploaded(duplicates, allActions, allUrlLists);
       }
-      onUploaded && onUploaded(duplicates, allActions, allUrlLists);
 
       // Soft warning: backend flagged some uploaded fandoms as suspiciously
       // close to existing ones — likely a typo. Surface in a sticky toast
