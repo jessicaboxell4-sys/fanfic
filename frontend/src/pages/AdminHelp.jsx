@@ -322,6 +322,23 @@ export default function AdminHelp() {
               via the platform chat with the URL + error text + approximate
               timestamp.
             </p>
+            <p>
+              <strong>&ldquo;It&rsquo;s broken in Firefox but works in
+              Chrome&rdquo; (or vice versa).</strong> When a user (or you)
+              reports browser-specific weirdness, check upstream{" "}
+              <em>first</em> before assuming a code bug. Different browsers
+              have different default timeouts and cookie-partitioning
+              behavior, which means upstream throttling can surface as
+              &ldquo;works in Chrome, broken in Firefox&rdquo; even when
+              the actual root cause is platform-side. Firefox Mobile
+              specifically has stricter request timeouts than Chrome
+              Mobile, so a slow backend that Chrome rides out will look
+              like a hard failure in Firefox. Run through the same three
+              diagnostic steps above before chasing a browser-compat fix.
+              Most real browser-compat bugs persist after a cache clear
+              and across networks &mdash; if the issue is intermittent or
+              self-resolves, it&rsquo;s almost certainly upstream.
+            </p>
           </Section>
 
           <p className="text-xs text-[#6B705C] mt-8 mb-4 italic">
