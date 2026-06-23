@@ -50,6 +50,15 @@ export default function SiteFooter() {
               </li>
               <li>
                 <Link
+                  to="/help/kindle-import"
+                  data-testid="footer-link-kindle-import"
+                  className="text-[#2C2C2C] hover:text-[#6B46C1] hover:underline"
+                >
+                  Import from Kindle
+                </Link>
+              </li>
+              <li>
+                <Link
                   to="/explore/covers"
                   data-testid="footer-link-covers"
                   className="text-[#2C2C2C] hover:text-[#6B46C1] hover:underline"

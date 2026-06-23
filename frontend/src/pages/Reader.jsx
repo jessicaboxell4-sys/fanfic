@@ -7,6 +7,7 @@ import { armReadingHandoff } from "../lib/push";
 import { pulseGoalsCheck } from "../lib/goalHitWatcher";
 import { toast } from "sonner";
 import ReaderThemePanel, { READER_THEMES, READER_FONTS, DEFAULT_THEME, DEFAULT_FONT } from "../components/ReaderThemePanel";
+import TTSControls from "../components/TTSControls";
 
 const FLOW_KEY = "shelfsort-flow"; // "paginated" | "scrolled"
 const THEME_KEY = "shelfsort-reader-theme";
@@ -737,6 +738,16 @@ export default function Reader() {
                 )}
               </div>
             )}
+
+            {/* Read-aloud (Web Speech API).  Hides itself if the
+                browser doesn't support speechSynthesis.  Built
+                2026-07-04 in response to a real FB-group user
+                request. */}
+            <TTSControls
+              rendition={renditionRef.current}
+              flow={flow}
+              onPageChange={() => {/* future hook */}}
+            />
 
             {/* Flow toggle */}
             <button

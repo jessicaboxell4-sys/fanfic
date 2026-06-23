@@ -7,6 +7,57 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-07-04 afternoon — Two community-driven features ✅
+
+Both shipped in response to real Facebook-group launch comments.
+
+### 📖 Kindle Import Guide (`/help/kindle-import`)
+Comment: *"I suppose I can't synchronise my Kindle library on there 😅"* — Alexandra
+
+- New public page (no auth needed) walking users through Amazon's
+  "Manage Your Content & Devices → Download & Transfer via USB" flow,
+  which yields `.azw3` files Shelfsort already auto-converts via Calibre.
+- Honest framing: "Why this can't be automatic" section explains the
+  Kindle walled-garden, calls out the Feb 2025 download-button removal
+  for newly-purchased books, and explicitly disclaims DRM-removal as
+  out of scope.
+- Footer link added to `SiteFooter.jsx` ("Import from Kindle" under
+  About) so it's reachable from every public page.
+- Route registered in `App.js` (public, no `<ProtectedRoute>`).
+
+### 🎧 Read-Aloud TTS (`<TTSControls />`)
+Comment: read-aloud feature request from a separate user
+
+- Browser-native via Web Speech API — zero backend cost, fully private,
+  no extra accounts. Falls back gracefully (button hides) if the browser
+  doesn't support speechSynthesis.
+- "Listen" button in the reader toolbar; while playing toggles to a
+  Pause/Stop pill with live "Reading"/"Paused" state.
+- Voice picker (auto-defaults to default English voice), speed slider
+  (0.5×–2×), persisted in localStorage.
+- Paragraph-by-paragraph reading with a calm orange left-border
+  highlight + scroll-into-view as it advances. Auto-pages when the
+  visible section ends. Hard-stops when the user pages manually so
+  audio never narrates content the user can't see.
+- Self-cleans on unmount; injects one-time CSS into each section's
+  iframe via the rendition's `rendered` event so highlights work in
+  both paginated and scrolled flows.
+
+### Verified
+- Frontend lint clean for both new files.
+- Smoke screenshot on real preview deploy: Listen button visible,
+  settings popover opens, voice picker + speed slider present, copy
+  reads correctly, Kindle import page renders with all 4 numbered
+  steps + DRM caveat.
+
+### Impact
+- Both FB commenters get a concrete "we built it" reply.
+- Operator can post a "we listen to you" follow-up that links to both
+  features.
+
+---
+
+
 ## 2026-07-04 (partial-success-upload) — One bad file no longer kills the batch ✅
 
 **Live launch-week bug report**: operator tried to upload 100 EPUBs at

@@ -14,6 +14,7 @@ import Landing from "@/pages/Landing";
 import Login from "@/pages/Login";
 import Privacy from "@/pages/Privacy";
 import Terms from "@/pages/Terms";
+import KindleImport from "@/pages/KindleImport";
 import Dashboard from "@/pages/Dashboard";
 import BookDetail from "@/pages/BookDetail";
 import FandomShelf from "@/pages/FandomShelf";
@@ -137,6 +138,7 @@ function AppRouter() {
       <Route path="/login" element={<Login />} />
       <Route path="/privacy" element={<Privacy />} />
       <Route path="/terms" element={<Terms />} />
+      <Route path="/help/kindle-import" element={<KindleImport />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/share/yib/:token" element={<PublicYearInBooks />} />
       <Route path="/u/:username" element={<PublicCoverProfile />} />
