@@ -287,11 +287,15 @@ export default function AdminHelp() {
               <li>
                 <code>AV_SCAN_ON_UPLOAD=false</code> — skips the inline
                 scan. Books land marked <code>av_status: &quot;unscanned&quot;</code>.
-                Post-upload toast surfaces a one-click <em>Scan now</em>
-                button that runs <code>/api/account/safety/rescan</code>
-                and reports flagged/clean counts.  Use this when uploads
-                are slow due to upstream LLM throttling (because the
-                bigger latency hog is Claude classification, not AV).
+                The auto-scan now triggers when the user applies
+                Polish-my-library suggestions (PolishLibraryPage fires
+                <code>/api/account/safety/rescan</code> in the background
+                after a successful polish). Replaces the older
+                post-upload toast prompt — no nagging after every batch.
+                Users can also manually rescan from /account/safety.
+                Use this when uploads are slow due to upstream LLM
+                throttling (the bigger latency hog is Claude
+                classification, not AV).
               </li>
             </ul>
             <p>

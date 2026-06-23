@@ -101,6 +101,45 @@ export default function PolishLibraryPage() {
       // pick up anything we missed (e.g., follow-on candidates after a fix).
       const appliedIds = new Set(items.map((it) => it.book_id));
       setSuggestions((prev) => prev.filter((s) => !appliedIds.has(s.book_id)));
+
+      // 2026-07-04 — Auto-scan the library for viruses after polish.
+      // Polishing is a "tidy-up" moment — perfect time to also run AV
+      // across any unscanned books that landed during fast uploads
+      // (AV_SCAN_ON_UPLOAD=false).  Fire-and-forget: we show a
+      // background toast, don't block the user from continuing, and
+      // catch slow-AV (524) gracefully.  Replaces the older
+      // post-upload "Scan now?" prompt — users no longer get nagged
+      // after every batch.
+      const scanning = toast.loading("Scanning your library for viruses in the background…");
+      try {
+        const { data: scan } = await api.post("/account/safety/rescan", {});
+        toast.dismiss(scanning);
+        const flagged = scan?.flagged || 0;
+        const scanned = scan?.scanned || 0;
+        if (flagged > 0) {
+          toast.error(
+            `${flagged} infected file${flagged === 1 ? "" : "s"} found · ${scanned} scanned. Open Account → Safety to review.`,
+            { duration: 18000 },
+          );
+        } else if (scanned > 0) {
+          toast.success(`Library scan complete · ${scanned} book${scanned === 1 ? "" : "s"} checked, all clean.`);
+        }
+        // If scanned === 0 we silently skip — nothing was unscanned, nothing to brag about.
+      } catch (scanErr) {
+        toast.dismiss(scanning);
+        const status = scanErr?.response?.status;
+        if (status === 524 || status === 504) {
+          toast(
+            "Scan still running on the server — open Account → Safety in a few minutes for the result.",
+            { duration: 12000 },
+          );
+        } else if (status === 503) {
+          // AV unavailable — silent.  User can rescan later.
+        } else {
+          // Don't spam an error toast for what's a background nicety.
+          console.warn("Auto-scan after polish failed:", scanErr);
+        }
+      }
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Couldn't apply changes");
     } finally {
