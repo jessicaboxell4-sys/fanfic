@@ -33,6 +33,7 @@ const SECTIONS = [
   { id: "changelog",        label: "Recent changelog",        icon: History },
   { id: "bookclubs",        label: "Book-club moderation",    icon: Users },
   { id: "unknown-sources",  label: "Unknown sources triage",  icon: Eye },
+  { id: "av-flag",          label: "AV scan-on-upload toggle", icon: Shield },
   { id: "troubleshooting",  label: "Troubleshooting & slowness", icon: LifeBuoy },
 ];
 
@@ -267,6 +268,56 @@ export default function AdminHelp() {
 
           <Section id="unknown-sources" icon={Eye} title="Unknown sources triage">
             <p><Link to="/admin/unknown-sources" className="text-[#6B46C1] underline">/admin/unknown-sources</Link> shows every URL host that appeared in user uploads but isn&apos;t in our known list (AO3, FanFiction.net, Wattpad, etc.). Useful for spotting new fanfic sites worth adding to the URL normalizer.</p>
+          </Section>
+
+          <Section id="av-flag" icon={Shield} title="AV scan-on-upload toggle">
+            <p>
+              Environment variable <code>AV_SCAN_ON_UPLOAD</code> controls
+              whether ClamAV runs <em>during</em> each upload or whether
+              books land as <em>unscanned</em> and get swept later via the
+              post-upload &ldquo;Scan now&rdquo; toast or any
+              <Link to="/account/safety" className="text-[#6B46C1] underline"> Library safety</Link>{" "}
+              rescan.
+            </p>
+            <ul className="list-disc pl-5 my-2 space-y-1">
+              <li>
+                <code>AV_SCAN_ON_UPLOAD=true</code> (default) — scans every
+                file during upload.  Safe but adds ~3 seconds per file.
+              </li>
+              <li>
+                <code>AV_SCAN_ON_UPLOAD=false</code> — skips the inline
+                scan. Books land marked <code>av_status: &quot;unscanned&quot;</code>.
+                Post-upload toast surfaces a one-click <em>Scan now</em>
+                button that runs <code>/api/account/safety/rescan</code>
+                and reports flagged/clean counts.  Use this when uploads
+                are slow due to upstream LLM throttling (because the
+                bigger latency hog is Claude classification, not AV).
+              </li>
+            </ul>
+            <p>
+              <strong>Where to set it</strong>: the project root&apos;s{" "}
+              <code>backend/.env</code> file (Emergent platform copies
+              this into the deployed container env on redeploy).  Changes
+              require a redeploy to take effect on shelfsort.com.
+            </p>
+            <p>
+              <strong>Safety net</strong>: even with the inline scan off,
+              ClamAV still catches things via{" "}
+              <Link to="/admin/antivirus" className="text-[#6B46C1] underline">/admin/antivirus</Link>{" "}
+              (bulk rescan across all users) and the user-initiated{" "}
+              <Link to="/account/safety" className="text-[#6B46C1] underline">/account/safety</Link>{" "}
+              rescan. Send-to-Kindle also refuses any book with{" "}
+              <code>av_status: &quot;infected&quot;</code>, so infected files can&apos;t
+              be exfiltrated to a Kindle device even if they sit briefly
+              unscanned in someone&apos;s library.
+            </p>
+            <p>
+              <strong>To-do (next sprint)</strong>: when any cross-user
+              sharing feature ships (friends, library exchange, etc.) we
+              need a <code>ensure_av_clean_for_sharing()</code> guard so
+              unscanned books can&apos;t be sent to other users. Already
+              scoped in ROADMAP.md as P1.
+            </p>
           </Section>
 
           <Section id="troubleshooting" icon={LifeBuoy} title="Troubleshooting & console slowness">
