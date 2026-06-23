@@ -222,28 +222,33 @@ export default function UploadZone({ onUploaded }) {
     const failedFiles = []; // {file, error} — files we couldn't upload (after retry)
     let resp = null;
     try {
-      // Upload one file at a time (see batchSize note below for why).
-      // 2026-07-04 fix — Pre-fix, the try/catch wrapped the WHOLE loop so a
-      // single batch failure (transient network, R2 hiccup, ClamAV crash on
-      // one file) would abort the remaining ~80 files of a 100-book drop
-      // with a generic "Upload failed" toast. Now each batch is its own
-      // isolated unit: we retry once with a small backoff, and if it still
-      // fails we record the affected files in `failedFiles` and CONTINUE
-      // with the next batch. At the end we surface a single summary toast
-      // with a one-click "Retry failed" action.
-      // 2026-07-04 EVENING HOTFIX #3 — parallel uploads.
-      // Pre-fix: 24-book upload sent 24 sequential 1-file requests at
-      // ~30-40s each = ~13 minutes total.  Users would tab away long
-      // before it finished.  Now: we keep 1 file per HTTP request
-      // (Cloudflare's 100s timeout is still the constraint) BUT send
-      // CONCURRENCY requests in parallel via Promise.allSettled.  With
-      // CONCURRENCY=4 and 24 books, that's 6 rounds × ~30s = ~3 minutes
-      // total.  Throughput recovered 4x without bigger per-request
-      // payloads that would risk 524.
+      // 2026-07-04 EVENING HOTFIX #3 — Parallel uploads (1 file per
+      // HTTP request, multiple requests in flight).
+      //
+      // Earlier today we shipped two iterations:
+      //   v1: batches of 3 files per request + per-batch retry on
+      //       transient errors.  Failed when each batch took > 100s
+      //       (Cloudflare's edge timeout) because of a slow upstream
+      //       Claude classifier — every batch 524'd.
+      //   v2: batch size dropped to 1 file per request to fit each
+      //       call into the 100s window.  Worked but sent 24 sequential
+      //       requests = ~13min for a 24-book drop.  Users would tab away.
+      //   v3 (here): keep 1 file per request (Cloudflare safe) BUT send
+      //       CONCURRENCY requests in parallel via Promise.allSettled.
+      //       24 books = 6 rounds × ~30s = ~3min.  Throughput
+      //       recovered 4x without bigger per-request payloads.
       //
       // We use allSettled rather than all so one slow/failed file
       // doesn't poison the whole round — every promise resolves and we
       // partition into success/failure ourselves.
+      //
+      // Failure handling preserved from v1:
+      //   • 5xx (incl. Cloudflare 524) fails fast — retrying is useless,
+      //     the server gave up
+      //   • Transient *network* errors (no response) get one retry with
+      //     800ms backoff per-request inside sendOne
+      //   • Failed files accumulate in `failedFiles[]` and the final
+      //     toast surfaces a sticky one-click "Retry N" button
       const CONCURRENCY = 4;
       let uploaded = 0;
       let totalAuto = 0;
@@ -335,8 +340,10 @@ export default function UploadZone({ onUploaded }) {
       resp = { auto_resolved: totalAuto, policy: lastPolicy, actions: allActions };
       const succeededCount = filesToSend.length - failedFiles.length;
       if (failedFiles.length > 0) {
-        // Some files failed even after retry. Pop a sticky summary toast
-        // with a one-click retry button so the user doesn't lose their work.
+        // Some files failed.  Pop a sticky summary toast with a
+        // one-click retry button so the user doesn't lose their work.
+        // 5xx errors are fast-failed (no retry), so the user sees the
+        // count quickly rather than waiting through multiple timeouts.
         const retryFiles = failedFiles.map((x) => x.file);
         toast.error(
           `Uploaded ${succeededCount} of ${filesToSend.length} · ${failedFiles.length} failed`,
