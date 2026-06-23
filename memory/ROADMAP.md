@@ -15,6 +15,50 @@
   See `test_upload_partial_success.py` for the contract spec.
 
 
+## ✨ "Built from your suggestion" badges (proposed — P2, ~1-2 hrs)
+
+**Why**: Today (2026-07-04) we shipped two features within hours of FB-group
+users requesting them (Kindle import guide, Read-Aloud TTS). That's a huge
+trust signal but it's invisible in-app — users only know if they happen to
+read the public changelog. A small visible badge on community-driven
+features turns the responsiveness into a flywheel: users see "✨ Built from
+@username's suggestion" → they post their own ideas → more loops.
+
+**Scope (MVP)**:
+1. Add an optional `community_origin` field to changelog entries
+   (admin schema):
+   - `requested_by`: free-text attribution string (e.g. "Alexandra C.",
+     "an FB-group reader") — never email/PII unless the user explicitly
+     consented.
+   - `source_link`: optional URL to the public post (FB/Bluesky/Mastodon).
+2. New `<CommunityOriginBadge />` mini-pill component — small, calm,
+   uses the same purple accent. Renders only when `requested_by` is set.
+3. Render the badge in two places:
+   - Public changelog page (already exists?) next to the entry title.
+   - Inline near the new feature itself when reasonable — e.g. tiny
+     ✨ icon next to the "Listen" button on first-render, dismisses
+     when clicked. Localstorage-flagged so it shows once per device.
+4. Admin Changelog Card form: add the two optional fields with helper
+   text "Public attribution? Use a first name or 'an FB reader' — never
+   paste full names without permission."
+
+**Non-goals (defer)**:
+- Linking to a user's Shelfsort profile (overkill, requires per-user
+  consent flow).
+- Auto-detection of community origin from suggestion-board entries
+  (manual-attribution is fine for v1).
+
+**Risk**: P2, low. Changelog admin card is already shipped, this is purely
+additive. No public surface area changes if `requested_by` is unset.
+
+**Reference docs to load when picking this up**:
+- `frontend/src/pages/AdminConsole.jsx` (search for "Changelog")
+- `backend/routes/admin.py` (changelog CRUD endpoints)
+- The two features already shipped today are perfect first candidates:
+  Kindle Import (Alexandra) + TTS (the other commenter).
+
+
+
 ## 🆕 Persistent Upload Retry Queue (proposed — P1, ~2-3 hours)
 
 **Why**: the new sticky "Retry N" summary toast (shipped 2026-07-04) gives
