@@ -231,125 +231,106 @@ export default function UploadZone({ onUploaded }) {
       // fails we record the affected files in `failedFiles` and CONTINUE
       // with the next batch. At the end we surface a single summary toast
       // with a one-click "Retry failed" action.
-      // 2026-07-04 EVENING HOTFIX — batch size dropped 3 → 1.
-      // Even with the 8s classifier timeout and 5xx-fail-fast guards,
-      // production was still hitting Cloudflare 524 on batches of 3
-      // when something OTHER than the classifier was slow (ClamAV scan,
-      // R2 upload, or the classifier's own HTTP call not respecting
-      // asyncio cancellation).  3 files × ~40s = 120s = 524.  Dropping
-      // to 1 file per request keeps each call well under Cloudflare's
-      // 100s window even on a slow upstream day.  Throughput is
-      // preserved because the per-file loop is fast and we can revisit
-      // a parallel-batch strategy with `Promise.all` later — for now
-      // the priority is making uploads RELIABLY land.
-      const batchSize = 1;
+      // 2026-07-04 EVENING HOTFIX #3 — parallel uploads.
+      // Pre-fix: 24-book upload sent 24 sequential 1-file requests at
+      // ~30-40s each = ~13 minutes total.  Users would tab away long
+      // before it finished.  Now: we keep 1 file per HTTP request
+      // (Cloudflare's 100s timeout is still the constraint) BUT send
+      // CONCURRENCY requests in parallel via Promise.allSettled.  With
+      // CONCURRENCY=4 and 24 books, that's 6 rounds × ~30s = ~3 minutes
+      // total.  Throughput recovered 4x without bigger per-request
+      // payloads that would risk 524.
+      //
+      // We use allSettled rather than all so one slow/failed file
+      // doesn't poison the whole round — every promise resolves and we
+      // partition into success/failure ourselves.
+      const CONCURRENCY = 4;
       let uploaded = 0;
       let totalAuto = 0;
       let lastPolicy = null;
       const keepSet = new Set(keepOriginalNames);
-      for (let i = 0; i < filesToSend.length; i += batchSize) {
-        const batch = filesToSend.slice(i, i + batchSize);
+
+      // Send a single file. Returns {ok, file, data, error, status}.
+      // Mirrors the previous per-batch retry/error-mapping logic.
+      const sendOne = async (file) => {
         const form = new FormData();
-        batch.forEach((f) => {
-          form.append("files", f);
-          if (keepSet.has(f.name)) form.append("keep_originals", f.name);
-        });
-        let data = null;
+        form.append("files", file);
+        if (keepSet.has(file.name)) form.append("keep_originals", file.name);
         let lastErr = null;
-        // Retry strategy: only retry transient *network* errors (no
-        // response, fetch aborted, DNS hiccup).  5xx responses (incl.
-        // Cloudflare 524 timeout) are NOT transient — the server gave
-        // up, retrying would just hit the same timeout.  Same for 4xx
-        // — auth/validation failures won't change on retry.
-        //
-        // 2026-07-04 update — before this guard, a slow backend (Claude
-        // classify on a throttled upstream LLM) would hit Cloudflare
-        // 524 after 100s, we'd auto-retry, hit another 524 at 200s,
-        // and only THEN move on.  Users saw "0 of N" for 4+ minutes.
-        // Now: 5xx fails fast, we move to the next batch immediately.
         for (let attempt = 0; attempt < 2; attempt++) {
           try {
             const res = await api.post("/books/upload", form, {
               headers: { "Content-Type": "multipart/form-data" },
             });
-            data = res.data;
-            lastErr = null;
-            break;
+            return { ok: true, file, data: res.data };
           } catch (e) {
             lastErr = e;
             const status = e?.response?.status;
-            // Server returned a real status — not transient.  Don't retry.
-            if (typeof status === "number" && status >= 400) {
-              break;
-            }
-            if (attempt === 0) {
-              await new Promise((r) => setTimeout(r, 800));
-            }
+            // Server returned a real status — not transient. Don't retry.
+            if (typeof status === "number" && status >= 400) break;
+            if (attempt === 0) await new Promise((r) => setTimeout(r, 800));
           }
         }
-        if (lastErr) {
-          // Batch failed (no retry on 5xx).  Map common server statuses
-          // to user-friendly messages so the summary toast tells the
-          // user WHY rather than a generic "Upload failed".
-          const status = lastErr?.response?.status;
-          let detail =
-            lastErr?.response?.data?.detail ||
-            lastErr?.message ||
-            "Upload failed";
-          if (status === 524 || status === 504) {
-            detail = "Server took too long to process this batch (likely the AI classifier is slow). Try again in a few minutes.";
-          } else if (status === 502 || status === 503) {
-            detail = "Server is temporarily unavailable. Try again in a moment.";
-          } else if (status === 413) {
-            detail = "Files too large for this upload — split into smaller batches.";
+        const status = lastErr?.response?.status;
+        let detail =
+          lastErr?.response?.data?.detail ||
+          lastErr?.message ||
+          "Upload failed";
+        if (status === 524 || status === 504) {
+          detail = "Server took too long to process this file (likely the AI classifier is slow). Try again in a few minutes.";
+        } else if (status === 502 || status === 503) {
+          detail = "Server is temporarily unavailable. Try again in a moment.";
+        } else if (status === 413) {
+          detail = "File too large for this upload.";
+        }
+        console.error("File upload failed:", file.name, status, detail, lastErr);
+        return { ok: false, file, error: detail, status };
+      };
+
+      // Walk the files list in rounds of CONCURRENCY.
+      for (let i = 0; i < filesToSend.length; i += CONCURRENCY) {
+        const round = filesToSend.slice(i, i + CONCURRENCY);
+        const settled = await Promise.allSettled(round.map(sendOne));
+        for (const r of settled) {
+          // sendOne never throws — it returns {ok:false}.  Defensive
+          // handling here in case a future refactor breaks that.
+          const val = r.status === "fulfilled" ? r.value : { ok: false, file: null, error: String(r.reason) };
+          if (!val.ok) {
+            if (val.file) failedFiles.push({ file: val.file, error: val.error });
+            uploaded += 1;
+            setProgress({ done: uploaded, total: filesToSend.length });
+            continue;
           }
-          console.error("Batch upload failed:", status, detail, lastErr);
-          batch.forEach((f) => failedFiles.push({ file: f, error: detail }));
-          uploaded += batch.length;
+          const data = val.data;
+          // Per-file `failed:true` entries from the backend (corrupt
+          // EPUB, AV-flagged, classifier crash) — these come back in a
+          // 200 response but still represent a failure for the user.
+          for (const b of (data?.books || [])) {
+            if (b?.duplicate_pending && (b.duplicate_of || []).length > 0) {
+              duplicates.push(b);
+            }
+            if (b?.failed) {
+              const orig = b.filename === val.file.name ? val.file : null;
+              if (orig) {
+                failedFiles.push({ file: orig, error: b.error || "Upload failed" });
+              }
+            }
+          }
+          if (Array.isArray(data?.actions)) allActions.push(...data.actions);
+          if (Array.isArray(data?.url_lists)) allUrlLists.push(...data.url_lists);
+          if (Array.isArray(data?.fandom_suggestions)) allSuggestions.push(...data.fandom_suggestions);
+          if (Array.isArray(data?.cross_format_duplicates)) allCrossDupes.push(...data.cross_format_duplicates);
+          if (Array.isArray(data?.unknown_sources_found)) {
+            data.unknown_sources_found.forEach((h) => allUnknownHosts.add(h));
+          }
+          for (const ul of (data?.url_lists || [])) {
+            (ul?.unknown_sources_found || []).forEach((h) => allUnknownHosts.add(h));
+          }
+          totalAuto += data?.auto_resolved || 0;
+          if (data?.policy) lastPolicy = data.policy;
+          uploaded += 1;
           setProgress({ done: uploaded, total: filesToSend.length });
-          continue;
         }
-        // Backend may now return per-file `failed: true` entries when one
-        // file in a batch couldn't be processed (corrupt EPUB, AV-flagged,
-        // classifier crash). Surface those in the failed list too so the
-        // user sees them in the summary toast and can retry.
-        for (const b of (data?.books || [])) {
-          if (b?.duplicate_pending && (b.duplicate_of || []).length > 0) {
-            duplicates.push(b);
-          }
-          if (b?.failed) {
-            // Match the original File object by filename so the Retry
-            // button can resend it. Falls back to a stub if we somehow
-            // can't find it (shouldn't happen).
-            const orig = batch.find((x) => x.name === b.filename);
-            if (orig) {
-              failedFiles.push({ file: orig, error: b.error || "Upload failed" });
-            }
-          }
-        }
-        if (Array.isArray(data?.actions)) allActions.push(...data.actions);
-        if (Array.isArray(data?.url_lists)) {
-          allUrlLists.push(...data.url_lists);
-        }
-        if (Array.isArray(data?.fandom_suggestions)) {
-          allSuggestions.push(...data.fandom_suggestions);
-        }
-        if (Array.isArray(data?.cross_format_duplicates)) {
-          allCrossDupes.push(...data.cross_format_duplicates);
-        }
-        // Story-shaped URLs whose host isn't on the accepted-sources list.
-        // Aggregate across batches and pop a single heads-up toast at the
-        // end so the user knows we flagged a potential new fic archive.
-        if (Array.isArray(data?.unknown_sources_found)) {
-          data.unknown_sources_found.forEach((h) => allUnknownHosts.add(h));
-        }
-        for (const r of (data?.url_lists || [])) {
-          (r?.unknown_sources_found || []).forEach((h) => allUnknownHosts.add(h));
-        }
-        totalAuto += data?.auto_resolved || 0;
-        if (data?.policy) lastPolicy = data.policy;
-        uploaded += batch.length;
-        setProgress({ done: uploaded, total: filesToSend.length });
       }
       resp = { auto_resolved: totalAuto, policy: lastPolicy, actions: allActions };
       const succeededCount = filesToSend.length - failedFiles.length;
