@@ -2516,6 +2516,12 @@ function UsersCard() {
   useEffect(() => { load(); }, []);
 
   const toggleAdmin = async (u) => {
+    const promoting = !u.is_admin;
+    const verb = promoting ? "Promote" : "Demote";
+    const consequence = promoting
+      ? `${u.email} will gain full admin access — approvals, deletions, feature flags, the lot. They won't be notified, but they'll see /admin tools if they navigate there.`
+      : `${u.email} will lose admin access. They won't be notified. They keep their normal user account.`;
+    if (!window.confirm(`${verb} ${u.email} ${promoting ? "to admin" : "from admin"}?\n\n${consequence}`)) return;
     setBusyId(u.user_id);
     try {
       const endpoint = u.is_admin ? "demote" : "promote";
@@ -2530,7 +2536,15 @@ function UsersCard() {
   // Mod-flag toggle — independent column from admin.  Admins are NOT
   // implicitly mods; promoting to mod doesn't touch admin and vice
   // versa (so the audit log stays clean and the powers are scoped).
+  // Confirmation prompt added 2026-06-22 after an accidental click on
+  // launch day — same pattern as the admin toggle above.
   const toggleMod = async (u) => {
+    const promoting = !u.is_moderator;
+    const verb = promoting ? "Promote" : "Demote";
+    const consequence = promoting
+      ? `${u.email} will gain moderator tools (approve sign-ups, lock bookclub rooms, etc). They won't be notified — the role is silent until they navigate to a mod-only page.`
+      : `${u.email} will lose moderator tools. They won't be notified.`;
+    if (!window.confirm(`${verb} ${u.email} ${promoting ? "to moderator" : "from moderator"}?\n\n${consequence}`)) return;
     setBusyId(u.user_id);
     try {
       const endpoint = u.is_moderator ? "demote-mod" : "promote-mod";
