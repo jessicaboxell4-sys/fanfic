@@ -1896,11 +1896,28 @@ async def upload_books(
             # not up, sig DB missing) returns ok=False and we fail-open so
             # uploads keep working — the missing-AV state surfaces in the
             # admin Health card instead of breaking user uploads.
-            from utils.antivirus import scan_bytes, record_quarantine
+            #
+            # 2026-07-04 EVENING — `AV_SCAN_ON_UPLOAD=false` opt-out.
+            # When ClamAV takes ~3 seconds per file and we're parallel-
+            # uploading at scale, AV can be ~15% of total upload time.
+            # Operators who want faster uploads can flip the env var to
+            # `false` — uploads then skip the inline scan and the file is
+            # marked `av_status: "unscanned"` so:
+            #   • the existing /account/safety "Unscanned" count surfaces
+            #     it to the user (they can hit "Rescan my library")
+            #   • the existing admin antivirus rescan picks it up
+            #   • Send-to-Kindle still refuses infected/unscanned files
+            # The default is `true` — explicit opt-out keeps the safe
+            # behaviour for anyone who doesn't read this code.
             import asyncio as _asyncio
+            from utils.antivirus import scan_bytes, record_quarantine
+            _av_skipped = (os.environ.get("AV_SCAN_ON_UPLOAD", "true").lower() in ("0", "false", "no", "off"))
             _av_bytes = await f.read()
             await f.seek(0)
-            _av_result = await _asyncio.to_thread(scan_bytes, _av_bytes, hint_name=(f.filename or "upload.bin"))
+            if _av_skipped:
+                _av_result = {"infected": False, "ok": True, "skipped": True}
+            else:
+                _av_result = await _asyncio.to_thread(scan_bytes, _av_bytes, hint_name=(f.filename or "upload.bin"))
             if _av_result.get("infected"):
                 await record_quarantine(
                     user_id=user.user_id,
@@ -2250,6 +2267,18 @@ async def upload_books(
             if dupes:
                 doc["duplicate_pending"] = True
                 doc["duplicate_of"] = dupes
+
+            # 2026-07-04 — When `AV_SCAN_ON_UPLOAD=false`, mark the book
+            # as `unscanned` so /account/safety surfaces it in the
+            # "Unscanned" counter (user can hit "Rescan my library" to
+            # backfill) and admin rescan flows pick it up.  When AV ran
+            # successfully and the file was clean, we stamp it as such
+            # so the same surfaces show it as already-protected.
+            if _av_skipped:
+                doc["av_status"] = "unscanned"
+            else:
+                doc["av_status"] = "clean"
+                doc["av_scanned_at"] = datetime.now(timezone.utc).isoformat()
 
             await db.books.insert_one(doc)
             # Hook in full-text index — extract the EPUB body so the new book

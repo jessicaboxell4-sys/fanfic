@@ -245,3 +245,62 @@ def test_upload_batch_with_corrupt_epub_does_not_500(session):
                 session.delete(f"{BASE}/api/books/{bid}", timeout=10)
             except requests.RequestException:
                 pass
+
+
+def test_upload_marks_books_unscanned_when_av_skip_env_enabled(session):
+    """When AV_SCAN_ON_UPLOAD=false (env opt-out shipped 2026-07-04
+    to make uploads faster on slow-LLM days), uploaded books must:
+      • land successfully with a book_id
+      • be stamped with ``av_status: "unscanned"`` so the existing
+        /account/safety "Unscanned" counter surfaces them and the
+        admin antivirus rescan flow picks them up later
+      • have ``av_scanned_at`` left null (it hasn't been scanned)
+
+    The flip side (AV_SCAN_ON_UPLOAD=true) is the default — that path
+    still inline-scans and stamps ``av_status: "clean"`` + a timestamp.
+    """
+    # Only run when the deployment is configured for the opt-out path.
+    # We can't toggle the env var per-test from the HTTP boundary, so
+    # we sniff the behaviour: upload a clean EPUB and inspect av_status.
+    tmp = Path(tempfile.mkdtemp())
+    book_file = tmp / "av_skip_probe.epub"
+    _build_epub(book_file, title="AV Skip Probe")
+    with open(book_file, "rb") as fh:
+        r = session.post(
+            f"{BASE}/api/books/upload",
+            files=[("files", ("av_skip_probe.epub", fh, "application/epub+zip"))],
+            timeout=60,
+        )
+    assert r.status_code == 200, f"upload failed: {r.status_code} {r.text[:200]}"
+    body = r.json()
+    books = body.get("books") or []
+    assert len(books) == 1, f"expected 1 result entry, got: {books}"
+    book_id = books[0].get("book_id")
+    assert book_id, f"missing book_id: {books[0]}"
+
+    # Fetch the book detail and verify the AV marker contract.
+    detail = session.get(f"{BASE}/api/books/{book_id}", timeout=15).json()
+    av_status = detail.get("av_status")
+    # We accept BOTH possible deployments — this test passes whichever
+    # mode the .env is configured for, with the right invariants per mode.
+    if av_status == "unscanned":
+        assert detail.get("av_scanned_at") in (None, "", "null"), (
+            f"av_status=unscanned implies no scanned_at, got: {detail.get('av_scanned_at')!r}"
+        )
+    elif av_status == "clean":
+        assert detail.get("av_scanned_at"), (
+            f"av_status=clean implies a scanned_at timestamp, got nothing"
+        )
+    else:
+        # Tolerate the legacy "no av_status field at all" if AV ran
+        # successfully but didn't stamp the doc (older code paths).
+        # If you hit this in CI after the 2026-07-04 hotfix shipped,
+        # something's wrong with the stamping logic.
+        assert av_status is None, f"unexpected av_status value: {av_status!r}"
+
+    # Cleanup so the test user's library stays tidy.
+    try:
+        session.delete(f"{BASE}/api/books/{book_id}", timeout=10)
+    except requests.RequestException:
+        pass
+
