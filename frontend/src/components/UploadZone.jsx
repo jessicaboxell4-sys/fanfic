@@ -220,6 +220,11 @@ export default function UploadZone({ onUploaded }) {
     const allCrossDupes = [];
     const allUnknownHosts = new Set();
     const failedFiles = []; // {file, error} — files we couldn't upload (after retry)
+    // 2026-07-04 — When AV_SCAN_ON_UPLOAD is off, books arrive with
+    // `av_status: "unscanned"`.  We collect their IDs here so the
+    // post-upload toast can offer a one-click "Scan now" follow-up
+    // instead of letting unscanned files sit silently in the library.
+    const unscannedBookIds = [];
     let resp = null;
     try {
       // 2026-07-04 EVENING HOTFIX #3 — Parallel uploads (1 file per
@@ -320,6 +325,13 @@ export default function UploadZone({ onUploaded }) {
                 failedFiles.push({ file: orig, error: b.error || "Upload failed" });
               }
             }
+            // Track books that landed without an AV scan (because
+            // AV_SCAN_ON_UPLOAD=false).  We'll prompt the user to
+            // scan them at the end so the speed-up doesn't quietly
+            // leave the library exposed.
+            if (b?.book_id && b?.av_status === "unscanned") {
+              unscannedBookIds.push(b.book_id);
+            }
           }
           if (Array.isArray(data?.actions)) allActions.push(...data.actions);
           if (Array.isArray(data?.url_lists)) allUrlLists.push(...data.url_lists);
@@ -382,6 +394,53 @@ export default function UploadZone({ onUploaded }) {
           `Sorted ${filesToSend.length} file${filesToSend.length > 1 ? "s" : ""} — ${duplicates.length} possible duplicate${duplicates.length > 1 ? "s" : ""} to review`,
         );
         onUploaded && onUploaded(duplicates, allActions, allUrlLists);
+      }
+
+      // 2026-07-04 — Post-upload AV scan prompt.  When the operator has
+      // set `AV_SCAN_ON_UPLOAD=false` to speed uploads up, books land
+      // with `av_status: "unscanned"`.  We surface a sticky toast with
+      // a one-click "Scan now" action so the speed-up doesn't quietly
+      // leave the library exposed.  Skipped silently when every book
+      // was scanned at upload time (`unscannedBookIds` would be empty).
+      if (unscannedBookIds.length > 0) {
+        const n = unscannedBookIds.length;
+        toast(
+          `${n} new book${n === 1 ? "" : "s"} ready · scan for viruses?`,
+          {
+            duration: 18000,
+            description: "We skipped the antivirus check at upload time to keep things fast. Want to run it now?",
+            action: {
+              label: "Scan now",
+              onClick: async () => {
+                const scanning = toast.loading("Scanning your library… this can take a few minutes for large collections.");
+                try {
+                  const { data } = await api.post("/account/safety/rescan", {});
+                  toast.dismiss(scanning);
+                  const flagged = data?.flagged || 0;
+                  const scanned = data?.scanned || 0;
+                  if (flagged > 0) {
+                    toast.error(`${flagged} infected file${flagged === 1 ? "" : "s"} found · ${scanned} scanned. Open Account → Safety to review.`, { duration: 18000 });
+                  } else {
+                    toast.success(`Library scan complete · ${scanned} book${scanned === 1 ? "" : "s"} checked, all clean.`);
+                  }
+                } catch (e) {
+                  toast.dismiss(scanning);
+                  const status = e?.response?.status;
+                  if (status === 503) {
+                    toast.error("Antivirus is currently unavailable. Try again in a minute or open Account → Safety to retry.");
+                  } else if (status === 524 || status === 504) {
+                    toast(
+                      "Scan still running on the server — open Account → Safety in a few minutes to see the result.",
+                      { duration: 14000 },
+                    );
+                  } else {
+                    toast.error("Could not start the scan. Open Account → Safety to retry.");
+                  }
+                }
+              },
+            },
+          },
+        );
       }
 
       // Soft warning: backend flagged some uploaded fandoms as suspiciously
