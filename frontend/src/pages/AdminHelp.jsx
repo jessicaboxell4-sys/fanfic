@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import {
   ArrowLeft, Shield, Inbox, Users, HardDrive, AlertOctagon, Database,
   Mail, ShieldAlert, FlaskConical, BarChart3, MessageSquare, Pause,
-  Trash2, Sparkles, Eye, Bell, Send, History,
+  Trash2, Sparkles, Eye, Bell, Send, History, LifeBuoy,
 } from "lucide-react";
 import WhatsNewFeed from "@/components/WhatsNewFeed";
 
@@ -33,6 +33,7 @@ const SECTIONS = [
   { id: "changelog",        label: "Recent changelog",        icon: History },
   { id: "bookclubs",        label: "Book-club moderation",    icon: Users },
   { id: "unknown-sources",  label: "Unknown sources triage",  icon: Eye },
+  { id: "troubleshooting",  label: "Troubleshooting & slowness", icon: LifeBuoy },
 ];
 
 function Section({ id, icon: Icon, title, children }) {
@@ -266,6 +267,61 @@ export default function AdminHelp() {
 
           <Section id="unknown-sources" icon={Eye} title="Unknown sources triage">
             <p><Link to="/admin/unknown-sources" className="text-[#6B46C1] underline">/admin/unknown-sources</Link> shows every URL host that appeared in user uploads but isn&apos;t in our known list (AO3, FanFiction.net, Wattpad, etc.). Useful for spotting new fanfic sites worth adding to the URL normalizer.</p>
+          </Section>
+
+          <Section id="troubleshooting" icon={LifeBuoy} title="Troubleshooting & console slowness">
+            <p>
+              The admin console pulls from a lot of sources — MongoDB, the
+              Emergent universal LLM key (Claude / Gemini upstream),
+              Cloudflare R2, ClamAV. When any one of those gets slow, the
+              admin page can feel sluggish even though the rest of the app
+              is fine for regular users.  Here&apos;s the diagnostic order
+              to walk through before assuming a real bug:
+            </p>
+            <ol className="list-decimal pl-5 my-2 space-y-2">
+              <li>
+                <strong>Check the Emergent platform banner first.</strong>{" "}
+                The Emergent chat UI surfaces a yellow/orange banner when
+                their upstream LLM providers (Anthropic for Claude,
+                Google for Gemini) are throttled. If that&apos;s up, expect
+                5-15 min of admin-side flakiness — specifically any card
+                that touches Claude/Gemini (LLM Key Health, recent
+                classifications, Welcome-email previews).  These recover
+                on their own when Emergent clears the banner.  The user
+                app (library / reader / upload) is unaffected because none
+                of those flows block on a live LLM call.
+              </li>
+              <li>
+                <strong>Check the <Link to="/admin#llm-key-health" className="text-[#6B46C1] underline">LLM Key Health card</Link> in the admin console.</strong>{" "}
+                If error rates are spiking and the &ldquo;status&rdquo; pill is
+                amber/red, the root cause is upstream LLM throttling — not
+                Shelfsort.  Wait it out.
+              </li>
+              <li>
+                <strong>If neither of the above explains it</strong>: grab a
+                screenshot of the red error text + the URL the error
+                mentions (e.g. <code>/api/admin/feedback</code>), and bring
+                it to the next development session.  Without the actual
+                error string the next agent will have to guess.
+              </li>
+            </ol>
+            <p>
+              <strong>What to NOT do:</strong> please do not redeploy to
+              &ldquo;fix&rdquo; transient slowness — a redeploy doesn&apos;t
+              influence anything upstream, and it&rsquo;ll cool the
+              browser caches for real users in the middle of reading their
+              books.  Wait it out first; redeploy only after confirming the
+              issue is in our code.
+            </p>
+            <p>
+              <strong>What about the regular user app?</strong> If users
+              report library / reader / upload slowness (not just admin
+              console): that&rsquo;s a different category — start by
+              checking the production logs for 5xx errors, then test the
+              same flow from your own browser, then escalate to support
+              via the platform chat with the URL + error text + approximate
+              timestamp.
+            </p>
           </Section>
 
           <p className="text-xs text-[#6B705C] mt-8 mb-4 italic">
