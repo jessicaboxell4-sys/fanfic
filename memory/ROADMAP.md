@@ -61,6 +61,80 @@ moving through.
 - `frontend/src/components/UploadZone.jsx` — `handleFiles` callback
 - `backend/tests/test_upload_partial_success.py` — contract spec to evolve
 
+
+## 🔒 Gate file-sharing on AV scan status (proposed — P1, ~1 hour)
+
+**Why**: We shipped `AV_SCAN_ON_UPLOAD=false` to speed uploads up. Books
+now land as `av_status: "unscanned"` and only get scanned via the
+post-upload toast prompt or admin rescan. Today this is OK because each
+user's library is private — but the moment we ship any cross-user
+sharing feature (friends, library exchange, Send-to-Kindle-to-someone,
+public bookshelves), an unscanned file could propagate to other users
+before anyone checks it.
+
+**Concrete plan**:
+1. **Backend** — Add a guard helper `ensure_av_clean_for_sharing(book_id, user_id)` that:
+   - Returns `True` only if `av_status == "clean"`
+   - Raises `HTTPException 412 Precondition Failed` with a friendly message otherwise
+   - Used by: any future cross-user sharing endpoint
+2. **Existing Send-to-Kindle** — already blocks `av_status == "infected"`. Tighten it to ALSO block `unscanned` (currently allows unscanned through).
+3. **Future "share to friend"** — wires into the guard.
+4. **UI** — On the book card, show a small lock icon with tooltip "Scan this book before sharing" if `av_status` is unscanned and the user tries to share.
+5. **Friendly error** — "This book hasn't been scanned for viruses yet. Click 'Scan now' in Account → Safety, then try sharing again."
+
+**Reference files**:
+- `backend/utils/send_to_kindle.py` line 101 (existing AV check, tighten)
+- `backend/routes/account_safety.py` (rescan endpoint)
+- `frontend/src/components/BookCard.jsx` (add lock icon)
+
+
+## 👥 User directory + friend requests (proposed — P1, ~3-4 hours)
+
+**Why**: Users have asked for a way to discover other Shelfsort readers
+and connect with them. Currently usernames exist (we shipped public
+usernames a while back) but there's no discovery, no friend graph, and
+no way to interact across accounts.
+
+**Concrete plan (MVP)**:
+1. **Backend models**:
+   - `friend_requests` collection: `{from_user_id, to_user_id, status: "pending"|"accepted"|"rejected", created_at, responded_at}`
+   - `friendships` collection: `{user_a, user_b, created_at}` (symmetric pair, lower-id first for query simplicity)
+2. **Backend endpoints**:
+   - `GET /api/users/directory?q=…&page=…` — list of users (paginated, search by username/display name), opt-in via `is_discoverable` profile field
+   - `GET /api/users/{username}/public` — public profile view: avatar, username, public bookshelves count, joined date
+   - `POST /api/friends/request/{user_id}` — send friend request
+   - `POST /api/friends/respond/{request_id}` — accept/reject
+   - `GET /api/friends/incoming` — list pending requests for me
+   - `GET /api/friends/list` — my friends list
+   - `DELETE /api/friends/{user_id}` — unfriend
+3. **Privacy defaults**:
+   - `is_discoverable: false` by default — opt-in via `/account/profile`
+   - Users see "Allow other users to find you in the directory" toggle
+   - Friend requests are dismissible/blockable
+4. **Frontend**:
+   - New page `/explore/people` — paginated user directory with search
+   - Profile cards on hover/click — show avatar, username, public bookshelves
+   - "Add friend" button → fires request
+   - Inbox badge on the bell icon when there are pending requests
+   - Notification toast when someone accepts a request
+
+**Defer to v2**:
+- Friend feed (what friends are reading)
+- Book-recommendation between friends
+- DM / messaging (would need a whole moderation layer)
+- Public bookshelves cross-following
+
+**Reference files** (for the next agent picking this up):
+- `backend/routes/admin.py` — has user-listing patterns to mirror
+- `backend/models/user.py` — user model to extend
+- `frontend/src/pages/Profile.jsx` (or similar) — existing profile page
+
+**Note**: We already have a `friendships` concept in `digest.py` for the
+"reading streak" feature — check whether it's the same shape or whether
+this is a parallel system. Don't double-create the model.
+
+
+
 **Note for next agent**: the operator explicitly approved this as the
 TOP priority for the next session (during 2026-07-04 late-night launch
 debug). The hotfix shipped tonight (8s classifier timeout + no-retry-on-5xx)
