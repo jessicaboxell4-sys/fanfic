@@ -7,6 +7,24 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-24 late evening — Quick wins ✅
+
+- **`/help` is now public.** Removed `<ProtectedRoute>` from
+  `App.js` so footer links on `/privacy`, `/terms`, and the
+  landing page no longer bounce unauthenticated visitors to
+  `/login`. The page itself already worked without an auth user;
+  the only side-effect was a few `useAuth`-gated UI bits in
+  `<Navbar/>` that already short-circuit on `!user`.
+- **Sign-in CTA in Navbar for unauth visitors.** Added a small
+  pill-style "Sign in" link in `<Navbar/>` that renders only when
+  `!user`, so the bar isn't a dead-end on `/help`, `/privacy`,
+  etc. `data-testid="navbar-signin"`.
+- **`.gitignore` cleanup.** Removed `.env`, `.env.*`, `*.env`
+  lines that contradicted the deployment guidelines, replaced
+  them with a clarifying comment so a future agent doesn't
+  re-add them.
+
+---
 ## 2026-06-24 evening — P0: Native in-browser PDF reading ✅
 
 PDFs landing on the Originals shelf previously rendered via a raw

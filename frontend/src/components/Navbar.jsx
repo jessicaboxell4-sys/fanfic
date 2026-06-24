@@ -270,6 +270,19 @@ export default function Navbar() {
           </div>
           {user && <NotificationsBell />}
 
+          {/* Unauthenticated visitor (footer link from /privacy, /terms,
+              /help, etc.) — show a small Sign in CTA so the navbar isn't
+              a dead-end. */}
+          {!user && (
+            <Link
+              to="/login"
+              data-testid="navbar-signin"
+              className="px-3 py-1.5 rounded-lg text-sm font-medium bg-[#E07A5F] text-white hover:bg-[#d06a4f]"
+            >
+              Sign in
+            </Link>
+          )}
+
           {user && (
             <>
               <AccountDropdown user={user} onLogout={logout} />

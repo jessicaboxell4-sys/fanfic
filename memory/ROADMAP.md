@@ -32,6 +32,16 @@ re-attach to any unfinished jobs and resume the existing polling
 loop so the user sees live progress instead of "where did my upload
 go?". Mention this next time we touch `UploadZone.jsx`.
 
+## 💡 Reminder — TTS read-aloud on PDFs (P2, ~1 hr, high delight)
+
+Now that `<PdfViewer/>` renders with a real text layer, we can wire
+PDF pages into the existing `<TTSControls/>` Web Speech API
+integration. Flow: when TTS is active and the user is reading a
+PDF, pull `page.getTextContent()` from pdf.js for the current page,
+concatenate the items, feed it to the same speech-synthesis pipeline
+EPUBs use. Auto-advance to the next page when the utterance ends.
+Bonus: pause/resume + voice picker already exist — zero new UI work.
+
 
 ## ✅ Just shipped (2026-07-04 morning)
 

@@ -194,7 +194,7 @@ function AppRouter() {
       <Route path="/library/by-pairing/:pairing" element={<ProtectedRoute><PairingShelf /></ProtectedRoute>} />
       <Route path="/account/restore" element={<ProtectedRoute><RestoreBackupPage /></ProtectedRoute>} />
       <Route path="/library/originals" element={<ProtectedRoute><OriginalsShelf /></ProtectedRoute>} />
-      <Route path="/help" element={<ProtectedRoute><Help /></ProtectedRoute>} />
+      <Route path="/help" element={<Help />} />
       <Route path="/rules" element={<Rules />} />
       <Route path="/account/safety" element={<ProtectedRoute><AccountSafety /></ProtectedRoute>} />
       <Route path="/admin" element={<AdminRoute><AdminConsole /></AdminRoute>} />
