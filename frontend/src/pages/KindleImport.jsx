@@ -27,7 +27,36 @@ import SiteFooter from "@/components/SiteFooter";
  */
 export default function KindleImport() {
   useEffect(() => {
-    document.title = "Import from Kindle — Shelfsort";
+    const prevTitle = document.title;
+    const TITLE = "Import from Kindle to Shelfsort — step-by-step guide";
+    const DESC = "How to bring your Kindle library into Shelfsort. Download .azw / .azw3 files from amazon.com/mycd, drop them onto the upload zone, and Calibre auto-converts them to EPUB so they work in the Reader, OPDS feed, and bulk ZIP export.";
+    document.title = TITLE;
+    const setMeta = (attr, name, content) => {
+      let el = document.head.querySelector(`meta[${attr}="${name}"]`);
+      if (!el) {
+        el = document.createElement("meta");
+        el.setAttribute(attr, name);
+        document.head.appendChild(el);
+      }
+      el.setAttribute("content", content);
+    };
+    const setLink = (rel, href) => {
+      let el = document.head.querySelector(`link[rel="${rel}"]`);
+      if (!el) {
+        el = document.createElement("link");
+        el.setAttribute("rel", rel);
+        document.head.appendChild(el);
+      }
+      el.setAttribute("href", href);
+    };
+    setMeta("name", "description", DESC);
+    setMeta("property", "og:title", TITLE);
+    setMeta("property", "og:description", DESC);
+    setMeta("property", "og:type", "article");
+    setMeta("name", "twitter:title", TITLE);
+    setMeta("name", "twitter:description", DESC);
+    setLink("canonical", "https://shelfsort.com/help/kindle-import");
+    return () => { document.title = prevTitle; };
   }, []);
 
   return (

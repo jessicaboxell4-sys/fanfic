@@ -14,7 +14,7 @@ import {
   Dna, Repeat, Command, Send,
 } from "lucide-react";
 
-// Help guide — kept current with the app. Last updated: 2026-06-20.
+// Help guide — kept current with the app. Last updated: 2026-06-24.
 // When you add a feature, drop a new <Section> here; the sticky table
 // of contents builds itself from each section's `id`.
 
@@ -24,21 +24,80 @@ import {
 // deploy, POST to /api/announcements with a fresh `version` string.
 // `version` doubles as the per-user localStorage dismissal key.
 const FALLBACK_WHATS_NEW = {
-  version: "2026-06-20-finished-similar-dna",
+  version: "2026-06-24-pdf-and-async-uploads",
   title: "Fresh in Shelfsort",
   items: [
+    { to: "/library/originals", label: "Read PDFs natively in-app", desc: "— PDFs now render via pdf.js with selectable text, keyboard navigation (PageUp/Down, J/K, arrows, Space), zoom controls, and page-jump input. No more bouncing to Calibre conversion just to read a PDF. Bookmarks save the actual page you're on — no prompt." },
+    { label: "Faster, more resilient uploads", desc: "— the upload pipeline is fully asynchronous. Drag in 50 files and the browser confirms instantly while the server keeps processing — you can close the tab and come back, and Cloudflare timeouts on slow AI classification are now structurally impossible." },
+    { to: "/library/all", label: "Drop more books without leaving All Books", desc: "— a compact upload zone now sits at the top of /library/all so you can drop files or folders without bouncing back to the dashboard. Same parallel pipeline, same auto-classification." },
     { to: "/library/all", label: "Finished a book? Get a similar one", desc: "— hit ≥ 95 % on any book and the BookDetail page now shows up to six other titles from YOUR library that share the same fandom or author, prioritising the ones you haven't finished. Soft landing after the last page." },
     { to: "/library/stats", label: "Reader DNA card on /stats", desc: "— a one-glance “what kind of reader am I?” panel: top 3 fandoms, fanfic-vs-original split bar, average book length in words, and Comfort reads — books you finished AND opened again in the last 30 days." },
     { label: "Cmd / Ctrl + Shift + D toggles dark mode", desc: "— a global keyboard shortcut for instant light↔dark flip. Skips text inputs so it never clobbers your paste." },
     { to: "/account/safety", label: "Antivirus rescan nudge", desc: "— a gentle banner appears if your last full library scan is more than 90 days old (or if you have unscanned books). One click runs a fresh sweep; one click dismisses it for the day." },
-    { to: "/", label: "Honest homepage counters", desc: "— the Landing page now shows books · readers · fandoms tiles, with test-account fixtures filtered out so the numbers reflect REAL people building libraries." },
-    { label: "Shared reader links skip the welcome tour", desc: "— following a /read/<book_id> link or a URL with ?from=share lands you straight in the Reader instead of popping the onboarding tour over your book." },
     { to: "/library/polish", label: "Auto-scan when you polish your library", desc: "— uploads are fast because the AV scan happens later. When you next polish your library, ClamAV automatically sweeps your whole collection in the background with a live X-of-Y progress counter so you can watch it work — no toasts, no nagging." },
     { to: "/rules", label: "Community rules", desc: "— Shelfsort has a written code of conduct. No spam, no politics, no hate speech or bullying, no piracy promotion, respect IP, be kind. Skim it from the footer or the register checkbox." },
   ],
 };
 const WHATS_NEW_KEY = "shelfsort.whatsNewDismissed";
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+
+// Curated 1-line summaries used for SEO meta + FAQPage structured
+// data.  Keep ANSWERS short, plain-text, and verbatim-quotable —
+// Google will literally surface these in featured snippets.  Adding
+// a new entry here is the cheapest way to land a real-world search
+// like "how to upload Kindle to Shelfsort" directly on the section.
+const SEO_FAQ = [
+  {
+    id: "uploads",
+    q: "How do I upload books to Shelfsort?",
+    a: "Drag a folder of .epub, .pdf, .mobi, .azw, .azw3, .kfx, .docx, .doc, .rtf, .fb2, .lit, .lrf, .pdb, .txt or .html files onto the dashboard upload zone (or the compact drop area at the top of /library/all). EPUBs are classified silently; everything else asks for confirmation, then Calibre auto-converts it to EPUB. Uploads run in parallel chunks of four and recover from individual file failures.",
+  },
+  {
+    id: "uploads",
+    q: "How do I import my Kindle books into Shelfsort?",
+    a: "Download your books from amazon.com/mycd as .azw / .azw3 (NOT .kfx — Calibre can't read DRM-protected KFX). Drop the files into the Shelfsort upload zone. We'll auto-convert them to EPUB so they work in the Reader, the OPDS feed, and the export ZIP. See /help/kindle-import for the step-by-step screenshots.",
+  },
+  {
+    id: "reading",
+    q: "Can I read PDFs in Shelfsort?",
+    a: "Yes — PDFs render natively in-app via pdf.js with selectable text, keyboard navigation (PageUp/Down, J/K, arrow keys), zoom controls, page jump input, and bookmark support that captures the actual page you're on. No conversion to EPUB needed. Works on mobile Safari and iOS too.",
+  },
+  {
+    id: "shelves",
+    q: "How does Shelfsort categorise books by fandom?",
+    a: "On upload we extract metadata (title, author, embedded URLs, AO3 tags) and run an AI classifier against 285+ canonical fandoms. The book lands on one or more Fandom shelves automatically. You can correct a misclassification on the book detail page; the correction is remembered for similar files.",
+  },
+  {
+    id: "data-safety",
+    q: "Can I back up or export my Shelfsort library?",
+    a: "Yes. The Cloud Library Mirror automatically copies every EPUB to Cloudflare R2 the moment you upload it. You can also export the full library as a ZIP (raw EPUBs) or an Excel workbook (title + author + source URL) from /library/download. Backups are reminded if your last export is older than the configured threshold.",
+  },
+  {
+    id: "antivirus",
+    q: "Does Shelfsort scan uploaded files for viruses?",
+    a: "Yes. Every file is scanned with ClamAV — fresh uploads queue for a background sweep that runs automatically the next time you visit Polish your library. Infected files are quarantined and blocked from sharing. You can run a manual rescan from /account/safety.",
+  },
+  {
+    id: "cross-device",
+    q: "Does Shelfsort sync reading progress across devices?",
+    a: "Yes. Open the same book on your phone and your laptop and Shelfsort syncs the last-read location, bookmarks, and reading time in real time. Sign in on a fresh device and your shelves, smart shelves, and reading history are all there.",
+  },
+  {
+    id: "opds",
+    q: "Can I use Shelfsort with my Kobo, Boox, or Pocketbook reader?",
+    a: "Yes — Shelfsort exposes a private OPDS feed at /opds, which any modern e-reader (Kobo, Boox, Pocketbook, KOReader on Kindle) can browse and download from. Generate a feed token from /account, then point your reader at the feed URL.",
+  },
+  {
+    id: "messages",
+    q: "Can I share books with friends on Shelfsort?",
+    a: "Add a friend via their @username, then either DM them a recommendation, lend a book directly (they get a temporary read link), or share an entire shelf. AV-scanned-clean files are required for direct file sharing.",
+  },
+  {
+    id: "bookclubs",
+    q: "Does Shelfsort have book clubs?",
+    a: "Yes — Reading Rooms at /bookclubs. Create a room, invite friends, pick a current book, schedule chapter discussions, and chat alongside the Reader. Each room remembers progress per member so latecomers can catch up.",
+  },
+];
 
 const SECTIONS = [
   { id: "feedback", label: "Send us feedback" },
@@ -216,6 +275,83 @@ export default function Help() {
     if (el) requestAnimationFrame(() => el.scrollIntoView({ behavior: "smooth", block: "start" }));
   }, [hash]);
 
+  // ---- SEO: meta tags + canonical + FAQPage JSON-LD ------------------
+  // /help is now a public route (no auth wall), so it can be indexed by
+  // search engines.  The FAQPage structured data lets Google surface a
+  // direct deep link to the right Section anchor when someone searches
+  // for something like "how to upload Kindle to Shelfsort".  Each Q/A
+  // pair maps to an existing #section-id so the click lands precisely
+  // where the user wanted.
+  useEffect(() => {
+    const prevTitle = document.title;
+    const HELP_TITLE = "Shelfsort Help — uploads, fandoms, Reader, sync, OPDS, book clubs";
+    const HELP_DESC = "Step-by-step guide to Shelfsort: drag-and-drop EPUB/PDF/Kindle uploads, AI fandom sorting across 285+ canonical fandoms, in-app Reader with PDF support, cross-device sync, OPDS for e-readers, friend recommendations, book clubs, and more.";
+    document.title = HELP_TITLE;
+
+    const setMeta = (attr, name, content) => {
+      let el = document.head.querySelector(`meta[${attr}="${name}"]`);
+      if (!el) {
+        el = document.createElement("meta");
+        el.setAttribute(attr, name);
+        document.head.appendChild(el);
+      }
+      el.setAttribute("content", content);
+      return el;
+    };
+    const setLink = (rel, href) => {
+      let el = document.head.querySelector(`link[rel="${rel}"]`);
+      if (!el) {
+        el = document.createElement("link");
+        el.setAttribute("rel", rel);
+        document.head.appendChild(el);
+      }
+      el.setAttribute("href", href);
+      return el;
+    };
+
+    setMeta("name", "description", HELP_DESC);
+    setMeta("property", "og:title", HELP_TITLE);
+    setMeta("property", "og:description", HELP_DESC);
+    setMeta("property", "og:type", "article");
+    setMeta("name", "twitter:title", HELP_TITLE);
+    setMeta("name", "twitter:description", HELP_DESC);
+    setLink("canonical", "https://shelfsort.com/help");
+
+    // FAQPage structured data — one per curated Q/A.  Each answer
+    // includes the deep link to the section so Google's "Jump to" box
+    // works.  Stripped of any HTML so the JSON stays valid.
+    const faq = {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: SEO_FAQ.map((qa) => ({
+        "@type": "Question",
+        name: qa.q,
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: qa.a,
+          url: `https://shelfsort.com/help#${qa.id}`,
+        },
+      })),
+    };
+    let ld = document.head.querySelector('script[type="application/ld+json"][data-help-faq]');
+    if (!ld) {
+      ld = document.createElement("script");
+      ld.setAttribute("type", "application/ld+json");
+      ld.setAttribute("data-help-faq", "1");
+      document.head.appendChild(ld);
+    }
+    ld.textContent = JSON.stringify(faq);
+
+    // Restore the title and remove the JSON-LD when the user leaves the
+    // page — we don't want the FAQPage schema lingering on /library or
+    // /account.
+    return () => {
+      document.title = prevTitle;
+      const stale = document.head.querySelector('script[type="application/ld+json"][data-help-faq]');
+      if (stale) stale.remove();
+    };
+  }, []);
+
   return (
     <div className="min-h-screen bg-[#FAF6EE]">
       <Navbar />
@@ -276,7 +412,7 @@ export default function Help() {
 
         <header className="mb-8">
           <h1 className="font-serif text-5xl md:text-6xl text-[#2C2C2C] leading-tight">Help</h1>
-          <p className="text-[#6B705C] mt-2">How to do everything in Shelfsort. Last updated 2026-06-18.</p>
+          <p className="text-[#6B705C] mt-2">How to do everything in Shelfsort. Last updated 2026-06-24.</p>
           <p className="text-sm text-[#6B705C] mt-3">
             Don&rsquo;t see what you&rsquo;re looking for? <Link to="/suggestions" className="text-[var(--primary)] font-semibold underline">Drop a suggestion →</Link> — bugs, tweaks, brand new ideas all welcome.
           </p>
@@ -487,16 +623,19 @@ export default function Help() {
             </Section>
 
             <Section id="uploads" icon={Upload} title="Uploading books">
-              <p>The upload zone accepts <strong>files and folders</strong>. Drag-and-drop or click <em>Choose files</em> / <em>Pick a folder</em>.</p>
+              <p>The upload zone accepts <strong>files and folders</strong>. Drag-and-drop or click <em>Choose files</em> / <em>Pick a folder</em>. You can drop more books from the compact zone at the top of <Link to="/library/all">All books</Link> too — no need to bounce back to the dashboard.</p>
               <p><strong>Supported formats:</strong></p>
               <ul>
                 <li><code>.epub</code> — added silently, full pipeline (metadata + classification + cover + chapters + Reader)</li>
-                <li><code>.pdf .mobi .azw .azw3 .kfx .docx .doc .rtf .fb2 .lit .lrf .pdb .html .htm</code> — confirmation prompt, then auto-converted to EPUB via Calibre</li>
+                <li><code>.pdf</code> — kept as the original, read in-app via the native PDF viewer (no Calibre roundtrip needed). Optional one-click <em>Convert to EPUB</em> if you want it on the main library.</li>
+                <li><code>.mobi .azw .azw3 .kfx .docx .doc .rtf .fb2 .lit .lrf .pdb .html .htm</code> — confirmation prompt, then auto-converted to EPUB via Calibre</li>
                 <li><code>.txt</code> with prose — confirm + convert</li>
                 <li><code>.txt</code> with fanfic URLs (≥3 URL lines or ≥40% of lines) — treated as a URL list, dedupe-and-skip flow</li>
               </ul>
-              <p><strong>What happens during upload:</strong> metadata is extracted, the book is classified onto a category (Fanfiction / Original Fiction / Non-fiction / etc.), the fandom is detected from <strong>{knownFandoms.length || "150+"}</strong> canonical fandoms, relationships/pairings are extracted, completion status is detected (see &ldquo;Detection &amp; overrides&rdquo;), and any embedded source URLs are saved for future dedupe + the Linkless filter.</p>
+              <p><strong>Fast and resilient.</strong> Uploads run in parallel chunks of four, recover from individual file failures, and the new asynchronous pipeline means you can drop dozens of files at once without worrying about edge-server timeouts. Submit returns in seconds; processing keeps running in the background, and your library refreshes automatically when each batch completes.</p>
+              <p><strong>What happens during upload:</strong> metadata is extracted, the book is classified onto a category (Fanfiction / Original Fiction / Non-fiction / etc.), the fandom is detected from <strong>{knownFandoms.length || "285+"}</strong> canonical fandoms, relationships/pairings are extracted, completion status is detected (see &ldquo;Detection &amp; overrides&rdquo;), and any embedded source URLs are saved for future dedupe + the Linkless filter.</p>
               <p><strong>Duplicates</strong> are caught three ways: (1) by exact source-URL or shared canonical fanfic URL (so all AO3 / FFN / RoyalRoad mirrors of the same work collapse together), (2) by <strong>title + author</strong> match (case-insensitive, dots stripped from author so &lsquo;J. K. Rowling&rsquo; and &lsquo;JK Rowling&rsquo; still pair), and (3) by title alone <em>only when one side has no author on file</em>. Two books with the same generic title (e.g. &ldquo;Crossroads&rdquo;) but different authors and different URLs are correctly kept as separate books. When a dupe is flagged you choose: keep both / replace older / skip. Cross-format duplicates (same book uploaded as PDF after the EPUB) are filed under <Link to="/library/originals">Originals</Link>.</p>
+              <p className="text-xs text-[#6B705C]">Importing from Kindle? See the step-by-step guide at <Link to="/help/kindle-import">/help/kindle-import</Link>.</p>
             </Section>
 
             <Section id="quick-search" icon={Search} title="Navbar quick-search">
@@ -521,9 +660,9 @@ export default function Help() {
                 <li><strong><Link to="/library/unreadable">Unreadable</Link></strong> <FileWarning className="inline w-3 h-3" /> — files that couldn&apos;t be parsed (corrupt EPUBs) or converted (Calibre rejected a PDF/Kindle/DOCX). Original bytes stay on disk so you can download a copy to inspect or delete it.</li>
                 <li><strong><Link to="/library/originals">Originals</Link></strong> — books you uploaded as PDF/MOBI/AZW/DOCX/etc. and chose to keep as-is (without running Calibre). Each row has three buttons:
                   <ul>
-                    <li><strong>Read</strong> opens the smart in-app viewer at <code>/read-original/&lt;book_id&gt;</code>. PDF/HTML/HTM render via your browser&apos;s built-in viewer; TXT renders in a clean serif layout; DOCX is converted to HTML client-side via mammoth.js; everything else (MOBI, AZW, AZW3, KF8, KFX, FB2, LIT, LRF, PDB, DOC, RTF) gets a one-click <em>Convert to EPUB and read</em> button that runs Calibre and lands you in the regular reader.
+                    <li><strong>Read</strong> opens the smart in-app viewer at <code>/read-original/&lt;book_id&gt;</code>. <strong>PDFs now render natively via pdf.js</strong> — selectable text, full keyboard nav (PageUp/Down, J/K, arrows, Space), zoom controls (±10%, 50–250%), a page-jump input, and a scroll-tracked progress so bookmarks land on the actual page you&apos;re on. Works on mobile Safari and iOS too. HTML/HTM render via your browser&apos;s native viewer; TXT renders in a clean serif layout; DOCX is converted to HTML client-side via mammoth.js; everything else (MOBI, AZW, AZW3, KF8, KFX, FB2, LIT, LRF, PDB, DOC, RTF) gets a one-click <em>Convert to EPUB and read</em> button that runs Calibre and lands you in the regular reader.
                       <br />
-                      Inside the viewer, PDFs and scroll-based formats (TXT/DOCX) support <strong>bookmarks</strong>: click <em>Bookmark</em> (or hit <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>B</kbd>) to save the current page (PDF — you&apos;ll be asked which page number) or scroll position (TXT/DOCX). The bookmark count chip opens a panel where you can jump back, type a note, and remove bookmarks. Same backend as EPUB bookmarks, so they show up on the <Link to="/bookmarks">Bookmarks page</Link> too.</li>
+                      Inside the viewer, PDFs and scroll-based formats (TXT/DOCX) support <strong>bookmarks</strong>: click <em>Bookmark</em> (or hit <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>B</kbd>) to save the current page (PDF — the viewer reports the page automatically, no prompt) or scroll position (TXT/DOCX). The bookmark count chip opens a panel where you can jump back, type a note, and remove bookmarks. Same backend as EPUB bookmarks, so they show up on the <Link to="/bookmarks">Bookmarks page</Link> too.</li>
                     <li><strong>Convert to EPUB</strong> runs Calibre and promotes the book into the main library — same flow as the bulk <em>Convert all</em> button at the top.</li>
                     <li><strong>Download</strong> streams the raw original file so you can read it in an external app like Apple Books, Kindle, or Adobe Reader.</li>
                   </ul>
@@ -758,6 +897,7 @@ export default function Help() {
 
             <Section id="reading" icon={BookOpen} title="Reader &amp; stats">
               <p>Click any book cover to open the in-browser EPUB Reader. Your reading position is saved per-book; come back to where you left off automatically.</p>
+              <p><strong>PDFs read natively in-app.</strong> Open any PDF from <Link to="/library/originals">Originals</Link> and it renders directly via pdf.js — selectable text, keyboard navigation (PageUp/Down, J/K, arrows, Space), zoom (50&ndash;250 %), a page-jump input, and a scroll-tracked progress so bookmarks land on the actual page you&apos;re on. Mobile Safari and iOS are fully supported. No Calibre roundtrip required to read a PDF.</p>
               <p><strong>Bookmarks</strong>: while reading, tap the <em>Bookmark</em> button in the reader header to save your current page — or just press <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>B</kbd>. If the current page is already bookmarked, the button flips to a filled <em>Saved</em> chip so you don&apos;t accidentally save the same spot twice. Open the <em>Bookmark</em> panel (the icon next to it with the count) to see every saved spot for this book, jump to any of them, type or edit a free-form note (saved on blur), and remove on hover. Each bookmark stores the chapter title, your reading-progress percentage, and the date you saved it. Bookmarks sync to your account so they follow you across devices.</p>
               <p>You can also see every bookmark across your whole library on the <Link to="/bookmarks">All bookmarks</Link> page. PDF and TXT/DOCX originals support bookmarks too — see the <Link to="/library/originals">Originals</Link> section above for how they work in the smart viewer.</p>
               <p><strong>Surprise me</strong>: on the Dashboard, the &ldquo;Surprise me&rdquo; button picks a random book you haven&apos;t opened yet and drops you straight into it — useful when decision fatigue strikes.</p>

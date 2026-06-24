@@ -7,6 +7,27 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-24 late evening — SEO + Help refresh ✅
+
+- **SEO meta on /help** — `document.title`, `<meta name="description">`,
+  Open Graph + Twitter card tags, and a `<link rel="canonical">` set
+  on mount in `Help.jsx` (cleaned up on unmount so they don't bleed
+  into other routes).
+- **FAQPage JSON-LD** — 10 curated Q/A entries injected as
+  `application/ld+json` on mount, each linking to the exact section
+  anchor (`#uploads`, `#reading`, `#opds`, etc.).  Lets Google
+  surface direct deep links when someone searches "how to upload
+  Kindle to Shelfsort" / "Shelfsort PDF reader" / etc.
+- **/help/kindle-import** also gets SEO meta + canonical and is now
+  in `sitemap.xml`.
+- **Help content refresh** — uploads section mentions the compact
+  drop zone on /library/all + the async pipeline; Originals section
+  updated to describe the new pdf.js native reader; Reader section
+  has a new "PDFs read natively in-app" paragraph. `FALLBACK_WHATS_NEW`
+  bumped to `2026-06-24-pdf-and-async-uploads` with three fresh items
+  at the top.
+
+---
 ## 2026-06-24 late evening — Quick wins ✅
 
 - **`/help` is now public.** Removed `<ProtectedRoute>` from
