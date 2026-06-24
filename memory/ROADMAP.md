@@ -3,6 +3,15 @@
 > Active backlog. Items move to [CHANGELOG.md](./CHANGELOG.md) when shipped.
 
 
+## 💡 Reminder — "Listed!" confirmation toast on @handle save
+
+After a user picks/saves their `@handle` on Account → Profile, fire a
+tiny success toast: "Listed! You'll now appear in the public reader
+directory."  Closes the visual loop after the "Welcome to the
+directory → Pick a handle" CTA, answering the implicit "did that
+actually do anything?" question.  Tiny scope — hook into the existing
+profile-save success path in `pages/Account.jsx`.
+
 ## 💡 Reminder — "Welcome to the directory" onboarding toast — DONE 2026-06-25 ✅
 
 Shipped — see CHANGELOG `2026-06-25 (afternoon)` extension entry.
