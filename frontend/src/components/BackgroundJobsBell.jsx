@@ -179,7 +179,52 @@ export default function BackgroundJobsBell() {
     return () => document.removeEventListener("mousedown", onDown);
   }, [open]);
 
-  if (jobs.length === 0) return null;
+  if (jobs.length === 0) {
+    // Always-visible empty state — the bell stays in the navbar so
+    // users know where their background uploads will appear.  Greyed
+    // out, no badge, calming "nothing in the works" panel on click.
+    return (
+      <div className="relative" ref={popoverRef}>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          data-testid="navbar-bgjobs-toggle"
+          className="p-2 hover:bg-[#F5F3EC] rounded-lg relative opacity-60 hover:opacity-90 transition-opacity"
+          title="Background uploads — nothing in the works"
+          aria-expanded={open}
+          aria-label="Background uploads"
+        >
+          <UploadCloud className="w-4 h-4 text-[#6B705C]" />
+        </button>
+        {open && (
+          <div
+            data-testid="navbar-bgjobs-panel"
+            className="absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-lg border border-[#E8E6E1] z-50 overflow-hidden"
+          >
+            <div className="px-4 py-2.5 border-b border-[#E8E6E1]">
+              <span className="font-serif text-sm font-medium text-[#2C2C2C]">
+                Books arriving
+              </span>
+            </div>
+            <div className="px-4 py-6 text-center">
+              <div className="text-3xl mb-2 opacity-50">📚</div>
+              <p className="font-serif text-sm text-[#2C2C2C] mb-1">
+                Nothing in the works
+              </p>
+              <p className="text-xs text-[#6B705C] leading-relaxed">
+                Drop a book on the upload zone and we&rsquo;ll
+                <br />
+                line it up here for you.
+              </p>
+            </div>
+            <div className="px-4 py-2 text-[11px] text-[#6B705C] border-t border-[#E8E6E1] text-center">
+              We&rsquo;ll keep this bell tucked in your navbar.
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   const activeCount = jobs.filter((j) => {
     const s = statuses[j.jobId]?.status;
