@@ -3,11 +3,16 @@ import { useNavigate, useParams, Link } from "react-router-dom";
 import { ArrowLeft, Loader2, ExternalLink, RefreshCw, AlertTriangle, FileText, BookmarkPlus, Bookmark, Keyboard, X } from "lucide-react";
 import mammoth from "mammoth/mammoth.browser";
 import Navbar from "../components/Navbar";
+import PdfViewer from "../components/PdfViewer";
 import { api } from "../lib/api";
 import { toast } from "sonner";
 
 // Formats the browser can natively render with a simple iframe.
-const NATIVE_IFRAME = new Set(["pdf", "html", "htm"]);
+// PDFs used to be in this set, but they now render natively via
+// pdf.js (see <PdfViewer/>) — the in-browser viewer is inconsistent
+// across browsers and unusable on mobile Safari, and pdf.js gives
+// us proper page-tracking for progress + bookmarks.
+const NATIVE_IFRAME = new Set(["html", "htm"]);
 // Text formats fetched and rendered in a <pre> for readable wrapping.
 const PLAINTEXT = new Set(["txt"]);
 // DOCX uses mammoth.js to convert to HTML in the browser.
@@ -55,6 +60,11 @@ export default function ReadOriginal() {
   // (otherwise just changing the hash doesn't jump the PDF viewer).
   const [pdfReloadKey, setPdfReloadKey] = useState(0);
   const [pdfTargetPage, setPdfTargetPage] = useState(null);
+  // Live current-page tracker reported by <PdfViewer/>.  Lets the
+  // "Save bookmark" button drop a `page:N` anchor without ever
+  // prompting the user — the viewer already knows where they are.
+  const [pdfCurrentPage, setPdfCurrentPage] = useState(1);
+  const [pdfTotalPages, setPdfTotalPages] = useState(0);
 
   const ext = useMemo(
     () => (book?.original_format || "").toLowerCase().replace(/^\./, ""),
@@ -112,15 +122,15 @@ export default function ReadOriginal() {
 
   const currentAnchor = useCallback(() => {
     if (isPdf) {
-      // We can't read the iframe's PDF.js state from outside, so we ask
-      // the user. Prefilled with the most recent bookmark when present.
-      const last = bookmarks[0];
-      const default_ = last?.cfi?.startsWith("page:") ? last.cfi.slice(5) : "1";
-      const ans = window.prompt("Save which page number?", default_);
-      if (!ans) return null;
-      const n = parseInt(ans, 10);
-      if (!n || n < 1) { toast.error("Page must be a positive number"); return null; }
-      return { cfi: `page:${n}`, chapter_label: `Page ${n}`, percent: null };
+      // <PdfViewer/> reports the page the user is currently on, so no
+      // prompt is needed.  Defaults to 1 before the doc finishes loading.
+      const n = Math.max(1, pdfCurrentPage || 1);
+      const pct = pdfTotalPages > 0 ? n / pdfTotalPages : null;
+      return {
+        cfi: `page:${n}`,
+        chapter_label: `Page ${n}${pdfTotalPages ? ` of ${pdfTotalPages}` : ""}`,
+        percent: pct,
+      };
     }
     if (isScrollViewer) {
       const el = scrollRef.current;
@@ -134,7 +144,7 @@ export default function ReadOriginal() {
       };
     }
     return null;
-  }, [isPdf, isScrollViewer, bookmarks]);
+  }, [isPdf, isScrollViewer, pdfCurrentPage, pdfTotalPages]);
 
   const addBookmark = useCallback(async () => {
     const anchor = currentAnchor();
@@ -157,8 +167,14 @@ export default function ReadOriginal() {
     const cfi = bm?.cfi || "";
     if (cfi.startsWith("page:") && isPdf) {
       const n = parseInt(cfi.slice(5), 10) || 1;
-      setPdfTargetPage(n);
-      setPdfReloadKey((k) => k + 1);
+      // Bump the target page even when it's the same number we set
+      // previously — the viewer's effect compares targetPage to
+      // its last applied value, and setting it to the same number
+      // is a no-op.  We work around it by toggling +0 then the
+      // real value: setPdfTargetPage(null) clears, then the real
+      // number triggers the scrollIntoView.
+      setPdfTargetPage(null);
+      setTimeout(() => setPdfTargetPage(n), 0);
       return;
     }
     if (cfi.startsWith("scroll:") && isScrollViewer) {
@@ -423,14 +439,23 @@ export default function ReadOriginal() {
           className="bg-white border border-[#E5DDC5] rounded-xl overflow-hidden shadow-sm"
           data-testid="read-original-viewer"
         >
+          {isPdf && (
+            <PdfViewer
+              url={originalUrl}
+              targetPage={pdfTargetPage}
+              onPageChange={setPdfCurrentPage}
+              onTotalPages={setPdfTotalPages}
+            />
+          )}
+
           {NATIVE_IFRAME.has(ext) && (
             <iframe
               ref={iframeRef}
               key={pdfReloadKey}
-              src={isPdf && pdfTargetPage ? `${originalUrl}#page=${pdfTargetPage}` : originalUrl}
+              src={originalUrl}
               title={book?.title || "Book"}
               data-testid="viewer-iframe"
-              sandbox={ext === "pdf" ? undefined : "allow-same-origin"}
+              sandbox="allow-same-origin"
               className="w-full"
               style={{ height: "calc(100vh - 200px)", minHeight: "600px", border: "none" }}
             />
@@ -494,7 +519,7 @@ export default function ReadOriginal() {
             />
           )}
 
-          {ext && !NATIVE_IFRAME.has(ext) && !PLAINTEXT.has(ext) && !DOCX_LIKE.has(ext) && !CALIBRE_FORMATS.has(ext) && (
+          {ext && !isPdf && !NATIVE_IFRAME.has(ext) && !PLAINTEXT.has(ext) && !DOCX_LIKE.has(ext) && !CALIBRE_FORMATS.has(ext) && (
             <FallbackConvertBlock book={book} ext={ext} onConvert={convertAndRead} converting={converting} />
           )}
         </div>

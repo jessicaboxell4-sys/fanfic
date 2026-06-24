@@ -5,6 +5,12 @@
 
 ## ✅ Just shipped (2026-06-24)
 
+- **P0 Native PDF reader** — `components/PdfViewer.jsx` renders PDFs
+  via `react-pdf`/`pdfjs-dist@4` worker (CDN-pinned to avoid version
+  mismatch). Replaces the iframe in `ReadOriginal.jsx`. Page tracking
+  via IntersectionObserver feeds back into `currentAnchor()` so
+  bookmarks no longer prompt the user. Keyboard nav (PageUp/Down,
+  J/K, Space, arrows), zoom ±10%, page-number jump input.
 - **P0 Async upload pipeline** — `POST /api/books/upload/async` +
   `GET /api/books/upload/jobs/{job_id}` poll. The submit half now
   returns 202 + `{job_id}` in 1–2s. The actual work runs as
@@ -17,6 +23,14 @@
 - **Compact upload drop zone on /library/all** — `UploadZone` now
   takes a `compact` prop; `AllBooksPage` embeds it between the
   title block and search/filters.
+
+## 💡 Reminder — Resume-after-refresh for async uploads (P2, ~30 min)
+
+Now that submit is decoupled from processing, we can persist the
+in-flight `job_id`s in `localStorage` keyed by user. On page reload,
+re-attach to any unfinished jobs and resume the existing polling
+loop so the user sees live progress instead of "where did my upload
+go?". Mention this next time we touch `UploadZone.jsx`.
 
 
 ## ✅ Just shipped (2026-07-04 morning)

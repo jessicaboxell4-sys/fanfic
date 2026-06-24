@@ -7,6 +7,52 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-24 evening — P0: Native in-browser PDF reading ✅
+
+PDFs landing on the Originals shelf previously rendered via a raw
+`<iframe src="/download-original">` that handed control to the
+browser's built-in PDF viewer.  That worked on desktop Chrome but
+was inconsistent across browsers, unusable on mobile Safari, and
+couldn't share Shelfsort's bookmark / progress / theme chrome.
+
+### Frontend (`components/PdfViewer.jsx` — new)
+- Uses `react-pdf` + `pdfjs-dist@4.10` (Node-20-compatible) wired
+  to the matching `cdn.jsdelivr.net` worker, cmaps, and standard
+  fonts.  Worker version is pinned to `pdfjs.version` so there's
+  no API/Worker mismatch.
+- Renders all pages in a vertical scrolled column (book-like flow),
+  auto-fitting page width to the container via `ResizeObserver`.
+- Tracks the "current page" using an `IntersectionObserver` on each
+  page wrapper, then reports it via `onPageChange` so the parent
+  can drop bookmarks at the right page without a `window.prompt`.
+- Keyboard shortcuts: PageUp/PageDown, ArrowLeft/Right, Space,
+  J/K — all jump one page.  Inputs/textareas ignored so users can
+  type page numbers in the jump field.
+- Top control strip: prev/next buttons, page-number input, zoom
+  ±10% (50–250% range).
+
+### `ReadOriginal.jsx` integration
+- Removed `pdf` from `NATIVE_IFRAME` so the iframe branch now only
+  renders HTML/HTM.
+- PDFs render via `<PdfViewer/>` and feed `pdfCurrentPage` /
+  `pdfTotalPages` back through to `currentAnchor()`.
+- "Save bookmark" for a PDF no longer prompts — it captures the
+  page the user is currently looking at, with the correct
+  `page:N` cfi and `percent: n/total` for the existing bookmark
+  panel.
+- Jumping to a PDF bookmark scrolls the page into view via the
+  viewer's controlled `targetPage` prop (no more iframe reload
+  hack).
+
+### Why this matters
+- PDFs are now first-class: no Calibre roundtrip, no browser-PDF
+  inconsistency, the same Shelfsort header / bookmark / shortcut
+  panel works.
+- Mobile Safari + iOS users can finally read PDFs in-app.
+- Text is selectable (text layer rendered) so future
+  highlight/annotate features come almost for free.
+
+---
 ## 2026-06-24 — P0: Async upload pipeline (no more Cloudflare 524s) ✅
 
 The synchronous `POST /api/books/upload` endpoint held one HTTP
