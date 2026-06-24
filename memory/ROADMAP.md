@@ -3,8 +3,22 @@
 > Active backlog. Items move to [CHANGELOG.md](./CHANGELOG.md) when shipped.
 
 
-## ✅ Just shipped (2026-06-24)
+## ✅ Just shipped (2026-06-24/25)
 
+- **P1 Public reader directory** — `/users` lists every signed-in
+  user's `@username` (no name/email/avatar/library leak).  Backend
+  `GET /api/users/directory` returns paginated `{user_id, username}`
+  rows, excludes self + blocked + hidden_from_search.  Frontend
+  `UsersDirectory.jsx` adds filter, paging, "Add" CTA per row.
+  Discovery via dashboard `DirectoryNudge` (shown once user has ≥5
+  books) + mobile drawer + Privacy card link.  Opt-out reuses
+  existing `hidden_from_search` flag with retitled UI copy.
+- **P2 Recently Added shelf** — `/library/recently-added` is a
+  cross-device persistent view (just reuses `GET /api/books`,
+  filters by `created_at` window).  7d/14d/30d/90d pills.
+- **P2 Opt-in upload chime** — `lib/uploadChime.js` WebAudio
+  two-note tone fires when last in-flight upload job finishes.
+  Off by default; toggle lives in Account → Upload chime card.
 - **P0 Native PDF reader** — `components/PdfViewer.jsx` renders PDFs
   via `react-pdf`/`pdfjs-dist@4` worker (CDN-pinned to avoid version
   mismatch). Replaces the iframe in `ReadOriginal.jsx`. Page tracking

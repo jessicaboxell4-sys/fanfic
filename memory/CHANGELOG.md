@@ -7,7 +7,62 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
-## 2026-06-25 — AV gate on friend library + roadmap reality check ✅
+## 2026-06-25 (afternoon) — Public reader directory + Recently Added + opt-in upload chime ✅
+
+Three-feature batch closing out the friend-discovery story and a couple
+of P2 polish items that kept coming up in feedback.
+
+### Frontend (new pages)
+- `pages/UsersDirectory.jsx` at `/users` — paginated, username-only
+  directory.  Hits `GET /api/users/directory?page=&limit=` (already
+  shipped backend-side in this session).  Per-row "Add" CTA fires
+  `POST /api/friends/request {target_username}`; row flips to "Sent"
+  on success.  Privacy note links to `/account#privacy` with the
+  exact opt-out copy ("Hide me from the directory").
+- `pages/RecentlyAddedPage.jsx` at `/library/recently-added` —
+  persistent shelf view, cross-device synced (no client state).
+  Reuses `GET /api/books` (already sorted by `created_at` desc) and
+  client-side filters to a configurable window (7d/14d/30d/90d
+  toggle pills).  Empty-state copy points back to the dashboard.
+- `components/DirectoryNudge.jsx` — one-shot dismissible banner on
+  Dashboard, gated by `stats.total >= 5` so it never blocks new
+  users.  localStorage key `shelfsort.directoryNudgeDismissed.v1`.
+
+### Frontend (UX delight)
+- `components/UploadChimeCard.jsx` + `lib/uploadChime.js` — opt-in
+  WebAudio two-note chime (C5 → E5) that fires when the *last*
+  in-flight upload job finishes.  Off by default; the toggle
+  on Account → Notifications stores `shelfsort.uploadChimeEnabled`
+  in localStorage so it's per-device.  Includes a Preview button
+  for users to hear what they're opting in to.  WebAudio means
+  no asset hosting, no MIME wrangling, ~120 LOC.
+- `components/BackgroundJobsBell.jsx::pollAll()` — collapsed the
+  two `setStatuses` calls into one functional update that compares
+  prev↔next to detect "the LAST pending job just finished" and
+  fires `playUploadChime()`.  Chime is a no-op when off, so the
+  hook is always safe.
+
+### Frontend (wiring)
+- `App.js` — two new `ProtectedRoute`s: `/users`, `/library/recently-added`.
+- `components/Navbar.jsx` — Library dropdown gains "Recently added"
+  (data-testid `navbar-recently-added`); mobile drawer gains
+  "Find readers" link (data-testid `drawer-users-directory`).
+- `pages/Dashboard.jsx` — mounts `<DirectoryNudge>` after the backup
+  banner so it sits above the hero, dismissible.
+- `pages/Account.jsx` — privacy copy reworded for "public reader
+  directory", new `privacy-open-directory-btn`, `UploadChimeCard`
+  inserted just before the format-prefs card.
+
+### Test status
+- `testing_agent_v3_fork` iteration_36 — **PASS** (no functional
+  bugs).  Two of seven items verified by code-review only because
+  the freshly-registered tester had 0 books (DirectoryNudge gated
+  by ≥5) and the desktop Library dropdown click was flaky in
+  Playwright; the wiring itself is correct (drawer link verified
+  end-to-end).
+
+---
+
 
 ### Discovery: P1 #2 already shipped
 While scoping the "friend requests" P1 item, found the entire
