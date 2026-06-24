@@ -102,6 +102,12 @@ async def friend_library(
             detail=f"{other.get('name') or other.get('email')} hasn't shared their library yet.",
         )
     query: Dict[str, Any] = {"user_id": other_user_id}
+    # AV gate (2026-06-25) — never surface infected books to a friend.
+    # Even browsing a list with malicious filenames is mildly hazardous
+    # (an attacker could use the title field to phish), so we omit the
+    # row entirely.  Unscanned + clean books are both visible — friends
+    # see the same library state the owner sees in the Polish flow.
+    query["av_status"] = {"$ne": "infected"}
     if q and len(q.strip()) >= 2:
         pat = re.compile(re.escape(q.strip()), re.IGNORECASE)
         query["$or"] = [{"title": {"$regex": pat}}, {"author": {"$regex": pat}}]
@@ -137,10 +143,18 @@ async def request_book(
         raise HTTPException(status_code=403, detail="Not friends with this user")
     book = await db.books.find_one(
         {"book_id": body.book_id, "user_id": other_user_id},
-        {"_id": 0, "book_id": 1, "title": 1, "author": 1},
+        {"_id": 0, "book_id": 1, "title": 1, "author": 1, "av_status": 1},
     )
     if not book:
         raise HTTPException(status_code=404, detail="That book isn't in their library")
+    # AV gate — refuse to even *signal interest* in a malicious file.
+    # Belt-and-braces alongside the list-filter above, since clients
+    # might cache a stale book_id from before AV flagged the file.
+    if book.get("av_status") == "infected":
+        raise HTTPException(
+            status_code=409,
+            detail="That book has been flagged as unsafe and can't be requested. Ask your friend to remove it from their library.",
+        )
 
     # Open/create a DM room with this friend so the request lands somewhere.
     room = await db.chat_rooms.find_one(

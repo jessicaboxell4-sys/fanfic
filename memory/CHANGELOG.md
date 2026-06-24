@@ -7,6 +7,46 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-25 — AV gate on friend library + roadmap reality check ✅
+
+### Discovery: P1 #2 already shipped
+While scoping the "friend requests" P1 item, found the entire
+friend system already exists (`routes/friends.py`, `routes/friend_library.py`,
+`pages/FriendsPage.jsx`) with request/accept/decline/block, the
+`/users/search` directory, mutuals view, library opt-in, and the
+"can I borrow this?" DM flow.  Roadmap entry was stale — marked DONE.
+
+### P1 #1: AV gate on file-sharing
+Even though direct file-sharing is "ping me a copy via DM" today
+(not direct file handoff), infected books should never surface in
+another user's view of a library — both because their *title* could
+be a phishing vector, and because pretending the book exists at all
+encourages a doomed handoff conversation.
+
+#### Backend (`routes/friend_library.py`)
+- `GET /api/friends/{id}/library` — added `"av_status": {"$ne": "infected"}`
+  to the base query.  Clean + unscanned books still show; only
+  flagged-infected rows are hidden.
+- `POST /api/friends/{id}/book-request` — now fetches `av_status`
+  alongside title/author and returns `409 Conflict` with a clear
+  message if a caller asks about an infected book (defensive — the
+  list filter above already prevents most cases, but cached client
+  IDs could leak through).
+
+#### Tests (`tests/test_av_gate_friend_library.py`)
+- New integration test: two users become friends, one uploads two
+  books, we directly mark one `av_status: "infected"` in Mongo,
+  then assert the other user's library view excludes it AND a DM
+  request for it returns 409.
+- 11 backend tests passing (1 new + 10 existing upload tests).
+
+#### Frontend
+- No UI changes needed — the filter is server-side and cascades
+  through every consuming surface (FriendsPage, Recommendations,
+  BookDetail's "friends who own this", etc.).
+- Help docs updated to mention the AV gate.
+
+---
 ## 2026-06-24 night (full sweep) — All 4 reminders shipped + docs + bug check ✅
 
 Final pass through the reminder backlog.  All four ship together in
