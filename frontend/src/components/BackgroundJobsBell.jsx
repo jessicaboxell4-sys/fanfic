@@ -64,6 +64,34 @@ export default function BackgroundJobsBell() {
   // as a single piece of state so both bell-icon render paths
   // (empty-state and active-state) can share the same visual hint.
   const [dragOverBell, setDragOverBell] = useState(false);
+
+  // First-run discovery hint — surfaces a soft "drop files here too"
+  // tooltip on the bell for new users so they find the drag-and-drop
+  // affordance without ever reading docs.  Dismisses on first
+  // interaction (open OR drag) and never returns after 5 sessions.
+  const HINT_KEY = "shelfsort.bellHintSessionsLeft";
+  const [showHint, setShowHint] = useState(() => {
+    try {
+      const raw = localStorage.getItem(HINT_KEY);
+      // Initial value: 5 sessions of nudging.  On every mount we
+      // decrement and re-store, so a user who never clicks still
+      // stops seeing the hint after 5 page loads.
+      if (raw === null) {
+        localStorage.setItem(HINT_KEY, "4");
+        return true;
+      }
+      const n = parseInt(raw, 10);
+      if (Number.isNaN(n) || n <= 0) return false;
+      localStorage.setItem(HINT_KEY, String(n - 1));
+      return true;
+    } catch {
+      return false;
+    }
+  });
+  const dismissHint = useCallback(() => {
+    setShowHint(false);
+    try { localStorage.setItem(HINT_KEY, "0"); } catch { /* noop */ }
+  }, []);
   // Walk a DataTransferItemList for folder support — same shape as
   // UploadZone's folder handler.  Resolves to a flat list of Files.
   const readEntryRecursive = useCallback(async (entry) => {
@@ -103,20 +131,19 @@ export default function BackgroundJobsBell() {
   }, [readEntryRecursive]);
 
   // Shared drag handlers for both render paths of the bell button.
-  // Returning the object as a memoised value would be overkill — these
-  // are stable references because `submitFilesViaBell` is `useCallback`'d
-  // and React's event system handles per-render closures fine here.
   const dragHandlers = {
     onDragOver: (e) => {
       e.preventDefault();
       e.stopPropagation();
       e.dataTransfer.dropEffect = "copy";
       if (!dragOverBell) setDragOverBell(true);
+      if (showHint) dismissHint();
     },
     onDragEnter: (e) => {
       e.preventDefault();
       e.stopPropagation();
       setDragOverBell(true);
+      if (showHint) dismissHint();
     },
     onDragLeave: (e) => {
       e.preventDefault();
@@ -127,6 +154,7 @@ export default function BackgroundJobsBell() {
       e.preventDefault();
       e.stopPropagation();
       setDragOverBell(false);
+      dismissHint();
       const files = await filesFromDragEvent(e.dataTransfer);
       if (files.length > 0) submitFilesViaBell(files);
     },
@@ -308,7 +336,7 @@ export default function BackgroundJobsBell() {
       <div className="relative" ref={popoverRef}>
         <button
           type="button"
-          onClick={() => setOpen((v) => !v)}
+          onClick={() => { setOpen((v) => !v); dismissHint(); }}
           data-testid="navbar-bgjobs-toggle"
           {...dragHandlers}
           className={`p-2 rounded-lg relative transition-all ${
@@ -322,6 +350,7 @@ export default function BackgroundJobsBell() {
         >
           <UploadCloud className={`w-4 h-4 ${dragOverBell ? "text-[#E07A5F]" : "text-[#6B705C]"}`} />
         </button>
+        {showHint && !open && <BellHint onDismiss={dismissHint} />}
         {open && (
           <div
             data-testid="navbar-bgjobs-panel"
@@ -432,6 +461,7 @@ export default function BackgroundJobsBell() {
         onClick={() => {
           setOpen((v) => !v);
           setHoveredJobId(null);
+          dismissHint();
         }}
         data-testid="navbar-bgjobs-toggle"
         {...dragHandlers}
@@ -454,6 +484,7 @@ export default function BackgroundJobsBell() {
           </span>
         )}
       </button>
+      {showHint && !open && <BellHint onDismiss={dismissHint} />}
 
       {open && (
         <>
@@ -691,3 +722,41 @@ function FlyoutCard({ job, status, error, book }) {
     </div>
   );
 }
+
+// First-run discovery hint anchored to the bell.  Soft coral pill-card
+// with a tiny arrow pointing up.  Dismisses via the inline × OR
+// automatically on the first bell click / drag-over.  See the
+// `HINT_KEY` localStorage counter in the main component for the
+// 5-session ceiling.
+function BellHint({ onDismiss }) {
+  return (
+    <div
+      data-testid="navbar-bgjobs-hint"
+      className="absolute right-0 top-full mt-2 w-56 z-50 pointer-events-auto"
+      style={{ animation: "bgjobs-flyout-in 200ms ease-out" }}
+    >
+      <div className="absolute -top-1.5 right-3 w-3 h-3 rotate-45 bg-[#FDF3E1] border-l border-t border-[#E07A5F]/40"></div>
+      <div className="rounded-xl bg-[#FDF3E1] border border-[#E07A5F]/40 shadow-md px-3 py-2.5 flex items-start gap-2">
+        <span className="text-base leading-none mt-0.5">📥</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs text-[#8C5C00] font-medium leading-snug">
+            You can drop books here too
+          </p>
+          <p className="text-[11px] text-[#6B705C] mt-0.5 leading-snug">
+            Drag files or folders onto this icon from anywhere.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onDismiss(); }}
+          aria-label="Dismiss hint"
+          data-testid="navbar-bgjobs-hint-dismiss"
+          className="shrink-0 p-0.5 rounded text-[#6B705C] hover:bg-[#FBE8C8]"
+        >
+          <X className="w-3 h-3" />
+        </button>
+      </div>
+    </div>
+  );
+}
+

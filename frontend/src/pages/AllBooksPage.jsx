@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState, useCallback } from "react";import 
 import { api } from "../lib/api";
 import Navbar from "../components/Navbar";
 import BookCard from "../components/BookCard";
-import UploadZone from "../components/UploadZone";
 import SelectionBar from "../components/SelectionBar";
 import ContinueReadingRail from "../components/ContinueReadingRail";
 import StatsCard from "../components/StatsCard";
@@ -410,22 +409,6 @@ export default function AllBooksPage() {
                 Show full library →
               </Link>
             </div>
-          </section>
-        )}
-
-        {/* Compact drop zone — gives users a way to add more books without
-            bouncing back to the dashboard. Same upload pipeline as the big
-            dashboard one. */}
-        {stats.total > 0 && (
-          <section className="mb-10" data-testid="all-books-upload">
-            <UploadZone
-              compact
-              onUploaded={(dupes, _actions, urlLists) => {
-                if (dupes && dupes.length > 0) setPendingDupes(dupes);
-                if (urlLists && urlLists.length > 0) setPendingUrlLists(urlLists);
-                load();
-              }}
-            />
           </section>
         )}
 

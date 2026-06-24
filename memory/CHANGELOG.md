@@ -7,6 +7,39 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-24 night (true cleanup) — Discovery hint + removed redundant drop zone ✅
+
+Two cleanup moves that follow naturally from the bell becoming the
+primary upload surface:
+
+### Removed compact drop zone from `/library/all`
+The compact `<UploadZone compact />` we added earlier in the day at
+the top of the All Books page is now redundant — the bell accepts
+drops from anywhere (drag onto icon), has Choose-files /
+Pick-a-folder buttons in its empty-state panel, and is always
+visible.  Removed the import and the `<section>` wrapper.  Saved
+~30 vertical pixels on the page; "Surprise me" / "Books I haven't
+read" now sit right above the search/filter row.
+
+### First-run discovery hint on the bell
+`BackgroundJobsBell.jsx` now renders a small coral pill-tooltip
+below the bell icon for the first 5 sessions, copy:
+- **📥 You can drop books here too**
+- *Drag files or folders onto this icon from anywhere.*
+- (dismiss × on the right)
+
+localStorage counter `shelfsort.bellHintSessionsLeft` starts at 5,
+decrements every mount, vanishes at 0.  Dismisses immediately on
+ANY of: explicit ×, first bell click, first drag-over.  Once
+dismissed, `0` is permanently stored so the hint never returns.
+
+### Verified live
+- `/library/all`: no `[data-testid="all-books-upload"]` in DOM.
+- Bell tooltip: visible on fresh load with the cozy copy above
+  + dismiss × → click × → tooltip vanishes → localStorage counter
+  set to 0 → page reload confirms no return.
+
+---
 ## 2026-06-24 night (true sleep-time) — Drag-and-drop on the bell icon ✅
 
 Power-user finale.  The navbar's BackgroundJobsBell cloud icon now
