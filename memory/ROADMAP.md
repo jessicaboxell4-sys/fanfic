@@ -28,6 +28,7 @@ Heuristic (highest priority first):
 | 3 | Profile discovery polish (scroll-to-row, completeness nudge) | ~30-45 min | Med (user) | Follow-up to Listed! toast; small UX delight |
 | 4 | Phase 6B: bulk-ops extraction | ~30-45 min | Low (tech debt) | Now safe — upload smoke + cover smoke both in place; no user-facing value |
 | 5 | Canary test-account cleanup endpoint | ~20 min | Low (housekeeping) | Sweep `shelfsort-canary-…@example.com` rows weekly so prod doesn't accrue throwaway accounts |
+| 6 | Canary polish bundle (5 sub-items) | ~2-3 h all | Med | Webhook + multi-region + tiered frequency + public badge + metrics dashboard — pick & choose |
 
 ### Convention for adding new reminders
 
@@ -205,6 +206,49 @@ form change.
 Shipped — see CHANGELOG entry "Listed!" confirmation toast.
 Core (1-3) + Edge (4-5) landed.  Follow-ups (7-9 below) preserved
 as a separate reminder for the next "Profile discovery polish" pass.
+
+## 💡 Reminder — Canary polish bundle
+
+Follow-ups to the production smoke canary
+(`.github/workflows/prod-smoke-canary.yml`).  Pick any subset —
+they're independent.
+
+### 🎯 Faster blast-radius signal
+1. **Slack/Discord webhook on failure** — instant ping instead of
+   waiting for someone to notice the auto-filed GitHub issue.  Add
+   an optional `CANARY_WEBHOOK_URL` secret + a 5-line POST in the
+   workflow's `if: failure()` branch.  Use Discord's webhook embed
+   format so it formats nicely.
+2. **Tiered frequency** — split canary into:
+   - Hourly: just `GET /api/health` (no auth, no DB writes — costs
+     nothing on prod)
+   - Daily (existing): the full 22-test smoke band
+   Catches outages with ~1 h MTTD instead of ~24 h without
+   exploding the throwaway-account count.
+
+### 🟡 Visibility
+3. **Public status badge** — expose latest canary result as a
+   shields.io-compatible JSON endpoint
+   (`/api/status/canary` returns `{ status: "ok"|"fail",
+   last_run: iso, passed: 22, total: 22 }`).  Marketing site +
+   GitHub README can show "🟢 Production: 22/22 healthy" so users
+   see live confidence.
+4. **Multi-region canary** — duplicate the workflow with
+   `runs-on: macos-latest` or `ubuntu-arm` so prod outages
+   affecting only one network path get caught.  Catches Cloudflare
+   POP regressions, IPv6-only failures, region-specific TLS issues.
+
+### 🔵 Operator surfaces
+5. **Canary metrics dashboard** (Admin Console) — push pass/fail
+   timestamps to a tiny `canary_runs` Mongo collection.  Admin
+   Console widget plots a 7-day uptime sparkline + the last 10
+   failure tails.  Pairs with reminder #1 "Admin Console
+   smoke-canary widget" — same data source, complementary views.
+
+### Recommended scope to ship
+#1 (webhook) + #3 (public badge) first — both are tiny and have
+outsized visibility payoff.  #2 (tiered freq) only after we see
+how noisy the daily one is.  #4-#5 hold for later.
 
 ## 💡 Reminder — Profile discovery polish (follow-up to Listed! toast)
 
