@@ -42,6 +42,18 @@ concatenate the items, feed it to the same speech-synthesis pipeline
 EPUBs use. Auto-advance to the next page when the utterance ends.
 Bonus: pause/resume + voice picker already exist — zero new UI work.
 
+## 💡 Reminder — Public `/changelog` page for SEO (P2, ~40 min)
+
+Build a public, content-rich `/changelog` route surfacing the last
+3-ish release notes (title + date + screenshot + 1-paragraph
+description), deep-linkable via `/changelog#2026-06-24`. Add to
+`sitemap.xml`. Combined with the FAQPage JSON-LD on `/help`, this
+shifts Shelfsort from 1 indexed page to 5–6 indexed pages and gives
+Google more content surface per crawl. Content can be sourced from
+the existing `announcements` collection or hand-curated from
+`/app/memory/CHANGELOG.md` — pick the lighter path when picking
+this up.
+
 
 ## ✅ Just shipped (2026-07-04 morning)
 
