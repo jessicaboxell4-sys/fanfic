@@ -24,13 +24,12 @@
   takes a `compact` prop; `AllBooksPage` embeds it between the
   title block and search/filters.
 
-## 💡 Reminder — Resume-after-refresh for async uploads (P2, ~30 min)
+## 💡 Reminder — Resume-after-refresh for async uploads — DONE 2026-06-24 ✅
 
-Now that submit is decoupled from processing, we can persist the
-in-flight `job_id`s in `localStorage` keyed by user. On page reload,
-re-attach to any unfinished jobs and resume the existing polling
-loop so the user sees live progress instead of "where did my upload
-go?". Mention this next time we touch `UploadZone.jsx`.
+Shipped — see CHANGELOG entry of 2026-06-24 night.
+Persists `job_id`s in `localStorage`, mount-effect re-attaches and
+polls each one, aggregates results into the normal `onUploaded`
+flow.  3 new pytest tests, all green.
 
 ## 💡 Reminder — TTS read-aloud on PDFs (P2, ~1 hr, high delight)
 

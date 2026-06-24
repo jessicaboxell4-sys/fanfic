@@ -80,6 +80,60 @@ async function filesFromDataTransfer(dt) {
   return Array.from(dt.files || []);
 }
 
+// ---- Persistent upload-job tracker --------------------------------------
+// Now that uploads are async (P0 2026-06-24), the bytes live on the server
+// and the SPA only polls for completion.  If a user closes the tab or
+// refreshes between submit and poll, the job keeps running server-side
+// but the user has no idea — they reload, see nothing, and think the
+// upload was lost.  We fix that by mirroring every in-flight job's ID
+// into localStorage; on mount, we walk the list, poll each one in the
+// background, and surface the results when they finish.
+//
+// Per-tab key (no user_id needed) because every user lands on a fresh
+// auth-protected page render anyway, and we cap the list to 50 entries
+// in case localStorage gets weird.  The backend already enforces
+// (job_id, user_id) isolation in the GET endpoint — cross-user leaks
+// are impossible.
+const RESUME_KEY = "shelfsort.pendingUploadJobs";
+const RESUME_MAX = 50;
+
+function loadPendingJobs() {
+  try {
+    const raw = localStorage.getItem(RESUME_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr.slice(-RESUME_MAX) : [];
+  } catch {
+    return [];
+  }
+}
+
+function savePendingJobs(list) {
+  try {
+    localStorage.setItem(RESUME_KEY, JSON.stringify(list.slice(-RESUME_MAX)));
+  } catch {
+    /* localStorage full or unavailable — silently degrade */
+  }
+}
+
+function trackPendingJob(jobId, filename) {
+  if (!jobId) return;
+  const list = loadPendingJobs();
+  // De-dupe in case the same job is tracked twice.
+  if (list.some((j) => j.jobId === jobId)) return;
+  list.push({
+    jobId,
+    filename: filename || "(unknown)",
+    submittedAt: Date.now(),
+  });
+  savePendingJobs(list);
+}
+
+function untrackPendingJob(jobId) {
+  const list = loadPendingJobs().filter((j) => j.jobId !== jobId);
+  savePendingJobs(list);
+}
+
 export default function UploadZone({ onUploaded, compact = false }) {
   const inputRef = useRef(null);
   const folderInputRef = useRef(null);
@@ -109,6 +163,120 @@ export default function UploadZone({ onUploaded, compact = false }) {
       }
     })();
     return () => { cancelled = true; };
+  }, []);
+
+  // Resume in-flight upload jobs after a tab refresh / re-mount.
+  // Walks the localStorage list, polls each job once; if it's already
+  // done, finalise it and tell the parent.  If it's still running,
+  // keep polling in a lightweight loop until done/failed.
+  //
+  // This makes the async upload pipeline truly fire-and-forget — users
+  // can close the tab during a slow LLM classification and come back
+  // to find their books waiting for them.
+  const [resumingCount, setResumingCount] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    const initial = loadPendingJobs();
+    if (initial.length === 0) return undefined;
+
+    // Drop entries older than 6 hours — anything that old is either
+    // truly stuck or the backend's 24h TTL has wiped the job record.
+    // Don't bug the user about ancient zombies.
+    const fresh = initial.filter((j) => Date.now() - (j.submittedAt || 0) < 6 * 60 * 60 * 1000);
+    if (fresh.length !== initial.length) savePendingJobs(fresh);
+    if (fresh.length === 0) return undefined;
+
+    setResumingCount(fresh.length);
+
+    // Per-job poll loop — runs in parallel across all resumed jobs.
+    const pollOne = async (entry) => {
+      const POLL_INTERVAL_MS = 2000;
+      const MAX_POLLS = 240;  // ~8 min headroom; the backend may still
+                              // be churning on a slow LLM classify call.
+      for (let i = 0; i < MAX_POLLS && !cancelled; i++) {
+        let res;
+        try {
+          res = await api.get(`/books/upload/jobs/${entry.jobId}`);
+        } catch (e) {
+          const s = e?.response?.status;
+          if (s === 404) {
+            // Job vanished — most likely TTL'd, no work to recover.
+            untrackPendingJob(entry.jobId);
+            return { ok: false, entry, reason: "expired" };
+          }
+          await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+          continue;
+        }
+        const status = res?.data?.status;
+        if (status === "done") {
+          untrackPendingJob(entry.jobId);
+          return { ok: true, entry, response: res.data.response || {} };
+        }
+        if (status === "failed") {
+          untrackPendingJob(entry.jobId);
+          return { ok: false, entry, reason: res.data.error || "failed" };
+        }
+        await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+      }
+      // Still running after MAX_POLLS — leave it tracked, the next
+      // mount will pick up where we left off.
+      return { ok: false, entry, reason: "still-running" };
+    };
+
+    (async () => {
+      const results = await Promise.all(fresh.map(pollOne));
+      if (cancelled) return;
+      setResumingCount(0);
+
+      const completed = results.filter((r) => r.ok);
+      const failed = results.filter((r) => !r.ok && r.reason !== "still-running");
+      const stillRunning = results.filter((r) => r.reason === "still-running");
+
+      if (completed.length > 0) {
+        // Aggregate side-effects (duplicates, URL lists) across all
+        // resumed jobs so the parent can refresh and surface the
+        // duplicate modal exactly like a foreground upload.
+        const dupes = [];
+        const allActions = [];
+        const allUrlLists = [];
+        for (const r of completed) {
+          const data = r.response || {};
+          for (const b of (data.books || [])) {
+            if (b?.duplicate_pending && (b.duplicate_of || []).length > 0) {
+              dupes.push(b);
+            }
+          }
+          if (Array.isArray(data.actions)) allActions.push(...data.actions);
+          if (Array.isArray(data.url_lists)) allUrlLists.push(...data.url_lists);
+        }
+        toast.success(
+          `Welcome back — ${completed.length} upload${completed.length === 1 ? "" : "s"} finished while you were away`,
+          { duration: 6000 },
+        );
+        onUploaded && onUploaded(dupes, allActions, allUrlLists);
+      }
+      if (failed.length > 0) {
+        const sample = failed[0]?.entry?.filename || "an upload";
+        toast.error(
+          `${failed.length} resumed upload${failed.length === 1 ? "" : "s"} couldn't be recovered`,
+          {
+            duration: 9000,
+            description: failed.length === 1 ? `${sample} — ${failed[0].reason}` : undefined,
+          },
+        );
+      }
+      if (stillRunning.length > 0) {
+        toast(
+          `${stillRunning.length} background upload${stillRunning.length === 1 ? "" : "s"} still processing — we'll surface them when you next come back.`,
+          { duration: 6000 },
+        );
+      }
+    })();
+
+    return () => { cancelled = true; };
+  // We intentionally run this ONCE on mount.  `onUploaded` from the
+  // parent is stable enough across renders that re-running on every
+  // change would re-poll already-polled jobs.
   }, []);
 
   const handleFiles = useCallback(async (filesList) => {
@@ -280,6 +448,10 @@ export default function UploadZone({ onUploaded, compact = false }) {
             if (!jobId) {
               return { ok: false, file, error: "Server didn't return a job id.", status: 500 };
             }
+            // Persist the job ID so we can resume polling if the user
+            // refreshes / closes the tab mid-upload.  Removed in the
+            // finally-equivalent paths below (done/failed/timeout).
+            trackPendingJob(jobId, file.name);
             // Poll up to ~3 minutes.  Larger EPUBs + slow Claude can
             // take 30–60s; we give 4–5× headroom so an LLM hiccup
             // doesn't surface as a fake failure.
@@ -296,15 +468,18 @@ export default function UploadZone({ onUploaded, compact = false }) {
                 // server explicitly says 404 (the job was deleted).
                 const ps = pollErr?.response?.status;
                 if (ps === 404) {
+                  untrackPendingJob(jobId);
                   return { ok: false, file, error: "Upload job disappeared.", status: 404 };
                 }
                 continue;
               }
               const status = pollRes?.data?.status;
               if (status === "done") {
+                untrackPendingJob(jobId);
                 return { ok: true, file, data: pollRes.data.response || {} };
               }
               if (status === "failed") {
+                untrackPendingJob(jobId);
                 return {
                   ok: false,
                   file,
@@ -313,6 +488,9 @@ export default function UploadZone({ onUploaded, compact = false }) {
                 };
               }
             }
+            // Poll loop ran to MAX_POLLS without resolving — leave the
+            // job tracked so the next mount can pick it up.  The
+            // backend is likely still processing.
             return { ok: false, file, error: "Server processing took too long.", status: 504 };
           } catch (e) {
             lastErr = e;
@@ -510,14 +688,32 @@ export default function UploadZone({ onUploaded, compact = false }) {
   };
 
   return (
-    <div
-      data-testid="upload-zone"
-      onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
-      onDragLeave={() => setDrag(false)}
-      onDrop={handleDrop}
-      className={`dropzone ${drag ? "active" : ""} flex flex-col items-center justify-center ${compact ? "p-5 md:p-6" : "p-10 md:p-16"} cursor-pointer text-center`}
-      onClick={() => !uploading && inputRef.current?.click()}
-    >
+    <>
+      {/* Resume-after-refresh banner — shown briefly on mount while we
+          re-attach to any in-flight upload jobs that were started in a
+          previous tab/session.  Vanishes the moment those jobs finish
+          (or are reported still-running). */}
+      {resumingCount > 0 && (
+        <div
+          data-testid="upload-resume-banner"
+          className={`mb-3 px-4 py-2.5 rounded-lg bg-[#FFF6E5] border border-[#E07A5F]/30 text-sm text-[#2C2C2C] flex items-center gap-2.5`}
+        >
+          <Loader2 className="w-4 h-4 text-[#E07A5F] animate-spin shrink-0" />
+          <span>
+            Picking up where you left off — checking on{" "}
+            <strong>{resumingCount}</strong> background upload
+            {resumingCount === 1 ? "" : "s"} from earlier…
+          </span>
+        </div>
+      )}
+      <div
+        data-testid="upload-zone"
+        onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
+        onDragLeave={() => setDrag(false)}
+        onDrop={handleDrop}
+        className={`dropzone ${drag ? "active" : ""} flex flex-col items-center justify-center ${compact ? "p-5 md:p-6" : "p-10 md:p-16"} cursor-pointer text-center`}
+        onClick={() => !uploading && inputRef.current?.click()}
+      >
       <input
         ref={inputRef}
         type="file"
@@ -607,5 +803,6 @@ export default function UploadZone({ onUploaded, compact = false }) {
         </>
       )}
     </div>
+    </>
   );
 }

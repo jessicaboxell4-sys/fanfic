@@ -7,6 +7,44 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-24 night — Resume-after-refresh for async uploads ✅
+
+Now that submit is decoupled from processing, a tab refresh
+mid-upload would silently abandon the polling — the backend kept
+working, but the SPA had no way to find the job again.  Fixed.
+
+### Frontend (`UploadZone.jsx`)
+- `trackPendingJob()` mirrors every newly-submitted `job_id` (plus
+  filename + timestamp) into
+  `localStorage["shelfsort.pendingUploadJobs"]`.
+  Removed on each terminal state (`done`, `failed`, 404).
+- Mount-effect walks the list, drops entries older than 6h, and
+  polls each remaining job in parallel against
+  `GET /books/upload/jobs/{id}`.
+- On completion, aggregates duplicates / URL-list reports / actions
+  across all resumed jobs and feeds them into `onUploaded(...)` so
+  the parent library refreshes and the duplicate modal pops just
+  like a foreground upload.
+- Surfaces three toasts: "Welcome back — N uploads finished while
+  you were away" (success), "N resumed upload(s) couldn't be
+  recovered" (failure), and "N background upload(s) still
+  processing" (when polling exceeds 8 min).
+- Slim resume banner above the dropzone while the mount-effect is
+  re-attaching (`data-testid="upload-resume-banner"`).
+
+### Tests
+- `tests/test_upload_resume.py` — 3 new tests covering cross-session
+  job query (proves "browser refresh" → same `job_id` works),
+  payload consistency across repeated polls, and library visibility
+  after resume.  All green alongside the original 5 async-upload
+  tests.
+
+### Net result
+Async uploads are now truly fire-and-forget — close the tab on a
+slow 50-EPUB drop, reopen Shelfsort an hour later, get a "Welcome
+back, 50 uploads finished" toast and the books are right there.
+
+---
 ## 2026-06-24 late evening — SEO + Help refresh ✅
 
 - **SEO meta on /help** — `document.title`, `<meta name="description">`,
