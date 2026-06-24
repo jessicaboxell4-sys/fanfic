@@ -59,6 +59,78 @@ export default function BackgroundJobsBell() {
   const fileInputRef = useRef(null);
   const folderInputRef = useRef(null);
   const [submitting, setSubmitting] = useState(false);
+  // Drag-over the bell icon itself.  Lets power users drop a folder
+  // directly onto the navbar without ever opening a panel.  Tracked
+  // as a single piece of state so both bell-icon render paths
+  // (empty-state and active-state) can share the same visual hint.
+  const [dragOverBell, setDragOverBell] = useState(false);
+  // Walk a DataTransferItemList for folder support — same shape as
+  // UploadZone's folder handler.  Resolves to a flat list of Files.
+  const readEntryRecursive = useCallback(async (entry) => {
+    if (!entry) return [];
+    if (entry.isFile) {
+      return new Promise((res) => entry.file((f) => res([f]), () => res([])));
+    }
+    if (entry.isDirectory) {
+      const reader = entry.createReader();
+      const collected = [];
+      const readBatch = () => new Promise((res) => reader.readEntries(res));
+      // readEntries returns ≤100 entries per call; keep going until empty.
+      while (true) {
+        const batch = await readBatch();
+        if (!batch || batch.length === 0) break;
+        for (const child of batch) {
+          collected.push(...await readEntryRecursive(child));
+        }
+      }
+      return collected;
+    }
+    return [];
+  }, []);
+
+  const filesFromDragEvent = useCallback(async (dt) => {
+    if (!dt) return [];
+    const items = dt.items ? Array.from(dt.items) : [];
+    const entries = items
+      .map((it) => (it.webkitGetAsEntry ? it.webkitGetAsEntry() : null))
+      .filter(Boolean);
+    if (entries.length > 0) {
+      const out = [];
+      for (const e of entries) out.push(...await readEntryRecursive(e));
+      return out;
+    }
+    return Array.from(dt.files || []);
+  }, [readEntryRecursive]);
+
+  // Shared drag handlers for both render paths of the bell button.
+  // Returning the object as a memoised value would be overkill — these
+  // are stable references because `submitFilesViaBell` is `useCallback`'d
+  // and React's event system handles per-render closures fine here.
+  const dragHandlers = {
+    onDragOver: (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = "copy";
+      if (!dragOverBell) setDragOverBell(true);
+    },
+    onDragEnter: (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setDragOverBell(true);
+    },
+    onDragLeave: (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setDragOverBell(false);
+    },
+    onDrop: async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setDragOverBell(false);
+      const files = await filesFromDragEvent(e.dataTransfer);
+      if (files.length > 0) submitFilesViaBell(files);
+    },
+  };
 
   // Quick upload from the bell's empty state.  Files are pushed
   // through the same async pipeline as the dashboard's UploadZone,
@@ -238,12 +310,17 @@ export default function BackgroundJobsBell() {
           type="button"
           onClick={() => setOpen((v) => !v)}
           data-testid="navbar-bgjobs-toggle"
-          className="p-2 hover:bg-[#F5F3EC] rounded-lg relative opacity-60 hover:opacity-90 transition-opacity"
-          title="Background uploads — nothing in the works"
+          {...dragHandlers}
+          className={`p-2 rounded-lg relative transition-all ${
+            dragOverBell
+              ? "bg-[#FDF3E1] ring-2 ring-[#E07A5F] opacity-100 scale-110"
+              : "opacity-60 hover:opacity-90 hover:bg-[#F5F3EC]"
+          }`}
+          title={dragOverBell ? "Drop to upload" : "Background uploads — nothing in the works"}
           aria-expanded={open}
           aria-label="Background uploads"
         >
-          <UploadCloud className="w-4 h-4 text-[#6B705C]" />
+          <UploadCloud className={`w-4 h-4 ${dragOverBell ? "text-[#E07A5F]" : "text-[#6B705C]"}`} />
         </button>
         {open && (
           <div
@@ -357,12 +434,17 @@ export default function BackgroundJobsBell() {
           setHoveredJobId(null);
         }}
         data-testid="navbar-bgjobs-toggle"
-        className="p-2 hover:bg-[#F5F3EC] rounded-lg relative"
-        title={`${jobs.length} book${jobs.length === 1 ? "" : "s"} arriving`}
+        {...dragHandlers}
+        className={`p-2 rounded-lg relative transition-all ${
+          dragOverBell
+            ? "bg-[#FDF3E1] ring-2 ring-[#E07A5F] scale-110"
+            : "hover:bg-[#F5F3EC]"
+        }`}
+        title={dragOverBell ? "Drop to upload" : `${jobs.length} book${jobs.length === 1 ? "" : "s"} arriving`}
         aria-expanded={open}
         aria-label={`${jobs.length} books arriving`}
       >
-        <UploadCloud className="w-4 h-4 text-[#6B705C]" />
+        <UploadCloud className={`w-4 h-4 ${dragOverBell ? "text-[#E07A5F]" : "text-[#6B705C]"}`} />
         {activeCount > 0 && (
           <span
             data-testid="navbar-bgjobs-badge"

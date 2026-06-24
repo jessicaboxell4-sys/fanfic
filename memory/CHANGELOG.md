@@ -7,6 +7,34 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-24 night (true sleep-time) — Drag-and-drop on the bell icon ✅
+
+Power-user finale.  The navbar's BackgroundJobsBell cloud icon now
+accepts file/folder drops directly — no panel-opening needed, no
+navigating to a page with an upload zone.
+
+### How it works
+- Shared `dragHandlers` (`onDragOver` / `onDragEnter` / `onDragLeave`
+  / `onDrop`) spread onto both render paths of the bell `<button>`
+  (empty-state + active-state), with a single `dragOverBell` state
+  driving the visual feedback.
+- Drop event walks the `DataTransferItemList` via
+  `webkitGetAsEntry()` + a recursive `readEntryRecursive()` so
+  folder drops work the same as `Pick a folder`.  Falls back to
+  `dt.files` for plain file drops.
+- Drag-over visual: bell scales 1.1×, swaps to coral 100% opacity,
+  gains a cream background + 2px coral ring, and the icon turns
+  coral.  Title attribute flips to "Drop to upload".
+- On drop: same `submitFilesViaBell` helper as the Choose-files /
+  Pick-a-folder buttons.  Single source of truth.
+
+### Verified live
+On `/account` (no UploadZone): dispatched a synthetic dragover
+on the bell → coral ring + cream highlight appeared → dispatched
+drop with a real file → `📥 drag-drop-test.epub is on its way`
+toast → bell badge ticked to "1" → row appeared in the panel.
+
+---
 ## 2026-06-24 night (sleep-time) — Bell becomes always-visible + quick uploads ✅
 
 Two small but meaningful UX moves:
