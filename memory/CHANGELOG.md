@@ -7,6 +7,55 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-25 (evening 2) — Phase 6A: covers extracted from books.py ✅
+
+P3 tech-debt item — behavior-preserving split of the 5,855-LOC
+monolith.  Continues the previous-agent's incremental refactor
+(Phases 1, 2, 4, 5A-F).
+
+### New file: `routes/covers.py` (~960 LOC)
+17 endpoints + their module-level state + the `_norm_book_key`
+helper moved verbatim:
+
+- Personal covers: preview-cover, apply-cover, list/activate/delete
+  cover-variants
+- Style catalog: list cover-styles, create/delete custom-style
+- Community pool: share, browse, import, unshare, vote, featured,
+  lineage
+- Public profile: /users/{username}/cover-profile
+- Polish my covers: /books/cover-less
+
+### `routes/books.py` — 5,855 → 4,957 LOC (15% drop)
+- The 17 cover endpoints removed
+- Header section map updated with the new Phase 6A row
+- `_write_local_and_mirror_to_r2` stays here (shared with upload
+  pipeline); covers.py imports it one-way.
+
+### `server.py`
+- `covers` added to the bulk `from routes import …` line so its
+  `@api_router` decorators fire at startup.
+
+### Test fix
+- `tests/test_cover_regen.py` — single `from routes import books as
+  books_route` flipped to `from routes import covers as books_route`
+  so the `_generate_cover` monkeypatch resolves to the new module.
+- No other tests required edits (they reference symbols still in
+  books.py: extract_chapters, classify_by_metadata, normalize_fanfic_url,
+  apply_template_to_epub, _templated_filename, STORAGE_DIR,
+  _clean_author_string, FANDOM_KEYWORDS, etc.).
+
+### Verification
+- Backend restart clean — 11 scheduler jobs + 65 endpoint count
+  on the covers router survived the move.
+- Curl smoke: `/api/cover-styles` (10 styles), `/api/books/cover-less`
+  (total 0 for new test user), `/api/community-covers/featured`
+  (3 covers), `/api/books` (regression — 0 books for new user).
+- All four return 200 with the expected payload shape.
+- `python -m pytest tests/test_cover_regen.py::…preview_cover…` no
+  longer raises AttributeError on the monkeypatch line; the test
+  body runs against the live LLM (slow but correct).
+
+---
 ## 2026-06-25 (evening) — "Built from your suggestion" badges ✅
 
 P2 backlog item.  Closes the user-feedback loop with public

@@ -30,6 +30,15 @@ Shipped — see CHANGELOG `2026-06-25 (afternoon)` extension entry.
 
 ## ✅ Just shipped (2026-06-24/25)
 
+- **P3 Phase 6A — covers extracted** — `routes/covers.py` (~960 LOC,
+  17 endpoints) split out of `routes/books.py` (5,855 → 4,957 LOC).
+  Covers personal cover gen/variants, style catalog, community pool
+  share/browse/import/vote/unshare/featured/lineage, public cover
+  profile, and cover-less books list.  Behavior-preserving — only
+  the test monkeypatch target changed (now `routes.covers`).
+  `_write_local_and_mirror_to_r2` stays in `books.py` (shared with
+  uploads); covers imports it.  Server.py + books.py header map
+  updated.  All curl-verified live.
 - **P2 "Built from your suggestion" badges** — `pages/SuggestionsPage.jsx`
   shipped suggestions now render a public credit ribbon ("Built from
   {submitter}'s suggestion" or "Built from your suggestion" for the

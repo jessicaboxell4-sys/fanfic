@@ -68,7 +68,7 @@ def test_preview_cover_returns_base64_and_preview_id(monkeypatch):
     """Smoke: the endpoint returns a preview_id + base64 PNG.  Mocks
     the actual generate_cover call so we don't bill the LLM in CI."""
     import requests
-    from routes import books as books_route
+    from routes import covers as books_route
 
     uid, email, pw, book_id = _seed_user_and_book()
     s = requests.Session()
