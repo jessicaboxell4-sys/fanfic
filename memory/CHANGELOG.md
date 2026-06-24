@@ -7,6 +7,91 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-25 (overnight) — Dark-mode leak guard test + codebase audit ✅
+
+Locks in the dark-mode `<code>` chip bug class as a CI failure
+mode.  Pairs with the same-night fix on Help.jsx + KindleImport.jsx.
+
+### Audit (one-time sweep)
+- Scanned all `.jsx/.js/.tsx/.ts` files under `frontend/src/` for
+  the pattern `[&_*]:utility-[#XXXXXX]` (hex literals inside
+  Tailwind arbitrary variants).
+- Result: **0 leaks remaining** — the earlier same-night fix to
+  Help.jsx + KindleImport.jsx cleared the entire codebase.
+
+### New regression test
+- `tests/test_regression_smoke.py::test_no_hex_leaks_in_tailwind_arbitrary_variants`
+  (tagged `@pytest.mark.regression_smoke` so it runs in the
+  band + the production canary).
+- Walks `/app/frontend/src/` looking for the leaky pattern, cross-
+  references against a hardcoded `_LEAK_HEX_HINTS` map of hexes
+  with known light/dark CSS-var twins (creams, body text, primary
+  purple).  Non-themable hexes (e.g. error red `#D9534F`) are NOT
+  flagged.
+- On hit, fails with a precise message: file, line, exact match,
+  AND the suggested `var(--…)` replacement.  No guessing required
+  to fix.
+- Self-tested via a synthetic leak file — confirmed the test
+  correctly flagged it before deletion.
+
+### Run cost
+- 0.11 s standalone, ~0 s incremental against the full band.
+- `./scripts/run_regression_smoke.sh` → **23 passed in 7.26 s**
+  (was 22).  Production canary picks it up automatically.
+
+### Why this matters
+The dark-mode `<code>` chip bug was reported by the user this
+session.  Without this guard, any future PR using
+`[&_*]:bg-[#XXXXXX]` would reintroduce the same class of bug.  The
+test is the cheapest possible long-lasting insurance — caught at
+PR time, not user-report time.
+
+---
+## 2026-06-25 (late night) — Dark-mode `<code>` chip fix on Help + KindleImport ✅
+
+### Bug
+User reported on Help page: inline `<code>` chips (e.g. `/library` in
+the Dashboard tour) rendered with a LIGHT cream background
+(`#F0EBDC`) on the dark theme — visually broken, effectively unread-
+able.  Asked to check all pages.
+
+### Root cause
+The Tailwind arbitrary variant `[&_code]:bg-[#F0EBDC]` compiles to a
+descendant selector `.foo code { background: #F0EBDC }`.  The dark-
+mode remapper in `index.css` only intercepts class names matching the
+literal `bg-[#F0EBDC]`, NOT descendant cascades — so the chip stayed
+cream regardless of `<html data-theme>`.
+
+### Fix (2 files)
+- `pages/Help.jsx::Section` — replaced `[&_code]:bg-[#F0EBDC]`,
+  `[&_a]:text-[#6B46C1]`, `[&_a:hover]:text-[#553397]`, and
+  `[&_li::marker]:text-[#6B705C]` with `var(--surface-hover)`,
+  `var(--primary)`, `var(--primary-hover)`, `var(--text-secondary)`.
+  The CSS variables already auto-flip in dark mode (defined in
+  `:root[data-theme="dark"]`), so the chips now read charcoal
+  `#34343A` on dark and cream `#F5F3EC` on light without further
+  CSS work.
+- `pages/KindleImport.jsx` — same swap on its `[&_code]:bg-[#F1ECDB]`
+  wrapper.  Verifies all `.azw/.mobi/.kfx` extension chips are
+  legible in dark mode.
+
+### Verification
+- `testing_agent_v3_fork` iteration_38 — **PASS** (100% frontend).
+  Computed `background-color` confirmed via `getComputedStyle`:
+  - Light: `rgb(245, 243, 236)` = `#F5F3EC` ✓
+  - Dark:  `rgb(52, 52, 58)`    = `#34343A` ✓
+  - Light link: `rgb(139, 92, 246)`  = `#8B5CF6` ✓
+  - Dark link:  `rgb(167, 139, 250)` = `#A78BFA` ✓ (brighter, legible)
+- Bulleted lists still render disc markers in both modes.
+- `/privacy` and `/terms` swept clean (no `<code>` elements present
+  so no leak surface).
+
+### Reminder filed
+- Pre-existing React duplicate-key warning on Help.jsx WhatsNew
+  fallback (3 items share `to='/library/all'`).  Not a regression
+  of this fix.  ROADMAP entry #7, ~5 min trivial fix.
+
+---
 ## 2026-06-25 (night 3) — Production smoke canary + Help-page list fix ✅
 
 ### Production smoke canary

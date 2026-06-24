@@ -327,3 +327,92 @@ def test_upload_job_404_for_unknown_id(session):
     """Polling an unknown job_id returns a clean 404, not a 500."""
     r = session.get(f"{BASE_URL}/api/books/upload/jobs/__nonexistent__", timeout=15)
     assert r.status_code == 404, f"got {r.status_code} {r.text[:300]}"
+
+
+# -------------------------------------------------------------------- #
+# Dark-mode leak guard (2026-06-25)                                    #
+#                                                                      #
+# Background: Tailwind arbitrary variants like `[&_code]:bg-[#F0EBDC]` #
+# compile to descendant selectors that the dark-mode remapper in       #
+# `frontend/src/index.css` does NOT intercept (it only catches the    #
+# literal class name `bg-[#F0EBDC]`, not the cascading `code` child).  #
+# Result: cream chips on dark background — visually broken.            #
+#                                                                      #
+# This test scans the frontend source for the same pattern and fails   #
+# if any hex literal is found inside a `[&_*]:utility-[#XXXXXX]`       #
+# arbitrary variant.  Use `var(--surface-hover)`, `var(--primary)`,    #
+# etc. instead — they auto-flip via :root[data-theme="dark"].          #
+# -------------------------------------------------------------------- #
+
+# Hexes that DO have light/dark twins in CSS vars or the remapper.
+# These are the genuine leaks if found inside `[&_*]:`.  Listed
+# explicitly so the test only flags real problems, not intentional
+# brand accents (e.g. error-red `#D9534F` stays the same in both
+# themes).
+_LEAK_HEX_HINTS = {
+    # Surface / background creams
+    "#F0EBDC": "var(--surface-hover)",
+    "#F1ECDB": "var(--surface-hover)",
+    "#F5F3EC": "var(--surface-hover)",
+    "#FBFAF6": "var(--surface)",
+    "#FDFBF7": "var(--surface)",
+    "#FAF7F0": "var(--bg)",
+    "#FDF3E1": "var(--surface-hover)",
+    # Text
+    "#2C2C2C": "var(--text-primary)",
+    "#6B705C": "var(--text-secondary)",
+    # Primary purple
+    "#6B46C1": "var(--primary)",
+    "#8B5CF6": "var(--primary)",
+    "#553397": "var(--primary-hover)",
+    "#7C3AED": "var(--primary-hover)",
+    "#A78BFA": "var(--primary)",
+}
+
+
+@pytest.mark.regression_smoke
+def test_no_hex_leaks_in_tailwind_arbitrary_variants():
+    """Fail-fast for the dark-mode leak class of bug.  If this test
+    starts failing, replace the offending hex with the suggested
+    `var(--…)` token from `_LEAK_HEX_HINTS` (or use a `dark:` variant
+    inline) so the chip / link / marker auto-flips in dark mode.
+    """
+    import re
+    import pathlib
+
+    src = pathlib.Path("/app/frontend/src")
+    # Match `[&_…]:utility-[#XXXXXX]`.  Captures the hex for the
+    # allowlist check.  The leading `[&_` confirms we're inside an
+    # arbitrary descendant variant — direct usages like
+    # `text-[#2C2C2C]` are NOT flagged because those DO get remapped.
+    pat = re.compile(r"\[&_[^\]]+\]:[a-zA-Z-]+-\[(#[0-9A-Fa-f]{3,8})\]")
+    leaks = []
+    for path in src.rglob("*"):
+        if path.suffix not in (".jsx", ".js", ".tsx", ".ts"):
+            continue
+        try:
+            text = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        for line_no, line in enumerate(text.splitlines(), 1):
+            for m in pat.finditer(line):
+                hex_code = m.group(1).upper()
+                if hex_code in {k.upper() for k in _LEAK_HEX_HINTS}:
+                    suggestion = _LEAK_HEX_HINTS.get(
+                        hex_code, _LEAK_HEX_HINTS.get(hex_code.lower(), "var(--…)")
+                    )
+                    leaks.append(
+                        f"  {path.relative_to('/app')}:{line_no} → "
+                        f"`{m.group(0)}` — replace `{hex_code}` with `{suggestion}`"
+                    )
+    if leaks:
+        msg = (
+            "\nFound hardcoded light-mode hex colors inside Tailwind\n"
+            "arbitrary variants (`[&_…]:`).  These DO NOT flip in\n"
+            "dark mode — the remapper in index.css only catches\n"
+            "literal class names, not descendant cascades.\n\n"
+            f"{len(leaks)} leak(s):\n" + "\n".join(leaks) + "\n\n"
+            "Fix: replace the hex with the suggested `var(--…)`\n"
+            "token — those auto-switch via :root[data-theme=\"dark\"]."
+        )
+        pytest.fail(msg)

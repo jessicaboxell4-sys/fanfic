@@ -29,6 +29,7 @@ Heuristic (highest priority first):
 | 4 | Phase 6B: bulk-ops extraction | ~30-45 min | Low (tech debt) | Now safe — upload smoke + cover smoke both in place; no user-facing value |
 | 5 | Canary test-account cleanup endpoint | ~20 min | Low (housekeeping) | Sweep `shelfsort-canary-…@example.com` rows weekly so prod doesn't accrue throwaway accounts |
 | 6 | Canary polish bundle (5 sub-items) | ~2-3 h all | Med | Webhook + multi-region + tiered frequency + public badge + metrics dashboard — pick & choose |
+| 7 | Help.jsx duplicate React keys in WhatsNew fallback | ~5 min | Trivial | Pre-existing warning ("Encountered two children with the same key /library/all") in Help.jsx line 547-561; three FALLBACK_WHATS_NEW items share `to='/library/all'`. Fix: composite key like `${item.to}-${item.label}` or array index |
 
 ### Convention for adding new reminders
 
