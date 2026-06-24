@@ -1,0 +1,100 @@
+name: Production smoke canary
+
+# Nightly + on-demand smoke test against the LIVE production deploy.
+#
+# Hits the production HTTPS URL (via SHELFSORT_PROD_URL secret) with
+# the same 22-test regression smoke band that CI runs at PR time.
+# Creates a fresh throwaway account per run (prefix
+# `shelfsort-canary-…@example.com`) — the test fixture handles
+# registration + cleanup-on-failure is best-effort via the prefix.
+#
+# When the canary fails, an issue is auto-filed against the repo so
+# the operator sees it next time they open GitHub.
+#
+# Setup required (one-time, repo settings → Secrets and variables):
+#   • SHELFSORT_PROD_URL — full HTTPS URL of the production backend
+#     (e.g. https://shelfsort.com).  Used as REACT_APP_BACKEND_URL.
+
+on:
+  schedule:
+    # 03:00 UTC every day — middle of the US night, low-traffic
+    # window for the production app.  Adjust if it conflicts with
+    # scheduled maintenance.
+    - cron: "0 3 * * *"
+  workflow_dispatch: {}   # Allow manual runs from the Actions UI.
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      # Pytest reads BASE_URL via REACT_APP_BACKEND_URL — pointing it
+      # at prod is the ONE knob that flips the smoke into canary mode.
+      REACT_APP_BACKEND_URL: ${{ secrets.SHELFSORT_PROD_URL }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install minimal test deps
+        # Only what the smoke band imports — no need for the full
+        # backend requirements.  Keeps the canary fast (~30 s cold).
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest requests
+
+      - name: Verify prod URL is configured
+        run: |
+          if [ -z "${REACT_APP_BACKEND_URL}" ]; then
+            echo "::error::SHELFSORT_PROD_URL secret is not set."
+            echo "::error::Add it under repo Settings → Secrets → Actions."
+            exit 1
+          fi
+          echo "Canary target: ${REACT_APP_BACKEND_URL}"
+
+      - name: Run regression smoke against prod
+        id: smoke
+        working-directory: backend
+        # 22-test band, runs in ~7 s against a healthy prod.  Fails
+        # the job (and the workflow) on any test failure — that
+        # bubbles up to the issue-opener step below.
+        run: |
+          chmod +x scripts/run_regression_smoke.sh
+          ./scripts/run_regression_smoke.sh 2>&1 | tee /tmp/canary.log
+
+      - name: Open an issue if the canary failed
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let log = '';
+            try { log = fs.readFileSync('/tmp/canary.log', 'utf8'); } catch (e) { log = '(no log captured)'; }
+            // Trim to the last 60 lines — usually the failure summary.
+            const tail = log.trim().split('\n').slice(-60).join('\n');
+            const body = [
+              "The nightly production smoke canary failed.",
+              "",
+              `**Run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              `**Target:** ${process.env.REACT_APP_BACKEND_URL || '(unset)'}`,
+              "",
+              "**Tail of test output (last ~60 lines):**",
+              "```",
+              tail,
+              "```",
+              "",
+              "_Auto-filed by `.github/workflows/prod-smoke-canary.yml`._",
+            ].join("\n");
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🚨 Production smoke canary failed (${new Date().toISOString().slice(0,10)})`,
+              body,
+              labels: ["canary-alert", "production"],
+            });

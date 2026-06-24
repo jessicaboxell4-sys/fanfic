@@ -7,6 +7,41 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-25 (night 3) — Production smoke canary + Help-page list fix ✅
+
+### Production smoke canary
+- `.github/workflows/prod-smoke-canary.yml` — nightly at 03:00 UTC
+  + manual `workflow_dispatch`.  Runs the 22-test regression smoke
+  band against production via `SHELFSORT_PROD_URL` secret.
+  Auto-files a GitHub issue (labels `canary-alert` + `production`)
+  with the last 60 lines of test output when the canary fails.
+- Bare-minimum deps (`pytest requests`) — cold start ~30 s, run
+  itself ~7 s.
+- Test-account prefix renamed `iter37-` → `shelfsort-canary-` so a
+  future cleanup endpoint can sweep them safely.
+
+### Setup needed (one-time, repo owner)
+1. Repo Settings → Secrets → Actions → add `SHELFSORT_PROD_URL`
+   = full HTTPS URL of prod backend (e.g. `https://shelfsort.com`)
+2. The workflow gracefully errors if the secret is missing.
+
+### Help-page list rendering fix
+- `pages/Help.jsx::Section` — the `prose prose-sm` className pointed
+  at `@tailwindcss/typography` (not installed), so Tailwind's
+  preflight stripped `<ul>` markers and rendered bullets as plain
+  paragraphs.  Replaced with explicit Tailwind arbitrary-variant
+  rules:
+  - `[&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-3 [&_ul]:space-y-1.5`
+  - `[&_ol]:list-decimal …` (same treatment)
+  - `[&_li::marker]:text-[#6B705C]` so markers match body colour
+  - `[&_p]:mb-3 [&_p:last-child]:mb-0` paragraph spacing
+  - `[&_code]:bg-[#F0EBDC] …` inline code chips
+  - `[&_a]:text-[#6B46C1] [&_a]:underline …` links
+- Verified via screenshot: "First-time tour" + every other Section
+  now renders proper bulleted lists with breathing room, matching
+  the user's design mock.
+
+---
 ## 2026-06-25 (night 2) — Upload pipeline added to regression smoke ✅
 
 Highest-risk surface in the codebase (multipart streaming + AV +

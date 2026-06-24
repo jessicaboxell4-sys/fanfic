@@ -143,13 +143,36 @@ const SECTIONS = [
 ];
 
 function Section({ id, icon: Icon, title, children }) {
+  // Note: `prose prose-sm` is kept for forward-compat with
+  // @tailwindcss/typography (not yet installed in this app).  The
+  // arbitrary-variant rules below give us proper bullets, decimal
+  // lists, paragraph spacing, and inline-code styling WITHOUT the
+  // plugin — Tailwind's preflight strips list-style by default.
   return (
     <section id={id} className="scroll-mt-24 mb-12">
       <h2 className="font-serif text-2xl md:text-3xl text-[#2C2C2C] flex items-center gap-3 mb-3">
         {Icon && <Icon className="w-6 h-6 text-[#E07A5F]" />}
         {title}
       </h2>
-      <div className="prose prose-sm max-w-none text-[#2C2C2C] leading-relaxed">{children}</div>
+      <div
+        className={[
+          "prose prose-sm max-w-none text-[#2C2C2C] leading-relaxed",
+          // Bulleted lists — restore the disc + indent + breathing room.
+          "[&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-3 [&_ul]:space-y-1.5",
+          // Numbered lists — same treatment.
+          "[&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-3 [&_ol]:space-y-1.5",
+          // Nested marker colour so it matches body text, not pure black.
+          "[&_li::marker]:text-[#6B705C]",
+          // Paragraph spacing.
+          "[&_p]:mb-3 [&_p:last-child]:mb-0",
+          // Inline code chips.
+          "[&_code]:bg-[#F0EBDC] [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[13px] [&_code]:font-mono",
+          // Links.
+          "[&_a]:text-[#6B46C1] [&_a]:underline [&_a:hover]:text-[#553397]",
+        ].join(" ")}
+      >
+        {children}
+      </div>
     </section>
   );
 }

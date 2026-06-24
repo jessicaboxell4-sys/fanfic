@@ -23,9 +23,11 @@ Heuristic (highest priority first):
 
 | # | Reminder | Effort | Impact | Why this rank |
 |---|----------|--------|--------|---------------|
-| 1 | Amplify "Shipped from the community" social proof | ~1-2 h Core | High (user) | Amplifies the badge work; brings traffic to the suggestion board |
-| 2 | Profile discovery polish (scroll-to-row, completeness nudge) | ~30-45 min | Med (user) | Follow-up to Listed! toast; small UX delight |
-| 3 | Phase 6B: bulk-ops extraction | ~30-45 min | Low (tech debt) | Now safe — upload smoke + cover smoke both in place; no user-facing value |
+| 1 | Admin Console smoke-canary widget | ~45 min | Med (operator) | Now unblocked — canary is live; widget shows last result at a glance |
+| 2 | Amplify "Shipped from the community" social proof | ~1-2 h Core | High (user) | Amplifies the badge work; brings traffic to the suggestion board |
+| 3 | Profile discovery polish (scroll-to-row, completeness nudge) | ~30-45 min | Med (user) | Follow-up to Listed! toast; small UX delight |
+| 4 | Phase 6B: bulk-ops extraction | ~30-45 min | Low (tech debt) | Now safe — upload smoke + cover smoke both in place; no user-facing value |
+| 5 | Canary test-account cleanup endpoint | ~20 min | Low (housekeeping) | Sweep `shelfsort-canary-…@example.com` rows weekly so prod doesn't accrue throwaway accounts |
 
 ### Convention for adding new reminders
 

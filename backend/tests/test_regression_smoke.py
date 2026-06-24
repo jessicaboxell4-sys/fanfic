@@ -41,8 +41,11 @@ BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://genre-sort.preview.e
 def session():
     s = requests.Session()
     s.headers.update({"Content-Type": "application/json"})
-    # Fresh registration — seeded tester password may have rotated.
-    email = f"iter37-{int(time.time())}-{uuid.uuid4().hex[:6]}@example.com"
+    # Fresh registration — recognizable prefix so future cleanup
+    # scripts can sweep canary-created accounts safely.  Production
+    # canary uses this same fixture; per-run timestamp + uuid suffix
+    # guarantees no collisions across parallel runs.
+    email = f"shelfsort-canary-{int(time.time())}-{uuid.uuid4().hex[:6]}@example.com"
     r = s.post(
         f"{BASE_URL}/api/auth/register",
         json={"email": email, "password": "hunter2pw", "name": "Iter37 Tester"},
