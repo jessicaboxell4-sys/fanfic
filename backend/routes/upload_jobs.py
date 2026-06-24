@@ -133,6 +133,30 @@ async def _run_upload_job(job_id: str, user_id: str) -> None:
             except Exception:  # noqa: BLE001
                 pass
 
+        # Big-batch push notification — if the batch produced ≥10 books,
+        # ping every device the user has Web Push registered on so they
+        # see a system notification ("📚 12 books finished sorting on
+        # Shelfsort") even when the tab is closed.  Small batches are
+        # noisy if pushed — the in-app toast + bell are enough.
+        try:
+            books_added = [b for b in (response.get("books") or []) if not b.get("failed")]
+            if len(books_added) >= 10:
+                from routes.push import send_push_to_user
+                first_titles = [b.get("title") or "untitled" for b in books_added[:3]]
+                preview = ", ".join(t for t in first_titles if t)
+                more = len(books_added) - len(first_titles)
+                body_lines = f"{preview}" + (f" and {more} more" if more > 0 else "")
+                await send_push_to_user(
+                    user_id,
+                    title=f"📚 {len(books_added)} books finished sorting",
+                    body=body_lines or f"{len(books_added)} new books are in your library.",
+                    url="/library/all",
+                )
+        except Exception:  # noqa: BLE001
+            # Push failures must NEVER fail the upload job — the books
+            # are already saved, the user can still see them in-app.
+            logger.exception("upload job %s: push notification failed", job_id)
+
         await _persist_job(job_id, {
             "status": "done",
             "completed_at": datetime.now(timezone.utc).isoformat(),

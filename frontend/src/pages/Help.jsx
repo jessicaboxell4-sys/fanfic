@@ -24,18 +24,15 @@ import {
 // deploy, POST to /api/announcements with a fresh `version` string.
 // `version` doubles as the per-user localStorage dismissal key.
 const FALLBACK_WHATS_NEW = {
-  version: "2026-06-24-pdf-and-async-uploads",
-  title: "Fresh in Shelfsort",
+  version: "2026-06-24-pdf-async-uploads-bell",
+  title: "📚 Big upgrade — PDFs, faster uploads, background tracking",
   items: [
-    { to: "/library/originals", label: "Read PDFs natively in-app", desc: "— PDFs now render via pdf.js with selectable text, keyboard navigation (PageUp/Down, J/K, arrows, Space), zoom controls, and page-jump input. No more bouncing to Calibre conversion just to read a PDF. Bookmarks save the actual page you're on — no prompt." },
-    { label: "Faster, more resilient uploads", desc: "— the upload pipeline is fully asynchronous. Drag in 50 files and the browser confirms instantly while the server keeps processing — you can close the tab and come back, and Cloudflare timeouts on slow AI classification are now structurally impossible." },
-    { to: "/library/all", label: "Drop more books without leaving All Books", desc: "— a compact upload zone now sits at the top of /library/all so you can drop files or folders without bouncing back to the dashboard. Same parallel pipeline, same auto-classification." },
-    { to: "/library/all", label: "Finished a book? Get a similar one", desc: "— hit ≥ 95 % on any book and the BookDetail page now shows up to six other titles from YOUR library that share the same fandom or author, prioritising the ones you haven't finished. Soft landing after the last page." },
-    { to: "/library/stats", label: "Reader DNA card on /stats", desc: "— a one-glance “what kind of reader am I?” panel: top 3 fandoms, fanfic-vs-original split bar, average book length in words, and Comfort reads — books you finished AND opened again in the last 30 days." },
-    { label: "Cmd / Ctrl + Shift + D toggles dark mode", desc: "— a global keyboard shortcut for instant light↔dark flip. Skips text inputs so it never clobbers your paste." },
-    { to: "/account/safety", label: "Antivirus rescan nudge", desc: "— a gentle banner appears if your last full library scan is more than 90 days old (or if you have unscanned books). One click runs a fresh sweep; one click dismisses it for the day." },
-    { to: "/library/polish", label: "Auto-scan when you polish your library", desc: "— uploads are fast because the AV scan happens later. When you next polish your library, ClamAV automatically sweeps your whole collection in the background with a live X-of-Y progress counter so you can watch it work — no toasts, no nagging." },
-    { to: "/rules", label: "Community rules", desc: "— Shelfsort has a written code of conduct. No spam, no politics, no hate speech or bullying, no piracy promotion, respect IP, be kind. Skim it from the footer or the register checkbox." },
+    { to: "/library/originals", label: "Read PDFs natively in-app", desc: "PDFs now render directly via pdf.js — selectable text, keyboard navigation, zoom, page-jump. No more Calibre conversion to read a PDF. Works on mobile Safari and iOS." },
+    { to: "/library/all", label: "Uploads are dramatically faster and more resilient", desc: "The upload pipeline runs fully asynchronously now. Drop 50 files, close the tab, come back later — your library will be waiting. Cloudflare timeouts are structurally impossible." },
+    { to: "/library/all", label: "New: Background uploads bell in the navbar", desc: "A small upload icon shows up while books are processing in the background. Tap to see per-book status with covers and fandom chips. Tap any finished row to jump straight to the book." },
+    { to: "/library/all", label: "Welcome-back toast & tab title indicator", desc: "Closed the tab during a big drop? You'll see '📚 5 books finished while you were away' when you return. Tab title also shows '(3) Shelfsort' while uploads are in flight so you can keep an eye from another tab." },
+    { to: "/library/all", label: "Drop more books straight from /library/all", desc: "A compact drop zone now sits at the top of the All Books page — no need to bounce back to the dashboard. Same parallel pipeline, same auto-classification." },
+    { to: "/help", label: "Help page is now public and searchable", desc: "Shelfsort's help guide is now reachable without signing in — and Google can index it. Help search now has 10 curated Q&A pairs covering uploads, PDFs, OPDS, book clubs and more." },
   ],
 };
 const WHATS_NEW_KEY = "shelfsort.whatsNewDismissed";

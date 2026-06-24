@@ -7,6 +7,41 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-24 night (finale) — Push notifications + announcement to all users ✅
+
+### Web Push on big-batch completion (backend `routes/upload_jobs.py`)
+When an async upload job finishes with `≥ 10` successfully-added books,
+the backend calls the existing `send_push_to_user` helper to fire a
+system-level Web Push notification to every device that user has
+registered for push.
+- Title: `"📚 12 books finished sorting"` with a preview of the
+  first three titles + "and N more" tail.
+- URL: `/library/all` (lands them on their library).
+- Wrapped in a broad `except` so push failures NEVER fail the
+  upload — the books are already saved, the in-app surface still
+  works.
+- Reuses existing VAPID + subscription infrastructure (no new
+  endpoints, no new opt-in step — anyone who already enabled push
+  for cross-device handoff gets this too).
+- Threshold `10` chosen so foreground single-file uploads don't
+  spam the user; only the "drop a folder of 50 books" moment
+  triggers it.
+
+### Global announcement broadcast
+Inserted a new admin announcement (`2026-06-24-pdf-async-uploads-bell`)
+covering today's six shipped features:
+- Native PDF reading
+- Async upload pipeline
+- BackgroundJobsBell in navbar
+- Welcome-back toast + tab title indicator
+- Compact drop zone on `/library/all`
+- Public Help page with FAQ JSON-LD
+
+The Help "Fresh in Shelfsort" card surfaces this for every logged-in
+user. `FALLBACK_WHATS_NEW` in `Help.jsx` updated to match so a
+fresh DB / unauth visitors also see the same six items.
+
+---
 ## 2026-06-24 night (latest) — "What just landed" cohesive pass ✅
 
 Three additions on top of the BackgroundJobsBell that turn it into
