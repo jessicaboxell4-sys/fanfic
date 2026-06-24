@@ -84,6 +84,33 @@ async def rescan_my_library(user: User = Depends(get_current_user)) -> Dict[str,
     skipped = 0
     flags: List[Dict[str, Any]] = []
 
+    # 2026-07-04 — Live progress tracking.  We need real-time progress
+    # for the Polish-library page (X/Y books scanned).  Count the total
+    # upfront, then update the `current_progress` field on the user's
+    # rescan doc every N books so a separate GET endpoint can return
+    # accurate live progress without paying per-document write costs
+    # for every single book.
+    total_books = await db.books.count_documents(
+        {"user_id": user.user_id, "status": {"$ne": "trash"}},
+    )
+    total_books = min(total_books, 500)  # respect the per-scan cap below
+
+    async def _publish_progress(scanned_so_far: int) -> None:
+        await db.user_rescans.update_one(
+            {"user_id": user.user_id},
+            {"$set": {
+                "current_progress": {
+                    "scanned": scanned_so_far,
+                    "total": total_books,
+                    "started_at": started.isoformat(),
+                    "in_progress": True,
+                },
+            }},
+            upsert=True,
+        )
+
+    await _publish_progress(0)
+
     # 2026-06-18 — Walk the user's *books* collection (the source of
     # truth) instead of just whatever happens to be on local disk.
     # Files living only in cloud storage get pulled to disk first so
@@ -105,6 +132,10 @@ async def rescan_my_library(user: User = Depends(get_current_user)) -> Dict[str,
             ok = await asyncio.to_thread(ensure_local_cached, fp, user.user_id, book_id, ".epub")
             if not ok:
                 skipped += 1
+                # Still count skipped towards progress so the bar fills
+                # smoothly even on URL-only entries.
+                if (scanned + skipped) % 5 == 0:
+                    await _publish_progress(scanned + skipped)
                 continue
         result = await asyncio.to_thread(antivirus.scan_path, fp)
         scanned += 1
@@ -135,6 +166,10 @@ async def rescan_my_library(user: User = Depends(get_current_user)) -> Dict[str,
                     "av_scanned_at": datetime.now(timezone.utc).isoformat(),
                 }},
             )
+        # Update progress every 5 books so the polling endpoint sees
+        # the counter climb without writing on every single iteration.
+        if (scanned + skipped) % 5 == 0:
+            await _publish_progress(scanned + skipped)
 
     finished = datetime.now(timezone.utc)
     summary = {
@@ -146,7 +181,41 @@ async def rescan_my_library(user: User = Depends(get_current_user)) -> Dict[str,
     }
     await db.user_rescans.update_one(
         {"user_id": user.user_id},
-        {"$set": {"ts": finished.isoformat(), "summary": summary}},
+        {"$set": {
+            "ts": finished.isoformat(),
+            "summary": summary,
+            # Clear the in-progress marker so polling endpoints know
+            # the scan is done. We keep the final counts on the same
+            # field so a poll right at completion still gets the
+            # finished state.
+            "current_progress": {
+                "scanned": scanned + skipped,
+                "total": total_books,
+                "started_at": started.isoformat(),
+                "in_progress": False,
+                "finished_at": finished.isoformat(),
+            },
+        }},
         upsert=True,
     )
     return summary
+
+
+@api_router.get("/account/safety/rescan-progress")
+async def my_rescan_progress(user: User = Depends(get_current_user)) -> Dict[str, Any]:
+    """Lightweight progress endpoint polled by the Polish-library page
+    while a rescan is running.  Returns the current scanned/total
+    counter so the UI can show "X of Y books scanned" in real time.
+
+    Returns ``{in_progress: false, scanned: 0, total: 0}`` when no
+    scan has ever run, or when the last scan is done.
+    """
+    doc = await db.user_rescans.find_one({"user_id": user.user_id})
+    progress = (doc or {}).get("current_progress") or {}
+    return {
+        "in_progress": bool(progress.get("in_progress")),
+        "scanned": int(progress.get("scanned") or 0),
+        "total": int(progress.get("total") or 0),
+        "started_at": progress.get("started_at"),
+        "finished_at": progress.get("finished_at"),
+    }

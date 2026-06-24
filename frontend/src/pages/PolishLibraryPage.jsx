@@ -18,6 +18,15 @@ export default function PolishLibraryPage() {
   const [selected, setSelected] = useState({}); // book_id -> {apply_title, apply_author}
   const [applying, setApplying] = useState(false);
   const [done, setDone] = useState(null);
+  // 2026-07-04 — Live AV-scan status for the inline progress banner
+  // that replaces the older 3-toast chain.  `phase` walks through
+  // 'polishing' → 'scanning' → 'complete'/'failed'.  `scanProgress`
+  // is polled every 1.5s from /account/safety/rescan-progress while
+  // phase === 'scanning' so the user sees "X of Y books scanned"
+  // climb in real time.
+  const [phase, setPhase] = useState(null); // null | 'polishing' | 'scanning' | 'complete' | 'failed'
+  const [scanProgress, setScanProgress] = useState({ scanned: 0, total: 0 });
+  const [scanSummary, setScanSummary] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -88,60 +97,76 @@ export default function PolishLibraryPage() {
       return;
     }
     setApplying(true);
+    setPhase("polishing");
+    setScanSummary(null);
+    setScanProgress({ scanned: 0, total: 0 });
     try {
       const { data } = await api.post("/books/polish/apply", { items });
       const epubWrites = (data.details || []).filter((d) => d.epub_written === true).length;
-      toast.success(
-        `Polished ${data.updated} book${data.updated === 1 ? "" : "s"}${
-          epubWrites ? ` · ${epubWrites} EPUB file${epubWrites === 1 ? "" : "s"} rewritten` : ""
-        }`
-      );
-      setDone({ updated: data.updated, skipped: data.skipped });
+      setDone({
+        updated: data.updated,
+        skipped: data.skipped,
+        epubWrites,
+      });
       // Drop the just-applied books from the list and re-fetch quietly to
       // pick up anything we missed (e.g., follow-on candidates after a fix).
       const appliedIds = new Set(items.map((it) => it.book_id));
       setSuggestions((prev) => prev.filter((s) => !appliedIds.has(s.book_id)));
 
-      // 2026-07-04 — Auto-scan the library for viruses after polish.
-      // Polishing is a "tidy-up" moment — perfect time to also run AV
-      // across any unscanned books that landed during fast uploads
-      // (AV_SCAN_ON_UPLOAD=false).  Fire-and-forget: we show a
-      // background toast, don't block the user from continuing, and
-      // catch slow-AV (524) gracefully.  Replaces the older
-      // post-upload "Scan now?" prompt — users no longer get nagged
-      // after every batch.
-      const scanning = toast.loading("Scanning your library for viruses in the background…");
+      // 2026-07-04 — Background AV scan with live progress polling.
+      // Replaces the older 3-toast chain.  We kick the rescan, then
+      // poll /account/safety/rescan-progress every 1.5s until it
+      // reports `in_progress: false`.  The inline status banner above
+      // the suggestions list reads from `scanProgress` directly.
+      setPhase("scanning");
+      let pollTimer = null;
+      const startPolling = () => {
+        pollTimer = setInterval(async () => {
+          try {
+            const { data: prog } = await api.get("/account/safety/rescan-progress");
+            setScanProgress({ scanned: prog.scanned || 0, total: prog.total || 0 });
+            if (!prog.in_progress && prog.total > 0) {
+              // Scan finished — stop polling. The main rescan
+              // promise will resolve with the full summary shortly.
+              clearInterval(pollTimer);
+              pollTimer = null;
+            }
+          } catch {
+            // Swallow polling errors — we'll find out about a real
+            // failure via the main rescan promise.
+          }
+        }, 1500);
+      };
+      startPolling();
       try {
         const { data: scan } = await api.post("/account/safety/rescan", {});
-        toast.dismiss(scanning);
-        const flagged = scan?.flagged || 0;
-        const scanned = scan?.scanned || 0;
-        if (flagged > 0) {
-          toast.error(
-            `${flagged} infected file${flagged === 1 ? "" : "s"} found · ${scanned} scanned. Open Account → Safety to review.`,
-            { duration: 18000 },
-          );
-        } else if (scanned > 0) {
-          toast.success(`Library scan complete · ${scanned} book${scanned === 1 ? "" : "s"} checked, all clean.`);
-        }
-        // If scanned === 0 we silently skip — nothing was unscanned, nothing to brag about.
+        if (pollTimer) clearInterval(pollTimer);
+        setScanSummary({
+          scanned: scan?.scanned || 0,
+          flagged: scan?.flagged || 0,
+        });
+        // Reflect the final number in the progress display.
+        setScanProgress({
+          scanned: scan?.scanned || 0,
+          total: scan?.scanned || 0,
+        });
+        setPhase("complete");
       } catch (scanErr) {
-        toast.dismiss(scanning);
+        if (pollTimer) clearInterval(pollTimer);
         const status = scanErr?.response?.status;
         if (status === 524 || status === 504) {
-          toast(
-            "Scan still running on the server — open Account → Safety in a few minutes for the result.",
-            { duration: 12000 },
-          );
+          // Scan still running on the server — show that state.
+          setPhase("scanning-detached");
         } else if (status === 503) {
-          // AV unavailable — silent.  User can rescan later.
+          setPhase("av-unavailable");
         } else {
-          // Don't spam an error toast for what's a background nicety.
           console.warn("Auto-scan after polish failed:", scanErr);
+          setPhase("scan-failed");
         }
       }
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Couldn't apply changes");
+      setPhase("failed");
     } finally {
       setApplying(false);
     }
@@ -220,10 +245,91 @@ export default function PolishLibraryPage() {
           </span>
         </div>
 
-        {done && (
-          <div className="bg-[#EDE7FB]/60 border border-[#6B46C1]/20 rounded-xl p-4 mb-4 text-sm text-[#4C2A99]">
-            <Sparkles className="inline w-4 h-4 mr-1" />
-            Polished {done.updated} book{done.updated === 1 ? "" : "s"}. {done.skipped > 0 && `(${done.skipped} skipped.)`}
+        {/* 2026-07-04 — Phase-aware status banner replaces the old
+            polish-success-only one + the toast chain.  Walks through
+            polishing → scanning (with live X/Y counter) → complete. */}
+        {phase && (
+          <div
+            data-testid="polish-status-banner"
+            className={`rounded-xl p-4 mb-4 text-sm border ${
+              phase === "complete"
+                ? "bg-[#E6F4EA] border-[#22A06B]/30 text-[#1E6B3F]"
+                : phase === "failed" || phase === "scan-failed"
+                ? "bg-[#FDECEC] border-[#E07A5F]/30 text-[#9C4521]"
+                : phase === "av-unavailable" || phase === "scanning-detached"
+                ? "bg-[#FFF7E6] border-[#E0A95F]/40 text-[#7C5400]"
+                : "bg-[#EDE7FB]/60 border-[#6B46C1]/20 text-[#4C2A99]"
+            }`}
+          >
+            {phase === "polishing" && (
+              <p className="flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Polishing your library…
+              </p>
+            )}
+            {phase === "scanning" && (
+              <>
+                <p className="flex items-center gap-2 font-semibold">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Polished{done && ` ${done.updated} book${done.updated === 1 ? "" : "s"}`} · Scanning for viruses…
+                </p>
+                {scanProgress.total > 0 ? (
+                  <>
+                    <p className="text-xs mt-1.5 mb-1.5">
+                      <span data-testid="scan-progress-text" className="font-mono">
+                        {scanProgress.scanned} / {scanProgress.total}
+                      </span>{" "}
+                      books scanned
+                    </p>
+                    <div className="w-full h-1.5 rounded-full bg-[#6B46C1]/10 overflow-hidden">
+                      <div
+                        data-testid="scan-progress-bar"
+                        className="h-full bg-[#6B46C1] transition-all duration-300"
+                        style={{
+                          width: `${Math.min(100, Math.round((scanProgress.scanned / Math.max(1, scanProgress.total)) * 100))}%`,
+                        }}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-xs mt-1.5">Counting your library…</p>
+                )}
+              </>
+            )}
+            {phase === "complete" && (
+              <>
+                <p className="flex items-center gap-2 font-semibold">
+                  <Sparkles className="w-4 h-4" />
+                  Done!
+                </p>
+                <p className="text-xs mt-1">
+                  Polished {done?.updated || 0} book{(done?.updated || 0) === 1 ? "" : "s"}
+                  {done?.epubWrites > 0 && ` (${done.epubWrites} EPUB file${done.epubWrites === 1 ? "" : "s"} rewritten)`}
+                  {scanSummary?.scanned > 0 && (
+                    <> · Scanned {scanSummary.scanned} book{scanSummary.scanned === 1 ? "" : "s"}{scanSummary.flagged > 0 ? ` · ${scanSummary.flagged} flagged` : " · all clean"}</>
+                  )}
+                  {done?.skipped > 0 && ` · ${done.skipped} skipped`}
+                </p>
+              </>
+            )}
+            {phase === "scanning-detached" && (
+              <p>
+                ⏳ Polished {done?.updated || 0} book{(done?.updated || 0) === 1 ? "" : "s"}. Scan is still running on the server — check Account → Safety in a few minutes for the result.
+              </p>
+            )}
+            {phase === "av-unavailable" && (
+              <p>
+                ✅ Polished {done?.updated || 0} book{(done?.updated || 0) === 1 ? "" : "s"}. Antivirus is currently unavailable — your library will be scanned automatically the next time you polish, or you can manually rescan from Account → Safety.
+              </p>
+            )}
+            {phase === "scan-failed" && (
+              <p>
+                ⚠️ Polished {done?.updated || 0} book{(done?.updated || 0) === 1 ? "" : "s"}, but the antivirus scan couldn&apos;t start. Try a manual rescan from Account → Safety later.
+              </p>
+            )}
+            {phase === "failed" && (
+              <p>Couldn&apos;t apply changes. Try again in a moment.</p>
+            )}
           </div>
         )}
 
