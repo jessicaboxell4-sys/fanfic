@@ -317,12 +317,16 @@ export default function AdminHelp() {
               unscanned in someone&apos;s library.
             </p>
             <p>
-              <strong>Per-scan cap</strong>: each user-triggered rescan
-              (whether from Polish-library or /account/safety) covers up
-              to 500 books per run.  Users with larger libraries are
-              shown an inline note nudging them to polish again or run a
-              manual rescan to cover the rest. The admin bulk-rescan at
-              /admin/antivirus is uncapped.
+              <strong>Per-scan cap &amp; rotation</strong>: each
+              user-triggered rescan (Polish-library or /account/safety)
+              covers up to 500 books per run, sorted by{" "}
+              <code>av_status</code> then <code>av_scanned_at</code> —
+              so unscanned books are scanned first, then the
+              oldest-scanned books rotate through.  For libraries &gt;
+              500 books the user just polishes again later; each
+              polish picks the next batch automatically until every
+              book has been covered.  The admin bulk-rescan at
+              /admin/antivirus is uncapped (for fixing things at scale).
             </p>
             <p>
               <strong>To-do (next sprint)</strong>: when any cross-user

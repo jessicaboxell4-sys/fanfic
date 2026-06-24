@@ -320,9 +320,7 @@ export default function PolishLibraryPage() {
                     they can polish again or run a manual rescan. */}
                 {scanSummary?.scanned === 500 && (
                   <p className="text-[11px] mt-2 text-[#7C5400] bg-[#FFF7E6] border border-[#E0A95F]/40 rounded px-2 py-1.5">
-                    Heads up: each scan covers up to 500 books at a time. If your library has more, polish again — or visit{" "}
-                    <Link to="/account/safety" className="underline font-semibold">Account → Library safety</Link>
-                    {" "}to sweep the rest.
+                    Heads up: each scan covers up to 500 books, prioritising the ones that need it most (unscanned first, then oldest-scanned). If your library has more than 500 books, just polish again later — each polish picks the next batch automatically until every book is covered.
                   </p>
                 )}
               </>

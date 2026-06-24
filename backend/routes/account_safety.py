@@ -111,16 +111,27 @@ async def rescan_my_library(user: User = Depends(get_current_user)) -> Dict[str,
 
     await _publish_progress(0)
 
-    # 2026-06-18 — Walk the user's *books* collection (the source of
-    # truth) instead of just whatever happens to be on local disk.
-    # Files living only in cloud storage get pulled to disk first so
-    # the rescan actually covers the user's whole library, not just
-    # their warm cache.
+    # 2026-07-04 — Smart rotation across rescans.  Previously the query
+    # had no sort, so MongoDB returned books in insertion order and the
+    # same first 500 always got scanned — books #501+ in a >500-book
+    # library would NEVER get scanned no matter how often the user
+    # polished.  Now we sort by:
+    #   1. av_status ascending — "clean" sorts after "infected" and
+    #      after no-field-set (treated as unscanned), so unscanned
+    #      books get scanned first.
+    #   2. av_scanned_at ascending — among books with the SAME status,
+    #      the oldest-scanned (or never-scanned) go first.
+    # Result: each scan picks the 500 books that need it most, and
+    # after enough polishes every book in any library gets covered.
+    #
+    # We also pull cloud-only files to disk before scanning (via
+    # ensure_local_cached) so the rescan covers the user's whole
+    # library, not just their warm cache.
     from utils.storage_cloud import ensure_local_cached
     book_cursor = db.books.find(
         {"user_id": user.user_id, "status": {"$ne": "trash"}},
         {"_id": 0, "book_id": 1, "title": 1},
-    ).limit(500)
+    ).sort([("av_status", 1), ("av_scanned_at", 1)]).limit(500)
     async for book in book_cursor:
         book_id = book.get("book_id")
         if not book_id:
