@@ -1,0 +1,39 @@
+{
+  "summary": "Targeted verification of dark-mode bug fix on /help and /help/kindle-import. All required cases PASS. Inline <code> chips now use var(--surface-hover) (rgb(52,52,58) #34343A in dark / rgb(245,243,236) #F5F3EC in light). Links use var(--primary) which auto-flips to brighter purple rgb(167,139,250) #A78BFA in dark. Bullets retain disc list-style. Privacy/Terms have no <code> elements so no leak surface. Broader sweep skipped on auth-gated pages (redirect to /login as expected).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "verification_results": {
+    "help_dark_dashboard_tour_code_chip_bg": "rgb(52, 52, 58) — matches --surface-hover dark (#34343A) ✓",
+    "help_dark_link_color": "rgb(167, 139, 250) — matches --primary dark (#A78BFA), brighter than #6B46C1 ✓",
+    "help_light_dashboard_tour_code_chip_bg": "rgb(245, 243, 236) — matches --surface-hover light (#F5F3EC) ✓",
+    "help_light_link_color": "rgb(139, 92, 246) — light-mode primary ✓",
+    "kindle_import_dark_all_code_chips": "All 5 sampled code chips (.azw, .azw3, .mobi, .kfx, .kf8) render rgb(52, 52, 58) in dark mode ✓",
+    "kindle_import_light_code_chips": "rgb(245, 243, 236) ✓",
+    "bulleted_list_disc_in_dark_mode": "list-style-type: disc on #tour ul ✓",
+    "privacy_dark": "No <code> elements present; body bg rgb(27,27,30) — clean ✓",
+    "terms_dark": "No <code> elements present; body bg rgb(27,27,30) — clean ✓",
+    "auth_gated_sweep": "/library /account /users /suggestions redirected to /login (expected — public-only sweep without auth)"
+  },
+  "test_credentials": "Used ?theme=dark and ?theme=light URL overrides (per ThemeContext line 117-120). NOTE: review_request mentioned localStorage key 'shelfsort.theme' but actual keys are 'shelfsort_theme_mode' / 'shelfsort_theme' (legacy). URL override is the cleanest way to test.",
+  "screenshots": [
+    "/app/test_reports/help_dark2.png — dashboard-tour section, dark, code chip charcoal, links bright purple, bullets visible",
+    "/app/test_reports/help_dark_uploads.png — uploads section, dark, multiple <code> file-extension chips all charcoal",
+    "/app/test_reports/kindle_dark2.png — Kindle import page, dark, all .azw/.mobi/.kfx etc chips charcoal"
+  ],
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "PRE-EXISTING (not a regression of this fix): React warning 'Encountered two children with the same key /library/all' fires multiple times on Help page render. Source is the FALLBACK_WHATS_NEW.items map keyed by item.to in Help.jsx around line 547-561 — three items share to='/library/all'. Use a composite key like `${item.to}-${item.label}` or the array index. Cosmetic only — does not affect dark-mode fix."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "skipped (frontend-only request)", "frontend": "100%"},
+  "seed_data_creation": "",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Dark-mode fix is FULLY VERIFIED. Use ?theme=dark and ?theme=light URL params for forcing theme on public pages (Help/KindleImport/Privacy/Terms) — these are honored by ThemeContext.jsx without affecting persisted preference. localStorage keys are shelfsort_theme_mode (canonical) and shelfsort_theme (legacy) — NOT shelfsort.theme as suggested in some prompts.",
+  "rca of the issue": "Original bug: Help.jsx Section component had `[&_code]:bg-[#F0EBDC]` (and KindleImport.jsx had `[&_code]:bg-[#F1ECDB]`) — hardcoded light-mode cream literals inside Tailwind arbitrary variants. The dark-mode remapper in index.css only targets literal class names, not descendant utilities, so these never flipped in dark mode → cream chips on dark background. Fix replaces hex literals with `var(--surface-hover)` which is defined as #F5F3EC light / #34343A dark in :root[data-theme] blocks, so it auto-flips on data-theme toggle. Same fix applied to link color (var(--primary)/var(--primary-hover)) and list markers (var(--text-secondary)). Verified rendered computed-style values match the expected CSS-var-resolved colors in both modes."
+}

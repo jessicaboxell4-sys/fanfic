@@ -161,14 +161,19 @@ function Section({ id, icon: Icon, title, children }) {
           "[&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-3 [&_ul]:space-y-1.5",
           // Numbered lists — same treatment.
           "[&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-3 [&_ol]:space-y-1.5",
-          // Nested marker colour so it matches body text, not pure black.
-          "[&_li::marker]:text-[#6B705C]",
+          // Nested marker colour — uses CSS var so it auto-switches
+          // to the dark-mode secondary text colour (`#9C9C8E`).
+          "[&_li::marker]:text-[var(--text-secondary)]",
           // Paragraph spacing.
           "[&_p]:mb-3 [&_p:last-child]:mb-0",
-          // Inline code chips.
-          "[&_code]:bg-[#F0EBDC] [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[13px] [&_code]:font-mono",
-          // Links.
-          "[&_a]:text-[#6B46C1] [&_a]:underline [&_a:hover]:text-[#553397]",
+          // Inline code chips — CSS vars so the chip is readable in
+          // BOTH themes (cream `#F5F3EC` light → charcoal `#34343A`
+          // dark).  The previous hardcoded `#F0EBDC` was invisible
+          // against the dark-mode page background.
+          "[&_code]:bg-[var(--surface-hover)] [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[13px] [&_code]:font-mono",
+          // Links — use the global primary token so they pick up
+          // the brighter dark-mode purple automatically.
+          "[&_a]:text-[var(--primary)] [&_a]:underline [&_a:hover]:text-[var(--primary-hover)]",
         ].join(" ")}
       >
         {children}

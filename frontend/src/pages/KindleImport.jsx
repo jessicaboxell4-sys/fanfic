@@ -266,7 +266,7 @@ function Section({ title, icon: Icon, accent, children }) {
         {Icon ? <Icon className={`w-5 h-5 ${accents[accent] || "text-[#6B46C1]"}`} /> : null}
         {title}
       </h2>
-      <div className="prose prose-sm max-w-none text-[#2C2C2C] [&_p]:mb-3 [&_code]:bg-[#F1ECDB] [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[13px]">
+      <div className="prose prose-sm max-w-none text-[#2C2C2C] [&_p]:mb-3 [&_code]:bg-[var(--surface-hover)] [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[13px]">
         {children}
       </div>
     </section>
