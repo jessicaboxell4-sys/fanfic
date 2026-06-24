@@ -3,6 +3,21 @@
 > Active backlog. Items move to [CHANGELOG.md](./CHANGELOG.md) when shipped.
 
 
+## 💡 Reminder — Phase 6B: bulk-ops extraction
+
+Continue the books.py refactor.  Extract the "destructive/mass-edit"
+endpoint cluster into `routes/bulk_ops.py`:
+- `POST /api/books/bulk/delete`
+- `POST /api/books/bulk/move`
+- `POST /api/books/bulk/metadata`
+- `POST /api/books/reset-state`
+- `POST /api/books/wipe-library`
+- `POST /api/books/reclassify-all`
+
+~300 LOC out of books.py (another 6% drop, ~4,957 → ~4,657).  These
+form a coherent surface that will benefit from being grouped when
+we later add audit logging or rate limiting to mass-edit operations.
+
 ## 💡 Reminder — Amplify "Shipped from the community" social proof
 
 Two small ideas, either or both:
