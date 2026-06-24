@@ -371,6 +371,22 @@ export default function AllBooksPage() {
           </div>
         </div>
 
+        {/* Compact drop zone — gives users a way to add more books without
+            bouncing back to the dashboard. Same upload pipeline as the big
+            dashboard one. */}
+        {stats.total > 0 && (
+          <section className="mb-10" data-testid="all-books-upload">
+            <UploadZone
+              compact
+              onUploaded={(dupes, _actions, urlLists) => {
+                if (dupes && dupes.length > 0) setPendingDupes(dupes);
+                if (urlLists && urlLists.length > 0) setPendingUrlLists(urlLists);
+                load();
+              }}
+            />
+          </section>
+        )}
+
         {(recentBooks.length > 0 ||
           pinnedShelves.length > 0 ||
           (overview && (overview.books_finished > 0 || overview.pages_read > 0 || overview.reading_streak_days > 0))) && (

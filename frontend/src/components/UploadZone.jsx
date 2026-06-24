@@ -80,7 +80,7 @@ async function filesFromDataTransfer(dt) {
   return Array.from(dt.files || []);
 }
 
-export default function UploadZone({ onUploaded }) {
+export default function UploadZone({ onUploaded, compact = false }) {
   const inputRef = useRef(null);
   const folderInputRef = useRef(null);
   // 2026-07-04 — guard against parallel uploads.  The retry-failed
@@ -469,7 +469,7 @@ export default function UploadZone({ onUploaded }) {
       onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
       onDragLeave={() => setDrag(false)}
       onDrop={handleDrop}
-      className={`dropzone ${drag ? "active" : ""} flex flex-col items-center justify-center p-10 md:p-16 cursor-pointer text-center`}
+      className={`dropzone ${drag ? "active" : ""} flex flex-col items-center justify-center ${compact ? "p-5 md:p-6" : "p-10 md:p-16"} cursor-pointer text-center`}
       onClick={() => !uploading && inputRef.current?.click()}
     >
       <input
@@ -499,12 +499,40 @@ export default function UploadZone({ onUploaded }) {
       />
       {uploading ? (
         <>
-          <Loader2 className="w-10 h-10 text-[#E07A5F] animate-spin mb-4" />
-          <p className="font-serif text-2xl text-[#2C2C2C]">Sorting your books…</p>
-          <p className="text-sm text-[#6B705C] mt-2">
+          <Loader2 className={`${compact ? "w-6 h-6 mb-2" : "w-10 h-10 mb-4"} text-[#E07A5F] animate-spin`} />
+          <p className={`font-serif ${compact ? "text-lg" : "text-2xl"} text-[#2C2C2C]`}>Sorting your books…</p>
+          <p className="text-sm text-[#6B705C] mt-1">
             {progress.done} of {progress.total} processed
           </p>
         </>
+      ) : compact ? (
+        <div className="flex flex-col sm:flex-row items-center gap-4 w-full justify-center">
+          <div className="flex items-center gap-3 text-left">
+            <UploadCloud className="w-7 h-7 text-[#E07A5F] shrink-0" />
+            <div>
+              <p className="font-serif text-lg text-[#2C2C2C] leading-tight">Drop files or folders here</p>
+              <p className="text-xs text-[#6B705C]">EPUB · PDF · Kindle · DOCX · auto-sorted</p>
+            </div>
+          </div>
+          <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              data-testid="pick-files-btn"
+              onClick={() => inputRef.current?.click()}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[#E07A5F] text-white hover:bg-[#d06a4f] inline-flex items-center gap-1.5"
+            >
+              <UploadCloud className="w-3.5 h-3.5" /> Choose files
+            </button>
+            <button
+              type="button"
+              data-testid="pick-folder-btn"
+              onClick={() => folderInputRef.current?.click()}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-[#E07A5F]/40 text-[#E07A5F] hover:bg-[#FDF3E1] inline-flex items-center gap-1.5"
+            >
+              <FolderUp className="w-3.5 h-3.5" /> Pick a folder
+            </button>
+          </div>
+        </div>
       ) : (
         <>
           <UploadCloud className="w-10 h-10 text-[#E07A5F] mb-4" />
