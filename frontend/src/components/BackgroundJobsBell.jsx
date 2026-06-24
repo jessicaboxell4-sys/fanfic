@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { Loader2, UploadCloud, CheckCircle2, XCircle, X, Sparkles, ArrowRight } from "lucide-react";
+import { Loader2, UploadCloud, CheckCircle2, XCircle, X, Sparkles, ArrowRight, FolderUp } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { api } from "../lib/api";
@@ -56,6 +56,55 @@ export default function BackgroundJobsBell() {
   // single completion doesn't spam the user on every subsequent poll.
   const toastedRef = useRef(new Set());
   const autoClearRef = useRef(new Map());
+  const fileInputRef = useRef(null);
+  const folderInputRef = useRef(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Quick upload from the bell's empty state.  Files are pushed
+  // through the same async pipeline as the dashboard's UploadZone,
+  // tracked in localStorage so the resume-after-refresh effect picks
+  // them up, then the bell's own polling surfaces progress / toasts.
+  // Single source of truth, no duplicated UI state.
+  const submitFilesViaBell = useCallback(async (files) => {
+    const list = Array.from(files || []);
+    if (list.length === 0) return;
+    setSubmitting(true);
+    // Submit up to 4 in parallel — mirrors the chunk size the
+    // dashboard UploadZone uses so we don't hammer the API harder.
+    const CHUNK = 4;
+    const submitOne = async (file) => {
+      try {
+        const form = new FormData();
+        form.append("files", file);
+        const { data } = await api.post("/books/upload/async", form, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        if (data?.job_id) {
+          // trackPendingJob is in the shared module — but we deferred
+          // importing it at the top to avoid widening this file's
+          // import surface; pull it in lazily.
+          const { trackPendingJob } = await import("../lib/uploadJobs");
+          trackPendingJob(data.job_id, file.name);
+        }
+      } catch (e) {
+        toast.error(`Couldn't queue ${file.name}`, {
+          description: e?.response?.data?.detail || e?.message,
+        });
+      }
+    };
+    try {
+      for (let i = 0; i < list.length; i += CHUNK) {
+        await Promise.all(list.slice(i, i + CHUNK).map(submitOne));
+      }
+      toast(
+        list.length === 1
+          ? `📥 ${list[0].name} is on its way`
+          : `📥 ${list.length} files lined up`,
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }, []);
 
   // Keep `jobs` in sync with the localStorage list.
   useEffect(() => {
@@ -211,11 +260,67 @@ export default function BackgroundJobsBell() {
               <p className="font-serif text-sm text-[#2C2C2C] mb-1">
                 Nothing in the works
               </p>
-              <p className="text-xs text-[#6B705C] leading-relaxed">
+              <p className="text-xs text-[#6B705C] leading-relaxed mb-4">
                 Drop a book on the upload zone and we&rsquo;ll
                 <br />
                 line it up here for you.
               </p>
+              {/* Quick upload from anywhere in the app — same async
+                  pipeline as the dashboard UploadZone, tracked in
+                  localStorage so the bell's existing polling picks
+                  it up automatically. */}
+              <div className="flex flex-col gap-1.5">
+                <button
+                  type="button"
+                  data-testid="bgjobs-quick-pick-files"
+                  disabled={submitting}
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full px-3 py-1.5 rounded-lg text-xs font-medium bg-[#E07A5F] hover:bg-[#d06a4f] disabled:opacity-60 text-white inline-flex items-center justify-center gap-1.5"
+                >
+                  {submitting ? (
+                    <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Sending…</>
+                  ) : (
+                    <><UploadCloud className="w-3.5 h-3.5" /> Choose files</>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  data-testid="bgjobs-quick-pick-folder"
+                  disabled={submitting}
+                  onClick={() => folderInputRef.current?.click()}
+                  className="w-full px-3 py-1.5 rounded-lg text-xs font-medium border border-[#E07A5F]/40 hover:bg-[#FDF3E1] disabled:opacity-60 text-[#E07A5F] inline-flex items-center justify-center gap-1.5"
+                >
+                  <FolderUp className="w-3.5 h-3.5" /> Pick a folder
+                </button>
+              </div>
+              {/* Hidden inputs the buttons above trigger. */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                data-testid="bgjobs-files-input"
+                onChange={(e) => {
+                  submitFilesViaBell(e.target.files);
+                  e.target.value = "";
+                }}
+              />
+              <input
+                ref={folderInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                data-testid="bgjobs-folder-input"
+                /* eslint-disable react/no-unknown-property */
+                webkitdirectory=""
+                directory=""
+                mozdirectory=""
+                /* eslint-enable react/no-unknown-property */
+                onChange={(e) => {
+                  submitFilesViaBell(e.target.files);
+                  e.target.value = "";
+                }}
+              />
             </div>
             <div className="px-4 py-2 text-[11px] text-[#6B705C] border-t border-[#E8E6E1] text-center">
               We&rsquo;ll keep this bell tucked in your navbar.

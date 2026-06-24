@@ -7,6 +7,47 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-24 night (sleep-time) — Bell becomes always-visible + quick uploads ✅
+
+Two small but meaningful UX moves:
+
+### Always-visible bell
+`BackgroundJobsBell.jsx` no longer hides when there are no jobs.
+Renders a permanently-mounted upload-cloud icon in the navbar
+(60 % opacity when idle, full + orange badge when active).
+Empty-state panel: 📚 illustration + *"Nothing in the works · Drop
+a book on the upload zone and we'll line it up here for you."* +
+*"We'll keep this bell tucked in your navbar."* footer.
+
+### Quick upload from anywhere
+Empty-state panel now includes two CTAs:
+- **Choose files** (primary, coral) — opens the OS file picker
+- **Pick a folder** (secondary, outlined) — opens the folder picker
+  using `webkitdirectory` / `directory` / `mozdirectory`
+
+Both feed into a new `submitFilesViaBell` helper that runs the
+same async pipeline as the dashboard's `UploadZone.sendOne`:
+parallel chunks of 4, `POST /books/upload/async`, `trackPendingJob`
+into localStorage so the bell's own polling picks it up — no
+duplicate UI state, no separate progress tracking.  Toast confirms
+the queue: *"📥 2 files lined up"*.
+
+### Net effect
+You can be on `/account`, `/help`, `/library/stats` — anywhere with
+the navbar — and dropping a book is one click away.  No bouncing
+back to the dashboard.  Combined with the resume-after-refresh,
+cross-page toast, tab-title indicator, and flyout cards, the bell
+is now the *primary* surface for managing background uploads in
+the app.
+
+### Verified live
+On `/account` (no UploadZone present): bell visible greyed in
+navbar → clicked → empty panel showed Choose-files + Pick-folder
+buttons → uploaded two real EPUBs → bell rows populated with
+"A Wizard of Earthsea" + "The Hobbit" → "View all 2 new books →"
+link appeared → cross-page toast fired with "Open it" action.
+
+---
 ## 2026-06-24 night (extra) — Friendlier bell with flyout cards ✅
 
 Replaced the cramped per-row layout in the BackgroundJobsBell with
