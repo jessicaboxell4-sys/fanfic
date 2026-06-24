@@ -78,6 +78,13 @@ from routes.books import _write_local_and_mirror_to_r2
 _COVER_PREVIEW_CACHE: Dict[str, Dict[str, Any]] = {}
 _COVER_PREVIEW_TTL_SECONDS = 60 * 60  # 1 hour
 
+# Per-book cap on stored cover variants.  Each variant is ~1 MB so 20
+# variants × ~50 actively-iterated books = ~1 GB max disk footprint per
+# heavy user.  20 is the right ceiling: enough to keep iterations + a
+# handful of community-imported covers without growing unboundedly.
+# Bumped from 5 → 20 on 2026-06-17.
+_COVER_VARIANT_CAP = 20
+
 
 class CoverPreviewBody(BaseModel):
     nudge: Optional[str] = None
@@ -242,14 +249,6 @@ async def apply_book_cover(
         "active_variant": variant_id,
         "variant_count": len(variants),
     }
-
-
-# Per-book cap on stored cover variants.  Each variant is ~1 MB so 20
-# variants × ~50 actively-iterated books = ~1 GB max disk footprint per
-# heavy user.  20 is the right ceiling: enough to keep iterations + a
-# handful of community-imported covers without growing unboundedly.
-# Bumped from 5 → 20 on 2026-06-17.
-_COVER_VARIANT_CAP = 20
 
 
 @api_router.get("/books/{book_id}/cover-variants")

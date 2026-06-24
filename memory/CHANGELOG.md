@@ -7,6 +7,36 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-25 (late) — Regression-smoke pytest marker + CI hook ✅
+
+Promoted iteration-37's refactor-regression file into a permanent
+guardrail.
+
+### `tests/test_regression_smoke.py` (was `test_iter37_refactor_regression.py`)
+- Renamed for permanence; docstring rewritten as the "1-minute
+  confidence" suite.
+- Module-level `pytestmark = pytest.mark.regression_smoke` so every
+  test (currently 17) inherits the tag.
+
+### `pytest.ini`
+- Registered the marker so `--strict-markers` doesn't complain.
+- Inline doc on the invocation pattern.
+
+### `scripts/run_regression_smoke.sh` (new)
+- Wrapper around `pytest -m regression_smoke -q --tb=short --no-header`.
+- Exits non-zero on failure so it's CI-friendly.
+
+### `.github/workflows/backend-tests.yml`
+- New "Run pytest regression smoke (fast, fail-fast)" step inserted
+  BEFORE the slow coverage step.  Catches obvious refactor breakage
+  in ~5 s.
+
+### Verification
+- `./scripts/run_regression_smoke.sh` → **17 passed, 1307 deselected
+  in 3.84 s**.  Marker correctly filters; the slow LLM-dependent
+  cover-regen tests are NOT in the smoke band.
+
+---
 ## 2026-06-25 (evening 2) — Phase 6A: covers extracted from books.py ✅
 
 P3 tech-debt item — behavior-preserving split of the 5,855-LOC

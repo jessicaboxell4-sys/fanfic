@@ -1,17 +1,38 @@
-"""Phase 6A refactor regression sweep (iteration 37).
+"""Regression smoke — fast cross-cutting sweep of the endpoints we
+care about most when refactoring.
 
-Verifies the 17 cover endpoints freshly extracted into routes/covers.py
-still respond AND the books.py/friends.py/suggestions.py routes that we
-shipped on top still wire up correctly.
+This file is the "1-minute confidence" suite.  Every test is tagged
+``@pytest.mark.regression_smoke`` (module-level pytestmark) so you can
+run JUST these without paying for the rest of the integration suite:
 
-Run:
-    pytest /app/backend/tests/test_iter37_refactor_regression.py -v --tb=short
+    pytest -m regression_smoke              # ~5 s, no LLM calls
+    ./scripts/run_regression_smoke.sh       # same, wrapped
+
+History:
+- 2026-06-25 — Born as iter37 regression for the Phase 6A cover
+  extraction.  Renamed to ``test_regression_smoke.py`` and adopted as
+  the permanent post-refactor guardrail.
+
+Coverage scope:
+  - Health endpoint (mongo + storage + scheduler)
+  - routes/covers.py (Phase 6A extracted)
+  - routes/books.py (after extraction)
+  - routes/friends.py (directory + friend request)
+  - routes/suggestions.py (status, is_mine, shipped exemplars)
+
+Add to this file any time you do a refactor that touches multiple
+route modules — the goal is a single ``pytest -m regression_smoke``
+catches the obvious breakage.
 """
 import os
 import time
 import uuid
 import pytest
 import requests
+
+# Module-level mark — every test in this file is part of the
+# regression smoke band.  Run with `pytest -m regression_smoke`.
+pytestmark = pytest.mark.regression_smoke
 
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://genre-sort.preview.emergentagent.com").rstrip("/")
 

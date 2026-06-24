@@ -61,6 +61,16 @@ jobs:
           pip install -r requirements.txt
           pip install emergentintegrations --extra-index-url https://d33sy5i8bnduwe.cloudfront.net/simple/ || true
 
+      - name: Run pytest regression smoke (fast, fail-fast)
+        working-directory: backend
+        env:
+          MONGO_URL: mongodb://localhost:27017
+          DB_NAME: shelfsort_ci
+        # Tiny cross-cutting band (~5s). Catches obvious refactor
+        # breakage before we pay for the full integration suite.
+        # See tests/test_regression_smoke.py for scope.
+        run: chmod +x scripts/run_regression_smoke.sh && ./scripts/run_regression_smoke.sh
+
       - name: Run pytest with TRUE coverage (fails below 75%)
         working-directory: backend
         env:
