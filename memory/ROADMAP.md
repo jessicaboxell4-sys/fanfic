@@ -53,6 +53,17 @@ the existing `announcements` collection or hand-curated from
 `/app/memory/CHANGELOG.md` — pick the lighter path when picking
 this up.
 
+## 💡 Reminder — "Help us spread the word" share prompt (P2, ~15 min)
+
+Friend-of-a-friend growth from the most engaged users is the
+cheapest acquisition channel. Add a soft *"Share Shelfsort with a
+friend who reads fanfic →"* link at the bottom of the Fresh-in-
+Shelfsort announcement card. Opens a small share sheet (Twitter/X,
+Bluesky, copy link) with a pre-composed message. Only show after
+the user has been on the platform for ≥ 30 days and has uploaded
+≥ 20 books — otherwise it feels spammy. Track click counts so we
+can measure conversion.
+
 
 ## ✅ Just shipped (2026-07-04 morning)
 
