@@ -9,6 +9,7 @@ import FandomTreemap from "../components/FandomTreemap";
 import CatalogSyncCard from "../components/CatalogSyncCard";
 import PushHandoffToggle from "../components/PushHandoffToggle";
 import ReadingPrivacyToggle from "../components/ReadingPrivacyToggle";
+import UploadChimeCard from "../components/UploadChimeCard";
 // PalettePickerCard moved to /account/appearance (linked from the navbar appearance popover)
 import { FETCHING_UI_ENABLED, SEND_TO_KINDLE_UI_ENABLED } from "../lib/featureFlags";
 import { toast } from "sonner";
@@ -266,7 +267,7 @@ function PrivacyMessagingCard({ navigate }) {
         <div>
           <h2 className="font-serif text-2xl text-[#2C2C2C]">Privacy & messaging</h2>
           <p className="text-sm text-[#6B705C] mt-0.5">
-            Control who can DM you and whether you show up in user search.
+            Control who can DM you and whether you show up in the public reader directory.
           </p>
         </div>
       </div>
@@ -309,9 +310,9 @@ function PrivacyMessagingCard({ navigate }) {
 
         <div className="flex items-start justify-between gap-3 p-3 rounded-lg border border-[#E5DDC5] bg-[#FBFAF6]">
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-[#2C2C2C]">Hide me from user search</p>
+            <p className="text-sm font-semibold text-[#2C2C2C]">Hide me from the reader directory</p>
             <p className="text-xs text-[#6B705C]">
-              When on, your name and email won&apos;t show up when other users search. Existing friends still see you.
+              When on, you won&apos;t appear in user search or on the <Link to="/users" className="underline">public reader directory</Link>. Existing friends still see you.
             </p>
           </div>
           <button
@@ -362,6 +363,19 @@ function PrivacyMessagingCard({ navigate }) {
               {pendingIn} pending
             </span>
           )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => navigate("/users")}
+          data-testid="privacy-open-directory-btn"
+          className="w-full flex items-center justify-between gap-2 px-4 py-3 rounded-lg border border-[#E5DDC5] bg-white hover:bg-[#FBFAF6] transition-colors text-sm text-[#2C2C2C]"
+        >
+          <span className="flex items-center gap-2">
+            <UsersIcon className="w-4 h-4 text-[#6B46C1]" />
+            Find readers (public directory)
+          </span>
+          <span className="text-[10px] text-[#6B705C]">browse usernames</span>
         </button>
 
         <button
@@ -1895,6 +1909,8 @@ export default function Account() {
         </section>
 
         {/* Non-EPUB upload preferences — per-format default action */}
+        <UploadChimeCard />
+
         <section className="shelf-card p-6 mb-6" data-testid="format-prefs-card">
           <div className="flex items-start gap-3 mb-4">
             <div className="w-10 h-10 rounded-xl bg-[#E07A5F]/10 text-[#E07A5F] flex items-center justify-center flex-shrink-0">

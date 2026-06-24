@@ -329,6 +329,62 @@ async def unblock_user(other_user_id: str, user: User = Depends(get_current_user
 # User search
 # ---------------------------------------------------------------------
 
+@api_router.get("/users/directory")
+async def users_directory(
+    page: int = 1,
+    limit: int = 60,
+    user: User = Depends(get_current_user),
+):
+    """Browseable directory of all users on Shelfsort.
+
+    Username-only by design — no name, no email, no picture, no library
+    counts.  The intent is just *"this username exists on the platform"*
+    so people can find friends they already know.  Anything beyond
+    that (mutual friends, bio, etc.) requires the friend-request flow.
+
+    Privacy:
+      - Reuses the existing ``hidden_from_search`` flag.  Users who
+        flipped it for the autocomplete search are also hidden here.
+      - Always excludes self + blocked relations.
+      - Users without a `username` (legacy accounts that never claimed
+        a handle) are silently omitted — there'd be nothing for the
+        directory to show.
+    """
+    page = max(1, int(page or 1))
+    limit = max(1, min(int(limit or 60), 100))
+    skip = (page - 1) * limit
+
+    # Excluded ids: self + blocked relations (mirrors search).
+    blocked_rows = await db.friendships.find(
+        {"status": "blocked", "$or": [{"user_a": user.user_id}, {"user_b": user.user_id}]},
+        {"_id": 0, "user_a": 1, "user_b": 1},
+    ).to_list(length=500)
+    excluded = {user.user_id}
+    for r in blocked_rows:
+        excluded.add(r["user_b"] if r["user_a"] == user.user_id else r["user_a"])
+
+    q: dict = {
+        "user_id": {"$nin": list(excluded)},
+        "hidden_from_search": {"$ne": True},
+        "username": {"$exists": True, "$ne": None, "$ne": ""},
+    }
+    total = await db.users.count_documents(q)
+    cursor = (
+        db.users.find(q, {"_id": 0, "user_id": 1, "username": 1})
+        .sort([("username_lower", 1)])
+        .skip(skip)
+        .limit(limit)
+    )
+    users = await cursor.to_list(length=limit)
+    return {
+        "users": [{"user_id": u["user_id"], "username": u.get("username") or ""} for u in users],
+        "page": page,
+        "limit": limit,
+        "total": total,
+        "has_more": skip + len(users) < total,
+    }
+
+
 @api_router.get("/users/search")
 async def search_users(
     q: str = "",

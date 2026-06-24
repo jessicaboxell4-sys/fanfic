@@ -82,6 +82,7 @@ function SecondaryLinks({ user, unknownFandomCount, onNavigate, inDrawer = false
   // Items used in BOTH layouts — defining once keeps wording identical.
   const libraryItems = [
     { to: "/library/all", label: "All books", testid: "navbar-all-books", icon: BookOpen, title: "Every book in your library, in one scrollable grid" },
+    { to: "/library/recently-added", label: "Recently added", testid: "navbar-recently-added", icon: Sparkles, title: "Books that landed in your library in the last 14 days" },
     { to: "/library/smart-shelves", label: "Smart shelves", testid: "navbar-smart-shelves", icon: Filter, title: "Saved filter combinations" },
     { to: "/library/stats", label: "Reading stats", testid: "navbar-stats", icon: BarChart3, title: "Reading statistics" },
     { to: "/goals", label: "Reading goals", testid: "navbar-goals", icon: Target, title: "Yearly & monthly reading targets" },
@@ -120,6 +121,9 @@ function SecondaryLinks({ user, unknownFandomCount, onNavigate, inDrawer = false
         </Link>
         <Link to="/friends" data-testid="drawer-friends" className={itemBase} onClick={close}>
           <Users className="w-4 h-4" /> Friends
+        </Link>
+        <Link to="/users" data-testid="drawer-users-directory" className={itemBase} onClick={close}>
+          <Users className="w-4 h-4" /> Find readers
         </Link>
         <Link to="/bookclubs" data-testid="drawer-bookclubs" className={itemBase} onClick={close}>
           <BookOpen className="w-4 h-4" /> Reading rooms

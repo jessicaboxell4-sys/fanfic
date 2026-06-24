@@ -11,6 +11,7 @@ import ResumeReadingCard from "../components/ResumeReadingCard";
 import UrlPasteCard from "../components/UrlPasteCard";
 import DashboardHelpCard from "../components/DashboardHelpCard";
 import DashboardSuggestionsBox from "../components/DashboardSuggestionsBox";
+import DirectoryNudge from "../components/DirectoryNudge";
 import FriendRecsCard from "../components/FriendRecsCard";
 import LibraryReadingStatsCard from "../components/LibraryReadingStatsCard";
 import CoverOfTheWeekStrip from "../components/CoverOfTheWeekStrip";
@@ -88,6 +89,7 @@ export default function Dashboard() {
 
       <main className="max-w-5xl mx-auto px-6 md:px-8 py-8 md:py-14 fade-in">
         <BackupReminderBanner />
+        <DirectoryNudge totalBooks={stats.total} />
         <OnboardingPrompt />
         <HelpNudge />
 

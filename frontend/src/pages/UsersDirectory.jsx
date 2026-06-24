@@ -1,0 +1,236 @@
+import React, { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { toast } from "sonner";
+import { ArrowLeft, Search, UserPlus, Loader2, Check, Clock, Users as UsersIcon, ShieldOff, AtSign } from "lucide-react";
+import Navbar from "../components/Navbar";
+import { api } from "../lib/api";
+
+// Public-ish user directory at /users.
+//
+// Privacy intent (Phase 1c, 2026-06-25):
+//   - Every signed-in user is listed by default — friction-free way to
+//     find someone you already know on Shelfsort.
+//   - We only render the @username.  No name, no email, no avatar, no
+//     library counts.  Anything beyond "this handle exists" goes
+//     through the existing friend-request flow.
+//   - Users can opt out from Account → Privacy → "Hide me from the
+//     public directory".  Same flag (`hidden_from_search`) that already
+//     governs the @-autocomplete in Friends.
+//
+// Backend: GET /api/users/directory?page=&limit= (see routes/friends.py).
+// CTA: POST /api/friends/request {target_username}.
+
+const PAGE_SIZE = 60;
+
+function RelationCta({ row, busy, onSend }) {
+  // The directory endpoint doesn't return relation status (keeps the
+  // payload tiny + privacy-preserving), so we don't bother showing
+  // friend/pending state per row — sending the request idempotently
+  // resolves on the backend.  Errors surface via toast.
+  const handle = row.username || "";
+  const isBusy = busy === handle;
+  return (
+    <button
+      type="button"
+      onClick={() => onSend(handle)}
+      disabled={isBusy || !handle}
+      data-testid={`directory-add-${handle}`}
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-[#6B46C1] text-white hover:bg-[#553397] disabled:opacity-60 disabled:cursor-not-allowed"
+    >
+      {isBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserPlus className="w-3.5 h-3.5" />}
+      {isBusy ? "Sending…" : "Add"}
+    </button>
+  );
+}
+
+export default function UsersDirectory() {
+  const [rows, setRows] = useState([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState("");
+  const [busy, setBusy] = useState(null);
+  const [sentTo, setSentTo] = useState(() => new Set());
+
+  const load = async (p) => {
+    setLoading(true);
+    try {
+      const { data } = await api.get("/users/directory", {
+        params: { page: p, limit: PAGE_SIZE },
+      });
+      setRows(data?.users || []);
+      setTotal(data?.total || 0);
+      setHasMore(!!data?.has_more);
+      setPage(data?.page || p);
+    } catch {
+      toast.error("Couldn't load the user directory");
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => { load(1); }, []);
+
+  const sendRequest = async (handle) => {
+    if (!handle) return;
+    setBusy(handle);
+    try {
+      const { data } = await api.post("/friends/request", { target_username: handle });
+      if (data.status === "accepted") {
+        toast.success(`You're now friends with @${handle}`);
+      } else {
+        toast.success(`Friend request sent to @${handle}`);
+      }
+      setSentTo((prev) => new Set(prev).add(handle));
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || `Couldn't request @${handle}`);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const visible = useMemo(() => {
+    const q = filter.trim().toLowerCase().replace(/^@/, "");
+    if (!q) return rows;
+    return rows.filter((r) => (r.username || "").toLowerCase().includes(q));
+  }, [rows, filter]);
+
+  const pageStart = (page - 1) * PAGE_SIZE + 1;
+  const pageEnd = (page - 1) * PAGE_SIZE + rows.length;
+
+  return (
+    <div className="min-h-screen bg-paper">
+      <Navbar />
+      <main className="max-w-3xl mx-auto px-4 sm:px-6 py-8 md:py-12 fade-in" data-testid="users-directory-page">
+        <Link to="/friends" className="inline-flex items-center gap-1 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-6">
+          <ArrowLeft className="w-4 h-4" /> Friends
+        </Link>
+
+        <header className="mb-8">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-3">
+            Reader directory
+          </p>
+          <h1 className="font-serif text-4xl sm:text-5xl text-[#2C2C2C] leading-[1.05] tracking-tight">
+            Find readers you know.
+          </h1>
+          <p className="text-[#6B705C] mt-3 text-base sm:text-lg">
+            Just usernames — no names, emails, or library peeking.
+            Send a friend request and we&apos;ll do the rest.
+          </p>
+        </header>
+
+        <div className="shelf-card p-3 mb-5 flex items-center gap-2">
+          <Search className="w-4 h-4 text-[#6B705C] ml-1.5" />
+          <input
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Filter this page by handle…"
+            data-testid="directory-filter-input"
+            className="flex-1 bg-transparent outline-none text-sm placeholder:text-[#A09A8B]"
+          />
+          {filter && (
+            <button
+              type="button"
+              onClick={() => setFilter("")}
+              data-testid="directory-filter-clear"
+              className="text-xs text-[#6B705C] hover:text-[#2C2C2C] px-2 py-1"
+            >
+              clear
+            </button>
+          )}
+        </div>
+
+        {loading ? (
+          <div className="text-center py-16 text-[#6B705C]" data-testid="directory-loading">
+            <Loader2 className="w-6 h-6 animate-spin mx-auto mb-3" />
+            Loading the directory…
+          </div>
+        ) : visible.length === 0 ? (
+          <div className="shelf-card p-10 text-center text-[#6B705C]" data-testid="directory-empty">
+            <UsersIcon className="w-8 h-8 mx-auto mb-3 opacity-60" />
+            {rows.length === 0
+              ? "Nobody to show here yet — be the first to claim a handle in Account → Profile."
+              : "No handles match this filter."}
+          </div>
+        ) : (
+          <ul className="shelf-card divide-y divide-[#E8E6E1] overflow-hidden" data-testid="directory-list">
+            {visible.map((row) => {
+              const sent = sentTo.has(row.username);
+              return (
+                <li
+                  key={row.user_id}
+                  data-testid={`directory-row-${row.username}`}
+                  className="px-4 py-3 flex items-center gap-3"
+                >
+                  <div className="w-8 h-8 rounded-full bg-[#EEE9FB] text-[#6B46C1] flex items-center justify-center flex-shrink-0 font-semibold text-sm">
+                    {(row.username || "?").slice(0, 1).toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-[#2C2C2C] flex items-center gap-1 truncate">
+                      <AtSign className="w-3.5 h-3.5 text-[#6B705C] flex-shrink-0" />
+                      <span className="truncate">{row.username || "(no handle)"}</span>
+                    </p>
+                  </div>
+                  {sent ? (
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#3D8B79] px-2 py-1" data-testid={`directory-sent-${row.username}`}>
+                      <Check className="w-3.5 h-3.5" /> Sent
+                    </span>
+                  ) : (
+                    <RelationCta row={row} busy={busy} onSend={sendRequest} />
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        {!loading && total > 0 && (
+          <div
+            className="flex items-center justify-between mt-5 text-xs text-[#6B705C]"
+            data-testid="directory-pager"
+          >
+            <span>
+              {pageStart.toLocaleString()}–{pageEnd.toLocaleString()} of {total.toLocaleString()}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => load(page - 1)}
+                disabled={page <= 1 || loading}
+                data-testid="directory-prev-btn"
+                className="px-3 py-1.5 rounded-md border border-[#E5DDC5] hover:bg-white disabled:opacity-50"
+              >
+                ← Prev
+              </button>
+              <span data-testid="directory-page-label">Page {page}</span>
+              <button
+                type="button"
+                onClick={() => load(page + 1)}
+                disabled={!hasMore || loading}
+                data-testid="directory-next-btn"
+                className="px-3 py-1.5 rounded-md border border-[#E5DDC5] hover:bg-white disabled:opacity-50"
+              >
+                Next →
+              </button>
+            </div>
+          </div>
+        )}
+
+        <p
+          className="mt-8 p-4 rounded-lg border border-[#E5DDC5] bg-[#FBFAF6] text-xs text-[#6B705C] flex items-start gap-2"
+          data-testid="directory-privacy-note"
+        >
+          <ShieldOff className="w-4 h-4 mt-0.5 flex-shrink-0 text-[#6B46C1]" />
+          <span>
+            Your handle is listed here so friends can find you. Don&apos;t want
+            that?{" "}
+            <Link to="/account#privacy" className="text-[#6B46C1] underline font-semibold">
+              Hide me from the directory
+            </Link>
+            {" "}in Account → Privacy. We never show your name, email, or library to anyone outside your friends list.
+          </span>
+        </p>
+      </main>
+    </div>
+  );
+}

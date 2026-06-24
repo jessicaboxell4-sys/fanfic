@@ -9,6 +9,7 @@ import {
   untrackPendingJob,
 } from "../lib/uploadJobs";
 import { markBookFresh } from "../lib/freshArrivals";
+import { playUploadChime } from "../lib/uploadChime";
 
 // Navbar dropdown that surfaces in-flight async uploads.
 //
@@ -291,7 +292,26 @@ export default function BackgroundJobsBell() {
         }
       }
     }));
-    setStatuses((prev) => ({ ...prev, ...next }));
+    // Merge new statuses + fire audio chime when the LAST in-flight
+    // job in this snapshot just transitioned to a terminal state (done
+    // OR failed).  Functional setter so we can compare prev↔next in
+    // the same update.  The chime is opt-in (see lib/uploadChime.js).
+    setStatuses((prev) => {
+      const merged = { ...prev, ...next };
+      const anyJustFinished = snapshot.some((j) => {
+        const after = next[j.jobId]?.status;
+        const before = prev[j.jobId]?.status;
+        return (after === "done" || after === "failed") && before !== after;
+      });
+      const anyStillPending = snapshot.some((j) => {
+        const s = merged[j.jobId]?.status;
+        return !s || s === "queued" || s === "processing" || s === "unknown";
+      });
+      if (anyJustFinished && !anyStillPending) {
+        try { playUploadChime(); } catch { /* ignore */ }
+      }
+      return merged;
+    });
   }, []);
 
   // Foreground loop — snappy poll while the panel is open.
