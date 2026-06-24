@@ -7,6 +7,45 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-24 night (later) — Background jobs bell in Navbar ✅
+
+Power users dropping a folder of 100 books and switching tabs had no
+signal that the server was still chewing through their drop.  Now
+they do.
+
+### Frontend
+- **New** `lib/uploadJobs.js` — extracted the localStorage helpers
+  (`loadPendingJobs`, `trackPendingJob`, `untrackPendingJob`) from
+  `UploadZone` and added `subscribePendingJobs(cb)`.  Every mutation
+  fires a custom `shelfsort:uploadJobsChanged` event so multiple
+  components stay in sync without prop-drilling.
+- **New** `components/BackgroundJobsBell.jsx` — small upload icon
+  in the navbar that appears only when there are pending jobs.
+  Badge shows the active (queued + processing) count.  Click opens
+  a dropdown listing every in-flight job with live status
+  (Loader2 spinner / CheckCircle2 / XCircle), polled every 3s while
+  the panel is open.
+- Wired into `Navbar.jsx` right after `<NotificationsBell/>`,
+  gated on `user &&` so unauth visitors don't see it.
+- `UploadZone.jsx` now imports from the shared module instead of
+  defining its own helpers.
+
+### Behaviour
+- Bell hidden when no jobs (no visual clutter on 99% of pageviews).
+- Live polling only when the panel is open — closed = no requests.
+- 404 from a polled job (TTL'd / abandoned) auto-removes it from
+  localStorage so stale entries can't accumulate.
+- Per-file rows truncate long filenames and show a tooltip with
+  the full name.
+
+### Verified live
+- Dropped 3 synthetic job IDs into localStorage → bell appeared
+  with badge "3" → opened panel → 404 polling drained the list
+  back to zero → bell hid itself.
+- Submitted a real upload → bell appeared with "1" → panel showed
+  "live-status-test.epub · Processing…" with spinner (screenshot).
+
+---
 ## 2026-06-24 night — Resume-after-refresh for async uploads ✅
 
 Now that submit is decoupled from processing, a tab refresh

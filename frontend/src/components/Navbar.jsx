@@ -14,6 +14,7 @@ import NavbarQuickAdd from "./NavbarQuickAdd";
 import AppearancePopover from "./AppearancePopover";
 import MessagesDropdown from "./MessagesDropdown";
 import NotificationsBell from "./NotificationsBell";
+import BackgroundJobsBell from "./BackgroundJobsBell";
 import AccountDropdown from "./AccountDropdown";
 import DisplayName from "./DisplayName";
 import BookQuickSearch from "./BookQuickSearch";
@@ -269,6 +270,7 @@ export default function Navbar() {
             {user && FETCHING_UI_ENABLED && <UpdatesBell />}
           </div>
           {user && <NotificationsBell />}
+          {user && <BackgroundJobsBell />}
 
           {/* Unauthenticated visitor (footer link from /privacy, /terms,
               /help, etc.) — show a small Sign in CTA so the navbar isn't

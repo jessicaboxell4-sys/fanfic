@@ -2,6 +2,11 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { UploadCloud, Loader2, FolderUp } from "lucide-react";
 import { api } from "../lib/api";
 import { toast } from "sonner";
+import {
+  loadPendingJobs,
+  trackPendingJob,
+  untrackPendingJob,
+} from "../lib/uploadJobs";
 
 // Every format the backend accepts — .epub goes through the EPUB pipeline,
 // the rest land on the "Needs conversion" shelf with a Calibre nudge.
@@ -81,58 +86,10 @@ async function filesFromDataTransfer(dt) {
 }
 
 // ---- Persistent upload-job tracker --------------------------------------
-// Now that uploads are async (P0 2026-06-24), the bytes live on the server
-// and the SPA only polls for completion.  If a user closes the tab or
-// refreshes between submit and poll, the job keeps running server-side
-// but the user has no idea — they reload, see nothing, and think the
-// upload was lost.  We fix that by mirroring every in-flight job's ID
-// into localStorage; on mount, we walk the list, poll each one in the
-// background, and surface the results when they finish.
-//
-// Per-tab key (no user_id needed) because every user lands on a fresh
-// auth-protected page render anyway, and we cap the list to 50 entries
-// in case localStorage gets weird.  The backend already enforces
-// (job_id, user_id) isolation in the GET endpoint — cross-user leaks
-// are impossible.
-const RESUME_KEY = "shelfsort.pendingUploadJobs";
-const RESUME_MAX = 50;
-
-function loadPendingJobs() {
-  try {
-    const raw = localStorage.getItem(RESUME_KEY);
-    if (!raw) return [];
-    const arr = JSON.parse(raw);
-    return Array.isArray(arr) ? arr.slice(-RESUME_MAX) : [];
-  } catch {
-    return [];
-  }
-}
-
-function savePendingJobs(list) {
-  try {
-    localStorage.setItem(RESUME_KEY, JSON.stringify(list.slice(-RESUME_MAX)));
-  } catch {
-    /* localStorage full or unavailable — silently degrade */
-  }
-}
-
-function trackPendingJob(jobId, filename) {
-  if (!jobId) return;
-  const list = loadPendingJobs();
-  // De-dupe in case the same job is tracked twice.
-  if (list.some((j) => j.jobId === jobId)) return;
-  list.push({
-    jobId,
-    filename: filename || "(unknown)",
-    submittedAt: Date.now(),
-  });
-  savePendingJobs(list);
-}
-
-function untrackPendingJob(jobId) {
-  const list = loadPendingJobs().filter((j) => j.jobId !== jobId);
-  savePendingJobs(list);
-}
+// Helpers live in `lib/uploadJobs.js` so the Navbar's BackgroundJobsBell
+// can read the same in-flight list without duplicating the logic.  This
+// file just imports `trackPendingJob` / `untrackPendingJob` and uses
+// `loadPendingJobs` on mount for the resume-after-refresh flow.
 
 export default function UploadZone({ onUploaded, compact = false }) {
   const inputRef = useRef(null);
@@ -183,7 +140,11 @@ export default function UploadZone({ onUploaded, compact = false }) {
     // truly stuck or the backend's 24h TTL has wiped the job record.
     // Don't bug the user about ancient zombies.
     const fresh = initial.filter((j) => Date.now() - (j.submittedAt || 0) < 6 * 60 * 60 * 1000);
-    if (fresh.length !== initial.length) savePendingJobs(fresh);
+    // Trim stale entries via the shared helper.
+    if (fresh.length !== initial.length) {
+      const stale = initial.filter((j) => !fresh.includes(j));
+      stale.forEach((j) => untrackPendingJob(j.jobId));
+    }
     if (fresh.length === 0) return undefined;
 
     setResumingCount(fresh.length);
