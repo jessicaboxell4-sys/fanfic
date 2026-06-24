@@ -157,48 +157,31 @@ Core (1-4) — single endpoint + a card on `/changelog`.  Hold (b)
 inline credits for the next pass since they need an admin-side
 form change.
 
-## 💡 Reminder — "Listed!" confirmation toast on @handle save
+## 💡 Reminder — "Listed!" confirmation toast on @handle save — DONE 2026-06-25 ✅
 
-After a user picks/saves their `@handle` on Account → Profile, fire a
-tiny success toast: "Listed! You'll now appear in the public reader
-directory."  Closes the visual loop after the "Welcome to the
-directory → Pick a handle" CTA, answering the implicit "did that
-actually do anything?" question.  Tiny scope — hook into the existing
-profile-save success path in `pages/Account.jsx`.
+Shipped — see CHANGELOG entry "Listed!" confirmation toast.
+Core (1-3) + Edge (4-5) landed.  Follow-ups (7-9 below) preserved
+as a separate reminder for the next "Profile discovery polish" pass.
 
-### 🎯 Core (~10 LOC change)
-1. In the profile-save success path, check if `previous_username`
-   was empty/null AND new `username` is non-empty
-2. If yes, fire `toast.success("Listed in the reader directory!", {...})`
-   with description "Friends can now find you by your @handle."
-3. Include a "View directory" action button → routes to `/users`
+## 💡 Reminder — Profile discovery polish (follow-up to Listed! toast)
 
-### 🟡 Edge cases
-4. Don't fire if the user is renaming an existing handle (only
-   on initial set)
-5. Don't fire if `hidden_from_search === true` — instead show
-   "Saved.  You're hidden from the public directory."
-6. Don't fire if the save failed (current error handling already
-   covers this, just confirm)
+Pairing UX + nice-to-haves left over from the Listed! toast work:
 
 ### 🔵 Pairing UX
-7. **Mini empty-state on /users** — for the brand-new just-listed
-   user, the first time they view /users *after* the toast, scroll
-   them to their own row (or pre-highlight it for 2 s) so they see
-   the proof of listing
-8. **Profile completeness nudge** — extend the toast to mention any
-   other profile fields they could fill (bio, picture) to make their
-   directory presence richer.  Optional second-stage CTA.
+1. **Mini empty-state on /users** — for the brand-new just-listed
+   user, the first time they view /users *after* claiming a handle,
+   scroll them to their own row (or pre-highlight it for 2 s) so
+   they see the proof of listing
+2. **Profile completeness nudge** — extend the Listed! toast (or
+   add a follow-up toast) to mention other profile fields they
+   could fill (bio, picture) to make their directory presence
+   richer.  Optional second-stage CTA.
 
 ### 🟣 Nice-to-have
-9. **Email confirmation** — fire a one-time "Welcome to the
+3. **Email confirmation** — fire a one-time "Welcome to the
    directory" email (if they have notifications on) so the
    visibility shift is documented.  May be overkill for a public
-   handle change.
-
-### Recommended scope to ship
-Core (1-3) + Edge (4-5).  Hold the rest for a follow-up "Profile
-discovery polish" pass.
+   handle change — gauge demand first.
 
 ## 💡 Reminder — "Welcome to the directory" onboarding toast — DONE 2026-06-25 ✅
 

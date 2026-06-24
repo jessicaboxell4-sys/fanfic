@@ -7,6 +7,36 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-25 (night) — "Listed!" confirmation toast on @handle save ✅
+
+Closes the loop from the directory welcome toast — when the user
+clicks "Pick a handle" on the welcome toast and lands on Account
+→ Public handle, saving their first @handle now confirms the
+listing happened.
+
+### `pages/Account.jsx::saveUsername`
+Three-branch confirmation toast:
+- **First-time claim + visible** (`hidden_from_search === false`):
+  "Listed in the reader directory!" with description "Friends can
+  now find you by @handle." + "View directory" action button →
+  `/users`.
+- **First-time claim + hidden** (`hidden_from_search === true`):
+  "Handle saved." with description nudging them to flip the
+  visibility toggle if they want to be discoverable.
+- **Rename of existing handle**: neutral "Username changed" toast
+  (no directory mention — they already know how it works).
+
+Privacy lives in a sibling component, so we inline-fetch
+`/account/privacy` on the save path (one extra GET, only on the
+rare claim action — cheap).
+
+### Verification
+- Screenshot end-to-end on fresh user.  Toast renders with the
+  correct copy + working "View directory" action.  Current handle
+  reflects `@listed35306` below.
+- Lint clean (no new errors).
+
+---
 ## 2026-06-25 (late) — Regression-smoke pytest marker + CI hook ✅
 
 Promoted iteration-37's refactor-regression file into a permanent

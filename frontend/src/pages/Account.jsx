@@ -1438,7 +1438,44 @@ export default function Account() {
       setUser((u) => (u ? { ...u, username: data.username, previous_username: data.previous_username } : u));
       setUsernameInput("");
       setUsernameStatus({ ok: null, reason: null });
-      toast.success(profile?.username ? "Username changed" : "Username claimed");
+      // Three-branch confirmation toast:
+      //  - First-time claim + visible in directory → "Listed!" with a
+      //    "View directory" action so the user can immediately see
+      //    proof their handle is live.
+      //  - First-time claim + hidden_from_search → confirm save but
+      //    explicitly call out that the directory is opted-out so
+      //    they aren't confused why they don't appear.
+      //  - Rename of an existing handle → keep the neutral "Username
+      //    changed" toast (no directory mention).
+      //
+      // Privacy lives in a different component (PrivacyCard), so we
+      // fetch the current value inline.  Single extra GET, only on
+      // the save path — cheap.
+      const isFirstClaim = !profile?.username;
+      if (isFirstClaim) {
+        let hidden = false;
+        try {
+          const { data: priv } = await api.get("/account/privacy");
+          hidden = !!priv?.hidden_from_search;
+        } catch { /* assume visible on fetch failure */ }
+        if (!hidden) {
+          toast.success("Listed in the reader directory!", {
+            description: `Friends can now find you by @${data.username}.`,
+            duration: 8000,
+            action: {
+              label: "View directory",
+              onClick: () => navigate("/users"),
+            },
+          });
+        } else {
+          toast.success("Handle saved.", {
+            description: "You're hidden from the public directory — turn that off in Privacy to be discoverable.",
+            duration: 8000,
+          });
+        }
+      } else {
+        toast.success("Username changed");
+      }
     } catch (err) {
       toast.error(errMsg(err?.response?.data?.detail));
     } finally { setSavingUsername(false); }
