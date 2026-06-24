@@ -61,6 +61,21 @@ of P2 polish items that kept coming up in feedback.
   Playwright; the wiring itself is correct (drawer link verified
   end-to-end).
 
+### Follow-up: one-shot "Welcome to the directory" toast (same day)
+- `pages/UsersDirectory.jsx` — added a `useEffect` that fires once
+  per device (localStorage flag `shelfsort.directoryWelcomeShown.v1`)
+  the first time a logged-in user lands on `/users`.  Two variants:
+  - **No `@handle` yet** → 12s toast "Claim your @handle so friends
+    can find you" with a "Pick a handle" action button that routes
+    to `/account#profile`.  Closes the loop on the dormant-account
+    discoverability gap (directory excludes `username=null` rows).
+  - **Has `@handle`** → 6s success toast "Welcome — you're listed
+    here as @handle.  Filter above to find friends, or send a
+    request to any handle below."
+- Reads `user.username` from `useAuth()` so the branching is correct
+  against fresh truth (`/auth/me`).  Verified end-to-end via
+  screenshot — new-user toast renders with the CTA button.
+
 ---
 
 

@@ -1,9 +1,19 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { ArrowLeft, Search, UserPlus, Loader2, Check, Clock, Users as UsersIcon, ShieldOff, AtSign } from "lucide-react";
 import Navbar from "../components/Navbar";
 import { api } from "../lib/api";
+import { useAuth } from "../context/AuthContext";
+
+// One-shot welcome toast (per device) shown the first time a user
+// lands on /users.  Two variants depending on whether they've already
+// claimed a @handle:
+//   - No username   → CTA to claim one (otherwise they're invisible
+//                     to other users, since the directory only lists
+//                     accounts WITH a username).
+//   - Has username  → light confirmation that they're listed.
+const WELCOME_FLAG = "shelfsort.directoryWelcomeShown.v1";
 
 // Public-ish user directory at /users.
 //
@@ -44,6 +54,8 @@ function RelationCta({ row, busy, onSend }) {
 }
 
 export default function UsersDirectory() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [rows, setRows] = useState([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -52,6 +64,33 @@ export default function UsersDirectory() {
   const [filter, setFilter] = useState("");
   const [busy, setBusy] = useState(null);
   const [sentTo, setSentTo] = useState(() => new Set());
+
+  // One-shot welcome — fires once per device, gated on user being
+  // loaded so the @handle branch is decided against fresh truth.
+  useEffect(() => {
+    if (!user) return;
+    let shown = false;
+    try { shown = localStorage.getItem(WELCOME_FLAG) === "1"; } catch { /* ignore */ }
+    if (shown) return;
+    try { localStorage.setItem(WELCOME_FLAG, "1"); } catch { /* ignore */ }
+
+    const handle = (user.username || "").trim();
+    if (handle) {
+      toast.success(`Welcome — you're listed here as @${handle}.`, {
+        description: "Filter above to find friends, or send a request to any handle below.",
+        duration: 6000,
+      });
+    } else {
+      toast("Claim your @handle so friends can find you.", {
+        description: "Accounts without a username don't appear in this directory.",
+        duration: 12000,
+        action: {
+          label: "Pick a handle",
+          onClick: () => navigate("/account#profile"),
+        },
+      });
+    }
+  }, [user, navigate]);
 
   const load = async (p) => {
     setLoading(true);

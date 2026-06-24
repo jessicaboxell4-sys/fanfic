@@ -3,15 +3,9 @@
 > Active backlog. Items move to [CHANGELOG.md](./CHANGELOG.md) when shipped.
 
 
-## 💡 Reminder — "Welcome to the directory" onboarding toast
+## 💡 Reminder — "Welcome to the directory" onboarding toast — DONE 2026-06-25 ✅
 
-One-shot toast that auto-fires the first time a user lands on `/users`
-via the DirectoryNudge.  If they don't yet have a `@username` set,
-nudge them to claim a memorable handle (users without usernames are
-silently skipped from the directory, so they're effectively invisible
-until they do).  Goal: convert dormant accounts into discoverable
-readers.  Tiny scope — one toast component + localStorage flag
-+ a "Claim your @handle" CTA linking to Account → Profile.
+Shipped — see CHANGELOG `2026-06-25 (afternoon)` extension entry.
 
 ## ✅ Just shipped (2026-06-24/25)
 
