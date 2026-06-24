@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { Loader2, UploadCloud, CheckCircle2, XCircle, X, Sparkles } from "lucide-react";
+import { Loader2, UploadCloud, CheckCircle2, XCircle, X, Sparkles, ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { api } from "../lib/api";
@@ -10,68 +10,61 @@ import {
 } from "../lib/uploadJobs";
 import { markBookFresh } from "../lib/freshArrivals";
 
-// Navbar dropdown that surfaces in-flight async uploads — the same list
-// the resume-after-refresh effect re-attaches to on mount.  Users who
-// drop a folder of 100 books and switch tabs would otherwise have no
-// signal that the backend is still chewing through their drop.  Now
-// they do.
+// Navbar dropdown that surfaces in-flight async uploads.
 //
-// Renders nothing when there are no pending jobs (no visual clutter on
-// 99% of pageviews).  When jobs exist, the bell shows a count badge
-// and a panel with per-job status.  Beyond the basic display, this
-// component also:
+// Layout (new, 2026-06-24):
+//   ┌─ Books arriving ─────────────┐
+//   │ The Hobbit             ✓     │   ← main panel — compact rows,
+//   │ HP and the Sorc… ✓     ◄     │     just title + status icon.
+//   │ Three Men in a Boat   ⏳     │     Hovered row is highlighted.
+//   ├──────────────────────────────┤
+//   │ ✨ View all 3 new books →    │
+//   │ Tucked in — close anytime.   │
+//   └──────────────────────────────┘
 //
-//   a) fires a cross-page completion toast whenever a job transitions
-//      to "done" — so a user who started an upload on /library/all
-//      then navigated to /account still sees "📚 N books just
-//      finished uploading" wherever they are;
-//   b) reflects the active count in document.title — "(3) Shelfsort"
-//      — so users who tabbed away to another browser tab notice the
-//      progress changing in their tab list;
-//   c) makes finished rows clickable — click a completed job to land
-//      on the new book's detail page;
-//   d) auto-removes "done" entries after 30s so the list stays focused
-//      on what's still running (failures stick around — the user
-//      needs to act on them).
+//   ┌──────── (flyout) ────────┐    ← opens to the LEFT of the main
+//   │  [Cover thumb 96×128]    │      panel when the user hovers (or
+//   │  HP and the Sorcerer's   │      taps, on touch) any row.  Shows
+//   │  J.K. Rowling            │      the full picture: cover, title,
+//   │  📚 Harry Potter          │      author, fandom chip, cozy
+//   │  ✨ Found its spot.       │      success message, and a big
+//   │  [ Open it → ]           │      "Open it →" CTA.
+//   └──────────────────────────┘
+//
+// Tone is the "cozy literary" option from the 2026-06-24 review —
+// matches the rest of Shelfsort's voice (dropzone copy, "Surprise me",
+// "Books I haven't read") instead of the previous mechanical phrasing.
 
 const POLL_INTERVAL_MS = 3000;
 const AUTOCLEAR_DELAY_MS = 30000;
-
-// Foreground tracking: how often do we poll even when the panel is
-// CLOSED?  We need a slower background poll so the completion toast +
-// document.title fires for users who never open the dropdown.  10s is
-// gentle enough not to hammer the API while still feeling responsive.
 const BACKGROUND_POLL_MS = 10000;
 
 export default function BackgroundJobsBell() {
   const [jobs, setJobs] = useState(() => loadPendingJobs());
   const [open, setOpen] = useState(false);
   // {jobId: {status, error, response}} — `response` is captured so
-  // we can navigate to the resulting book on click.
+  // we can navigate to the resulting book on click + render the
+  // flyout card.
   const [statuses, setStatuses] = useState({});
+  // Which row's flyout is showing.  null = no flyout.  Lives at this
+  // component level (not row-level state) so only one flyout is
+  // visible at a time, even when the mouse glides over multiple rows.
+  const [hoveredJobId, setHoveredJobId] = useState(null);
   const popoverRef = useRef(null);
 
   // Set of jobIds we've already fired a completion toast for, so a
   // single completion doesn't spam the user on every subsequent poll.
   const toastedRef = useRef(new Set());
-  // Set of jobIds we've scheduled for auto-removal — avoids stacking
-  // multiple setTimeouts on the same finished job across polls.
   const autoClearRef = useRef(new Map());
 
-  // Keep `jobs` in sync with the localStorage list.  Fires on the
-  // shelfsort:uploadJobsChanged event (same-tab) and the storage event
-  // (cross-tab).
+  // Keep `jobs` in sync with the localStorage list.
   useEffect(() => {
     const unsub = subscribePendingJobs(setJobs);
     return unsub;
   }, []);
 
-  // Single poll function — shared between the foreground (panel open,
-  // every 3s) and background (panel closed, every 10s) loops.  Pulls
-  // status for every tracked job and side-effects:
-  //   - new "done"   → toast + capture book payload + auto-clear timer
-  //   - new "failed" → toast (NOT auto-cleared; user needs to act)
-  //   - 404          → drop from localStorage silently (TTL'd)
+  // Single poll function — shared between foreground (panel open, 3s)
+  // and background (panel closed, 10s) loops.
   const pollAll = useCallback(async (snapshot) => {
     if (snapshot.length === 0) return;
     const next = {};
@@ -83,34 +76,29 @@ export default function BackgroundJobsBell() {
           error: data.error || null,
           response: data.response || null,
         };
-        // First-time transition handling.
         if (data.status === "done" && !toastedRef.current.has(j.jobId)) {
           toastedRef.current.add(j.jobId);
           const books = (data.response?.books) || [];
           const firstBook = books.find((b) => !b.failed) || null;
-          // Mark every successfully-added book as "fresh" so the
-          // library-grid pulse animation fires on whatever page the
-          // user navigates to next (or is currently on).
           books.forEach((b) => {
             if (b?.book_id && !b.failed) markBookFresh(b.book_id);
           });
+          // Cozy-literary completion toast — matches the rest of
+          // Shelfsort's voice instead of "📚 X just finished".
           toast.success(
             books.length > 1
-              ? `📚 ${books.length} books just finished uploading`
-              : `📚 ${firstBook?.title || j.filename || "Upload"} just finished`,
+              ? `📚 ${books.length} new books found their spots`
+              : `📚 ${firstBook?.title || j.filename || "A new book"} found its spot`,
             {
               duration: 7000,
               action: firstBook?.book_id ? {
-                label: "Open",
+                label: "Open it",
                 onClick: () => {
                   window.location.href = `/book/${firstBook.book_id}`;
                 },
               } : undefined,
             },
           );
-          // Schedule auto-clear from the panel after 30s.  Stash the
-          // timer ID so the cleanup effect can cancel it if the
-          // component unmounts.
           if (!autoClearRef.current.has(j.jobId)) {
             const tid = setTimeout(() => {
               untrackPendingJob(j.jobId);
@@ -121,15 +109,13 @@ export default function BackgroundJobsBell() {
         } else if (data.status === "failed" && !toastedRef.current.has(j.jobId)) {
           toastedRef.current.add(j.jobId);
           toast.error(
-            `Upload failed: ${j.filename}`,
+            `Couldn't sort ${j.filename}`,
             { duration: 9000, description: data.error || undefined },
           );
         }
       } catch (e) {
         const s = e?.response?.status;
         if (s === 404) {
-          // Backend forgot the job (TTL) — drop locally and don't
-          // bother the user.
           untrackPendingJob(j.jobId);
         } else {
           next[j.jobId] = { status: "unknown", error: null, response: null };
@@ -139,9 +125,7 @@ export default function BackgroundJobsBell() {
     setStatuses((prev) => ({ ...prev, ...next }));
   }, []);
 
-  // Foreground loop: while panel is open, poll fast for snappy live
-  // status.  Closed = no foreground polling; the background loop below
-  // covers it at a gentler rate.
+  // Foreground loop — snappy poll while the panel is open.
   useEffect(() => {
     if (!open || jobs.length === 0) return undefined;
     pollAll(jobs);
@@ -149,21 +133,16 @@ export default function BackgroundJobsBell() {
     return () => clearInterval(id);
   }, [open, jobs, pollAll]);
 
-  // Background loop: ALWAYS running while there are tracked jobs,
-  // regardless of panel state.  This is what makes (a) and (b) work
-  // when the user is on a different page or has the bell closed —
-  // we still need to fire the completion toast and update the tab
-  // title even if they never open the dropdown.
+  // Background loop — gentle poll regardless of panel state, so
+  // completion toast + tab title still update when the bell is closed.
   useEffect(() => {
     if (jobs.length === 0) return undefined;
     const id = setInterval(() => pollAll(jobs), BACKGROUND_POLL_MS);
     return () => clearInterval(id);
   }, [jobs, pollAll]);
 
-  // (b) Document title indicator.  Reflects the number of jobs still
-  // queued or processing into the browser tab title so users who
-  // tabbed away notice activity in the tab list.  Restores the
-  // original title when the active count returns to zero / on unmount.
+  // Document title indicator — prefixes "📚 (N)" while jobs are active.
+  // Strips on cleanup so the prefix doesn't bleed into other routes.
   useEffect(() => {
     const activeCount = jobs.filter((j) => {
       const s = statuses[j.jobId]?.status;
@@ -171,19 +150,14 @@ export default function BackgroundJobsBell() {
     }).length;
     if (activeCount === 0) return undefined;
     const previous = document.title;
-    // Strip any existing "(N) " prefix from a prior render so we don't
-    // stack them.
-    const stripped = previous.replace(/^\(\d+\)\s*/, "");
-    document.title = `(${activeCount}) ${stripped}`;
+    const stripped = previous.replace(/^📚\s*\(\d+\)\s*/, "");
+    document.title = `📚 (${activeCount}) ${stripped}`;
     return () => {
-      // Re-strip on cleanup in case another effect updated the title
-      // in the meantime.
-      document.title = document.title.replace(/^\(\d+\)\s*/, "");
+      document.title = document.title.replace(/^📚\s*\(\d+\)\s*/, "");
     };
   }, [jobs, statuses]);
 
-  // Cleanup auto-clear timers on unmount so they don't fire after the
-  // user logged out / navigated away.
+  // Cancel auto-clear timers on unmount.
   useEffect(() => {
     const timers = autoClearRef.current;
     return () => {
@@ -192,11 +166,14 @@ export default function BackgroundJobsBell() {
     };
   }, []);
 
-  // Close the popover on outside-click.
+  // Close popover on outside-click.
   useEffect(() => {
     if (!open) return undefined;
     const onDown = (e) => {
-      if (popoverRef.current && !popoverRef.current.contains(e.target)) setOpen(false);
+      if (popoverRef.current && !popoverRef.current.contains(e.target)) {
+        setOpen(false);
+        setHoveredJobId(null);
+      }
     };
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
@@ -204,33 +181,36 @@ export default function BackgroundJobsBell() {
 
   if (jobs.length === 0) return null;
 
-  // Active = anything that isn't done/failed.  The badge shows this
-  // count because users only care about what's still in flight.
   const activeCount = jobs.filter((j) => {
     const s = statuses[j.jobId]?.status;
     return !s || s === "queued" || s === "processing" || s === "unknown";
   }).length;
 
-  // (a) Cluster of all successfully-added book IDs from the jobs
-  // currently in the panel.  Used to drive the "View all N new books"
-  // footer link — only shown when ≥ 2 books finished so the link
-  // surfaces a real grid, not a single-book navigation duplicate of
-  // the per-row "Tap to open" links above it.
   const justAddedIds = jobs.flatMap((j) => {
     const books = (statuses[j.jobId]?.response?.books) || [];
     return books.filter((b) => !b.failed && b.book_id).map((b) => b.book_id);
   });
 
+  // Resolve the hovered job's flyout content.  Renders a different
+  // card depending on status (active → "Sorting…", done → full card,
+  // failed → error card).
+  const hoveredJob = hoveredJobId ? jobs.find((j) => j.jobId === hoveredJobId) : null;
+  const hoveredStatus = hoveredJobId ? statuses[hoveredJobId] || {} : {};
+  const hoveredBook = hoveredJob ? ((hoveredStatus.response?.books) || []).find((b) => !b.failed) : null;
+
   return (
     <div className="relative" ref={popoverRef}>
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          setOpen((v) => !v);
+          setHoveredJobId(null);
+        }}
         data-testid="navbar-bgjobs-toggle"
         className="p-2 hover:bg-[#F5F3EC] rounded-lg relative"
-        title={`${jobs.length} background upload${jobs.length === 1 ? "" : "s"}`}
+        title={`${jobs.length} book${jobs.length === 1 ? "" : "s"} arriving`}
         aria-expanded={open}
-        aria-label={`${jobs.length} background uploads`}
+        aria-label={`${jobs.length} books arriving`}
       >
         <UploadCloud className="w-4 h-4 text-[#6B705C]" />
         {activeCount > 0 && (
@@ -242,97 +222,66 @@ export default function BackgroundJobsBell() {
           </span>
         )}
       </button>
+
       {open && (
-        <div
-          data-testid="navbar-bgjobs-panel"
-          className="absolute right-0 top-full mt-2 w-80 max-h-[60vh] overflow-y-auto bg-white rounded-xl shadow-lg border border-[#E8E6E1] z-50"
-        >
-          <div className="px-4 py-2.5 border-b border-[#E8E6E1] flex items-center justify-between">
-            <span className="font-serif text-sm font-medium text-[#2C2C2C]">
-              Background uploads
-            </span>
-            <span className="text-[10px] uppercase tracking-[0.18em] text-[#6B705C]">
-              {jobs.length} total
-            </span>
-          </div>
-          <ul className="divide-y divide-[#F0EDE5]">
-            {jobs.map((j) => {
-              const st = statuses[j.jobId] || {};
-              const status = st.status || "queued";
-              const isDone = status === "done";
-              const isFailed = status === "failed";
-              const isActive = !isDone && !isFailed;
-              // (c) — when done, the first successful book in the
-              // response payload gives us a book_id we can navigate
-              // to.  Fall back to filename label when not present
-              // (e.g. fanfic URL list responses).
-              const books = (st.response?.books) || [];
-              const firstBook = books.find((b) => !b.failed) || null;
-              const goHref = isDone && firstBook?.book_id
-                ? `/book/${firstBook.book_id}`
-                : null;
-              const RowWrap = goHref ? Link : "div";
-              const wrapProps = goHref
-                ? { to: goHref, onClick: () => setOpen(false) }
-                : {};
-              return (
-                <li
-                  key={j.jobId}
-                  data-testid={`bgjobs-row-${j.jobId}`}
-                  className={`relative ${isDone ? "hover:bg-[#FAF6EE]" : ""}`}
-                >
-                  <RowWrap
-                    {...wrapProps}
-                    className="block px-4 py-2.5 flex items-center gap-2.5"
-                  >
-                    {/* (b) Cover thumbnail for completed jobs — turns
-                        the panel from a text status list into a small
-                        "what just got sorted" preview gallery. */}
-                    {isDone && firstBook?.book_id && firstBook?.has_cover ? (
-                      <img
-                        src={`${process.env.REACT_APP_BACKEND_URL}/api/books/${firstBook.book_id}/cover`}
-                        alt=""
-                        className="shrink-0 w-9 h-12 object-cover rounded border border-[#E8E6E1]"
-                        onError={(e) => { e.currentTarget.style.display = "none"; }}
-                      />
-                    ) : (
-                      <div className="shrink-0">
-                        {isDone && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
-                        {isFailed && <XCircle className="w-4 h-4 text-red-500" />}
-                        {isActive && <Loader2 className="w-4 h-4 text-[#E07A5F] animate-spin" />}
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-[#2C2C2C] truncate" title={j.filename}>
-                        {isDone && firstBook?.title ? firstBook.title : j.filename}
-                      </p>
-                      {/* (b) Fandom / category chip on completed rows
-                          so users see WHERE their book just landed at
-                          a glance — captures the moment of automatic
-                          classification. */}
-                      {isDone && firstBook && (firstBook.fandom || firstBook.category) && (
-                        <p className="text-[10px] mt-0.5">
-                          <span className="inline-block px-1.5 py-0.5 rounded bg-[#FDF3E1] text-[#8C5C00] font-semibold">
-                            {firstBook.fandom || firstBook.category}
-                          </span>
-                          {goHref && (
-                            <span className="text-xs text-[#6B705C] ml-1.5">Tap to open →</span>
-                          )}
-                        </p>
-                      )}
-                      {!isDone && (
-                        <p className="text-xs text-[#6B705C]">
-                          {isFailed && (st.error ? `Failed — ${st.error}` : "Failed")}
-                          {status === "queued" && "Queued"}
-                          {status === "processing" && "Processing…"}
-                          {status === "unknown" && "Checking…"}
-                        </p>
-                      )}
+        <>
+          {/* Flyout — anchored to the LEFT of the main panel.  Renders
+              before the main panel in the DOM so right-edge users see
+              it slide in towards them (cozy, not aggressive). */}
+          {hoveredJob && (
+            <div
+              data-testid="bgjobs-flyout"
+              className="absolute right-[336px] top-full mt-2 w-72 bg-white rounded-xl shadow-xl border border-[#E8E6E1] z-50 overflow-hidden pointer-events-none animate-fade-in"
+              style={{ animation: "bgjobs-flyout-in 140ms ease-out" }}
+            >
+              <FlyoutCard
+                job={hoveredJob}
+                status={hoveredStatus.status}
+                error={hoveredStatus.error}
+                book={hoveredBook}
+              />
+            </div>
+          )}
+
+          {/* Main bell panel. */}
+          <div
+            data-testid="navbar-bgjobs-panel"
+            className="absolute right-0 top-full mt-2 w-80 max-h-[60vh] overflow-y-auto bg-white rounded-xl shadow-lg border border-[#E8E6E1] z-50"
+            onMouseLeave={() => setHoveredJobId(null)}
+          >
+            <div className="px-4 py-2.5 border-b border-[#E8E6E1] flex items-center justify-between">
+              <span className="font-serif text-sm font-medium text-[#2C2C2C]">
+                Books arriving
+              </span>
+              <span className="text-[10px] uppercase tracking-[0.18em] text-[#6B705C]">
+                {jobs.length} {jobs.length === 1 ? "book" : "books"}
+              </span>
+            </div>
+            <ul className="divide-y divide-[#F0EDE5]">
+              {jobs.map((j) => {
+                const st = statuses[j.jobId] || {};
+                const status = st.status || "queued";
+                const isDone = status === "done";
+                const isFailed = status === "failed";
+                const isActive = !isDone && !isFailed;
+                const books = (st.response?.books) || [];
+                const firstBook = books.find((b) => !b.failed) || null;
+                const goHref = isDone && firstBook?.book_id ? `/book/${firstBook.book_id}` : null;
+                const isHovered = hoveredJobId === j.jobId;
+                const displayTitle = (isDone && firstBook?.title) || j.filename;
+
+                const RowInner = (
+                  <div className="px-4 py-2.5 flex items-center gap-2.5">
+                    <div className="shrink-0">
+                      {isDone && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
+                      {isFailed && <XCircle className="w-4 h-4 text-red-500" />}
+                      {isActive && <Loader2 className="w-4 h-4 text-[#E07A5F] animate-spin" />}
                     </div>
-                    {/* Manual dismiss for failed rows — they don't
-                        auto-clear so the user can still see why,
-                        but a one-click X removes them once
-                        acknowledged. */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-[#2C2C2C] truncate" title={displayTitle}>
+                        {displayTitle}
+                      </p>
+                    </div>
                     {isFailed && (
                       <button
                         type="button"
@@ -349,30 +298,164 @@ export default function BackgroundJobsBell() {
                         <X className="w-3.5 h-3.5" />
                       </button>
                     )}
-                  </RowWrap>
-                </li>
-              );
-            })}
-          </ul>
-          {/* (a) — "View all N new books" CTA — only when ≥ 2 books
-              just finished, so it's a meaningful jump (not a duplicate
-              of the per-row "Tap to open" links above). */}
-          {justAddedIds.length >= 2 && (
-            <Link
-              to={`/library/all?just_added=${justAddedIds.join(",")}`}
-              onClick={() => setOpen(false)}
-              data-testid="bgjobs-view-all"
-              className="block px-4 py-2.5 border-t border-[#E8E6E1] bg-[#FDF3E1] hover:bg-[#FBE8C8] text-[#8C5C00] text-sm font-medium flex items-center gap-2"
-            >
-              <Sparkles className="w-4 h-4" />
-              View all {justAddedIds.length} new book{justAddedIds.length === 1 ? "" : "s"} →
-            </Link>
-          )}
-          <div className="px-4 py-2 text-[11px] text-[#6B705C] border-t border-[#E8E6E1]">
-            Uploads keep running in the background — feel free to close the tab.
+                  </div>
+                );
+
+                const rowProps = {
+                  "data-testid": `bgjobs-row-${j.jobId}`,
+                  onMouseEnter: () => setHoveredJobId(j.jobId),
+                  onFocus: () => setHoveredJobId(j.jobId),
+                  // Touch support — tap a row to toggle the flyout.
+                  // Same row again closes it.
+                  onClick: goHref ? undefined : (e) => {
+                    e.preventDefault();
+                    setHoveredJobId((cur) => (cur === j.jobId ? null : j.jobId));
+                  },
+                  className: `block cursor-pointer transition-colors ${
+                    isHovered ? "bg-[#FAF6EE]" : "hover:bg-[#FAF6EE]"
+                  }`,
+                };
+
+                return (
+                  <li key={j.jobId}>
+                    {goHref ? (
+                      <Link
+                        to={goHref}
+                        onClick={() => { setOpen(false); setHoveredJobId(null); }}
+                        {...rowProps}
+                      >
+                        {RowInner}
+                      </Link>
+                    ) : (
+                      <div {...rowProps} role="button" tabIndex={0}>{RowInner}</div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+
+            {justAddedIds.length >= 2 && (
+              <Link
+                to={`/library/all?just_added=${justAddedIds.join(",")}`}
+                onClick={() => { setOpen(false); setHoveredJobId(null); }}
+                data-testid="bgjobs-view-all"
+                className="block px-4 py-2.5 border-t border-[#E8E6E1] bg-[#FDF3E1] hover:bg-[#FBE8C8] text-[#8C5C00] text-sm font-medium flex items-center gap-2"
+              >
+                <Sparkles className="w-4 h-4" />
+                View all {justAddedIds.length} new book{justAddedIds.length === 1 ? "" : "s"} →
+              </Link>
+            )}
+
+            <div className="px-4 py-2 text-[11px] text-[#6B705C] border-t border-[#E8E6E1]">
+              Tucked in — feel free to close the tab, we&rsquo;ll keep tidying.
+            </div>
           </div>
-        </div>
+        </>
       )}
+    </div>
+  );
+}
+
+// Right-hand rich card the flyout renders.  Three flavours: active
+// (still sorting), done (full picture), failed (apologetic explainer).
+function FlyoutCard({ job, status, error, book }) {
+  if (status === "failed") {
+    return (
+      <div className="p-4">
+        <div className="flex items-center gap-2 mb-2">
+          <XCircle className="w-4 h-4 text-red-500" />
+          <h4 className="font-serif text-sm text-[#2C2C2C]">Couldn&rsquo;t sort this one</h4>
+        </div>
+        <p className="text-sm text-[#6B705C] mb-1 truncate" title={job.filename}>{job.filename}</p>
+        {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
+        <p className="text-xs text-[#6B705C] mt-3">
+          You can dismiss it from the list and try uploading again.
+        </p>
+      </div>
+    );
+  }
+
+  if (status !== "done" || !book) {
+    return (
+      <div className="p-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Loader2 className="w-4 h-4 text-[#E07A5F] animate-spin" />
+          <h4 className="font-serif text-sm text-[#2C2C2C]">Finding a shelf…</h4>
+        </div>
+        <p className="text-sm text-[#6B705C] truncate" title={job.filename}>{job.filename}</p>
+        <p className="text-xs text-[#6B705C] mt-3 italic">
+          {status === "queued" && "Lining up — your turn next."}
+          {status === "processing" && "Sorting metadata and finding the right shelf."}
+          {(!status || status === "unknown") && "Checking on it…"}
+        </p>
+      </div>
+    );
+  }
+
+  const hasCover = Boolean(book.has_cover && book.book_id);
+  const coverUrl = hasCover
+    ? `${process.env.REACT_APP_BACKEND_URL}/api/books/${book.book_id}/cover`
+    : null;
+
+  return (
+    <div className="pointer-events-auto">
+      {/* Top: cover + headline */}
+      <div className="flex gap-3 p-4 bg-[#FAF6EE]">
+        {coverUrl ? (
+          <img
+            src={coverUrl}
+            alt=""
+            className="shrink-0 w-20 h-28 object-cover rounded-md shadow-md border border-[#E8E6E1]"
+            onError={(e) => { e.currentTarget.style.display = "none"; }}
+          />
+        ) : (
+          <div className="shrink-0 w-20 h-28 rounded-md bg-[#E8E6E1] flex items-center justify-center text-[#6B705C] text-2xl shadow-md">
+            📕
+          </div>
+        )}
+        <div className="flex-1 min-w-0 flex flex-col">
+          <h4
+            className="font-serif text-sm font-medium text-[#2C2C2C] leading-snug line-clamp-3"
+            title={book.title}
+          >
+            {book.title || job.filename}
+          </h4>
+          {book.author && (
+            <p className="text-xs text-[#6B705C] mt-1 truncate" title={book.author}>
+              {book.author}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Middle: chips + cozy success message */}
+      <div className="px-4 pt-3 pb-2 space-y-2">
+        <div className="flex flex-wrap gap-1.5">
+          {book.fandom && (
+            <span className="text-[11px] px-2 py-0.5 rounded-full bg-[#FDF3E1] text-[#8C5C00] font-medium">
+              📚 {book.fandom}
+            </span>
+          )}
+          {book.category && book.category !== book.fandom && (
+            <span className="text-[11px] px-2 py-0.5 rounded-full bg-[#EAE4D6] text-[#6B5436]">
+              {book.category}
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-[#6B705C] italic">
+          ✨ Found its spot — settled onto your shelf.
+        </p>
+      </div>
+
+      {/* Bottom: open CTA */}
+      <Link
+        to={`/book/${book.book_id}`}
+        data-testid={`bgjobs-flyout-open-${book.book_id}`}
+        className="block mx-4 mb-4 mt-1 px-3 py-2 rounded-lg bg-[#E07A5F] hover:bg-[#d06a4f] text-white text-sm font-medium text-center inline-flex items-center justify-center gap-1.5"
+      >
+        Open it
+        <ArrowRight className="w-4 h-4" />
+      </Link>
     </div>
   );
 }

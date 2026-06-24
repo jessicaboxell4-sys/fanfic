@@ -117,6 +117,19 @@
     }
 }
 
+/* BackgroundJobsBell flyout — slides in from the right edge of its
+   anchor (so it appears to peel away from the row the user is
+   hovering, rather than popping in abruptly). */
+@keyframes bgjobs-flyout-in {
+    0%   { opacity: 0; transform: translateX(8px); }
+    100% { opacity: 1; transform: translateX(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+    [data-testid="bgjobs-flyout"] {
+        animation: none !important;
+    }
+}
+
 .btn-primary {
     background: var(--primary);
     color: #fff;

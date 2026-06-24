@@ -7,6 +7,53 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-24 night (extra) — Friendlier bell with flyout cards ✅
+
+Replaced the cramped per-row layout in the BackgroundJobsBell with
+a cleaner *list + flyout* pattern (like a nested nav menu).  Tone
+across the whole component rewritten to the "cozy literary" voice
+the rest of Shelfsort uses.
+
+### Layout
+- **Main panel** (right-anchored): compact rows with just the title
+  and a status icon (✓ / spinner / ✗).  Hovered row gets a cream
+  highlight.  Footer: *"Tucked in — feel free to close the tab,
+  we'll keep tidying."*
+- **Flyout** (anchored to the LEFT of the main panel, opens on
+  hover or tap): rich card with the book's cover, title, author,
+  fandom + category chips, a cozy success line *"✨ Found its spot
+  — settled onto your shelf."*, and a coral *"Open it →"* CTA.
+- Three flyout flavours: **active** ("Finding a shelf…", "Lining
+  up — your turn next.", "Sorting metadata and finding the right
+  shelf."), **done** (full card), and **failed** (apologetic
+  *"Couldn't sort this one"* with the error + a hint to dismiss
+  and retry).
+- Touch support: tap a row to toggle the flyout; same row again
+  closes it.  `onMouseLeave` on the panel resets the hovered state.
+- New keyframe `bgjobs-flyout-in` in `index.css` for a 140 ms
+  fade + slide.  Respects `prefers-reduced-motion`.
+
+### Tone rewrite
+- Bell header: "Background uploads" → "Books arriving"
+- Footer: "Uploads keep running in the background — feel free…"
+  → "Tucked in — feel free to close the tab, we'll keep tidying."
+- Completion toast: "📚 X just finished" → **"📚 Title found its
+  spot"** (single) / **"📚 N new books found their spots"** (batch).
+- Failure toast: "Upload failed: filename" → **"Couldn't sort X"**.
+- Tab title prefix: `(N) Shelfsort` → **`📚 (N) Shelfsort`**.
+- Active-row sublines: "Processing…", "Queued", "Checking…" → only
+  in flyout: "Sorting metadata and finding the right shelf.",
+  "Lining up — your turn next.", "Checking on it…".
+
+### Verified live
+Planted 3 jobs on `/account` (no UploadZone) → bell appeared with
+the new layout → opened panel showed 3 compact rows + "View all 3
+new books →" → hovering row 1 spawned the left flyout with cover
+slot + chips + "Open it" CTA → hovering row 2 swapped content
+instantly → cross-page toast fired *"📚 X found its spot"* with
+*"Open it"* action button.  Screenshots captured.
+
+---
 ## 2026-06-24 night (finale) — Push notifications + announcement to all users ✅
 
 ### Web Push on big-batch completion (backend `routes/upload_jobs.py`)
