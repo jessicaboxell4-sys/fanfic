@@ -214,3 +214,113 @@ def test_preview_cover_route_wired(session):
     # 404 ("Book not found") proves the route handler executed.  500
     # would mean the extraction broke something.
     assert r.status_code in (404, 422), f"got {r.status_code} {r.text[:300]}"
+
+
+# -------------------------------------------------------------------- #
+# Upload pipeline (async) — happy path through the highest-risk        #
+# surface in the codebase.  Added 2026-06-25 so Phase 6B / 6C          #
+# refactors of the upload code can lean on smoke detection.            #
+#                                                                      #
+# Fixture: Calibre's `quick_start/eng.epub` (≈150 KB) — guaranteed     #
+# present on the dev/CI images, valid metadata, parses cleanly.        #
+# -------------------------------------------------------------------- #
+
+_CALIBRE_EPUB = "/usr/share/calibre/quick_start/eng.epub"
+
+
+@pytest.fixture(scope="module")
+def uploaded_book(session):
+    """Submit a tiny EPUB through the async pipeline, poll until the
+    job finishes, and yield the resulting book_id.  Module-scoped so
+    all downstream assertions reuse the same upload (cheap)."""
+    import os.path
+    if not os.path.exists(_CALIBRE_EPUB):
+        pytest.skip(f"Calibre fixture missing: {_CALIBRE_EPUB}")
+
+    # 1. POST /api/books/upload/async with the EPUB.  Uses a bare
+    # requests call (not session.headers["Content-Type"]) so the
+    # multipart boundary is set correctly.
+    with open(_CALIBRE_EPUB, "rb") as fh:
+        # Pop the JSON content-type the fixture set, multipart needs
+        # its own boundary.
+        s = requests.Session()
+        s.cookies = session.cookies
+        r = s.post(
+            f"{BASE_URL}/api/books/upload/async",
+            files=[("files", ("smoke.epub", fh, "application/epub+zip"))],
+            timeout=30,
+        )
+    assert r.status_code == 202, f"upload/async failed: {r.status_code} {r.text[:300]}"
+    job = r.json()
+    assert "job_id" in job and job.get("status") == "queued"
+    assert job.get("total") == 1
+
+    # 2. Poll /api/books/upload/jobs/{job_id} until status == done /
+    # failed.  Generous 90 s ceiling so live-LLM environments don't
+    # flake.  CI runs with SHELFSORT_TEST_AI_RESPONSE so it'll
+    # complete in <2 s there.
+    deadline = time.time() + 90
+    final = None
+    while time.time() < deadline:
+        r = session.get(f"{BASE_URL}/api/books/upload/jobs/{job['job_id']}", timeout=20)
+        assert r.status_code == 200, r.text[:300]
+        final = r.json()
+        if final.get("status") in ("done", "failed"):
+            break
+        time.sleep(1.0)
+    assert final is not None, "no poll response"
+    assert final.get("status") == "done", f"job did not finish: {final}"
+
+    # 3. The response payload from /upload/async contains the book
+    # rows once done.  Pull the first non-failed entry.
+    resp = final.get("response") or {}
+    books = [b for b in (resp.get("books") or []) if not b.get("failed")]
+    assert books, f"no books in upload response: {resp}"
+    return books[0]["book_id"]
+
+
+def test_upload_async_book_detail(session, uploaded_book):
+    """GET /api/books/{book_id} returns the uploaded book with the
+    expected shape."""
+    r = session.get(f"{BASE_URL}/api/books/{uploaded_book}", timeout=20)
+    assert r.status_code == 200, r.text[:300]
+    data = r.json()
+    for k in ("book_id", "title", "av_status"):
+        assert k in data, f"missing {k}; keys={list(data)[:20]}"
+    assert data["book_id"] == uploaded_book
+
+
+def test_upload_async_av_status_set(session, uploaded_book):
+    """av_status must be one of the documented states — never missing
+    or None.  Regression for AV pipeline integration."""
+    r = session.get(f"{BASE_URL}/api/books/{uploaded_book}", timeout=20)
+    assert r.status_code == 200
+    av = r.json().get("av_status")
+    assert av in ("clean", "unscanned", "infected", "pending"), (
+        f"unexpected av_status: {av!r}"
+    )
+
+
+def test_upload_book_in_recent(session, uploaded_book):
+    """Newly-uploaded book appears in GET /api/books (sorted by
+    created_at desc).  Note: /api/books/recent is the *Continue
+    Reading* rail keyed on last_opened_at, which an unopened upload
+    won't hit — that's by design."""
+    r = session.get(f"{BASE_URL}/api/books?limit=20", timeout=20)
+    assert r.status_code == 200
+    ids = [b.get("book_id") for b in r.json().get("books", [])]
+    assert uploaded_book in ids, f"book not in /books list: {ids[:5]}"
+
+
+def test_upload_book_increments_stats(session, uploaded_book):  # noqa: ARG001
+    """After an upload, /api/books/stats.total is at least 1."""
+    r = session.get(f"{BASE_URL}/api/books/stats", timeout=20)
+    assert r.status_code == 200
+    total = r.json().get("total", 0)
+    assert total >= 1, f"stats.total didn't reflect upload: {r.json()}"
+
+
+def test_upload_job_404_for_unknown_id(session):
+    """Polling an unknown job_id returns a clean 404, not a 500."""
+    r = session.get(f"{BASE_URL}/api/books/upload/jobs/__nonexistent__", timeout=15)
+    assert r.status_code == 404, f"got {r.status_code} {r.text[:300]}"

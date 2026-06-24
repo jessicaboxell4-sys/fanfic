@@ -7,6 +7,41 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-25 (night 2) — Upload pipeline added to regression smoke ✅
+
+Highest-risk surface in the codebase (multipart streaming + AV +
+classification + storage mirror) now has a 7-second guardrail.
+
+### `tests/test_regression_smoke.py` (+6 tests, 17 → 22 total)
+- Module-scoped `uploaded_book` fixture: POSTs the Calibre
+  `quick_start/eng.epub` (22 KB) to `/api/books/upload/async`,
+  polls `/api/books/upload/jobs/{job_id}` until `done` (90-s
+  ceiling — generous for live LLM, snappy with `SHELFSORT_TEST_AI_RESPONSE`).
+- `test_upload_async_book_detail` — GET /books/{id} returns the
+  upload with {book_id, title, av_status}.
+- `test_upload_async_av_status_set` — `av_status ∈ {clean,
+  unscanned, infected, pending}` (never missing / None).
+- `test_upload_book_in_recent` — book appears in GET /api/books
+  (sorted by created_at desc).  Note: /api/books/recent is the
+  Continue Reading rail keyed on `last_opened_at`, not new uploads.
+- `test_upload_book_increments_stats` — `/api/books/stats.total >= 1`
+  post-upload.
+- `test_upload_job_404_for_unknown_id` — unknown job_id returns
+  clean 404, not 500.
+
+### Verification
+- `./scripts/run_regression_smoke.sh` → **22 passed, 1307 deselected,
+  7.12 s**.
+- Fixture: `/usr/share/calibre/quick_start/eng.epub` (already
+  present on dev + CI images via Calibre install).
+
+### CI integration
+- Already wired via the existing "Run pytest regression smoke" step
+  in `.github/workflows/backend-tests.yml`.  Future Phase 6B/6C
+  refactors will fail-fast in CI if any upload-pipeline behaviour
+  breaks.
+
+---
 ## 2026-06-25 (night) — "Listed!" confirmation toast on @handle save ✅
 
 Closes the loop from the directory welcome toast — when the user

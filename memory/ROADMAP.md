@@ -23,10 +23,9 @@ Heuristic (highest priority first):
 
 | # | Reminder | Effort | Impact | Why this rank |
 |---|----------|--------|--------|---------------|
-| 1 | Extend regression smoke to upload pipeline | ~30-45 min | Med (infra) | Unblocks safe refactor of upload pipeline + Phase 6B/6C |
-| 2 | Amplify "Shipped from the community" social proof | ~1-2 h Core | High (user) | Amplifies the badge work; brings traffic to the suggestion board |
-| 3 | Profile discovery polish (scroll-to-row, completeness nudge) | ~30-45 min | Med (user) | Follow-up to Listed! toast; small UX delight |
-| 4 | Phase 6B: bulk-ops extraction | ~30-45 min | Low (tech debt) | No user-facing value; do after smoke ships |
+| 1 | Amplify "Shipped from the community" social proof | ~1-2 h Core | High (user) | Amplifies the badge work; brings traffic to the suggestion board |
+| 2 | Profile discovery polish (scroll-to-row, completeness nudge) | ~30-45 min | Med (user) | Follow-up to Listed! toast; small UX delight |
+| 3 | Phase 6B: bulk-ops extraction | ~30-45 min | Low (tech debt) | Now safe — upload smoke + cover smoke both in place; no user-facing value |
 
 ### Convention for adding new reminders
 
@@ -38,6 +37,12 @@ reminder block. When shipped, mark "— DONE {date} ✅" on the heading
 and shrink the body to a one-line CHANGELOG pointer.
 
 ---
+
+## 💡 Reminder — Extend regression smoke to upload pipeline — DONE 2026-06-25 ✅
+
+Shipped — see CHANGELOG entry "Upload pipeline added to regression smoke".
+Core (1-5) + a 404 sanity for unknown job_ids landed.  6 new tests in
+`tests/test_regression_smoke.py`, total smoke band now 22 tests, ~7 s.
 
 ## 💡 Reminder — Extend regression smoke to upload pipeline
 
