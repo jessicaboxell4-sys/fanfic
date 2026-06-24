@@ -7,6 +7,54 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-24 night (latest) — "What just landed" cohesive pass ✅
+
+Three additions on top of the BackgroundJobsBell that turn it into
+a delightful "your books are arriving" surface.
+
+### (a) "View all N new books" CTA in the panel
+When ≥ 2 jobs have completed, the panel's footer shows a coral
+strip linking to `/library/all?just_added=id1,id2,…`.  Click and
+the All Books grid filters client-side to just those books, with
+a *"Showing your N just-uploaded books · Show full library →"*
+banner at the top.  No backend changes — the IDs live in the URL,
+the filter is a pure-frontend Set lookup.
+
+### (b) Cover thumbnails + fandom chips on done rows
+Each completed bell row swaps its checkmark icon for a 36×48
+cover thumbnail (when `has_cover` is true), and below the title
+renders a fandom/category chip in the same coral-on-cream palette
+the rest of Shelfsort uses.  Turns the panel from a text status
+list into a small *"what just got sorted"* preview gallery.  Best
+when AI classification surprises you — *"oh nice, it picked up
+the Stargate fic"*.
+
+### (d) "Just landed" pulse on BookCard
+- **New** `lib/freshArrivals.js` — sessionStorage-backed Set of
+  recently-arrived book_ids (auto-expire after 30s).  `markBookFresh`,
+  `isBookFresh`, `subscribeFreshArrivals` shared API.
+- The bell calls `markBookFresh(book_id)` for every completed job.
+- `BookCard` checks `isBookFresh` on mount + subscribes to live
+  events; applies `.book-card-fresh-pulse` for one ~3s animation
+  (coral ring + soft bounce + brief scale-up).  Respects
+  `prefers-reduced-motion`.
+- New CSS keyframes live in `index.css`.
+
+### URL filter on AllBooksPage
+- `?just_added=...` parsed via `useSearchParams` → `useMemo` Set.
+- `visibleBooks` derived via `useMemo` — `books.filter(b => set.has(id))`.
+- Both grid AND list render paths use `visibleBooks`.
+- Banner with a clear-filter link only renders when the param is
+  present, so non-affected pageviews are unchanged.
+
+### Verified end-to-end
+Live test: planted 2 real upload jobs in localStorage → bell
+opened with 2 completed rows showing covers + chips → "View all
+2 new books →" link visible → click navigated to
+`/library/all?just_added=id1,id2` → banner appeared with
+*"Showing your N just-uploaded books"* + Show-full link.
+
+---
 ## 2026-06-24 night (later still) — Background jobs bell upgrades ✅
 
 Built on top of the BackgroundJobsBell shipped earlier tonight,

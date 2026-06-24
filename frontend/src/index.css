@@ -85,6 +85,38 @@
     border-color: rgba(224, 122, 95, 0.4);
 }
 
+/* "Just landed" pulse — applied to BookCard for ~3 s after a background
+   upload completes so the user sees the new books *arriving* on the
+   library grid.  Coral border glow + tiny vertical bounce; respects
+   prefers-reduced-motion. */
+.book-card-fresh-pulse {
+    animation: book-card-fresh-pulse 3s ease-out 1;
+    will-change: transform, box-shadow, border-color;
+}
+@keyframes book-card-fresh-pulse {
+    0% {
+        transform: translateY(-6px) scale(1.02);
+        box-shadow: 0 0 0 4px rgba(224, 122, 95, 0.65), 0 16px 40px rgba(224, 122, 95, 0.35);
+        border-color: rgba(224, 122, 95, 1);
+    }
+    60% {
+        transform: translateY(-2px) scale(1.01);
+        box-shadow: 0 0 0 3px rgba(224, 122, 95, 0.35), 0 10px 24px rgba(224, 122, 95, 0.18);
+        border-color: rgba(224, 122, 95, 0.7);
+    }
+    100% {
+        transform: translateY(0) scale(1);
+        box-shadow: 0 0 0 0 rgba(224, 122, 95, 0);
+        border-color: var(--border);
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .book-card-fresh-pulse {
+        animation: none;
+        border-color: rgba(224, 122, 95, 0.8) !important;
+    }
+}
+
 .btn-primary {
     background: var(--primary);
     color: #fff;

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { Loader2, UploadCloud, CheckCircle2, XCircle, X } from "lucide-react";
+import { Loader2, UploadCloud, CheckCircle2, XCircle, X, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { api } from "../lib/api";
@@ -8,6 +8,7 @@ import {
   subscribePendingJobs,
   untrackPendingJob,
 } from "../lib/uploadJobs";
+import { markBookFresh } from "../lib/freshArrivals";
 
 // Navbar dropdown that surfaces in-flight async uploads — the same list
 // the resume-after-refresh effect re-attaches to on mount.  Users who
@@ -87,6 +88,12 @@ export default function BackgroundJobsBell() {
           toastedRef.current.add(j.jobId);
           const books = (data.response?.books) || [];
           const firstBook = books.find((b) => !b.failed) || null;
+          // Mark every successfully-added book as "fresh" so the
+          // library-grid pulse animation fires on whatever page the
+          // user navigates to next (or is currently on).
+          books.forEach((b) => {
+            if (b?.book_id && !b.failed) markBookFresh(b.book_id);
+          });
           toast.success(
             books.length > 1
               ? `📚 ${books.length} books just finished uploading`
@@ -204,6 +211,16 @@ export default function BackgroundJobsBell() {
     return !s || s === "queued" || s === "processing" || s === "unknown";
   }).length;
 
+  // (a) Cluster of all successfully-added book IDs from the jobs
+  // currently in the panel.  Used to drive the "View all N new books"
+  // footer link — only shown when ≥ 2 books finished so the link
+  // surfaces a real grid, not a single-book navigation duplicate of
+  // the per-row "Tap to open" links above it.
+  const justAddedIds = jobs.flatMap((j) => {
+    const books = (statuses[j.jobId]?.response?.books) || [];
+    return books.filter((b) => !b.failed && b.book_id).map((b) => b.book_id);
+  });
+
   return (
     <div className="relative" ref={popoverRef}>
       <button
@@ -268,22 +285,49 @@ export default function BackgroundJobsBell() {
                     {...wrapProps}
                     className="block px-4 py-2.5 flex items-center gap-2.5"
                   >
-                    <div className="shrink-0">
-                      {isDone && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
-                      {isFailed && <XCircle className="w-4 h-4 text-red-500" />}
-                      {isActive && <Loader2 className="w-4 h-4 text-[#E07A5F] animate-spin" />}
-                    </div>
+                    {/* (b) Cover thumbnail for completed jobs — turns
+                        the panel from a text status list into a small
+                        "what just got sorted" preview gallery. */}
+                    {isDone && firstBook?.book_id && firstBook?.has_cover ? (
+                      <img
+                        src={`${process.env.REACT_APP_BACKEND_URL}/api/books/${firstBook.book_id}/cover`}
+                        alt=""
+                        className="shrink-0 w-9 h-12 object-cover rounded border border-[#E8E6E1]"
+                        onError={(e) => { e.currentTarget.style.display = "none"; }}
+                      />
+                    ) : (
+                      <div className="shrink-0">
+                        {isDone && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
+                        {isFailed && <XCircle className="w-4 h-4 text-red-500" />}
+                        {isActive && <Loader2 className="w-4 h-4 text-[#E07A5F] animate-spin" />}
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-[#2C2C2C] truncate" title={j.filename}>
                         {isDone && firstBook?.title ? firstBook.title : j.filename}
                       </p>
-                      <p className="text-xs text-[#6B705C]">
-                        {isDone && (goHref ? "Tap to open →" : "Finished")}
-                        {isFailed && (st.error ? `Failed — ${st.error}` : "Failed")}
-                        {status === "queued" && "Queued"}
-                        {status === "processing" && "Processing…"}
-                        {status === "unknown" && "Checking…"}
-                      </p>
+                      {/* (b) Fandom / category chip on completed rows
+                          so users see WHERE their book just landed at
+                          a glance — captures the moment of automatic
+                          classification. */}
+                      {isDone && firstBook && (firstBook.fandom || firstBook.category) && (
+                        <p className="text-[10px] mt-0.5">
+                          <span className="inline-block px-1.5 py-0.5 rounded bg-[#FDF3E1] text-[#8C5C00] font-semibold">
+                            {firstBook.fandom || firstBook.category}
+                          </span>
+                          {goHref && (
+                            <span className="text-xs text-[#6B705C] ml-1.5">Tap to open →</span>
+                          )}
+                        </p>
+                      )}
+                      {!isDone && (
+                        <p className="text-xs text-[#6B705C]">
+                          {isFailed && (st.error ? `Failed — ${st.error}` : "Failed")}
+                          {status === "queued" && "Queued"}
+                          {status === "processing" && "Processing…"}
+                          {status === "unknown" && "Checking…"}
+                        </p>
+                      )}
                     </div>
                     {/* Manual dismiss for failed rows — they don't
                         auto-clear so the user can still see why,
@@ -310,6 +354,20 @@ export default function BackgroundJobsBell() {
               );
             })}
           </ul>
+          {/* (a) — "View all N new books" CTA — only when ≥ 2 books
+              just finished, so it's a meaningful jump (not a duplicate
+              of the per-row "Tap to open" links above). */}
+          {justAddedIds.length >= 2 && (
+            <Link
+              to={`/library/all?just_added=${justAddedIds.join(",")}`}
+              onClick={() => setOpen(false)}
+              data-testid="bgjobs-view-all"
+              className="block px-4 py-2.5 border-t border-[#E8E6E1] bg-[#FDF3E1] hover:bg-[#FBE8C8] text-[#8C5C00] text-sm font-medium flex items-center gap-2"
+            >
+              <Sparkles className="w-4 h-4" />
+              View all {justAddedIds.length} new book{justAddedIds.length === 1 ? "" : "s"} →
+            </Link>
+          )}
           <div className="px-4 py-2 text-[11px] text-[#6B705C] border-t border-[#E8E6E1]">
             Uploads keep running in the background — feel free to close the tab.
           </div>

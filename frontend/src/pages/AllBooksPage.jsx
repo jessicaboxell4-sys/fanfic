@@ -16,7 +16,7 @@ import LibraryActivityWidgets from "../components/LibraryActivityWidgets";
 import Ao3FilterChips from "../components/Ao3FilterChips";
 import FandomFinder from "../components/FandomFinder";
 import { useEventStream } from "../hooks/useEventStream";
-import { Search, X, Plus, ArrowRight, ArrowLeftRight, Heart, BookOpen, CheckSquare, Sparkles, Loader2, RefreshCw, Library, UserCircle2, Filter, Pin, FolderOpen, ArrowUpDown, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Trash2, LayoutGrid, List as ListIcon } from "lucide-react";
+import { Search, X, Plus, ArrowRight, ArrowLeftRight, Heart, BookOpen, CheckSquare, Sparkles, Loader2, RefreshCw, Library, UserCircle2, Filter, Pin, FolderOpen, ArrowUpDown, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Trash2, LayoutGrid, List as ListIcon, UploadCloud } from "lucide-react";
 import { toast } from "sonner";
 import { FETCHING_UI_ENABLED } from "../lib/featureFlags";
 
@@ -276,6 +276,22 @@ export default function AllBooksPage() {
     if (rel) setRelationship(rel);
   }, []);
 
+  // Honor `?just_added=id1,id2,id3` from the BackgroundJobsBell's
+  // "View all N new books" CTA — clamps the visible book grid to just
+  // those IDs and surfaces a clear banner so the user knows why the
+  // count looks small.  Client-side filter; works even when the
+  // backend doesn't support an ID filter, and survives page refreshes.
+  const justAddedIds = React.useMemo(() => {
+    const raw = searchParams.get("just_added");
+    if (!raw) return null;
+    const ids = raw.split(",").map((s) => s.trim()).filter(Boolean);
+    return ids.length > 0 ? new Set(ids) : null;
+  }, [searchParams]);
+  const visibleBooks = React.useMemo(() => {
+    if (!justAddedIds) return books;
+    return books.filter((b) => justAddedIds.has(b.book_id));
+  }, [books, justAddedIds]);
+
   // Poll the conversion-status endpoint while uploads with heavy formats
   // (PDF, MOBI etc.) are running — Calibre conversion can take 30+ seconds.
   // The endpoint also surfaces recently-completed jobs within a 4-hour
@@ -370,6 +386,32 @@ export default function AllBooksPage() {
             <LibraryActivityWidgets />
           </div>
         </div>
+
+        {/* "Just added" filter banner — surfaces when the user lands
+            here from the BackgroundJobsBell's "View all N new books"
+            link.  Client-side filter so it works without backend
+            changes and survives a refresh (since the IDs live in the
+            URL). */}
+        {justAddedIds && (
+          <section className="mb-6" data-testid="just-added-banner">
+            <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg bg-[#FDF3E1] border border-[#E07A5F]/40">
+              <div className="flex items-center gap-2.5 text-sm text-[#8C5C00]">
+                <UploadCloud className="w-4 h-4" />
+                <span>
+                  Showing your <strong>{visibleBooks.length} just-uploaded</strong>{" "}
+                  book{visibleBooks.length === 1 ? "" : "s"}.
+                </span>
+              </div>
+              <Link
+                to="/library/all"
+                data-testid="just-added-clear"
+                className="text-xs font-medium text-[#6B46C1] hover:underline"
+              >
+                Show full library →
+              </Link>
+            </div>
+          </section>
+        )}
 
         {/* Compact drop zone — gives users a way to add more books without
             bouncing back to the dashboard. Same upload pipeline as the big
@@ -1310,7 +1352,7 @@ export default function AllBooksPage() {
               // big libraries.  Cover thumb stays so books still feel
               // book-shaped, but everything else collapses into one row.
               <ul className="divide-y divide-[#E8E6E1] bg-white rounded-xl border border-[#E8E6E1] overflow-hidden" data-testid="books-list">
-                {books.map(b => (
+                {visibleBooks.map(b => (
                   <li
                     key={b.book_id}
                     data-testid={`book-row-${b.book_id}`}
@@ -1372,7 +1414,7 @@ export default function AllBooksPage() {
               </ul>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6" data-testid="books-grid">
-                {books.map(b => (
+                {visibleBooks.map(b => (
                   <BookCard
                     key={b.book_id}
                     book={b}

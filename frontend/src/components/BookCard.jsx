@@ -1,10 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Book, Check, CheckCircle2, Circle, ListPlus, ListChecks, Smartphone } from "lucide-react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
 import { pulseGoalsCheck } from "../lib/goalHitWatcher";
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
+import { isBookFresh, subscribeFreshArrivals } from "../lib/freshArrivals";
 import RegenerateCoverButton from "./RegenerateCoverButton";
 import AntivirusBadge from "./AntivirusBadge";
 
@@ -49,6 +50,28 @@ export default function BookCard({ book, selectMode, selected, onToggleSelect, o
   const [marking, setMarking] = useState(false);
   const [queueing, setQueueing] = useState(false);
   const [inQueue, setInQueue] = useState(!!book.in_queue);
+
+  // "Just landed" pulse — true when this book_id was added in the last
+  // ~30s via the BackgroundJobsBell's `markBookFresh` call.  Applied
+  // as the `.book-card-fresh-pulse` CSS class for one ~3s animation,
+  // then cleared so future re-renders don't re-pulse.
+  const [pulse, setPulse] = useState(() => isBookFresh(book.book_id));
+  useEffect(() => {
+    if (pulse) {
+      const t = setTimeout(() => setPulse(false), 3200);
+      return () => clearTimeout(t);
+    }
+    // Also listen for new arrivals that happen while the card is
+    // mounted (e.g. user is on /library/all when a background job
+    // completes).
+    const unsub = subscribeFreshArrivals((detail) => {
+      if (detail?.bookId === book.book_id) {
+        setPulse(true);
+        setTimeout(() => setPulse(false), 3200);
+      }
+    });
+    return unsub;
+  }, [pulse, book.book_id]);
   const coverUrl = book.has_cover
     ? `${process.env.REACT_APP_BACKEND_URL}/api/books/${book.book_id}/cover`
     : null;
@@ -250,7 +273,7 @@ export default function BookCard({ book, selectMode, selected, onToggleSelect, o
         onClick={() => onToggleSelect && onToggleSelect(book.book_id)}
         className={`shelf-card overflow-hidden block text-left w-full ${
           selected ? "border-[#E07A5F]" : ""
-        }`}
+        } ${pulse ? "book-card-fresh-pulse" : ""}`}
       >
         {cardInner}
       </button>
@@ -261,7 +284,7 @@ export default function BookCard({ book, selectMode, selected, onToggleSelect, o
     <Link
       to={`/book/${book.book_id}`}
       data-testid={`book-card-${book.book_id}`}
-      className="shelf-card overflow-hidden block group"
+      className={`shelf-card overflow-hidden block group ${pulse ? "book-card-fresh-pulse" : ""}`}
     >
       {cardInner}
     </Link>
