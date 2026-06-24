@@ -3,6 +3,18 @@
 > Active backlog. Items move to [CHANGELOG.md](./CHANGELOG.md) when shipped.
 
 
+## 💡 Reminder — Amplify "Shipped from the community" social proof
+
+Two small ideas, either or both:
+- (a) "Recently shipped from the community" card on the public
+  `/changelog` page that pulls the latest 3 `status === "done"`
+  suggestions with their credit ribbons.
+- (b) When admins write a changelog entry, optionally link it to a
+  suggestion_id so the entry auto-renders "Built from
+  {submitter}'s suggestion" inline.
+Goal: amplify the badge work we just shipped, give the board more
+visibility, bring more contributors in.
+
 ## 💡 Reminder — "Listed!" confirmation toast on @handle save
 
 After a user picks/saves their `@handle` on Account → Profile, fire a
