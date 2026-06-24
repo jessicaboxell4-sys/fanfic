@@ -1836,7 +1836,6 @@ async def _conversion_end(user_id: str, job_id: str, *, error: Optional[str] = N
 
 @api_router.post("/books/upload")
 async def upload_books(
-    request: Request,
     files: List[UploadFile] = File(...),
     keep_originals: List[str] = Form([]),
     user: User = Depends(get_current_user),

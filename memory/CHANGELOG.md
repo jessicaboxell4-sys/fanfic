@@ -7,6 +7,58 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-24 — P0: Async upload pipeline (no more Cloudflare 524s) ✅
+
+The synchronous `POST /api/books/upload` endpoint held one HTTP
+connection open for the entire upload + classify + R2 mirror.  When
+the Claude classifier or R2 stalled, requests pushed past the 100s
+Cloudflare edge timeout and 524'd mid-flight — a class of failure
+visible in the launch-day support reports.
+
+### Backend (`routes/upload_jobs.py` — new)
+- `POST /api/books/upload/async` — buffers files to a per-job staging
+  dir on local disk, persists an `upload_jobs` record in Mongo, and
+  schedules `asyncio.create_task(_run_upload_job(...))`.  Returns
+  `202 Accepted` with `{job_id, total, status: "queued"}` in 1–2s.
+- `GET /api/books/upload/jobs/{job_id}` — polling endpoint, returns
+  the same response body the legacy endpoint produced once the job
+  reaches `status: "done"`.
+- The actual per-file work re-uses the existing `upload_books`
+  handler via in-memory `UploadFile` shims (`_StagedUploadFile`) so
+  every classification / dedup / friend-notification rule stays in
+  one place — no risky refactor of the 600-line handler.
+- Cross-user isolation: jobs are scoped to `(job_id, user_id)`, so
+  the lookup endpoint returns 404 for any other user.
+
+### Frontend (`UploadZone.jsx`)
+- `sendOne()` now POSTs to `/books/upload/async` then polls
+  `/books/upload/jobs/{job_id}` every 1.5s (up to ~3 min).  The
+  enclosing `Promise.allSettled` round-robin and per-file retry
+  logic is untouched — the same downstream partition/toast/duplicate
+  resolution flow handles the polled response identically.
+
+### Compact upload zone on `/library/all`
+Earlier in the same session: `UploadZone` gained a `compact` prop;
+`AllBooksPage` now embeds the compact variant between the title
+block and search/filters, so users can add books without bouncing
+back to the dashboard.
+
+### Tests
+- `tests/test_upload_async_job.py` — 5 new tests covering submit
+  latency (<10s), end-to-end job completion, 404 for unknown jobs,
+  cross-user isolation, and empty-batch rejection.  All green.
+- Existing `tests/test_upload_partial_success.py` still passes.
+
+### What this fixes
+- Slow Claude / R2 can no longer 524 an upload — the submit half
+  is always sub-5s, and the poll half can stall freely without
+  Cloudflare killing it.
+- Users can close the tab between submit and poll without losing
+  the upload — the backend keeps processing.
+- The previous parallel-4 chunking model is preserved end-to-end,
+  so a 24-file drop still completes in ~6 rounds.
+
+---
 ## 2026-07-04 afternoon — Two community-driven features ✅
 
 Both shipped in response to real Facebook-group launch comments.

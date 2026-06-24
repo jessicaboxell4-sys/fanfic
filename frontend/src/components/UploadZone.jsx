@@ -255,8 +255,17 @@ export default function UploadZone({ onUploaded, compact = false }) {
       let lastPolicy = null;
       const keepSet = new Set(keepOriginalNames);
 
-      // Send a single file. Returns {ok, file, data, error, status}.
-      // Mirrors the previous per-batch retry/error-mapping logic.
+      // Send a single file via the *async* job pipeline (P0, 2026-06-24).
+      // The old flow held one HTTP connection open for the entire
+      // parse + classify + R2-mirror duration — slow uploads got 524'd
+      // by Cloudflare at the 100s edge timeout.  The new flow:
+      //   1. POST /books/upload/async  → 202 + {job_id} in ~1s
+      //   2. GET  /books/upload/jobs/{job_id} every 1.5s
+      //   3. status === "done" → return the same {books,actions,...}
+      //      response shape the old endpoint produced
+      // Net result: the SUBMIT half can never 524.  Only the poll
+      // window can stall, and a stall there doesn't lose work — the
+      // backend keeps processing and the next poll picks it up.
       const sendOne = async (file) => {
         const form = new FormData();
         form.append("files", file);
@@ -264,14 +273,51 @@ export default function UploadZone({ onUploaded, compact = false }) {
         let lastErr = null;
         for (let attempt = 0; attempt < 2; attempt++) {
           try {
-            const res = await api.post("/books/upload", form, {
+            const submitRes = await api.post("/books/upload/async", form, {
               headers: { "Content-Type": "multipart/form-data" },
             });
-            return { ok: true, file, data: res.data };
+            const jobId = submitRes?.data?.job_id;
+            if (!jobId) {
+              return { ok: false, file, error: "Server didn't return a job id.", status: 500 };
+            }
+            // Poll up to ~3 minutes.  Larger EPUBs + slow Claude can
+            // take 30–60s; we give 4–5× headroom so an LLM hiccup
+            // doesn't surface as a fake failure.
+            const POLL_INTERVAL_MS = 1500;
+            const MAX_POLLS = 120;
+            for (let i = 0; i < MAX_POLLS; i++) {
+              await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+              let pollRes;
+              try {
+                pollRes = await api.get(`/books/upload/jobs/${jobId}`);
+              } catch (pollErr) {
+                // Transient polling error — keep trying, the job is
+                // still running server-side.  Only break out if the
+                // server explicitly says 404 (the job was deleted).
+                const ps = pollErr?.response?.status;
+                if (ps === 404) {
+                  return { ok: false, file, error: "Upload job disappeared.", status: 404 };
+                }
+                continue;
+              }
+              const status = pollRes?.data?.status;
+              if (status === "done") {
+                return { ok: true, file, data: pollRes.data.response || {} };
+              }
+              if (status === "failed") {
+                return {
+                  ok: false,
+                  file,
+                  error: pollRes.data.error || "Upload job failed",
+                  status: 500,
+                };
+              }
+            }
+            return { ok: false, file, error: "Server processing took too long.", status: 504 };
           } catch (e) {
             lastErr = e;
             const status = e?.response?.status;
-            // Server returned a real status — not transient. Don't retry.
+            // Real server status — not transient. Don't retry.
             if (typeof status === "number" && status >= 400) break;
             if (attempt === 0) await new Promise((r) => setTimeout(r, 800));
           }
@@ -282,7 +328,7 @@ export default function UploadZone({ onUploaded, compact = false }) {
           lastErr?.message ||
           "Upload failed";
         if (status === 524 || status === 504) {
-          detail = "Server took too long to process this file (likely the AI classifier is slow). Try again in a few minutes.";
+          detail = "Server took too long to accept this file. Try again in a few minutes.";
         } else if (status === 502 || status === 503) {
           detail = "Server is temporarily unavailable. Try again in a moment.";
         } else if (status === 413) {

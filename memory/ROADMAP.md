@@ -3,6 +3,22 @@
 > Active backlog. Items move to [CHANGELOG.md](./CHANGELOG.md) when shipped.
 
 
+## ✅ Just shipped (2026-06-24)
+
+- **P0 Async upload pipeline** — `POST /api/books/upload/async` +
+  `GET /api/books/upload/jobs/{job_id}` poll. The submit half now
+  returns 202 + `{job_id}` in 1–2s. The actual work runs as
+  `asyncio.create_task(_run_upload_job(...))` and the SPA polls
+  every 1.5s for completion. Cloudflare 524s are structurally
+  impossible — the LLM/R2 stalls now stall the poll, not the
+  request. See `routes/upload_jobs.py` + `tests/test_upload_async_job.py`
+  (5 green tests). Frontend `UploadZone.jsx::sendOne()` routes to
+  the new endpoint and preserves the previous parallel-4 chunking.
+- **Compact upload drop zone on /library/all** — `UploadZone` now
+  takes a `compact` prop; `AllBooksPage` embeds it between the
+  title block and search/filters.
+
+
 ## ✅ Just shipped (2026-07-04 morning)
 
 - **Partial-success upload (frontend + backend)** — Live launch-week bug:
@@ -15,7 +31,11 @@
   See `test_upload_partial_success.py` for the contract spec.
 
 
-## 🚨 P0 NEXT SESSION — Async-ify the upload endpoint (~2 hrs)
+## ✅ DONE 2026-06-24 — Async-ify the upload endpoint
+
+Shipped — see "Just shipped" block above and `CHANGELOG.md` entry of
+the same date for full details. Original plan preserved here for
+historical reference:
 
 **Why**: At 8pm on launch day, the operator's "drop 10 books" failed because
 each batch was hitting Cloudflare's 100s edge timeout — caused by a slow
