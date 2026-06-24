@@ -31,47 +31,18 @@ Persists `job_id`s in `localStorage`, mount-effect re-attaches and
 polls each one, aggregates results into the normal `onUploaded`
 flow.  3 new pytest tests, all green.
 
-## 💡 Reminder — TTS read-aloud on PDFs (P2, ~1 hr, high delight)
+## ✅ DONE 2026-06-24 night (full sweep)
 
-Now that `<PdfViewer/>` renders with a real text layer, we can wire
-PDF pages into the existing `<TTSControls/>` Web Speech API
-integration. Flow: when TTS is active and the user is reading a
-PDF, pull `page.getTextContent()` from pdf.js for the current page,
-concatenate the items, feed it to the same speech-synthesis pipeline
-EPUBs use. Auto-advance to the next page when the utterance ends.
-Bonus: pause/resume + voice picker already exist — zero new UI work.
+All four reminders shipped together in a single coherent batch.
+See `CHANGELOG.md` "2026-06-24 night (full sweep)" for full detail.
 
-## 💡 Reminder — Public `/changelog` page for SEO (P2, ~40 min)
-
-Build a public, content-rich `/changelog` route surfacing the last
-3-ish release notes (title + date + screenshot + 1-paragraph
-description), deep-linkable via `/changelog#2026-06-24`. Add to
-`sitemap.xml`. Combined with the FAQPage JSON-LD on `/help`, this
-shifts Shelfsort from 1 indexed page to 5–6 indexed pages and gives
-Google more content surface per crawl. Content can be sourced from
-the existing `announcements` collection or hand-curated from
-`/app/memory/CHANGELOG.md` — pick the lighter path when picking
-this up.
-
-## 💡 Reminder — "Help us spread the word" share prompt (P2, ~15 min)
-
-Friend-of-a-friend growth from the most engaged users is the
-cheapest acquisition channel. Add a soft *"Share Shelfsort with a
-friend who reads fanfic →"* link at the bottom of the Fresh-in-
-Shelfsort announcement card. Opens a small share sheet (Twitter/X,
-Bluesky, copy link) with a pre-composed message. Only show after
-the user has been on the platform for ≥ 30 days and has uploaded
-≥ 20 books — otherwise it feels spammy. Track click counts so we
-can measure conversion.
-
-## 💡 Reminder — Pulse the matching bell row when a job completes (P3, ~10 min)
-
-Mirror the BookCard fresh-arrival pulse onto the BackgroundJobsBell
-panel row that just transitioned to "done".  Same coral border
-glow, same ~3 s duration.  Visually links *"this row just sorted"*
-to *"that card just arrived"* in the library grid.  Tiny but
-satisfying continuity once both surfaces exist.  Pick up next time
-we touch `BackgroundJobsBell.jsx`.
+- ✅ TTS read-aloud on PDFs — `components/PdfTtsControls.jsx`.
+- ✅ Public `/changelog` page for SEO — `pages/Changelog.jsx` + new
+  `GET /api/changelog/public` endpoint + sitemap entry + footer link.
+- ✅ "Help us spread the word" share prompt — `<SharePrompt/>` in
+  Help.jsx, gated on ≥30d + ≥20 books.
+- ✅ Pulse matching bell row on completion — coral 3s fade keyframe
+  + `justDoneIds` tracking in BackgroundJobsBell.
 
 
 ## ✅ Just shipped (2026-07-04 morning)

@@ -4,6 +4,7 @@ import { ArrowLeft, Loader2, ExternalLink, RefreshCw, AlertTriangle, FileText, B
 import mammoth from "mammoth/mammoth.browser";
 import Navbar from "../components/Navbar";
 import PdfViewer from "../components/PdfViewer";
+import PdfTtsControls from "../components/PdfTtsControls";
 import { api } from "../lib/api";
 import { toast } from "sonner";
 
@@ -440,12 +441,21 @@ export default function ReadOriginal() {
           data-testid="read-original-viewer"
         >
           {isPdf && (
-            <PdfViewer
-              url={originalUrl}
-              targetPage={pdfTargetPage}
-              onPageChange={setPdfCurrentPage}
-              onTotalPages={setPdfTotalPages}
-            />
+            <>
+              <div className="flex items-center justify-end gap-2 px-4 py-2 border-b border-[#E5DDC5] bg-[#FDFBF7]">
+                <PdfTtsControls
+                  currentPage={pdfCurrentPage}
+                  totalPages={pdfTotalPages}
+                  onAdvance={(n) => setPdfTargetPage(n)}
+                />
+              </div>
+              <PdfViewer
+                url={originalUrl}
+                targetPage={pdfTargetPage}
+                onPageChange={setPdfCurrentPage}
+                onTotalPages={setPdfTotalPages}
+              />
+            </>
           )}
 
           {NATIVE_IFRAME.has(ext) && (

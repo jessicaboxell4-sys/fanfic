@@ -124,8 +124,16 @@
     0%   { opacity: 0; transform: translateX(8px); }
     100% { opacity: 1; transform: translateX(0); }
 }
+@keyframes bgjobs-row-pulse {
+    0%   { background-color: rgba(224, 122, 95, 0.22); }
+    60%  { background-color: rgba(224, 122, 95, 0.10); }
+    100% { background-color: transparent; }
+}
+.bgjobs-row-just-done {
+    animation: bgjobs-row-pulse 3s ease-out 1;
+}
 @media (prefers-reduced-motion: reduce) {
-    [data-testid="bgjobs-flyout"] {
+    [data-testid="bgjobs-flyout"], .bgjobs-row-just-done {
         animation: none !important;
     }
 }

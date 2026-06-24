@@ -58,6 +58,24 @@ async def get_latest_announcement(user: User = Depends(get_current_user)):
     return _serialize(doc)
 
 
+@api_router.get("/changelog/public")
+async def get_public_changelog(limit: int = 6):
+    """PUBLIC list of recent announcements for the SEO-friendly
+    `/changelog` route.  No auth required — Google needs to crawl
+    this surface, and the content is the same broadcast we already
+    show to logged-in users in the Help page.
+
+    Returns ``[]`` if the collection is empty (lets the SPA render
+    a calm empty state without throwing).
+    """
+    limit = max(1, min(20, int(limit or 6)))
+    cursor = db.announcements.find({}, {"_id": 0}).sort("created_at", -1).limit(limit)
+    out = []
+    async for d in cursor:
+        out.append(_serialize(d))
+    return out
+
+
 @api_router.post("/announcements")
 async def create_announcement(
     payload: AnnouncementIn,

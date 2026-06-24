@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { Link, useLocation } from "react-router-dom";
+import { toast } from "sonner";
 import Navbar from "../components/Navbar";
 import SuggestionBox from "../components/SuggestionBox";
 import SiteFooter from "../components/SiteFooter";
 import { SEND_TO_KINDLE_UI_ENABLED } from "../lib/featureFlags";
+import { useAuth } from "../context/AuthContext";
 import { api } from "../lib/api";
 import {
   ArrowLeft, ArrowLeftRight, Upload, Sparkles, Layers, RefreshCw, BookOpen, Trash2,
@@ -533,6 +535,7 @@ export default function Help() {
               <a href="#shelves" className="inline-block mt-3 text-xs font-semibold uppercase tracking-[0.15em] text-[#6B46C1] hover:text-[#E07A5F]">
                 Jump to the full shelf guide →
               </a>
+              <SharePrompt />
             </div>
           </div>
         </aside>
@@ -630,6 +633,7 @@ export default function Help() {
                 <li><code>.txt</code> with fanfic URLs (≥3 URL lines or ≥40% of lines) — treated as a URL list, dedupe-and-skip flow</li>
               </ul>
               <p><strong>Fast and resilient.</strong> Uploads run in parallel chunks of four, recover from individual file failures, and the new asynchronous pipeline means you can drop dozens of files at once without worrying about edge-server timeouts. Submit returns in seconds; processing keeps running in the background, and your library refreshes automatically when each batch completes.</p>
+              <p><strong>Background uploads bell.</strong> The cloud-icon in the navbar (top-right) is your <em>command center</em> for in-flight uploads. Always visible. Drop files or folders directly onto the icon from anywhere in the app, or click it for Choose-files / Pick-a-folder buttons. Hover any row in its panel to see a flyout card with the book&rsquo;s cover, fandom chip, and an <em>Open it</em> CTA. The library grid pulses a coral ring on freshly-arrived cards. Close the tab any time — uploads keep running and the bell re-attaches when you come back.</p>
               <p><strong>What happens during upload:</strong> metadata is extracted, the book is classified onto a category (Fanfiction / Original Fiction / Non-fiction / etc.), the fandom is detected from <strong>{knownFandoms.length || "285+"}</strong> canonical fandoms, relationships/pairings are extracted, completion status is detected (see &ldquo;Detection &amp; overrides&rdquo;), and any embedded source URLs are saved for future dedupe + the Linkless filter.</p>
               <p><strong>Duplicates</strong> are caught three ways: (1) by exact source-URL or shared canonical fanfic URL (so all AO3 / FFN / RoyalRoad mirrors of the same work collapse together), (2) by <strong>title + author</strong> match (case-insensitive, dots stripped from author so &lsquo;J. K. Rowling&rsquo; and &lsquo;JK Rowling&rsquo; still pair), and (3) by title alone <em>only when one side has no author on file</em>. Two books with the same generic title (e.g. &ldquo;Crossroads&rdquo;) but different authors and different URLs are correctly kept as separate books. When a dupe is flagged you choose: keep both / replace older / skip. Cross-format duplicates (same book uploaded as PDF after the EPUB) are filed under <Link to="/library/originals">Originals</Link>.</p>
               <p className="text-xs text-[#6B705C]">Importing from Kindle? See the step-by-step guide at <Link to="/help/kindle-import">/help/kindle-import</Link>.</p>
@@ -894,7 +898,7 @@ export default function Help() {
 
             <Section id="reading" icon={BookOpen} title="Reader &amp; stats">
               <p>Click any book cover to open the in-browser EPUB Reader. Your reading position is saved per-book; come back to where you left off automatically.</p>
-              <p><strong>PDFs read natively in-app.</strong> Open any PDF from <Link to="/library/originals">Originals</Link> and it renders directly via pdf.js — selectable text, keyboard navigation (PageUp/Down, J/K, arrows, Space), zoom (50&ndash;250 %), a page-jump input, and a scroll-tracked progress so bookmarks land on the actual page you&apos;re on. Mobile Safari and iOS are fully supported. No Calibre roundtrip required to read a PDF.</p>
+              <p><strong>PDFs read natively in-app.</strong> Open any PDF from <Link to="/library/originals">Originals</Link> and it renders directly via pdf.js — selectable text, keyboard navigation (PageUp/Down, J/K, arrows, Space), zoom (50&ndash;250 %), a page-jump input, and a scroll-tracked progress so bookmarks land on the actual page you&apos;re on. Mobile Safari and iOS are fully supported. No Calibre roundtrip required to read a PDF. PDFs also have a <em>Read aloud</em> button — same Web Speech voice picker as EPUBs, auto-advances to the next page when each one finishes.</p>
               <p><strong>Bookmarks</strong>: while reading, tap the <em>Bookmark</em> button in the reader header to save your current page — or just press <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>B</kbd>. If the current page is already bookmarked, the button flips to a filled <em>Saved</em> chip so you don&apos;t accidentally save the same spot twice. Open the <em>Bookmark</em> panel (the icon next to it with the count) to see every saved spot for this book, jump to any of them, type or edit a free-form note (saved on blur), and remove on hover. Each bookmark stores the chapter title, your reading-progress percentage, and the date you saved it. Bookmarks sync to your account so they follow you across devices.</p>
               <p>You can also see every bookmark across your whole library on the <Link to="/bookmarks">All bookmarks</Link> page. PDF and TXT/DOCX originals support bookmarks too — see the <Link to="/library/originals">Originals</Link> section above for how they work in the smart viewer.</p>
               <p><strong>Surprise me</strong>: on the Dashboard, the &ldquo;Surprise me&rdquo; button picks a random book you haven&apos;t opened yet and drops you straight into it — useful when decision fatigue strikes.</p>
@@ -1252,3 +1256,79 @@ export default function Help() {
     </div>
   );
 }
+
+// "Help us spread the word" prompt — soft share-sheet CTA inside the
+// Fresh-in-Shelfsort announcement aside.  Gated on the user being a
+// regular: registered ≥30d AND ≥20 books in their library, so it
+// never lands on someone who just signed up.  Uses the Web Share API
+// when available (mobile + most modern browsers), falls back to a
+// copy-to-clipboard with toast confirmation.
+function SharePrompt() {
+  const { user } = useAuth();
+  const [eligible, setEligible] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!user) return undefined;
+    (async () => {
+      try {
+        // Two cheap checks: account age via the user object we already
+        // have, and total books via the existing stats endpoint that
+        // every authenticated page hits anyway (so it's likely cached).
+        const created = user.created_at ? new Date(user.created_at).getTime() : null;
+        if (!created || Date.now() - created < 30 * 24 * 60 * 60 * 1000) return;
+        const res = await axios.get(`${API}/books/stats`, { withCredentials: true });
+        if (cancelled) return;
+        const total = res.data?.total || 0;
+        if (total >= 20) setEligible(true);
+      } catch {
+        /* silently skip — share prompt is non-critical */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user]);
+
+  if (!eligible) return null;
+
+  const SHARE_TEXT = "I've been using Shelfsort to auto-sort my fanfic & ebook library by fandom — it's been quietly excellent. Check it out:";
+  const SHARE_URL = "https://shelfsort.com";
+
+  const doShare = async () => {
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: "Shelfsort",
+          text: SHARE_TEXT,
+          url: SHARE_URL,
+        });
+        try { axios.post(`${API}/help/track`, { event: "share_sheet_opened" }, { withCredentials: true }); } catch { /* noop */ }
+        return;
+      }
+      await navigator.clipboard.writeText(`${SHARE_TEXT} ${SHARE_URL}`);
+      toast.success("Copied — paste it anywhere you like ✨");
+      try { axios.post(`${API}/help/track`, { event: "share_link_copied" }, { withCredentials: true }); } catch { /* noop */ }
+    } catch {
+      /* user dismissed the share sheet — no-op */
+    }
+  };
+
+  return (
+    <div
+      data-testid="help-share-prompt"
+      className="mt-4 pt-3 border-t border-[#E5DDC5]/60 flex flex-wrap items-center justify-between gap-2"
+    >
+      <p className="text-xs text-[#6B705C] italic">
+        Enjoying Shelfsort? Know a friend who reads fanfic?
+      </p>
+      <button
+        type="button"
+        data-testid="help-share-btn"
+        onClick={doShare}
+        className="text-xs font-semibold uppercase tracking-[0.12em] text-[#6B46C1] hover:text-[#E07A5F] inline-flex items-center gap-1"
+      >
+        Share Shelfsort →
+      </button>
+    </div>
+  );
+}
+

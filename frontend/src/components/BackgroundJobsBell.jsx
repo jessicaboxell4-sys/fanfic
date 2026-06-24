@@ -56,6 +56,11 @@ export default function BackgroundJobsBell() {
   // single completion doesn't spam the user on every subsequent poll.
   const toastedRef = useRef(new Set());
   const autoClearRef = useRef(new Map());
+  // Track which rows just transitioned to "done" so we can pulse them
+  // briefly (mirrors the BookCard fresh-arrival pulse).  Removed
+  // automatically after 3.2 s so the same row doesn't re-pulse on
+  // every render.
+  const [justDoneIds, setJustDoneIds] = useState(() => new Set());
   const fileInputRef = useRef(null);
   const folderInputRef = useRef(null);
   const [submitting, setSubmitting] = useState(false);
@@ -232,6 +237,21 @@ export default function BackgroundJobsBell() {
           books.forEach((b) => {
             if (b?.book_id && !b.failed) markBookFresh(b.book_id);
           });
+          // Pulse this row briefly to celebrate the arrival (mirrors
+          // the BookCard pulse — links "this row just sorted" to
+          // "that card just landed in your library").
+          setJustDoneIds((prev) => {
+            const n = new Set(prev);
+            n.add(j.jobId);
+            return n;
+          });
+          setTimeout(() => {
+            setJustDoneIds((prev) => {
+              const n = new Set(prev);
+              n.delete(j.jobId);
+              return n;
+            });
+          }, 3200);
           // Cozy-literary completion toast — matches the rest of
           // Shelfsort's voice instead of "📚 X just finished".
           toast.success(
@@ -580,7 +600,7 @@ export default function BackgroundJobsBell() {
                 };
 
                 return (
-                  <li key={j.jobId}>
+                  <li key={j.jobId} className={justDoneIds.has(j.jobId) ? "bgjobs-row-just-done" : ""}>
                     {goHref ? (
                       <Link
                         to={goHref}

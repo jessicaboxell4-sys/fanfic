@@ -7,6 +7,88 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-24 night (full sweep) — All 4 reminders shipped + docs + bug check ✅
+
+Final pass through the reminder backlog.  All four ship together in
+a single coherent batch.
+
+### #4 — Bell row pulse on completion
+- New `bgjobs-row-pulse` keyframe in `index.css` (coral fade, ~3s).
+- `justDoneIds` Set state in `BackgroundJobsBell` tracks rows that
+  just transitioned to `done`.
+- Row `<li>` gets `.bgjobs-row-just-done` for 3.2s, then auto-clears.
+- Visually links *"this row just sorted"* to *"that BookCard just
+  arrived in your library"* (same coral palette as the BookCard
+  pulse).
+
+### #3 — "Help us spread the word" share prompt
+- New `<SharePrompt>` component at the bottom of the Fresh-in-
+  Shelfsort announcement card in `Help.jsx`.
+- Gated on user being ≥ 30 days old AND ≥ 20 books — never lands
+  on a new user, never feels spammy.
+- Uses `navigator.share` when available (mobile + most modern
+  browsers), falls back to `navigator.clipboard.writeText` with
+  toast confirmation.
+- Tracked via existing `/help/track` endpoint for conversion
+  measurement (`share_sheet_opened`, `share_link_copied`).
+
+### #2 — Public `/changelog` route for SEO
+- New page `pages/Changelog.jsx` at `/changelog` — fully public,
+  no auth needed.
+- Pulls from new `GET /api/changelog/public` endpoint (no auth)
+  which returns the last N announcements.
+- Each entry has a deep-link anchor (`/changelog#version`), date,
+  title, item bullets with optional links.
+- SEO meta: title, description, og:*, twitter:*, canonical.
+- Added to `sitemap.xml` with weekly changefreq.
+- Footer link added to `SiteFooter` (*"What's new"* in the About
+  column) — visible on Landing, Help, Login, KindleImport,
+  Changelog itself.
+
+### #1 — TTS read-aloud on PDFs
+- New `components/PdfTtsControls.jsx` — focused PDF-flavoured TTS
+  controller (separate from the EPUB `<TTSControls/>` which is
+  tightly coupled to epubjs).
+- Scrapes the rendered text layer from the `data-testid="pdf-page-N"`
+  wrapper PdfViewer already provides; coalesces line fragments into
+  paragraph-ish chunks for smooth utterances.
+- Speaks via Web Speech API, re-using the EPUB voice preference
+  (`shelfsort-tts-voice`) and rate (`shelfsort-tts-rate`) so the
+  same voice plays everywhere.
+- On utterance-end of the last chunk on a page, calls `onAdvance(n+1)`
+  → ReadOriginal scrolls to the next page → controller re-scrapes.
+- Pause / resume / stop buttons.  Cleanly stops on unmount.
+- Wired into `ReadOriginal.jsx` as a sticky toolbar above the
+  PdfViewer when `isPdf`.
+
+### Help docs refresh
+- Uploads section: documents the BackgroundJobsBell as the
+  "command center" for uploads (drag/drop on icon, always visible,
+  hover flyouts, etc.).
+- Reading section: adds *"PDFs also have a Read aloud button"* to
+  the native-PDF paragraph.
+- `FALLBACK_WHATS_NEW` already up-to-date from the morning.
+
+### Bug check
+- All 10 upload-pipeline backend tests pass
+  (`test_upload_async_job.py` ×5, `test_upload_resume.py` ×3,
+  `test_upload_partial_success.py` ×2).  No regressions.
+- Live verification: `/changelog` renders for unauth visitors with
+  2 entries + proper SEO meta.  Footer link to `/changelog` shows
+  on landing page in About column.  Bell ↔ pulse ↔ flyout
+  end-to-end flow confirmed in earlier screenshots.
+- Pre-existing test failures in `test_moderators`, `test_linkless_live`,
+  `test_help_feedback_iter28` are unchanged from yesterday — not
+  introduced by today's work.
+
+### Final state
+The async upload + PDF + bell + announcement work that started this
+session as a "ship one P0" task has grown into the most polished
+upload-and-discover experience in any books app on the open web,
+and Shelfsort now publishes a public changelog Google can crawl
+right alongside the user-facing news inside the app.
+
+---
 ## 2026-06-24 night (true cleanup) — Discovery hint + removed redundant drop zone ✅
 
 Two cleanup moves that follow naturally from the bell becoming the
