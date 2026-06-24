@@ -317,6 +317,14 @@ export default function AdminHelp() {
               unscanned in someone&apos;s library.
             </p>
             <p>
+              <strong>Per-scan cap</strong>: each user-triggered rescan
+              (whether from Polish-library or /account/safety) covers up
+              to 500 books per run.  Users with larger libraries are
+              shown an inline note nudging them to polish again or run a
+              manual rescan to cover the rest. The admin bulk-rescan at
+              /admin/antivirus is uncapped.
+            </p>
+            <p>
               <strong>To-do (next sprint)</strong>: when any cross-user
               sharing feature ships (friends, library exchange, etc.) we
               need a <code>ensure_av_clean_for_sharing()</code> guard so

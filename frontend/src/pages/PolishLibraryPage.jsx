@@ -280,6 +280,9 @@ export default function PolishLibraryPage() {
                         {scanProgress.scanned} / {scanProgress.total}
                       </span>{" "}
                       books scanned
+                      {scanProgress.total === 500 && (
+                        <span className="text-[#7C5400]"> · (first 500 — see note when complete)</span>
+                      )}
                     </p>
                     <div className="w-full h-1.5 rounded-full bg-[#6B46C1]/10 overflow-hidden">
                       <div
@@ -310,6 +313,18 @@ export default function PolishLibraryPage() {
                   )}
                   {done?.skipped > 0 && ` · ${done.skipped} skipped`}
                 </p>
+                {/* 2026-07-04 — Per-scan cap nudge.  The backend caps
+                    each rescan at 500 books to keep the run reasonable.
+                    When we hit that cap exactly, the user might have
+                    more books still unscanned — gently tell them so
+                    they can polish again or run a manual rescan. */}
+                {scanSummary?.scanned === 500 && (
+                  <p className="text-[11px] mt-2 text-[#7C5400] bg-[#FFF7E6] border border-[#E0A95F]/40 rounded px-2 py-1.5">
+                    Heads up: each scan covers up to 500 books at a time. If your library has more, polish again — or visit{" "}
+                    <Link to="/account/safety" className="underline font-semibold">Account → Library safety</Link>
+                    {" "}to sweep the rest.
+                  </p>
+                )}
               </>
             )}
             {phase === "scanning-detached" && (
