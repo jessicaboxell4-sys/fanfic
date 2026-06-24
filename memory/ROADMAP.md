@@ -18,6 +18,14 @@ Shipped — see CHANGELOG `2026-06-25 (afternoon)` extension entry.
 
 ## ✅ Just shipped (2026-06-24/25)
 
+- **P2 "Built from your suggestion" badges** — `pages/SuggestionsPage.jsx`
+  shipped suggestions now render a public credit ribbon ("Built from
+  {submitter}'s suggestion" or "Built from your suggestion" for the
+  originator) plus the StatusPill reads "Shipped" instead of "Done".
+  When the originator visits the page after their suggestion ships,
+  they see a one-shot celebration toast (localStorage-keyed per
+  suggestion_id) thanking them.  Closes the user-feedback loop
+  visibly — other readers see suggestions actually land in prod.
 - **P1 Public reader directory** — `/users` lists every signed-in
   user's `@username` (no name/email/avatar/library leak).  Backend
   `GET /api/users/directory` returns paginated `{user_id, username}`

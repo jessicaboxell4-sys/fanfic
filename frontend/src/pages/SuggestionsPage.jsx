@@ -28,7 +28,10 @@ function StatusPill({ status }) {
     open: { label: "Open", bg: "#FBFAF6", color: "#6B705C" },
     under_review: { label: "Under review", bg: "#FDF3E1", color: "#B87A00" },
     planned: { label: "Planned", bg: "#EEF3EC", color: "#6B46C1" },
-    done: { label: "Done", bg: "#E6F0E8", color: "#1F4D2A" },
+    // "Shipped" reads better than "Done" on a public board and
+    // signals to other contributors that suggestions actually land
+    // in production.  Same status enum on the backend — display-only.
+    done: { label: "Shipped", bg: "#E6F0E8", color: "#1F4D2A" },
     declined: { label: "Declined", bg: "#F4E0DC", color: "#B43F26" },
   };
   const s = map[status] || map.open;
@@ -36,6 +39,26 @@ function StatusPill({ status }) {
     <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: s.bg, color: s.color }}>
       {s.label}
     </span>
+  );
+}
+
+// Public-facing credit ribbon shown under any shipped suggestion.
+// Goal: when a suggestion lands in production, give the submitter
+// visible recognition so other readers see "you can actually shape
+// this product" and contribute more.  Sits between the body and the
+// admin-note block so it reads as a celebratory caption.
+function ShippedCredit({ submitterName, isMine }) {
+  return (
+    <p
+      data-testid="suggestion-shipped-credit"
+      className="text-[11px] mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-[#EDE7FB] to-[#E6F0E8] text-[#1F4D2A] font-semibold border border-[#C9DFC9]"
+      title={isMine ? "Thanks for making Shelfsort better!" : "Crowd-sourced from a reader's suggestion"}
+    >
+      <Sparkles className="w-3 h-3 text-[#6B46C1]" />
+      {isMine
+        ? "Built from your suggestion"
+        : <>Built from {submitterName}&apos;s suggestion</>}
+    </p>
   );
 }
 
@@ -169,6 +192,29 @@ export default function SuggestionsPage() {
         },
       });
       setItems(data?.suggestions || []);
+      // Personalised "your suggestion shipped" celebration — fires
+      // once per shipped suggestion (localStorage flag keyed by
+      // suggestion_id) so the user only sees the confetti once per
+      // shipment, but across page reloads we don't spam.  Looks for
+      // any row that is BOTH mine AND status === done AND we haven't
+      // shown the celebration for yet.
+      try {
+        const myShipped = (data?.suggestions || []).filter(
+          (s) => s.is_mine && s.status === "done"
+        );
+        for (const s of myShipped) {
+          const key = `shelfsort.suggestionCelebrated.${s.suggestion_id}`;
+          if (localStorage.getItem(key) === "1") continue;
+          localStorage.setItem(key, "1");
+          // setTimeout so toast doesn't race the page paint.
+          setTimeout(() => {
+            toast.success(`Your suggestion shipped — "${s.title}"`, {
+              description: "Thanks for making Shelfsort better. The badge below credits you publicly.",
+              duration: 10000,
+            });
+          }, 400);
+        }
+      } catch { /* localStorage unavailable — skip */ }
     } catch { toast.error("Couldn't load suggestions"); }
     finally { setLoading(false); }
   };
@@ -445,6 +491,9 @@ export default function SuggestionsPage() {
                     <p className="text-xs text-[#6B46C1] mt-1 p-2 rounded bg-[#EEF3EC] border-l-2 border-[#6B46C1]">
                       <strong>Admin note:</strong> {s.admin_note}
                     </p>
+                  )}
+                  {s.status === "done" && (
+                    <ShippedCredit submitterName={s.submitter_name} isMine={s.is_mine} />
                   )}
                   <p className="text-[10px] text-[#6B705C] mt-1 inline-flex items-center gap-1.5 flex-wrap">
                     <span>by {s.submitter_name} · {new Date(s.created_at).toLocaleDateString()}</span>

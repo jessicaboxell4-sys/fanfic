@@ -7,6 +7,36 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-25 (evening) — "Built from your suggestion" badges ✅
+
+P2 backlog item.  Closes the user-feedback loop with public
+credit + a personal moment of recognition.
+
+### Frontend (`pages/SuggestionsPage.jsx`)
+- `StatusPill("done")` re-labelled to "Shipped" (display-only; the
+  enum stays `done` on the backend so the admin select + status
+  filter keep working).
+- New `<ShippedCredit>` ribbon component renders under any
+  `status === "done"` row.  Pill-shape, lavender→sage gradient,
+  Sparkles icon.  Two variants:
+  - **All viewers**: "Built from {submitter_name}'s suggestion"
+  - **Submitter**: "Built from your suggestion"
+- One-shot celebration toast: when the suggestion list loads, scan
+  for rows where `is_mine && status === "done"` AND we haven't
+  flagged the suggestion_id yet (`shelfsort.suggestionCelebrated.{sid}`
+  localStorage key).  Toast title "Your suggestion shipped —
+  '{title}'", description nudges them to look at the credit badge
+  below.  Fires only once per shipped suggestion per device.
+
+### Verification
+- Screenshot confirms two existing shipped suggestions (HS's "Add
+  drag-and-drop reorder" + "Add dark mode reader skin") now render
+  with the credit ribbon ("Built from HS's suggestion") and the
+  "SHIPPED" pill.
+- Lint clean.  No backend changes — purely a frontend display
+  enhancement against existing `status` data.
+
+---
 ## 2026-06-25 (afternoon) — Public reader directory + Recently Added + opt-in upload chime ✅
 
 Three-feature batch closing out the friend-discovery story and a couple
