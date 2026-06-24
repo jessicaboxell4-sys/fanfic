@@ -40,6 +40,21 @@ the tiered Core/Edge/Follow-up/Nice-to-have sections inside the
 reminder block. When shipped, mark "— DONE {date} ✅" on the heading
 and shrink the body to a one-line CHANGELOG pointer.
 
+### Convention for "Potential improvement" sections in finish summaries
+
+When proposing potential improvements at the end of a feature ship,
+**always include the agent's recommended pick** (with one-line
+reasoning) right after the bulleted list.  The user asked for this
+explicitly on 2026-06-25 — they don't want to have to follow up with
+"which is best?" every time.  Format:
+
+> ### Recommended pick
+> **#N — {title}** — {one-line why}.  {Optional: runner-up pick if a
+> close second is genuinely competitive.}
+
+This applies to EVERY finish summary that includes potential
+improvements, not just the explicit "which is best?" follow-ups.
+
 ---
 
 ## 💡 Reminder — Extend regression smoke to upload pipeline — DONE 2026-06-25 ✅
