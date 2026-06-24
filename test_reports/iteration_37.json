@@ -1,0 +1,31 @@
+{
+  "summary": "Comprehensive regression sweep for Phase 6A cover-extraction refactor + suggestions shipped badges + /users welcome toast. Backend: 17/17 pytest tests pass — covers.py extraction is behaviour-preserving (cover-styles, cover-less, community-covers, community-covers/featured, preview-cover route, lineage), books.py routes still wired (books/recent/stats, fandoms, recent-updates), users/directory shape correct (username-only, self excluded), friends/request idempotent, suggestions list carries status+submitter_name+is_mine, and at least one of the two known shipped exemplars present. Frontend: registered a fresh user, /users shows the 'Claim your @handle' welcome toast with 'Pick a handle' CTA on first visit and NO toast on second visit (localStorage flag 'shelfsort.directoryWelcomeShown.v1' set to '1'); /suggestions renders 3 'suggestion-shipped-credit' ribbons (HS / Alice / Jessica L Boxell-Shaw-Hamilton) under the 3 shipped entries; /library/recently-added shows the 7d/14d/30d/90d pills + empty-state copy for the 0-book user; /account renders upload-chime-card + privacy-open-directory-btn. NO regressions found.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter37_refactor_regression.py",
+    "/app/test_reports/pytest/iter37.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routes/covers.py imports _write_local_and_mirror_to_r2 from routes.books — one-way dependency is fine, but if a future refactor moves that helper into utils, both files need updating. Consider documenting the helper's location as a TODO in covers.py top docstring (already partly noted on line 60).",
+    "routes/covers.py: _COVER_VARIANT_CAP is defined at line 252, AFTER apply_book_cover() which references it on lines 206-210. Python module-level execution order makes this work because the function body is only evaluated on call, but moving the constant declaration above the first reference would be cleaner.",
+    "SuggestionsPage.jsx: StatusPill displays 'Shipped' label for status==='done' — the celebration toast for the submitter's own shipped suggestion is gated by status===done + is_mine; not exercised in this test run because the fresh user has no shipped suggestions of their own. Code path is straightforward (effect on suggestions list change).",
+    "UsersDirectory.jsx welcome-toast trigger is correctly one-shot (localStorage gate verified end-to-end this iteration).",
+    "Backend in the preview env had a brief hang after a WatchFiles reload picked up the new test file write; restarting supervisor's backend cleared it. Not a product bug — uvicorn --reload + a scheduled apscheduler job mid-shutdown can deadlock briefly. If this recurs in prod-like envs, consider running uvicorn without --reload OR moving the storage_backfill_tick scheduler to a graceful-shutdown-aware wrapper."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter37_refactor_regression.py (NEW — 17 tests, all pass)"
+  ],
+  "success_rate": {"backend": "100% (17/17)", "frontend": "100% (all spec items verified)"},
+  "test_credentials": "Fresh user: iter37ui-1782331361@example.com / hunter2pw — used for /users welcome-toast first-visit verification. Seeded tester password still rotated; register-fresh remains the reliable path.",
+  "seed_data_creation": "1 fresh registered user for UI verification. Test data prefixed implicitly via timestamp.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Cover endpoints all live in routes/covers.py post Phase-6A. test_iter37_refactor_regression.py is the regression baseline — re-run after any further refactor. /api/health on this preview can momentarily return 000 immediately after a hot-reload picks up a new file write; restart supervisor backend if so. Welcome-toast uses localStorage 'shelfsort.directoryWelcomeShown.v1' — clear it OR use a fresh user to re-test. Existing shipped suggestions in prod data (verified rendering): 'Add drag-and-drop reorder' (HS), 'Add dark mode reader skin' (Alice), and one from Jessica L Boxell-Shaw-Hamilton.",
+  "rca of the issue": "n/a — no functional regressions. One transient backend hang was caused by uvicorn --reload triggering on the test-file write while a scheduled job was mid-execution; not a product defect. After supervisor restart, all 17 backend tests passed in 1.55s."
+}
