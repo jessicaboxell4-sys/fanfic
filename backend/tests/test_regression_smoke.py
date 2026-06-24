@@ -483,3 +483,73 @@ def test_no_hex_leaks_in_inline_style_props():
             "comment explaining why."
         )
         pytest.fail(msg)
+
+
+@pytest.mark.regression_smoke
+def test_no_unpaired_dark_only_hex_utilities():
+    """Third dark-mode guard — flags `dark:UTILITY-[#hex]` patterns
+    that lack a paired light-mode sibling of the same utility on the
+    same className.
+
+    Why this matters: a className like `dark:bg-[#XXXXXX]` alone means
+    light-mode gets whatever the container default is — usually a leak
+    that the author forgot.  The healthy pattern is
+    `bg-[#YYYY] dark:bg-[#XXXXXX]` (explicit both ways) or
+    `bg-[var(--surface)]` (auto-flips, no dark: needed).
+
+    Detection: for each `dark:ROOT-[#hex]`, check the same line for
+    an unprefixed `ROOT-…` utility.  If present, the pair is healthy.
+    If absent, flag as a likely dark-only leak.
+    """
+    import re
+    import pathlib
+
+    src = pathlib.Path("/app/frontend/src")
+    # Capture the utility root (without `dark:` prefix and without the
+    # `-[#hex]` value).  Roots we care about: any prefix that ends in
+    # a colour-bearing utility.  Greedy on hyphens so `border-t-…` is
+    # treated as a `border-t` root, not `border-t-…-`.
+    pat = re.compile(r"\bdark:([a-z]+(?:-[a-z]+)*)-\[(#[0-9A-Fa-f]{3,8})[^\]]*\]")
+    leaks = []
+    for path in src.rglob("*"):
+        if path.suffix not in (".jsx", ".js", ".tsx", ".ts"):
+            continue
+        try:
+            text = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        for line_no, line in enumerate(text.splitlines(), 1):
+            for m in pat.finditer(line):
+                root = m.group(1)        # e.g. "bg", "text", "border-t"
+                # Healthy pair check: does the same line contain a
+                # non-dark sibling `ROOT-…`?  Negative lookbehind
+                # excludes the `dark:` we just matched.
+                sibling_pat = re.compile(
+                    rf"(?<!dark:){re.escape(root)}-(?!\w)|"
+                    rf"(?<!:){re.escape(root)}-(?=\[|\w)"
+                )
+                # Strip out the matched dark: occurrence(s) so the
+                # sibling search doesn't double-count.
+                stripped = re.sub(
+                    rf"dark:{re.escape(root)}-\[[^\]]+\]", "", line
+                )
+                if not sibling_pat.search(stripped):
+                    leaks.append(
+                        f"  {path.relative_to('/app')}:{line_no} → "
+                        f"`dark:{root}-[{m.group(2)}]` is unpaired "
+                        f"(no `{root}-…` sibling on the same line)"
+                    )
+    if leaks:
+        msg = (
+            "\nFound `dark:`-prefixed hex utilities with NO matching\n"
+            "light-mode sibling on the same className.  These leave\n"
+            "light mode falling back to the container default — usually\n"
+            "an oversight.\n\n"
+            f"{len(leaks)} unpaired hit(s):\n" + "\n".join(leaks) + "\n\n"
+            "Fix options:\n"
+            "  1. Add an explicit light-mode utility for the same\n"
+            "     attribute (e.g. `bg-[#XXX] dark:bg-[#YYY]`).\n"
+            "  2. Use a CSS var that auto-flips (`bg-[var(--surface)]`)\n"
+            "     and drop the `dark:` variant entirely."
+        )
+        pytest.fail(msg)

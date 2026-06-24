@@ -7,6 +7,42 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-25 (overnight 3) — Unpaired `dark:` hex utility guard ✅
+
+Third and final dark-mode leak guard, completing the bug-class
+insurance trio.
+
+### Audit
+Sweep for `dark:UTILITY-[#hex]` patterns → 1 hit in
+`BookDetail.jsx:677`, but it's properly paired:
+`bg-[#EEE9FB] dark:bg-[#6B46C1]/20 text-[#6B46C1]` (both themes
+explicitly styled).  Codebase is clean.
+
+### New regression test
+- `tests/test_regression_smoke.py::test_no_unpaired_dark_only_hex_utilities`
+  (tagged `@pytest.mark.regression_smoke`)
+- For each `dark:ROOT-[#hex]`, scans the same line for an
+  unprefixed `ROOT-…` sibling.  Paired → pass.  Unpaired → fail
+  with file:line + fix suggestions.
+- Self-tested with a synthetic file containing one unpaired + two
+  paired lines: the unpaired one was flagged, the paired ones were
+  not.
+
+### Combined dark-mode insurance (final)
+| Bug pattern | Guard test |
+|-------------|------------|
+| `[&_*]:utility-[#hex]` arbitrary variant | `test_no_hex_leaks_in_tailwind_arbitrary_variants` |
+| `style={{ color: "#hex" }}` inline style | `test_no_hex_leaks_in_inline_style_props` |
+| `dark:utility-[#hex]` standalone (no light pair) | `test_no_unpaired_dark_only_hex_utilities` |
+
+All three fire on every PR + every nightly production canary.  The
+dark-mode `<code>` chip bug class that surfaced earlier today is
+now eliminated at PR time across all three known surfaces.
+
+### Smoke band
+- 24 → **25 tests** in **7.28 s**.
+
+---
 ## 2026-06-25 (overnight 2) — Inline-style hex leak guard + AllBooksPage fix ✅
 
 Extends today's dark-mode leak guard infrastructure to cover the
