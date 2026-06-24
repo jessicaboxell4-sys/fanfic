@@ -2,6 +2,42 @@
 
 > Active backlog. Items move to [CHANGELOG.md](./CHANGELOG.md) when shipped.
 
+---
+
+## 🎯 Quick pick — next-up ranking
+
+Auto-maintained ranking of open reminders by **effort × impact ×
+dependencies**.  When the user asks "what's next" or "which one first",
+default to this order unless they ask otherwise.  Re-rank whenever a
+reminder is added, shipped, or its scope changes.
+
+Heuristic (highest priority first):
+1. **Free wins that close existing loops** — tiny scope, already-
+   shipped work is incomplete without it
+2. **Infrastructure investments that unblock other reminders** —
+   smoke tests, scaffolding
+3. **Visible user-facing features** — new value, bring users in
+4. **Pure tech debt / refactors** — invisible, lowest user impact
+
+### Current order
+
+| # | Reminder | Effort | Impact | Why this rank |
+|---|----------|--------|--------|---------------|
+| 1 | Extend regression smoke to upload pipeline | ~30-45 min | Med (infra) | Unblocks safe refactor of upload pipeline + Phase 6B/6C |
+| 2 | Amplify "Shipped from the community" social proof | ~1-2 h Core | High (user) | Amplifies the badge work; brings traffic to the suggestion board |
+| 3 | Profile discovery polish (scroll-to-row, completeness nudge) | ~30-45 min | Med (user) | Follow-up to Listed! toast; small UX delight |
+| 4 | Phase 6B: bulk-ops extraction | ~30-45 min | Low (tech debt) | No user-facing value; do after smoke ships |
+
+### Convention for adding new reminders
+
+When the user says "remind later", append a new `## 💡 Reminder` block
+**below** this Quick pick section AND insert a row in the table above
+with effort/impact/why. When the user asks for an expanded menu, add
+the tiered Core/Edge/Follow-up/Nice-to-have sections inside the
+reminder block. When shipped, mark "— DONE {date} ✅" on the heading
+and shrink the body to a one-line CHANGELOG pointer.
+
+---
 
 ## 💡 Reminder — Extend regression smoke to upload pipeline
 
