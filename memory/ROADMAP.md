@@ -64,6 +64,15 @@ the user has been on the platform for ≥ 30 days and has uploaded
 ≥ 20 books — otherwise it feels spammy. Track click counts so we
 can measure conversion.
 
+## 💡 Reminder — Pulse the matching bell row when a job completes (P3, ~10 min)
+
+Mirror the BookCard fresh-arrival pulse onto the BackgroundJobsBell
+panel row that just transitioned to "done".  Same coral border
+glow, same ~3 s duration.  Visually links *"this row just sorted"*
+to *"that card just arrived"* in the library grid.  Tiny but
+satisfying continuity once both surfaces exist.  Pick up next time
+we touch `BackgroundJobsBell.jsx`.
+
 
 ## ✅ Just shipped (2026-07-04 morning)
 
