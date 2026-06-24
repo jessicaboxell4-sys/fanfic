@@ -64,6 +64,39 @@ endpoint cluster into `routes/bulk_ops.py`:
 form a coherent surface that will benefit from being grouped when
 we later add audit logging or rate limiting to mass-edit operations.
 
+### 🎯 Core (the move itself, ~30 min)
+1. Create `routes/bulk_ops.py`; copy the 6 endpoint handlers verbatim
+2. Move any module-private helpers they depend on (likely
+   `_bulk_log_event`, status enums)
+3. Register `bulk_ops` in `server.py`'s bulk routes import
+4. Remove originals from `books.py`; update its header section map
+5. Run regression smoke (`pytest -m regression_smoke`) — must pass
+
+### 🟡 Edge cases (`tests/test_regression_smoke.py` additions, +3 tests)
+6. `POST /api/books/bulk/delete` with empty `book_ids` → 400, not 500
+7. `POST /api/books/bulk/move` to nonexistent shelf → 404
+8. `POST /api/books/reset-state` requires confirmation flag (existing
+   safety check still wired)
+
+### 🔵 Follow-up improvements (after extraction, separate ticket)
+9. **Audit logging** — every bulk op writes a row to `audit_log`
+   collection with `{user_id, op, target_count, timestamp, summary}`.
+   Admin console gets a "Mass-edit history" panel.
+10. **Rate limiting** — cap `wipe-library` to once per 5 min, others
+    to ~10/min per user.  Stops accidental double-clicks from
+    nuking data twice.
+11. **Confirmation token flow** — `wipe-library` returns a token
+    that must be re-posted within 60 s.  Stops CSRF-style accidents.
+
+### 🟣 Nice-to-have
+12. **Undo window** — for `bulk/delete`, keep the rows in trash for
+    24 h with a `bulk_op_id` tag so a single click can restore the
+    entire batch.
+
+### Recommended scope to ship
+Core (1-5) + Edge tests (6-8).  Hold #9-#12 for a dedicated
+"safety net" pass after the refactor lands.
+
 ## 💡 Reminder — Amplify "Shipped from the community" social proof
 
 Two small ideas, either or both:
@@ -76,6 +109,54 @@ Two small ideas, either or both:
 Goal: amplify the badge work we just shipped, give the board more
 visibility, bring more contributors in.
 
+### 🎯 Core (~2 endpoints + 2 frontend pieces)
+1. Backend: `GET /api/changelog/community-credits` returns the
+   latest N shipped suggestions with `{title, submitter_name,
+   shipped_at, suggestion_id}` for public consumption (no auth)
+2. Frontend: `/changelog` page renders a new "Built from your
+   suggestions" card above the existing changelog list, showing
+   3-5 most recent with the existing ShippedCredit ribbon
+3. Each card row is clickable → deep-link to
+   `/suggestions/{suggestion_id}` (or filter the board to that
+   single row)
+4. SEO: the card markup is server-rendered enough for crawlers
+   (currently `/changelog` already does this for static entries)
+
+### 🟡 Inline admin credits (idea b)
+5. Add an optional `linked_suggestion_id` field to the
+   `changelog_entries` collection (admin form gains a "Built from
+   suggestion?" dropdown)
+6. When set, the changelog entry renders an inline ribbon under the
+   title: "Built from @{submitter}'s suggestion" linking back
+7. On suggestion-board side, the suggestion row gains a "Shipped
+   in: {changelog_link}" caption so the loop closes both ways
+
+### 🔵 Discovery surfaces
+8. **Dashboard "Your impact" card** — for users who've had ≥1
+   suggestion shipped, surface a small card on their dashboard:
+   "Your suggestion '{title}' is live — used by {import_count}
+   readers."  Mirrors the cover-profile achievements pattern.
+9. **Public profile** — `/u/{username}` page already exists for
+   cover stats; add a "Shipped suggestions" tab showing this user's
+   contributions to the changelog
+10. **Social card / OG image** — when sharing a changelog entry on
+    Twitter/Mastodon, the OG image includes "Built from a community
+    suggestion ✨" so it stands out in feeds
+
+### 🟣 Nice-to-have
+11. **Email digest** — when a user's suggestion ships, fire an
+    email: "Hey, your suggestion just shipped to Shelfsort.  Here's
+    what changed."  Tiny conversion lever — keeps lapsed users
+    engaged.
+12. **Annual recap** — once a year, generate a "Top 10 community-
+    shipped features" recap post.  Marketing gold + thanks the
+    contributors.
+
+### Recommended scope to ship
+Core (1-4) — single endpoint + a card on `/changelog`.  Hold (b)
+inline credits for the next pass since they need an admin-side
+form change.
+
 ## 💡 Reminder — "Listed!" confirmation toast on @handle save
 
 After a user picks/saves their `@handle` on Account → Profile, fire a
@@ -84,6 +165,40 @@ directory."  Closes the visual loop after the "Welcome to the
 directory → Pick a handle" CTA, answering the implicit "did that
 actually do anything?" question.  Tiny scope — hook into the existing
 profile-save success path in `pages/Account.jsx`.
+
+### 🎯 Core (~10 LOC change)
+1. In the profile-save success path, check if `previous_username`
+   was empty/null AND new `username` is non-empty
+2. If yes, fire `toast.success("Listed in the reader directory!", {...})`
+   with description "Friends can now find you by your @handle."
+3. Include a "View directory" action button → routes to `/users`
+
+### 🟡 Edge cases
+4. Don't fire if the user is renaming an existing handle (only
+   on initial set)
+5. Don't fire if `hidden_from_search === true` — instead show
+   "Saved.  You're hidden from the public directory."
+6. Don't fire if the save failed (current error handling already
+   covers this, just confirm)
+
+### 🔵 Pairing UX
+7. **Mini empty-state on /users** — for the brand-new just-listed
+   user, the first time they view /users *after* the toast, scroll
+   them to their own row (or pre-highlight it for 2 s) so they see
+   the proof of listing
+8. **Profile completeness nudge** — extend the toast to mention any
+   other profile fields they could fill (bio, picture) to make their
+   directory presence richer.  Optional second-stage CTA.
+
+### 🟣 Nice-to-have
+9. **Email confirmation** — fire a one-time "Welcome to the
+   directory" email (if they have notifications on) so the
+   visibility shift is documented.  May be overkill for a public
+   handle change.
+
+### Recommended scope to ship
+Core (1-3) + Edge (4-5).  Hold the rest for a follow-up "Profile
+discovery polish" pass.
 
 ## 💡 Reminder — "Welcome to the directory" onboarding toast — DONE 2026-06-25 ✅
 
