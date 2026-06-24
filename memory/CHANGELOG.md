@@ -7,6 +7,48 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-24 night (later still) — Background jobs bell upgrades ✅
+
+Built on top of the BackgroundJobsBell shipped earlier tonight,
+four small additions that turn it from a passive status display
+into a full background-task surface.
+
+### (a) Cross-page completion toast
+The bell now runs a slow background poll loop (10s) whenever there
+are tracked jobs, regardless of panel state.  When a job transitions
+to `done` for the first time it fires a *"📚 Title just finished"*
+toast with an *Open* action button (set as `window.location.href`
+to skip react-router and survive whatever route the user is on).
+A `toastedRef.current` Set ensures no double-toasting across polls.
+
+### (b) Browser tab title indicator
+While `activeCount > 0`, prefixes the document title with
+`(N)` — *"(3) Shelfsort — Sort your EPUBs by fandom"* — so users
+who tabbed away to another browser tab still notice the count
+changing in their tab list.  Cleanup effect strips the prefix
+when active count returns to zero / on unmount.
+
+### (c) Click finished row to open the book
+When a job is `done` and the response payload contains a non-failed
+`books[0]`, the row wraps in a react-router `<Link>` to
+`/book/{book_id}` and shows *"Tap to open →"*.  Most satisfying
+click in the whole upload flow — the new book is right there.
+
+### (d) Auto-clear `done` entries after 30s
+Every job that transitions to `done` schedules a `setTimeout` that
+calls `untrackPendingJob` after 30s, so the panel stays focused on
+what's still running.  Failures stick around so the user can act
+on them (manual `<X>` dismiss button per failed row).
+
+### Verified end-to-end
+Live test on `/account` (no UploadZone present): planted a real
+job in localStorage → bell appeared with `(1)` in tab title →
+9 seconds later the cross-page toast fired with the *Open* action
+→ panel row showed *"Tap to open →"* as a clickable `<Link>` →
+after 30 s the auto-clear timer fired, localStorage emptied, bell
+hid itself, title reverted.
+
+---
 ## 2026-06-24 night (later) — Background jobs bell in Navbar ✅
 
 Power users dropping a folder of 100 books and switching tabs had no
