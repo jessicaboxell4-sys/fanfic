@@ -9,16 +9,45 @@ Current `tests/test_regression_smoke.py` covers covers/books/friends/
 suggestions.  Add a thin smoke for the highest-risk surface in the
 codebase: the async upload pipeline.
 
-Coverage to add:
-- `POST /api/books/upload/async` happy path (small valid EPUB fixture)
-- `GET /api/books/upload/jobs/{job_id}` polling — verify the status
-  transitions queued → processing → done within a generous timeout
-- AV-status gate: confirm uploaded book ends up with `av_status` set
-  (clean/unscanned), not crashed
+### 🎯 Core (~5 tests, ~3-4 s extra)
+1. `POST /api/books/upload/async` with a tiny valid EPUB fixture →
+   returns `{job_id, status}`
+2. `GET /api/books/upload/jobs/{job_id}` polling → reaches `done`
+   within a generous timeout
+3. Posted-book `GET /api/books/{book_id}` returns 200 with shape
+   `{book_id, title, has_cover, av_status, ...}`
+4. New book appears in `GET /api/books/recent` and increments
+   `GET /api/books/stats.total`
+5. Job has `av_status` set to `clean`, `unscanned`, or `infected`
+   (not missing, not None)
 
-Goal: refactoring the upload pipeline (which is partially planned for
-Phase 6C) becomes safe — `pytest -m regression_smoke` will catch
-breakage in ~5 s.
+### 🟡 Edge cases (~3 tests, +2 s)
+6. Invalid file (non-EPUB binary) → job ends in `failed` with a
+   non-empty `error`
+7. Duplicate upload of same EPUB → second job either dedupes or
+   sets a `duplicate_of` field
+8. `GET /api/books/upload/jobs` (list endpoint, used by
+   BackgroundJobsBell) → shape matches bell expectations
+
+### 🔵 Infrastructure-adjacent (~3 tests)
+9. Friend-library AV gate: infected book → 409 on
+   `POST /api/friends/{id}/library` (regression for last session's fix)
+10. Conversion pipeline: `POST /api/library/originals/{id}/convert`
+    smoke (skipped if Calibre isn't installed in CI)
+11. URL paste endpoint exists and responds 200/400 (not 500) for
+    valid/invalid input
+
+### 🟣 Nice-to-have (frontend, not pytest)
+12. Upload chime localStorage flag is honored — would need a
+    frontend test suite addition
+
+### Recommended scope to ship
+Core (1-5) + #8 (BackgroundJobsBell payload shape) + #9 (AV gate).
+~7 tests, ~4-5 s total.  Skips Calibre (CI doesn't have it) and
+duplicate-of dedup (may flake on small fixtures).
+
+Goal: refactoring the upload pipeline (Phase 6C, planned later)
+becomes safe — `pytest -m regression_smoke` catches breakage in ~5 s.
 
 ## 💡 Reminder — Phase 6B: bulk-ops extraction
 
