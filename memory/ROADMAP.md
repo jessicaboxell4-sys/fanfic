@@ -3,6 +3,23 @@
 > Active backlog. Items move to [CHANGELOG.md](./CHANGELOG.md) when shipped.
 
 
+## 💡 Reminder — Extend regression smoke to upload pipeline
+
+Current `tests/test_regression_smoke.py` covers covers/books/friends/
+suggestions.  Add a thin smoke for the highest-risk surface in the
+codebase: the async upload pipeline.
+
+Coverage to add:
+- `POST /api/books/upload/async` happy path (small valid EPUB fixture)
+- `GET /api/books/upload/jobs/{job_id}` polling — verify the status
+  transitions queued → processing → done within a generous timeout
+- AV-status gate: confirm uploaded book ends up with `av_status` set
+  (clean/unscanned), not crashed
+
+Goal: refactoring the upload pipeline (which is partially planned for
+Phase 6C) becomes safe — `pytest -m regression_smoke` will catch
+breakage in ~5 s.
+
 ## 💡 Reminder — Phase 6B: bulk-ops extraction
 
 Continue the books.py refactor.  Extract the "destructive/mass-edit"
