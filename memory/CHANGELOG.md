@@ -7,6 +7,55 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-26 — Phase 6B: bulk-ops extracted from books.py ✅
+
+P3 tech-debt item.  Behavior-preserving split using the regression
+smoke band we shipped earlier as the safety net.
+
+### New file: `routes/bulk_ops.py` (~430 LOC)
+6 endpoints + their request models moved verbatim:
+- `POST /api/books/reclassify-all`
+- `POST /api/books/bulk/delete`
+- `POST /api/books/bulk/move`
+- `POST /api/books/bulk/metadata`
+- `POST /api/books/reset-state`
+- `POST /api/books/wipe-library`
+
+### `routes/books.py` — 4,964 → 4,613 LOC (7% drop)
+- 351 lines removed across 6 disjoint blocks (5 endpoint bodies + 5
+  request models + 1 endpoint without a paired model)
+- Header section map updated with the new Phase 6B row
+- Internal helpers (`_canonicalize_fandom`, `_normalize_tags`,
+  `OLD_STORIES_SHELF` constant) stay in books.py; bulk_ops.py
+  imports them one-way (same pattern as covers.py)
+
+### `server.py`
+- `bulk_ops` added to the bulk `from routes import …` line so its
+  `@api_router` decorators fire at startup.
+
+### Verification — the safety net worked
+- `./scripts/run_regression_smoke.sh` → **25 passed in 7.44 s**.
+  No regressions.  The combined safety net (upload + cover + 3
+  dark-mode + endpoint guards + Phase 6A smoke) caught zero
+  problems, which is exactly the outcome we wanted: refactor as a
+  routine operation, not a leap of faith.
+- Curl smoke on all 6 moved endpoints with bad / empty inputs:
+  - `wipe-library` (wrong confirm) → 400 with original message
+  - `reset-state` (empty body) → 400 "Pick at least one thing"
+  - `bulk/delete` (empty ids) → 200 `{"deleted":0}`
+  - `bulk/move` (no fields) → 400 "No category or fandom"
+  - `reclassify-all` (default body) → 200 `{"processed":0,"changed":0}`
+- All preserve their original status codes and error message text.
+
+### Cumulative refactor progress
+- Phase 1-5 (previous agents): conversions, trash, fandoms, exports,
+  URL lists, refresh, duplicate resolution, library views, reading
+  activity → modules
+- Phase 6A (today): covers → `routes/covers.py` (5,855 → 4,964)
+- Phase 6B (today): bulk-ops → `routes/bulk_ops.py` (4,964 → 4,613)
+- `books.py` is now ~22% smaller than at start-of-session.
+
+---
 ## 2026-06-25 (overnight 3) — Unpaired `dark:` hex utility guard ✅
 
 Third and final dark-mode leak guard, completing the bug-class

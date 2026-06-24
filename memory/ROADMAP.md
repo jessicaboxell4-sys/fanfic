@@ -26,10 +26,9 @@ Heuristic (highest priority first):
 | 1 | Admin Console smoke-canary widget | ~45 min | Med (operator) | Now unblocked — canary is live; widget shows last result at a glance |
 | 2 | Amplify "Shipped from the community" social proof | ~1-2 h Core | High (user) | Amplifies the badge work; brings traffic to the suggestion board |
 | 3 | Profile discovery polish (scroll-to-row, completeness nudge) | ~30-45 min | Med (user) | Follow-up to Listed! toast; small UX delight |
-| 4 | Phase 6B: bulk-ops extraction | ~30-45 min | Low (tech debt) | Now safe — upload smoke + cover smoke both in place; no user-facing value |
-| 5 | Canary test-account cleanup endpoint | ~20 min | Low (housekeeping) | Sweep `shelfsort-canary-…@example.com` rows weekly so prod doesn't accrue throwaway accounts |
-| 6 | Canary polish bundle (5 sub-items) | ~2-3 h all | Med | Webhook + multi-region + tiered frequency + public badge + metrics dashboard — pick & choose |
-| 7 | Help.jsx duplicate React keys in WhatsNew fallback | ~5 min | Trivial | Pre-existing warning ("Encountered two children with the same key /library/all") in Help.jsx line 547-561; three FALLBACK_WHATS_NEW items share `to='/library/all'`. Fix: composite key like `${item.to}-${item.label}` or array index |
+| 4 | Canary test-account cleanup endpoint | ~20 min | Low (housekeeping) | Sweep `shelfsort-canary-…@example.com` rows weekly so prod doesn't accrue throwaway accounts |
+| 5 | Canary polish bundle (5 sub-items) | ~2-3 h all | Med | Webhook + multi-region + tiered frequency + public badge + metrics dashboard — pick & choose |
+| 6 | Help.jsx duplicate React keys in WhatsNew fallback | ~5 min | Trivial | Pre-existing warning ("Encountered two children with the same key /library/all") in Help.jsx line 547-561; three FALLBACK_WHATS_NEW items share `to='/library/all'`. Fix: composite key like `${item.to}-${item.label}` or array index |
 
 ### Convention for adding new reminders
 
