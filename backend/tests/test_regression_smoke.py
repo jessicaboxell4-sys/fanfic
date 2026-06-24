@@ -416,3 +416,70 @@ def test_no_hex_leaks_in_tailwind_arbitrary_variants():
             "token — those auto-switch via :root[data-theme=\"dark\"]."
         )
         pytest.fail(msg)
+
+
+# Files that legitimately embed brand-themed hex colors in inline
+# styles — usually share cards / OG images / public marketing
+# components that look the same in light vs dark by design.  Keep
+# this list small and only add to it when the asset is GENUINELY
+# theme-independent (e.g. a Spotify-Wrapped-style social share).
+_INLINE_STYLE_HEX_ALLOWLIST = {
+    "frontend/src/components/YearInBooksWrapped.jsx",
+    "frontend/src/components/YearInBooksShareCard.jsx",
+    "frontend/src/pages/YearInBooksPage.jsx",
+    "frontend/src/pages/PublicYearInBooks.jsx",
+}
+
+
+@pytest.mark.regression_smoke
+def test_no_hex_leaks_in_inline_style_props():
+    """Sister test to the arbitrary-variant guard above.  Inline
+    `style={{ color: '#XXXXXX' }}` (and background / backgroundColor /
+    borderColor / fill / stroke) completely bypasses the className-
+    based dark-mode remapper, so a literal hex in there NEVER flips.
+
+    Allowlist: brand-themed share cards (Year in Books) where the
+    color is genuinely theme-independent by design.
+    """
+    import re
+    import pathlib
+
+    src = pathlib.Path("/app/frontend/src")
+    # color / background / backgroundColor / borderColor / fill / stroke
+    # set to a literal hex inside an inline `style={{ … }}` prop.
+    pat = re.compile(
+        r"""style=\{\{[^}]*['"]?(?:color|background|backgroundColor|"""
+        r"""borderColor|fill|stroke)['"]?\s*:\s*['"](#[0-9A-Fa-f]{3,8})['"]"""
+    )
+    leaks = []
+    for path in src.rglob("*"):
+        if path.suffix not in (".jsx", ".js", ".tsx", ".ts"):
+            continue
+        rel = str(path.relative_to("/app"))
+        if rel in _INLINE_STYLE_HEX_ALLOWLIST:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        for line_no, line in enumerate(text.splitlines(), 1):
+            for m in pat.finditer(line):
+                leaks.append(
+                    f"  {rel}:{line_no} → `{m.group(0)[:80]}…` "
+                    f"(hex `{m.group(1)}`)"
+                )
+    if leaks:
+        msg = (
+            "\nFound hardcoded hex colors inside inline `style={{ … }}`\n"
+            "props.  Inline styles completely bypass the className-\n"
+            "based dark-mode remapper, so these stay frozen in one\n"
+            "theme.\n\n"
+            f"{len(leaks)} leak(s):\n" + "\n".join(leaks) + "\n\n"
+            "Fix: use a className with a CSS-var-backed utility (e.g.\n"
+            "`bg-[var(--primary)]`, or a semantic class like\n"
+            "`btn-primary`).  If the color is intentionally brand-\n"
+            "themed (share card / OG image), add the file to\n"
+            "`_INLINE_STYLE_HEX_ALLOWLIST` in this test file with a\n"
+            "comment explaining why."
+        )
+        pytest.fail(msg)

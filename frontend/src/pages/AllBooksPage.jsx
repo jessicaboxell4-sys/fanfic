@@ -687,7 +687,6 @@ export default function AllBooksPage() {
               onClick={refreshAll}
               disabled={refreshingAll}
               className="btn-primary text-sm flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
-              style={{ background: "#6B46C1" }}
             >
               {refreshingAll ? (
                 <>

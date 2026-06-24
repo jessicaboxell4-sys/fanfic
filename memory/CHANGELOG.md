@@ -7,6 +7,56 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-25 (overnight 2) — Inline-style hex leak guard + AllBooksPage fix ✅
+
+Extends today's dark-mode leak guard infrastructure to cover the
+second-most-common bug class.
+
+### Audit found 1 real leak
+Sweep for hex literals inside `style={{ … }}` props turned up:
+- 5 hits in YearInBooks share-card components (intentional brand
+  styling for social-share images — these look the same in light
+  vs dark by design)
+- **1 actual leak**: `pages/AllBooksPage.jsx:690` `<button
+  className="btn-primary" style={{ background: "#6B46C1" }}>`.
+  The inline style overrode `btn-primary`'s `var(--primary)`
+  background, leaving the button stuck at `#6B46C1` in dark mode
+  while the rest of the UI shifted to the brighter `#A78BFA`.
+
+### Fix
+- `pages/AllBooksPage.jsx::refresh-all-btn` — dropped the
+  `style={{ background: "#6B46C1" }}` override.  `btn-primary`
+  already paints from `var(--primary)` so the button now flips
+  with the theme.
+
+### New regression test
+- `tests/test_regression_smoke.py::test_no_hex_leaks_in_inline_style_props`
+  (tagged `@pytest.mark.regression_smoke`)
+- Scans all `.jsx/.js/.tsx/.ts` files for inline `style` props
+  setting `color` / `background` / `backgroundColor` /
+  `borderColor` / `fill` / `stroke` to a literal hex
+- Allowlist: `_INLINE_STYLE_HEX_ALLOWLIST` exempts the 4 Year-in-
+  Books files where brand-themed share cards genuinely *should*
+  bypass the user's theme.  Adding files requires a commit-time
+  justification (comment why)
+- On hit, fails with file:line, the matched snippet, and a fix
+  suggestion (use a className with a CSS-var utility, or extend
+  the allowlist if intentional)
+
+### Smoke band
+- 23 → **24 tests** in **7.25 s**.  Production canary auto-picks
+  up the new guard.
+
+### Combined dark-mode insurance now in place
+Together with the arbitrary-variant guard from the previous run:
+1. `[&_*]:utility-[#XXXXXX]` patterns — descendant cascades
+2. `style={{ color: '#XXXXXX' }}` patterns — inline overrides
+
+Both are now CI failures, both auto-fire on every PR + every
+nightly canary.  The dark-mode `<code>` chip bug class is
+effectively eliminated.
+
+---
 ## 2026-06-25 (overnight) — Dark-mode leak guard test + codebase audit ✅
 
 Locks in the dark-mode `<code>` chip bug class as a CI failure
