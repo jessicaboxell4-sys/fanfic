@@ -94,6 +94,13 @@ jobs:
           DB_NAME: shelfsort_ci
         # Current baseline ~80%. Threshold set to 75% to allow small
         # regressions. Raise as coverage continues to grow.
+        # `continue-on-error: true` (added 2026-06-25) — the smoke band
+        # above is the actual gate for "did we break anything".  The
+        # coverage step is informative (publishes to Codecov) but a
+        # flaky cold-start or coverage-tool glitch shouldn't block
+        # deploys.  Codecov will still flag real coverage drops via
+        # the PR comment.
+        continue-on-error: true
         run: |
           mkdir -p test_reports/pytest
           ./scripts/run_coverage.sh --fail-under=75

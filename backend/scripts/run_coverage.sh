@@ -62,15 +62,17 @@ coverage run --rcfile=.coveragerc -m uvicorn server:app \
 SERVER_PID=$!
 trap "kill -INT ${SERVER_PID} 2>/dev/null || true; wait ${SERVER_PID} 2>/dev/null || true" EXIT
 
-# Wait for server to be ready
-for i in {1..30}; do
+# Wait for server to be ready.  Coverage instrumentation makes cold
+# startup noticeably slower (3-5x in CI runners) — give it 120s
+# instead of the naked 30s we'd need locally.
+for i in {1..120}; do
     if curl -sf "http://${HOST}:${PORT}/api/" >/dev/null 2>&1; then
         echo ">> Server ready after ${i}s"
         break
     fi
     sleep 1
-    if [ "$i" -eq 30 ]; then
-        echo "!! Server did not start in 30s"
+    if [ "$i" -eq 120 ]; then
+        echo "!! Server did not start in 120s"
         cat test_reports/pytest/server.log
         exit 1
     fi
