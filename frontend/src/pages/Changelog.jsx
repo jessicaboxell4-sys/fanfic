@@ -112,21 +112,26 @@ export default function Changelog() {
           {/* Public trust signal: live status of the production smoke
               canary that hits shelfsort.com every night.  Image is a
               live SVG from shields.io that reads the GitHub Actions
-              workflow state, so this stays fresh with zero backend code. */}
-          <a
-            href="https://github.com/jessicaboxell4-sys/fanfic/actions/workflows/prod-smoke-canary.yml"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-block mt-4 hover:opacity-80 transition-opacity"
-            data-testid="changelog-canary-badge-link"
-            title="Live status of Shelfsort's nightly production health check"
-          >
-            <img
-              src="https://img.shields.io/github/actions/workflow/status/jessicaboxell4-sys/fanfic/prod-smoke-canary.yml?branch=main&label=production%20canary&style=flat-square&logo=githubactions&logoColor=white"
-              alt="Production canary status"
-              data-testid="changelog-canary-badge-img"
-            />
-          </a>
+              workflow state, so this stays fresh with zero backend code.
+              The caption below adds "checked X ago" by polling
+              /api/canary/status (5-min cached). */}
+          <div className="mt-4">
+            <a
+              href="https://github.com/jessicaboxell4-sys/fanfic/actions/workflows/prod-smoke-canary.yml"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block hover:opacity-80 transition-opacity"
+              data-testid="changelog-canary-badge-link"
+              title="Live status of Shelfsort's nightly production health check"
+            >
+              <img
+                src="https://img.shields.io/github/actions/workflow/status/jessicaboxell4-sys/fanfic/prod-smoke-canary.yml?branch=main&label=production%20canary&style=flat-square&logo=githubactions&logoColor=white"
+                alt="Production canary status"
+                data-testid="changelog-canary-badge-img"
+              />
+            </a>
+            <CanaryCaption />
+          </div>
         </header>
 
         {entries === null && (
@@ -213,6 +218,58 @@ export default function Changelog() {
     </div>
   );
 }
+
+// Small caption shown under the shields.io badge.  Pulls
+// /api/canary/status (5-min cached server-side) to render a friendly
+// "Last checked: 2h ago" line.  Renders nothing when the endpoint
+// returns {available:false} so we never show a broken state.
+function CanaryCaption() {
+  const [info, setInfo] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await axios.get(`${API}/canary/status`);
+        if (cancelled) return;
+        if (res.data && res.data.available) setInfo(res.data);
+      } catch { /* silent — caption is optional */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  if (!info || !info.updated_at) return null;
+
+  const updated = new Date(info.updated_at);
+  const ageMs = Date.now() - updated.getTime();
+  const minutes = Math.floor(ageMs / 60000);
+  let relative;
+  if (minutes < 1) relative = "just now";
+  else if (minutes < 60) relative = `${minutes} min ago`;
+  else if (minutes < 60 * 24) {
+    const h = Math.floor(minutes / 60);
+    relative = `${h} ${h === 1 ? "hour" : "hours"} ago`;
+  } else {
+    const d = Math.floor(minutes / (60 * 24));
+    relative = `${d} ${d === 1 ? "day" : "days"} ago`;
+  }
+
+  const passed = info.conclusion === "success";
+  const dotColor = passed ? "bg-[#5C8A5C]" : "bg-[#C75450]";
+
+  return (
+    <p
+      className="text-xs text-[#6B705C] mt-1.5 flex items-center gap-1.5"
+      data-testid="changelog-canary-caption"
+    >
+      <span className={`inline-block w-1.5 h-1.5 rounded-full ${dotColor}`} aria-hidden="true" />
+      Last checked <span className="font-medium" data-testid="changelog-canary-relative">{relative}</span>
+      {info.run_number ? <> · run #{info.run_number}</> : null}
+    </p>
+  );
+}
+
+
 
 function ChangelogEntry({ entry }) {
   const date = entry.created_at

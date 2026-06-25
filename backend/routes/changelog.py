@@ -16,10 +16,12 @@ can see the responsiveness flywheel and feel invited to contribute.
 from __future__ import annotations
 
 import re
+import time as _time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
+import httpx
 from deps import db, api_router, ROOT_DIR
 
 
@@ -153,3 +155,82 @@ def invalidate_changelog_cache() -> None:
     force the next public-changelog read to re-parse the file."""
     _CHANGELOG_CACHE["entries"] = None
     _CHANGELOG_CACHE["fetched_at"] = 0.0
+
+
+# ---------------------------------------------------------------------------
+# Canary status — public trust signal under the shields.io badge
+# ---------------------------------------------------------------------------
+# We hit GitHub's REST API for the latest run of `prod-smoke-canary.yml`,
+# cache it for 5 min, and return just the fields the badge caption needs.
+# The repo is public, so no auth token is required — unauthenticated
+# GitHub API allows 60 req/hr per IP, which our 5-min cache stays
+# under by orders of magnitude (max 12 req/hr per backend instance).
+
+_GH_OWNER = "jessicaboxell4-sys"
+_GH_REPO = "fanfic"
+_GH_WORKFLOW = "prod-smoke-canary.yml"
+_GH_RUNS_URL = (
+    f"https://api.github.com/repos/{_GH_OWNER}/{_GH_REPO}"
+    f"/actions/workflows/{_GH_WORKFLOW}/runs?per_page=1"
+)
+
+_CANARY_CACHE: Dict[str, Any] = {"data": None, "fetched_at": 0.0}
+_CANARY_CACHE_TTL_S = 300.0  # 5 minutes
+
+
+async def _fetch_canary_status() -> Optional[Dict[str, Any]]:
+    """Return the latest canary run as a minimal dict, or ``None`` on error.
+
+    Network errors and rate-limit responses are swallowed deliberately —
+    the caption is a nice-to-have, never a blocker for the changelog
+    page render.
+    """
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(
+                _GH_RUNS_URL,
+                headers={
+                    "Accept": "application/vnd.github+json",
+                    "User-Agent": "shelfsort-canary-status/1.0",
+                },
+            )
+        if resp.status_code != 200:
+            return None
+        payload = resp.json()
+        runs = payload.get("workflow_runs") or []
+        if not runs:
+            return None
+        run = runs[0]
+        return {
+            # ``conclusion`` is the final state (success/failure/cancelled);
+            # ``status`` describes the lifecycle (completed/in_progress).
+            "conclusion": run.get("conclusion"),
+            "status":     run.get("status"),
+            "updated_at": run.get("updated_at"),
+            "html_url":   run.get("html_url"),
+            "run_number": run.get("run_number"),
+        }
+    except (httpx.HTTPError, ValueError, KeyError):
+        return None
+
+
+@api_router.get("/canary/status")
+async def canary_status():
+    """Latest production smoke canary run summary, cached 5 min.
+
+    Returns ``{"available": False}`` when GitHub is unreachable or
+    rate-limited so the frontend can gracefully hide the caption.
+    """
+    now = _time.monotonic()
+    cached = _CANARY_CACHE.get("data")
+    if cached is not None and (now - _CANARY_CACHE["fetched_at"]) < _CANARY_CACHE_TTL_S:
+        return cached
+
+    data = await _fetch_canary_status()
+    if data is None:
+        response = {"available": False}
+    else:
+        response = {"available": True, **data}
+    _CANARY_CACHE["data"] = response
+    _CANARY_CACHE["fetched_at"] = now
+    return response
