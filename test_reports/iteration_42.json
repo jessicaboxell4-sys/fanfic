@@ -1,0 +1,33 @@
+{
+  "summary": "Iter 4 CI fix verified locally. Backend health is green, the rewritten CI-aware run_regression_smoke.sh correctly reuses supervisor's uvicorn (no duplicate spawn) and runs 30/30 smoke tests in ~9s. Quick endpoint sanity passes.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/scripts/run_regression_smoke.sh",
+    "/app/backend/tests/test_regression_smoke.py"
+  ],
+  "action_items": [
+    "Push the change and re-run the GitHub Actions 'Backend tests + coverage' workflow to confirm the spawn path works on a fresh CI runner (cannot be validated from preview)."
+  ],
+  "critical_code_review_comments": [
+    "Script is correct and idempotent: probes /api/health (3s timeout), reuses on success, otherwise spawns uvicorn with EXPORTed envs and waits up to 30s, with a trap-based cleanup of the spawned PID.",
+    "MONGO_URL default mongodb://localhost:27017 and DB_NAME=shelfsort_ci defaults are safe for CI; in dev, supervisor's running uvicorn is reused so these are not exported.",
+    "Minor: the `for i in {1..30}` loop's final-iteration error path runs after a `sleep 1` even on success of i=30 — fine in practice. No action needed.",
+    "Minor: `python -m uvicorn` invocation uses --workers 1 (good for deterministic CI). Log path test_reports/pytest/smoke_server.log will be helpful for CI debugging."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "N/A (skipped per request)"},
+  "test_credentials": "Not needed for this iteration",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter 4 CI fix verified in preview. /api/health=200, smoke band 30 passed in 9.15s via reuse path, only supervisor uvicorn process exists (no orphan spawn). /api/books returns 401 (auth-required, expected). /api/changelog returns 200. The CI 'spawn' code path itself can only be validated on the GitHub runner.",
+  "rca of the issue": "Original failure: GitHub Actions runner only had MongoDB, no backend. Tests assumed http://localhost:8001 was up (true in dev container via supervisor). Fix: probe-then-spawn pattern in shell script means same script works in both environments. Verified the reuse branch in preview; the spawn branch must be validated by re-running the workflow."
+}
