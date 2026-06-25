@@ -7,6 +7,59 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-26 — Storyid reconstruction + backfill endpoint ✅
+
+Closes the gap for EPUBs that ship a Storyid + host name but no actual
+URL on their cover page (common for older FanFicFare exports).  Two
+shipping pieces:
+
+### 1. Storyid reconstruction in the EPUB link extractor
+- `utils/epub_metadata.py` — new `_reconstruct_bare_story_ids()` helper.
+  Scans plain text for `Storyid:` / `Story ID:` / `story_id:` patterns
+  (case-insensitive), pairs each ID with the nearest host token within
+  a 200-char window using **closest-host-wins** logic, and rebuilds
+  the canonical URL.  Also extracts the human-readable name from the
+  following `Name:` line as the anchor text.
+- Supports: FanFiction.net (incl. `fanfic.net` typo), Archive of Our
+  Own (`archiveofourown`, `archive of our own`, `ao3.org`, bare `AO3`),
+  Royal Road (with + without space), FictionPress, Wattpad.
+- Wired into `extract_urls_from_epub()` so it runs automatically on
+  every new upload — no API change, no migration required.
+- 3 new pytest regression tests guard the host-table + closest-host
+  logic (user's exact example, compilation EPUBs with two stories,
+  no-host-yields-nothing).
+
+### 2. `POST /api/admin/re-extract-links` backfill endpoint
+- Re-runs the EPUB link extractor on existing books so the
+  reconstruction logic lands on old uploads too.  Body schema:
+  `{dry_run: bool, limit: 1-5000, only_missing_source: bool,
+  user_id?: str}`.
+- Defaults: `dry_run=False`, `limit=500`, `only_missing_source=True`
+  (never overwrites a known source URL).
+- Pulls each book's EPUB from local cache (or R2 fallback) via the
+  same `ensure_local_cached` helper used by the refresh flow.
+- Per book: rewrites `{book_id}.links.txt`, updates `links_count` in
+  Mongo, and fills in `source_url` if missing.  Returns
+  `{scanned, set_source, rewrote_links, missing_file, samples[]}`
+  with the first 20 transitions for sanity-checking.
+- Logged to `admin_actions` (`books.re_extract_links`).
+
+### 3. Admin Console "Backfill EPUB links" card
+- New card in the System & health section.  Toggles for dry-run
+  (default ON) and only-missing-source (default ON).  Batch-size
+  numeric input (1-5000).  Results panel shows
+  scanned/set-source/sidecar-rewrites/missing-file counts plus
+  expandable per-book examples with old → new URL diff.
+
+### Verification
+- E2E manual test: created a Storyid-only EPUB (no href anywhere),
+  ran the endpoint in dry-run mode (1 would-update preview), then
+  real mode → Mongo source_url set to
+  `https://www.fanfiction.net/s/6032563`, sidecar `.links.txt`
+  generated with the reconstructed URL + "Absolute Promise" anchor.
+- Regression smoke band: **30 green tests** in 5.4s.
+
+
 ## 2026-06-26 — Crossover navbar badge + Production canary widget ✅
 
 Closed the loop on the loop, plus the canary widget the operator queued.

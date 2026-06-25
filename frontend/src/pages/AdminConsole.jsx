@@ -81,6 +81,7 @@ const ADMIN_CARD_MANIFEST = [
   { testid: "hidden-features-card", category: "system", title: "Hidden features", subtitle: "Built-but-invisible work parked behind feature flags.", keywords: "hidden features parked feature flag toggle dormant disabled invisible behind flag fichub kindle send url fetching ficfic" },
   { testid: "admin-changelog-card", category: "system", title: "Recent changelog", subtitle: "Last 20 dated entries from CHANGELOG.md.", keywords: "changelog history recent log entries shipped features fixes release dates h2 memory append" },
   { testid: "admin-canary-card", category: "system", title: "Production canary", subtitle: "7-day uptime sparkline from the nightly smoke-canary workflow.", keywords: "canary smoke production uptime sparkline workflow github actions monitor health" },
+  { testid: "admin-re-extract-links-card", category: "data", title: "Backfill EPUB links", subtitle: "Re-run the link extractor on existing books to pick up reconstructed Storyid URLs.", keywords: "backfill links epub storyid fanfiction.net url reconstruction source extract reextract reprocess" },
   { testid: "admin-llm-key-health-card", category: "system", title: "LLM key health", subtitle: "Universal Key balance + 7-day burn rate + days of runway.", keywords: "llm key health balance burn rate runway days remaining claude nano banana cost spend usage emergent universal key cliff warning" },
   { testid: "admin-unknown-fandoms-card", category: "system", title: "Unknown fandoms", subtitle: "Fandoms not yet in the keyword classifier.", keywords: "unknown fandoms classifier rescan dismiss missing tag" },
   { testid: "admin-crossover-suggestions-card", category: "system", title: "Crossover suggestions", subtitle: "Character-keyword gaps detected by the AI classifier.", keywords: "crossover suggestions character keywords gap fandom overlay ai classifier feedback accept reject" },
@@ -5869,6 +5870,124 @@ function MongoInspectorCardWrap() {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Re-extract EPUB links backfill (Phase-6 Storyid reconstruction)
+// ---------------------------------------------------------------------------
+// Re-runs `extract_urls_from_epub` on existing books so the host-aware
+// Storyid reconstruction shipped 2026-06-26 lands on old uploads.
+// Walks the library in 500-row chunks (admin re-clicks to continue);
+// dry-run preview shows impact before any writes happen.
+function ReExtractLinksCard() {
+  const [busy, setBusy] = useState(false);
+  const [onlyMissing, setOnlyMissing] = useState(true);
+  const [dryRun, setDryRun] = useState(true);
+  const [limit, setLimit] = useState(500);
+  const [result, setResult] = useState(null);
+
+  const run = async () => {
+    setBusy(true);
+    setResult(null);
+    try {
+      const { data } = await api.post("/admin/re-extract-links", {
+        dry_run: dryRun,
+        only_missing_source: onlyMissing,
+        limit: Number(limit) || 500,
+      });
+      setResult(data);
+      const verb = data.dry_run ? "Would update" : "Updated";
+      toast.success(
+        `${verb} ${data.set_source} source URL${data.set_source === 1 ? "" : "s"} · ${data.rewrote_links} sidecar files rewritten · ${data.missing_file} missing files (of ${data.scanned} scanned)`,
+        { duration: 8000 }
+      );
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Backfill failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card
+      icon={RotateCcw}
+      title="Backfill EPUB links"
+      subtitle="Re-runs the URL extractor on existing books so newly-supported patterns (bare Storyid: + host name) land on old uploads. Rewrites the sidecar .links.txt and optionally fills in a missing source_url."
+      testid="admin-re-extract-links-card"
+    >
+      <div className="space-y-3 text-sm">
+        <label className="flex items-center gap-2 cursor-pointer" data-testid="admin-re-extract-dry-run">
+          <input
+            type="checkbox"
+            checked={dryRun}
+            onChange={(e) => setDryRun(e.target.checked)}
+            className="w-4 h-4"
+          />
+          <span><strong>Dry run</strong> — preview impact without writing</span>
+        </label>
+        <label className="flex items-center gap-2 cursor-pointer" data-testid="admin-re-extract-only-missing">
+          <input
+            type="checkbox"
+            checked={onlyMissing}
+            onChange={(e) => setOnlyMissing(e.target.checked)}
+            className="w-4 h-4"
+          />
+          <span>Only fill in books with a <strong>missing</strong> source URL (never overwrite an existing one)</span>
+        </label>
+        <label className="flex items-center gap-2">
+          <span>Batch size:</span>
+          <input
+            type="number"
+            value={limit}
+            onChange={(e) => setLimit(e.target.value)}
+            min={1}
+            max={5000}
+            className="w-24 px-2 py-1 border border-[#E4D9C8] rounded text-xs"
+            data-testid="admin-re-extract-limit"
+          />
+          <span className="text-xs text-[#6B705C]">(books per click — re-run to walk the rest)</span>
+        </label>
+        <button
+          type="button"
+          onClick={run}
+          disabled={busy}
+          className="px-4 py-2 rounded-full bg-[#6B46C1] text-white text-sm font-semibold hover:bg-[#5B36B0] disabled:opacity-60"
+          data-testid="admin-re-extract-run"
+        >
+          {busy ? "Scanning…" : (dryRun ? "Preview backfill" : "Run backfill")}
+        </button>
+        {result && (
+          <div className="mt-3 p-3 rounded-lg bg-[#FDF8F0] border border-[#E4D9C8] text-xs space-y-1.5" data-testid="admin-re-extract-result">
+            <div><strong>Scanned:</strong> {result.scanned}</div>
+            <div><strong>{result.dry_run ? "Would set" : "Set"} source_url:</strong> {result.set_source}</div>
+            <div><strong>Sidecar links rewritten:</strong> {result.rewrote_links}</div>
+            <div><strong>Missing file (couldn&apos;t fetch from storage):</strong> {result.missing_file}</div>
+            {result.samples && result.samples.length > 0 && (
+              <details className="mt-2">
+                <summary className="cursor-pointer text-[#6B46C1] font-semibold">First {result.samples.length} examples</summary>
+                <ul className="mt-1.5 space-y-1 pl-2">
+                  {result.samples.map((s) => (
+                    <li key={s.book_id} className="text-[11px] text-[#6B705C]">
+                      <span className="font-semibold text-[#2C2C2C]">{s.title || s.book_id}</span>
+                      {s.result === "missing_file" ? (
+                        <span className="ml-1 text-[#C5564B]">— file not in storage</span>
+                      ) : s.new_source ? (
+                        <span className="ml-1">→ <span className="text-[#3D8B79] break-all">{s.new_source}</span></span>
+                      ) : (
+                        <span className="ml-1">— links updated ({s.links_count})</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+
+
 function FulltextBackfillCard() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
@@ -6333,6 +6452,7 @@ export default function AdminConsole() {
                       case "admin-audit-card":                  return <AuditLogCard key={c.testid} />;
                       case "admin-mongo-inspector-card":        return <MongoInspectorCardWrap key={c.testid} />;
                       case "admin-fulltext-card":               return <FulltextBackfillCard key={c.testid} />;
+                      case "admin-re-extract-links-card":       return <ReExtractLinksCard key={c.testid} />;
                       default:                                  return null;
                     }
                   })}

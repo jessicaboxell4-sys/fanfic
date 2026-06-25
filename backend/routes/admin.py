@@ -3354,3 +3354,184 @@ async def admin_canary_run_detail(run_id: str, user: User = Depends(require_admi
     if not row:
         raise HTTPException(status_code=404, detail="Canary run not found")
     return row
+
+
+
+# ----------------------------------------------------------------- #
+# Backfill: re-extract URLs (incl. reconstructed bare Storyids)     #
+# ----------------------------------------------------------------- #
+# Re-runs ``extract_urls_from_epub`` on existing books so the       #
+# Storyid-reconstruction logic shipped 2026-06-26 lands on old      #
+# uploads too.  Rewrites the sidecar ``.links.txt`` and, when the   #
+# book has no ``source_url`` yet, fills it in from the new pass.    #
+
+
+class _ReExtractBody(BaseModel):
+    # Safe defaults: only fill in MISSING source URLs, don't overwrite
+    # ones the user (or a prior refresh) already set.  500/run is a
+    # sensible chunk size — admins can hit the endpoint multiple times
+    # to walk the whole library.
+    dry_run:              bool = False
+    limit:                int  = Field(default=500, ge=1, le=5000)
+    only_missing_source:  bool = True
+    # Optional scope filter — process only books from a single user
+    # (useful when triaging a specific complaint).
+    user_id:              Optional[str] = None
+
+
+@api_router.post("/admin/re-extract-links")
+async def admin_re_extract_links(
+    body: _ReExtractBody,
+    user: User = Depends(require_admin),
+):
+    """Backfill the URL list (and optionally the canonical source URL)
+    for existing books by re-running the EPUB link extractor.
+
+    What it does, per book:
+      1. Locate the local cached EPUB (pulls from R2/Emergent if the
+         file isn't on disk yet — same path used by ``refresh.py``).
+      2. Run ``extract_urls_from_epub`` — picks up newly-reconstructed
+         bare ``Storyid:`` patterns alongside the existing href scan.
+      3. Rewrite ``{book_id}.links.txt`` so the user-facing download
+         export reflects the new URL list.
+      4. If the book has no ``source_url`` AND
+         ``only_missing_source=True``, populate it from
+         ``find_source_url(new_links)`` so "Refresh from source"
+         starts working on the book.
+      5. Optionally widen update target: when
+         ``only_missing_source=False``, overwrite an existing
+         ``source_url`` ONLY if the new scan finds one (never clears
+         a known source).
+
+    Returns counts + the first 20 example transitions so the operator
+    can sanity-check before re-running with a larger ``limit``.
+    """
+    from routes.books import extract_urls_from_epub, find_source_url, format_links_txt
+    from utils.storage_cloud import ensure_local_cached
+    import asyncio as _asyncio
+
+    query: Dict[str, Any] = {}
+    if body.user_id:
+        query["user_id"] = body.user_id
+    if body.only_missing_source:
+        query["$or"] = [
+            {"source_url": {"$exists": False}},
+            {"source_url": None},
+            {"source_url": ""},
+        ]
+
+    cursor = db.books.find(
+        query,
+        {"_id": 0, "book_id": 1, "user_id": 1, "title": 1, "source_url": 1, "links_count": 1},
+    ).limit(body.limit)
+
+    scanned = 0
+    missing_file = 0
+    rewrote_links = 0
+    set_source = 0
+    no_change = 0
+    samples: List[Dict[str, Any]] = []
+
+    async for b in cursor:
+        scanned += 1
+        user_id = b["user_id"]
+        book_id = b["book_id"]
+        user_dir = STORAGE_DIR / user_id
+        epub_path = user_dir / f"{book_id}.epub"
+
+        # Step 1: ensure the file is on local disk (best-effort fetch from cloud).
+        cached_ok = await _asyncio.to_thread(
+            ensure_local_cached, epub_path, user_id, book_id, ".epub",
+        )
+        if not cached_ok or not epub_path.exists():
+            missing_file += 1
+            if len(samples) < 20:
+                samples.append({
+                    "book_id": book_id, "title": b.get("title", ""),
+                    "result": "missing_file",
+                })
+            continue
+
+        # Step 2: extract links (this is where the new Storyid
+        # reconstruction kicks in).
+        try:
+            links = await _asyncio.to_thread(extract_urls_from_epub, epub_path)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("re-extract: extract failed for %s: %s", book_id, e)
+            no_change += 1
+            continue
+
+        new_source = find_source_url(links) if links else None
+        existing_source = (b.get("source_url") or "").strip() or None
+
+        # Step 3: write the sidecar links.txt (only when not dry-run).
+        title_for_export = b.get("title") or "Untitled"
+        if not body.dry_run:
+            try:
+                links_path = user_dir / f"{book_id}.links.txt"
+                links_path.write_text(
+                    format_links_txt(title_for_export, "", links),
+                    encoding="utf-8",
+                )
+                rewrote_links += 1
+            except Exception as e:  # noqa: BLE001
+                logger.warning("re-extract: links.txt write failed for %s: %s", book_id, e)
+
+        # Step 4/5: maybe update source_url + links_count in Mongo.
+        updates: Dict[str, Any] = {"links_count": len(links)}
+        will_set_source = False
+        if new_source and (
+            not existing_source
+            or (not body.only_missing_source and new_source != existing_source)
+        ):
+            updates["source_url"] = new_source
+            will_set_source = True
+
+        if not body.dry_run and (will_set_source or updates.get("links_count") != b.get("links_count")):
+            await db.books.update_one(
+                {"book_id": book_id, "user_id": user_id},
+                {"$set": updates},
+            )
+            if will_set_source:
+                set_source += 1
+            else:
+                no_change += 1
+        else:
+            if will_set_source:
+                # dry-run: count the would-be source update so the
+                # operator sees impact before committing.
+                set_source += 1
+            else:
+                no_change += 1
+
+        if len(samples) < 20 and (will_set_source or len(links) > (b.get("links_count") or 0)):
+            samples.append({
+                "book_id":     book_id,
+                "title":       b.get("title", "")[:80],
+                "old_source":  existing_source,
+                "new_source":  new_source if will_set_source else None,
+                "links_count": len(links),
+                "result":      "set_source" if will_set_source else "links_only",
+            })
+
+    if not body.dry_run:
+        await record_admin_action(
+            user,
+            "books.re_extract_links",
+            metadata={
+                "scanned": scanned, "set_source": set_source,
+                "rewrote_links": rewrote_links, "missing_file": missing_file,
+                "limit": body.limit, "user_id": body.user_id,
+            },
+        )
+
+    return {
+        "ok": True,
+        "dry_run":        body.dry_run,
+        "scanned":        scanned,
+        "rewrote_links":  rewrote_links,
+        "set_source":     set_source,
+        "no_change":      no_change,
+        "missing_file":   missing_file,
+        "samples":        samples,
+    }

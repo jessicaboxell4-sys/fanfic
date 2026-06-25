@@ -56,6 +56,15 @@ improvements, not just the explicit "which is best?" follow-ups.
 
 ---
 
+## 💡 Reminder — Storyid reconstruction + backfill endpoint — DONE 2026-06-26 ✅
+
+EPUB link extractor now reconstructs canonical URLs from bare
+`Storyid: N` + host-name patterns (FanFiction.net, AO3, Royal Road,
+Wattpad, FictionPress).  Lands automatically on new uploads;
+`POST /api/admin/re-extract-links` backfills existing books with a
+dry-run preview, only-missing-source guard, and a UI card in the
+AdminConsole.  30 regression tests green.
+
 ## 💡 Reminder — All Quick-pick items parked 2026-06-26 ✅
 
 User explicitly parked the entire Quick-pick queue after shipping the
