@@ -1,0 +1,31 @@
+{
+  "summary": "Iteration 5 CI fix verified in preview. Backend /api/health returns 200. Full regression-smoke band passes 30/30 in 6.54s. The two admin-gate tests (test_crossover_suggestions_requires_admin, test_crossover_suggestion_reject_requires_admin) pass with the new session fixture that burns the bootstrap-admin slot via a sacrificial seed-user registration before the canary user.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_regression_smoke.py",
+    "/app/backend/scripts/run_regression_smoke.sh"
+  ],
+  "action_items": [
+    "NOTE: The review request mentions a third admin-gate test 'test_admin_re_extract_requires_admin' but it does NOT exist in /app/backend/tests/test_regression_smoke.py (grep across /app/backend/tests/ returns 0 matches). Only 2 admin-gate tests exist in the smoke band and both pass. Main agent should confirm whether the third test was intended to be added in this iteration or whether the request description is stale."
+  ],
+  "critical_code_review_comments": [
+    "Session fixture seed-user fallback uses bare `except Exception: pass` — acceptable here because the goal is best-effort bootstrap-burn, but worth a debug log if future CI debugging is ever needed.",
+    "Seed user is registered via requests.post (not via the session s) — correct because we deliberately want to discard the seed user's cookies, but the inline comment already explains this. No change needed."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (30/30 smoke tests)", "frontend": "N/A (skipped per request)"},
+  "test_credentials": "Smoke fixture self-registers ephemeral users per run: shelfsort-canary-seed-* (sacrificial admin slot burn) + shelfsort-canary-* (real test session, non-admin).",
+  "seed_data_creation": "Each smoke run registers two ephemeral users (seed + canary) via /api/auth/register. Recognizable prefixes allow sweep cleanup.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iter5 CI fix (test_regression_smoke.py session fixture) verified — 30/30 pass in preview. Admin-gate tests now correctly receive 403 because the canary user is no longer the bootstrap admin. Only two admin-gate tests exist in this band (crossover-suggestions GET, crossover-suggestion reject POST); a referenced 'test_admin_re_extract_requires_admin' is not present in the codebase. If CI workflow still references it, that workflow may need adjustment.",
+  "rca of the issue": "Root cause: routes/auth.py promotes the first-ever-registered user to is_admin=True (intentional fresh-install bootstrap). In CI's clean Mongo, the smoke session's canary user became user #1 and was therefore admin, causing admin-gate tests expecting 401/403 to receive 200/404 (admin can reach the route, then hits not-found logic). Fix: session fixture now registers a sacrificial seed user FIRST (consuming the bootstrap-admin slot) then registers the real canary user as user #2+ which is guaranteed non-admin. In preview the seed user is a duplicate-email no-op since users already exist, so behavior is unchanged. Verification: pytest -m regression_smoke → 30 passed; targeted run of test_crossover_suggestions_requires_admin and test_crossover_suggestion_reject_requires_admin → both PASSED."
+}

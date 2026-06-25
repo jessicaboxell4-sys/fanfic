@@ -41,6 +41,25 @@ BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://genre-sort.preview.e
 def session():
     s = requests.Session()
     s.headers.update({"Content-Type": "application/json"})
+
+    # CI-safety: routes/auth.py bootstraps the very first user ever to
+    # register as `is_admin=True` so a fresh install has a working admin.
+    # In CI (empty Mongo), that means our test session's user would
+    # become admin too, which breaks the "should reject non-admin"
+    # smoke tests below.  Burn a sacrificial seed user first so the
+    # REAL test session user is guaranteed to be user #2+ and
+    # non-admin.  Best-effort: if the DB already has users (local dev),
+    # this register is a no-op duplicate and we discard the response.
+    seed_email = f"shelfsort-canary-seed-{int(time.time())}-{uuid.uuid4().hex[:6]}@example.com"
+    try:
+        requests.post(
+            f"{BASE_URL}/api/auth/register",
+            json={"email": seed_email, "password": "hunter2pw", "name": "Seed"},
+            timeout=30,
+        )
+    except Exception:
+        pass  # network hiccup is fine — worst case the canary user is admin
+
     # Fresh registration — recognizable prefix so future cleanup
     # scripts can sweep canary-created accounts safely.  Production
     # canary uses this same fixture; per-run timestamp + uuid suffix
