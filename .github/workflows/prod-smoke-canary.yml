@@ -90,7 +90,11 @@ jobs:
           exit $STATUS
 
       - name: Push canary result to AdminConsole widget
-        if: always() && env.REACT_APP_BACKEND_URL != '' && secrets.CANARY_REPORT_SECRET != ''
+        # GitHub Actions doesn't allow `secrets.X` in `if:` expressions
+        # for security.  Instead we map the secret to env at step scope
+        # then check env in the `if`.  Empty env means the secret is
+        # unset → skip the push instead of failing.
+        if: always() && env.REACT_APP_BACKEND_URL != '' && env.CANARY_REPORT_SECRET != ''
         env:
           CANARY_REPORT_SECRET: ${{ secrets.CANARY_REPORT_SECRET }}
         # POSTs a row to /api/canary/report so the in-app widget can
