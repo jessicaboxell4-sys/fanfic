@@ -28,7 +28,7 @@ Heuristic (highest priority first):
 | 3 | Canary test-account cleanup endpoint | ~20 min | Low (housekeeping) | Sweep `shelfsort-canary-…@example.com` rows weekly so prod doesn't accrue throwaway accounts |
 | 4 | Canary polish bundle (5 sub-items) | ~2-3 h all | Med | Webhook + multi-region + tiered frequency + public badge + metrics dashboard — pick & choose (note: in-app widget & uptime card already shipped 2026-06-26) |
 | 5 | Phase 6C: upload pipeline extraction | ~30-45 min, HIGH risk | Low (tech debt) | **Bigger than initially scoped.** 635 LOC in a SINGLE monolithic function with heavy interdependencies on books.py private helpers + inline imports from routes.admin and routes.user_prefs. Smoke band will catch breakage but likely 2-3 fix iterations on imports. Recommend doing in a fresh session with full context budget. Alternative: split into 6C1 (extract function as-is) + 6C2 (decompose into smaller helpers) over two sessions |
-| 6 | Phase 6D: search/list views extraction | ~30 min, Med risk | Low (tech debt) | `/books`, `/books/recent`, `/books/stats`, status-counts → `routes/library_reads.py`. ~400 LOC across 4-5 small endpoints. Cleaner than 6C. Drops books.py ~9% |
+| 6 | Phase 6D: search/list views extraction | ✅ DONE 2026-06-27 — `library_reads.py` shipped, books.py -441 LOC (~9.2% drop) |
 
 ### Convention for adding new reminders
 
@@ -55,6 +55,14 @@ This applies to EVERY finish summary that includes potential
 improvements, not just the explicit "which is best?" follow-ups.
 
 ---
+
+## 💡 Reminder — Phase 6D library_reads.py extraction — DONE 2026-06-27 ✅
+
+10 pure-read endpoints peeled out of books.py to routes/library_reads.py.
+Books.py 4780 → 4339 lines (-441 LOC, ~9.2% drop). All 30 regression
+tests green; 447 routes registered. Help page updated with new
+features (crossover detection, Storyid recovery, users directory)
++ 2 new FAQ entries for SEO structured data.
 
 ## 💡 Reminder — Storyid reconstruction + backfill endpoint — DONE 2026-06-26 ✅
 

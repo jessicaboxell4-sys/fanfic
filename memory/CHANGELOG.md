@@ -7,6 +7,61 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 — Phase 6D extraction + Help refresh + deep-dive scan ✅
+
+Operator was heading to bed and asked for a self-contained shipping
+block + a Help update + a system-wide health pass.
+
+### Phase 6D — library_reads.py extraction
+- New `routes/library_reads.py` (~440 LOC) containing 10 pure-read
+  endpoints peeled out of the 4780-line `books.py` monolith:
+  - `GET /api/books` (main list + 11 filter params)
+  - `GET /api/books/stats` (totals + category/fandom/relationship aggs)
+  - `GET /api/books/export/unavailable` (.txt download)
+  - `GET /api/books/recent` (Continue Reading rail with cross-device
+    cursor data)
+  - `GET /api/books/recent-updates` (bell-badge feed)
+  - `POST /api/books/{id}/mark-update-seen` + `/mark-updates-seen`
+  - `GET /api/books/quick-search` (typeahead)
+  - `GET /api/fandoms` (distinct fandoms + crossover annotation)
+  - `GET /api/authors/{name}`
+- Plus the shared `_suggest_search_url` helper used by the
+  unavailable export.
+- `books.py` shrunk **4780 → 4339 lines** (~9.2% drop, ~441 LOC out).
+  Pure-read boundary, zero shared helpers needed from the parent —
+  no import cycle risk.
+- All 8 extracted GET routes verified responding (401 on no-auth =
+  auth gate intact).
+- `server.py` import list updated; `books.py` module docstring
+  updated with the new section.
+
+### Help page refresh
+- Updated `FALLBACK_WHATS_NEW` (Help.jsx) with the 3 new flagship
+  features shipped this session: smarter crossover detection,
+  Storyid URL reconstruction, public users directory.
+- Added 2 new FAQ entries to `SEO_FAQ` (powers Google's FAQPage
+  structured data): "How does Shelfsort detect crossovers?" and
+  "What if my EPUB only has a Storyid but no URL on the cover?"
+
+### Deep-dive scan results
+- ✅ Backend lint: 0 errors in production code (test-file style nits
+  pre-existing).
+- ✅ Frontend lint: 87 pre-existing warnings (entity escapes + empty
+  catches in Reader.jsx), 0 new errors from this session.
+- ✅ All 30 regression smoke tests green in 5.1 s.
+- ✅ 447 API routes registered, all 6 new endpoints from the day
+  verified present.
+- ✅ Services: backend/frontend/mongodb all RUNNING.
+- ✅ Mongo healthy (3,990 books, 340 users, 1,327 sessions).
+- ✅ No orphaned imports of extracted functions.
+- ✅ No hardcoded secrets / TODO drift / dangling localhost refs
+  (only 2 — both legitimate ClamAV daemon connections on
+  127.0.0.1:3310).
+- ⚠️ Backend `out.log` is 17 MB — manageable but a future log
+  rotation task is queued (P4 housekeeping).
+- Disk: 67% used, 3.3 GB free — no pressure.
+
+
 ## 2026-06-26 — Storyid reconstruction + backfill endpoint ✅
 
 Closes the gap for EPUBs that ship a Storyid + host name but no actual

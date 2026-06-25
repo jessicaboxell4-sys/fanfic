@@ -26,15 +26,15 @@ import {
 // deploy, POST to /api/announcements with a fresh `version` string.
 // `version` doubles as the per-user localStorage dismissal key.
 const FALLBACK_WHATS_NEW = {
-  version: "2026-06-24-pdf-async-uploads-bell",
-  title: "📚 Big upgrade — PDFs, faster uploads, background tracking",
+  version: "2026-06-27-crossover-storyid-canary",
+  title: "✨ Smarter classification, broken-URL recovery, and an admin canary",
   items: [
-    { to: "/library/originals", label: "Read PDFs natively in-app", desc: "PDFs now render directly via pdf.js — selectable text, keyboard navigation, zoom, page-jump. No more Calibre conversion to read a PDF. Works on mobile Safari and iOS." },
-    { to: "/library/all", label: "Uploads are dramatically faster and more resilient", desc: "The upload pipeline runs fully asynchronously now. Drop 50 files, close the tab, come back later — your library will be waiting. Cloudflare timeouts are structurally impossible." },
-    { to: "/library/all", label: "New: Background uploads bell in the navbar", desc: "A small upload icon shows up while books are processing in the background. Tap to see per-book status with covers and fandom chips. Tap any finished row to jump straight to the book." },
-    { to: "/library/all", label: "Welcome-back toast & tab title indicator", desc: "Closed the tab during a big drop? You'll see '📚 5 books finished while you were away' when you return. Tab title also shows '(3) Shelfsort' while uploads are in flight so you can keep an eye from another tab." },
-    { to: "/library/all", label: "Drop more books straight from /library/all", desc: "A compact drop zone now sits at the top of the All Books page — no need to bounce back to the dashboard. Same parallel pipeline, same auto-classification." },
-    { to: "/help", label: "Help page is now public and searchable", desc: "Shelfsort's help guide is now reachable without signing in — and Google can index it. Help search now has 10 curated Q&A pairs covering uploads, PDFs, OPDS, book clubs and more." },
+    { to: "/library/crossovers", label: "Smarter crossover detection — now scans character names", desc: "When a fic mentions characters from two different fandoms (think Hogwarts students at Forks High), Shelfsort now sees the crossover even if the title and tags only mention one. Character keyword overlays are admin-curated and self-improving via an AI feedback loop." },
+    { to: "/library/all", label: "Bare 'Storyid:' URLs now reconstructed automatically", desc: "Older FanFicFare exports sometimes shipped with 'Storyid: 6032563' + 'FanFiction.net' on the cover page but no actual link. We now rebuild the canonical URL automatically on upload — AO3, FanFiction.net, Royal Road, Wattpad, FictionPress all supported. Old uploads can be backfilled via /admin." },
+    { to: "/library/all", label: "Public users directory + 'Listed!' toast", desc: "Your @handle now powers a public profile page — share covers, suggestions, and reading milestones. Saving a handle for the first time shows a 'You're listed!' toast with a link to the directory." },
+    { to: "/library/originals", label: "Read PDFs natively in-app", desc: "PDFs render directly via pdf.js — selectable text, keyboard navigation, zoom, page-jump. No Calibre conversion needed. Works on mobile Safari and iOS." },
+    { to: "/library/all", label: "Uploads are dramatically faster and more resilient", desc: "The upload pipeline runs fully asynchronously. Drop 50 files, close the tab, come back later — your library will be waiting. Cloudflare timeouts are structurally impossible." },
+    { to: "/help", label: "Help page is now public and searchable", desc: "Shelfsort's help guide is reachable without signing in and indexed by Google. Help search has 10+ curated Q&A pairs covering uploads, PDFs, OPDS, book clubs and more." },
   ],
 };
 const WHATS_NEW_KEY = "shelfsort.whatsNewDismissed";
@@ -65,6 +65,16 @@ const SEO_FAQ = [
     id: "shelves",
     q: "How does Shelfsort categorise books by fandom?",
     a: "On upload we extract metadata (title, author, embedded URLs, AO3 tags) and run an AI classifier against 285+ canonical fandoms. The book lands on one or more Fandom shelves automatically. You can correct a misclassification on the book detail page; the correction is remembered for similar files.",
+  },
+  {
+    id: "shelves",
+    q: "How does Shelfsort detect crossovers between fandoms?",
+    a: "Shelfsort scans both fandom names AND character names — so a fic that mentions Hogwarts students at Forks High will land on a 'Harry Potter / Twilight' crossover shelf even when only one fandom is in the title or tags. Character keywords are admin-curated and the AI classifier feeds new gaps back for review, so detection keeps improving as the library grows.",
+  },
+  {
+    id: "sources",
+    q: "What if my EPUB only has a Storyid but no URL on the cover?",
+    a: "Shelfsort reconstructs the canonical URL automatically. Older FanFicFare exports sometimes show 'Storyid: 6032563' and 'FanFiction.net' as separate lines without a clickable link — we now stitch those together into 'https://www.fanfiction.net/s/6032563' during the upload scan. Supported sites: FanFiction.net, Archive of Our Own, Royal Road, Wattpad, FictionPress. Existing books can be backfilled by an admin.",
   },
   {
     id: "data-safety",

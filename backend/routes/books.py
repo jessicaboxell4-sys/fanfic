@@ -60,6 +60,17 @@ routes/bulk_ops.py            : Destructive / mass-edit endpoints —
                                 ``_canonicalize_fandom``,
                                 ``_normalize_tags``,
                                 ``OLD_STORIES_SHELF`` from this file.
+routes/library_reads.py       : High-frequency GET routes — main
+                                ``/books`` list, ``/books/stats``,
+                                ``/books/recent``,
+                                ``/books/recent-updates``,
+                                ``/books/quick-search``,
+                                ``/books/export/unavailable``,
+                                ``/fandoms``, ``/authors/{name}``,
+                                plus the two ``mark-update-seen`` POSTs
+                                (Phase 6D, 2026-06-27).  10 endpoints,
+                                ~440 LOC.  Pure-read boundary, no
+                                shared helpers needed from this file.
 
 The shared helpers (extract_chapters, diff_chapters, OLD_STORIES_SHELF,
 _normalize_title_for_match, etc.) live HERE because the upload + refresh
@@ -973,9 +984,6 @@ from utils.epub_chapters import (  # noqa: E402, F401
 )
 
 
-
-
-
 # ============================================================
 # FANFIC REFRESH — pull latest version of a fanfic from its source URL
 # ============================================================
@@ -1099,7 +1107,6 @@ from utils.status_detector import (  # noqa: E402
 from utils.constants import TRASH_SHELF, TRASH_GRACE_DAYS  # noqa: E402
 
 
-
 # ---- Tag helpers (moved to utils.tags as part of books.py refactor Phase 2)
 # We still re-export the underscore-prefixed names here so any pending
 # callers in this file (the upload + bulk-edit pipelines) keep working.
@@ -1204,7 +1211,6 @@ def _normalize_author_for_match(author: Optional[str]) -> str:
 # NOTE: URL-list endpoints (dedupe / export-xlsx / pull) and their
 # helpers (_backfill_user_fanfic_urls, _dedupe_url_list) were moved to
 # routes/url_lists.py in the Phase 5 refactor (2026-06-14).
-
 
 
 async def find_duplicate_candidates(
@@ -2721,321 +2727,8 @@ async def _notify_friends_of_shared_fandom_uploads(
 # in the Phase 5E refactor (2026-06-14).
 
 
-
 # /library/originals* endpoints and the convert_original_to_epub helper
 # live in ``routes/conversions.py`` (extracted 2026-06-13).
-
-
-
-@api_router.get("/books")
-async def list_books(
-    request: Request,
-    category: Optional[str] = None,
-    fandom: Optional[str] = None,
-    relationship: Optional[str] = None,
-    q: Optional[str] = None,
-    smart: Optional[str] = None,
-    include_originals: bool = False,
-    rating: Optional[str] = None,
-    ao3_category: Optional[str] = None,
-    warning: Optional[str] = None,
-    exclude_warning: Optional[str] = None,
-    user: User = Depends(get_current_user),
-):
-    query: Dict[str, Any] = {"user_id": user.user_id}
-    if category:
-        query['category'] = category
-    else:
-        # Trash is opt-in — only show when the user explicitly asks for it
-        query['category'] = {"$ne": TRASH_SHELF}
-    if fandom:
-        query['fandom'] = fandom
-    if relationship:
-        query['relationships'] = relationship
-    # AO3 metadata filters (added 2026-06-13). Each is exact-match on a
-    # canonical value (e.g. "Mature", "M/M", "Graphic Depictions Of Violence").
-    if rating:
-        query['rating'] = rating
-    if ao3_category:
-        query['categories'] = ao3_category
-    if warning:
-        query['warnings'] = warning
-    if exclude_warning:
-        # "Hide books warned for X" — content-safety filter. Returns books
-        # whose ``warnings`` array does NOT contain the given value.
-        query.setdefault('warnings', {})
-        if isinstance(query['warnings'], dict):
-            query['warnings']['$ne'] = exclude_warning
-        else:
-            # warning was also set — combine into $and so both apply.
-            query['$and'] = query.get('$and', []) + [
-                {'warnings': query['warnings']},
-                {'warnings': {'$ne': exclude_warning}},
-            ]
-            del query['warnings']
-    # Originals (kept-as-is non-EPUBs) live on /library/originals — exclude
-    # them from the main library unless explicitly asked.
-    if not include_originals and not (category == "Originals"):
-        query['original_only'] = {"$ne": True}
-
-    or_clauses: List[List[Dict[str, Any]]] = []
-    if q:
-        or_clauses.append([
-            {"title": {"$regex": q, "$options": "i"}},
-            {"author": {"$regex": q, "$options": "i"}},
-        ])
-
-    if smart == "reading":
-        query['progress_fraction'] = {"$gte": 0.05, "$lt": 0.95}
-    elif smart == "finished":
-        query['progress_fraction'] = {"$gte": 0.99}
-    elif smart == "unavailable":
-        query['unavailable'] = True
-    elif smart == "unread":
-        or_clauses.append([
-            {"progress_fraction": {"$exists": False}},
-            {"progress_fraction": None},
-            {"progress_fraction": {"$lt": 0.05}},
-        ])
-
-    if len(or_clauses) == 1:
-        query["$or"] = or_clauses[0]
-    elif len(or_clauses) > 1:
-        query["$and"] = [{"$or": clauses} for clauses in or_clauses]
-
-    books = await db.books.find(query, {"_id": 0}).sort("created_at", -1).to_list(2000)
-    return {"books": books}
-
-
-@api_router.get("/books/stats")
-async def book_stats(user: User = Depends(get_current_user)):
-    pipeline_cat = [
-        {"$match": {"user_id": user.user_id}},
-        {"$group": {"_id": "$category", "count": {"$sum": 1}}},
-    ]
-    pipeline_fandom = [
-        {"$match": {"user_id": user.user_id, "fandom": {"$ne": None}}},
-        {"$group": {"_id": "$fandom", "count": {"$sum": 1}}},
-        {"$sort": {"count": -1}},
-    ]
-    pipeline_rel = [
-        {"$match": {"user_id": user.user_id, "relationships": {"$exists": True, "$ne": []}}},
-        {"$unwind": "$relationships"},
-        {"$group": {"_id": "$relationships", "count": {"$sum": 1}}},
-        {"$sort": {"count": -1}},
-    ]
-    cats = await db.books.aggregate(pipeline_cat).to_list(100)
-    fandoms = await db.books.aggregate(pipeline_fandom).to_list(100)
-    relationships = await db.books.aggregate(pipeline_rel).to_list(200)
-    total = await db.books.count_documents({"user_id": user.user_id})
-    reading = await db.books.count_documents({
-        "user_id": user.user_id,
-        "progress_fraction": {"$gte": 0.05, "$lt": 0.95},
-    })
-    finished = await db.books.count_documents({
-        "user_id": user.user_id,
-        "progress_fraction": {"$gte": 0.99},
-    })
-    unreadable = await db.books.count_documents({
-        "user_id": user.user_id,
-        "epub_unreadable": True,
-    })
-    return {
-        "total": total,
-        "reading": reading,
-        "finished": finished,
-        "unreadable": unreadable,
-        "categories": [{"name": c['_id'], "count": c['count']} for c in cats],
-        "fandoms": [{"name": f['_id'], "count": f['count']} for f in fandoms],
-        "relationships": [{"name": r['_id'], "count": r['count']} for r in relationships],
-        "crossover_count": sum(
-            1 for f in fandoms
-            if f.get('_id') and len([p for p in str(f['_id']).split(' / ') if p.strip()]) >= 2
-        ),
-    }
-
-
-def _suggest_search_url(source_url: Optional[str], title: str, author: str) -> Optional[str]:
-    """Build a 'find it again' search URL on the same site as the dead source."""
-    from urllib.parse import quote_plus
-    q = quote_plus(f"{title or ''} {author or ''}".strip())
-    if not q:
-        return None
-    host = (source_url or "").lower()
-    if "archiveofourown.org" in host:
-        return f"https://archiveofourown.org/works/search?work_search%5Bquery%5D={q}"
-    if "fanfiction.net" in host:
-        return f"https://www.fanfiction.net/search/?keywords={q}&type=story"
-    if "fictionpress.com" in host:
-        return f"https://www.fictionpress.com/search/?keywords={q}&type=story"
-    if "royalroad.com" in host:
-        return f"https://www.royalroad.com/fictions/search?title={q}"
-    if "spacebattles.com" in host or "sufficientvelocity.com" in host or "questionablequesting.com" in host:
-        base = host.split("/")[2] if "://" in host else host
-        return f"https://www.google.com/search?q=site%3A{base}+{q}"
-    # Generic fallback: Google
-    return f"https://www.google.com/search?q={q}"
-
-
-@api_router.get("/books/export/unavailable")
-async def export_unavailable_list(user: User = Depends(get_current_user)):
-    """A plain .txt list of every book FanFicFare couldn't find — for manual lookup."""
-    books = await db.books.find(
-        {"user_id": user.user_id, "unavailable": True},
-        {"_id": 0},
-    ).sort("title", 1).to_list(5000)
-
-    lines: List[str] = []
-    lines.append("Shelfsort — books we couldn't fetch online")
-    lines.append(f"Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
-    lines.append(f"Count: {len(books)}")
-    lines.append("=" * 70)
-    lines.append("")
-    if not books:
-        lines.append("(none — every refreshable book updated successfully)")
-    else:
-        for i, b in enumerate(books, 1):
-            shelf = b.get("category") or "Uncategorized"
-            if shelf == "Fanfiction" and b.get("fandom"):
-                shelf = f"Fanfiction / {b['fandom']}"
-            lines.append(f"{i}. {b.get('title') or '(untitled)'}")
-            lines.append(f"   Author:      {b.get('author') or 'Unknown'}")
-            lines.append(f"   Shelf:       {shelf}")
-            if b.get("source_url"):
-                lines.append(f"   Source URL:  {b['source_url']}")
-            if b.get("last_fetch_error"):
-                lines.append(f"   Source said: {b['last_fetch_error']}")
-            if b.get("last_fetch_attempt_at"):
-                lines.append(f"   Last tried:  {b['last_fetch_attempt_at']}")
-            search = _suggest_search_url(
-                b.get("source_url"), b.get("title", ""), b.get("author", "")
-            )
-            if search:
-                lines.append(f"   How to fix:  {search}")
-            lines.append("")
-    body = "\n".join(lines) + "\n"
-    headers = {"Content-Disposition": "attachment; filename=shelfsort_cant_find_online.txt"}
-    return Response(content=body, media_type="text/plain; charset=utf-8", headers=headers)
-
-
-# NOTE: `GET /books/refresh-status` was moved to routes/refresh.py
-# in the Phase 4 refactor (2026-06-14).
-
-
-@api_router.get("/books/recent")
-async def list_recent(limit: int = 8, user: User = Depends(get_current_user)):
-    """Recently-opened books for the dashboard's Continue Reading rail.
-
-    For each book we also attach the latest ``reading_cursors`` entry
-    (`last_device_id`, `last_device_label`, `last_cursor_updated_at`)
-    so the rail can render a "📱 Last on iPhone · 2h ago" caption when
-    the most recent reading happened on a different device than the
-    one currently viewing the dashboard.  This turns the cross-device
-    sync from invisible plumbing into a visible delight.
-    """
-    cursor = db.books.find(
-        {"user_id": user.user_id, "last_opened_at": {"$ne": None, "$exists": True}},
-        {"_id": 0},
-    ).sort("last_opened_at", -1).limit(max(1, min(int(limit), 24)))
-    books = await cursor.to_list(24)
-
-    if not books:
-        return {"books": books}
-
-    # Side-fetch the latest cursor per book in a single Mongo round trip.
-    book_ids = [b["book_id"] for b in books]
-    cursor_rows = await db.reading_cursors.find(
-        {"user_id": user.user_id, "book_id": {"$in": book_ids}},
-        {"_id": 0, "book_id": 1, "device_id": 1, "device_label": 1, "updated_at": 1},
-    ).to_list(length=len(book_ids))
-    cursor_by_book = {c["book_id"]: c for c in cursor_rows}
-    for b in books:
-        c = cursor_by_book.get(b["book_id"])
-        if c:
-            b["last_device_id"]         = c.get("device_id")
-            b["last_device_label"]      = c.get("device_label") or ""
-            ts = c.get("updated_at")
-            if isinstance(ts, datetime):
-                ts = ts.isoformat()
-            b["last_cursor_updated_at"] = ts
-    return {"books": books}
-
-
-@api_router.get("/books/recent-updates")
-async def recent_updates(limit: int = 8, user: User = Depends(get_current_user)):
-    """Fanfics that have been refreshed and haven't been marked as seen.
-    Powers the "fics updated" navbar bell badge."""
-    limit = max(1, min(int(limit), 24))
-    cursor = db.books.find(
-        {
-            "user_id": user.user_id,
-            "replaces": {"$ne": None, "$exists": True},
-            "update_seen": {"$ne": True},
-        },
-        {
-            "_id": 0,
-            "book_id": 1,
-            "title": 1,
-            "author": 1,
-            "fandom": 1,
-            "category": 1,
-            "last_refreshed_at": 1,
-            "replaces": 1,
-            "refresh_summary": 1,
-            "has_cover": 1,
-        },
-    ).sort("last_refreshed_at", -1).limit(limit)
-    items = await cursor.to_list(limit)
-    # Total unseen (so the badge can say "8+" if there are more)
-    total_unseen = await db.books.count_documents({
-        "user_id": user.user_id,
-        "replaces": {"$ne": None, "$exists": True},
-        "update_seen": {"$ne": True},
-    })
-    return {"updates": items, "total_unseen": total_unseen}
-
-
-@api_router.post("/books/{book_id}/mark-update-seen")
-async def mark_update_seen(book_id: str, user: User = Depends(get_current_user)):
-    """Mark a single refreshed book as seen — removes it from the bell badge."""
-    result = await db.books.update_one(
-        {"book_id": book_id, "user_id": user.user_id},
-        {"$set": {"update_seen": True, "update_seen_at": datetime.now(timezone.utc).isoformat()}},
-    )
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Not found")
-    return {"ok": True}
-
-
-@api_router.post("/books/mark-updates-seen")
-async def mark_all_updates_seen(user: User = Depends(get_current_user)):
-    """Mark every pending refreshed book as seen — clears the bell badge."""
-    now_iso = datetime.now(timezone.utc).isoformat()
-    result = await db.books.update_many(
-        {
-            "user_id": user.user_id,
-            "replaces": {"$ne": None, "$exists": True},
-            "update_seen": {"$ne": True},
-        },
-        {"$set": {"update_seen": True, "update_seen_at": now_iso}},
-    )
-    return {"ok": True, "marked": result.modified_count}
-
-
-
-# FFF options, dashboard layout, format prefs, duplicate policy,
-# onboarding sweeps, and fandom aliases live in routes/user_prefs.py
-# (extracted 2026-06-13). The helpers ``apply_template_to_epub`` and
-# ``_templated_filename`` stay in this file and are imported lazily.
-
-
-
-
-
-
-
-
-
 
 
 @api_router.get("/books/{book_id}")
@@ -3145,9 +2838,6 @@ async def book_reading_stats(book_id: str, user: User = Depends(get_current_user
         "progress_fraction": progress,
         "estimated_minutes_left": estimated_minutes_left,
     }
-
-
-
 
 
 @api_router.get("/books/{book_id}/cover")
@@ -3576,44 +3266,6 @@ async def export_all_links(
     return Response(content=body, media_type="text/plain; charset=utf-8", headers=headers)
 
 
-@api_router.get("/books/quick-search")
-async def quick_search_books(q: str, limit: int = 8, user: User = Depends(get_current_user)):
-    """Lightweight title/author typeahead — feeds the navbar quick-search dropdown.
-
-    Case-insensitive *substring* match against title + author (NOT full-body
-    text — see `/library/search/fulltext` for the heavier search). Excludes
-    trashed / replaced books.  Returns minimal fields so the dropdown stays
-    snappy.
-    """
-    needle = (q or "").strip()
-    if len(needle) < 2:
-        return {"books": []}
-    limit = max(1, min(limit, 20))
-    safe = re.escape(needle)
-    cursor = db.books.find(
-        {
-            "user_id": user.user_id,
-            "category": {"$ne": "Trash"},
-            "replaced_by": {"$exists": False},
-            "$or": [
-                {"title": {"$regex": safe, "$options": "i"}},
-                {"author": {"$regex": safe, "$options": "i"}},
-            ],
-        },
-        {"_id": 0, "book_id": 1, "title": 1, "author": 1, "category": 1, "fandom": 1},
-    ).sort([("last_opened_at", -1), ("title", 1)]).limit(limit)
-    out = []
-    async for b in cursor:
-        out.append({
-            "book_id": b["book_id"],
-            "title": b.get("title", ""),
-            "author": b.get("author", ""),
-            "category": b.get("category", ""),
-            "fandom": b.get("fandom", []),
-        })
-    return {"books": out}
-
-
 @api_router.get("/books/{book_id}/links")
 async def get_book_links(book_id: str, user: User = Depends(get_current_user)):
     """Download the extracted URLs for a single book as a .txt file."""
@@ -3645,8 +3297,6 @@ async def get_book_links(book_id: str, user: User = Depends(get_current_user)):
 
 class ReclassifyBody(BaseModel):
     use_ai: bool = True
-
-
 
 
 @api_router.post("/books/{book_id}/reclassify")
@@ -3763,20 +3413,6 @@ async def book_diff(
     }
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # ============================================================
 # TAGS ROUTES — extracted to routes/tags.py in books.py Phase 2 refactor.
 # See ``backend/routes/tags.py`` for the 7 endpoints under /api/tags/* and
@@ -3789,52 +3425,6 @@ async def book_diff(
 # AUTHOR ROUTES — extracted to routes/authors.py in Phase 2 refactor.
 # See ``backend/routes/authors.py`` for /authors, /library/authors,
 # and /library/by-author.
-# ============================================================
-@api_router.get("/fandoms")
-async def list_fandoms(user: User = Depends(get_current_user)):
-    """Distinct fandoms in the user's library with book counts.
-
-    Used by the Download page so all fandoms appear (not just the top 8 that
-    /stats/overview returns for the dashboard). Each row is annotated with
-    `is_crossover` + `parts` so the UI can render the crossover treatment
-    without re-parsing strings.
-    """
-    pipeline = [
-        {"$match": {"user_id": user.user_id, "fandom": {"$ne": None, "$exists": True}}},
-        {"$group": {"_id": "$fandom", "count": {"$sum": 1}}},
-        {"$sort": {"count": -1, "_id": 1}},
-    ]
-    rows = await db.books.aggregate(pipeline).to_list(5000)
-    fandoms: List[Dict[str, Any]] = []
-    crossover_count = 0
-    for r in rows:
-        name = r.get("_id")
-        if not name or not str(name).strip():
-            continue
-        parts = [p.strip() for p in str(name).split(" / ") if p.strip()]
-        is_x = len(parts) >= 2
-        if is_x:
-            crossover_count += 1
-        fandoms.append({
-            "name": name,
-            "count": r["count"],
-            "is_crossover": is_x,
-            "parts": parts if is_x else [],
-        })
-    return {"fandoms": fandoms, "crossover_count": crossover_count}
-
-
-# ============================================================
-# COMPLETION-STATUS SHELVES (complete / ongoing)
-# Detection runs once at upload time and persists to `books.status`.
-# User overrides land in `books.manual_status`; `effective_status()`
-# picks the override when set. Counts on the dashboard come from
-# ============================================================
-# COMPLETE / ONGOING STATUS — list endpoints, status counts,
-# and the `_status_query` / `_list_status_shelf` helpers moved
-# to ``routes/library_views.py`` in the Phase 5E refactor.
-# Only the mutator `PATCH /books/{book_id}/status` stays here
-# (it's a write path, not a view).
 # ============================================================
 class SetStatusBody(BaseModel):
     """Body for `PATCH /books/{book_id}/status`. `status=None` clears the
@@ -3898,10 +3488,8 @@ async def set_book_status(
 # ============================================================
 
 
-
 # Library backup, restore, backup-reminder and backup-history
 # endpoints live in routes/library_backup.py (extracted 2026-06-13).
-
 
 
 # NOTE: `GET /library/linkless` was moved to routes/library_views.py
@@ -4099,7 +3687,6 @@ async def download_original_file(book_id: str, user: User = Depends(get_current_
     return FileResponse(str(fp), filename=download_name)
 
 
-
 class ClaimSourceUrlBody(BaseModel):
     """Body for `PATCH /books/{book_id}/source-url`.
 
@@ -4213,19 +3800,6 @@ async def claim_source_url(
 # Phase 5 refactor (2026-06-14).
 
 
-
-
-
-@api_router.get("/authors/{name}")
-async def get_author(name: str, user: User = Depends(get_current_user)):
-    """All books by this author, newest first."""
-    books = await db.books.find(
-        {"user_id": user.user_id, "author": name},
-        {"_id": 0},
-    ).sort("created_at", -1).to_list(2000)
-    return {"name": name, "books": books}
-
-
 @api_router.patch("/books/{book_id}")
 async def update_book(book_id: str, body: UpdateBookBody, user: User = Depends(get_current_user)):
     book = await db.books.find_one({"book_id": book_id, "user_id": user.user_id}, {"_id": 0})
@@ -4277,7 +3851,6 @@ async def update_book(book_id: str, body: UpdateBookBody, user: User = Depends(g
 
 # NOTE: /api/books/export/zip + _safe_folder helper were moved to
 # routes/exports.py in the Phase 5 refactor (2026-06-14).
-
 
 
 @api_router.post("/books/detect-series-all")
@@ -4335,7 +3908,6 @@ async def set_series(book_id: str, body: SetSeriesBody, user: User = Depends(get
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Not found")
     return {"ok": True}
-
 
 
 @api_router.post("/books/{book_id}/upload-new-version")
@@ -4554,7 +4126,6 @@ async def upload_new_version(
     }
 
 
-
 # ----------------------------------------------------------------------
 # DUPLICATE RESOLUTION
 # `POST /books/{id}/resolve-duplicate`, `POST /books/resolve-group`,
@@ -4571,7 +4142,6 @@ async def upload_new_version(
 # /trash/restore-all, /trash/empty, and the ``sweep_expired_trash``
 # background helper (now imported by digest.py from routes.trash).
 # ----------------------------------------------------------------------
-
 
 
 # ----------------------------------------------------------------------
