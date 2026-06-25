@@ -620,6 +620,7 @@ def test_crossover_suggestion_reject_requires_admin(session):
 
 def test_reconstruct_bare_storyid_ffnet():
     """`Storyid: N` + `FanFiction.net` cover page → canonical FF URL."""
+    pytest.importorskip("ebooklib")  # canary skips this — backend-only util.
     from utils.epub_metadata import _reconstruct_bare_story_ids
     out = _reconstruct_bare_story_ids(
         "Storyid: 6032563\nFanFiction.net\nName: Absolute Promise\nAuthor: Bittersweet Alias"
@@ -632,6 +633,7 @@ def test_reconstruct_bare_storyid_ffnet():
 def test_reconstruct_bare_storyid_compilation():
     """Compilation EPUB with two stories from different hosts → both
     reconstructed with the correct host each."""
+    pytest.importorskip("ebooklib")
     from utils.epub_metadata import _reconstruct_bare_story_ids
     out = _reconstruct_bare_story_ids(
         "Storyid: 111\nFanFiction.net\nName: First Story\n"
@@ -644,5 +646,6 @@ def test_reconstruct_bare_storyid_compilation():
 
 def test_reconstruct_bare_storyid_no_host_yields_nothing():
     """Storyid with no recognizable host → empty list, never a wrong URL."""
+    pytest.importorskip("ebooklib")
     from utils.epub_metadata import _reconstruct_bare_story_ids
     assert _reconstruct_bare_story_ids("Storyid: 999\n(no host here)") == []
