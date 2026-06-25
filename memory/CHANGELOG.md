@@ -7,6 +7,42 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-25 — CI canary fully stabilized ✅
+
+Production smoke canary went from chronically red → solid green
+(`21 passed, 9 skipped in ~10s`) against `https://shelfsort.com`.
+Five sequential fixes, verified end-to-end via runs #18 → #22.
+
+### Fixes shipped
+1. **`prod-smoke-canary.yml`** — removed `secrets.CANARY_REPORT_SECRET`
+   from an `if:` condition (GitHub forbids secrets in conditions).
+   Mapped to step-scope env and checked there instead.
+2. **`prod-smoke-canary.yml`** — added explicit job-level
+   `permissions: { contents: read, issues: write }`. Default workflow
+   token is read-only → the auto-issue-opener step was 403'ing with
+   "Resource not accessible by integration".
+3. **`backend/scripts/run_regression_smoke.sh`** — `BACKEND_URL` now
+   falls back to `REACT_APP_BACKEND_URL` when set. Canary was probing
+   `localhost:8001`, failing, then trying to spawn its own uvicorn
+   (which isn't in canary's minimal deps).
+4. **`backend/scripts/run_regression_smoke.sh`** — point pytest
+   directly at `tests/test_regression_smoke.py` instead of letting
+   `-m regression_smoke` filter post-collection. Collection was
+   importing 80+ test files that need full backend deps the canary
+   deliberately skips.
+5. **`tests/test_regression_smoke.py`** — added
+   `pytest.importorskip("ebooklib")` to the three
+   `test_reconstruct_bare_storyid_*` unit tests. They're pure local
+   parser tests (no prod call) that import `utils/epub_metadata.py`,
+   which requires `ebooklib` — not in canary's minimal deps.
+
+### Result
+- Canary is now safe to leave running daily at 03:00 UTC.
+- Auto-issue creation on failure is wired and tested.
+- Both `backend-tests` and `prod-smoke-canary` workflows green.
+
+---
+
 ## 2026-06-27 — Mongo indexes (P3) + Community amplification (P1) ✅
 
 Two-fer overnight shipping block — first the trivial-risk perf win,
