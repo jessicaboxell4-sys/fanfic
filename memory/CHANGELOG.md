@@ -7,6 +7,52 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-26 — Crossover navbar badge + Production canary widget ✅
+
+Closed the loop on the loop, plus the canary widget the operator queued.
+
+### Crossover-suggestions navbar badge (P2 follow-up to Session 2)
+- Backend: `GET /api/admin/crossover-suggestions/count` (60-s in-process cache)
+- Frontend: `Navbar.jsx` polls BOTH unknown-fandoms and crossover counts
+  every 5 min; the existing coral dot on the AdminConsole shield now
+  lights up if EITHER counter > 0. Tooltip lists both ("Admin console
+  — 3 unknown fandoms · 2 pending crossover suggestions").  Drawer
+  badge wired the same way.
+
+### Production canary widget (P1)
+- New `canary_runs` Mongo collection: `{run_id, status, passed, total,
+  target, duration_s, finished_at, tail}` with 90-day retention swept
+  on every push.
+- Backend endpoints:
+  - `POST /api/canary/report` — gated by `CANARY_REPORT_SECRET` env
+    var.  503 if unconfigured, 401 on bad secret.  Idempotent upsert
+    by `run_id`.
+  - `GET /api/admin/canary-runs?days=7|14|30` — admin-only, returns
+    chronologically-sorted runs + headline pass/fail/uptime.
+  - `GET /api/admin/canary-runs/{run_id}` — full row including the
+    log tail for failure forensics.
+- `.github/workflows/prod-smoke-canary.yml` gains a second step that
+  parses `N passed/failed` out of pytest output and POSTs the result
+  with `if: always()` so failures land too.  Conditional on the new
+  `CANARY_REPORT_SECRET` secret being set — workflows without it
+  keep running the smoke band but skip the push.
+- Frontend: new `CanaryCard` in AdminConsole's System & health section.
+  - Headline: uptime %, pass count, fail count, last-run timestamp
+  - 7-day dot sparkline (green=pass, red=fail) with title-attr
+    tooltips showing per-run pass/total/duration
+  - 7d / 14d / 30d period tabs
+  - "Last 5 runs" details expander (text fallback for screen readers
+    and colorblind operators)
+  - Empty state with one-time setup instructions when
+    `CANARY_REPORT_SECRET` is unset
+
+### Operator setup (one-time)
+1. Generate a random secret: `openssl rand -hex 32`
+2. Add to GitHub repo secrets as `CANARY_REPORT_SECRET`
+3. Add the SAME value to `backend/.env` as `CANARY_REPORT_SECRET`
+4. Next nightly run (03:00 UTC) populates the widget
+
+
 ## 2026-06-26 — Crossover Detection Session 2 (AI feedback loop) ✅
 
 Closes the loop on Session 1's character-keyword overlay.  Now when

@@ -80,6 +80,7 @@ const ADMIN_CARD_MANIFEST = [
   { testid: "admin-flags-card", category: "system", title: "Feature flags", subtitle: "Runtime kill switches.", keywords: "feature flags toggles kill switch runtime config" },
   { testid: "hidden-features-card", category: "system", title: "Hidden features", subtitle: "Built-but-invisible work parked behind feature flags.", keywords: "hidden features parked feature flag toggle dormant disabled invisible behind flag fichub kindle send url fetching ficfic" },
   { testid: "admin-changelog-card", category: "system", title: "Recent changelog", subtitle: "Last 20 dated entries from CHANGELOG.md.", keywords: "changelog history recent log entries shipped features fixes release dates h2 memory append" },
+  { testid: "admin-canary-card", category: "system", title: "Production canary", subtitle: "7-day uptime sparkline from the nightly smoke-canary workflow.", keywords: "canary smoke production uptime sparkline workflow github actions monitor health" },
   { testid: "admin-llm-key-health-card", category: "system", title: "LLM key health", subtitle: "Universal Key balance + 7-day burn rate + days of runway.", keywords: "llm key health balance burn rate runway days remaining claude nano banana cost spend usage emergent universal key cliff warning" },
   { testid: "admin-unknown-fandoms-card", category: "system", title: "Unknown fandoms", subtitle: "Fandoms not yet in the keyword classifier.", keywords: "unknown fandoms classifier rescan dismiss missing tag" },
   { testid: "admin-crossover-suggestions-card", category: "system", title: "Crossover suggestions", subtitle: "Character-keyword gaps detected by the AI classifier.", keywords: "crossover suggestions character keywords gap fandom overlay ai classifier feedback accept reject" },
@@ -3838,6 +3839,152 @@ function CrossoverSuggestionsCard() {
 
 // ---------------------------------------------------------------------------
 // Email diagnostic card (operator one-shot send)
+
+// ---------------------------------------------------------------------------
+// Production canary card — 7-day uptime sparkline
+// ---------------------------------------------------------------------------
+// Data lands via the `prod-smoke-canary.yml` GitHub workflow which POSTs
+// to `/api/canary/report` (gated by CANARY_REPORT_SECRET) on every nightly
+// run.  Widget shows uptime %, last-run status, and a dot-grid sparkline
+// of the last 7 days.  If nothing has reported yet, the card shows an
+// onboarding hint instead of an empty chart.
+function CanaryCard() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [days, setDays] = useState(7);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const { data } = await api.get(`/admin/canary-runs?days=${days}`);
+        if (!cancelled) setData(data);
+      } catch { /* ignore */ }
+      finally { if (!cancelled) setLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [days]);
+
+  const runs = data?.runs || [];
+  const lastRun = runs.length ? runs[runs.length - 1] : null;
+  const uptimePct = data?.uptime_pct;
+
+  const fmtTime = (iso) => {
+    if (!iso) return "";
+    try {
+      const d = new Date(iso);
+      return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    } catch { return iso; }
+  };
+
+  return (
+    <Card
+      icon={Activity}
+      title="Production canary"
+      subtitle="Nightly smoke-test run against the live production deploy. The GitHub workflow POSTs its result here on every run so you can see uptime at a glance."
+      testid="admin-canary-card"
+    >
+      <div className="flex items-center gap-2 mb-3 text-xs" data-testid="admin-canary-tabs">
+        {[7, 14, 30].map((d) => (
+          <button
+            key={d}
+            type="button"
+            onClick={() => setDays(d)}
+            className={`px-2.5 py-1 rounded-full border transition-colors ${days === d ? "bg-[#6B46C1] text-white border-[#6B46C1]" : "bg-white text-[#6B705C] border-[#E4D9C8] hover:bg-[#FDF3E1]"}`}
+            data-testid={`admin-canary-tab-${d}d`}
+          >
+            {d}d
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+      ) : !data?.configured && runs.length === 0 ? (
+        <div className="text-sm text-[#6B705C] space-y-2" data-testid="admin-canary-onboarding">
+          <p className="font-semibold text-[#2C2C2C]">No canary runs reported yet.</p>
+          <p>To activate the widget, add these two secrets to your GitHub repo:</p>
+          <ul className="list-disc pl-5 space-y-0.5">
+            <li><code className="bg-[#FDF3E1] text-[#6B46C1] px-1 rounded text-[11px]">SHELFSORT_PROD_URL</code> — already required for the nightly canary itself</li>
+            <li><code className="bg-[#FDF3E1] text-[#6B46C1] px-1 rounded text-[11px]">CANARY_REPORT_SECRET</code> — a fresh random string; also set <code className="bg-[#FDF3E1] text-[#6B46C1] px-1 rounded text-[11px]">CANARY_REPORT_SECRET</code> in <code className="bg-[#FDF3E1] text-[#6B46C1] px-1 rounded text-[11px]">backend/.env</code> on prod so the endpoint accepts the POST</li>
+          </ul>
+          <p>Next nightly run (03:00 UTC) will populate the chart.</p>
+        </div>
+      ) : runs.length === 0 ? (
+        <p className="text-sm text-[#6B705C]" data-testid="admin-canary-empty">
+          Configured, but no runs in the last {days} days yet. Trigger a manual run from the Actions tab to populate this.
+        </p>
+      ) : (
+        <>
+          {/* Headline KPIs */}
+          <div className="flex flex-wrap items-baseline gap-4 mb-3" data-testid="admin-canary-headline">
+            <div>
+              <div className="text-2xl font-bold text-[#2C2C2C] tabular-nums">
+                {uptimePct == null ? "—" : `${uptimePct.toFixed(1)}%`}
+              </div>
+              <div className="text-[10px] uppercase tracking-[0.15em] text-[#6B705C]">Uptime</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-[#3D8B79] tabular-nums">{data.pass_count}</div>
+              <div className="text-[10px] uppercase tracking-[0.15em] text-[#6B705C]">Passed</div>
+            </div>
+            <div>
+              <div className={`text-2xl font-bold tabular-nums ${data.fail_count > 0 ? "text-[#C5564B]" : "text-[#6B705C]"}`}>
+                {data.fail_count}
+              </div>
+              <div className="text-[10px] uppercase tracking-[0.15em] text-[#6B705C]">Failed</div>
+            </div>
+            {lastRun && (
+              <div className="ml-auto text-right">
+                <div className={`text-sm font-semibold ${lastRun.status === "pass" ? "text-[#3D8B79]" : "text-[#C5564B]"}`}>
+                  {lastRun.status === "pass" ? "✓ Last run passed" : "✗ Last run failed"}
+                </div>
+                <div className="text-[10px] text-[#6B705C]">{fmtTime(lastRun.finished_at)}</div>
+              </div>
+            )}
+          </div>
+
+          {/* Sparkline — one dot per run, oldest left, status-colored */}
+          <div className="flex flex-wrap items-center gap-1.5 mb-3" data-testid="admin-canary-sparkline">
+            {runs.map((r) => (
+              <span
+                key={r.run_id}
+                title={`${r.status === "pass" ? "✓" : "✗"} ${fmtTime(r.finished_at)} — ${r.passed}/${r.total} (${r.duration_s != null ? `${r.duration_s}s` : "?"})`}
+                className={`w-3 h-3 rounded-sm ${r.status === "pass" ? "bg-[#3D8B79]" : "bg-[#C5564B]"}`}
+                data-testid={`admin-canary-dot-${r.run_id}`}
+              />
+            ))}
+          </div>
+
+          {/* Last 5 runs table — text fallback for the colorblind */}
+          <details className="text-xs" data-testid="admin-canary-recent-details">
+            <summary className="cursor-pointer text-[#6B705C] hover:text-[#2C2C2C] font-semibold">
+              Last {Math.min(5, runs.length)} run{runs.length === 1 ? "" : "s"}
+            </summary>
+            <ul className="mt-2 space-y-1" data-testid="admin-canary-recent-list">
+              {[...runs].reverse().slice(0, 5).map((r) => (
+                <li
+                  key={r.run_id}
+                  className="flex items-center gap-2 px-2 py-1 rounded bg-[#FDF8F0] border border-[#E4D9C8]"
+                  data-testid={`admin-canary-row-${r.run_id}`}
+                >
+                  <span className={`w-2 h-2 rounded-full ${r.status === "pass" ? "bg-[#3D8B79]" : "bg-[#C5564B]"}`} />
+                  <span className="text-[#2C2C2C] font-semibold">{r.status.toUpperCase()}</span>
+                  <span className="text-[#6B705C]">{fmtTime(r.finished_at)}</span>
+                  <span className="text-[#6B705C] ml-auto tabular-nums">{r.passed}/{r.total}</span>
+                  {r.duration_s != null && <span className="text-[#6B705C] tabular-nums">{Math.round(r.duration_s)}s</span>}
+                </li>
+              ))}
+            </ul>
+          </details>
+        </>
+      )}
+    </Card>
+  );
+}
+
+
 // ---------------------------------------------------------------------------
 function EmailDiagnosticCard() {
   const [users, setUsers] = useState([]);
@@ -6177,6 +6324,7 @@ export default function AdminConsole() {
                       case "admin-flags-card":                  return <FeatureFlagsCard key={c.testid} />;
                       case "hidden-features-card":              return <HiddenFeaturesCard key={c.testid} />;
                       case "admin-changelog-card":              return <ChangelogCard key={c.testid} />;
+                      case "admin-canary-card":                 return <CanaryCard key={c.testid} />;
                       case "admin-llm-key-health-card":         return <LlmKeyHealthCard key={c.testid} />;
                       case "admin-unknown-fandoms-card":        return <UnknownFandomsCard key={c.testid} />;
                       case "admin-crossover-suggestions-card":  return <CrossoverSuggestionsCard key={c.testid} />;

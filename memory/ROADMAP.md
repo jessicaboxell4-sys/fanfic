@@ -23,14 +23,12 @@ Heuristic (highest priority first):
 
 | # | Reminder | Effort | Impact | Why this rank |
 |---|----------|--------|--------|---------------|
-| 1 | Admin Console smoke-canary widget | ~45 min | Med (operator) | Now unblocked — canary is live; widget shows last result at a glance |
-| 2 | Amplify "Shipped from the community" social proof | ~1-2 h Core | High (user) | Amplifies the badge work; brings traffic to the suggestion board |
-| 3 | Profile discovery polish (scroll-to-row, completeness nudge) | ~30-45 min | Med (user) | Follow-up to Listed! toast; small UX delight |
-| 4 | Canary test-account cleanup endpoint | ~20 min | Low (housekeeping) | Sweep `shelfsort-canary-…@example.com` rows weekly so prod doesn't accrue throwaway accounts |
-| 5 | Canary polish bundle (5 sub-items) | ~2-3 h all | Med | Webhook + multi-region + tiered frequency + public badge + metrics dashboard — pick & choose |
-| 6 | Help.jsx duplicate React keys in WhatsNew fallback | ~5 min | Trivial | ✅ DONE 2026-06-26 — composite key `${item.to}-${idx}` fix shipped |
-| 7 | Phase 6C: upload pipeline extraction | ~30-45 min, HIGH risk | Low (tech debt) | **Bigger than initially scoped.** 635 LOC in a SINGLE monolithic function with heavy interdependencies on books.py private helpers + inline imports from routes.admin and routes.user_prefs. Smoke band will catch breakage but likely 2-3 fix iterations on imports. Recommend doing in a fresh session with full context budget. Alternative: split into 6C1 (extract function as-is) + 6C2 (decompose into smaller helpers) over two sessions |
-| 8 | Phase 6D: search/list views extraction | ~30 min, Med risk | Low (tech debt) | `/books`, `/books/recent`, `/books/stats`, status-counts → `routes/library_reads.py`. ~400 LOC across 4-5 small endpoints. Cleaner than 6C. Drops books.py ~9% |
+| 1 | Amplify "Shipped from the community" social proof | ~1-2 h Core | High (user) | Amplifies the badge work; brings traffic to the suggestion board |
+| 2 | Profile discovery polish (scroll-to-row, completeness nudge) | ~30-45 min | Med (user) | Follow-up to Listed! toast; small UX delight |
+| 3 | Canary test-account cleanup endpoint | ~20 min | Low (housekeeping) | Sweep `shelfsort-canary-…@example.com` rows weekly so prod doesn't accrue throwaway accounts |
+| 4 | Canary polish bundle (5 sub-items) | ~2-3 h all | Med | Webhook + multi-region + tiered frequency + public badge + metrics dashboard — pick & choose (note: in-app widget & uptime card already shipped 2026-06-26) |
+| 5 | Phase 6C: upload pipeline extraction | ~30-45 min, HIGH risk | Low (tech debt) | **Bigger than initially scoped.** 635 LOC in a SINGLE monolithic function with heavy interdependencies on books.py private helpers + inline imports from routes.admin and routes.user_prefs. Smoke band will catch breakage but likely 2-3 fix iterations on imports. Recommend doing in a fresh session with full context budget. Alternative: split into 6C1 (extract function as-is) + 6C2 (decompose into smaller helpers) over two sessions |
+| 6 | Phase 6D: search/list views extraction | ~30 min, Med risk | Low (tech debt) | `/books`, `/books/recent`, `/books/stats`, status-counts → `routes/library_reads.py`. ~400 LOC across 4-5 small endpoints. Cleaner than 6C. Drops books.py ~9% |
 
 ### Convention for adding new reminders
 

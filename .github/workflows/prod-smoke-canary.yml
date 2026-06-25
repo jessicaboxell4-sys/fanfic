@@ -66,7 +66,55 @@ jobs:
         # bubbles up to the issue-opener step below.
         run: |
           chmod +x scripts/run_regression_smoke.sh
+          START_TS=$(date +%s)
+          set +e
           ./scripts/run_regression_smoke.sh 2>&1 | tee /tmp/canary.log
+          STATUS=${PIPESTATUS[0]}
+          set -e
+          END_TS=$(date +%s)
+          echo "duration_s=$((END_TS - START_TS))" >> $GITHUB_OUTPUT
+          echo "exit_code=$STATUS" >> $GITHUB_OUTPUT
+          # Pull pass/total from pytest's summary line (e.g. "27 passed").
+          PASSED=$(grep -oE '[0-9]+ passed' /tmp/canary.log | tail -1 | awk '{print $1}')
+          FAILED=$(grep -oE '[0-9]+ failed' /tmp/canary.log | tail -1 | awk '{print $1}')
+          PASSED=${PASSED:-0}
+          FAILED=${FAILED:-0}
+          echo "passed_count=$PASSED" >> $GITHUB_OUTPUT
+          echo "failed_count=$FAILED" >> $GITHUB_OUTPUT
+          echo "total_count=$((PASSED + FAILED))" >> $GITHUB_OUTPUT
+          exit $STATUS
+
+      - name: Push canary result to AdminConsole widget
+        if: always() && env.REACT_APP_BACKEND_URL != '' && secrets.CANARY_REPORT_SECRET != ''
+        env:
+          CANARY_REPORT_SECRET: ${{ secrets.CANARY_REPORT_SECRET }}
+        # POSTs a row to /api/canary/report so the in-app widget can
+        # plot a 7-day uptime sparkline.  Auth via shared secret —
+        # set CANARY_REPORT_SECRET in repo secrets to enable this.
+        # `if: always()` makes the report run on both pass AND fail.
+        run: |
+          STATUS="${{ steps.smoke.outcome == 'success' && 'pass' || 'fail' }}"
+          # Trim the log to the last 60 lines so the body stays light.
+          TAIL=$(tail -n 60 /tmp/canary.log 2>/dev/null | python -c 'import sys,json;print(json.dumps(sys.stdin.read()))')
+          PAYLOAD=$(cat <<EOF
+          {
+            "run_id":      "${{ github.run_id }}",
+            "status":      "$STATUS",
+            "passed":      ${{ steps.smoke.outputs.passed_count || 0 }},
+            "total":       ${{ steps.smoke.outputs.total_count  || 0 }},
+            "target":      "${REACT_APP_BACKEND_URL}",
+            "duration_s":  ${{ steps.smoke.outputs.duration_s   || 0 }},
+            "finished_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "tail":        $TAIL
+          }
+          EOF
+          )
+          # `|| true` so a push failure never masks the actual canary
+          # outcome — we still want the issue-opener step below to fire.
+          curl -sS -X POST \
+            "${REACT_APP_BACKEND_URL}/api/canary/report?secret=${CANARY_REPORT_SECRET}" \
+            -H "Content-Type: application/json" \
+            --data "$PAYLOAD" || true
 
       - name: Open an issue if the canary failed
         if: failure()

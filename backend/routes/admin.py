@@ -3230,3 +3230,127 @@ async def admin_reject_crossover_suggestion(
         raise HTTPException(status_code=404, detail="No pending suggestion with that key")
     await record_admin_action(user, "crossover_suggestion.reject", target=dedup_key)
     return {"ok": True, "dedup_key": dedup_key}
+
+
+
+# ----------------------------------------------------------------- #
+# Lightweight pending-count for the navbar badge                    #
+# ----------------------------------------------------------------- #
+# Cached in-process for 60 s so polling from every navbar instance  #
+# doesn't hammer Mongo.                                             #
+_xover_count_cache: Dict[str, Any] = {"count": 0, "fetched_at": 0.0}
+
+
+@api_router.get("/admin/crossover-suggestions/count")
+async def admin_crossover_suggestions_count(user: User = Depends(require_admin)):  # noqa: ARG001
+    """Pending-suggestion count for the navbar attention badge.
+    Cached for 60 s in-process."""
+    import time as _t
+    now = _t.monotonic()
+    if (now - _xover_count_cache["fetched_at"]) < 60:
+        return {"count": _xover_count_cache["count"]}
+    n = await db.crossover_suggestions.count_documents({"status": "pending"})
+    _xover_count_cache["count"] = n
+    _xover_count_cache["fetched_at"] = now
+    return {"count": n}
+
+
+# ----------------------------------------------------------------- #
+# Production canary results (Admin Console widget)                  #
+# ----------------------------------------------------------------- #
+# The GitHub Action `prod-smoke-canary.yml` POSTs a row to this     #
+# endpoint after every run (pass OR fail).  Gated by the shared     #
+# secret ``CANARY_REPORT_SECRET`` so anyone with the prod URL can't #
+# spam the timeline.  Stored in `canary_runs` collection; admins    #
+# see the last 7 days as a sparkline on the AdminConsole.           #
+
+
+class _CanaryReportBody(BaseModel):
+    run_id:      str = Field(min_length=1, max_length=120)
+    status:      str = Field(pattern="^(pass|fail)$")
+    passed:      int = Field(ge=0)
+    total:       int = Field(ge=0)
+    target:      Optional[str] = Field(default=None, max_length=200)
+    duration_s:  Optional[float] = Field(default=None, ge=0)
+    finished_at: Optional[str] = None  # ISO; defaults to now if missing
+    tail:        Optional[str] = Field(default=None, max_length=4000)
+
+
+@api_router.post("/canary/report")
+async def canary_report(body: _CanaryReportBody, secret: Optional[str] = None):
+    """Push a canary-run summary from the GitHub workflow.
+
+    Auth: ``?secret=...`` query param OR ``X-Canary-Secret`` header
+    must equal env ``CANARY_REPORT_SECRET``.  When the env var is
+    unset, the endpoint always 503s so an unconfigured deploy
+    can't accept arbitrary writes.
+    """
+    from fastapi import Request as _Req  # noqa: F401  (kept for future header use)
+    expected = os.environ.get("CANARY_REPORT_SECRET") or ""
+    if not expected:
+        raise HTTPException(status_code=503, detail="canary reporting not configured")
+    if secret != expected:
+        raise HTTPException(status_code=401, detail="invalid canary secret")
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    finished_at = body.finished_at or now_iso
+    await db.canary_runs.update_one(
+        {"run_id": body.run_id},
+        {
+            "$set": {
+                "run_id":       body.run_id,
+                "status":       body.status,
+                "passed":       body.passed,
+                "total":        body.total,
+                "target":       body.target,
+                "duration_s":   body.duration_s,
+                "finished_at":  finished_at,
+                "tail":         (body.tail or "")[:4000],
+                "received_at":  now_iso,
+            },
+        },
+        upsert=True,
+    )
+    # Best-effort retention: keep only the last 90 days of rows so
+    # the collection doesn't grow unbounded on hourly cron runs.
+    try:
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=90)).isoformat()
+        await db.canary_runs.delete_many({"finished_at": {"$lt": cutoff}})
+    except Exception:
+        pass
+    return {"ok": True, "run_id": body.run_id, "status": body.status}
+
+
+@api_router.get("/admin/canary-runs")
+async def admin_canary_runs(days: int = 7, user: User = Depends(require_admin)):  # noqa: ARG001
+    """Last ``days`` days of canary runs for the AdminConsole widget.
+    Returns runs sorted oldest-first so the FE can draw a sparkline
+    left-to-right without re-sorting."""
+    days = max(1, min(int(days), 30))
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    rows = await db.canary_runs.find(
+        {"finished_at": {"$gte": cutoff}},
+        {"_id": 0, "tail": 0},  # don't ship the heavy tail to the list view
+    ).sort("finished_at", 1).to_list(length=2000)
+    pass_count = sum(1 for r in rows if r.get("status") == "pass")
+    fail_count = sum(1 for r in rows if r.get("status") == "fail")
+    total = len(rows)
+    uptime_pct = (pass_count / total * 100.0) if total else None
+    return {
+        "days":        days,
+        "runs":        rows,
+        "pass_count":  pass_count,
+        "fail_count":  fail_count,
+        "total":       total,
+        "uptime_pct":  uptime_pct,
+        "configured":  bool(os.environ.get("CANARY_REPORT_SECRET")),
+    }
+
+
+@api_router.get("/admin/canary-runs/{run_id}")
+async def admin_canary_run_detail(run_id: str, user: User = Depends(require_admin)):  # noqa: ARG001
+    """Full row (including the ``tail`` log excerpt) for a single run."""
+    row = await db.canary_runs.find_one({"run_id": run_id}, {"_id": 0})
+    if not row:
+        raise HTTPException(status_code=404, detail="Canary run not found")
+    return row

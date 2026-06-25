@@ -76,7 +76,7 @@ function NavDropdown({ label, icon: Icon, items, testid }) {
 // Secondary nav — inline (xl+) shows dropdowns to keep the bar compact, the
 // hamburger drawer (< xl) shows everything flat so users can scan all
 // destinations at once.
-function SecondaryLinks({ user, unknownFandomCount, onNavigate, inDrawer = false }) {
+function SecondaryLinks({ user, unknownFandomCount, crossoverPendingCount, onNavigate, inDrawer = false }) {
   if (!user) return null;
 
   // Items used in BOTH layouts — defining once keeps wording identical.
@@ -150,7 +150,7 @@ function SecondaryLinks({ user, unknownFandomCount, onNavigate, inDrawer = false
           <Link to="/admin" data-testid="drawer-admin" className={itemBase} onClick={close}>
             <ShieldCheck className="w-4 h-4 text-[#6B46C1]" />
             Admin console
-            {unknownFandomCount > 0 && (
+            {(unknownFandomCount + crossoverPendingCount) > 0 && (
               <span data-testid="drawer-admin-badge" className="ml-auto w-2 h-2 rounded-full bg-[#E07A5F]" />
             )}
           </Link>
@@ -180,10 +180,15 @@ function SecondaryLinks({ user, unknownFandomCount, onNavigate, inDrawer = false
           to="/admin"
           data-testid="navbar-admin"
           className="p-2 hover:bg-[#F5F3EC] rounded-lg relative"
-          title={unknownFandomCount > 0 ? `Admin console — ${unknownFandomCount} unknown fandom${unknownFandomCount === 1 ? "" : "s"}` : "Admin console"}
+          title={(() => {
+            const bits = [];
+            if (unknownFandomCount > 0) bits.push(`${unknownFandomCount} unknown fandom${unknownFandomCount === 1 ? "" : "s"}`);
+            if (crossoverPendingCount > 0) bits.push(`${crossoverPendingCount} pending crossover suggestion${crossoverPendingCount === 1 ? "" : "s"}`);
+            return bits.length ? `Admin console — ${bits.join(" · ")}` : "Admin console";
+          })()}
         >
           <ShieldCheck className="w-4 h-4 text-[#6B46C1]" />
-          {unknownFandomCount > 0 && (
+          {(unknownFandomCount + crossoverPendingCount) > 0 && (
             <span
               data-testid="navbar-admin-badge"
               className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#E07A5F] ring-2 ring-[#FDFBF7]"
@@ -210,19 +215,27 @@ export default function Navbar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [unknownFandomCount, setUnknownFandomCount] = useState(0);
+  const [crossoverPendingCount, setCrossoverPendingCount] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
 
-  // Poll the unknown-fandoms count on mount + every 5 minutes so admins
-  // notice when a new unrecognized fandom enters the library. Server-side
-  // cache means this is essentially free.
+  // Poll BOTH attention counters on mount + every 5 minutes so admins
+  // notice when a new unrecognized fandom enters the library OR when
+  // the AI flags a missed crossover.  Server-side caches make this
+  // essentially free.
   useEffect(() => {
     if (!user?.is_admin) return;
     let cancelled = false;
     const load = async () => {
       try {
-        const { data } = await api.get("/admin/unknown-fandoms/count");
-        if (!cancelled) setUnknownFandomCount(data?.count || 0);
+        const [u, x] = await Promise.all([
+          api.get("/admin/unknown-fandoms/count"),
+          api.get("/admin/crossover-suggestions/count"),
+        ]);
+        if (!cancelled) {
+          setUnknownFandomCount(u?.data?.count || 0);
+          setCrossoverPendingCount(x?.data?.count || 0);
+        }
       } catch { /* ignore */ }
     };
     load();
@@ -254,7 +267,7 @@ export default function Navbar() {
         <div className="flex items-center gap-1.5 md:gap-2 lg:gap-3">
           {/* Primary navigation dropdowns (Library / Export / Help) — on the
               LEFT so users reach top-level destinations first. */}
-          <SecondaryLinks user={user} unknownFandomCount={unknownFandomCount} />
+          <SecondaryLinks user={user} unknownFandomCount={unknownFandomCount} crossoverPendingCount={crossoverPendingCount} />
 
           {/* Status & personal icons — theme, notifications, messages,
               streak.  Sitting on the RIGHT keeps them near the account
@@ -322,6 +335,7 @@ export default function Navbar() {
                     <SecondaryLinks
                       user={user}
                       unknownFandomCount={unknownFandomCount}
+                      crossoverPendingCount={crossoverPendingCount}
                       inDrawer
                       onNavigate={() => setMenuOpen(false)}
                     />
