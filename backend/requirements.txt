@@ -65,7 +65,12 @@ jq==1.11.0
 jsonschema==4.26.0
 jsonschema-specifications==2025.9.1
 librt==0.11.0
-litellm @ https://customer-assets.emergentagent.com/internal-asset/library/litellm-1.80.0-py3-none-any.whl#sha256=adf398c513273de9341f61822296c6b2145f7f2dc4a69daf3ac04829f5bde3f8
+# litellm 1.80.0 is brought in transitively by emergentintegrations==0.1.2
+# (same version, same wheel).  Pinning it again here with a #sha256 URL
+# fragment caused a "ResolutionImpossible" conflict in CI because pip's
+# resolver saw two different URL specs (with vs. without the hash) for
+# the same litellm version.  Removed 2026-06-25.
+# litellm @ https://customer-assets.emergentagent.com/internal-asset/library/litellm-1.80.0-py3-none-any.whl#sha256=adf398c513273de9341f61822296c6b2145f7f2dc4a69daf3ac04829f5bde3f8
 lxml==6.1.1
 markdown-it-py==4.2.0
 MarkupSafe==3.0.3
