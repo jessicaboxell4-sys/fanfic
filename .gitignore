@@ -145,6 +145,3 @@ frontend/node_modules/.cache/default-development/31.pack
 # the platform's secrets UI, not into env files.
 # (Lines that previously ignored .env files were removed 2026-06-27
 # after the deployment agent flagged them as a blocker.)
-.env
-.env.*
-*.env
