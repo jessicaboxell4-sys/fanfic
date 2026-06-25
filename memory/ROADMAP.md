@@ -56,6 +56,27 @@ improvements, not just the explicit "which is best?" follow-ups.
 
 ---
 
+## 💡 Reminder — Mongo indexes for library_reads.py — PARKED 2026-06-27
+
+Added by operator on 2026-06-27 after Phase 6D extraction completed.
+Now that the high-traffic GET routes live in their own clean module,
+add compound Mongo indexes so they stay fast as the library grows:
+
+- `db.books.create_index([("user_id", 1), ("category", 1)])` — powers
+  `GET /api/books` (every category-filtered list)
+- `db.books.create_index([("user_id", 1), ("last_opened_at", -1)])` —
+  powers `GET /api/books/recent` (Continue Reading rail)
+- `db.books.create_index([("user_id", 1), ("replaces", 1), ("update_seen", 1)])`
+  — powers `GET /api/books/recent-updates` (bell badge)
+- Possibly: `db.books.create_index([("user_id", 1), ("fandom", 1)])` —
+  powers `GET /fandoms` and fandom-filtered list views
+
+Effort: ~15 min. Risk: trivial — index creation is online + idempotent.
+Impact: shaves 30-100 ms off page loads once a user passes ~10k books;
+also reduces server CPU for everyone. Add to startup hook in
+`deps.py` or as part of an existing migration script so prod picks
+them up on next deploy.
+
 ## 💡 Reminder — Phase 6D library_reads.py extraction — DONE 2026-06-27 ✅
 
 10 pure-read endpoints peeled out of books.py to routes/library_reads.py.
