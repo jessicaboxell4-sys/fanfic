@@ -109,6 +109,24 @@ export default function Changelog() {
             reader, sorting, sync, friends. Pulled live from the same
             announcements we show inside the app, so it&rsquo;s always current.
           </p>
+          {/* Public trust signal: live status of the production smoke
+              canary that hits shelfsort.com every night.  Image is a
+              live SVG from shields.io that reads the GitHub Actions
+              workflow state, so this stays fresh with zero backend code. */}
+          <a
+            href="https://github.com/jessicaboxell4-sys/fanfic/actions/workflows/prod-smoke-canary.yml"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block mt-4 hover:opacity-80 transition-opacity"
+            data-testid="changelog-canary-badge-link"
+            title="Live status of Shelfsort's nightly production health check"
+          >
+            <img
+              src="https://img.shields.io/github/actions/workflow/status/jessicaboxell4-sys/fanfic/prod-smoke-canary.yml?branch=main&label=production%20canary&style=flat-square&logo=githubactions&logoColor=white"
+              alt="Production canary status"
+              data-testid="changelog-canary-badge-img"
+            />
+          </a>
         </header>
 
         {entries === null && (
