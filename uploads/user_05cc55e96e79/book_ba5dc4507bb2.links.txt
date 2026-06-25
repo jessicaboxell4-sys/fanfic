@@ -1,0 +1,30 @@
+Title:  Quick Start Guide
+Author: John Schember
+Links:  12
+============================================================
+
+1. https://creativecommons.org/licenses/by-sa/4.0/deed.en_US
+   ↳ Creative Commons Attribution-ShareAlike 4.0 International License
+2. https://calibre-ebook.com/
+   ↳ Calibre
+3. https://www.opensource.org/
+   ↳ open source
+4. https://manybooks.net/
+   ↳ ManyBooks
+5. https://calibre-ebook.com/download
+   ↳ downloading
+6. https://www.teleread.com/drm/drm-a-teleread-primer/
+   ↳ Digital Rights Management
+7. https://en.wikipedia.org/wiki/Dmca
+   ↳ Digital Millennium Copyright Act
+8. https://manual.calibre-ebook.com
+   ↳ online user manual
+9. https://manual.calibre-ebook.com/faq.html
+   ↳ FAQ
+10. https://www.mobileread.com/forums/forumdisplay.php?f=166
+   ↳ calibre forum
+11. https://www.mobileread.com/
+   ↳ Mobileread
+12. https://bugs.launchpad.net/calibre
+   ↳ bug/issue tracking system
+

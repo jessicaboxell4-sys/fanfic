@@ -581,3 +581,41 @@ def test_crossover_suggestion_reject_requires_admin(session):
     assert r.status_code in (401, 403), (
         f"reject should reject non-admin (got {r.status_code}): {r.text[:200]}"
     )
+
+
+
+# -------------------------------------------------------------------- #
+# Bare Storyid URL reconstruction (no network — pure regex)            #
+# -------------------------------------------------------------------- #
+# Guards the host-token table + the closest-host-wins logic so future  #
+# refactors to extract_urls_from_epub don't silently lose URL          #
+# reconstruction for EPUBs that lack a full href.                      #
+
+def test_reconstruct_bare_storyid_ffnet():
+    """`Storyid: N` + `FanFiction.net` cover page → canonical FF URL."""
+    from utils.epub_metadata import _reconstruct_bare_story_ids
+    out = _reconstruct_bare_story_ids(
+        "Storyid: 6032563\nFanFiction.net\nName: Absolute Promise\nAuthor: Bittersweet Alias"
+    )
+    assert len(out) == 1
+    assert out[0]["url"] == "https://www.fanfiction.net/s/6032563"
+    assert out[0]["anchor"] == "Absolute Promise"
+
+
+def test_reconstruct_bare_storyid_compilation():
+    """Compilation EPUB with two stories from different hosts → both
+    reconstructed with the correct host each."""
+    from utils.epub_metadata import _reconstruct_bare_story_ids
+    out = _reconstruct_bare_story_ids(
+        "Storyid: 111\nFanFiction.net\nName: First Story\n"
+        "Storyid: 222\nRoyal Road\nName: Second Story"
+    )
+    urls = [r["url"] for r in out]
+    assert "https://www.fanfiction.net/s/111" in urls
+    assert "https://www.royalroad.com/fiction/222" in urls
+
+
+def test_reconstruct_bare_storyid_no_host_yields_nothing():
+    """Storyid with no recognizable host → empty list, never a wrong URL."""
+    from utils.epub_metadata import _reconstruct_bare_story_ids
+    assert _reconstruct_bare_story_ids("Storyid: 999\n(no host here)") == []

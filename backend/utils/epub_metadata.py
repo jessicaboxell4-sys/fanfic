@@ -515,7 +515,117 @@ def extract_urls_from_epub(filepath: Path) -> List[Dict[str, str]]:
                 seen.add(key)
                 results.append({"url": href, "anchor": ""})
 
+        # Reconstruct canonical URLs from bare "Storyid: N" + host
+        # patterns (some FanFicFare cover pages drop the full URL).
+        for rec in _reconstruct_bare_story_ids(plain):
+            key = rec["url"].lower()
+            if key not in seen:
+                seen.add(key)
+                results.append({"url": rec["url"], "anchor": rec.get("anchor") or ""})
+
     return results
+
+
+# Mapping of host-name tokens (as they appear in EPUB cover pages) →
+# canonical-URL template.  Used by ``_reconstruct_bare_story_ids`` to
+# turn "Storyid: 6032563 ··· FanFiction.net" into a real URL even when
+# the EPUB never embeds the full link.
+#
+# Add entries here as new sites surface in the unknown-sources admin
+# panel — the keys are matched case-insensitive, so common spellings
+# are covered by a single entry.
+_HOST_TOKEN_TO_TEMPLATE = (
+    # FanFiction.net
+    ("fanfiction.net",     "https://www.fanfiction.net/s/{id}"),
+    ("fanfiction .net",    "https://www.fanfiction.net/s/{id}"),  # OCR-style spacing
+    ("fanfic.net",         "https://www.fanfiction.net/s/{id}"),  # rare typo
+    # Archive of Our Own
+    ("archiveofourown",    "https://archiveofourown.org/works/{id}"),
+    ("archive of our own", "https://archiveofourown.org/works/{id}"),
+    ("ao3.org",            "https://archiveofourown.org/works/{id}"),
+    # Royal Road
+    ("royalroad",          "https://www.royalroad.com/fiction/{id}"),
+    ("royal road",         "https://www.royalroad.com/fiction/{id}"),
+    # FictionPress (FFNet's sibling — same URL shape, /s/<id>)
+    ("fictionpress.com",   "https://www.fictionpress.com/s/{id}"),
+    ("fictionpress",       "https://www.fictionpress.com/s/{id}"),
+    # Wattpad
+    ("wattpad",            "https://www.wattpad.com/story/{id}"),
+    # AO3 short token kept last so longer hosts above win the match
+    ("ao3",                "https://archiveofourown.org/works/{id}"),
+)
+
+# "Storyid:" patterns we've seen in the wild — FanFicFare's cover page
+# prefixes the field with "Storyid:" while older Calibre exports use
+# "Story ID:" or "story_id:".  Match all three (case-insensitive) and
+# capture the trailing digits.
+_STORYID_RE = re.compile(
+    r"story\s*[_\-]?\s*id\s*[:\-]?\s*(\d+)",
+    re.IGNORECASE,
+)
+
+
+def _reconstruct_bare_story_ids(text: str) -> List[Dict[str, str]]:
+    """Find ``Storyid: 12345`` patterns paired with a nearby host name
+    and reconstruct the canonical URL.
+
+    Example input::
+
+        Storyid: 6032563
+        FanFiction.net
+        Name: Absolute Promise
+        Author: Bittersweet Alias
+
+    →  ``[{"url": "https://www.fanfiction.net/s/6032563", "anchor": "Absolute Promise"}]``
+
+    The host token must appear within 200 characters BEFORE or AFTER
+    the Storyid marker — close enough to be on the same cover page,
+    not so far that we accidentally match a different story's host.
+
+    Returns an empty list when no host can be paired with the ID.
+    """
+    out: List[Dict[str, str]] = []
+    if not text:
+        return out
+    low = text.lower()
+    for m in _STORYID_RE.finditer(text):
+        story_id = m.group(1)
+        # 200-char window around the match.  Wide enough for a typical
+        # "Storyid:\nHost\nName:\nAuthor:" cover page, narrow enough
+        # that we don't grab a host name from a completely different
+        # work later in the file.
+        start = max(0, m.start() - 200)
+        end   = min(len(low), m.end() + 200)
+        # Find every candidate host in the window and pick the one
+        # closest to the Storyid match — works correctly for compilation
+        # EPUBs that list multiple stories on one page.  Ties broken by
+        # the priority order in _HOST_TOKEN_TO_TEMPLATE.
+        best: Optional[tuple] = None  # (distance, idx, token, template)
+        for idx, (token, template) in enumerate(_HOST_TOKEN_TO_TEMPLATE):
+            pos = low.find(token, start, end)
+            if pos == -1:
+                continue
+            # Distance from the nearest edge of the Storyid match.
+            dist = min(abs(pos - m.start()), abs(pos - m.end()))
+            cand = (dist, idx, token, template)
+            if best is None or cand < best:
+                best = cand
+        if best is None:
+            continue
+        _, _, _, template = best
+        # Best-effort: grab the human-readable story name from
+        # the "Name:" line that usually follows the host.
+        name_match = re.search(
+            r"name\s*[:\-]\s*([^\n\r]{1,200})",
+            text[m.end():m.end() + 400],
+            re.IGNORECASE,
+        )
+        anchor = (name_match.group(1).strip() if name_match else "")[:200]
+        url = template.format(id=story_id)
+        out.append({"url": url, "anchor": anchor})
+
+    return out
+
 
 
 def format_links_txt(book_title: str, book_author: str, links: List[Dict[str, str]]) -> str:
