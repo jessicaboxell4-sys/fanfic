@@ -28,6 +28,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
+    # The `Open an issue if the canary failed` step uses GITHUB_TOKEN
+    # to file an alert issue.  Default workflow token is read-only, so
+    # we explicitly grant `issues: write` (and `contents: read` for
+    # checkout) here.  Without this, the step 403s with
+    # `Resource not accessible by integration`.
+    permissions:
+      contents: read
+      issues: write
+
     env:
       # Pytest reads BASE_URL via REACT_APP_BACKEND_URL — pointing it
       # at prod is the ONE knob that flips the smoke into canary mode.
