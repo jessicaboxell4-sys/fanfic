@@ -58,10 +58,14 @@ jobs:
         working-directory: backend
         run: |
           python -m pip install --upgrade pip
-          # emergentintegrations is hosted on Emergent's CDN, not PyPI —
-          # pass --extra-index-url so the standard requirements install
-          # can resolve it (otherwise the line below crashes the job).
-          pip install -r requirements.txt --extra-index-url https://d33sy5i8bnduwe.cloudfront.net/simple/
+          # emergentintegrations + litellm are hosted on Emergent's
+          # CDNs, not PyPI.  Pre-install them BEFORE requirements.txt
+          # so pip's resolver doesn't try to reconcile two URL specs
+          # for the same litellm version and crash with
+          # "ResolutionImpossible".  Once they're in site-packages,
+          # the matching lines in requirements.txt become no-ops.
+          pip install emergentintegrations==0.1.2 --extra-index-url https://d33sy5i8bnduwe.cloudfront.net/simple/
+          pip install -r requirements.txt
 
       - name: Run pytest regression smoke (fast, fail-fast)
         working-directory: backend
