@@ -92,6 +92,7 @@
 - `GET  /api/admin/crossover-suggestions?status=...` · `POST /api/admin/crossover-suggestions/{dedup_key}/accept|reject` · `GET /api/admin/crossover-suggestions/count` (Phase-6 AI feedback loop — Session 2 + navbar badge)
 - `POST /api/canary/report` (gated by `CANARY_REPORT_SECRET`) · `GET /api/admin/canary-runs?days=N` · `GET /api/admin/canary-runs/{run_id}` (Production canary widget)
 - `POST /api/admin/re-extract-links` (Backfill EPUB link extractor + Storyid URL reconstruction across existing library)
+- `GET /api/changelog` (public, no auth — community shipped feed + parsed CHANGELOG.md, forward-only from 2026-06-25)
 
 ## 3rd-Party Integrations
 - **Emergent LLM Key** — Claude Sonnet 4.6 for classification + tag suggestions

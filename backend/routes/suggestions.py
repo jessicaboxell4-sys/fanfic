@@ -338,6 +338,12 @@ async def admin_update(sid: str, body: SuggestionUpdate, user: User = Depends(re
     update: Dict[str, Any] = {"updated_at": datetime.now(timezone.utc)}
     if body.status is not None:
         update["status"] = body.status
+        # When a suggestion transitions to "done", stamp ``shipped_at``
+        # exactly once.  This timestamp powers the public /changelog
+        # community-shipped panel + the credit email (forward-only via
+        # SHIPPED_CREDIT_CUTOFF in routes/changelog.py).
+        if body.status == "done" and doc.get("status") != "done":
+            update["shipped_at"] = datetime.now(timezone.utc).isoformat()
     if body.admin_note is not None:
         update["admin_note"] = body.admin_note.strip() or None
     if not update:
@@ -371,33 +377,79 @@ async def admin_update(sid: str, body: SuggestionUpdate, user: User = Depends(re
         )
         # Email — best-effort
         submitter_email = doc.get("submitter_email", "")
+        # When the suggestion ships, send a stronger "Your idea shipped!"
+        # celebration email — once per suggestion (tracked via
+        # ``shipped_credit_sent_at``) so re-edits of an already-done
+        # suggestion don't spam the submitter.
+        is_first_ship = (
+            body.status == "done"
+            and doc.get("status") != "done"
+            and not doc.get("shipped_credit_sent_at")
+        )
         if RESEND_API_KEY and submitter_email:
             try:
                 resend.api_key = RESEND_API_KEY
+                if is_first_ship:
+                    subject_line = f"🎉 Your Shelfsort suggestion shipped: {doc['title']}"
+                    badge_label  = "🎉 SHIPPED FROM YOUR SUGGESTION"
+                    headline     = "Your idea shipped!"
+                    intro_html   = (
+                        '<p style="color:#4A4A4A;line-height:1.6;font-size:15px;margin:0 0 12px;">'
+                        'You suggested it. We built it. Thanks for helping shape Shelfsort.</p>'
+                    )
+                    cta_label    = "See it on the changelog →"
+                    cta_link     = f"{FRONTEND_URL.rstrip('/')}/changelog"
+                else:
+                    subject_line = f"Shelfsort: your suggestion is {new_status_label.lower()}"
+                    badge_label  = "💡 SUGGESTION UPDATE"
+                    headline     = f"Your suggestion is now {new_status_label}"
+                    intro_html   = ""
+                    cta_label    = "View on Shelfsort →"
+                    cta_link     = f"{FRONTEND_URL.rstrip('/')}/suggestions"
                 params = {
                     "from": SENDER_EMAIL,
                     "to": [submitter_email],
-                    "subject": f"Shelfsort: your suggestion is {new_status_label.lower()}",
+                    "subject": subject_line,
                     "html": f"""
                     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px; background: #FBF7EE; border-radius: 12px;">
-                      <div style="display:inline-flex;align-items:center;gap:8px;padding:6px 12px;background:#EDE7FB;border:1px solid rgba(58,90,64,0.3);border-radius:999px;margin-bottom:16px;font-size:12px;font-weight:600;color:#6B46C1;letter-spacing:0.5px;">💡 SUGGESTION UPDATE</div>
-                      <h1 style="color:#2C2C2C;margin:0 0 12px;font-size:20px;font-family:Georgia,serif;">Your suggestion is now {new_status_label}</h1>
+                      <div style="display:inline-flex;align-items:center;gap:8px;padding:6px 12px;background:#EDE7FB;border:1px solid rgba(58,90,64,0.3);border-radius:999px;margin-bottom:16px;font-size:12px;font-weight:600;color:#6B46C1;letter-spacing:0.5px;">{badge_label}</div>
+                      <h1 style="color:#2C2C2C;margin:0 0 12px;font-size:20px;font-family:Georgia,serif;">{headline}</h1>
+                      {intro_html}
                       <p style="color:#4A4A4A;line-height:1.6;font-size:15px;margin:0 0 12px;">
                         <strong>"{doc['title']}"</strong>
                       </p>
                       {('<p style="margin:16px 0;padding:12px 16px;background:#EDE7FB;border-left:3px solid #6B46C1;border-radius:6px;font-size:14px;color:#4A4A4A;"><strong>Admin note:</strong> ' + body.admin_note.strip() + '</p>') if body.admin_note else ''}
                       <p style="margin:24px 0;text-align:center;">
-                        <a href="{FRONTEND_URL.rstrip('/')}/suggestions" style="display:inline-block;padding:10px 20px;background:#6B46C1;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;">View on Shelfsort →</a>
+                        <a href="{cta_link}" style="display:inline-block;padding:10px 20px;background:#6B46C1;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;">{cta_label}</a>
                       </p>
                       <p style="color:#6B705C;font-size:11px;margin:0;">Thanks for helping make Shelfsort better.</p>
                     </div>
                     """,
-                    "text": f"Your suggestion '{doc['title']}' is now {new_status_label}.\n\n"
-                            + (f"Admin note: {body.admin_note.strip()}\n\n" if body.admin_note else "")
-                            + f"View at: {FRONTEND_URL.rstrip('/')}/suggestions",
+                    "text": (
+                        (f"Your idea shipped! '{doc['title']}'\n\n" if is_first_ship
+                         else f"Your suggestion '{doc['title']}' is now {new_status_label}.\n\n")
+                        + (f"Admin note: {body.admin_note.strip()}\n\n" if body.admin_note else "")
+                        + f"View at: {cta_link}"
+                    ),
                 }
                 result = await asyncio.to_thread(resend.Emails.send, params)
-                await log_email_send("suggestion_status", submitter_email, "ok", resend_id=(result or {}).get("id"))
+                email_kind = "suggestion_shipped" if is_first_ship else "suggestion_status"
+                await log_email_send(email_kind, submitter_email, "ok", resend_id=(result or {}).get("id"))
+                if is_first_ship:
+                    # Mark idempotency stamp so re-edits don't re-fire
+                    # the celebration email.
+                    await db.suggestions.update_one(
+                        {"suggestion_id": sid},
+                        {"$set": {"shipped_credit_sent_at": datetime.now(timezone.utc).isoformat()}},
+                    )
+                    # Bust the public-changelog cache so the new credit
+                    # shows up immediately on the next /api/changelog
+                    # call (instead of after the 5-minute TTL).
+                    try:
+                        from routes.changelog import invalidate_changelog_cache
+                        invalidate_changelog_cache()
+                    except Exception:  # noqa: BLE001
+                        pass
             except Exception as e:  # noqa: BLE001
                 logger.error("Suggestion status email failed: %s", e)
                 await log_email_send("suggestion_status", submitter_email, "error", error=str(e))

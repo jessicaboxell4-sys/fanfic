@@ -18,6 +18,9 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 export default function Changelog() {
   const [entries, setEntries] = useState(null); // null = loading, [] = empty
   const [error, setError] = useState(null);
+  // Community-shipped feed (from /api/changelog → suggestions.status=done,
+  // forward-only from SHIPPED_CREDIT_CUTOFF). Renders @handle credits.
+  const [communityShipped, setCommunityShipped] = useState([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -29,6 +32,20 @@ export default function Changelog() {
       } catch (e) {
         if (!cancelled) setError(e?.message || "Couldn't load the changelog");
       }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    // Separate fetch so a community-shipped backend error never blanks
+    // the main announcements feed.
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await axios.get(`${API}/changelog`);
+        if (cancelled) return;
+        setCommunityShipped(res.data?.community_shipped || []);
+      } catch { /* silent — section just won't render */ }
     })();
     return () => { cancelled = true; };
   }, []);
@@ -114,6 +131,56 @@ export default function Changelog() {
               <ChangelogEntry key={entry.version} entry={entry} />
             ))}
           </ol>
+        )}
+
+        {communityShipped.length > 0 && (
+          <section className="mt-12 pt-8 border-t border-[#E5DDC5]" data-testid="changelog-community-shipped">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-2">
+              Shipped from the community
+            </p>
+            <h2 className="font-serif text-2xl md:text-3xl text-[#2C2C2C] leading-tight mb-2">
+              Built from your ideas
+            </h2>
+            <p className="text-[#6B705C] mb-5 max-w-xl">
+              Every entry below started as a user suggestion. If you have one too,{" "}
+              <Link to="/suggestions" className="text-[#E07A5F] hover:underline font-medium">drop it in the box</Link>.
+            </p>
+            <ul className="space-y-3" data-testid="changelog-community-shipped-list">
+              {communityShipped.map((s, i) => (
+                <li
+                  key={`${s.shipped_at}-${i}`}
+                  className="flex items-start gap-3 p-3 rounded-lg bg-[#FDF8F0] border border-[#E4D9C8]"
+                  data-testid={`changelog-shipped-row-${i}`}
+                >
+                  <span className="text-[#6B46C1] text-lg shrink-0" aria-hidden="true">🎉</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium text-[#2C2C2C] text-sm">{s.title}</div>
+                    <div className="text-xs text-[#6B705C] mt-0.5">
+                      {s.handle ? (
+                        <>
+                          Suggested by{" "}
+                          <Link to={`/u/${s.handle}`} className="text-[#6B46C1] hover:underline font-semibold">
+                            @{s.handle}
+                          </Link>
+                        </>
+                      ) : (
+                        <span className="italic">Suggested by an anonymous reader</span>
+                      )}
+                      {s.shipped_at && (
+                        <>
+                          {" · "}
+                          {new Date(s.shipped_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                        </>
+                      )}
+                    </div>
+                    {s.admin_note && (
+                      <p className="text-xs text-[#6B705C] mt-1.5 italic">{s.admin_note}</p>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
         )}
 
         <div className="mt-12 pt-6 border-t border-[#E5DDC5] text-sm text-[#6B705C]">

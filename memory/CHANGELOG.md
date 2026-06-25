@@ -7,6 +7,70 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 — Mongo indexes (P3) + Community amplification (P1) ✅
+
+Two-fer overnight shipping block — first the trivial-risk perf win,
+then the headline feature.
+
+### 1. Mongo indexes for library_reads.py routes
+- Added 5 compound indexes to `db.books` in `server.py` startup
+  (idempotent on every boot, online-safe):
+  - `(user_id, category)` — `GET /api/books` filter
+  - `(user_id, last_opened_at DESC)` — `GET /api/books/recent`
+  - `(user_id, replaces, update_seen)` — bell badge
+  - `(user_id, fandom)` — fandom filter + `GET /fandoms` aggregate
+  - `(user_id, author, created_at DESC)` — `GET /authors/{name}` +
+    duplicate-finder (bonus index covering an adjacent hot path)
+- All 4 high-traffic queries verified using the new indexes via
+  Mongo `explain()` query planner.
+- Effective immediately on the 3,990 existing books.
+
+### 2. Community amplification — "Built from your ideas"
+- **`GET /api/changelog`** (public, no auth) returns:
+  - `community_shipped`: suggestions with `status=done` whose
+    `shipped_at >= SHIPPED_CREDIT_CUTOFF` (2026-06-25), with
+    `@handle` credit when the submitter has a public username
+    AND hasn't opted out of `/users` search.
+  - `engineering_log`: parsed dated sections from CHANGELOG.md
+    (top 25), with 5-min in-process cache + a public bust hook.
+- **Celebration email** when a suggestion ships:
+  - Existing "status changed" email upgraded with a stronger
+    "🎉 Your idea shipped!" framing when status transitions to
+    `done` for the first time. Includes a CTA to the public
+    changelog page.
+  - Idempotent: tracked via `shipped_credit_sent_at` so re-edits
+    of an already-done suggestion never re-fire the email.
+  - Old email format still used for other status transitions
+    (open → under_review → planned → declined).
+- **Schema additions** to `suggestions` collection:
+  - `shipped_at` (ISO timestamp) — stamped exactly once when
+    status first transitions to `done`.
+  - `shipped_credit_sent_at` (ISO timestamp) — idempotency lock
+    for the celebration email.
+- **Frontend** `/changelog` page extended with a new
+  "SHIPPED FROM THE COMMUNITY → Built from your ideas" section
+  below the announcements feed. Each row: 🎉 emoji + suggestion
+  title + clickable `@handle` credit (links to `/u/{handle}`) +
+  shipped date + optional admin note. Falls back to "Suggested
+  by an anonymous reader" when the submitter has no public handle
+  or opted out of search.
+- **Privacy**: handle-only credit (no display-name fallback), and
+  hidden-from-search users are excluded from credit even when they
+  have a username — verified via end-to-end test.
+
+### Verification
+- E2E manual test through the full flow: created submitter +
+  admin + open suggestion → `PUT /admin/suggestions/{id}` with
+  `status=done` → verified `shipped_at` stamped → verified
+  celebration email logged (`kind=suggestion_shipped, status=ok`)
+  → verified second mark-as-done does NOT re-fire email →
+  verified hiding the user from search removes their handle from
+  the public credit list.
+- Live `/changelog` screenshot confirms the section renders with
+  `@handle` link, date, and admin note.
+- Regression smoke band: **30 green tests** ✓
+
+
 ## 2026-06-27 — Phase 6D extraction + Help refresh + deep-dive scan ✅
 
 Operator was heading to bed and asked for a self-contained shipping

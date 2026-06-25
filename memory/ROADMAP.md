@@ -23,7 +23,7 @@ Heuristic (highest priority first):
 
 | # | Reminder | Effort | Impact | Why this rank |
 |---|----------|--------|--------|---------------|
-| 1 | Amplify "Shipped from the community" social proof | ~1-2 h Core | High (user) | Amplifies the badge work; brings traffic to the suggestion board |
+| 1 | Amplify "Shipped from the community" social proof | ✅ DONE 2026-06-27 — Public `/changelog` "Built from your ideas" section + celebration email. Schema: `shipped_at`, `shipped_credit_sent_at`. Endpoint `GET /api/changelog`. Forward-only from 2026-06-25; handle-only credits; hidden-from-search users excluded. |
 | 2 | Profile discovery polish (scroll-to-row, completeness nudge) | ~30-45 min | Med (user) | Follow-up to Listed! toast; small UX delight |
 | 3 | Canary test-account cleanup endpoint | ~20 min | Low (housekeeping) | Sweep `shelfsort-canary-…@example.com` rows weekly so prod doesn't accrue throwaway accounts |
 | 4 | Canary polish bundle (5 sub-items) | ~2-3 h all | Med | Webhook + multi-region + tiered frequency + public badge + metrics dashboard — pick & choose (note: in-app widget & uptime card already shipped 2026-06-26) |
@@ -55,6 +55,17 @@ This applies to EVERY finish summary that includes potential
 improvements, not just the explicit "which is best?" follow-ups.
 
 ---
+
+## 💡 Reminder — Community amplification + Mongo indexes — DONE 2026-06-27 ✅
+
+Two-fer overnight: 5 compound Mongo indexes on `db.books` for the
+library_reads.py routes (all verified using `explain()`), and the
+flagship community amplification feature — public `/changelog`
+"Built from your ideas" section with @handle credits + "your idea
+shipped!" celebration email. Schema: `shipped_at` +
+`shipped_credit_sent_at` idempotency. Forward-only from 2026-06-25;
+handle-only credits; hidden-from-search users excluded. 30 regression
+tests green.
 
 ## 💡 Reminder — Mongo indexes for library_reads.py — PARKED 2026-06-27
 
