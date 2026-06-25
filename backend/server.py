@@ -63,6 +63,18 @@ async def on_startup():
         await db.smart_shelves.create_index("shelf_id", unique=True)
         await db.smart_shelves.create_index([("user_id", 1), ("created_at", -1)])
         await db.books.create_index([("user_id", 1), ("tags", 1)])
+        # Phase 6D follow-up (2026-06-27): indexes for the high-traffic
+        # routes in library_reads.py.  Create is idempotent — Mongo no-ops
+        # if the index already exists, so this is safe across redeploys.
+        await db.books.create_index([("user_id", 1), ("category", 1)])
+        await db.books.create_index([("user_id", 1), ("last_opened_at", -1)])
+        await db.books.create_index([("user_id", 1), ("replaces", 1), ("update_seen", 1)])
+        await db.books.create_index([("user_id", 1), ("fandom", 1)])
+        # Author lookups (`GET /authors/{name}`) — same shape as the
+        # author dedupe queries used during upload, so this index also
+        # speeds up the dup-finder + the "find more by this author"
+        # rail on the book detail page.
+        await db.books.create_index([("user_id", 1), ("author", 1), ("created_at", -1)])
     except Exception as e:
         logger.warning(f"Index setup: {e}")
 
