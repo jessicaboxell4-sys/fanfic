@@ -1,0 +1,29 @@
+{
+  "summary": "Iter 6 CI fix verified in preview. Backend /api/health returns 200. Full regression-smoke band passes 30/30 in 5.82s via run_regression_smoke.sh. Targeted run of test_shipped_suggestions_present confirms it PASSES (not skipped) in preview because the seeded shipped suggestions (drag-and-drop reorder / dark mode reader skin) are present — proving the test logic remains intact and the new empty-DB skip guard only triggers in CI's fresh Mongo.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_regression_smoke.py",
+    "/app/backend/scripts/run_regression_smoke.sh"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Skip guard at line 222-223 is appropriately scoped: only triggers when the entire done-status list is empty, not when specific titles are missing — so a partial data regression in production would still fail loudly. Good.",
+    "Docstring at lines 211-218 clearly explains CI vs production canary split — well documented."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (30/30 smoke tests)", "frontend": "N/A (skipped per request)"},
+  "test_credentials": "Smoke fixture self-registers ephemeral users per run: shelfsort-canary-seed-* + shelfsort-canary-*.",
+  "seed_data_creation": "Smoke run registers ephemeral seed + canary users via /api/auth/register.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iter 6 fix (empty-list skip in test_shipped_suggestions_present, lines 211-228) verified. In preview the test PASSES outright (seeded data present). In CI's empty Mongo it will skip cleanly with 'empty suggestions DB' message. Full smoke band: 30 passed in 5.82s.",
+  "rca of the issue": "Root cause: GitHub Actions CI runs against a fresh empty Mongo, so GET /api/suggestions?status=done returns an empty list. The original assertion required 'drag-and-drop reorder' OR 'dark mode reader skin' to be present, which is impossible in CI. Fix: added pytest.skip when rows is empty (CI / fresh-deploy scenario). Production canary still validates the real data state. Verification: preview run still asserts (and passes) because preview's seeded DB returns the expected shipped suggestions; targeted pytest run shows PASSED not SKIPPED."
+}
