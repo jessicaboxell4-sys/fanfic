@@ -56,6 +56,37 @@ improvements, not just the explicit "which is best?" follow-ups.
 
 ---
 
+## 💡 Reminder — All Quick-pick items parked 2026-06-26 ✅
+
+User explicitly parked the entire Quick-pick queue after shipping the
+crossover navbar badge + Production canary widget.  Nothing was
+deprioritized — all 6 items below remain ready to pull whenever the
+user surfaces them again.  Status as of 2026-06-26:
+
+1. **Amplify "Shipped from community" social proof** (P2, ~1-2 h Core)
+   — top-ranked, recommended next pick
+2. **Profile discovery polish** (P2, ~30-45 min) — scroll-to-row +
+   completeness nudge
+3. **Canary test-account cleanup endpoint** (P3, ~20 min) — housekeeping
+4. **Canary polish bundle leftovers** (P3, ~2-3 h all) — webhook +
+   public status badge + multi-region + tiered freq (widget already
+   shipped 2026-06-26)
+5. **Phase 6C: upload pipeline extraction** (P3, HIGH risk, ~30-45 min)
+   — recommend a fresh session with full context budget
+6. **Phase 6D: search/list views extraction** (P3, Med risk, ~30 min)
+   — cleaner than 6C, ~9% books.py drop
+
+Re-rank only if a new reminder lands.  When the user says "what's
+next", default to #1 unless they ask otherwise.
+
+## 💡 Reminder — Crossover navbar badge + Production canary widget — DONE 2026-06-26 ✅
+
+Shipped — see CHANGELOG entry of the same date.  Navbar polls both
+unknown-fandoms + crossover counts every 5 min, dot lights up when
+either is > 0.  CanaryCard renders a 7-day uptime sparkline from the
+new `canary_runs` collection; workflow POSTs results via shared
+`CANARY_REPORT_SECRET`.  27 regression tests green.
+
 ## 💡 Reminder — Crossover Detection Session 2 (AI feedback loop) — DONE 2026-06-26 ✅
 
 Shipped — see CHANGELOG entry "Crossover Detection Session 2".  AI-vs-
