@@ -14,7 +14,16 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-BACKEND_URL="${BACKEND_URL:-http://localhost:8001}"
+# Precedence:
+#   1. Explicit $BACKEND_URL (allows ad-hoc overrides).
+#   2. $REACT_APP_BACKEND_URL — pytest reads this as its BASE_URL, so
+#      honoring it here keeps probe-target and test-target in sync.
+#      Critical for the prod canary workflow: it sets only
+#      REACT_APP_BACKEND_URL=https://shelfsort.com, and without this
+#      fallback the script would probe localhost, fail, then try to
+#      spawn a local uvicorn (which isn't installed in canary deps).
+#   3. localhost:8001 — dev container default, matches supervisor.
+BACKEND_URL="${BACKEND_URL:-${REACT_APP_BACKEND_URL:-http://localhost:8001}}"
 SPAWNED_SERVER_PID=""
 
 cleanup() {
