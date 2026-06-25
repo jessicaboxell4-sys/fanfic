@@ -7,6 +7,60 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-26 — Crossover Detection Session 2 (AI feedback loop) ✅
+
+Closes the loop on Session 1's character-keyword overlay.  Now when
+the AI classifier sees a multi-fandom crossover the keyword scanner
+missed, the gap is logged for admin review.  Accept → keywords merge
+into the runtime overlay (60-s cache flush) → the heuristic catches
+the same crossover on the next upload.
+
+### Backend
+- `utils/classifier.py`
+  - `classify_book` refactor: heuristic now always runs first, then AI
+    (when force_ai or heuristic confidence < 0.6).  Both results stay
+    in scope so the gap detector can compare them.
+  - `_maybe_log_crossover_gap()`: when AI returns a `" / "`-joined
+    crossover the heuristic didn't cover, upsert a row to the new
+    `crossover_suggestions` collection.  Dedup key
+    `title::author::sorted(gap)` makes re-uploads idempotent (bumps
+    `sightings`/`last_seen_at` instead of creating dupes).
+  - `_split_crossover()` helper used by both gap detector and admin
+    accept endpoint.
+- `routes/admin.py` — 3 new endpoints (all admin-only):
+  - `GET  /api/admin/crossover-suggestions?status=pending|accepted|rejected|all`
+    → lists with `{pending,accepted,rejected}` counts for the tab UI
+  - `POST /api/admin/crossover-suggestions/{dedup_key}/accept` body
+    `{keywords_by_fandom: {fandom: [str]}}` → merges into
+    `fandom_keyword_overlay`, busts the classifier cache, audit-logs
+  - `POST /api/admin/crossover-suggestions/{dedup_key}/reject` →
+    marks resolved without modifying the overlay
+
+### Frontend
+- `pages/AdminConsole.jsx`
+  - New "Crossover suggestions" Card in the System & health section
+    (between Unknown fandoms and Global aliases).  Manifest entry +
+    switch case wired.
+  - Status tabs (Pending/Accepted/Rejected) with live counts
+  - Per-row: title, author, "AI saw" vs "Heuristic saw" diff,
+    sightings counter, per-gap-fandom keyword input (comma-separated),
+    Accept/Reject buttons, expandable description/sample preview
+  - All elements carry `data-testid` for the testing agent
+
+### Tests
+- Manual: backend gap-detection + accept/reject + idempotency
+  verified via `httpx`-based python script (2 admins, 4 seeded
+  suggestions, full lifecycle).
+- `tests/test_regression_smoke.py` — 2 new tests guard the auth gate
+  (non-admin → 401/403, never 500).  Smoke band is now **27 green
+  tests** in ~5 s.
+
+### Misc
+- `pages/Help.jsx` — fixed a duplicate React key warning in the
+  "What's new" fallback list (3 items all keyed on `/library/all`;
+  now `${item.to}-${idx}`).
+
+
 ## 2026-06-26 — Phase 6B: bulk-ops extracted from books.py ✅
 
 P3 tech-debt item.  Behavior-preserving split using the regression

@@ -28,7 +28,7 @@ Heuristic (highest priority first):
 | 3 | Profile discovery polish (scroll-to-row, completeness nudge) | ~30-45 min | Med (user) | Follow-up to Listed! toast; small UX delight |
 | 4 | Canary test-account cleanup endpoint | ~20 min | Low (housekeeping) | Sweep `shelfsort-canary-…@example.com` rows weekly so prod doesn't accrue throwaway accounts |
 | 5 | Canary polish bundle (5 sub-items) | ~2-3 h all | Med | Webhook + multi-region + tiered frequency + public badge + metrics dashboard — pick & choose |
-| 6 | Help.jsx duplicate React keys in WhatsNew fallback | ~5 min | Trivial | Pre-existing warning ("Encountered two children with the same key /library/all") in Help.jsx line 547-561; three FALLBACK_WHATS_NEW items share `to='/library/all'`. Fix: composite key like `${item.to}-${item.label}` or array index |
+| 6 | Help.jsx duplicate React keys in WhatsNew fallback | ~5 min | Trivial | ✅ DONE 2026-06-26 — composite key `${item.to}-${idx}` fix shipped |
 | 7 | Phase 6C: upload pipeline extraction | ~30-45 min, HIGH risk | Low (tech debt) | **Bigger than initially scoped.** 635 LOC in a SINGLE monolithic function with heavy interdependencies on books.py private helpers + inline imports from routes.admin and routes.user_prefs. Smoke band will catch breakage but likely 2-3 fix iterations on imports. Recommend doing in a fresh session with full context budget. Alternative: split into 6C1 (extract function as-is) + 6C2 (decompose into smaller helpers) over two sessions |
 | 8 | Phase 6D: search/list views extraction | ~30 min, Med risk | Low (tech debt) | `/books`, `/books/recent`, `/books/stats`, status-counts → `routes/library_reads.py`. ~400 LOC across 4-5 small endpoints. Cleaner than 6C. Drops books.py ~9% |
 
@@ -57,6 +57,13 @@ This applies to EVERY finish summary that includes potential
 improvements, not just the explicit "which is best?" follow-ups.
 
 ---
+
+## 💡 Reminder — Crossover Detection Session 2 (AI feedback loop) — DONE 2026-06-26 ✅
+
+Shipped — see CHANGELOG entry "Crossover Detection Session 2".  AI-vs-
+heuristic gap detection in `utils/classifier.py`, three admin
+endpoints, and a new Admin Console card with status tabs + per-gap
+keyword inputs.  Regression smoke band is now 27 tests in ~5 s.
 
 ## 💡 Reminder — Extend regression smoke to upload pipeline — DONE 2026-06-25 ✅
 

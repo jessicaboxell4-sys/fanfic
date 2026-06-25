@@ -50,13 +50,85 @@ def _get_fandom_keywords() -> Dict[str, Any]:
     return FANDOM_KEYWORDS
 
 
+# ------------------------------------------------------------------ #
+# Mongo-backed keyword overlay (Phase-6 character-hint editor)        #
+#                                                                     #
+# Lets admins extend the static FANDOM_KEYWORDS at runtime by writing #
+# to the `fandom_keyword_overlay` collection (one doc per fandom).    #
+# Cached for 60 s so the classifier doesn't issue a Mongo round-trip  #
+# per upload.  Admins can force a flush via                           #
+# ``invalidate_fandom_overlay_cache()`` after editing.                #
+# ------------------------------------------------------------------ #
+import time as _time
+
+_OVERLAY_CACHE: Dict[str, Any] = {"data": None, "fetched_at": 0.0}
+_OVERLAY_TTL_SECONDS = 60.0
+
+
+def invalidate_fandom_overlay_cache() -> None:
+    """Force the next classification to re-fetch the overlay from Mongo."""
+    _OVERLAY_CACHE["data"] = None
+    _OVERLAY_CACHE["fetched_at"] = 0.0
+
+
+async def _get_fandom_overlay() -> Dict[str, list]:
+    """Async: return ``{fandom: [extra_keywords]}`` from Mongo with a
+    short TTL cache.  Returns ``{}`` on any error so the classifier
+    always falls back to the static table."""
+    now = _time.time()
+    if _OVERLAY_CACHE["data"] is not None and (now - _OVERLAY_CACHE["fetched_at"]) < _OVERLAY_TTL_SECONDS:
+        return _OVERLAY_CACHE["data"]
+    try:
+        from deps import db  # late-bound; deps imports happen elsewhere
+        rows = await db.fandom_keyword_overlay.find(
+            {}, {"_id": 0, "fandom": 1, "keywords": 1}
+        ).to_list(500)
+        merged: Dict[str, list] = {}
+        for r in rows:
+            f = (r.get("fandom") or "").strip()
+            kws = [k.strip().lower() for k in (r.get("keywords") or []) if k]
+            if f and kws:
+                merged.setdefault(f, []).extend(kws)
+        _OVERLAY_CACHE["data"] = merged
+        _OVERLAY_CACHE["fetched_at"] = now
+        return merged
+    except Exception as e:  # noqa: BLE001
+        logger.warning("fandom overlay fetch failed (using static only): %s", e)
+        _OVERLAY_CACHE["data"] = {}
+        _OVERLAY_CACHE["fetched_at"] = now
+        return {}
+
+
+def _merge_keywords_sync(overlay: Dict[str, list]) -> Dict[str, list]:
+    """Combine the static FANDOM_KEYWORDS dict with the overlay.  Used
+    by both sync and async classify entry points."""
+    base = _get_fandom_keywords()
+    out: Dict[str, list] = {f: list(kws) for f, kws in base.items()}
+    for f, kws in overlay.items():
+        if f in out:
+            out[f].extend(kws)
+        else:
+            out[f] = list(kws)
+    return out
+
+
 def _get_fanfic_signals():
     from routes.books import FANFIC_SIGNALS   # noqa: WPS433
     return FANFIC_SIGNALS
 
 
-def classify_by_metadata(meta: Dict[str, Any]) -> Dict[str, Any]:
-    """Heuristic keyword classification. Returns dict with category, fandom, confidence."""
+def classify_by_metadata(meta: Dict[str, Any], overlay: Dict[str, list] = None) -> Dict[str, Any]:
+    """Heuristic keyword classification. Returns dict with category, fandom, confidence.
+
+    Crossover detection: when 2+ fandoms each have ≥2 distinct keyword
+    matches in the blob, the result's ``fandom`` is the alphabetized
+    crossover string (``"A / B / C"``).  Otherwise the single highest-
+    scoring fandom wins (legacy behavior).
+
+    ``overlay`` is the Mongo-backed extension table; pass ``None`` for
+    the static-only behavior (used by sync callers / tests).  See
+    ``classify_book`` for the async entry point that pulls the overlay.
+    """
     blob = " ".join([
         meta.get("title", ""),
         meta.get("author", ""),
@@ -65,25 +137,47 @@ def classify_by_metadata(meta: Dict[str, Any]) -> Dict[str, Any]:
         meta.get("sample_text", "")[:2000],
     ]).lower()
 
-    fandom_keywords = _get_fandom_keywords()
-    matched_fandom = None
-    best_count = 0
+    fandom_keywords = _merge_keywords_sync(overlay or {})
+    # Count DISTINCT keyword hits per fandom (a fandom whose name string
+    # accidentally contains another fandom's keyword shouldn't double-
+    # dip; using a set keeps each keyword's contribution to 1).
+    per_fandom_hits: Dict[str, set] = {}
     for fandom, keywords in fandom_keywords.items():
-        count = sum(1 for kw in keywords if kw in blob)
-        if count > best_count:
-            best_count = count
-            matched_fandom = fandom
+        hits = {kw for kw in keywords if kw and kw in blob}
+        if hits:
+            per_fandom_hits[fandom] = hits
 
     is_fanfic = any(s in blob for s in _get_fanfic_signals())
     is_nonfic = any(s in blob for s in NONFICTION_SIGNALS)
 
-    if matched_fandom and best_count >= 1:
+    # Crossover detection — pick every fandom with ≥2 distinct hits.
+    # A 1-hit fandom is too weak to be a "second fandom in the work";
+    # if all hits sit on one fandom that's still the single-winner case
+    # below.
+    strong = {f: hits for f, hits in per_fandom_hits.items() if len(hits) >= 2}
+    if len(strong) >= 2:
+        # Multi-fandom crossover.  Alphabetize so "A / B" == "B / A".
+        crossover = " / ".join(sorted(strong.keys(), key=lambda x: x.lower()))
+        total_hits = sum(len(h) for h in strong.values())
         return {
             "category":   "Fanfiction",
-            "fandom":     matched_fandom,
-            "confidence": min(0.6 + 0.1 * best_count, 0.95),
+            "fandom":     crossover,
+            "confidence": min(0.7 + 0.05 * total_hits, 0.95),
             "classifier": "metadata",
         }
+
+    # Single-fandom path — unchanged from the original behavior.
+    if per_fandom_hits:
+        best = max(per_fandom_hits.items(), key=lambda kv: len(kv[1]))
+        best_fandom, best_hits = best[0], best[1]
+        best_count = len(best_hits)
+        if best_count >= 1:
+            return {
+                "category":   "Fanfiction",
+                "fandom":     best_fandom,
+                "confidence": min(0.6 + 0.1 * best_count, 0.95),
+                "classifier": "metadata",
+            }
     if is_fanfic:
         return {"category": "Fanfiction", "fandom": "Other", "confidence": 0.7, "classifier": "metadata"}
     if is_nonfic:
@@ -188,15 +282,91 @@ async def classify_with_ai(meta: Dict[str, Any]) -> Dict[str, Any]:
 
 
 async def classify_book(meta: Dict[str, Any], force_ai: bool = False) -> Dict[str, Any]:
-    """Two-stage classifier — heuristic first, AI fallback when confidence is low."""
-    if not force_ai:
-        meta_result = classify_by_metadata(meta)
-        if meta_result['confidence'] >= 0.6:
-            return meta_result
+    """Two-stage classifier — heuristic first, AI fallback when confidence is low.
+
+    Pulls the Mongo-backed keyword overlay once per call and feeds it
+    into ``classify_by_metadata`` so admin-curated character hints
+    contribute to the heuristic detection (including crossover
+    detection from character names — see Phase-6 character-hint editor).
+
+    Crossover-gap logging (Session 2): when the AI classifier returns a
+    multi-fandom crossover (``"A / B"``) but the heuristic only caught a
+    subset (or nothing), log a row to ``crossover_suggestions`` so an
+    admin can review and curate new character keywords into the overlay.
+    """
+    overlay = await _get_fandom_overlay()
+    heuristic_result = classify_by_metadata(meta, overlay=overlay)
+    if not force_ai and heuristic_result['confidence'] >= 0.6:
+        return heuristic_result
     ai_result = await classify_with_ai(meta)
     if ai_result['confidence'] > 0:
+        # Fire-and-forget gap detection. Never blocks classification.
+        try:
+            await _maybe_log_crossover_gap(meta, ai_result, heuristic_result)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("crossover gap logging failed (non-fatal): %s", e)
         return ai_result
-    return classify_by_metadata(meta)
+    return heuristic_result
 
 
-__all__ = ["classify_by_metadata", "classify_with_ai", "classify_book"]
+def _split_crossover(fandom: Any) -> list[str]:
+    """Parse ``"A / B / C"`` → ``["A","B","C"]``. Empty/None → []."""
+    if not isinstance(fandom, str) or not fandom.strip():
+        return []
+    return [p.strip() for p in fandom.split(" / ") if p.strip()]
+
+
+async def _maybe_log_crossover_gap(
+    meta: Dict[str, Any],
+    ai_result: Dict[str, Any],
+    heuristic_result: Dict[str, Any],
+) -> None:
+    """Log a ``crossover_suggestions`` row when the AI sees a crossover
+    the heuristic missed.  Idempotent per (title, author, gap_set) so a
+    re-classify of the same book doesn't spam the admin inbox."""
+    ai_fandoms = _split_crossover(ai_result.get("fandom"))
+    if len(ai_fandoms) < 2:
+        return  # not a crossover from AI's perspective
+    heuristic_fandoms = _split_crossover(heuristic_result.get("fandom"))
+    gap_fandoms = [f for f in ai_fandoms if f not in heuristic_fandoms]
+    if not gap_fandoms:
+        return  # heuristic already caught all of them
+    # Dedup key — same title+author+gap set shouldn't write twice.
+    title  = (meta.get("title")  or "").strip()
+    author = (meta.get("author") or "").strip()
+    gap_key = "|".join(sorted(gap_fandoms))
+    dedup_key = f"{title.lower()}::{author.lower()}::{gap_key.lower()}"
+
+    from deps import db
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat()
+    desc = (meta.get("description") or "")[:400]
+    sample = (meta.get("sample_text") or "")[:600]
+    await db.crossover_suggestions.update_one(
+        {"dedup_key": dedup_key},
+        {
+            "$setOnInsert": {
+                "dedup_key":         dedup_key,
+                "status":            "pending",
+                "created_at":        now,
+                "title":             title,
+                "author":            author,
+                "ai_fandoms":        ai_fandoms,
+                "heuristic_fandoms": heuristic_fandoms,
+                "gap_fandoms":       gap_fandoms,
+                "meta_snapshot": {
+                    "title":       title,
+                    "author":      author,
+                    "description": desc,
+                    "sample_text": sample,
+                    "publisher":   (meta.get("publisher") or "")[:120],
+                },
+            },
+            "$inc": {"sightings": 1},
+            "$set": {"last_seen_at": now},
+        },
+        upsert=True,
+    )
+
+
+__all__ = ["classify_by_metadata", "classify_with_ai", "classify_book", "invalidate_fandom_overlay_cache"]

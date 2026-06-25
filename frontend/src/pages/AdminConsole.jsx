@@ -82,6 +82,7 @@ const ADMIN_CARD_MANIFEST = [
   { testid: "admin-changelog-card", category: "system", title: "Recent changelog", subtitle: "Last 20 dated entries from CHANGELOG.md.", keywords: "changelog history recent log entries shipped features fixes release dates h2 memory append" },
   { testid: "admin-llm-key-health-card", category: "system", title: "LLM key health", subtitle: "Universal Key balance + 7-day burn rate + days of runway.", keywords: "llm key health balance burn rate runway days remaining claude nano banana cost spend usage emergent universal key cliff warning" },
   { testid: "admin-unknown-fandoms-card", category: "system", title: "Unknown fandoms", subtitle: "Fandoms not yet in the keyword classifier.", keywords: "unknown fandoms classifier rescan dismiss missing tag" },
+  { testid: "admin-crossover-suggestions-card", category: "system", title: "Crossover suggestions", subtitle: "Character-keyword gaps detected by the AI classifier.", keywords: "crossover suggestions character keywords gap fandom overlay ai classifier feedback accept reject" },
   { testid: "admin-aliases-card", category: "system", title: "Global fandom aliases", subtitle: "Tenant-wide fandom aliases.", keywords: "fandom aliases global rename remap synonym" },
   { testid: "admin-stats-card", category: "data", title: "Global stats", subtitle: "Tenant-wide rollup.", keywords: "stats global rollup books users storage signups categories fandoms" },
   { testid: "admin-audit-card", category: "data", title: "Audit log", subtitle: "Every admin write action.", keywords: "audit log history admin actions write changes" },
@@ -3633,6 +3634,209 @@ function UnknownFandomsCard() {
 }
 
 // ---------------------------------------------------------------------------
+// Crossover suggestions card (Phase-6 AI feedback loop)
+// ---------------------------------------------------------------------------
+// When the AI classifier returns a multi-fandom crossover the heuristic
+// missed (e.g. AI says "Harry Potter / Twilight" but heuristic only saw
+// Harry Potter), the backend logs the gap to `crossover_suggestions`.
+// Admins triage here: enter the character names the heuristic should
+// have caught, click Accept → keywords merge into the runtime overlay
+// and the classifier picks them up within 60 s.
+function CrossoverSuggestionsCard() {
+  const [rows, setRows] = useState([]);
+  const [counts, setCounts] = useState({ pending: 0, accepted: 0, rejected: 0 });
+  const [status, setStatus] = useState("pending");
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(null);
+  // Per-row keyword inputs: { dedup_key: { fandom: "kw1, kw2" } }
+  const [kwInputs, setKwInputs] = useState({});
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const { data } = await api.get(`/admin/crossover-suggestions?status=${status}`);
+      setRows(data?.suggestions || []);
+      setCounts(data?.counts || { pending: 0, accepted: 0, rejected: 0 });
+    } catch { /* ignore */ }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, [status]);
+
+  const onKwChange = (dk, fandom, value) => {
+    setKwInputs((prev) => ({
+      ...prev,
+      [dk]: { ...(prev[dk] || {}), [fandom]: value },
+    }));
+  };
+
+  const accept = async (row) => {
+    const dk = row.dedup_key;
+    const inputs = kwInputs[dk] || {};
+    const keywords_by_fandom = {};
+    for (const f of row.gap_fandoms || []) {
+      const raw = (inputs[f] || "").trim();
+      if (!raw) continue;
+      keywords_by_fandom[f] = raw.split(",").map((k) => k.trim()).filter(Boolean);
+    }
+    if (Object.keys(keywords_by_fandom).length === 0) {
+      toast.error("Add at least one character name for a gap fandom before accepting.");
+      return;
+    }
+    setBusy(`accept:${dk}`);
+    try {
+      const { data } = await api.post(
+        `/admin/crossover-suggestions/${encodeURIComponent(dk)}/accept`,
+        { keywords_by_fandom },
+      );
+      const added = (data?.updated_overlays || []).reduce((n, o) => n + (o.added?.length || 0), 0);
+      toast.success(`Added ${added} keyword${added === 1 ? "" : "s"} to the overlay`, { duration: 6000 });
+      await load();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't accept");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const reject = async (row) => {
+    const dk = row.dedup_key;
+    if (!window.confirm(`Reject this crossover suggestion?\n\n${row.title || "(no title)"} — gap: ${(row.gap_fandoms || []).join(", ")}`)) return;
+    setBusy(`reject:${dk}`);
+    try {
+      await api.post(`/admin/crossover-suggestions/${encodeURIComponent(dk)}/reject`);
+      toast.success("Rejected");
+      await load();
+    } catch { toast.error("Couldn't reject"); }
+    finally { setBusy(null); }
+  };
+
+  return (
+    <Card
+      icon={Sparkles}
+      title="Crossover suggestions"
+      subtitle="When the AI classifier detects a multi-fandom crossover the keyword scanner missed, those gaps are logged here. Add the character names the heuristic should have caught — they'll merge into the runtime overlay and the classifier will pick them up on the next upload."
+      testid="admin-crossover-suggestions-card"
+    >
+      <div className="flex items-center gap-2 mb-3 text-xs" data-testid="admin-crossover-suggestions-tabs">
+        {[
+          { id: "pending",  label: `Pending (${counts.pending})` },
+          { id: "accepted", label: `Accepted (${counts.accepted})` },
+          { id: "rejected", label: `Rejected (${counts.rejected})` },
+        ].map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setStatus(t.id)}
+            className={`px-2.5 py-1 rounded-full border transition-colors ${status === t.id ? "bg-[#6B46C1] text-white border-[#6B46C1]" : "bg-white text-[#6B705C] border-[#E4D9C8] hover:bg-[#FDF3E1]"}`}
+            data-testid={`admin-crossover-suggestions-tab-${t.id}`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+      ) : rows.length === 0 ? (
+        <p className="text-sm text-[#6B46C1] inline-flex items-center gap-1.5" data-testid="admin-crossover-suggestions-empty">
+          <Check className="w-4 h-4" /> No {status} suggestions.
+        </p>
+      ) : (
+        <ul className="space-y-3" data-testid="admin-crossover-suggestions-list">
+          {rows.map((r) => {
+            const dk = r.dedup_key;
+            const isPending = r.status === "pending";
+            return (
+              <li
+                key={dk}
+                className="border border-[#E4D9C8] rounded-lg p-3 bg-[#FDF8F0]"
+                data-testid={`admin-crossover-suggestions-row-${dk}`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium text-sm text-[#2C2C2C] truncate" title={r.title}>{r.title || "(no title)"}</div>
+                    <div className="text-xs text-[#6B705C] truncate" title={r.author}>by {r.author || "(no author)"}</div>
+                    <div className="mt-1.5 text-xs text-[#6B705C]">
+                      <span className="font-semibold">AI saw:</span> {(r.ai_fandoms || []).join(" / ") || "—"}{" · "}
+                      <span className="font-semibold">Heuristic saw:</span> {(r.heuristic_fandoms || []).join(" / ") || "(none)"}{" · "}
+                      <span className="font-semibold">Seen:</span> {r.sightings || 1}×
+                    </div>
+                  </div>
+                  {isPending && (
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => accept(r)}
+                        disabled={busy === `accept:${dk}`}
+                        className="text-xs font-semibold px-3 py-1.5 rounded-full bg-[#6B46C1] text-white hover:bg-[#5B36B0] disabled:opacity-60"
+                        data-testid={`admin-crossover-suggestions-accept-${dk}`}
+                      >
+                        {busy === `accept:${dk}` ? "Saving…" : "Accept"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => reject(r)}
+                        disabled={busy === `reject:${dk}`}
+                        className="text-xs font-semibold px-3 py-1.5 rounded-full border border-[#E4D9C8] text-[#6B705C] hover:bg-[#FDF3E1] disabled:opacity-60"
+                        data-testid={`admin-crossover-suggestions-reject-${dk}`}
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {isPending && (r.gap_fandoms || []).length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    <div className="text-xs text-[#6B705C]">
+                      Add character names for the missed fandom(s) — comma-separated. They&apos;ll be lowercased + deduped automatically.
+                    </div>
+                    {(r.gap_fandoms || []).map((f) => (
+                      <div key={f} className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-[#6B46C1] w-28 shrink-0 truncate" title={f}>{f}:</span>
+                        <input
+                          type="text"
+                          value={(kwInputs[dk]?.[f]) || ""}
+                          onChange={(e) => onKwChange(dk, f, e.target.value)}
+                          placeholder="e.g. Bella, Edward Cullen, Renesmee"
+                          className="flex-1 text-xs px-2 py-1.5 border border-[#E4D9C8] rounded focus:outline-none focus:border-[#6B46C1] bg-white"
+                          data-testid={`admin-crossover-suggestions-input-${dk}-${f}`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {!isPending && r.accepted_keywords && Object.keys(r.accepted_keywords).length > 0 && (
+                  <div className="mt-2 text-xs text-[#6B705C]">
+                    <span className="font-semibold">Added:</span>{" "}
+                    {Object.entries(r.accepted_keywords).map(([f, kws]) => `${f}: ${(kws || []).join(", ")}`).join(" · ")}
+                  </div>
+                )}
+
+                {r.meta_snapshot?.description && (
+                  <details className="mt-2">
+                    <summary className="text-[11px] text-[#6B705C] cursor-pointer hover:text-[#2C2C2C]">Show description / sample</summary>
+                    <div className="mt-1 text-[11px] text-[#6B705C] whitespace-pre-wrap leading-relaxed">
+                      {r.meta_snapshot.description}
+                      {r.meta_snapshot.sample_text && (
+                        <>{"\n\n— sample —\n"}{r.meta_snapshot.sample_text}</>
+                      )}
+                    </div>
+                  </details>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+
+
+// ---------------------------------------------------------------------------
 // Email diagnostic card (operator one-shot send)
 // ---------------------------------------------------------------------------
 function EmailDiagnosticCard() {
@@ -5975,6 +6179,7 @@ export default function AdminConsole() {
                       case "admin-changelog-card":              return <ChangelogCard key={c.testid} />;
                       case "admin-llm-key-health-card":         return <LlmKeyHealthCard key={c.testid} />;
                       case "admin-unknown-fandoms-card":        return <UnknownFandomsCard key={c.testid} />;
+                      case "admin-crossover-suggestions-card":  return <CrossoverSuggestionsCard key={c.testid} />;
                       case "admin-aliases-card":                return <GlobalAliasesCard key={c.testid} />;
                       case "admin-stats-card":                  return <GlobalStatsCard key={c.testid} />;
                       case "admin-audit-card":                  return <AuditLogCard key={c.testid} />;

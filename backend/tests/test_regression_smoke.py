@@ -553,3 +553,31 @@ def test_no_unpaired_dark_only_hex_utilities():
             "     and drop the `dark:` variant entirely."
         )
         pytest.fail(msg)
+
+
+
+# -------------------------------------------------------------------- #
+# Crossover suggestions admin endpoints (Phase-6 feedback loop)        #
+# -------------------------------------------------------------------- #
+# These endpoints require admin auth — the smoke session above is a    #
+# fresh non-admin user, so we only verify the auth gate works.  Full   #
+# accept/reject behavior is covered by the gap-detection unit test     #
+# already shipped (`utils/classifier._maybe_log_crossover_gap`).       #
+
+def test_crossover_suggestions_requires_admin(session):
+    """Non-admin session should get 403 (require_admin), not 404 or 500."""
+    r = session.get(f"{BASE_URL}/api/admin/crossover-suggestions", timeout=15)
+    assert r.status_code in (401, 403), (
+        f"crossover-suggestions should reject non-admin (got {r.status_code}): {r.text[:200]}"
+    )
+
+
+def test_crossover_suggestion_reject_requires_admin(session):
+    """POST /reject should also be gated — never reachable without admin."""
+    r = session.post(
+        f"{BASE_URL}/api/admin/crossover-suggestions/nonexistent/reject",
+        timeout=15,
+    )
+    assert r.status_code in (401, 403), (
+        f"reject should reject non-admin (got {r.status_code}): {r.text[:200]}"
+    )

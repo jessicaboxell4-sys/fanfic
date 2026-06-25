@@ -544,10 +544,10 @@ export default function Help() {
             <div className="flex-1">
               <h2 className="font-serif text-xl md:text-2xl text-[#2C2C2C] mb-2">{whatsNew.title}</h2>
               <ul className="text-sm text-[#2C2C2C] space-y-1.5 leading-relaxed">
-                {whatsNew.items.map((item) => {
+                {whatsNew.items.map((item, idx) => {
                   const [primary, secondary] = item.label.split(" & ");
                   return (
-                    <li key={item.to}>
+                    <li key={`${item.to}-${idx}`}>
                       <Link to={item.to} className="text-[#E07A5F] hover:underline font-medium">{primary}</Link>
                       {item.link_to_2 && (
                         <>

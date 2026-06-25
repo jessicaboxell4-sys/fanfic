@@ -3032,3 +3032,201 @@ async def admin_set_llm_balance(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+
+
+# ----------------------------------------------------------------- #
+# Fandom keyword overlay (Phase-6 character-hint editor)            #
+#                                                                   #
+# Lets admins extend the static FANDOM_KEYWORDS table at runtime so #
+# crossover detection picks up character names that aren't in the   #
+# shipped Python dict.  Stored in Mongo, merged into the classifier #
+# via a 60-s cache (see ``utils.classifier``).                      #
+# ----------------------------------------------------------------- #
+
+
+class _FandomOverlayUpsertBody(BaseModel):  # type: ignore[no-redef]
+    fandom: str
+    keywords: List[str]
+
+
+@api_router.get("/admin/fandom-overlay")
+async def admin_list_fandom_overlay(user: User = Depends(require_admin)):  # noqa: ARG001
+    """List every overlay row — `{fandom, keywords[], updated_at, updated_by}`."""
+    rows = await db.fandom_keyword_overlay.find(
+        {}, {"_id": 0}
+    ).sort("fandom", 1).to_list(500)
+    return {"overlays": rows, "count": len(rows)}
+
+
+@api_router.post("/admin/fandom-overlay")
+async def admin_upsert_fandom_overlay(
+    body: _FandomOverlayUpsertBody,
+    user: User = Depends(require_admin),
+):
+    """Add or replace the overlay for a fandom.  Keywords are normalized
+    (lowercased + stripped) and deduped against the existing list."""
+    fandom = (body.fandom or "").strip()
+    if not fandom:
+        raise HTTPException(status_code=400, detail="fandom is required")
+    keywords = sorted({(k or "").strip().lower() for k in body.keywords if (k or "").strip()})
+    if not keywords:
+        raise HTTPException(status_code=400, detail="keywords list cannot be empty")
+    now = datetime.now(timezone.utc).isoformat()
+    await db.fandom_keyword_overlay.update_one(
+        {"fandom": fandom},
+        {"$set": {
+            "fandom":      fandom,
+            "keywords":    keywords,
+            "updated_at":  now,
+            "updated_by":  user.email or user.user_id,
+        }},
+        upsert=True,
+    )
+    # Bust the in-memory cache so the change takes effect immediately.
+    from utils.classifier import invalidate_fandom_overlay_cache
+    invalidate_fandom_overlay_cache()
+    return {"ok": True, "fandom": fandom, "keywords": keywords}
+
+
+@api_router.delete("/admin/fandom-overlay/{fandom}")
+async def admin_delete_fandom_overlay(
+    fandom: str,
+    user: User = Depends(require_admin),  # noqa: ARG001
+):
+    """Remove a fandom's overlay row entirely.  Static `FANDOM_KEYWORDS`
+    entries remain (this only clears the runtime addition)."""
+    r = await db.fandom_keyword_overlay.delete_one({"fandom": fandom})
+    if r.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="No overlay for that fandom")
+    from utils.classifier import invalidate_fandom_overlay_cache
+    invalidate_fandom_overlay_cache()
+    return {"ok": True, "fandom": fandom}
+
+
+# ----------------------------------------------------------------- #
+# Crossover suggestions (Phase-6 character-hint feedback loop)      #
+#                                                                   #
+# When the AI classifier detects a multi-fandom crossover the       #
+# heuristic missed (see ``utils.classifier._maybe_log_crossover_gap``)#
+# we write a row to ``crossover_suggestions``.  Admins triage from  #
+# the AdminConsole: accept (push character keywords into the        #
+# overlay) or reject (mark resolved, don't re-suggest).             #
+# ----------------------------------------------------------------- #
+
+
+class _CrossoverAcceptBody(BaseModel):
+    # Map of fandom -> list of new keywords (character names) to add to
+    # the overlay.  Only fandoms the admin actually filled in will be
+    # written; others are silently skipped.
+    keywords_by_fandom: Dict[str, List[str]] = Field(default_factory=dict)
+
+
+@api_router.get("/admin/crossover-suggestions")
+async def admin_list_crossover_suggestions(
+    status: str = "pending",
+    limit: int = 100,
+    user: User = Depends(require_admin),  # noqa: ARG001
+):
+    """List crossover-gap suggestions, newest-first.  ``status`` filters
+    by ``pending`` (default), ``accepted``, ``rejected``, or ``all``."""
+    limit = max(1, min(int(limit), 500))
+    query: Dict[str, Any] = {}
+    if status and status != "all":
+        if status not in ("pending", "accepted", "rejected"):
+            raise HTTPException(status_code=400, detail="Unknown status")
+        query["status"] = status
+    rows = await db.crossover_suggestions.find(
+        query, {"_id": 0},
+    ).sort("last_seen_at", -1).limit(limit).to_list(length=limit)
+    counts: Dict[str, int] = {}
+    for s in ("pending", "accepted", "rejected"):
+        counts[s] = await db.crossover_suggestions.count_documents({"status": s})
+    return {"suggestions": rows, "count": len(rows), "counts": counts}
+
+
+@api_router.post("/admin/crossover-suggestions/{dedup_key}/accept")
+async def admin_accept_crossover_suggestion(
+    dedup_key: str,
+    body: _CrossoverAcceptBody,
+    user: User = Depends(require_admin),
+):
+    """Accept a suggestion + merge the admin-provided keywords into the
+    runtime overlay.  Keywords are normalized (lowercased, stripped,
+    deduped) and merged with any existing overlay row for the same fandom.
+    Returns the updated overlay rows + the resolved suggestion."""
+    suggestion = await db.crossover_suggestions.find_one(
+        {"dedup_key": dedup_key}, {"_id": 0},
+    )
+    if not suggestion:
+        raise HTTPException(status_code=404, detail="Suggestion not found")
+    if suggestion.get("status") != "pending":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Already {suggestion.get('status')}",
+        )
+
+    updated_overlays: List[Dict[str, Any]] = []
+    now = datetime.now(timezone.utc).isoformat()
+    for fandom_raw, kws_raw in (body.keywords_by_fandom or {}).items():
+        fandom = (fandom_raw or "").strip()
+        if not fandom:
+            continue
+        new_kws = sorted({(k or "").strip().lower() for k in (kws_raw or []) if (k or "").strip()})
+        if not new_kws:
+            continue
+        # Merge with existing overlay row, dedup, persist.
+        existing = await db.fandom_keyword_overlay.find_one(
+            {"fandom": fandom}, {"_id": 0, "keywords": 1},
+        )
+        prior = [k for k in (existing.get("keywords") if existing else []) or [] if k]
+        merged = sorted(set(prior) | set(new_kws))
+        await db.fandom_keyword_overlay.update_one(
+            {"fandom": fandom},
+            {"$set": {
+                "fandom":      fandom,
+                "keywords":    merged,
+                "updated_at":  now,
+                "updated_by":  user.email or user.user_id,
+            }},
+            upsert=True,
+        )
+        updated_overlays.append({"fandom": fandom, "keywords": merged, "added": new_kws})
+
+    await db.crossover_suggestions.update_one(
+        {"dedup_key": dedup_key},
+        {"$set": {
+            "status":            "accepted",
+            "resolved_at":       now,
+            "resolved_by":       user.email or user.user_id,
+            "accepted_keywords": body.keywords_by_fandom or {},
+        }},
+    )
+    # Bust classifier cache so the new keywords take effect right away.
+    from utils.classifier import invalidate_fandom_overlay_cache
+    invalidate_fandom_overlay_cache()
+    await record_admin_action(
+        user, "crossover_suggestion.accept",
+        target=dedup_key,
+        metadata={"fandoms": list((body.keywords_by_fandom or {}).keys())},
+    )
+    return {"ok": True, "dedup_key": dedup_key, "updated_overlays": updated_overlays}
+
+
+@api_router.post("/admin/crossover-suggestions/{dedup_key}/reject")
+async def admin_reject_crossover_suggestion(
+    dedup_key: str,
+    user: User = Depends(require_admin),
+):
+    """Mark a suggestion as rejected without modifying the overlay."""
+    res = await db.crossover_suggestions.update_one(
+        {"dedup_key": dedup_key, "status": "pending"},
+        {"$set": {
+            "status":      "rejected",
+            "resolved_at": datetime.now(timezone.utc).isoformat(),
+            "resolved_by": user.email or user.user_id,
+        }},
+    )
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="No pending suggestion with that key")
+    await record_admin_action(user, "crossover_suggestion.reject", target=dedup_key)
+    return {"ok": True, "dedup_key": dedup_key}
