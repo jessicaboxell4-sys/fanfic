@@ -56,6 +56,27 @@ improvements, not just the explicit "which is best?" follow-ups.
 
 ---
 
+## 💡 Reminder — Admin 1-click "Mark Shipped" button — PARKED 2026-06-27
+
+Added by operator on 2026-06-27 after the community amplification
+feature shipped.  Right now an admin has to either use the PUT
+endpoint directly OR click into the suggestion detail page and
+change the status dropdown to "done".  Add a 1-tap "Mark Shipped"
+button on each row of the admin suggestion list that:
+
+- Sends `PUT /api/admin/suggestions/{sid}` with `status: "done"`
+- Optionally prompts for the changelog section it lands under
+  (free-text or a dropdown of recent CHANGELOG.md entries)
+- Optionally lets the admin add an admin_note inline
+- Shows confirmation toast: "Shipped! @handle gets the email."
+
+Effort: ~30 min.  Risk: trivial (UI wrapper on an existing endpoint).
+Impact: streamlines the most-rewarding admin action.  Consider
+pairing this with a smarter status transition that auto-stamps
+the changelog entry into `suggestion.shipped_changelog_entry` for
+explicit linking on the public /changelog (instead of just date-
+proximity matching).
+
 ## 💡 Reminder — Community amplification + Mongo indexes — DONE 2026-06-27 ✅
 
 Two-fer overnight: 5 compound Mongo indexes on `db.books` for the
