@@ -68,5 +68,12 @@ else
     done
 fi
 
-# Suppress urllib3/charset_normalizer version-mismatch noise in output.
-python -m pytest -m regression_smoke -q --tb=short --no-header "$@"
+# Target ONLY the smoke test file by path.  Pytest's `-m` marker
+# filter happens AFTER collection, so pointing pytest at the whole
+# `tests/` dir would import all 80+ test files first — most of which
+# need the full backend deps (fastapi, motor, …) that the canary
+# workflow deliberately skips.  By naming the file directly, pytest
+# only imports `test_regression_smoke.py`, which only depends on
+# `requests` (already installed).  The `-m` filter is still useful
+# locally to skip non-smoke tests that may live in the same file.
+python -m pytest tests/test_regression_smoke.py -m regression_smoke -q --tb=short --no-header "$@"
