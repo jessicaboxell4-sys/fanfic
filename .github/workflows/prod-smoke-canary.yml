@@ -36,6 +36,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Symlink /app to checkout for hardcoded test paths
+        # Tests reference absolute /app/... paths — see the same step
+        # in backend-tests.yml for the full explanation.
+        run: sudo ln -sfn "$GITHUB_WORKSPACE" /app
+
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:

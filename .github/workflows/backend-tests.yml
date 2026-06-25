@@ -47,6 +47,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Symlink /app to checkout for hardcoded test paths
+        # 21 test files use absolute /app/... paths (load_dotenv,
+        # Path("/app/uploads"), etc.) inherited from the dev container
+        # layout.  GitHub runners check out to $GITHUB_WORKSPACE
+        # (typically /home/runner/work/REPO/REPO), so /app doesn't
+        # exist and pytest collection blows up with PermissionError.
+        # Mapping /app → $GITHUB_WORKSPACE makes every hardcoded path
+        # transparently resolve to the checked-out repo.
+        run: sudo ln -sfn "$GITHUB_WORKSPACE" /app
+
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
