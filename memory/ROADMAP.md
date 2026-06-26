@@ -715,6 +715,15 @@ books?" anxiety moment. Eliminating it builds trust.
 
 ## ⏰ Parked reminders — bring up next session
 
+### 🅿️ Parked 2026-06-27 — "Auto-share my Wrapped" follow-up
+
+When the user clicks the post-big-import **See my Wrapped** CTA
+(shipped 2026-06-27), pre-stage the share-token URL and copy it to
+clipboard with a follow-up toast like *"Wrapped link copied — paste
+it in your group chat to flex your library."*  Turns a private
+milestone into organic word-of-mouth.  User asked to revisit later.
+
+
 (Updated 2026-06-22 evening — Big shipping day: Changelog admin
 card, LLM Key Health card, Smart welcome email, Tour-bypass
 `?notour=1`, Admin help docs all shipped.  ClamAV + Calibre infra
