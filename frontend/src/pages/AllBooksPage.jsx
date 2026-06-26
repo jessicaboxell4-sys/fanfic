@@ -961,18 +961,43 @@ export default function AllBooksPage() {
                   </div>
                 ))}
                 {chipFiltersActive && (
-                  <div className="flex items-center justify-between pt-1">
+                  <div className="flex items-center justify-between pt-1 gap-3 flex-wrap">
                     <span className="text-xs text-[#A09A8B]" data-testid="library-chip-filter-count">
                       {visibleBooks.length} of {books.length} books match
                     </span>
-                    <button
-                      type="button"
-                      onClick={clearChipFilters}
-                      data-testid="chip-clear-all"
-                      className="text-xs font-semibold text-[#6B46C1] hover:text-[#553397] underline"
-                    >
-                      Clear filters
-                    </button>
+                    <div className="flex items-center gap-3">
+                      {visibleBooks.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            // Chip-aware Surprise me (iter 62) — picks a
+                            // random book from the *currently filtered*
+                            // pool so a user who's selected "Quick +
+                            // Unread" gets a quick unread book, not a
+                            // random tome from elsewhere.  Routes to the
+                            // reader for instant flow.
+                            const pick = visibleBooks[Math.floor(Math.random() * visibleBooks.length)];
+                            if (pick && pick.book_id) {
+                              window.location.href = `/read/${pick.book_id}`;
+                            }
+                          }}
+                          data-testid="chip-shuffle-filtered"
+                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-[#6B46C1] text-white hover:bg-[#553397]"
+                          title={`Pick a random book from the ${visibleBooks.length} matching your filters`}
+                        >
+                          <Sparkles className="w-3 h-3" />
+                          Shuffle these {visibleBooks.length}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={clearChipFilters}
+                        data-testid="chip-clear-all"
+                        className="text-xs font-semibold text-[#6B46C1] hover:text-[#553397] underline"
+                      >
+                        Clear filters
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

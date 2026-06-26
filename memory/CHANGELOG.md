@@ -7,6 +7,40 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 (evening, part 3) — Chip-aware Shuffle 🎲
+
+User said yes to the chip-aware Surprise-me suggestion.  Shipped
+a tiny "Shuffle these N" button right next to "Clear filters" in
+the chip-strip footer.
+
+- Appears only when **any chip filter is active** (so the existing
+  global "Surprise me" widget stays the default for unfiltered
+  browsing).
+- Picks uniformly at random from the **currently filtered
+  `visibleBooks`** array — not the full library.
+- Navigates straight to `/read/<book_id>` for instant flow.
+- Label is live: "Shuffle these 3" when 3 books match, "Shuffle
+  these 47" when 47 do, etc.
+- Hidden when the filtered pool is empty (no point shuffling 0
+  books).
+
+### data-testid
+- `chip-shuffle-filtered`
+
+### Smoke
+- Seeded 4 books (3 quick+unread + 1 finished tome), applied
+  Length=Quick + Status=Unread, button label correctly read
+  "Shuffle these 3", click routed to one of the 3 matching books
+  (NOT the tome).
+
+### Why this matters
+The chip strip already let users **express a mood**.  This button
+closes the loop: set your mood (Quick + Unread + This week), tap
+Shuffle, get a book that fits.  Same chip filters now feel less
+like a search tool and more like a "tell Shelfsort what I want
+tonight" interface.
+
+---
 ## 2026-06-27 (evening, part 2) — Composable library filter chips 🎚️
 
 User said yes to the word-count filter chips suggestion, plus
