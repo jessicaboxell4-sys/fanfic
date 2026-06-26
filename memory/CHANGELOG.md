@@ -7,6 +7,51 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 (evening) — Library view modes: Grid + Compact + List 🪟
+
+User asked: "the library page...how about a way to make the books
+smaller, or in a list? And the list could show the metadata for each
+book."  Discovered the existing Grid/List toggle was thin (just
+title + author + fandom + progress).  Shipped a three-mode toggle
+with a real compact grid and a metadata-rich list.
+
+### Three view modes (replaces the previous 2)
+- **Grid** (unchanged): big covers, BookCard with full hover-actions,
+  2-6 cols responsive.
+- **Compact** (new): ~2× density.  Tile = small cover + 2-line
+  title + 1-line author.  Tiny progress bar at bottom of cover; "Read"
+  pill on completed books.  Click-through-only (no inline actions).
+  Grid is 3 cols mobile → 10 cols xl.  Great for big libraries
+  where Grid feels cramped but List is too text-heavy.
+- **List** (enhanced): proper table-style rows with sticky-feeling
+  header row at md+.  Columns (left → right):
+    * 8px cover thumb
+    * Title (+ series chip if present) / Author
+    * **Fandom · Category** (md+)
+    * **Pairings** (lg+)
+    * **Word count** (lg+, formatted "85k")
+    * **Status** (always visible — progress %, "Read" pill, AV
+      shield icon)
+    * **Date added** (xl+)
+  Responsive: narrow screens hide right-side columns gracefully.
+
+### data-testids
+- `view-mode-grid`, `view-mode-compact`, `view-mode-list`
+- `books-grid`, `books-compact-grid`, `books-list`
+- `book-row-{book_id}`, `book-compact-{book_id}`
+
+### Persistence
+- Existing `localStorage.shelfsort_view_mode` key now stores
+  `"grid" | "compact" | "list"`.  Default is `"grid"` (unchanged).
+
+### Lint / Smoke
+- Frontend lint: 4 pre-existing JSX quote-escape errors at lines
+  1179/1320 (not in my edits — those land at 1346/1480).  No new
+  errors introduced.
+- Playwright smoke: all 3 toggles visible; compact-grid + list
+  containers render; list correctly maps 6 seeded books to 6 rows.
+
+---
 ## 2026-06-27 (afternoon, part 3) — Community Recommendations (Phase 1 of community library) 🌍
 
 User pitched a "community library where users can put books in that

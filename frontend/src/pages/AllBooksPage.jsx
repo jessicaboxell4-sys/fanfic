@@ -15,7 +15,7 @@ import LibraryActivityWidgets from "../components/LibraryActivityWidgets";
 import Ao3FilterChips from "../components/Ao3FilterChips";
 import FandomFinder from "../components/FandomFinder";
 import { useEventStream } from "../hooks/useEventStream";
-import { Search, X, Plus, ArrowRight, ArrowLeftRight, Heart, BookOpen, CheckSquare, Sparkles, Loader2, RefreshCw, Library, UserCircle2, Filter, Pin, FolderOpen, ArrowUpDown, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Trash2, LayoutGrid, List as ListIcon, UploadCloud } from "lucide-react";
+import { Search, X, Plus, ArrowRight, ArrowLeftRight, Heart, BookOpen, CheckSquare, Sparkles, Loader2, RefreshCw, Library, UserCircle2, Filter, Pin, FolderOpen, ArrowUpDown, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Trash2, LayoutGrid, Grid3x3, List as ListIcon, UploadCloud, ShieldCheck, ShieldAlert, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { FETCHING_UI_ENABLED } from "../lib/featureFlags";
 
@@ -802,10 +802,25 @@ export default function AllBooksPage() {
                 </button>
                 <button
                   type="button"
+                  onClick={() => setViewMode("compact")}
+                  data-testid="view-mode-compact"
+                  aria-pressed={viewMode === "compact"}
+                  title="Compact grid — fit ~2× more covers on screen"
+                  className={`flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium border-l border-[#E8E6E1] transition-colors ${
+                    viewMode === "compact"
+                      ? "bg-[#2C2C2C] text-white"
+                      : "text-[#2C2C2C] hover:bg-[#F5F3EC]"
+                  }`}
+                >
+                  <Grid3x3 className="w-4 h-4" />
+                  <span className="hidden sm:inline">Compact</span>
+                </button>
+                <button
+                  type="button"
                   onClick={() => setViewMode("list")}
                   data-testid="view-mode-list"
                   aria-pressed={viewMode === "list"}
-                  title="Compact list — fit more books on screen"
+                  title="List — full metadata, table-style"
                   className={`flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium border-l border-[#E8E6E1] transition-colors ${
                     viewMode === "list"
                       ? "bg-[#2C2C2C] text-white"
@@ -1344,17 +1359,131 @@ export default function AllBooksPage() {
             ) : books.length === 0 ? (
               <p className="text-[#6B705C] py-12 text-center">No books match these filters.</p>
             ) : viewMode === "list" ? (
-              // Compact list — single-line rows.  Way easier to scan for
-              // big libraries.  Cover thumb stays so books still feel
-              // book-shaped, but everything else collapses into one row.
-              <ul className="divide-y divide-[#E8E6E1] bg-white rounded-xl border border-[#E8E6E1] overflow-hidden" data-testid="books-list">
+              // List view (enhanced iter 60) — table-style rows with
+              // full metadata.  Responsive columns: pairings/wordcount/
+              // date hide on narrow screens so mobile stays tidy.
+              <div className="bg-white rounded-xl border border-[#E8E6E1] overflow-hidden" data-testid="books-list">
+                {/* Sticky-ish header row.  Sortability deliberately
+                    deferred — the existing top-bar sort dropdown
+                    already drives this list. */}
+                <div className="hidden md:flex items-center gap-3 px-4 py-2 bg-[#FAF6EE] border-b border-[#E8E6E1] text-[10px] uppercase tracking-wider font-semibold text-[#A09A8B]">
+                  <span className="w-8 shrink-0" aria-hidden />
+                  <span className="flex-1 min-w-0">Title / Author</span>
+                  <span className="w-32 shrink-0 truncate">Fandom</span>
+                  <span className="w-28 shrink-0 truncate hidden lg:inline">Pairings</span>
+                  <span className="w-14 shrink-0 text-right tabular-nums hidden lg:inline">Words</span>
+                  <span className="w-14 shrink-0 text-center">Status</span>
+                  <span className="w-16 shrink-0 text-right hidden xl:inline">Added</span>
+                </div>
+                <ul className="divide-y divide-[#E8E6E1]">
+                  {visibleBooks.map(b => {
+                    const wordsK = b.word_count ? (b.word_count >= 1000 ? `${Math.round(b.word_count / 1000)}k` : String(b.word_count)) : "";
+                    const addedRel = (() => {
+                      const raw = b.created_at || b.date_added;
+                      if (!raw) return "";
+                      try {
+                        const d = new Date(raw);
+                        return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+                      } catch { return ""; }
+                    })();
+                    const pairings = Array.isArray(b.pairings) ? b.pairings.filter(Boolean).join(", ") : (b.pairings || "");
+                    return (
+                      <li
+                        key={b.book_id}
+                        data-testid={`book-row-${b.book_id}`}
+                        className={`flex items-center gap-3 px-4 py-2 hover:bg-[#FAF6EE] transition-colors cursor-pointer ${
+                          selectMode && selectedIds.has(b.book_id) ? "bg-[#EEE9FB]" : ""
+                        }`}
+                        onClick={() => {
+                          if (selectMode) {
+                            setSelectedIds((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(b.book_id)) next.delete(b.book_id); else next.add(b.book_id);
+                              return next;
+                            });
+                          } else {
+                            window.location.href = `/books/${b.book_id}`;
+                          }
+                        }}
+                      >
+                        {selectMode && (
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(b.book_id)}
+                            onChange={() => {}}
+                            className="w-4 h-4 accent-[var(--primary)] shrink-0"
+                            data-testid={`book-row-checkbox-${b.book_id}`}
+                          />
+                        )}
+                        {b.has_cover ? (
+                          <img
+                            src={`${process.env.REACT_APP_BACKEND_URL}/api/books/${b.book_id}/cover`}
+                            alt=""
+                            className="w-8 h-11 rounded-sm shrink-0 object-cover shadow-sm"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="w-8 h-11 rounded-sm shrink-0 bg-gradient-to-br from-[#6B46C1] to-[#4C2A99] shadow-sm" />
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-[#2C2C2C] truncate" title={b.title}>
+                            {b.title || "Untitled"}
+                            {b.series && (
+                              <span className="ml-1.5 text-[10px] text-[#6B705C] font-normal">· {b.series}{b.series_index ? ` #${b.series_index}` : ""}</span>
+                            )}
+                          </p>
+                          <p className="text-xs text-[#6B705C] truncate">
+                            {b.author || "Unknown"}
+                          </p>
+                        </div>
+                        <span className="w-32 shrink-0 text-xs text-[#6B46C1] truncate hidden md:inline" title={b.fandom || ""}>
+                          {b.fandom || "—"}
+                          {b.category && <span className="ml-1 text-[#A09A8B]">· {b.category}</span>}
+                        </span>
+                        <span className="w-28 shrink-0 text-xs text-[#6B705C] truncate hidden lg:inline" title={pairings}>
+                          {pairings || "—"}
+                        </span>
+                        <span className="w-14 shrink-0 text-xs font-mono text-[#6B705C] text-right tabular-nums hidden lg:inline">
+                          {wordsK || "—"}
+                        </span>
+                        <span className="w-14 shrink-0 text-xs flex items-center justify-center" title={`${b.av_status || "clean"} · ${Math.round((b.progress_fraction || 0) * 100)}%`}>
+                          {b.progress_fraction >= 0.99 ? (
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-[#81B29A]">Read</span>
+                          ) : (b.progress_fraction != null && b.progress_fraction > 0) ? (
+                            <span className="text-[10px] font-mono text-[#6B705C] tabular-nums">{Math.round(b.progress_fraction * 100)}%</span>
+                          ) : b.av_status === "infected" ? (
+                            <ShieldAlert className="w-3.5 h-3.5 text-[#D9534F]" aria-label="Infected" />
+                          ) : b.av_status === "scanning" ? (
+                            <Clock className="w-3.5 h-3.5 text-[#B7791F]" aria-label="Scanning" />
+                          ) : (
+                            <ShieldCheck className="w-3.5 h-3.5 text-[#A09A8B]" aria-label="Clean" />
+                          )}
+                        </span>
+                        <span className="w-16 shrink-0 text-xs text-[#A09A8B] text-right tabular-nums hidden xl:inline">
+                          {addedRel}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ) : viewMode === "compact" ? (
+              // Compact grid (iter 60) — same shape as the regular
+              // grid but ~2x density: smaller covers, tighter gap,
+              // and a stripped-down per-tile render that drops the
+              // BookCard heavy hover-actions in favor of a click-
+              // through-only link.  Tap a cover → BookDetail.  Great
+              // for big libraries where Grid feels cramped but List
+              // is too text-heavy.
+              <div
+                className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 xl:grid-cols-10 gap-3"
+                data-testid="books-compact-grid"
+              >
                 {visibleBooks.map(b => (
-                  <li
+                  <button
                     key={b.book_id}
-                    data-testid={`book-row-${b.book_id}`}
-                    className={`flex items-center gap-4 px-4 py-2.5 hover:bg-[#FAF6EE] transition-colors ${
-                      selectMode && selectedIds.has(b.book_id) ? "bg-[#EEE9FB]" : ""
-                    }`}
+                    type="button"
+                    data-testid={`book-compact-${b.book_id}`}
                     onClick={() => {
                       if (selectMode) {
                         setSelectedIds((prev) => {
@@ -1366,48 +1495,48 @@ export default function AllBooksPage() {
                         window.location.href = `/books/${b.book_id}`;
                       }
                     }}
-                    style={{ cursor: selectMode ? "pointer" : "pointer" }}
+                    className={`group flex flex-col items-start text-left ${
+                      selectMode && selectedIds.has(b.book_id) ? "ring-2 ring-[#6B46C1] rounded-md" : ""
+                    }`}
                   >
-                    {selectMode && (
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(b.book_id)}
-                        onChange={() => {}}
-                        className="w-4 h-4 accent-[var(--primary)] shrink-0"
-                        data-testid={`book-row-checkbox-${b.book_id}`}
-                      />
-                    )}
-                    {b.has_cover ? (
-                      <img
-                        src={`${process.env.REACT_APP_BACKEND_URL}/api/books/${b.book_id}/cover`}
-                        alt=""
-                        className="w-8 h-11 rounded-sm shrink-0 object-cover shadow-sm"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="w-8 h-11 rounded-sm shrink-0 bg-gradient-to-br from-[#6B46C1] to-[#4C2A99] shadow-sm" />
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-[#2C2C2C] truncate">{b.title || "Untitled"}</p>
-                      <p className="text-xs text-[#6B705C] truncate">
-                        {b.author || "Unknown"}
-                        {b.fandom && <span className="ml-2 text-[#6B46C1]">· {b.fandom}</span>}
-                        {b.category && <span className="ml-2">· {b.category}</span>}
-                      </p>
+                    <div className="relative w-full aspect-[2/3] rounded-md overflow-hidden shadow-sm border border-[#E8E6E1] group-hover:shadow-md transition-shadow">
+                      {b.has_cover ? (
+                        <img
+                          src={`${process.env.REACT_APP_BACKEND_URL}/api/books/${b.book_id}/cover`}
+                          alt={b.title}
+                          loading="lazy"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-[#6B46C1] to-[#4C2A99] flex items-center justify-center p-1">
+                          <span className="text-[8px] text-white text-center line-clamp-3 leading-tight font-serif">
+                            {b.title || "Untitled"}
+                          </span>
+                        </div>
+                      )}
+                      {b.progress_fraction != null && b.progress_fraction > 0 && b.progress_fraction < 0.99 && (
+                        <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/30">
+                          <div
+                            className="h-full bg-[#6B46C1]"
+                            style={{ width: `${Math.round(b.progress_fraction * 100)}%` }}
+                          />
+                        </div>
+                      )}
+                      {b.progress_fraction >= 0.99 && (
+                        <span className="absolute top-1 right-1 text-[7px] font-bold uppercase tracking-wider text-white bg-[#81B29A] px-1 py-0.5 rounded">
+                          Read
+                        </span>
+                      )}
                     </div>
-                    {b.progress_fraction != null && b.progress_fraction > 0 && b.progress_fraction < 0.99 && (
-                      <span className="text-[10px] font-mono text-[#6B705C] tabular-nums hidden md:inline">
-                        {Math.round(b.progress_fraction * 100)}%
-                      </span>
-                    )}
-                    {b.progress_fraction >= 0.99 && (
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#81B29A] hidden md:inline">
-                        Read
-                      </span>
-                    )}
-                  </li>
+                    <p className="mt-1.5 text-[11px] font-medium text-[#2C2C2C] line-clamp-2 leading-tight w-full" title={b.title}>
+                      {b.title || "Untitled"}
+                    </p>
+                    <p className="text-[10px] text-[#6B705C] truncate w-full">
+                      {b.author || "—"}
+                    </p>
+                  </button>
                 ))}
-              </ul>
+              </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6" data-testid="books-grid">
                 {visibleBooks.map(b => (
