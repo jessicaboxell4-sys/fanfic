@@ -7,6 +7,43 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-26 — Admin 1-click "Mark Shipped" modal 🚢
+
+Replaces the 3-step "→ done → write note → wait for email" workflow
+with a single primary button + small modal.
+
+### Backend
+- `routes/suggestions.py` — `SuggestionUpdate` model now accepts an
+  optional `skip_email: bool` (default False, preserves existing
+  behavior).  When True, the admin_update endpoint sets `status=done`
+  + stamps `shipped_at` + saves `admin_note` but **suppresses** the
+  Resend celebration email (in-app notification still fires).  Used
+  by the modal's "Send celebration email" checkbox.
+- `shipped_credit_sent_at` idempotency stamp still wins on re-ship —
+  unticking the checkbox just makes that explicit on first ship.
+
+### Frontend
+- `AdminConsole.jsx` `FeedbackInboxCard` — adds primary purple
+  "Mark shipped" button on every non-done suggestion row
+  (`data-testid="feedback-mark-shipped-{id}"`).  Click opens a
+  modal (`data-testid="feedback-ship-modal"`) with:
+    * Public-note textarea (1000-char cap, surfaces on `/changelog`)
+    * "Send celebration email" checkbox — default ON, auto-disabled
+      with explanatory italic when `shipped_credit_sent_at` is set.
+    * "Ship it" submit (PUT one request with status + note + flag).
+- Toast on success: "🚢 Shipped — celebration email sent" or
+  "🚢 Shipped — email skipped".
+- Error toast surfaces the real `response.data.detail` instead of a
+  silent failure (review finding from iteration_46).
+
+### Tests
+- `backend/tests/test_mark_shipped_modal.py` — 5 pytest tests covering
+  send/skip/idempotency/legacy-body/changelog-surfacing paths.
+- Iteration 46 testing-agent report: 100% pass on both backend (5/5)
+  + frontend (12/12 spec items).  Zero blocking bugs.
+
+---
+
 ## 2026-06-25 — CI canary fully stabilized ✅
 
 Production smoke canary went from chronically red → solid green

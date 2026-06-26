@@ -629,8 +629,12 @@ function FeedbackInboxCard() {
       setShipItem(null);
       setShipNote("");
       setShipSendEmail(true);
-    } catch {
-      toast.error("Couldn't mark shipped");
+    } catch (err) {
+      // Surface the real server reason instead of a generic toast so
+      // admins aren't left wondering why nothing happened (review
+      // finding from iteration_46).
+      const detail = err?.response?.data?.detail || err?.message || "Try again.";
+      toast.error(`Couldn't mark shipped — ${detail}`);
     } finally {
       setShipBusy(false);
     }
