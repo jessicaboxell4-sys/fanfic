@@ -7,6 +7,42 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-26 — Profile discovery polish on `/users` 🔎
+
+Two small UX wins on the Reader Directory.
+
+### Scroll-to-row
+- `/users?focus=handle` now scrolls the matching `<li>` into view
+  (smooth, block:center) and applies a 2.5s `bg-[#FFF6D6]` amber
+  highlight pulse so the eye lands on the right place.
+- Handles `@` prefix stripping + case-insensitive matching.
+- Strips `?focus=` from `window.location` after scrolling so refresh
+  isn't sticky.
+- If the handle isn't on the current page → toast hint
+  ("@handle isn't on this page — use the filter or paginate"); clears
+  state so it doesn't re-trip.
+
+### Persistent missing-handle nudge
+- Inline amber banner at the top of `/users` shown only when the
+  signed-in user has no @handle yet (without one they're invisible in
+  the directory).
+- One primary CTA → `/account#profile`.
+- Distinct from the existing one-shot welcome toast (which fires once
+  per device); this banner stays until the handle is claimed.
+
+### Files touched
+- `frontend/src/pages/UsersDirectory.jsx` — added `useRef` +
+  `useSearchParams` imports, `focusHandle`/`rowRefs` state, scroll-
+  to-row effect, persistent nudge JSX, row ref + highlight class.
+
+### Tests
+- iteration_47 testing-agent report: 100% pass on all 8 subtests
+  (nudge show/hide, scroll-to-row present/absent/@-prefix/uppercase
+  matching, page render). Zero blocking bugs.
+- Polish: ref cleanup on unmount applied post-review.
+
+---
+
 ## 2026-06-26 — Admin 1-click "Mark Shipped" modal 🚢
 
 Replaces the 3-step "→ done → write note → wait for email" workflow

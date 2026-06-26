@@ -279,7 +279,15 @@ export default function UsersDirectory() {
               return (
                 <li
                   key={row.user_id}
-                  ref={(el) => { if (el && handleLc) rowRefs.current[handleLc] = el; }}
+                  ref={(el) => {
+                    // React calls this with `null` on unmount; clean
+                    // up the stale entry so paginating away from a
+                    // focused row can't later scroll to a detached
+                    // node.  Review finding from iteration_47.
+                    if (!handleLc) return;
+                    if (el) rowRefs.current[handleLc] = el;
+                    else delete rowRefs.current[handleLc];
+                  }}
                   data-testid={`directory-row-${row.username}`}
                   className={
                     "px-4 py-3 flex items-center gap-3 transition-colors duration-700 " +
