@@ -171,14 +171,22 @@ async def toggle_book_reaction(book_id: str, user: User = Depends(get_current_us
     if existing:
         await db.book_reactions.delete_one({"_id": existing["_id"]})
         return {"hearted": False, "self_react": False}
-    await db.book_reactions.insert_one({
-        "book_id": book_id,
-        "owner_user_id": book["user_id"],
-        "viewer_user_id": user.user_id,
-        "title_lower": (book.get("title") or "").strip().lower(),
-        "author_lower": (book.get("author") or "").strip().lower(),
-        "created_at": datetime.now(timezone.utc),
-    })
+    # Use upsert so simultaneous double-clicks from the same viewer
+    # can't produce two reaction docs (per iteration_52 code-review).
+    # The {book_id, viewer_user_id} pair is the natural primary key
+    # — set on insert only, never overwritten.
+    await db.book_reactions.update_one(
+        {"book_id": book_id, "viewer_user_id": user.user_id},
+        {"$setOnInsert": {
+            "book_id": book_id,
+            "owner_user_id": book["user_id"],
+            "viewer_user_id": user.user_id,
+            "title_lower": (book.get("title") or "").strip().lower(),
+            "author_lower": (book.get("author") or "").strip().lower(),
+            "created_at": datetime.now(timezone.utc),
+        }},
+        upsert=True,
+    )
     return {"hearted": True, "self_react": False}
 
 

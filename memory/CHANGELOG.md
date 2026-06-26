@@ -7,6 +7,79 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-26 (very late) — Library social bundle: B + D + E + Featured 🌐
+
+Five features shipped in one batch.  User went to bed mid-build and
+said "do all 4 + featured readers" — delivered.
+
+### Group B — Discovery surfaces
+
+#### Featured Readers strip (landing page)
+- New anon endpoint `GET /api/library/featured?limit=N` — random
+  sample of opted-in libraries with avatar/bio/book-count/top-fandom.
+  Empty libraries filtered out.
+- `FeaturedReadersStrip.jsx` renders 3-5 cards under
+  CommunityShowcase on `/`.  Each card deep-links to the user's
+  public library.  Silently doesn't render if no opted-in users
+  exist (no sad empty state on landing).
+
+#### Fandom-based discovery
+- New anon endpoint `GET /api/library/discover/by-fandom/{fandom}` —
+  case-insensitive exact match, returns opted-in users with ≥1 book
+  in that fandom, sorted by per-user count.
+- New page `FandomDiscoveryPage.jsx` at `/explore/fandom/:fandom`
+  with per-user "Browse library" chips.
+
+### Group D — Engagement
+
+#### Heart-a-book + trending
+- `POST /api/books/{book_id}/react` toggles a heart (auth required;
+  owner self-heart returns `{self_react: true}` no-op; non-opted-in
+  target returns 404).
+- `GET /api/books/{book_id}/reaction-status` returns current state.
+- `GET /api/books/trending?days=7` aggregates by
+  `(title_lower, author_lower)` so duplicate uploads collapse into
+  one row.  Filters out books whose owners de-opted post-react.
+- `PublicLibraryView.jsx` shows a per-row heart button when
+  `viewer_is_signed_in` is true (so owners viewing own library +
+  anon visitors hitting the gate never see it).
+- Race-safe upsert (post-review): heart insert is now atomic
+  `update_one($setOnInsert, upsert=True)` so simultaneous
+  double-clicks can't produce duplicate reaction docs.
+
+### Group E — Loop-closing notifications
+
+#### "Viewed your library" rate-limited ping
+- `POST /api/users/{username}/public-library/view-ping` — fires a
+  notification (`kind="library_viewed"`) to the owner.  Rate-limited
+  to one per (viewer, owner) pair per 24h via the
+  `library_view_pings` collection.  Self-views silently no-op.
+- `PublicLibraryView.jsx` fires this side-effect on a successful
+  signed-in non-owner library load.
+
+#### "Friend went public" fan-out
+- `set_public_library_visibility` (in `friend_library.py`) now fans
+  out a `kind="friend_library_public"` notification to all accepted
+  friends on the FIRST opt-in (gated by
+  `first_public_share_shown_at`).  Best-effort — never blocks the
+  toggle if notif insert fails.
+
+### Bug caught + fixed during testing
+- `db.friends` → `db.friendships` (collection-name typo silently
+  null-routed the entire fan-out).  Caught by iteration_52 testing
+  agent, fixed inline.  Logged for posterity since this kind of
+  null-route is exactly what `pyright` can't catch in motor calls.
+
+### Tests
+- `/app/tests/test_iteration_52.py` (NEW, 19 cases) — covers
+  featured, fandom-discovery, react toggle (incl. self-react +
+  non-opted-in 404), trending aggregation, view-ping rate-limit +
+  self-view + handle-enumeration, and friend fan-out (incl.
+  idempotent gate via first_public_share_shown_at).
+- All prior suites still pass.  Cumulative 79/79.
+
+---
+
 ## 2026-06-26 (late) — Groups A+C: conversion booster + profile depth ✨
 
 Four features shipped on top of the login-gated public-library
