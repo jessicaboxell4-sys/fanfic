@@ -7,6 +7,65 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 (overnight) — Bundle A wrap: Help anchors, trending warn, canary sweep 🧹
+
+Closing pass on Iteration 53 + a tighter cleanup cron for the
+hourly prod canary.
+
+### Iter 53 fixes (from test report)
+- **Help.jsx dead anchors fixed**: added the two missing
+  `<Section id="public-library">` and `<Section id="library-discovery">`
+  blocks in the page body so the TOC entries shipped in iter 53
+  actually scroll somewhere.  Smoke-screenshot confirms both anchors
+  resolve and the new copy renders.
+- **TrendingBooksStrip warn on 5xx**: the silent `catch {}` block
+  now emits a `console.warn` for `>= 500` responses so a future
+  regression on `/api/books/trending` surfaces in browser logs /
+  Sentry breadcrumbs.  Network errors (offline, ERR_CONNECTION_*)
+  stay silent — they're expected during dev.
+
+### Task 3 — Canary throwaway-account cleanup ✨
+- New admin endpoint `POST /api/admin/canary/cleanup` with body
+  `{min_age_minutes, dry_run}` (defaults 60 / false).  Sweeps
+  users matching `shelfsort-canary[-_]…@example.com` whose
+  `created_at` is older than `min_age_minutes`, cascading to
+  books / sessions / book_reactions / notifications.  Admin-only;
+  audit-logged on actual deletes.  Dry-run preview returns
+  matched-count + sample emails without writing.
+- New hourly cron (server.py, `:05` past each hour) calls the
+  same helper with the 60-min cutoff.  Hourly prod canary runs
+  used to leave ~168 stale rows lingering between the daily
+  fixture-purge sweeps; this collapses that to a single in-flight
+  row at any moment.  Borrows the existing `digest._scheduler`
+  instance — no second APScheduler started.
+- 60-min minimum cutoff (Pydantic `ge=5`) so a fat-finger can
+  never delete the in-flight canary fixture (a full canary cycle
+  takes <2 min).
+- Backend tests at `tests/test_iter54_canary_cleanup.py`:
+    * anon → 401 gate
+    * dry_run=true matches but writes nothing
+    * actual deletion cascades to books/sessions/reactions/notifs
+    * recent (5-min-old) canary user survives
+    * real (gmail) user untouched even if backdated
+  5/6 PASS (1 skipped — non-admin shelfsort-tester fixture absent
+  in this preview DB; anon gate test already covers the same
+  ground).
+
+### Task 10 — Sign-in gate booster
+- Confirmed **already shipped** in iter 51 (2026-06-26): owner
+  avatar + book count + top fandom + bio preview render on the
+  401 gate via `/api/users/{u}/library-preview`.  Handoff
+  summary's "upcoming task" entry was stale; roadmap row 10
+  remains marked ✅ DONE.
+
+### Blocked
+- **Log rotation** (Task 4): the preview's
+  `/etc/supervisor/conf.d/backend.conf` is marked READONLY.
+  Apply `stdout_logfile_maxbytes=10MB` + `stdout_logfile_backups=5`
+  directly on the production server's supervisor config — same
+  block as the previous handoff.
+
+---
 ## 2026-06-26 (very late) — Library social bundle: B + D + E + Featured 🌐
 
 Five features shipped in one batch.  User went to bed mid-build and

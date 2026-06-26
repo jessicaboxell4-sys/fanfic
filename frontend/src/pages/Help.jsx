@@ -1088,6 +1088,28 @@ export default function Help() {
               </ul>
             </Section>
 
+            <Section id="public-library" icon={Globe} title="Sharing your library publicly">
+              <p>Your library is private by default. If you want to share it on the open web you opt in from <Link to="/account">Account → Privacy</Link>.</p>
+              <ul>
+                <li><strong>Two independent toggles</strong>: <em>Share with friends</em> exposes your library to accepted-friends only; <em>Make my library public on the web</em> opens it to any signed-in Shelfsort member at <code>/u/&lt;your-handle&gt;/library</code>.</li>
+                <li><strong>Anonymous visitors never see books</strong>: logged-out visitors hitting a public-library URL are bounced to a sign-in gate (with a preview of the owner&apos;s avatar, book count, and top fandom to nudge them to join).</li>
+                <li><strong>AV-flagged books are always excluded</strong>: anything that hasn&apos;t passed antivirus, or that&apos;s currently flagged, is filtered out of the public view even when the rest of your library is shared.</li>
+                <li><strong>Revoke any time</strong>: flip the toggle off and the public URL 401s within a minute. Existing RSS subscribers see an empty feed immediately on the next poll.</li>
+                <li><strong>RSS feed</strong>: opted-in libraries publish a per-user feed at <code>/feed/library/&lt;handle&gt;.xml?token=&lt;rss_token&gt;</code> so power-readers can subscribe in their RSS client. Rotate the token from Account → Privacy if you ever need to invalidate.</li>
+              </ul>
+            </Section>
+
+            <Section id="library-discovery" icon={Compass} title="Discovering other readers' libraries">
+              <p>Once you&apos;ve opted in (or while browsing other opted-in readers), Shelfsort surfaces three discovery rails so you can find readers who share your taste:</p>
+              <ul>
+                <li><strong>Reader directory (<Link to="/users">/users</Link>)</strong>: every member with a public @handle is listed. Opted-in libraries are marked with a 📚 chip — click straight through to their public shelves.</li>
+                <li><strong>Featured Readers strip</strong>: the landing page rotates 3-5 random opted-in libraries so new visitors always see a fresh sample of the community.</li>
+                <li><strong>Per-fandom discovery (<code>/explore/fandom/&lt;fandom&gt;</code>)</strong>: every fandom you read has its own page listing other opted-in readers who own books in that fandom — perfect for finding people deep in your niche.</li>
+                <li><strong>Overlap badges</strong>: when you browse someone else&apos;s public library, books you also own get a &ldquo;You have this too&rdquo; badge so you can quickly find your shared shelf.</li>
+                <li><strong>Heart &amp; subscribe</strong>: tap the heart on any book in a public library to react (the owner gets an in-app notification), or subscribe to their RSS feed to keep tabs on new uploads.</li>
+              </ul>
+            </Section>
+
             <Section id="covers" icon={Sparkles} title="Community Covers">
               <p>Shelfsort can generate AI cover art for any book that ships without a great one — and once you&apos;re happy with a generated cover, you can share it back to the community pool so other readers of the same book can adopt it.</p>
               <ul>

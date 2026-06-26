@@ -385,6 +385,30 @@ async def on_startup():
                 logger.info("Weekly admin digest scheduled (Sundays 09:00 UTC).")
             except Exception as e:
                 logger.warning("Weekly admin digest failed to schedule: %s", e)
+
+            # Canary throwaway-account sweep — hourly at :05 past the
+            # hour.  The generic fixture purge (above) catches these
+            # after 7 days, but with hourly canary runs that's ~168
+            # lingering rows.  Tighter 60-min cutoff keeps prod
+            # clean while preserving the in-flight canary run's
+            # user (a full canary cycle takes <2 min).  See
+            # routes.admin.sweep_canary_accounts.
+            try:
+                from routes.admin import sweep_canary_accounts
+
+                async def _canary_sweep_tick():
+                    await sweep_canary_accounts(min_age_minutes=60, dry_run=False)
+
+                digest._scheduler.add_job(
+                    wrap_cron_job(_canary_sweep_tick, "canary_account_sweep"),
+                    "cron",
+                    minute=5,
+                    id="canary_account_sweep",
+                    replace_existing=True,
+                )
+                logger.info("Canary throwaway-account sweep scheduled (hourly at :05).")
+            except Exception as e:
+                logger.warning("Canary account sweep failed to schedule: %s", e)
     except Exception as e:
         logger.warning("Fixture auto-purge job failed to schedule: %s", e)
 

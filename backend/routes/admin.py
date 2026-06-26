@@ -3356,6 +3356,154 @@ async def admin_canary_run_detail(run_id: str, user: User = Depends(require_admi
     return row
 
 
+# ----------------------------------------------------------------- #
+# Canary test-account sweep                                         #
+# ----------------------------------------------------------------- #
+# Each prod-smoke-canary run registers a throwaway user with the    #
+# email pattern ``shelfsort-canary-{ts}-{uuid}@example.com`` (plus a #
+# sacrificial ``shelfsort-canary-seed-...`` user, see               #
+# tests/test_regression_smoke.py).  The generic fixture auto-purge  #
+# (server.py, daily 03:00 UTC) sweeps these after 7 days, but with  #
+# hourly canary runs that's ~168 lingering rows at any time.  This  #
+# tighter cleanup deletes canary-only accounts older than           #
+# ``min_age_minutes`` (default 60) so the in-flight run's user is   #
+# never touched.  Exposed both as an admin-callable POST (for ad-   #
+# hoc sweeps) and as an hourly cron in server.py.                   #
+
+
+# Pattern: shelfsort-canary{-,_}...@example.com — covers the
+# regular canary user, the seed user, and any future hyphen/
+# underscore variants.  Case-insensitive so a fixture that
+# accidentally uppercases the prefix still matches.
+_CANARY_EMAIL_REGEX = r"^shelfsort-canary[-_].*@example\.com$"
+
+
+def _canary_account_filter() -> dict:
+    """Mongo filter for canary throwaway accounts (email pattern)."""
+    return {"email": {"$regex": _CANARY_EMAIL_REGEX, "$options": "i"}}
+
+
+async def sweep_canary_accounts(min_age_minutes: int = 60, dry_run: bool = False) -> dict:
+    """Delete canary-fixture users older than ``min_age_minutes``
+    plus their books, sessions, reactions, and notifications.
+
+    Returns a summary dict: ``{matched, deleted_users, deleted_books,
+    deleted_sessions, deleted_reactions, deleted_notifications,
+    dry_run, cutoff, sample_emails}``.  When ``dry_run=True`` no
+    writes happen and ``deleted_*`` are all 0.
+
+    Idempotent: safe to call concurrently — a no-op when nothing is
+    older than the cutoff.
+    """
+    min_age_minutes = max(1, int(min_age_minutes))
+    cutoff = (datetime.now(timezone.utc) - timedelta(minutes=min_age_minutes)).isoformat()
+    query = {
+        "created_at": {"$lt": cutoff},
+        **_canary_account_filter(),
+    }
+    stale = await db.users.find(
+        query,
+        {"_id": 0, "user_id": 1, "email": 1},
+    ).to_list(length=10000)
+
+    summary: Dict[str, Any] = {
+        "matched":               len(stale),
+        "deleted_users":         0,
+        "deleted_books":         0,
+        "deleted_sessions":      0,
+        "deleted_reactions":     0,
+        "deleted_notifications": 0,
+        "dry_run":               bool(dry_run),
+        "cutoff":                cutoff,
+        "min_age_minutes":       min_age_minutes,
+        "sample_emails":         [u.get("email") for u in stale[:5]],
+    }
+    if not stale or dry_run:
+        return summary
+
+    ids = [u["user_id"] for u in stale if u.get("user_id")]
+    # Cascade deletes — best-effort on each collection so a single
+    # missing collection in a fresh install doesn't strand users.
+    try:
+        r = await db.books.delete_many({"user_id": {"$in": ids}})
+        summary["deleted_books"] = r.deleted_count
+    except Exception as e:
+        logger.warning("canary cleanup: books delete failed: %s", e)
+    try:
+        r = await db.user_sessions.delete_many({"user_id": {"$in": ids}})
+        summary["deleted_sessions"] = r.deleted_count
+    except Exception as e:
+        logger.warning("canary cleanup: sessions delete failed: %s", e)
+    try:
+        r = await db.book_reactions.delete_many({"user_id": {"$in": ids}})
+        summary["deleted_reactions"] = r.deleted_count
+    except Exception as e:
+        logger.warning("canary cleanup: reactions delete failed: %s", e)
+    try:
+        r = await db.notifications.delete_many({"user_id": {"$in": ids}})
+        summary["deleted_notifications"] = r.deleted_count
+    except Exception as e:
+        logger.warning("canary cleanup: notifications delete failed: %s", e)
+
+    r = await db.users.delete_many({"user_id": {"$in": ids}})
+    summary["deleted_users"] = r.deleted_count
+    logger.info(
+        "Canary sweep deleted %d users (+%d books, %d sessions, %d reactions, %d notifs) older than %dm",
+        summary["deleted_users"],
+        summary["deleted_books"],
+        summary["deleted_sessions"],
+        summary["deleted_reactions"],
+        summary["deleted_notifications"],
+        min_age_minutes,
+    )
+    return summary
+
+
+class _CanaryCleanupBody(BaseModel):
+    # 60 min default keeps the currently-running canary fixture safe
+    # (a full canary run takes < 2 min).  Min 5 to prevent a
+    # fat-finger from killing the in-flight run.
+    min_age_minutes: int = Field(default=60, ge=5, le=10080)
+    dry_run:         bool = False
+
+
+@api_router.post("/admin/canary/cleanup")
+async def admin_canary_cleanup(
+    body: _CanaryCleanupBody,
+    user: User = Depends(require_admin),
+):
+    """Sweep canary throwaway accounts.
+
+    Admin-only.  Deletes users matching
+    ``shelfsort-canary-...@example.com`` whose ``created_at`` is
+    older than ``min_age_minutes`` (default 60).  Cascades to books,
+    sessions, reactions, and notifications.
+
+    Use ``dry_run=true`` to preview the match count + sample emails
+    without deleting.  Always idempotent.
+    """
+    summary = await sweep_canary_accounts(
+        min_age_minutes=body.min_age_minutes,
+        dry_run=body.dry_run,
+    )
+    if not body.dry_run and summary["deleted_users"] > 0:
+        try:
+            await record_admin_action(
+                actor_user_id=user.user_id,
+                action="canary_accounts_swept",
+                target_type="users",
+                target_id="",
+                details={
+                    "deleted_users":   summary["deleted_users"],
+                    "deleted_books":   summary["deleted_books"],
+                    "min_age_minutes": summary["min_age_minutes"],
+                },
+            )
+        except Exception as e:
+            logger.warning("canary cleanup: audit write failed: %s", e)
+    return summary
+
+
 
 # ----------------------------------------------------------------- #
 # Backfill: re-extract URLs (incl. reconstructed bare Storyids)     #

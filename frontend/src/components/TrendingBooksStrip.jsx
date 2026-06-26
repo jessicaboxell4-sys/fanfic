@@ -22,7 +22,18 @@ export default function TrendingBooksStrip({ limit = 8, days = 7 }) {
       try {
         const { data } = await api.get(`/books/trending?limit=${limit}&days=${days}`);
         if (alive) setItems(data?.trending || []);
-      } catch { /* silent — strip simply doesn't render */ }
+      } catch (err) {
+        // Strip is best-effort — render nothing on failure so the
+        // landing page doesn't show an empty state.  But warn on
+        // non-network errors (5xx, parsing) so a future regression
+        // surfaces in browser logs / Sentry breadcrumbs.  Network
+        // failures (offline, ERR_CONNECTION_REFUSED) are expected
+        // during dev and stay silent.
+        const status = err?.response?.status;
+        if (status && status >= 500) {
+          console.warn("TrendingBooksStrip: /books/trending failed", status, err?.response?.data);
+        }
+      }
       finally { if (alive) setLoading(false); }
     })();
     return () => { alive = false; };
