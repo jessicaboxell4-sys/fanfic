@@ -225,6 +225,14 @@ function PrivacyMessagingCard({ navigate }) {
   // privately, or share publicly without making the friends path
   // visible, so both toggles co-exist in the UI.
   const [publicLibraryVisible, setPublicLibraryVisible] = useState(false);
+  // Set after a successful togglePublicLibrary() on first opt-in;
+  // drives the "Your library is public!" share modal exactly once.
+  const [showFirstShareModal, setShowFirstShareModal] = useState(false);
+  // RSS subscription URL — lazy-fetched the first time the user opens
+  // the public-library panel.  Token comes from the server so the URL
+  // can be shared safely with feed readers.
+  const [rssToken, setRssToken] = useState("");
+  const [regeneratingRss, setRegeneratingRss] = useState(false);
   const [pendingIn, setPendingIn] = useState(0);
   const [saving, setSaving] = useState(false);
 
@@ -240,6 +248,12 @@ function PrivacyMessagingCard({ navigate }) {
     try {
       const { data } = await api.get("/account/public-library-visibility");
       setPublicLibraryVisible(!!data?.library_visible_to_public);
+    } catch { /* ignore */ }
+    // Lazy-fetch RSS token so the URL is ready the moment user
+    // toggles public ON and looks for the share details.
+    try {
+      const { data } = await api.get("/account/library-rss-token");
+      setRssToken(data?.rss_token || "");
     } catch { /* ignore */ }
     try {
       const { data } = await api.get("/friends/pending-count");
@@ -293,8 +307,33 @@ function PrivacyMessagingCard({ navigate }) {
       const { data } = await api.put("/account/public-library-visibility", { library_visible_to_public: !publicLibraryVisible });
       setPublicLibraryVisible(!!data?.library_visible_to_public);
       toast.success(data?.library_visible_to_public ? "Library is public" : "Library hidden from the public");
+      // Open the one-time share modal when this is the very first
+      // opt-in.  Backend sets show_first_share_modal=true exactly
+      // once per user (tracked via first_public_share_shown_at).
+      if (data?.show_first_share_modal) {
+        setShowFirstShareModal(true);
+      }
     } catch (e) { toast.error(errMsg(e?.response?.data?.detail)); }
     finally { setSaving(false); }
+  };
+
+  const regenerateRss = async () => {
+    setRegeneratingRss(true);
+    try {
+      const { data } = await api.post("/account/library-rss-token/regenerate");
+      setRssToken(data?.rss_token || "");
+      toast.success("Old RSS URL revoked — copy the new one below.");
+    } catch (e) { toast.error(errMsg(e?.response?.data?.detail)); }
+    finally { setRegeneratingRss(false); }
+  };
+
+  const copyRssUrl = async (url) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("RSS URL copied");
+    } catch {
+      toast.error("Couldn't copy — long-press the URL to copy manually.");
+    }
   };
 
   return (
@@ -410,6 +449,52 @@ function PrivacyMessagingCard({ navigate }) {
                 </Link>
               </p>
             )}
+            {/* RSS panel — only renders when public AND we have a
+                handle + a token.  Lets power-users subscribe in their
+                RSS reader of choice; tokenized URL works without
+                Shelfsort sign-in (the documented exception to the
+                2026-06-26 auth-required policy). */}
+            {publicLibraryVisible && (user?.username || "").trim() && rssToken && (() => {
+              const rssUrl = `${process.env.REACT_APP_BACKEND_URL}/api/feeds/library/${user.username}.rss?token=${rssToken}`;
+              return (
+                <div
+                  className="mt-3 p-3 rounded-lg bg-[#FBFAF6] border border-[#E5DDC5] space-y-2"
+                  data-testid="privacy-rss-panel"
+                >
+                  <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#6B705C]">
+                    RSS subscription URL
+                  </p>
+                  <code
+                    className="block text-[10px] text-[#2C2C2C] bg-white border border-[#E8E6E1] rounded px-2 py-1.5 break-all"
+                    data-testid="privacy-rss-url"
+                  >
+                    {rssUrl}
+                  </code>
+                  <div className="flex items-center flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => copyRssUrl(rssUrl)}
+                      data-testid="privacy-rss-copy-btn"
+                      className="text-xs px-2.5 py-1 rounded-full bg-[#6B46C1] text-white hover:bg-[#553397] font-semibold"
+                    >
+                      Copy URL
+                    </button>
+                    <button
+                      type="button"
+                      onClick={regenerateRss}
+                      disabled={regeneratingRss}
+                      data-testid="privacy-rss-regen-btn"
+                      className="text-xs px-2.5 py-1 rounded-full bg-[#F5F3EC] text-[#6B705C] hover:bg-[#E8E2D4] disabled:opacity-60"
+                    >
+                      {regeneratingRss ? "Regenerating…" : "Regenerate (invalidate old)"}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-[#6B705C]">
+                    Anyone with this URL can subscribe — keep it private if you don&apos;t want it indexed.
+                  </p>
+                </div>
+              );
+            })()}
           </div>
           <button
             type="button"
@@ -467,6 +552,96 @@ function PrivacyMessagingCard({ navigate }) {
           <span className="text-[10px] text-[#6B705C]">read a book with friends</span>
         </button>
       </div>
+
+      {/* First-time share modal — opens automatically the first time
+          a user flips library public.  Backend stamps
+          first_public_share_shown_at after the response so it never
+          re-fires for the same account (even across devices). */}
+      {showFirstShareModal && (user?.username || "").trim() && (() => {
+        const libUrl = `${window.location.origin}/u/${user.username}/library`;
+        const shareText = encodeURIComponent(`Just made my Shelfsort library public — come browse what I'm reading on Shelfsort! ${libUrl}`);
+        const fbUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(libUrl)}`;
+        const twUrl = `https://twitter.com/intent/tweet?text=${shareText}`;
+        const closeModal = () => setShowFirstShareModal(false);
+        const copyLibUrl = async () => {
+          try {
+            await navigator.clipboard.writeText(libUrl);
+            toast.success("Link copied");
+          } catch {
+            toast.error("Couldn't copy — long-press the URL.");
+          }
+        };
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+            onClick={closeModal}
+            data-testid="first-share-modal-backdrop"
+          >
+            <div
+              className="bg-[#FBF7EE] rounded-2xl shadow-2xl border border-[#E5DDC5] w-full max-w-md"
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="first-share-modal-title"
+              data-testid="first-share-modal"
+            >
+              <div className="p-6">
+                <h3 id="first-share-modal-title" className="font-serif text-xl text-[#2C2C2C] mb-1">
+                  🎉 Your library is public!
+                </h3>
+                <p className="text-sm text-[#6B705C]">
+                  Anyone with the link below can sign in and browse your shelves.
+                  Want to tell people?
+                </p>
+                <code
+                  className="block text-[10px] text-[#2C2C2C] bg-white border border-[#E8E6E1] rounded px-2 py-1.5 break-all mt-3"
+                  data-testid="first-share-modal-url"
+                >
+                  {libUrl}
+                </code>
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  <a
+                    href={fbUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-testid="first-share-modal-fb-btn"
+                    className="text-center text-xs font-semibold py-2 rounded-full bg-[#1877F2] text-white hover:opacity-90"
+                  >
+                    Facebook
+                  </a>
+                  <a
+                    href={twUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-testid="first-share-modal-tw-btn"
+                    className="text-center text-xs font-semibold py-2 rounded-full bg-[#0F1419] text-white hover:opacity-90"
+                  >
+                    X / Twitter
+                  </a>
+                  <button
+                    type="button"
+                    onClick={copyLibUrl}
+                    data-testid="first-share-modal-copy-btn"
+                    className="text-xs font-semibold py-2 rounded-full bg-[#6B46C1] text-white hover:bg-[#553397]"
+                  >
+                    Copy link
+                  </button>
+                </div>
+                <div className="mt-4 flex items-center justify-end">
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    data-testid="first-share-modal-close-btn"
+                    className="text-xs text-[#6B705C] hover:text-[#2C2C2C] px-3 py-1.5"
+                  >
+                    Maybe later
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </section>
   );
 }
@@ -1253,6 +1428,8 @@ function SendToKindleCard() {
           </details>
         </>
       )}
+
+      {/* First-time share modal moved to PrivacyMessagingCard scope */}
     </section>
   );
 }
@@ -1266,6 +1443,11 @@ export default function Account() {
   const [profile, setProfile] = useState(null);
   const [name, setName] = useState("");
   const [savingName, setSavingName] = useState(false);
+  // Bio textarea (2026-06-26 evening).  Capped at 280 chars (tweet
+  // length).  Surfaces on /u/<handle> and /u/<handle>/library; the
+  // sign-in gate also renders it as a flavour line when present.
+  const [bio, setBio] = useState("");
+  const [savingBio, setSavingBio] = useState(false);
 
   const [currentPw, setCurrentPw] = useState("");
   const [newPw, setNewPw] = useState("");
@@ -1308,6 +1490,7 @@ export default function Account() {
         const { data } = await api.get("/auth/profile");
         setProfile(data);
         setName(data.name || "");
+        setBio(data.bio || "");
       } catch (e) {
         toast.error("Couldn't load your profile");
         navigate("/login");
@@ -1478,6 +1661,24 @@ export default function Account() {
       toast.error(errMsg(e?.response?.data?.detail));
     } finally {
       setSavingName(false);
+    }
+  };
+
+  const saveBio = async (e) => {
+    e.preventDefault();
+    const trimmed = (bio || "").trim();
+    if (trimmed === (profile?.bio || "").trim()) return; // no change
+    setSavingBio(true);
+    try {
+      const { data } = await api.put("/account/bio", { bio: trimmed });
+      toast.success(trimmed ? "Bio updated" : "Bio cleared");
+      setProfile((p) => ({ ...p, bio: data?.bio || "" }));
+      // Mirror to auth context if it carries bio (added 2026-06-26 evening).
+      setUser((u) => (u ? { ...u, bio: data?.bio || "" } : u));
+    } catch (e) {
+      toast.error(errMsg(e?.response?.data?.detail));
+    } finally {
+      setSavingBio(false);
     }
   };
 
@@ -1657,6 +1858,39 @@ export default function Account() {
               {savingName && <Loader2 className="w-4 h-4 animate-spin" />}
               Save name
             </button>
+          </form>
+
+          {/* Bio (about) — 2026-06-26 evening.  Surfaces on /u/<handle>,
+              /u/<handle>/library, and the sign-in gate.  Capped at 280
+              chars to keep it scannable. */}
+          <form onSubmit={saveBio} className="space-y-2 mt-5 pt-5 border-t border-[#E8E6E1]">
+            <label htmlFor="profile-bio-input" className="block text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C]">
+              Bio
+            </label>
+            <textarea
+              id="profile-bio-input"
+              data-testid="profile-bio-input"
+              value={bio}
+              maxLength={280}
+              onChange={(e) => setBio(e.target.value.slice(0, 280))}
+              rows={2}
+              placeholder="A short line about you — what you read, vibe, anything."
+              className="w-full bg-white border border-[#E8E6E1] rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#E07A5F] focus:ring-2 focus:ring-[#E07A5F]/20 resize-none"
+            />
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] text-[#6B705C]">
+                {bio.length}/280 — shown publicly on your library + cover profile.
+              </span>
+              <button
+                type="submit"
+                data-testid="save-bio-btn"
+                disabled={savingBio || (bio || "").trim() === (profile.bio || "").trim()}
+                className="btn-primary text-sm flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {savingBio && <Loader2 className="w-4 h-4 animate-spin" />}
+                Save bio
+              </button>
+            </div>
           </form>
         </section>
 

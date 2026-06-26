@@ -166,6 +166,11 @@ async def auth_me(user: User = Depends(get_current_user_any_status)):
         "approval_status": user.approval_status or "approved",
         "approval_rejected_reason": user.approval_rejected_reason,
         "scheduled_deletion_at": user.scheduled_deletion_at.isoformat() if user.scheduled_deletion_at else None,
+        # Profile depth + library sharing fields (2026-06-26 evening).
+        # bio is the short "about" line; rss_token gates the library
+        # RSS feed (we never include it in any public response).
+        "bio": user.bio or "",
+        "rss_token": user.rss_token or "",
     }
 
 
@@ -615,6 +620,9 @@ async def get_profile(user: User = Depends(get_current_user)):
         "has_password": bool(record.get("password_hash")),
         "is_admin": bool(record.get("is_admin", False)),
         "created_at": record.get("created_at"),
+        # Surface bio so Account → Profile can render the textarea
+        # pre-populated.  Returned as empty string when null/missing.
+        "bio": (record.get("bio") or "").strip(),
     }
 
 

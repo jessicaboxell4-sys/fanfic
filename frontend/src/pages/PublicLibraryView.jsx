@@ -29,6 +29,11 @@ export default function PublicLibraryView() {
   // login-prompt card instead of the generic "library not found"
   // card, with a return-to-this-page redirect baked into the CTA.
   const [needsLogin, setNeedsLogin] = useState(false);
+  // Preview data shown on the 401 gate ("@alice has 247 books") —
+  // pulled from the anon library-preview endpoint when needsLogin
+  // is set.  Optional; absent on rate-limit/network failure so the
+  // gate still works without it.
+  const [previewData, setPreviewData] = useState(null);
   const [q, setQ] = useState("");
   const [fandomFilter, setFandomFilter] = useState("");
 
@@ -50,6 +55,14 @@ export default function PublicLibraryView() {
           if (e?.response?.status === 401) {
             setNeedsLogin(true);
             document.title = `Sign in to view this library · Shelfsort`;
+            // Best-effort preview fetch — the anon library-preview
+            // endpoint returns enough to make the gate compelling
+            // ("@alice has 247 books — top fandom: Harry Potter").
+            // 404 here is silently ignored so the gate still works.
+            try {
+              const { data: pv } = await api.get(`/users/${username}/library-preview`);
+              if (alive) setPreviewData(pv);
+            } catch { /* preview is optional */ }
           } else {
             setNotFound(true);
             document.title = `Library not found · Shelfsort`;
@@ -94,6 +107,7 @@ export default function PublicLibraryView() {
     // Reach the same library after sign-in via ?next=/u/<handle>/library.
     // /login reads the param and redirects there on success.
     const next = encodeURIComponent(location.pathname + (location.search || ""));
+    const pv = previewData;
     return (
       <div className="min-h-screen bg-paper">
         <Navbar />
@@ -102,15 +116,63 @@ export default function PublicLibraryView() {
             className="shelf-card p-10 text-center"
             data-testid="public-library-needs-login"
           >
-            <Library className="w-10 h-10 mx-auto mb-4 text-[#6B46C1] opacity-80" />
-            <h1 className="font-serif text-2xl text-[#2C2C2C] mb-2">
-              Sign in to read libraries
-            </h1>
-            <p className="text-sm text-[#6B705C] mb-6">
-              Shelfsort libraries are for members only. Sign in or create a
-              free account to browse @{username}&rsquo;s shelves and see books
-              you have in common.
-            </p>
+            {pv ? (
+              <>
+                {/* Owner preview pulled from the anon library-preview
+                    endpoint — converts "sign in" from a generic prompt
+                    into "here's exactly what you're about to see". */}
+                <div className="mb-4 flex flex-col items-center gap-2" data-testid="public-library-gate-preview">
+                  {pv.picture ? (
+                    <img
+                      src={pv.picture}
+                      alt={`@${pv.username}`}
+                      className="w-16 h-16 rounded-full ring-2 ring-[#EEE9FB]"
+                    />
+                  ) : (
+                    <div className="w-16 h-16 rounded-full bg-[#EEE9FB] text-[#6B46C1] flex items-center justify-center font-serif text-2xl ring-2 ring-[#EEE9FB]">
+                      {(pv.username || "?").slice(0, 1).toUpperCase()}
+                    </div>
+                  )}
+                  <p className="text-sm text-[#6B705C]">
+                    <span className="font-semibold text-[#2C2C2C]">@{pv.username}</span>{" "}
+                    has
+                    <span className="font-semibold text-[#2C2C2C]" data-testid="public-library-gate-book-count"> {pv.total_books} </span>
+                    {pv.total_books === 1 ? "book" : "books"}
+                    {pv.top_fandom ? (
+                      <> across <span className="font-semibold text-[#2C2C2C]" data-testid="public-library-gate-top-fandom">{pv.top_fandom}</span></>
+                    ) : null}
+                    {pv.top_fandom && pv.fandom_count > 1 ? (
+                      <> +{pv.fandom_count - 1} more</>
+                    ) : null}
+                    .
+                  </p>
+                  {pv.bio ? (
+                    <p className="text-xs text-[#6B705C] italic max-w-sm" data-testid="public-library-gate-bio">
+                      &ldquo;{pv.bio}&rdquo;
+                    </p>
+                  ) : null}
+                </div>
+                <h1 className="font-serif text-2xl text-[#2C2C2C] mb-2">
+                  Sign in to see what they&rsquo;re reading
+                </h1>
+                <p className="text-sm text-[#6B705C] mb-6">
+                  Free account, 30 seconds — and you get your own
+                  Shelfsort library out of the deal.
+                </p>
+              </>
+            ) : (
+              <>
+                <Library className="w-10 h-10 mx-auto mb-4 text-[#6B46C1] opacity-80" />
+                <h1 className="font-serif text-2xl text-[#2C2C2C] mb-2">
+                  Sign in to read libraries
+                </h1>
+                <p className="text-sm text-[#6B705C] mb-6">
+                  Shelfsort libraries are for members only. Sign in or create a
+                  free account to browse @{username}&rsquo;s shelves and see books
+                  you have in common.
+                </p>
+              </>
+            )}
             <div className="flex items-center justify-center gap-2">
               <Link
                 to={`/login?next=${next}`}
@@ -185,6 +247,14 @@ export default function PublicLibraryView() {
           >
             @{owner.username}&rsquo;s shelves.
           </h1>
+          {owner.bio && (
+            <p
+              className="text-sm text-[#6B705C] italic mt-2 max-w-xl"
+              data-testid="public-library-owner-bio"
+            >
+              &ldquo;{owner.bio}&rdquo;
+            </p>
+          )}
           <p className="text-[#6B705C] mt-3 text-base sm:text-lg flex items-center flex-wrap gap-x-3 gap-y-1">
             <span>
               <span className="font-semibold text-[#2C2C2C]" data-testid="public-library-total-books">

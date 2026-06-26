@@ -819,7 +819,7 @@ async def public_cover_profile(
     target = await db.users.find_one(
         {"username": username},
         {
-            "_id": 0, "user_id": 1, "username": 1, "name": 1,
+            "_id": 0, "user_id": 1, "username": 1, "name": 1, "bio": 1,
             "cover_achievements": 1, "picture": 1, "created_at": 1,
         },
     )
@@ -862,6 +862,7 @@ async def public_cover_profile(
         "username":       target.get("username"),
         "display_name":   target.get("name") or target.get("username"),
         "picture":        target.get("picture", ""),
+        "bio":            (target.get("bio") or "").strip(),
         "joined_at":      target.get("created_at"),
         "covers":         covers,
         "achievements":   achievements,

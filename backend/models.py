@@ -31,6 +31,19 @@ class User(BaseModel):
     approval_status: str = "approved"  # "approved" | "pending" | "rejected"
     approval_rejected_reason: Optional[str] = None
     scheduled_deletion_at: Optional[datetime] = None
+    # Short user-supplied "about" line surfaced on /u/<handle> and
+    # /u/<handle>/library (2026-06-26 evening).  Hard-capped at 280
+    # chars frontend + backend; never required.
+    bio: Optional[str] = None
+    # Per-user unguessable token for the library RSS feed
+    # (2026-06-26 evening).  Lazily generated the first time the user
+    # opens Account → Privacy or hits the regenerate button.  Stored
+    # only on the user doc, never logged.
+    rss_token: Optional[str] = None
+    # Stamps the FIRST time a user flipped their library public so we
+    # can show the one-time "Your library is public — share it!" modal.
+    # If null when they flip ON, the modal is shown then this is set.
+    first_public_share_shown_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 

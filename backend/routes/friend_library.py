@@ -7,11 +7,13 @@ title + author) so it works even when only one side has opted in (the
 other side's titles aren't exposed in the response).
 """
 import re
+import secrets
 import uuid
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 
 from fastapi import Depends, HTTPException
+from fastapi.responses import Response as FastResponse
 from pydantic import BaseModel, Field
 
 from deps import db, api_router, logger
@@ -250,11 +252,206 @@ async def get_public_library_visibility(user: User = Depends(get_current_user)):
 async def set_public_library_visibility(
     body: PublicLibraryVisibilityBody, user: User = Depends(get_current_user),
 ):
-    await db.users.update_one(
+    # Detect "first time turning ON" so the frontend can surface the
+    # one-time "Your library is public — share it!" modal.  We use a
+    # timestamp field on the user doc (not localStorage) so the modal
+    # also shows up on a second device after the first opt-in.
+    new_val = bool(body.library_visible_to_public)
+    doc = await db.users.find_one(
         {"user_id": user.user_id},
-        {"$set": {"library_visible_to_public": bool(body.library_visible_to_public)}},
+        {"_id": 0, "library_visible_to_public": 1, "first_public_share_shown_at": 1},
+    ) or {}
+    was_already_on = bool(doc.get("library_visible_to_public", False))
+    first_time = (
+        new_val
+        and not was_already_on
+        and not doc.get("first_public_share_shown_at")
     )
-    return {"library_visible_to_public": bool(body.library_visible_to_public)}
+    update: Dict[str, Any] = {"library_visible_to_public": new_val}
+    if first_time:
+        update["first_public_share_shown_at"] = datetime.now(timezone.utc)
+    await db.users.update_one({"user_id": user.user_id}, {"$set": update})
+    return {
+        "library_visible_to_public": new_val,
+        # Frontend uses this flag to open the share modal exactly once.
+        "show_first_share_modal": first_time,
+    }
+
+
+# -----------------------------------------------------------------------
+# Anonymous "library preview" used by the sign-in gate (Task 10 follow-up
+# to the 2026-06-26 auth-required policy).  Deliberately leaks the same
+# minimal data the OG share endpoint leaks (count + top fandom) so the
+# 401 gate can render "@alice has 247 books — sign in to see what they're
+# reading" and convert curious anon visitors.  404 invariants preserved.
+# -----------------------------------------------------------------------
+@api_router.get("/users/{username}/library-preview")
+async def library_preview(username: str):
+    uname = (username or "").strip().lstrip("@").lower()
+    if not uname or len(uname) > 64:
+        raise HTTPException(status_code=404, detail="Not found")
+    owner = await db.users.find_one(
+        {"username": uname},
+        {"_id": 0, "user_id": 1, "username": 1, "name": 1, "picture": 1,
+         "bio": 1, "library_visible_to_public": 1, "approval_status": 1},
+    )
+    if (not owner
+            or not owner.get("library_visible_to_public")
+            or owner.get("approval_status") not in (None, "approved")):
+        raise HTTPException(status_code=404, detail="Not found")
+    books = await db.books.find(
+        {"user_id": owner["user_id"], "av_status": {"$ne": "infected"}},
+        {"_id": 0, "fandom": 1},
+    ).limit(500).to_list(length=500)
+    total = len(books)
+    fandom_counts: Dict[str, int] = {}
+    for b in books:
+        f = (b.get("fandom") or "").strip()
+        if f:
+            fandom_counts[f] = fandom_counts.get(f, 0) + 1
+    top_fandom = (
+        max(fandom_counts.items(), key=lambda kv: kv[1])[0]
+        if fandom_counts else ""
+    )
+    return {
+        "username": owner.get("username") or "",
+        "display_name": owner.get("name") or owner.get("username") or "",
+        "picture": owner.get("picture") or "",
+        "bio": (owner.get("bio") or "").strip(),
+        "total_books": total,
+        "top_fandom": top_fandom,
+        "fandom_count": len(fandom_counts),
+    }
+
+
+# -----------------------------------------------------------------------
+# Bio field — short "about" line on the user profile.  Surfaces on
+# /u/<handle>, /u/<handle>/library, and the library-preview endpoint.
+# 280-char cap mirrors a tweet; never required.
+# -----------------------------------------------------------------------
+class BioBody(BaseModel):
+    bio: str = Field(default="", max_length=280)
+
+
+@api_router.put("/account/bio")
+async def set_bio(body: BioBody, user: User = Depends(get_current_user)):
+    val = (body.bio or "").strip()
+    await db.users.update_one(
+        {"user_id": user.user_id}, {"$set": {"bio": val}},
+    )
+    return {"bio": val}
+
+
+# -----------------------------------------------------------------------
+# RSS feed for an opted-in user's library.  Token-gated so RSS readers
+# can subscribe (they can't carry session cookies) without breaking the
+# 2026-06-26 auth-required policy for browser visitors.
+# -----------------------------------------------------------------------
+def _xml_escape(s: str) -> str:
+    return (
+        (s or "")
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+        .replace("'", "&apos;")
+    )
+
+
+@api_router.get("/account/library-rss-token")
+async def get_library_rss_token(user: User = Depends(get_current_user)):
+    """Return (and lazy-create) the user's library RSS token.  The
+    frontend uses this to render the copyable URL on Account → Privacy.
+    """
+    doc = await db.users.find_one(
+        {"user_id": user.user_id}, {"_id": 0, "rss_token": 1},
+    ) or {}
+    token = doc.get("rss_token") or ""
+    if not token:
+        token = secrets.token_urlsafe(24)
+        await db.users.update_one(
+            {"user_id": user.user_id}, {"$set": {"rss_token": token}},
+        )
+    return {"rss_token": token}
+
+
+@api_router.post("/account/library-rss-token/regenerate")
+async def regenerate_library_rss_token(user: User = Depends(get_current_user)):
+    """Invalidate the existing RSS URL and issue a new token."""
+    token = secrets.token_urlsafe(24)
+    await db.users.update_one(
+        {"user_id": user.user_id}, {"$set": {"rss_token": token}},
+    )
+    return {"rss_token": token}
+
+
+@api_router.get("/feeds/library/{username}.rss")
+async def library_rss_feed(username: str, token: str = ""):
+    """RSS feed of an opted-in user's library.  Token query param must
+    match the user's ``rss_token``; otherwise 404 (same code as
+    not-opted-in / nonexistent to keep handle-enumeration impossible).
+    """
+    uname = (username or "").strip().lstrip("@").lower()
+    if not uname or not token:
+        raise HTTPException(status_code=404, detail="Not found")
+    owner = await db.users.find_one(
+        {"username": uname},
+        {"_id": 0, "user_id": 1, "username": 1, "name": 1,
+         "library_visible_to_public": 1, "rss_token": 1, "approval_status": 1},
+    )
+    if (not owner
+            or not owner.get("library_visible_to_public")
+            or owner.get("approval_status") not in (None, "approved")
+            or not owner.get("rss_token")
+            or not secrets.compare_digest(token, owner["rss_token"])):
+        raise HTTPException(status_code=404, detail="Not found")
+
+    base = "https://shelfsort.com"
+    handle = owner.get("username") or uname
+    display = owner.get("name") or handle
+    cursor = (
+        db.books.find(
+            {"user_id": owner["user_id"], "av_status": {"$ne": "infected"}},
+            {"_id": 0, "book_id": 1, "title": 1, "author": 1, "fandom": 1,
+             "category": 1, "created_at": 1},
+        ).sort("created_at", -1).limit(50)
+    )
+    items_xml = []
+    async for b in cursor:
+        title = b.get("title") or "Untitled"
+        author = b.get("author") or ""
+        fandom = b.get("fandom") or ""
+        created = b.get("created_at")
+        if isinstance(created, datetime):
+            pub_date = created.replace(tzinfo=timezone.utc).isoformat()
+        else:
+            pub_date = str(created or "")
+        item_title = f"{title}" + (f" — {author}" if author else "")
+        item_desc = (
+            f"{author or 'Unknown author'}"
+            + (f" · {fandom}" if fandom else "")
+            + (f" · {b.get('category')}" if b.get("category") else "")
+        )
+        items_xml.append(
+            "  <item>\n"
+            f"    <title>{_xml_escape(item_title)}</title>\n"
+            f"    <link>{_xml_escape(f'{base}/u/{handle}/library')}</link>\n"
+            f"    <guid isPermaLink=\"false\">{_xml_escape(b.get('book_id') or '')}</guid>\n"
+            f"    <description>{_xml_escape(item_desc)}</description>\n"
+            f"    <pubDate>{_xml_escape(pub_date)}</pubDate>\n"
+            "  </item>\n"
+        )
+    rss = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<rss version="2.0">\n'
+        '<channel>\n'
+        f"  <title>{_xml_escape(f'{display} on Shelfsort')}</title>\n"
+        f"  <link>{_xml_escape(f'{base}/u/{handle}/library')}</link>\n"
+        f"  <description>{_xml_escape(f'Latest additions to @{handle} library on Shelfsort.')}</description>\n"
+        f"{''.join(items_xml)}"
+        "</channel>\n</rss>\n"
+    )
+    return FastResponse(content=rss, media_type="application/rss+xml")
 
 
 @api_router.get("/users/{username}/public-library")
@@ -287,7 +484,7 @@ async def public_library(
         raise HTTPException(status_code=404, detail="Library not found")
     owner = await db.users.find_one(
         {"username": uname},
-        {"_id": 0, "user_id": 1, "username": 1, "name": 1,
+        {"_id": 0, "user_id": 1, "username": 1, "name": 1, "bio": 1,
          "library_visible_to_public": 1, "hidden_from_search": 1, "approval_status": 1,
          "created_at": 1, "picture": 1},
     )
@@ -358,6 +555,7 @@ async def public_library(
             "display_name": owner.get("name") or owner.get("username") or "",
             "joined_at": owner.get("created_at"),
             "picture": owner.get("picture") or "",
+            "bio": (owner.get("bio") or "").strip(),
         },
         "books": books,
         "total_returned": len(books),

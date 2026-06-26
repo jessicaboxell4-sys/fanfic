@@ -140,6 +140,14 @@ export default function PublicCoverProfile() {
           {profile.display_name && profile.display_name !== profile.username && (
             <p className="text-lg text-[#6B705C] mt-1">{profile.display_name}</p>
           )}
+          {profile.bio && (
+            <p
+              className="text-sm text-[#6B705C] italic mt-3 max-w-xl"
+              data-testid="profile-bio"
+            >
+              &ldquo;{profile.bio}&rdquo;
+            </p>
+          )}
           <div className="flex flex-wrap items-center gap-5 mt-5 text-sm text-[#2C2C2C]">
             <span data-testid="profile-total-shared">
               <strong>{profile.totals?.shared || 0}</strong>{" "}
