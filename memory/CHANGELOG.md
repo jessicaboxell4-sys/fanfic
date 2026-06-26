@@ -7,6 +7,49 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 (evening, part 2) — Composable library filter chips 🎚️
+
+User said yes to the word-count filter chips suggestion, plus
+asked for "both" on the reading-time display (so word count AND
+time estimate visible).  Shipped three-row filter strip + dual
+labels on the list view.
+
+### Three-dimension chip strip (Length · Status · Added)
+- New persistent filter strip above the existing category/shelf
+  chips on `/library/all`.  Three rows, AND-composing, with a live
+  match-count + "Clear filters" link when anything is active.
+  Buckets:
+    * **📚 Length**: All · Quick (<2hr · <30k) · Afternoon (2-5hr ·
+      30-80k) · Weekend (5-10hr · 80-160k) · Tome (10hr+ · 160k+)
+    * **📖 Status**: All · Unread · In progress · Finished
+    * **📆 Added**: Any time · This week · This month · Older
+- Pure frontend filtering on the loaded `books` array — composes
+  with the existing backend filters (category, shelf, search, smart)
+  without changing them.
+- Persisted to `localStorage.shelfsort_chip_filters` so a returning
+  user keeps their last selection.
+- Time buckets derived from word count using a 270 wpm average
+  (industry-standard adult reading speed).
+
+### List view: dual time + word-count column
+- The "Words" column in List mode now shows BOTH the time estimate
+  (top, e.g. "5.1h") AND the word count (below in lighter color,
+  e.g. "85k").  Column widened from w-14 → w-20 and the header
+  relabeled "Time · Words".  Hover tooltip shows the full
+  computation: "85000 words · ~5.1h read at 270 wpm".
+
+### data-testids
+- `library-chip-filters`, `library-chip-filter-count`
+- `chip-length-{value}`, `chip-status-{value}`, `chip-dateAdded-{value}`
+- `chip-clear-all`
+
+### Smoke
+- Playwright-verified the strip renders for a user with 4 seeded
+  books (varying lengths, statuses, ages).  Applying
+  Length=Quick + Status=Unread correctly narrows the result to
+  1 of 4 matching books (the only 5k-word unread row).
+
+---
 ## 2026-06-27 (evening) — Library view modes: Grid + Compact + List 🪟
 
 User asked: "the library page...how about a way to make the books

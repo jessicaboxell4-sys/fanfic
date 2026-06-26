@@ -60,6 +60,30 @@ export default function AllBooksPage() {
   const [refreshingAll, setRefreshingAll] = useState(false);
   const [recentBooks, setRecentBooks] = useState([]);
   const [smart, setSmart] = useState(null); // null | "reading" | "finished"
+
+  // Iter 61 — composable filter chips (length / status / date added).
+  // Pure frontend — these chip selections AND-combine on the loaded
+  // `books` array.  Distinct from `smart` (which is a backend
+  // query-param fast-path); the chip strip composes freely so a user
+  // can ask for "Quick + Unread + This week" in one click.
+  // Persisted to localStorage so the chip state survives refreshes.
+  const [chipFilters, setChipFilters] = useState(() => {
+    try {
+      const raw = window.localStorage.getItem("shelfsort_chip_filters");
+      if (raw) return JSON.parse(raw);
+    } catch { /* ignore */ }
+    return { length: "all", status: "all", dateAdded: "any" };
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem("shelfsort_chip_filters", JSON.stringify(chipFilters)); }
+    catch { /* ignore */ }
+  }, [chipFilters]);
+  const setChip = (dim, value) => setChipFilters((f) => ({ ...f, [dim]: value }));
+  const clearChipFilters = () => setChipFilters({ length: "all", status: "all", dateAdded: "any" });
+  const chipFiltersActive =
+    chipFilters.length !== "all" ||
+    chipFilters.status !== "all" ||
+    chipFilters.dateAdded !== "any";
   const [overview, setOverview] = useState(null);
   const [seriesList, setSeriesList] = useState([]);
   const [fandomQuery, setFandomQuery] = useState("");
@@ -287,9 +311,48 @@ export default function AllBooksPage() {
     return ids.length > 0 ? new Set(ids) : null;
   }, [searchParams]);
   const visibleBooks = React.useMemo(() => {
-    if (!justAddedIds) return books;
-    return books.filter((b) => justAddedIds.has(b.book_id));
-  }, [books, justAddedIds]);
+    let pool = books;
+    if (justAddedIds) pool = pool.filter((b) => justAddedIds.has(b.book_id));
+
+    // Chip filters (iter 61) — Length / Status / Added.  Compose
+    // freely; each dimension applies independently.
+    if (chipFilters.length !== "all") {
+      pool = pool.filter((b) => {
+        const w = b.word_count || 0;
+        if (chipFilters.length === "quick")     return w > 0 && w < 30000;
+        if (chipFilters.length === "afternoon") return w >= 30000 && w < 80000;
+        if (chipFilters.length === "weekend")   return w >= 80000 && w < 160000;
+        if (chipFilters.length === "tome")      return w >= 160000;
+        return true;
+      });
+    }
+    if (chipFilters.status !== "all") {
+      pool = pool.filter((b) => {
+        const p = b.progress_fraction;
+        if (chipFilters.status === "unread")     return !p || p < 0.001;
+        if (chipFilters.status === "in_progress") return p > 0.001 && p < 0.99;
+        if (chipFilters.status === "finished")   return p >= 0.99;
+        return true;
+      });
+    }
+    if (chipFilters.dateAdded !== "any") {
+      const now = Date.now();
+      const WEEK = 7 * 24 * 60 * 60 * 1000;
+      const MONTH = 30 * 24 * 60 * 60 * 1000;
+      pool = pool.filter((b) => {
+        const raw = b.created_at || b.date_added;
+        if (!raw) return chipFilters.dateAdded === "older"; // missing date counts as old
+        const ts = new Date(raw).getTime();
+        if (isNaN(ts)) return chipFilters.dateAdded === "older";
+        const age = now - ts;
+        if (chipFilters.dateAdded === "week")  return age <= WEEK;
+        if (chipFilters.dateAdded === "month") return age <= MONTH;
+        if (chipFilters.dateAdded === "older") return age >  MONTH;
+        return true;
+      });
+    }
+    return pool;
+  }, [books, justAddedIds, chipFilters]);
 
   // Poll the conversion-status endpoint while uploads with heavy formats
   // (PDF, MOBI etc.) are running — Calibre conversion can take 30+ seconds.
@@ -833,6 +896,88 @@ export default function AllBooksPage() {
               </div>
             </div>
 
+            {/* Composable filter chips (iter 61) — Length × Status ×
+                Date Added.  Three rows; pick one chip per row; AND-
+                combine.  Hidden if the user has zero books. */}
+            {books.length > 0 && (
+              <div
+                className="mb-4 p-3 rounded-xl bg-[#FAF6EE] border border-[#E8E6E1] flex flex-col gap-2 text-sm"
+                data-testid="library-chip-filters"
+              >
+                {[
+                  {
+                    dim: "length",
+                    label: "📚 Length",
+                    options: [
+                      { value: "all",       label: "All" },
+                      { value: "quick",     label: "Quick · <2hr · <30k" },
+                      { value: "afternoon", label: "Afternoon · 2-5hr · 30-80k" },
+                      { value: "weekend",   label: "Weekend · 5-10hr · 80-160k" },
+                      { value: "tome",      label: "Tome · 10hr+ · 160k+" },
+                    ],
+                  },
+                  {
+                    dim: "status",
+                    label: "📖 Status",
+                    options: [
+                      { value: "all",         label: "All" },
+                      { value: "unread",      label: "Unread" },
+                      { value: "in_progress", label: "In progress" },
+                      { value: "finished",    label: "Finished" },
+                    ],
+                  },
+                  {
+                    dim: "dateAdded",
+                    label: "📆 Added",
+                    options: [
+                      { value: "any",   label: "Any time" },
+                      { value: "week",  label: "This week" },
+                      { value: "month", label: "This month" },
+                      { value: "older", label: "Older" },
+                    ],
+                  },
+                ].map((row) => (
+                  <div key={row.dim} className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-semibold text-[#6B705C] w-20 shrink-0">{row.label}</span>
+                    {row.options.map((opt) => {
+                      const active = chipFilters[row.dim] === opt.value;
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setChip(row.dim, opt.value)}
+                          data-testid={`chip-${row.dim}-${opt.value}`}
+                          aria-pressed={active}
+                          className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                            active
+                              ? "bg-[#6B46C1] text-white border-[#6B46C1]"
+                              : "bg-white text-[#6B705C] border-[#E8E6E1] hover:bg-[#F5F3EC]"
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))}
+                {chipFiltersActive && (
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-xs text-[#A09A8B]" data-testid="library-chip-filter-count">
+                      {visibleBooks.length} of {books.length} books match
+                    </span>
+                    <button
+                      type="button"
+                      onClick={clearChipFilters}
+                      data-testid="chip-clear-all"
+                      className="text-xs font-semibold text-[#6B46C1] hover:text-[#553397] underline"
+                    >
+                      Clear filters
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="flex flex-wrap gap-2 mb-3">
               {DEFAULT_CATEGORIES.map(c => (
                 <button
@@ -1371,13 +1516,21 @@ export default function AllBooksPage() {
                   <span className="flex-1 min-w-0">Title / Author</span>
                   <span className="w-32 shrink-0 truncate">Fandom</span>
                   <span className="w-28 shrink-0 truncate hidden lg:inline">Pairings</span>
-                  <span className="w-14 shrink-0 text-right tabular-nums hidden lg:inline">Words</span>
+                  <span className="w-20 shrink-0 text-right tabular-nums hidden lg:inline">Time · Words</span>
                   <span className="w-14 shrink-0 text-center">Status</span>
                   <span className="w-16 shrink-0 text-right hidden xl:inline">Added</span>
                 </div>
                 <ul className="divide-y divide-[#E8E6E1]">
                   {visibleBooks.map(b => {
                     const wordsK = b.word_count ? (b.word_count >= 1000 ? `${Math.round(b.word_count / 1000)}k` : String(b.word_count)) : "";
+                    // Iter 61 — also surface a reading-time estimate
+                    // (270 wpm avg).  Shown next to the word count so
+                    // readers who think in time see both.
+                    const readingHours = b.word_count ? b.word_count / 16200 : 0;
+                    const timeLabel = !b.word_count ? "" :
+                      readingHours < 1   ? `${Math.round(readingHours * 60)}m` :
+                      readingHours < 10  ? `${readingHours.toFixed(1)}h` :
+                                            `${Math.round(readingHours)}h`;
                     const addedRel = (() => {
                       const raw = b.created_at || b.date_added;
                       if (!raw) return "";
@@ -1443,8 +1596,13 @@ export default function AllBooksPage() {
                         <span className="w-28 shrink-0 text-xs text-[#6B705C] truncate hidden lg:inline" title={pairings}>
                           {pairings || "—"}
                         </span>
-                        <span className="w-14 shrink-0 text-xs font-mono text-[#6B705C] text-right tabular-nums hidden lg:inline">
-                          {wordsK || "—"}
+                        <span className="w-20 shrink-0 text-xs font-mono text-[#6B705C] text-right tabular-nums hidden lg:inline" title={`${wordsK} words · ~${timeLabel} read at 270 wpm`}>
+                          {b.word_count ? (
+                            <>
+                              <span className="block leading-tight">{timeLabel}</span>
+                              <span className="block text-[10px] text-[#A09A8B] leading-tight">{wordsK}</span>
+                            </>
+                          ) : "—"}
                         </span>
                         <span className="w-14 shrink-0 text-xs flex items-center justify-center" title={`${b.av_status || "clean"} · ${Math.round((b.progress_fraction || 0) * 100)}%`}>
                           {b.progress_fraction >= 0.99 ? (
