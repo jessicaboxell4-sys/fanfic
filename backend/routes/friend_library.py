@@ -224,3 +224,102 @@ async def set_library_visibility(body: LibraryVisibilityBody, user: User = Depen
         {"$set": {"library_visible_to_friends": bool(body.library_visible_to_friends)}},
     )
     return {"library_visible_to_friends": bool(body.library_visible_to_friends)}
+
+
+# ---------------------------------------------------------------------
+# PUBLIC library browsing — opt-in, no auth required to read.
+# Mirrors the friend-only flow above but gated on
+# ``library_visible_to_public`` (separate flag from the friends one so
+# users can share with friends but stay off the public web, or vice
+# versa).  Surfaces at /u/{username}/library on the frontend.
+# ---------------------------------------------------------------------
+
+class PublicLibraryVisibilityBody(BaseModel):
+    library_visible_to_public: bool
+
+
+@api_router.get("/account/public-library-visibility")
+async def get_public_library_visibility(user: User = Depends(get_current_user)):
+    doc = await db.users.find_one(
+        {"user_id": user.user_id}, {"_id": 0, "library_visible_to_public": 1},
+    ) or {}
+    return {"library_visible_to_public": bool(doc.get("library_visible_to_public", False))}
+
+
+@api_router.put("/account/public-library-visibility")
+async def set_public_library_visibility(
+    body: PublicLibraryVisibilityBody, user: User = Depends(get_current_user),
+):
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": {"library_visible_to_public": bool(body.library_visible_to_public)}},
+    )
+    return {"library_visible_to_public": bool(body.library_visible_to_public)}
+
+
+@api_router.get("/users/{username}/public-library")
+async def public_library(username: str, q: str = "", limit: int = 200):
+    """Read-only browse of a user's library, no auth required.
+
+    Returns 404 (not 403) when the target user either doesn't exist or
+    hasn't opted in, to avoid revealing handle existence to scrapers.
+    The endpoint deliberately omits sensitive fields (file size, AV
+    status detail, raw filename) — only title/author/fandom/category
+    + per-fandom aggregate counts make it out.
+    """
+    uname = (username or "").strip().lstrip("@").lower()
+    if not uname or len(uname) > 64:
+        raise HTTPException(status_code=404, detail="Library not found")
+    owner = await db.users.find_one(
+        {"username": uname},
+        {"_id": 0, "user_id": 1, "username": 1, "name": 1,
+         "library_visible_to_public": 1, "hidden_from_search": 1, "approval_status": 1,
+         "created_at": 1, "picture": 1},
+    )
+    # Treat "not opted in" and "doesn't exist" identically to keep the
+    # endpoint from doubling as a handle-enumeration oracle.
+    if (not owner
+            or not owner.get("library_visible_to_public")
+            or owner.get("approval_status") not in (None, "approved")):
+        raise HTTPException(status_code=404, detail="Library not found")
+
+    query: Dict[str, Any] = {
+        "user_id": owner["user_id"],
+        "av_status": {"$ne": "infected"},
+    }
+    if q and len(q.strip()) >= 2:
+        pat = re.compile(re.escape(q.strip()), re.IGNORECASE)
+        query["$or"] = [{"title": {"$regex": pat}}, {"author": {"$regex": pat}}]
+
+    limit = max(1, min(int(limit or 200), 500))
+    books = await db.books.find(
+        query,
+        {"_id": 0, "book_id": 1, "title": 1, "author": 1, "fandom": 1, "category": 1},
+    ).sort("title", 1).limit(limit).to_list(length=limit)
+
+    # Cheap aggregate stats — fandom histogram + category breakdown
+    # for the header.  Computed in-process to avoid a second round-trip.
+    fandom_counts: Dict[str, int] = {}
+    category_counts: Dict[str, int] = {}
+    for b in books:
+        f = (b.get("fandom") or "").strip()
+        if f:
+            fandom_counts[f] = fandom_counts.get(f, 0) + 1
+        c = (b.get("category") or "").strip() or "Uncategorized"
+        category_counts[c] = category_counts.get(c, 0) + 1
+    top_fandoms = sorted(
+        fandom_counts.items(), key=lambda kv: (-kv[1], kv[0]),
+    )[:8]
+
+    return {
+        "owner": {
+            "username": owner.get("username", ""),
+            "display_name": owner.get("name") or owner.get("username") or "",
+            "joined_at": owner.get("created_at"),
+            "picture": owner.get("picture") or "",
+        },
+        "books": books,
+        "total_returned": len(books),
+        "top_fandoms": [{"fandom": f, "count": n} for f, n in top_fandoms],
+        "category_counts": category_counts,
+    }

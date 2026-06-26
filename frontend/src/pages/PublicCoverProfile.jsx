@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { Heart, Download, Trophy, ArrowLeft, Sparkles, Rss } from "lucide-react";
+import { Heart, Download, Trophy, ArrowLeft, Sparkles, Rss, BookOpen } from "lucide-react";
 import { api } from "../lib/api";
 import Navbar from "../components/Navbar";
 import { toast } from "sonner";
@@ -25,6 +25,11 @@ export default function PublicCoverProfile() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [me, setMe] = useState(null);
+  // Lazy probe — checks whether this user has flipped on public
+  // library sharing.  If so, we render an extra "View library" link
+  // in the header.  A 404 from the public-library endpoint means
+  // either "no such user" or "not public" — same UX either way.
+  const [hasPublicLibrary, setHasPublicLibrary] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -67,6 +72,13 @@ export default function PublicCoverProfile() {
         const r = await api.get("/auth/me");
         if (alive) setMe(r.data);
       } catch { /* unauth — fine */ }
+      // Lightweight probe for public library opt-in.  We request the
+      // smallest possible payload (limit=1) and only care about the
+      // 200/404 status.
+      try {
+        await api.get(`/users/${username}/public-library?limit=1`);
+        if (alive) setHasPublicLibrary(true);
+      } catch { /* 404 = not public; no link rendered */ }
     })();
     return () => { alive = false; document.getElementById("shelfsort-ld")?.remove(); };
   }, [username]);
@@ -156,6 +168,15 @@ export default function PublicCoverProfile() {
             >
               <Rss className="w-3 h-3" /> RSS
             </a>
+            {hasPublicLibrary && (
+              <Link
+                to={`/u/${profile.username}/library`}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-[#EEE9FB] text-[#6B46C1] hover:bg-[#DDD1F3] transition-colors"
+                data-testid="profile-public-library-link"
+              >
+                <BookOpen className="w-3.5 h-3.5" /> Browse library
+              </Link>
+            )}
           </div>
         </header>
 

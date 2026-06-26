@@ -217,8 +217,14 @@ function AdminAccessCard() {
 
 // the Friends page. Anchored at id="privacy" so banners can scroll here.
 function PrivacyMessagingCard({ navigate }) {
+  const { user } = useAuth();
   const [privacy, setPrivacy] = useState({ message_privacy: "friends_only", hidden_from_search: false });
   const [libraryVisible, setLibraryVisible] = useState(false);
+  // Independent flag from libraryVisible — friends-only vs public are
+  // two different choices.  Users may want to share with friends
+  // privately, or share publicly without making the friends path
+  // visible, so both toggles co-exist in the UI.
+  const [publicLibraryVisible, setPublicLibraryVisible] = useState(false);
   const [pendingIn, setPendingIn] = useState(0);
   const [saving, setSaving] = useState(false);
 
@@ -230,6 +236,10 @@ function PrivacyMessagingCard({ navigate }) {
     try {
       const { data } = await api.get("/account/library-visibility");
       setLibraryVisible(!!data?.library_visible_to_friends);
+    } catch { /* ignore */ }
+    try {
+      const { data } = await api.get("/account/public-library-visibility");
+      setPublicLibraryVisible(!!data?.library_visible_to_public);
     } catch { /* ignore */ }
     try {
       const { data } = await api.get("/friends/pending-count");
@@ -254,6 +264,35 @@ function PrivacyMessagingCard({ navigate }) {
       const { data } = await api.put("/account/library-visibility", { library_visible_to_friends: !libraryVisible });
       setLibraryVisible(!!data?.library_visible_to_friends);
       toast.success("Saved");
+    } catch (e) { toast.error(errMsg(e?.response?.data?.detail)); }
+    finally { setSaving(false); }
+  };
+
+  // Public-library toggle.  Flips users.library_visible_to_public so
+  // /u/<handle>/library renders for anonymous visitors (Goodreads-style
+  // discovery).  Independent from toggleLibrary above so users keep
+  // granular control.  Requires a @handle since the public URL is
+  // handle-based — gentle UX: surface a toast pointing them to the
+  // Profile section instead of silently failing.
+  const togglePublicLibrary = async () => {
+    if (!publicLibraryVisible) {
+      // Switching ON — defensively require a username first; the
+      // public URL relies on it.  This mirrors the directory nudge.
+      // We don't have user data here, so trust the backend to 4xx
+      // if missing — but pre-flight with a hint.
+      try {
+        const me = await api.get("/auth/me");
+        if (!(me?.data?.username || "").trim()) {
+          toast.error("Claim a @handle in the Profile section first — your public library URL uses it.");
+          return;
+        }
+      } catch { /* fall through; backend will validate */ }
+    }
+    setSaving(true);
+    try {
+      const { data } = await api.put("/account/public-library-visibility", { library_visible_to_public: !publicLibraryVisible });
+      setPublicLibraryVisible(!!data?.library_visible_to_public);
+      toast.success(data?.library_visible_to_public ? "Library is public" : "Library hidden from the public");
     } catch (e) { toast.error(errMsg(e?.response?.data?.detail)); }
     finally { setSaving(false); }
   };
@@ -345,6 +384,43 @@ function PrivacyMessagingCard({ navigate }) {
             }`}
           >
             <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${libraryVisible ? "translate-x-6" : "translate-x-1"}`} />
+          </button>
+        </div>
+
+        {/* Public library toggle — new 2026-06-26.  Sits right under
+            the friends-only toggle so the privacy spectrum reads
+            top-to-bottom: friends → strangers in the directory →
+            anyone on the web.  Off by default; flipping it on makes
+            /u/<handle>/library reachable to anyone with the link. */}
+        <div className="flex items-start justify-between gap-3 p-3 rounded-lg border border-[#E5DDC5] bg-[#FBFAF6]">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-[#2C2C2C]">Make my library public on the web</p>
+            <p className="text-xs text-[#6B705C]">
+              When on, anyone with the link to <span className="font-mono">/u/your-handle/library</span> can browse a read-only list of your books (title, author, fandom).
+              Files are never shared; AV-flagged books stay hidden.
+            </p>
+            {publicLibraryVisible && (user?.username || "").trim() && (
+              <p className="text-xs mt-1.5">
+                <Link
+                  to={`/u/${user.username}/library`}
+                  data-testid="privacy-view-my-public-library-link"
+                  className="text-[#6B46C1] font-semibold underline"
+                >
+                  View my public library →
+                </Link>
+              </p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={togglePublicLibrary}
+            disabled={saving}
+            data-testid="privacy-public-library-toggle"
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ${
+              publicLibraryVisible ? "bg-[#6B46C1]" : "bg-[#E8E6E1]"
+            }`}
+          >
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${publicLibraryVisible ? "translate-x-6" : "translate-x-1"}`} />
           </button>
         </div>
 

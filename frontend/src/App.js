@@ -26,6 +26,7 @@ import GoalsPage from "@/pages/GoalsPage";
 import YearInBooksPage from "@/pages/YearInBooksPage";
 import PublicYearInBooks from "@/pages/PublicYearInBooks";
 import PublicCoverProfile from "@/pages/PublicCoverProfile";
+import PublicLibraryView from "@/pages/PublicLibraryView";
 import PublicCoverDetail from "@/pages/PublicCoverDetail";
 import ExploreCoversPage from "@/pages/ExploreCoversPage";
 import CoverArchivePage from "@/pages/CoverArchivePage";
@@ -146,6 +147,7 @@ function AppRouter() {
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/share/yib/:token" element={<PublicYearInBooks />} />
       <Route path="/u/:username" element={<PublicCoverProfile />} />
+      <Route path="/u/:username/library" element={<PublicLibraryView />} />
       <Route path="/cover/:coverId" element={<PublicCoverDetail />} />
       <Route path="/explore/covers" element={<ExploreCoversPage />} />
       <Route path="/cover-archive" element={<CoverArchivePage />} />
