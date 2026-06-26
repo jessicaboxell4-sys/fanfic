@@ -7,6 +7,47 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-26 (evening) — Libraries are now login-gated 🔒
+
+Policy change shipped within hours of the public-library launch.
+Per operator: *"make it so that ALL libraries are only seen IF people
+are logged in as a user. Nobody can see any library, unless they
+are signed in."*
+
+### Behavior
+- `GET /api/users/{username}/public-library` now **requires auth**
+  via FastAPI dependency (`get_current_user`).  Anonymous callers
+  get a clean 401 before any DB I/O.
+- Handle-enumeration prevention still holds for authed callers:
+  not-opted-in and nonexistent handles both return identical 404
+  bodies.
+- `GET /api/share/u/{username}/library` **remains anonymous** by
+  design so Facebook/Twitter crawlers can still render rich link
+  previews — they can't sign in.
+
+### Frontend
+- `PublicLibraryView.jsx` now branches on the 401:
+    * 401 → renders a friendly sign-in gate card
+      (`data-testid="public-library-needs-login"`) with two CTAs
+      (`public-library-signin-btn` + `public-library-register-btn`)
+      both wired with `?next=` so the user lands back on the
+      library after auth.
+    * 404 → the existing "library not found" card (unchanged).
+- `PublicCoverProfile.jsx` lazy library probe naturally 401s for
+  anon viewers and the existing try/catch hides the "Browse
+  library" chip — anon viewers never even see the existence of an
+  opted-in library on a cover profile.  No leak.
+
+### Tests
+- `test_iteration_50.py` (NEW, 12 cases) — codifies the 401-on-anon
+  invariant + the OG-stays-public exception.
+- `test_public_library.py` + `test_iteration_49.py` updated
+  end-to-end to acquire sessions before hitting the gated endpoint.
+- iteration_50 testing-agent report: **41/41 backend pytest pass,
+  4/4 frontend flows pass.  Zero issues.**
+
+---
+
 ## 2026-06-26 — Public library: OG previews + directory chip + shelf overlap 🔗📚✨
 
 Follow-on bundle (a+b+c) to the public-library launch earlier today.
