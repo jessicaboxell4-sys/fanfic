@@ -7,6 +7,44 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 (later) — Frontend auto-chunking for big-library drops 📚
+
+The backend caps any single `/books/upload/async` request at 200 files
+(`_MAX_FILES_PER_JOB`).  The previous frontend pipeline POSTed one file
+per request so the cap was never hit directly, but funnelling 1,000+
+simultaneous jobs through the backend was rough on the staging dir
+and the progress line read "0 of 1000 processed" forever.
+
+Shipped in `UploadZone.jsx`:
+
+- **Big-drop confirm prompt** — once the user's filtered file count
+  exceeds 200, a single `window.confirm` pops:
+  *"Whoa, that's a big library! Shelfsort processes 200 books per batch
+  for stability. We'll auto-queue all 847 files in 5 sequential batches
+  — sit tight and we'll work through them."*  OK = proceed, Cancel =
+  bail with a friendly toast nudging them to a smaller drop.
+- **Sequential 200-batch loop** — the upload loop is now nested:
+  outer loop walks 200-sized batches, inner loop keeps the existing
+  CONCURRENCY=4 round structure.  For drops ≤200 it collapses to a
+  single batch (zero behavioural change vs the pre-chunk loop).
+- **Live "Batch X of Y" progress line** — when batches > 1 the
+  progress text reads "Batch 3 of 5 · 547 of 1000 processed".
+  Smaller drops still show the plain "N of M processed" string.
+- **Accumulators span batches** — duplicates / actions / URL lists /
+  fandom suggestions / cross-format dupes / unknown hosts all
+  aggregate across the entire drop, so the final toast and
+  `onUploaded(...)` callback look identical to a single-batch upload.
+
+Also refreshed the dropzone tip and the Help page batch-size paragraph
+to advertise the new behaviour instead of warning users about the 200
+ceiling.  No backend changes — the 200/request cap stays as a safety
+rail against client bypass.
+
+Files touched: `frontend/src/components/UploadZone.jsx`,
+`frontend/src/pages/Help.jsx`.
+
+---
+
 ## 2026-06-27 (evening, part 4) — Taste-weighted "Pick for me" 🎯
 
 User feedback on the previous Shuffle iteration: don't override the

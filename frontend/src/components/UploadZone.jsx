@@ -104,7 +104,10 @@ export default function UploadZone({ onUploaded, compact = false }) {
   const inFlightRef = useRef(false);
   const [drag, setDrag] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [progress, setProgress] = useState({ done: 0, total: 0 });
+  // `batch` / `batches` are populated when a drop exceeds CHUNK_SIZE so the
+  // progress line can read "Batch 2 of 5 · 347 of 1000 processed".  For
+  // smaller drops they stay at 1/1 and the UI hides the batch prefix.
+  const [progress, setProgress] = useState({ done: 0, total: 0, batch: 1, batches: 1 });
   const [formatPrefs, setFormatPrefs] = useState({}); // {pdf: "ask"|"convert"|"skip", ...}
 
   // Lazy-load the user's per-format preferences once. Default to "ask"
@@ -339,9 +342,40 @@ export default function UploadZone({ onUploaded, compact = false }) {
       return;
     }
 
+    // 2026-07-05 — Big-library auto-chunking.  The backend's
+    // /books/upload/async caps any *single* request at 200 files
+    // (`_MAX_FILES_PER_JOB`).  The current sendOne POSTs one file at
+    // a time so we don't hit that cap directly, but funneling 1000+
+    // simultaneous job rows through the backend still risks RAM/disk
+    // pressure on the staging dir and makes progress reporting feel
+    // like it'll never end.  When the user drops a huge library we:
+    //   1. Show a friendly confirm so they know what's coming
+    //   2. Split filesToSend into sequential batches of CHUNK_SIZE
+    //   3. Run the existing concurrency-4 upload loop per batch
+    //   4. Surface "Batch 3 of 6" in the progress line so the user
+    //      can see we're making steady progress
+    // The accumulators (duplicates, allActions, …) naturally span all
+    // batches so the final toast and onUploaded callback look identical
+    // to a single-batch drop.
+    const CHUNK_SIZE = 200;
+    if (filesToSend.length > CHUNK_SIZE) {
+      const batches = Math.ceil(filesToSend.length / CHUNK_SIZE);
+      const ok = window.confirm(
+        `Whoa, that's a big library! Shelfsort processes ${CHUNK_SIZE} books per batch for stability.\n\n` +
+        `We'll auto-queue all ${filesToSend.length} files in ${batches} sequential batches — sit tight and we'll work through them.\n\n` +
+        `OK = Sort all ${filesToSend.length} now\n` +
+        `Cancel = Stop and try a smaller drop`,
+      );
+      if (!ok) {
+        toast("Upload cancelled — try a smaller drop or pick a folder with up to 200 books at a time.");
+        return;
+      }
+    }
+
     setUploading(true);
     inFlightRef.current = true;
-    setProgress({ done: 0, total: filesToSend.length });
+    const totalBatches = Math.ceil(filesToSend.length / CHUNK_SIZE);
+    setProgress({ done: 0, total: filesToSend.length, batch: 1, batches: totalBatches });
     const duplicates = [];
     const allActions = [];
     const allUrlLists = [];
@@ -486,54 +520,66 @@ export default function UploadZone({ onUploaded, compact = false }) {
       // parallel.  JS is single-threaded so the `uploaded += 1` is safe
       // across the 4 concurrent promises, and React batches the rapid
       // setProgress calls naturally.
-      const tickProgress = () => {
+      const tickProgress = (batchIdx) => {
         uploaded += 1;
-        setProgress({ done: uploaded, total: filesToSend.length });
+        setProgress({
+          done: uploaded,
+          total: filesToSend.length,
+          batch: batchIdx + 1,
+          batches: totalBatches,
+        });
       };
 
-      // Walk the files list in rounds of CONCURRENCY.
-      for (let i = 0; i < filesToSend.length; i += CONCURRENCY) {
-        const round = filesToSend.slice(i, i + CONCURRENCY);
-        const settled = await Promise.allSettled(round.map(async (file) => {
-          const result = await sendOne(file);
-          tickProgress();  // bump the counter as soon as THIS file finishes
-          return result;
-        }));
-        for (const r of settled) {
-          // sendOne never throws — it returns {ok:false}.  Defensive
-          // handling here in case a future refactor breaks that.
-          const val = r.status === "fulfilled" ? r.value : { ok: false, file: null, error: String(r.reason) };
-          if (!val.ok) {
-            if (val.file) failedFiles.push({ file: val.file, error: val.error });
-            continue;
-          }
-          const data = val.data;
-          // Per-file `failed:true` entries from the backend (corrupt
-          // EPUB, AV-flagged, classifier crash) — these come back in a
-          // 200 response but still represent a failure for the user.
-          for (const b of (data?.books || [])) {
-            if (b?.duplicate_pending && (b.duplicate_of || []).length > 0) {
-              duplicates.push(b);
+      // Walk the files list in batches of CHUNK_SIZE (sequential) and
+      // within each batch in rounds of CONCURRENCY (parallel).  For
+      // small drops (≤200) this collapses to a single batch and the
+      // behaviour matches the pre-chunking loop exactly.
+      for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+        const batchStart = batchIdx * CHUNK_SIZE;
+        const batchFiles = filesToSend.slice(batchStart, batchStart + CHUNK_SIZE);
+        for (let i = 0; i < batchFiles.length; i += CONCURRENCY) {
+          const round = batchFiles.slice(i, i + CONCURRENCY);
+          const settled = await Promise.allSettled(round.map(async (file) => {
+            const result = await sendOne(file);
+            tickProgress(batchIdx);  // bump counter as soon as THIS file finishes
+            return result;
+          }));
+          for (const r of settled) {
+            // sendOne never throws — it returns {ok:false}.  Defensive
+            // handling here in case a future refactor breaks that.
+            const val = r.status === "fulfilled" ? r.value : { ok: false, file: null, error: String(r.reason) };
+            if (!val.ok) {
+              if (val.file) failedFiles.push({ file: val.file, error: val.error });
+              continue;
             }
-            if (b?.failed) {
-              const orig = b.filename === val.file.name ? val.file : null;
-              if (orig) {
-                failedFiles.push({ file: orig, error: b.error || "Upload failed" });
+            const data = val.data;
+            // Per-file `failed:true` entries from the backend (corrupt
+            // EPUB, AV-flagged, classifier crash) — these come back in a
+            // 200 response but still represent a failure for the user.
+            for (const b of (data?.books || [])) {
+              if (b?.duplicate_pending && (b.duplicate_of || []).length > 0) {
+                duplicates.push(b);
+              }
+              if (b?.failed) {
+                const orig = b.filename === val.file.name ? val.file : null;
+                if (orig) {
+                  failedFiles.push({ file: orig, error: b.error || "Upload failed" });
+                }
               }
             }
+            if (Array.isArray(data?.actions)) allActions.push(...data.actions);
+            if (Array.isArray(data?.url_lists)) allUrlLists.push(...data.url_lists);
+            if (Array.isArray(data?.fandom_suggestions)) allSuggestions.push(...data.fandom_suggestions);
+            if (Array.isArray(data?.cross_format_duplicates)) allCrossDupes.push(...data.cross_format_duplicates);
+            if (Array.isArray(data?.unknown_sources_found)) {
+              data.unknown_sources_found.forEach((h) => allUnknownHosts.add(h));
+            }
+            for (const ul of (data?.url_lists || [])) {
+              (ul?.unknown_sources_found || []).forEach((h) => allUnknownHosts.add(h));
+            }
+            totalAuto += data?.auto_resolved || 0;
+            if (data?.policy) lastPolicy = data.policy;
           }
-          if (Array.isArray(data?.actions)) allActions.push(...data.actions);
-          if (Array.isArray(data?.url_lists)) allUrlLists.push(...data.url_lists);
-          if (Array.isArray(data?.fandom_suggestions)) allSuggestions.push(...data.fandom_suggestions);
-          if (Array.isArray(data?.cross_format_duplicates)) allCrossDupes.push(...data.cross_format_duplicates);
-          if (Array.isArray(data?.unknown_sources_found)) {
-            data.unknown_sources_found.forEach((h) => allUnknownHosts.add(h));
-          }
-          for (const ul of (data?.url_lists || [])) {
-            (ul?.unknown_sources_found || []).forEach((h) => allUnknownHosts.add(h));
-          }
-          totalAuto += data?.auto_resolved || 0;
-          if (data?.policy) lastPolicy = data.policy;
         }
       }
       resp = { auto_resolved: totalAuto, policy: lastPolicy, actions: allActions };
@@ -631,7 +677,7 @@ export default function UploadZone({ onUploaded, compact = false }) {
       toast.error("Upload failed. Please try again.");
     } finally {
       setUploading(false);
-      setProgress({ done: 0, total: 0 });
+      setProgress({ done: 0, total: 0, batch: 1, batches: 1 });
       inFlightRef.current = false;
     }
   }, [onUploaded, formatPrefs]);
@@ -704,8 +750,10 @@ export default function UploadZone({ onUploaded, compact = false }) {
         <>
           <Loader2 className={`${compact ? "w-6 h-6 mb-2" : "w-10 h-10 mb-4"} text-[#E07A5F] animate-spin`} />
           <p className={`font-serif ${compact ? "text-lg" : "text-2xl"} text-[#2C2C2C]`}>Sorting your books…</p>
-          <p className="text-sm text-[#6B705C] mt-1">
-            {progress.done} of {progress.total} processed
+          <p className="text-sm text-[#6B705C] mt-1" data-testid="upload-progress-text">
+            {progress.batches > 1
+              ? `Batch ${progress.batch} of ${progress.batches} · ${progress.done} of ${progress.total} processed`
+              : `${progress.done} of ${progress.total} processed`}
           </p>
         </>
       ) : compact ? (
@@ -744,7 +792,7 @@ export default function UploadZone({ onUploaded, compact = false }) {
             EPUB · PDF · Kindle (.azw/.mobi) · DOCX · auto-converted to EPUB and sorted
           </p>
           <p className="text-xs text-[#A09A8B] italic mb-4 max-w-md text-center">
-            Tip: it&apos;s best to upload up to <strong className="text-[#6B705C] not-italic font-semibold">200 stories at a time</strong> — sorry about that! Bigger libraries import faster in smaller batches.
+            Tip: Shelfsort processes <strong className="text-[#6B705C] not-italic font-semibold">200 stories at a time</strong> — drop a bigger library and we&apos;ll auto-queue it in sequential batches for you.
           </p>
           <div className="flex gap-3" onClick={(e) => e.stopPropagation()}>
             <button
