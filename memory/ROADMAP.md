@@ -32,6 +32,7 @@ Heuristic (highest priority first):
 | 7 | Phase 6D: search/list views extraction | ✅ DONE 2026-06-27 — `library_reads.py` shipped, books.py -441 LOC (~9.2% drop) |
 | 8 | Suggestion-box discoverability chip | ~20-30 min | Med | **Inbound flywheel.** Now that shipping a community idea is one-click (Task 1 ✅), the limiting factor is suggestion inflow. Currently `/help → Suggestion box` is 3 clicks deep. Add a persistent "💡 Suggest a feature" chip in (a) the sidebar, (b) the library empty-state, or (c) under the footer of `/changelog` itself ("see something missing? Suggest it →"). Reminder added 2026-06-26. |
 | 9 | Friend-request email deep-link to `/users?focus=` | ~10-15 min | Med | Now that `?focus=` works on the directory (Task 2 ✅), the friend-request notification email can deep-link recipients directly to the requester's row with the amber highlight pulse. Tiny email-template change, big UX bump for first-time recipients. Reminder added 2026-06-26. |
+| 10 | Library login-gate conversion booster | ~25 min | Med | The current sign-in gate (`PublicLibraryView` 401 branch) says only "Shelfsort libraries are for members only." Strengthen it by previewing the owner's avatar + book count + top fandom ("@alice has 247 books across 12 fandoms — sign in to see what they're reading") using the OG endpoint (already anon-accessible). High "I gotta know" pull on FB-click visitors. Reminder added 2026-06-26 evening. |
 
 ### Convention for adding new reminders
 
