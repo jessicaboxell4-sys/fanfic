@@ -7,6 +7,43 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-26 — Opt-in PUBLIC library mode (Goodreads-style) 📚
+
+Triggered by a real Facebook user asking *"Is this for having my own
+library, or can I also read other people's libraries?"*  Adds a
+THIRD privacy tier on top of the existing friends-only sharing:
+**friends → directory → public web**.
+
+### Backend
+- New `users.library_visible_to_public` field (defaults False).
+- `GET/PUT /api/account/public-library-visibility` — owner toggle.
+- `GET /api/users/{username}/public-library` — **anonymous read,
+  no auth required**.  Returns `{owner, books, top_fandoms,
+  category_counts, total_returned}` — only title/author/fandom/
+  category leave the server (no files, AV detail, filenames).
+- Security: handle-enumeration prevention — both "user doesn't
+  exist" and "user exists but not opted in" return identical 404.
+  AV-infected books filtered out.  `q` filter requires ≥2 chars.
+  `limit` clamps to [1, 500].
+
+### Frontend
+- New page `/u/:username/library` (`PublicLibraryView.jsx`) — search
+  + fandom chips + friendly 404 state.
+- New toggle in Account → Privacy ("Make my library public on the
+  web").  Pre-flight guard: refuses to flip ON when the user has
+  no @handle, with a toast pointing them at the Profile section.
+- "Browse library" chip on `/u/:handle` (PublicCoverProfile) —
+  lazy-probed; only renders when the user has opted in.
+
+### Tests
+- `/app/tests/test_public_library.py` — 11 pytest cases covering
+  every backend invariant.  Located outside `/app/backend/tests/`
+  to avoid uvicorn watchfiles reload loops in dev.
+- iteration_48 testing-agent report: 100% pass on both backend
+  (11/11) and frontend (9/9 functional flows).
+
+---
+
 ## 2026-06-26 — Profile discovery polish on `/users` 🔎
 
 Two small UX wins on the Reader Directory.
