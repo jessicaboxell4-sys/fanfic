@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { UploadCloud, Loader2, FolderUp } from "lucide-react";
 import { api } from "../lib/api";
 import { toast } from "sonner";
@@ -92,6 +93,7 @@ async function filesFromDataTransfer(dt) {
 // `loadPendingJobs` on mount for the resume-after-refresh flow.
 
 export default function UploadZone({ onUploaded, compact = false }) {
+  const navigate = useNavigate();
   const inputRef = useRef(null);
   const folderInputRef = useRef(null);
   // 2026-07-04 — guard against parallel uploads.  The retry-failed
@@ -670,6 +672,35 @@ export default function UploadZone({ onUploaded, compact = false }) {
         toast(
           `Heads-up: spotted ${allUnknownHosts.size} potential new fanfic source${allUnknownHosts.size === 1 ? "" : "s"} (${hosts.join(", ")}${more}). They've been logged so we can review adding them.`,
           { duration: 14000 },
+        );
+      }
+
+      // 2026-06-27 — "Smart split" post-big-import nudge.
+      // When a user just chunked through 200+ books we surface a
+      // celebratory CTA that funnels them straight into their
+      // Year-in-Books Wrapped — the heaviest onboarding moment
+      // becomes the most rewarding one (and shareable, since the
+      // Wrapped page has a public-share token).  Gated on:
+      //   • Drop actually used chunking (totalBatches > 1)
+      //   • Majority of files succeeded — no point celebrating a
+      //     batch where most files failed
+      // We fire-and-forget the navigate via toast action so the
+      // user can ignore the nudge if they want to keep uploading.
+      const usedChunking = totalBatches > 1;
+      const mostlySucceeded = failedFiles.length < filesToSend.length / 2;
+      if (usedChunking && mostlySucceeded) {
+        const succeeded = filesToSend.length - failedFiles.length;
+        const year = new Date().getFullYear();
+        toast.success(
+          `🎉 ${succeeded.toLocaleString()} books sorted — that's a real library!`,
+          {
+            duration: 18000,
+            description: `Want to see your ${year} Year-in-Books Wrapped? It's perfect for sharing.`,
+            action: {
+              label: "See my Wrapped",
+              onClick: () => navigate(`/library/year/${year}`),
+            },
+          },
         );
       }
     } catch (e) {

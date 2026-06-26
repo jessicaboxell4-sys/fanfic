@@ -7,6 +7,38 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 (late) — Post-big-import Wrapped CTA 🎉
+
+When a user just chunked through 200+ books, the heaviest onboarding
+moment is also the most rewarding — so we now hook it directly into
+the existing Year-in-Books Wrapped flow (which already has a public
+share-token URL).
+
+Shipped in `UploadZone.jsx` (right after the existing success toasts):
+
+```js
+const usedChunking = totalBatches > 1;
+const mostlySucceeded = failedFiles.length < filesToSend.length / 2;
+if (usedChunking && mostlySucceeded) {
+  toast.success(`🎉 ${succeeded.toLocaleString()} books sorted — that's a real library!`, {
+    duration: 18000,
+    description: `Want to see your ${year} Year-in-Books Wrapped? It's perfect for sharing.`,
+    action: { label: "See my Wrapped", onClick: () => navigate(`/library/year/${year}`) },
+  });
+}
+```
+
+- **Gated** on `totalBatches > 1` so small drops don't get nagged.
+- **Gated** on a majority-success ratio (more than half the files
+  actually landed) so we don't celebrate a half-failed import.
+- **Fire-and-forget**: the toast action navigates the user into
+  `/library/year/{year}`; the existing Wrapped page handles the rest.
+- Wired up via `useNavigate` from `react-router-dom` (no new deps).
+
+Files touched: `frontend/src/components/UploadZone.jsx`.
+
+---
+
 ## 2026-06-27 (later) — Frontend auto-chunking for big-library drops 📚
 
 The backend caps any single `/books/upload/async` request at 200 files
