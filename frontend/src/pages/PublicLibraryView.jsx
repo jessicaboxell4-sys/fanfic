@@ -162,8 +162,11 @@ export default function PublicLibraryView() {
               data-testid="public-library-overlap-banner"
             >
               <Sparkles className="w-4 h-4" />
-              You have <span data-testid="public-library-overlap-count">{data.overlap_count}</span>{" "}
-              of these {data.overlap_count === 1 ? "book" : "books"} too.
+              {data.overlap_count === 1 ? (
+                <>You have <span data-testid="public-library-overlap-count">1</span> book in common.</>
+              ) : (
+                <>You have <span data-testid="public-library-overlap-count">{data.overlap_count}</span> of these books too.</>
+              )}
             </p>
           )}
         </header>

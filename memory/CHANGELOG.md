@@ -7,6 +7,53 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-26 — Public library: OG previews + directory chip + shelf overlap 🔗📚✨
+
+Follow-on bundle (a+b+c) to the public-library launch earlier today.
+Closes the discovery + engagement + sharing loop in one batch.
+
+### (a) OG/Twitter preview for `/u/handle/library`
+- New endpoint `GET /api/share/u/{username}/library` (mirrors the
+  existing cover-profile share pattern in `cover_public.py`).
+- Renders rich HTML with `og:title`, `og:description` (e.g.
+  *"Alice's 247-book library — top fandom: Harry Potter"*), and reuses
+  the existing `/api/og/user/{handle}.png` image so brand stays
+  consistent across cover-profile + library share cards.
+- Critical: 404 invariant preserved (not-opted-in vs nonexistent
+  return identical 404).
+- Closes the loop with the Facebook user who started all this — their
+  library link now previews properly when shared back to FB.
+
+### (b) 📚 chip in the `/users` directory
+- `GET /api/users/directory` now returns `has_public_library: bool`
+  per row.  Bonus: fixed pre-existing duplicate-`$ne` bug on the
+  username filter (ruff F601) — now uses `$nin: [None, '']`.
+- Directory rows render a small purple "📚 Library" chip when opted
+  in, deep-linking to `/u/handle/library`.
+
+### (c) Shelf-overlap "magic moment"
+- `GET /api/users/{username}/public-library` now accepts an optional
+  signed-in viewer.  When viewer ≠ owner, it computes overlap
+  server-side using case-insensitive `lower(title)|lower(author)`
+  match keys.
+- Response gains `overlap_count`, `viewer_is_signed_in`, and per-book
+  `you_also_have` flags.
+- Frontend renders a prominent amber banner ("You have N of these
+  books too" / "You have 1 book in common") + a small "You have this"
+  badge on each matching book.
+- Anon visitors + the owner viewing their own page see no overlap UI
+  (designed not to compute self-overlap).
+
+### Tests
+- `/app/tests/test_iteration_49.py` — 12 new pytest cases covering
+  all 3 features.
+- iteration_49 testing-agent report: 100% pass on both backend
+  (12/12) and frontend (3/3 testable flows).
+- Singular-form copy polish applied post-review ("1 book in common"
+  vs "N of these books too").
+
+---
+
 ## 2026-06-26 — Opt-in PUBLIC library mode (Goodreads-style) 📚
 
 Triggered by a real Facebook user asking *"Is this for having my own
