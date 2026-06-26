@@ -366,18 +366,32 @@ async def users_directory(
     q: dict = {
         "user_id": {"$nin": list(excluded)},
         "hidden_from_search": {"$ne": True},
-        "username": {"$exists": True, "$ne": None, "$ne": ""},
+        "username": {"$exists": True, "$nin": [None, ""]},
     }
     total = await db.users.count_documents(q)
     cursor = (
-        db.users.find(q, {"_id": 0, "user_id": 1, "username": 1})
+        db.users.find(
+            q,
+            # Include library_visible_to_public so the directory UI
+            # can render a 📚 chip on opted-in rows (Task 10 follow-up
+            # to the 2026-06-26 public-library launch).  Field is
+            # already indexed implicitly via the users collection.
+            {"_id": 0, "user_id": 1, "username": 1, "library_visible_to_public": 1},
+        )
         .sort([("username_lower", 1)])
         .skip(skip)
         .limit(limit)
     )
     users = await cursor.to_list(length=limit)
     return {
-        "users": [{"user_id": u["user_id"], "username": u.get("username") or ""} for u in users],
+        "users": [
+            {
+                "user_id": u["user_id"],
+                "username": u.get("username") or "",
+                "has_public_library": bool(u.get("library_visible_to_public", False)),
+            }
+            for u in users
+        ],
         "page": page,
         "limit": limit,
         "total": total,

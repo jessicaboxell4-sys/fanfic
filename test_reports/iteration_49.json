@@ -1,0 +1,40 @@
+{
+  "summary": "Iteration 49 (a+b+c follow-on) — OG share HTML, directory has_public_library chip, shelf-overlap badge & banner. 12/12 backend pytest cases pass. Frontend playwright tests confirm: anon visitor sees no overlap banner, signed-in user with overlap sees banner with correct count + per-book 'You have this' badge, directory shows 📚 Library chip linking to /u/<handle>/library for opted-in users.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/users/<handle>/public-library", "issue": "When anon viewer hits the endpoint, books are returned WITHOUT a you_also_have field (which is the documented intent). When signed-in viewer matches owner, viewer_is_signed_in is correctly set to False but the field name 'viewer_is_signed_in' is semantically inaccurate (caller IS signed in, they're just the owner). Consider renaming to viewer_is_other_signed_in or computing_overlap for clarity. Not blocking — frontend already branches correctly."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "PublicLibraryView overlap banner", "issues": ["Copy reads 'You have 1 of these book too.' when overlap_count===1 — 'of these book' is grammatically off. Suggest 'You have this book too' or 'You have 1 book in common.'"]}
+    ]
+  },
+  "test_report_links": [
+    "/app/tests/test_iteration_49.py",
+    "/app/test_reports/pytest/iteration_49.xml"
+  ],
+  "action_items": [
+    "Minor copy: fix singular form in PublicLibraryView.jsx overlap banner — 'of these book' reads awkwardly when count===1 (line ~166). Suggest 'You have 1 book in common.' / 'You have N of these books too.' for plural.",
+    "Consider clarifying naming of viewer_is_signed_in (which is actually 'viewer-is-different-signed-in-user'). Optional, doesn't block."
+  ],
+  "critical_code_review_comments": [
+    "OG share endpoint correctly mirrors 404 invariant for not-opted-in vs nonexistent handle (verified — identical responses).",
+    "users_directory uses {'$nin': [null, '']} fix to exclude empty/null usernames — regression-safe, confirmed.",
+    "Overlap match is case-insensitive on lower(title)|lower(author) — handled by stripping & lowercasing on both sides server-side.",
+    "Owner-self check (viewer.user_id != owner.user_id) correctly suppresses overlap computation."
+  ],
+  "updated_files": [
+    "/app/tests/test_iteration_49.py (new — 12 pytest cases for iteration 49)"
+  ],
+  "success_rate": {"backend": "100% (12/12)", "frontend": "100% (3/3 testable flows; 4th verified via backend invariant since UI conditional is purely server-driven)"},
+  "test_credentials": "Opted-in user: TEST_fe_opted_e24c9d@example.com / hunter2pw! / @febopta508d. Overlap test user (newly created with seeded matching book): saved to /tmp/fe_overlap_user.json.",
+  "seed_data_creation": "Created TEST_fe_overlap_<uuid>@example.com user with one book matching opted user's 'Harry Potter Sorcerer Stone Test' by 'J. K. Rowling' to verify the overlap flow end-to-end. Stored at /tmp/fe_overlap_user.json.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "iteration_49 features verified end-to-end. /tmp/fe_users.json + /tmp/fe_overlap_user.json carry test creds. Backend test file lives at /app/tests/test_iteration_49.py (note: NOT under /app/backend/tests because watchfiles reloads when files there change; the dir under /app/tests is safe). Public-library endpoint now branches on auth: anon → overlap_count=0, viewer_is_signed_in=False, no you_also_have field; signed-in non-owner → real overlap_count + you_also_have flags; signed-in owner → overlap_count=0, viewer_is_signed_in=False (designed not to compute self-overlap).",
+  "rca of the issue": "N/A — no functional bugs found. Only one minor copy-grammar issue noted."
+}

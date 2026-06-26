@@ -149,6 +149,23 @@ export default function PublicLibraryView() {
               <ExternalLink className="w-3.5 h-3.5" /> Cover profile
             </Link>
           </p>
+
+          {/* Shelf-overlap "magic moment" — when a signed-in visitor
+              has books in common with the owner, surface the count
+              prominently so they feel the connection immediately.
+              Backend computes the match server-side (case-insensitive
+              title+author key) so we don't ship the visitor's whole
+              library to the client. */}
+          {data.viewer_is_signed_in && data.overlap_count > 0 && (
+            <p
+              className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold bg-[#FDF6D6] text-[#7C5F1F]"
+              data-testid="public-library-overlap-banner"
+            >
+              <Sparkles className="w-4 h-4" />
+              You have <span data-testid="public-library-overlap-count">{data.overlap_count}</span>{" "}
+              of these {data.overlap_count === 1 ? "book" : "books"} too.
+            </p>
+          )}
         </header>
 
         {(data.top_fandoms || []).length > 0 && (
@@ -243,6 +260,19 @@ export default function PublicLibraryView() {
                         {b.category}
                       </span>
                     ) : null}
+                    {/* Per-book overlap badge — only rendered when the
+                        backend marked this book as one the visitor
+                        also has.  Tiny, low-contrast so it doesn't
+                        scream, but unmistakable as a "you-too" mark. */}
+                    {b.you_also_have && (
+                      <span
+                        className="text-[10px] px-2 py-0.5 rounded-full bg-[#FDF6D6] text-[#7C5F1F] font-semibold inline-flex items-center gap-0.5"
+                        data-testid={`public-library-overlap-${b.book_id}`}
+                        title="You have this book too"
+                      >
+                        <Sparkles className="w-2.5 h-2.5" /> You have this
+                      </span>
+                    )}
                   </div>
                 </div>
               </li>

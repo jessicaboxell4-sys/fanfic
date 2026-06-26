@@ -466,6 +466,70 @@ async def share_user_html(username: str, request: Request):
     ))
 
 
+@api_router.get("/share/u/{username}/library")
+async def share_user_library_html(username: str, request: Request):
+    """OG/Twitter preview for ``/u/{handle}/library`` — only renders for
+    users who've opted into the public-library mode.  Mirrors the 404
+    invariant of the JSON endpoint so this can't be used to enumerate
+    handles either.  Returns rich link-preview metadata so Facebook /
+    Twitter / iMessage previews show the reader's book count + top
+    fandom instead of generic ``React App`` slugs.
+    """
+    uname = (username or "").strip().lstrip("@").lower()
+    if not uname:
+        raise HTTPException(status_code=404, detail="Not found")
+    owner = await db.users.find_one(
+        {"username": uname},
+        {"_id": 0, "user_id": 1, "username": 1, "name": 1,
+         "library_visible_to_public": 1, "approval_status": 1},
+    )
+    if (not owner
+            or not owner.get("library_visible_to_public")
+            or owner.get("approval_status") not in (None, "approved")):
+        raise HTTPException(status_code=404, detail="Not found")
+
+    # Cheap stats for the preview blurb — count + top fandom.  Same
+    # av_status filter as the JSON endpoint so previews can't surface
+    # quarantined books.  Capped read keeps this fast on big libraries.
+    books = await db.books.find(
+        {"user_id": owner["user_id"], "av_status": {"$ne": "infected"}},
+        {"_id": 0, "fandom": 1},
+    ).limit(500).to_list(length=500)
+    total = len(books)
+    fandom_counts: Dict[str, int] = {}
+    for b in books:
+        f = (b.get("fandom") or "").strip()
+        if f:
+            fandom_counts[f] = fandom_counts.get(f, 0) + 1
+    top_fandom = max(fandom_counts.items(), key=lambda kv: kv[1])[0] if fandom_counts else ""
+
+    try:
+        from routes.analytics import _stamp_view
+        await _stamp_view("public_library", uname, request)
+    except Exception:
+        pass
+
+    display = owner.get("name") or owner.get("username") or uname
+    title = f"@{owner['username']}'s library on Shelfsort"
+    if total and top_fandom:
+        desc = f"{display}'s {total}-book library — top fandom: {top_fandom}. Browse on Shelfsort."
+    elif total:
+        desc = f"{display}'s {total}-book library on Shelfsort. Browse free."
+    else:
+        desc = f"{display}'s public library on Shelfsort. Browse free."
+    base = _public_base()
+    return HTMLResponse(_share_html(
+        title=title,
+        description=desc,
+        # Re-use the existing OG image generator for the same user —
+        # avoids needing a second renderer and keeps the visual brand
+        # consistent across cover-profile + library share cards.
+        og_image=f"{base}/api/og/user/{owner['username']}.png",
+        spa_path=f"/u/{owner['username']}/library",
+        og_type="profile",
+    ))
+
+
 # ---------------------------------------------------------------------
 # Cover-of-the-week archive — historic winners
 # ---------------------------------------------------------------------

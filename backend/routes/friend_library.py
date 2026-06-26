@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 
 from deps import db, api_router, logger
 from models import User
-from auth_dep import get_current_user
+from auth_dep import get_current_user, get_current_user_or_none
 
 
 def _pair(a: str, b: str):
@@ -258,8 +258,20 @@ async def set_public_library_visibility(
 
 
 @api_router.get("/users/{username}/public-library")
-async def public_library(username: str, q: str = "", limit: int = 200):
+async def public_library(
+    username: str,
+    q: str = "",
+    limit: int = 200,
+    viewer: Optional[User] = Depends(get_current_user_or_none),
+):
     """Read-only browse of a user's library, no auth required.
+
+    When the caller IS signed in (``viewer`` is not None and isn't the
+    owner), we additionally compute shelf-overlap: each returned book
+    gets a ``you_also_have`` boolean, and the response carries an
+    ``overlap_count`` aggregate.  Lets the visitor instantly see how
+    many books they have in common.  Match key is the same one used
+    by the friend-library mutual-count: ``lower(title)|lower(author)``.
 
     Returns 404 (not 403) when the target user either doesn't exist or
     hasn't opted in, to avoid revealing handle existence to scrapers.
@@ -297,6 +309,34 @@ async def public_library(username: str, q: str = "", limit: int = 200):
         {"_id": 0, "book_id": 1, "title": 1, "author": 1, "fandom": 1, "category": 1},
     ).sort("title", 1).limit(limit).to_list(length=limit)
 
+    # Shelf-overlap when caller is signed in (and isn't the owner).
+    # We build a Set of normalized "title|author" keys from the
+    # visitor's own books, then mark each returned book with
+    # ``you_also_have`` if its key is in the set.  Cheap O(N+M)
+    # in-memory join, no extra round-trip.
+    overlap_count = 0
+    if viewer is not None and viewer.user_id != owner["user_id"]:
+        my_books = await db.books.find(
+            {"user_id": viewer.user_id, "av_status": {"$ne": "infected"}},
+            {"_id": 0, "title": 1, "author": 1},
+        ).to_list(length=10000)
+        my_keys = {
+            f"{(b.get('title') or '').strip().lower()}|"
+            f"{(b.get('author') or '').strip().lower()}"
+            for b in my_books
+            if (b.get("title") or "").strip()
+        }
+        for b in books:
+            key = (
+                f"{(b.get('title') or '').strip().lower()}|"
+                f"{(b.get('author') or '').strip().lower()}"
+            )
+            if key and key in my_keys:
+                b["you_also_have"] = True
+                overlap_count += 1
+            else:
+                b["you_also_have"] = False
+
     # Cheap aggregate stats — fandom histogram + category breakdown
     # for the header.  Computed in-process to avoid a second round-trip.
     fandom_counts: Dict[str, int] = {}
@@ -322,4 +362,8 @@ async def public_library(username: str, q: str = "", limit: int = 200):
         "total_returned": len(books),
         "top_fandoms": [{"fandom": f, "count": n} for f, n in top_fandoms],
         "category_counts": category_counts,
+        # Always present so the frontend can branch deterministically;
+        # 0 when caller is anonymous OR is the owner.
+        "overlap_count": overlap_count,
+        "viewer_is_signed_in": viewer is not None and viewer.user_id != owner["user_id"],
     }

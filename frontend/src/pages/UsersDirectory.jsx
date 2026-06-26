@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { ArrowLeft, Search, UserPlus, Loader2, Check, Clock, Users as UsersIcon, ShieldOff, AtSign, AlertCircle } from "lucide-react";
+import { ArrowLeft, Search, UserPlus, Loader2, Check, Clock, Users as UsersIcon, ShieldOff, AtSign, AlertCircle, BookOpen } from "lucide-react";
 import Navbar from "../components/Navbar";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
@@ -303,6 +303,25 @@ export default function UsersDirectory() {
                       <span className="truncate">{row.username || "(no handle)"}</span>
                     </p>
                   </div>
+                  {/* 📚 chip when this user has opted into the public
+                      library mode.  Clicking it deep-links to their
+                      public library page so the directory becomes a
+                      proper discovery surface (Task 10 follow-up to
+                      the 2026-06-26 launch).  We avoid clobbering the
+                      friend-request CTA next to it; chip sits to its
+                      left and is its own click target via the wrapper
+                      Link. */}
+                  {row.has_public_library && row.username && (
+                    <Link
+                      to={`/u/${row.username}/library`}
+                      title="Browse this reader's public library"
+                      data-testid={`directory-public-library-${row.username}`}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold bg-[#EEE9FB] text-[#6B46C1] hover:bg-[#DDD1F3] flex-shrink-0 transition-colors"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <BookOpen className="w-3 h-3" /> Library
+                    </Link>
+                  )}
                   {sent ? (
                     <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#3D8B79] px-2 py-1" data-testid={`directory-sent-${row.username}`}>
                       <Check className="w-3.5 h-3.5" /> Sent
