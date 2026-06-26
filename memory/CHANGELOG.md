@@ -7,6 +7,70 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-26 (late) — Groups A+C: conversion booster + profile depth ✨
+
+Four features shipped on top of the login-gated public-library
+launch, in one batch.  All four pass 100% in iteration_51 (19/19 new
+pytest + 9/9 frontend flows; 60/60 cumulative including prior suites).
+
+### Group A — Conversion
+
+#### (1) Enriched 401 sign-in gate
+- New anonymous endpoint `GET /api/users/{username}/library-preview`
+  returns `{username, display_name, picture, bio, total_books,
+  top_fandom, fandom_count}` for opted-in users.  404 invariants
+  preserved (not-opted-in vs nonexistent both 404).
+- `PublicLibraryView.jsx` 401 branch now best-effort fetches this
+  preview and renders the owner's avatar + "@alice has 247 books
+  across Harry Potter +3 more" + bio quote, with the heading
+  "Sign in to see what they're reading".  Falls back gracefully to
+  the original generic gate when the preview 404s.
+
+#### (2) First-time share modal
+- `PUT /api/account/public-library-visibility` now detects the
+  very first opt-in (no prior `first_public_share_shown_at` stamp)
+  and returns `show_first_share_modal: true`.  Atomic with the
+  visibility flip — no race.
+- `Account.jsx` `PrivacyMessagingCard` opens a modal with the
+  shareable `/u/handle/library` URL, Facebook + X/Twitter share
+  buttons, and a copy-link button.  Idempotent: stamped server-side
+  so toggling off→on later never re-shows it.
+
+### Group C — Profile depth
+
+#### (3) Bio field
+- 280-char optional "about" line on User.  `PUT /api/account/bio`
+  with Pydantic `max_length=280` validation (server returns 422 on
+  over).  Surfaces on:
+    * `/auth/me` + `/auth/profile`
+    * `/api/users/{u}/public-library` owner block
+    * `/api/users/{u}/cover-profile`
+    * `/api/users/{u}/library-preview` (the gate)
+- Frontend: textarea in Account → Profile with hard-cap slice at
+  280 chars (defense in depth).  Renders italic on `/u/handle` and
+  `/u/handle/library`.
+
+#### (4) Tokenized library RSS feed
+- `GET /api/account/library-rss-token` (auth) lazy-creates a
+  per-user URL-safe token.  `POST /api/account/library-rss-token/
+  regenerate` issues a new one, invalidating any previously-shared
+  URL.
+- `GET /api/feeds/library/{username}.rss?token=...` returns valid
+  RSS 2.0 XML (≤50 most-recent books) when the token matches the
+  user's `rss_token` AND they're opted in.  Constant-time check
+  via `secrets.compare_digest`.  Uniform 404 for: missing token,
+  wrong token, not opted in, nonexistent handle.
+- Account → Privacy now shows a copyable RSS URL + "Regenerate
+  (invalidate old)" button when public library is ON.
+
+### Tests
+- `/app/tests/test_iteration_51.py` (NEW, 19 cases) — covers all
+  four features incl. constant-time RSS check, byte-identical 404
+  bodies, idempotent modal, server-side bio cap, AV exclusion.
+- All prior suites still pass (60 total cumulative).
+
+---
+
 ## 2026-06-26 (evening) — Libraries are now login-gated 🔒
 
 Policy change shipped within hours of the public-library launch.
