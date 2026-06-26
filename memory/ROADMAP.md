@@ -31,6 +31,7 @@ Heuristic (highest priority first):
 | 6 | Phase 6C: upload pipeline extraction | ~30-45 min, HIGH risk | Low (tech debt) | **Bigger than initially scoped.** 635 LOC in a SINGLE monolithic function with heavy interdependencies on books.py private helpers + inline imports from routes.admin and routes.user_prefs. Smoke band will catch breakage but likely 2-3 fix iterations on imports. Recommend doing in a fresh session with full context budget. Alternative: split into 6C1 (extract function as-is) + 6C2 (decompose into smaller helpers) over two sessions |
 | 7 | Phase 6D: search/list views extraction | ✅ DONE 2026-06-27 — `library_reads.py` shipped, books.py -441 LOC (~9.2% drop) |
 | 8 | Suggestion-box discoverability chip | ~20-30 min | Med | **Inbound flywheel.** Now that shipping a community idea is one-click (Task 1 ✅), the limiting factor is suggestion inflow. Currently `/help → Suggestion box` is 3 clicks deep. Add a persistent "💡 Suggest a feature" chip in (a) the sidebar, (b) the library empty-state, or (c) under the footer of `/changelog` itself ("see something missing? Suggest it →"). Reminder added 2026-06-26. |
+| 9 | Friend-request email deep-link to `/users?focus=` | ~10-15 min | Med | Now that `?focus=` works on the directory (Task 2 ✅), the friend-request notification email can deep-link recipients directly to the requester's row with the amber highlight pulse. Tiny email-template change, big UX bump for first-time recipients. Reminder added 2026-06-26. |
 
 ### Convention for adding new reminders
 
