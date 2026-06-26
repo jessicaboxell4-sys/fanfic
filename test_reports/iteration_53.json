@@ -1,0 +1,47 @@
+{
+  "summary": "Iteration 53 — Bundle A (Tasks 8, 9, 11 + Help update) tested end-to-end. Backend (5/5 pytest cases in test_iteration_53.py PASS): Task 9 friend_request notif link correctly emits /users?focus=<handle> with the new body copy; falls back to bare /users when requester has no @handle; friend_accepted still links /friends (no regression). Task 11 /api/books/trending returns the expected shape (anon-ok, window_days=7). Regression: all 19 iter-52 pytest cases still pass. Frontend Playwright (3 of 4 flows pass): Task 11 trending strip renders below Featured Readers after seeding a heart, cards link to /u/<handle>/library, hearts count surfaces with correct testids; silent on empty confirmed. Task 8a empty-library link present on /library/all with correct /help#suggestions href. Task 8b changelog footer suggest-feature link present linking to /suggestions. BUG FOUND (Help update): TOC entries for 'Sharing your library publicly' (#public-library) and 'Discovering other readers' libraries' (#library-discovery) link to anchor IDs that DO NOT EXIST in the DOM — clicking just updates URL hash but scrolls nowhere. Main agent added the FAQ entries to SEO_FAQ + the SECTIONS TOC array but never added the matching <Section id=\"public-library\"> / <Section id=\"library-discovery\"> blocks in the Help.jsx body.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Help page / Help.jsx",
+        "issue": "TOC entries 'Sharing your library publicly' and 'Discovering other readers' libraries' link to #public-library and #library-discovery, but no DOM elements have those IDs. document.getElementById('public-library') returns null. Clicking the TOC entry updates the URL hash but does not scroll to any FAQ Q/A content. The FAQ entries were added to the SEO_FAQ array (for JSON-LD structured data) and to the SECTIONS TOC array, but the corresponding <Section id=\"public-library\"> ... </Section> and <Section id=\"library-discovery\"> ... </Section> JSX blocks are missing from the Help.jsx body.",
+        "selector": "a[href=\"#public-library\"], a[href=\"#library-discovery\"]",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/tests/test_iteration_53.py",
+    "/app/test_reports/pytest/iteration_53.xml"
+  ],
+  "action_items": [
+    "Help.jsx: Add two new <Section id=\"public-library\" icon={...} title=\"Sharing your library publicly\">...</Section> and <Section id=\"library-discovery\" ...>...</Section> JSX blocks in the page body. Reasonable placement: just below the existing 'bookclubs' Section (line ~1078) or near the discovery/usernames cluster. Use the q/a text from SEO_FAQ entries at line 110-118 as the section copy. Without these, the new TOC entries are dead anchors."
+  ],
+  "critical_code_review_comments": [
+    "Task 9 link fallback uses (user.username or '').strip() — correctly handles None/empty/whitespace. Good.",
+    "TrendingBooksStrip silently swallows ALL errors in the catch block (`catch { /* silent */ }`). If /books/trending starts returning 500s the strip just hides — operators won't notice. Consider at least one console.warn for non-network errors so future regressions surface in browser logs.",
+    "Task 8a empty-library link uses <a href=\"/help#suggestions\"> — full-page reload. Since AllBooksPage is inside the React Router tree, a <Link to=\"/help#suggestions\"> would preserve SPA navigation. Minor — not blocking.",
+    "Help.jsx SECTIONS array drives both the TOC and the page outline; adding entries without matching Section components creates dead anchors silently. Suggest adding a dev-only assert in the Help mount that warns when SECTIONS contains an id with no matching DOM node after render.",
+    "test_iteration_53 friend-accepted test relies on /api/friends/{uidA}/accept by user_id — works. The endpoint path uses the *other* user's user_id, not friendship_id — confirmed correct against current backend route signature."
+  ],
+  "updated_files": [
+    "/app/tests/test_iteration_53.py (new — 5 tests)",
+    "/app/test_reports/pytest/iteration_53.xml (junit output)"
+  ],
+  "success_rate": {
+    "backend": "100% (5/5 new + 19/19 iter-52 regression)",
+    "frontend": "75% (3 of 4 flows pass — Help TOC anchors broken)"
+  },
+  "test_credentials": "Re-used iter-51 fixtures: TEST_fe_opted_e24c9d@example.com / hunter2pw! / @febopta508d (opted-in, 2 books). TEST_fe_overlap_70fa84@example.com / hunter2pw! (heart sender for trending seed). Empty-library test registers fresh TEST_iter53empty_<uuid> users per run.",
+  "seed_data_creation": "Temporarily hearted TEST_bk_91871715 (Harry Potter, owner @febopta508d) via overlap user to make the trending strip visible during FE testing, then un-hearted in cleanup. Each TestFriendRequestNotificationLink case registers 2 fresh users (sA/sB) and one optional @handle claim — no persistent fixtures touched.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend trending endpoint state depends on whether iter-52 tests have just run (they leave book_reactions empty at the end). When a fresh heart is needed for FE testing, login as TEST_fe_overlap_70fa84@example.com and POST /api/books/TEST_bk_91871715/react. Help.jsx FAQ structure has SEO_FAQ (JSON-LD only) and SECTIONS (TOC + body Section components must match by id). When adding a new TOC entry you MUST also add a matching <Section id=\"...\"> in the body or the link is a dead anchor.",
+  "rca of the issue": "BUG: Help page TOC entries for 'public-library' and 'library-discovery' are dead anchors. ROOT CAUSE: When E1 added the two new FAQ topics in iter-53, the entries were appended to the SEO_FAQ array (lines 109-119 of /app/frontend/src/pages/Help.jsx) for JSON-LD structured data AND added to the SECTIONS TOC array (lines 152-153). However, no matching <Section id=\"public-library\"> or <Section id=\"library-discovery\"> JSX block was added to the page body (the body Sections live around lines 632-1100+ and explicitly enumerate each id like Section id=\"usernames\", Section id=\"messages\", Section id=\"bookclubs\"). REPRO: Visit /help?notour=1, find the TOC entries 'Sharing your library publicly' and 'Discovering other readers' libraries' (both render correctly with their labels). Click either. URL hash updates to #public-library or #library-discovery but page does not scroll — document.getElementById returns null for both IDs. MITIGATION: Add two <Section id=\"public-library\" ...>...</Section> and <Section id=\"library-discovery\" ...>...</Section> blocks in the JSX body of Help.jsx, using the existing q/a copy from SEO_FAQ entries 110-117 as the section body text. Suggested placement: right after the bookclubs Section (around line 1100). Not a blocker for the rest of Bundle A — the other 3 testids all work."
+}

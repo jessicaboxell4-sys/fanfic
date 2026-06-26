@@ -106,6 +106,16 @@ const SEO_FAQ = [
     q: "Does Shelfsort have book clubs?",
     a: "Yes — Reading Rooms at /bookclubs. Create a room, invite friends, pick a current book, schedule chapter discussions, and chat alongside the Reader. Each room remembers progress per member so latecomers can catch up.",
   },
+  {
+    id: "public-library",
+    q: "Can other people see my library?",
+    a: "Only if you opt in. Account → Privacy has two toggles: 'Share with friends' (friends only) and 'Make my library public on the web' (any signed-in Shelfsort member can browse at /u/<your-handle>/library). Anonymous visitors can't see libraries — they're prompted to sign in first. AV-flagged books are always excluded. Toggle off any time to revoke.",
+  },
+  {
+    id: "library-discovery",
+    q: "How do I find other readers' libraries?",
+    a: "Three discovery surfaces: (1) the Reader Directory at /users shows everyone and marks opted-in libraries with a 📚 chip, (2) the landing page's Featured Readers strip rotates 3-5 random opted-in libraries, (3) every fandom has its own page at /explore/fandom/<fandom> listing readers who have it. From any public library you can heart books, see overlap with your own (\"You have 3 of these too\"), and subscribe via RSS.",
+  },
 ];
 
 const SECTIONS = [
@@ -139,6 +149,8 @@ const SECTIONS = [
   { id: "usernames", label: "Public usernames & @handles" },
   { id: "messages", label: "Messages & friends" },
   { id: "bookclubs", label: "Book-club reading rooms" },
+  { id: "public-library", label: "Sharing your library publicly" },
+  { id: "library-discovery", label: "Discovering other readers' libraries" },
   { id: "covers", label: "Community Covers" },
   { id: "recommendations", label: "Friend recommendations" },
   { id: "opds", label: "E-reader sync (OPDS)" },

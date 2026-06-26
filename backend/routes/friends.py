@@ -201,11 +201,18 @@ async def send_friend_request(body: FriendRequestBody, user: User = Depends(get_
         "created_at": now,
         "updated_at": now,
     })
+    # Deep-link the notification to /users?focus=<requester-handle> so the
+    # recipient can scroll directly to the requester's directory row with
+    # the amber highlight pulse (Task 9 follow-up to the 2026-06-26
+    # directory polish).  Falls back to the bare /users page when the
+    # requester hasn't claimed a @handle yet.
+    requester_handle = (user.username or "").strip()
+    request_link = f"/users?focus={requester_handle}" if requester_handle else "/users"
     await create_notification(
         target["user_id"], kind="friend_request",
         title=f"{user.name or user.email} wants to be friends",
-        body="Open Friends to accept or decline.",
-        link="/friends",
+        body="See them in the directory, then accept on the Friends page.",
+        link=request_link,
     )
     return {"status": "pending", "other_user_id": target["user_id"], "friendship_id": fid}
 

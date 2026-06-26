@@ -715,6 +715,20 @@ export default function AllBooksPage() {
             <div className="mt-6 flex justify-center">
               {FETCHING_UI_ENABLED && <PoweredByFanFicFare />}
             </div>
+            {/* Suggestion-box discoverability chip (Task 8) — first-
+                time users land here with an empty shelf; nudge them
+                toward the inbound flywheel right at the moment they
+                might wish Shelfsort did one more thing. */}
+            <p className="mt-6 text-sm text-[#6B705C]">
+              Wish Shelfsort did something it doesn&rsquo;t yet?{" "}
+              <Link
+                to="/help#suggestions"
+                data-testid="empty-library-suggest-feature-link"
+                className="text-[#6B46C1] font-semibold hover:underline inline-flex items-center gap-1"
+              >
+                💡 Suggest a feature →
+              </Link>
+            </p>
           </div>
         ) : (
           <>

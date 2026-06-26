@@ -206,12 +206,29 @@ export default function Changelog() {
           </section>
         )}
 
-        <div className="mt-12 pt-6 border-t border-[#E5DDC5] text-sm text-[#6B705C]">
-          Looking for the user guide? Try the{" "}
-          <Link to="/help" className="text-[#E07A5F] hover:underline">
-            Help page
-          </Link>{" "}
-          for step-by-step walkthroughs.
+        <div className="mt-12 pt-6 border-t border-[#E5DDC5] text-sm text-[#6B705C] space-y-3">
+          <p>
+            Looking for the user guide? Try the{" "}
+            <Link to="/help" className="text-[#E07A5F] hover:underline">
+              Help page
+            </Link>{" "}
+            for step-by-step walkthroughs.
+          </p>
+          {/* Suggestion-box discoverability chip (Task 8) — readers of
+              the changelog are the most-primed audience for "wish it
+              had X" thoughts.  Place the chip right where they're
+              already celebrating what we shipped. */}
+          <p>
+            See something missing?{" "}
+            <Link
+              to="/suggestions"
+              data-testid="changelog-suggest-feature-link"
+              className="text-[#6B46C1] font-semibold hover:underline inline-flex items-center gap-1"
+            >
+              💡 Suggest a feature →
+            </Link>{" "}
+            We ship community ideas regularly.
+          </p>
         </div>
       </main>
       <SiteFooter />
