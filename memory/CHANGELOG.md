@@ -7,6 +7,62 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 (P1) — Tiered canary cadence with agent-observable status 🐤
+
+ROADMAP item **#5** shipped.  Problem: a single transient prod blip
+(Cloudflare hiccup, brief LLM 503) used to flip the public `/changelog`
+canary badge to "failing" AND auto-file a noisy GitHub issue — even
+though prod was actually fine 60 seconds later.
+
+### What shipped
+
+- **`.github/workflows/prod-smoke-canary-retry.yml`** (new) —
+  triggered on `workflow_run.conclusion == 'failure'` of the primary
+  canary.  Sleeps 15 min, re-runs the same 22-test smoke band, then:
+    - On **pass** → POST recovery to `/api/canary/report` (badge flips
+      green), overwrite `canary_status.json` with `status: "ok"`,
+      `last_event: "transient_recovered"`.  **No GitHub issue.**
+    - On **fail** → POST fail to `/api/canary/report`, overwrite
+      `canary_status.json` with `status: "fail"`, `last_event:
+      "confirmed_failure"`, full tail.  File a single GitHub issue
+      labelled `canary-fail-confirmed`.
+  Both branches commit `canary_status.json` back to the default
+  branch with a `[skip ci]` commit so the agent's next session
+  picks up the latest state.
+
+- **`.github/workflows/prod-smoke-canary.yml`** (modified) — removed
+  the "Open an issue if the canary failed" step.  The retry workflow
+  is now the SOLE auto-issue-filer; the primary canary just runs the
+  smoke and reports.  Less noise, fewer false-positive issues.
+
+- **`/app/memory/canary_status.json`** (new) — agent-readable
+  status file.  Seeded as `{status: "ok", last_event: "initial_seed"}`.
+  The retry workflow rewrites it on every retry decision.
+
+- **`/app/memory/PRD.md`** (updated) — added step 6 to the bug-check
+  deep-dive sweep: read `canary_status.json` and surface
+  `status == "fail"` as a HIGH-severity finding with run-URL links.
+  Effect: any time you ask me "any bugs?" / "do a check", I'll
+  auto-include confirmed canary failures in the report.
+
+### Net effect
+
+| Scenario | Public badge | GH issue | Agent visibility |
+|---|---|---|---|
+| Healthy prod | 🟢 green | none | `status: "ok"` |
+| Transient blip (recovers in 15 min) | 🔴 → 🟢 (15 min) | none | `status: "ok"` |
+| Real outage (still failing after 15 min) | 🔴 red | 1 issue, `canary-fail-confirmed` | `status: "fail"` + run URL |
+
+Total wall-clock cost of the retry path: ~16 min (15 min sleep + ~1 min
+smoke).  Agent learns about confirmed failures automatically on the next
+session's deep-dive sweep — no extra integrations, no external services.
+
+Files touched: `.github/workflows/prod-smoke-canary.yml`,
+`.github/workflows/prod-smoke-canary-retry.yml` (new),
+`memory/canary_status.json` (new), `memory/PRD.md`.
+
+---
+
 ## 2026-06-27 (late) — Post-big-import Wrapped CTA 🎉
 
 When a user just chunked through 200+ books, the heaviest onboarding

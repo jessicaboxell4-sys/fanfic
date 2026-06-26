@@ -75,9 +75,6 @@ jobs:
       - name: Run regression smoke against prod
         id: smoke
         working-directory: backend
-        # 22-test band, runs in ~7 s against a healthy prod.  Fails
-        # the job (and the workflow) on any test failure — that
-        # bubbles up to the issue-opener step below.
         run: |
           chmod +x scripts/run_regression_smoke.sh
           START_TS=$(date +%s)
@@ -134,33 +131,8 @@ jobs:
             -H "Content-Type: application/json" \
             --data "$PAYLOAD" || true
 
-      - name: Open an issue if the canary failed
-        if: failure()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            let log = '';
-            try { log = fs.readFileSync('/tmp/canary.log', 'utf8'); } catch (e) { log = '(no log captured)'; }
-            // Trim to the last 60 lines — usually the failure summary.
-            const tail = log.trim().split('\n').slice(-60).join('\n');
-            const body = [
-              "The nightly production smoke canary failed.",
-              "",
-              `**Run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
-              `**Target:** ${process.env.REACT_APP_BACKEND_URL || '(unset)'}`,
-              "",
-              "**Tail of test output (last ~60 lines):**",
-              "```",
-              tail,
-              "```",
-              "",
-              "_Auto-filed by `.github/workflows/prod-smoke-canary.yml`._",
-            ].join("\n");
-            await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: `🚨 Production smoke canary failed (${new Date().toISOString().slice(0,10)})`,
-              body,
-              labels: ["canary-alert", "production"],
-            });
+      # 2026-06-27 — Issue auto-filing moved to the retry workflow
+      # (`prod-smoke-canary-retry.yml`).  A single transient blip used
+      # to file a noisy GitHub issue every time; now the retry workflow
+      # waits 15 min, re-runs the smoke, and ONLY files an issue if
+      # the failure is still present.  Transient blips are silent.

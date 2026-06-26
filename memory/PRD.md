@@ -18,6 +18,14 @@
        `error/traceback/exception/NameError/ImportError`
     5. Production-critical import smoke test for any modules ruff
        flagged
+    6. **Production canary status** — read
+       `/app/memory/canary_status.json`.  If `status == "fail"`,
+       surface it as a HIGH-severity finding with the
+       `upstream_run_url` and `retry_run_url` links so the user can
+       jump straight to the failing run.  The retry workflow
+       (`.github/workflows/prod-smoke-canary-retry.yml`) commits
+       this file back to the repo after each 15-min retry, so it
+       reflects the latest confirmed prod state.
   Report findings ranked by severity (HIGH = runtime crash path,
   MED = potential 500, LOW = code smell).  Don't truncate the lint
   output — the worst bugs hide in the long tail.

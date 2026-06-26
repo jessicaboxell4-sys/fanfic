@@ -1,0 +1,248 @@
+name: Production smoke canary — retry (tiered cadence)
+
+# 2026-06-27 — Tiered canary cadence (ROADMAP item #5).
+#
+# When the primary `Production smoke canary` workflow fails, this
+# workflow auto-triggers, waits 15 minutes, and re-runs the same
+# 22-test regression smoke band.  Goal: filter out transient prod
+# blips (Cloudflare hiccups, brief LLM 503s, one-off DB connection
+# wobbles) before they
+#   (a) wake an operator with a noisy GitHub issue, or
+#   (b) flip the public `/changelog` canary badge to "failing".
+#
+# Decision matrix (after the 15-min retry runs):
+#   • Retry PASSES  → silent recovery.  POST a recovery row to
+#       /api/canary/report so the public badge flips back to green,
+#       and write canary_status.json = {status: "ok", recovered: …}
+#       back to /app/memory/ — that file is what the agent's
+#       deep-dive bug sweep reads.  No GitHub issue is filed.
+#   • Retry FAILS   → confirmed failure.  POST a fail row to the
+#       canary report, write canary_status.json = {status: "fail",
+#       confirmed_at: …, tail: …, run_url: …} so the agent picks it
+#       up next session, and file a GitHub issue labelled
+#       `canary-fail-confirmed` for the operator.
+#
+# Why a separate workflow and not a single retry-in-place loop?
+# `workflow_run.conclusion == 'failure'` gives us a clean trigger
+# point that doesn't depend on the main canary holding a runner
+# for 15+ idle minutes — which would block other scheduled work
+# and cost more billable minutes.
+
+on:
+  workflow_run:
+    workflows: ["Production smoke canary"]
+    types: [completed]
+
+# This workflow writes to /app/memory/canary_status.json on the
+# default branch and files GitHub issues — needs both contents
+# write (commit) and issues write (auto-file) perms.
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  retry:
+    # Only run when the upstream canary failed.  GitHub Actions
+    # doesn't allow filtering at the `on:` level for workflow_run
+    # conclusion, so we gate at the job level.
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25  # 15-min sleep + ~7s smoke + buffer.
+
+    env:
+      REACT_APP_BACKEND_URL: ${{ secrets.SHELFSORT_PROD_URL }}
+
+    steps:
+      - name: Checkout default branch (for commit-back)
+        uses: actions/checkout@v4
+        with:
+          # Use default branch so the commit-back lands in the right
+          # place.  workflow_run's checkout otherwise pins to the
+          # commit that triggered the upstream run.
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+
+      - name: Symlink /app to checkout for hardcoded test paths
+        run: sudo ln -sfn "$GITHUB_WORKSPACE" /app
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install minimal test deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest requests
+
+      - name: Verify prod URL is configured
+        run: |
+          if [ -z "${REACT_APP_BACKEND_URL}" ]; then
+            echo "::error::SHELFSORT_PROD_URL secret is not set."
+            exit 1
+          fi
+          echo "Retry target: ${REACT_APP_BACKEND_URL}"
+          echo "Upstream run: ${{ github.event.workflow_run.html_url }}"
+
+      - name: Cool-down — wait 15 minutes before retrying
+        # Most transient prod blips (Cloudflare POP issues, brief LLM
+        # 503s, DB connection blips) resolve in <5 min.  15 min is a
+        # comfortable buffer that still keeps total MTTD under 1 h
+        # when paired with the daily canary cron.
+        run: |
+          echo "Cooling down for 15 minutes before re-running smoke…"
+          sleep 900
+          echo "Cooldown complete; re-running smoke."
+
+      - name: Run regression smoke against prod (retry)
+        id: smoke
+        working-directory: backend
+        run: |
+          chmod +x scripts/run_regression_smoke.sh
+          START_TS=$(date +%s)
+          set +e
+          ./scripts/run_regression_smoke.sh 2>&1 | tee /tmp/canary-retry.log
+          STATUS=${PIPESTATUS[0]}
+          set -e
+          END_TS=$(date +%s)
+          echo "duration_s=$((END_TS - START_TS))" >> $GITHUB_OUTPUT
+          echo "exit_code=$STATUS" >> $GITHUB_OUTPUT
+          PASSED=$(grep -oE '[0-9]+ passed' /tmp/canary-retry.log | tail -1 | awk '{print $1}')
+          FAILED=$(grep -oE '[0-9]+ failed' /tmp/canary-retry.log | tail -1 | awk '{print $1}')
+          PASSED=${PASSED:-0}
+          FAILED=${FAILED:-0}
+          echo "passed_count=$PASSED" >> $GITHUB_OUTPUT
+          echo "failed_count=$FAILED" >> $GITHUB_OUTPUT
+          echo "total_count=$((PASSED + FAILED))" >> $GITHUB_OUTPUT
+          # IMPORTANT: don't exit non-zero here — we want subsequent
+          # steps (report POST, status-file commit, issue-file) to
+          # run regardless of outcome.  We surface success/failure
+          # via the `outcome` of this step instead.
+          echo "Retry exited with status=$STATUS"
+
+      - name: Push retry result to canary report endpoint
+        if: env.REACT_APP_BACKEND_URL != '' && env.CANARY_REPORT_SECRET != ''
+        env:
+          CANARY_REPORT_SECRET: ${{ secrets.CANARY_REPORT_SECRET }}
+        run: |
+          # exit_code 0 from the smoke step = retry passed = recovery.
+          if [ "${{ steps.smoke.outputs.exit_code }}" = "0" ]; then
+            STATUS="pass"
+          else
+            STATUS="fail"
+          fi
+          TAIL=$(tail -n 60 /tmp/canary-retry.log 2>/dev/null | python -c 'import sys,json;print(json.dumps(sys.stdin.read()))')
+          PAYLOAD=$(cat <<EOF
+          {
+            "run_id":      "${{ github.run_id }}",
+            "status":      "$STATUS",
+            "passed":      ${{ steps.smoke.outputs.passed_count || 0 }},
+            "total":       ${{ steps.smoke.outputs.total_count  || 0 }},
+            "target":      "${REACT_APP_BACKEND_URL}",
+            "duration_s":  ${{ steps.smoke.outputs.duration_s   || 0 }},
+            "finished_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "retry":       true,
+            "tail":        $TAIL
+          }
+          EOF
+          )
+          curl -sS -X POST \
+            "${REACT_APP_BACKEND_URL}/api/canary/report?secret=${CANARY_REPORT_SECRET}" \
+            -H "Content-Type: application/json" \
+            --data "$PAYLOAD" || true
+
+      - name: Update /app/memory/canary_status.json
+        # Always runs — both pass and fail update the agent-visible
+        # status file so the next session reflects current reality.
+        run: |
+          NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          UPSTREAM_URL="${{ github.event.workflow_run.html_url }}"
+          RETRY_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          if [ "${{ steps.smoke.outputs.exit_code }}" = "0" ]; then
+            cat > /app/memory/canary_status.json <<EOF
+          {
+            "status": "ok",
+            "updated_at": "$NOW",
+            "last_event": "transient_recovered",
+            "note": "Primary canary failed; 15-min retry passed silently.",
+            "upstream_run_url": "$UPSTREAM_URL",
+            "retry_run_url": "$RETRY_URL",
+            "passed": ${{ steps.smoke.outputs.passed_count || 0 }},
+            "total": ${{ steps.smoke.outputs.total_count  || 0 }}
+          }
+          EOF
+          else
+            TAIL=$(tail -n 30 /tmp/canary-retry.log 2>/dev/null | python -c 'import sys,json;print(json.dumps(sys.stdin.read()))')
+            cat > /app/memory/canary_status.json <<EOF
+          {
+            "status": "fail",
+            "updated_at": "$NOW",
+            "last_event": "confirmed_failure",
+            "note": "Production smoke canary failed twice (initial + 15-min retry). Agent should investigate.",
+            "upstream_run_url": "$UPSTREAM_URL",
+            "retry_run_url": "$RETRY_URL",
+            "passed": ${{ steps.smoke.outputs.passed_count || 0 }},
+            "total": ${{ steps.smoke.outputs.total_count  || 0 }},
+            "tail": $TAIL
+          }
+          EOF
+          fi
+          echo "canary_status.json updated:"
+          cat /app/memory/canary_status.json
+
+      - name: Commit canary_status.json back to default branch
+        # `[skip ci]` in the commit message keeps this from triggering
+        # the backend-tests workflow (which watches pushes to main).
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add /app/memory/canary_status.json
+          if git diff --staged --quiet; then
+            echo "No change to canary_status.json — skipping commit."
+            exit 0
+          fi
+          if [ "${{ steps.smoke.outputs.exit_code }}" = "0" ]; then
+            MSG="chore(canary): mark status=ok after transient-recovery retry [skip ci]"
+          else
+            MSG="chore(canary): mark status=fail after confirmed retry failure [skip ci]"
+          fi
+          git commit -m "$MSG"
+          git push
+
+      - name: File GitHub issue on confirmed failure
+        # Only fires when retry also failed.  This is the SINGLE
+        # operator-facing alert — transient blips never reach this
+        # step.  Labelled `canary-fail-confirmed` so it's easy to
+        # filter out from the older `canary-alert` label.
+        if: steps.smoke.outputs.exit_code != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let log = '';
+            try { log = fs.readFileSync('/tmp/canary-retry.log', 'utf8'); } catch (e) { log = '(no log captured)'; }
+            const tail = log.trim().split('\n').slice(-60).join('\n');
+            const upstream = context.payload.workflow_run;
+            const body = [
+              "The production smoke canary failed **twice** (initial run + 15-min retry).",
+              "This is a confirmed production issue — please investigate.",
+              "",
+              `**Initial run:** ${upstream && upstream.html_url ? upstream.html_url : '(unknown)'}`,
+              `**Retry run:**   ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              `**Target:**      ${process.env.REACT_APP_BACKEND_URL || '(unset)'}`,
+              "",
+              "**Tail of retry test output (last ~60 lines):**",
+              "```",
+              tail,
+              "```",
+              "",
+              "_Auto-filed by `.github/workflows/prod-smoke-canary-retry.yml`._",
+            ].join("\n");
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🚨 Production canary failed (confirmed, ${new Date().toISOString().slice(0,10)})`,
+              body,
+              labels: ["canary-fail-confirmed", "production"],
+            });
