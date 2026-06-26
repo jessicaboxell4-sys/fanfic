@@ -7,6 +7,74 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 (afternoon) — Profile-completeness bundle: meter + directory sort + toast 🎯
+
+User picked the "a+b+c bundle" from the next-up menu.  All three
+reuse the iter-56 `/auth/me` plumbing for a single 50-min session.
+
+### (a) Profile-completeness meter on `/account`
+- New `ProfileCompletenessCard` rendered at the top of the Account
+  page (right under the "Signed in as" header, above
+  LibraryStatsCard).  Self-fetches `/api/auth/me`; renders an amber
+  "Boost your discoverability — N/3" card with 3 progress dots
+  (handle / bio / public-library) and a CTA list for missing
+  dimensions.  Hits 3/3 → green "Profile complete" celebration
+  state with check icon.
+- Shared helpers at `lib/profileCompleteness.js`:
+  `computeCompletenessScore`, `missingDimensions`, `COMPLETENESS_DIMS`,
+  and the `shelfsort:profile-completeness-changed` custom DOM event
+  used to wire save handlers to the meter without lifting state.
+- data-testids: `profile-completeness-card`,
+  `profile-completeness-score`, `profile-completeness-dots`,
+  `profile-completeness-dot-{handle,bio,public}`,
+  `profile-completeness-cta-{handle,bio,public}`,
+  `profile-completeness-missing-list`.
+
+### (b) `/api/users/directory` sort by completeness score
+- Switched the directory query from `find().sort([("username_lower", 1)])`
+  to an aggregation pipeline that computes `_completeness` per row
+  (`(bio non-empty ? 1 : 0) + (library_visible_to_public ? 1 : 0)`),
+  sorts DESC by score and ASC by username_lower as a tie-breaker,
+  then projects out the score so callers can use it.
+- Response now includes `completeness_score: 0|1|2` per row.  The
+  existing `has_public_library` boolean stays.
+- Net effect: a fresh visitor landing on `/users` sees polished
+  profiles first (bio + library opted-in) instead of a wall of
+  bare handles.  Single Mongo aggregate change, day-1 first-
+  impression lift, zero new UI.
+
+### (c) "Almost there!" toast on profile save
+- Save handlers in `Account.jsx` (saveBio, saveUsername) and
+  `PrivacyMessagingCard.toggle` (library-visible-to-public) now
+  `emitCompletenessChange()` after the primary save toast.
+- Single-source-of-truth toast logic lives in
+  `ProfileCompletenessCard`: tracks `lastScoreRef`, refetches
+  `/auth/me` on every event, fires `toast.success` ONLY when the
+  score increases.  Per-tier copy:
+    * 1/3 → "Nice — 1 of 3 done." + sub-copy
+    * 2/3 → "Almost there — 2 of 3 done." + sub-copy
+    * 3/3 → "Profile complete!" + celebratory sub-copy
+- Initial mount sets the baseline silently (no welcome-back toast
+  for existing 2/3 users).  Clearing a bio or opting back out
+  doesn't toast.
+
+### Tests
+- New `tests/test_iter57_directory_sort.py`: 3/3 PASS covering
+  payload shape (`completeness_score` int 0-2), high-completeness
+  bubbles to top (zzz-prefix test proves it's not just alphabetical),
+  and alphabetical tie-breaker within the same score tier.
+- Regression: iter54+55+56 (12/13 PASS, 1 expected skip) + existing
+  `test_users_directory_shape` and
+  `test_users_directory_excludes_requester` smoke tests still PASS.
+  19/20 total across the four iters.
+
+### Smoke
+- Screenshot-verified the meter renders on `/account` for a brand-
+  new user: amber 0/3 card with 3 empty dots + 3 CTAs ("Claim a
+  handle →", "Add a bio →", "Share library publicly →").  Zero
+  console errors.
+
+---
 ## 2026-06-27 (morning, part 2) — Quick-wins triple: anchor-guard + completeness nudge 🧰
 
 User asked to ship the three "Quick wins" in one batch.  One was

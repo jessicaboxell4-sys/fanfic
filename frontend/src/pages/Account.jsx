@@ -10,6 +10,8 @@ import CatalogSyncCard from "../components/CatalogSyncCard";
 import PushHandoffToggle from "../components/PushHandoffToggle";
 import ReadingPrivacyToggle from "../components/ReadingPrivacyToggle";
 import UploadChimeCard from "../components/UploadChimeCard";
+import ProfileCompletenessCard from "../components/ProfileCompletenessCard";
+import { emitCompletenessChange } from "../lib/profileCompleteness";
 // PalettePickerCard moved to /account/appearance (linked from the navbar appearance popover)
 import { FETCHING_UI_ENABLED, SEND_TO_KINDLE_UI_ENABLED } from "../lib/featureFlags";
 import { toast } from "sonner";
@@ -313,6 +315,16 @@ function PrivacyMessagingCard({ navigate }) {
       if (data?.show_first_share_modal) {
         setShowFirstShareModal(true);
       }
+      // Profile-completeness nudge (iter 57) — when opting in for
+      // the first time, the meter may tick up.  We don't have the
+      // full {username, bio} here so dispatch the event and let the
+      // meter card refetch /auth/me to compute the new score.
+      // (Toast logic lives in the meter card via the event listener
+      // path so we don't double-toast across components.)
+      emitCompletenessChange({
+        source: "library_visibility",
+        library_visible_to_public: !!data?.library_visible_to_public,
+      });
     } catch (e) { toast.error(errMsg(e?.response?.data?.detail)); }
     finally { setSaving(false); }
   };
@@ -1675,6 +1687,8 @@ export default function Account() {
       setProfile((p) => ({ ...p, bio: data?.bio || "" }));
       // Mirror to auth context if it carries bio (added 2026-06-26 evening).
       setUser((u) => (u ? { ...u, bio: data?.bio || "" } : u));
+      // Profile-completeness meter (iter 57) refetches + may toast.
+      emitCompletenessChange({ source: "bio" });
     } catch (e) {
       toast.error(errMsg(e?.response?.data?.detail));
     } finally {
@@ -1753,6 +1767,8 @@ export default function Account() {
       } else {
         toast.success("Username changed");
       }
+      // Profile-completeness meter (iter 57) refetches + may toast.
+      emitCompletenessChange({ source: "username" });
     } catch (err) {
       toast.error(errMsg(err?.response?.data?.detail));
     } finally { setSavingUsername(false); }
@@ -1813,6 +1829,14 @@ export default function Account() {
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-2">Account</p>
         <h1 className="font-serif text-4xl sm:text-5xl text-[#2C2C2C] mb-3" data-testid="account-title">Your shelf, your settings.</h1>
         <p className="text-[#6B705C] mb-10">Signed in as <strong className="text-[#2C2C2C]">{profile.email}</strong></p>
+
+        {/* Profile-completeness meter (iter 57) — top of page so a
+            user landing here from the post-handle nudge or first
+            login sees their progress immediately.  Self-fetches from
+            /auth/me and listens for shelfsort:profile-completeness-changed
+            events fired by the save handlers below.  Auto-celebrates
+            on 3/3. */}
+        <ProfileCompletenessCard />
 
         <LibraryStatsCard />
 

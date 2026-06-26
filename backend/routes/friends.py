@@ -376,26 +376,55 @@ async def users_directory(
         "username": {"$exists": True, "$nin": [None, ""]},
     }
     total = await db.users.count_documents(q)
-    cursor = (
-        db.users.find(
-            q,
-            # Include library_visible_to_public so the directory UI
-            # can render a 📚 chip on opted-in rows (Task 10 follow-up
-            # to the 2026-06-26 public-library launch).  Field is
-            # already indexed implicitly via the users collection.
-            {"_id": 0, "user_id": 1, "username": 1, "library_visible_to_public": 1},
-        )
-        .sort([("username_lower", 1)])
-        .skip(skip)
-        .limit(limit)
-    )
-    users = await cursor.to_list(length=limit)
+    # Sort by *profile completeness* (DESC) then alphabetical (ASC).
+    # The intent: when a brand-new visitor lands on /users, polished
+    # profiles (bio set, library opted-in publicly) bubble to the top
+    # so the directory's first impression isn't a wall of bare
+    # handles.  Everyone in the result already has a username (it's a
+    # hard filter above), so the meaningful tier-breakers are bio and
+    # library_visible_to_public — a max of 2 score points on top of
+    # the implicit username point.  Sorted via aggregation pipeline
+    # (Mongo's `find().sort()` can't sort on computed fields).
+    pipeline = [
+        {"$match": q},
+        {"$addFields": {
+            "_completeness": {
+                "$add": [
+                    {"$cond": [
+                        {"$gt": [{"$strLenCP": {"$ifNull": ["$bio", ""]}}, 0]},
+                        1,
+                        0,
+                    ]},
+                    {"$cond": [
+                        {"$eq": ["$library_visible_to_public", True]},
+                        1,
+                        0,
+                    ]},
+                ],
+            },
+        }},
+        {"$sort": {"_completeness": -1, "username_lower": 1}},
+        {"$skip": skip},
+        {"$limit": limit},
+        {"$project": {
+            "_id": 0,
+            "user_id": 1,
+            "username": 1,
+            "library_visible_to_public": 1,
+            "_completeness": 1,
+        }},
+    ]
+    users = await db.users.aggregate(pipeline).to_list(length=limit)
     return {
         "users": [
             {
                 "user_id": u["user_id"],
                 "username": u.get("username") or "",
                 "has_public_library": bool(u.get("library_visible_to_public", False)),
+                # Surface the score so the FE can render a small tier
+                # indicator (and so e2e tests have something concrete
+                # to assert on).  0-2 (username is implicit).
+                "completeness_score": int(u.get("_completeness", 0)),
             }
             for u in users
         ],
