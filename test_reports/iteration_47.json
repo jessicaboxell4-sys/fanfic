@@ -1,0 +1,26 @@
+{
+  "summary": "Task 2 — Profile discovery polish on /users (UsersDirectory). All 8 subtests passed end-to-end on the live preview URL. Verified: (a) auth + page render with data-testid='users-directory-page'; (b) persistent missing-handle nudge banner shows with AlertCircle icon and 'Claim a handle' CTA, CTA navigates to /account#profile; (c) nudge is absent when user has a username; (d) scroll-to-row with present handle scrolls into view, applies amber bg-[#FFF6D6] highlight, fades after ~2.6s, strips ?focus= from URL; (e) absent handle shows a toast with text 'isn\\u2019t on this page' and clears ?focus=; (f) leading @ stripped (focus=@ArtemisBadass884 matches); (g) case-insensitive match (focus=ARTEMISBADASS884 matches). All flows confirmed visually + via class/url asserts.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/users — initial visit with no-handle user", "issues": ["Welcome one-shot toast (\"Claim your @handle\") and an unrelated drag-drop helper toast both render on top of the persistent banner, briefly creating visual clutter; not blocking and disappears after timeout. The banner itself is well laid out."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "UsersDirectory.jsx line 282: ref callback only writes to rowRefs.current[handleLc]; never deletes on unmount. When paginating away from a row, the stale node ref remains and could cause focus to scroll to a detached node on rapid nav. Low-risk for now (focus only fires once per URL change), but worth a cleanup return.",
+    "Line 156 dependency array includes searchParams and setSearchParams — searchParams is a new object every render, which could re-run the effect more often than intended. The early-return guard on !focusHandle keeps it idempotent, but consider memo-ing or using a ref to avoid noisy re-runs.",
+    "Nudge condition `!(user.username || \"\").trim()` correctly handles null/undefined/empty — no issue, just noting it is robust."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only request)", "frontend": "100% (8/8 subtests)"},
+  "test_credentials": "Registered fresh users for this run — no-handle: test_nohandle_1782434295@example.com / hunter2pw (username=null). With-handle: test_handle_1782434295@example.com / hunter2pw, username set to 'th82434306' via PATCH /api/auth/username. Existing directory handles used for focus tests: ArtemisBadass884, listed35306, newuser_3f3b62.",
+  "seed_data_creation": "Registered 2 fresh users via POST /api/auth/register on the preview API; promoted one with PATCH /api/auth/username so the 'has handle' branch could be exercised. No DB cleanup performed (test rows are harmless, prefixed test_nohandle_/test_handle_).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Task 2 verified end-to-end. The only minor observation is the welcome-toast + drag-drop helper overlapping the persistent nudge for ~6s on first visit; the banner is still clickable and the CTA works while toasts are showing. The PATCH /api/auth/username endpoint is the correct way to set a handle (not /api/users/me/profile, which returns 404). Note: a newly set handle does NOT immediately appear in GET /api/users/directory (didn\\u2019t observe my th82434306 user in the list) — this is unrelated to Task 2 but worth verifying separately if discoverability matters.",
+  "rca_of_the_issue": "n/a — no bugs found."
+}

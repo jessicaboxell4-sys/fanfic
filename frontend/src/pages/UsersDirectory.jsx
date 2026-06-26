@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { ArrowLeft, Search, UserPlus, Loader2, Check, Clock, Users as UsersIcon, ShieldOff, AtSign } from "lucide-react";
+import { ArrowLeft, Search, UserPlus, Loader2, Check, Clock, Users as UsersIcon, ShieldOff, AtSign, AlertCircle } from "lucide-react";
 import Navbar from "../components/Navbar";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
@@ -56,6 +56,7 @@ function RelationCta({ row, busy, onSend }) {
 export default function UsersDirectory() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [rows, setRows] = useState([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -64,6 +65,16 @@ export default function UsersDirectory() {
   const [filter, setFilter] = useState("");
   const [busy, setBusy] = useState(null);
   const [sentTo, setSentTo] = useState(() => new Set());
+  // Handle of the row to scroll to + highlight when the URL contains
+  // ?focus=somehandle.  Stored in state (not derived) so a successful
+  // scroll can clear it locally without re-triggering on next render.
+  const [focusHandle, setFocusHandle] = useState(() => {
+    const raw = searchParams.get("focus") || "";
+    return raw.trim().replace(/^@/, "").toLowerCase();
+  });
+  // Ref-of-handles → DOM node, populated as rows render.  Used by the
+  // focus effect below to scroll the exact <li>.
+  const rowRefs = useRef({});
 
   // One-shot welcome — fires once per device, gated on user being
   // loaded so the @handle branch is decided against fresh truth.
@@ -109,6 +120,40 @@ export default function UsersDirectory() {
     }
   };
   useEffect(() => { load(1); }, []);
+
+  // Auto-scroll to a row when /users?focus=handle is used (e.g. from a
+  // crossover suggestion or friend-request link).  We wait until rows
+  // have rendered, then scroll the <li> into view and apply a 2.5s
+  // amber highlight pulse so the eye lands on the right place.  After
+  // scrolling we strip the ?focus= param so a page refresh doesn't
+  // keep re-scrolling, and we clear the local state so the highlight
+  // animation can finish + tear down.
+  useEffect(() => {
+    if (!focusHandle || loading || rows.length === 0) return;
+    const node = rowRefs.current[focusHandle];
+    if (!node) {
+      // Handle not on this page (paged out). Toast so the user knows
+      // why nothing scrolled, and clear so we don't trip again.
+      toast(`@${focusHandle} isn't on this page — use the filter or paginate to find them.`, { duration: 6000 });
+      setFocusHandle("");
+      if (searchParams.get("focus")) {
+        const next = new URLSearchParams(searchParams);
+        next.delete("focus");
+        setSearchParams(next, { replace: true });
+      }
+      return;
+    }
+    node.scrollIntoView({ behavior: "smooth", block: "center" });
+    // Strip the ?focus= param so a refresh isn't sticky, but leave the
+    // local state set for ~2.6s so the CSS highlight class can play.
+    if (searchParams.get("focus")) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("focus");
+      setSearchParams(next, { replace: true });
+    }
+    const t = setTimeout(() => setFocusHandle(""), 2600);
+    return () => clearTimeout(t);
+  }, [focusHandle, loading, rows, searchParams, setSearchParams]);
 
   const sendRequest = async (handle) => {
     if (!handle) return;
@@ -158,6 +203,40 @@ export default function UsersDirectory() {
           </p>
         </header>
 
+        {/* Persistent profile-completeness nudge.  Sits between the
+            header and the search box, only when the signed-in user
+            hasn't claimed a @handle yet (without a handle they're
+            *invisible* in this directory, so this is the highest-
+            leverage discoverability fix we can show).  Distinct from
+            the one-shot welcome toast above: the toast fires once per
+            device + dismisses fast; this banner stays until they act.
+            data-testid wired for canary-friendly e2e. */}
+        {user && !(user.username || "").trim() && (
+          <div
+            data-testid="directory-claim-handle-nudge"
+            className="mb-5 p-4 rounded-xl border border-[#E5C97A] bg-[#FFF8E1] flex items-start gap-3"
+          >
+            <AlertCircle className="w-5 h-5 text-[#B7791F] flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-[#2C2C2C]">
+                You&rsquo;re not in this directory yet.
+              </p>
+              <p className="text-xs text-[#6B705C] mt-1">
+                Friends can&rsquo;t find you here until you claim a @handle.
+                Takes about ten seconds.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate("/account#profile")}
+              data-testid="directory-claim-handle-cta"
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold bg-[#6B46C1] text-white hover:bg-[#553397] flex-shrink-0"
+            >
+              <AtSign className="w-3.5 h-3.5" /> Claim a handle
+            </button>
+          </div>
+        )}
+
         <div className="shelf-card p-3 mb-5 flex items-center gap-2">
           <Search className="w-4 h-4 text-[#6B705C] ml-1.5" />
           <input
@@ -195,11 +274,17 @@ export default function UsersDirectory() {
           <ul className="shelf-card divide-y divide-[#E8E6E1] overflow-hidden" data-testid="directory-list">
             {visible.map((row) => {
               const sent = sentTo.has(row.username);
+              const handleLc = (row.username || "").toLowerCase();
+              const isFocused = focusHandle && handleLc === focusHandle;
               return (
                 <li
                   key={row.user_id}
+                  ref={(el) => { if (el && handleLc) rowRefs.current[handleLc] = el; }}
                   data-testid={`directory-row-${row.username}`}
-                  className="px-4 py-3 flex items-center gap-3"
+                  className={
+                    "px-4 py-3 flex items-center gap-3 transition-colors duration-700 " +
+                    (isFocused ? "bg-[#FFF6D6]" : "")
+                  }
                 >
                   <div className="w-8 h-8 rounded-full bg-[#EEE9FB] text-[#6B46C1] flex items-center justify-center flex-shrink-0 font-semibold text-sm">
                     {(row.username || "?").slice(0, 1).toUpperCase()}
