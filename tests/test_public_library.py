@@ -1,9 +1,12 @@
-"""Backend tests for the opt-in public library feature (iteration_48).
+"""Backend tests for the opt-in public library feature.
+
+Updated for iteration_50 (2026-06-26): /public-library now requires
+auth.  Anon callers get 401 — what used to be anon-200 tests now use
+an authenticated session.  The OG share endpoint stays anon.
 
 Covers:
-- GET /api/users/{username}/public-library (anon) — 404 for fake AND not-opted-in users
+- GET /api/users/{username}/public-library — 401 anon, 404 fake/not-opted-in (auth'd), 200 opted-in (auth'd)
 - GET/PUT /api/account/public-library-visibility (auth required)
-- Public library returns owner/books/top_fandoms/category_counts when opted in
 - AV-infected books are omitted
 - q substring filter (>=2 chars)
 - limit min/max bounds
@@ -92,21 +95,39 @@ def no_handle_user():
     db.users.delete_one({"user_id": user["user_id"]})
 
 
-# ---------------- Public endpoint (anonymous) ----------------
+# ---------------- Public endpoint (auth gate + opt-in invariants) ----------------
 
-class TestPublicLibraryAnon:
-    def test_fake_handle_returns_404(self):
-        r = requests.get(f"{API}/users/zzz_nonexistent_{uuid.uuid4().hex[:6]}/public-library", timeout=15)
-        assert r.status_code == 404
-
-    def test_existing_but_not_opted_in_returns_404(self, not_opted_in_user):
-        # Critical security assertion: same 404 as fake handle.
-        r = requests.get(f"{API}/users/{not_opted_in_user['handle']}/public-library", timeout=15)
-        assert r.status_code == 404
-
-    def test_opted_in_returns_200_no_auth(self, opted_in_user):
-        # Use a bare session (no cookies) to confirm anonymous access.
+class TestPublicLibraryAuthGate:
+    def test_anon_opted_in_returns_401(self, opted_in_user):
+        """iteration_50: anon callers MUST get 401, even for opted-in handles."""
         r = requests.get(f"{API}/users/{opted_in_user['handle']}/public-library", timeout=15)
+        assert r.status_code == 401
+
+    def test_anon_fake_handle_returns_401(self):
+        """Anon → 401 (auth-required) BEFORE handle existence is even checked."""
+        r = requests.get(f"{API}/users/zzz_nonexistent_{uuid.uuid4().hex[:6]}/public-library", timeout=15)
+        assert r.status_code == 401
+
+    def test_anon_not_opted_in_returns_401(self, not_opted_in_user):
+        r = requests.get(f"{API}/users/{not_opted_in_user['handle']}/public-library", timeout=15)
+        assert r.status_code == 401
+
+
+class TestPublicLibraryAuthed:
+    def test_fake_handle_returns_404(self, no_handle_user):
+        s = no_handle_user["session"]
+        r = s.get(f"{API}/users/zzz_nonexistent_{uuid.uuid4().hex[:6]}/public-library", timeout=15)
+        assert r.status_code == 404
+
+    def test_existing_but_not_opted_in_returns_404(self, no_handle_user, not_opted_in_user):
+        # Critical security assertion: same 404 as fake handle (handle-enumeration prevention).
+        s = no_handle_user["session"]
+        r = s.get(f"{API}/users/{not_opted_in_user['handle']}/public-library", timeout=15)
+        assert r.status_code == 404
+
+    def test_opted_in_returns_200_when_authed(self, no_handle_user, opted_in_user):
+        s = no_handle_user["session"]
+        r = s.get(f"{API}/users/{opted_in_user['handle']}/public-library", timeout=15)
         assert r.status_code == 200, r.text
         data = r.json()
         assert "owner" in data
@@ -121,38 +142,64 @@ class TestPublicLibraryAnon:
         assert data["total_returned"] == 2
         titles = [b["title"] for b in data["books"]]
         assert "Infected Manuscript" not in titles
+        # Different signed-in user viewing — viewer_is_signed_in should be True.
+        assert data.get("viewer_is_signed_in") is True
 
-    def test_infected_books_omitted(self, opted_in_user):
-        r = requests.get(f"{API}/users/{opted_in_user['handle']}/public-library", timeout=15)
+    def test_owner_self_view_no_overlap(self, opted_in_user):
+        """Owner viewing own library: overlap=0, viewer_is_signed_in=False."""
+        s = opted_in_user["session"]
+        r = s.get(f"{API}/users/{opted_in_user['handle']}/public-library", timeout=15)
+        assert r.status_code == 200
+        data = r.json()
+        assert data.get("overlap_count") == 0
+        assert data.get("viewer_is_signed_in") is False
+
+    def test_infected_books_omitted(self, no_handle_user, opted_in_user):
+        s = no_handle_user["session"]
+        r = s.get(f"{API}/users/{opted_in_user['handle']}/public-library", timeout=15)
         assert r.status_code == 200
         assert all(b["title"] != "Infected Manuscript" for b in r.json()["books"])
 
-    def test_q_filter_case_insensitive(self, opted_in_user):
-        r = requests.get(f"{API}/users/{opted_in_user['handle']}/public-library",
-                         params={"q": "iron"}, timeout=15)
+    def test_q_filter_case_insensitive(self, no_handle_user, opted_in_user):
+        s = no_handle_user["session"]
+        r = s.get(f"{API}/users/{opted_in_user['handle']}/public-library",
+                  params={"q": "iron"}, timeout=15)
         assert r.status_code == 200
         books = r.json()["books"]
         assert len(books) == 1
         assert "Iron Man" in books[0]["title"]
 
-    def test_q_too_short_ignored(self, opted_in_user):
-        # 1 char q is ignored (>=2 chars required)
-        r = requests.get(f"{API}/users/{opted_in_user['handle']}/public-library",
-                         params={"q": "i"}, timeout=15)
+    def test_q_too_short_ignored(self, no_handle_user, opted_in_user):
+        s = no_handle_user["session"]
+        r = s.get(f"{API}/users/{opted_in_user['handle']}/public-library",
+                  params={"q": "i"}, timeout=15)
         assert r.status_code == 200
         assert r.json()["total_returned"] == 2
 
-    def test_limit_bounds(self, opted_in_user):
-        # limit=9999 should clamp to <=500 (we have 2 docs, but ensure no 422)
-        r = requests.get(f"{API}/users/{opted_in_user['handle']}/public-library",
-                         params={"limit": 9999}, timeout=15)
+    def test_limit_bounds(self, no_handle_user, opted_in_user):
+        s = no_handle_user["session"]
+        r = s.get(f"{API}/users/{opted_in_user['handle']}/public-library",
+                  params={"limit": 9999}, timeout=15)
         assert r.status_code == 200
-        # limit=0 should clamp to >=1
-        r2 = requests.get(f"{API}/users/{opted_in_user['handle']}/public-library",
-                          params={"limit": 0}, timeout=15)
+        r2 = s.get(f"{API}/users/{opted_in_user['handle']}/public-library",
+                   params={"limit": 0}, timeout=15)
         assert r2.status_code == 200
-        # 1 book max
         assert r2.json()["total_returned"] <= 2
+
+
+# ---------------- OG share — stays anon for crawlers ----------------
+
+class TestOGShareAnonAccess:
+    def test_og_opted_in_anon_200(self, opted_in_user):
+        """Crawlers can't sign in — OG endpoint MUST stay anonymous."""
+        r = requests.get(f"{API}/share/u/{opted_in_user['handle']}/library", timeout=15,
+                         headers={"User-Agent": "facebookexternalhit/1.1"})
+        assert r.status_code == 200
+        assert "text/html" in r.headers.get("content-type", "")
+
+    def test_og_nonexistent_anon_404(self):
+        r = requests.get(f"{API}/share/u/zzz_nope_{uuid.uuid4().hex[:6]}/library", timeout=15)
+        assert r.status_code == 404
 
 
 # ---------------- Auth-required visibility endpoints ----------------

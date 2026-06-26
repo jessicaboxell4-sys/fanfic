@@ -1,26 +1,34 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useParams, Link } from "react-router-dom";
-import { Library, Search, BookOpen, Sparkles, ArrowLeft, ExternalLink } from "lucide-react";
+import { useParams, Link, useLocation } from "react-router-dom";
+import { Library, Search, BookOpen, Sparkles, ArrowLeft, ExternalLink, LogIn } from "lucide-react";
 import { api } from "../lib/api";
 import Navbar from "../components/Navbar";
 
-// Public, no-auth-required read-only view of someone's library.
-// Reached via /u/:username/library — only renders when the target
-// user has flipped on `library_visible_to_public` in their Privacy
-// settings.  Otherwise the backend returns 404 and we render a
-// friendly "library is private" empty state.
+// Authenticated read-only view of someone's library.
+// Reached via /u/:username/library — only renders when:
+//   1) the viewer is signed in (anonymous callers see a sign-in gate), AND
+//   2) the target user has flipped on `library_visible_to_public` in
+//      their Privacy settings.
 //
-// Privacy invariants:
+// Privacy invariants (server-side enforced):
+//   - 401 for anonymous viewers (auth-required as of 2026-06-26).
+//   - 404 (not 403) for both "doesn't exist" and "not public", so
+//     this page can't be used to enumerate handles.
 //   - Only title/author/fandom/category surface — no files, no AV
-//     status, no download links.
-//   - The owner's email is never returned by the API.
-//   - 404 (not 403) is returned for both "doesn't exist" and "not
-//     public", so this page can't be used to enumerate handles.
+//     status, no download links.  Owner's email never returned.
+//   - Link previews (OG tags) still work for anon — the /api/share/u
+//     endpoint stays public so FB/Twitter crawlers can render rich
+//     cards, but the actual click lands here and is gated.
 export default function PublicLibraryView() {
   const { username } = useParams();
+  const location = useLocation();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  // Distinct from notFound: when the API returns 401 we render a
+  // login-prompt card instead of the generic "library not found"
+  // card, with a return-to-this-page redirect baked into the CTA.
+  const [needsLogin, setNeedsLogin] = useState(false);
   const [q, setQ] = useState("");
   const [fandomFilter, setFandomFilter] = useState("");
 
@@ -28,6 +36,7 @@ export default function PublicLibraryView() {
     let alive = true;
     setLoading(true);
     setNotFound(false);
+    setNeedsLogin(false);
     (async () => {
       try {
         const { data: payload } = await api.get(`/users/${username}/public-library`);
@@ -37,8 +46,14 @@ export default function PublicLibraryView() {
         }
       } catch (e) {
         if (alive) {
-          setNotFound(true);
-          document.title = `Library not found · Shelfsort`;
+          // 401 → not signed in; show the login gate instead of 404.
+          if (e?.response?.status === 401) {
+            setNeedsLogin(true);
+            document.title = `Sign in to view this library · Shelfsort`;
+          } else {
+            setNotFound(true);
+            document.title = `Library not found · Shelfsort`;
+          }
         }
       } finally {
         if (alive) setLoading(false);
@@ -69,6 +84,49 @@ export default function PublicLibraryView() {
           <div className="text-center text-[#6B705C]" data-testid="public-library-loading">
             <Library className="w-8 h-8 mx-auto mb-3 opacity-50 animate-pulse" />
             Loading library…
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (needsLogin) {
+    // Reach the same library after sign-in via ?next=/u/<handle>/library.
+    // /login reads the param and redirects there on success.
+    const next = encodeURIComponent(location.pathname + (location.search || ""));
+    return (
+      <div className="min-h-screen bg-paper">
+        <Navbar />
+        <main className="max-w-2xl mx-auto px-4 sm:px-6 py-12">
+          <div
+            className="shelf-card p-10 text-center"
+            data-testid="public-library-needs-login"
+          >
+            <Library className="w-10 h-10 mx-auto mb-4 text-[#6B46C1] opacity-80" />
+            <h1 className="font-serif text-2xl text-[#2C2C2C] mb-2">
+              Sign in to read libraries
+            </h1>
+            <p className="text-sm text-[#6B705C] mb-6">
+              Shelfsort libraries are for members only. Sign in or create a
+              free account to browse @{username}&rsquo;s shelves and see books
+              you have in common.
+            </p>
+            <div className="flex items-center justify-center gap-2">
+              <Link
+                to={`/login?next=${next}`}
+                data-testid="public-library-signin-btn"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#6B46C1] text-white text-sm font-semibold hover:bg-[#553397]"
+              >
+                <LogIn className="w-3.5 h-3.5" /> Sign in
+              </Link>
+              <Link
+                to={`/register?next=${next}`}
+                data-testid="public-library-register-btn"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#F5F3EC] text-[#2C2C2C] text-sm font-semibold hover:bg-[#E8E2D4]"
+              >
+                Create a free account
+              </Link>
+            </div>
           </div>
         </main>
       </div>

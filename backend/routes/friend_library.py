@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 
 from deps import db, api_router, logger
 from models import User
-from auth_dep import get_current_user, get_current_user_or_none
+from auth_dep import get_current_user
 
 
 def _pair(a: str, b: str):
@@ -262,22 +262,25 @@ async def public_library(
     username: str,
     q: str = "",
     limit: int = 200,
-    viewer: Optional[User] = Depends(get_current_user_or_none),
+    viewer: User = Depends(get_current_user),
 ):
-    """Read-only browse of a user's library, no auth required.
+    """Read-only browse of a user's library — **requires sign-in**.
 
-    When the caller IS signed in (``viewer`` is not None and isn't the
-    owner), we additionally compute shelf-overlap: each returned book
-    gets a ``you_also_have`` boolean, and the response carries an
-    ``overlap_count`` aggregate.  Lets the visitor instantly see how
-    many books they have in common.  Match key is the same one used
-    by the friend-library mutual-count: ``lower(title)|lower(author)``.
+    Policy as of 2026-06-26: nobody can read another user's library
+    without first authenticating, even when the owner has opted into
+    the "public library" mode.  This raises the bar against scraping
+    and converts curious visitors into accounts.  Link previews on
+    Facebook / Twitter still work because the OG share endpoint
+    ``/api/share/u/{username}/library`` stays anonymous (crawlers
+    can't sign in).
 
-    Returns 404 (not 403) when the target user either doesn't exist or
-    hasn't opted in, to avoid revealing handle existence to scrapers.
-    The endpoint deliberately omits sensitive fields (file size, AV
-    status detail, raw filename) — only title/author/fandom/category
-    + per-fandom aggregate counts make it out.
+    Returns 401 when the caller is anonymous.  Returns 404 when the
+    target user either doesn't exist or hasn't opted in (single
+    response code prevents handle enumeration via 401 vs 404).
+
+    When the caller is a different signed-in user, we additionally
+    compute shelf-overlap: each returned book gets a ``you_also_have``
+    boolean, and the response carries an ``overlap_count`` aggregate.
     """
     uname = (username or "").strip().lstrip("@").lower()
     if not uname or len(uname) > 64:
@@ -309,13 +312,11 @@ async def public_library(
         {"_id": 0, "book_id": 1, "title": 1, "author": 1, "fandom": 1, "category": 1},
     ).sort("title", 1).limit(limit).to_list(length=limit)
 
-    # Shelf-overlap when caller is signed in (and isn't the owner).
-    # We build a Set of normalized "title|author" keys from the
-    # visitor's own books, then mark each returned book with
-    # ``you_also_have`` if its key is in the set.  Cheap O(N+M)
-    # in-memory join, no extra round-trip.
+    # Shelf-overlap when caller isn't the owner.  Owner viewing their
+    # own library skips the compute (no useful "you have this" badge
+    # on a book you uploaded).
     overlap_count = 0
-    if viewer is not None and viewer.user_id != owner["user_id"]:
+    if viewer.user_id != owner["user_id"]:
         my_books = await db.books.find(
             {"user_id": viewer.user_id, "av_status": {"$ne": "infected"}},
             {"_id": 0, "title": 1, "author": 1},
@@ -365,5 +366,9 @@ async def public_library(
         # Always present so the frontend can branch deterministically;
         # 0 when caller is anonymous OR is the owner.
         "overlap_count": overlap_count,
-        "viewer_is_signed_in": viewer is not None and viewer.user_id != owner["user_id"],
+        # True iff a non-owner signed-in caller is reading. Per the
+        # 2026-06-26 auth-required policy, anon callers are 401 before
+        # they reach this line, so this is purely "is the viewer a
+        # different signed-in user from the owner".
+        "viewer_is_signed_in": viewer.user_id != owner["user_id"],
     }

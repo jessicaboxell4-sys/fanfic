@@ -46,7 +46,7 @@ def overlap_user():
 @pytest.fixture(scope="module")
 def opted_book_sample(opted_session):
     """Fetch one book from opted user's public library to mirror for overlap."""
-    r = requests.get(f"{BASE_URL}/api/users/{OPTED_HANDLE}/public-library", timeout=15)
+    r = opted_session.get(f"{BASE_URL}/api/users/{OPTED_HANDLE}/public-library", timeout=15)
     assert r.status_code == 200
     data = r.json()
     books = data.get("books") or []
@@ -158,15 +158,10 @@ class TestDirectory:
 # ----------------------------------------------------------------
 
 class TestOverlap:
-    def test_unauthenticated_no_overlap(self):
+    def test_unauthenticated_returns_401(self):
+        """iteration_50: anon callers MUST be rejected with 401 — no overlap data leaks."""
         r = requests.get(f"{BASE_URL}/api/users/{OPTED_HANDLE}/public-library", timeout=15)
-        assert r.status_code == 200
-        data = r.json()
-        assert data.get("overlap_count") == 0
-        assert data.get("viewer_is_signed_in") is False
-        for b in data.get("books", []):
-            # Either absent or False; explicitly NOT True for anon
-            assert b.get("you_also_have") in (None, False)
+        assert r.status_code == 401
 
     def test_owner_viewing_self_no_overlap(self, opted_session):
         r = opted_session.get(f"{BASE_URL}/api/users/{OPTED_HANDLE}/public-library", timeout=15)

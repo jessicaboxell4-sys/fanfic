@@ -1,0 +1,38 @@
+{
+  "summary": "Iteration 50 — auth-required policy on /public-library verified end-to-end. Backend: 41/41 pytest cases pass across test_iteration_50.py (12 new tests), test_iteration_49.py (12 updated), and test_public_library.py (17 updated). Frontend Playwright confirms all four flows: anon → login gate with correct ?next= params; signed-in + opted-in → normal library view; signed-in + not-opted-in → 404 not-found card; signed-in + nonexistent → 404 not-found card (handle-enumeration prevention). OG share endpoint /api/share/u/{username}/library remains anon-accessible for FB/Twitter crawlers (200/404 verified without cookies).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/tests/test_iteration_50.py",
+    "/app/tests/test_iteration_49.py",
+    "/app/tests/test_public_library.py",
+    "/app/test_reports/pytest/iteration_50.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "friend_library.py public_library now uses `viewer: User = Depends(get_current_user)` — FastAPI auto-rejects anon callers at the dependency layer with 401 before any DB I/O happens; this is the right place to enforce the gate.",
+    "Handle-enumeration prevention still holds for authed callers: not-opted-in and nonexistent handles both return identical 404 bodies (verified — test_handle_enumeration_prevention passes asserting r1.json() == r2.json()).",
+    "OG endpoint cover_public.share_user_library_html remains unauthenticated by design — verified the anon GET returns 200 with og:title/description/image meta for opted handle, 404 for non-opted/nonexistent. This is the documented exception so crawlers can render link previews.",
+    "Frontend PublicLibraryView.jsx catches 401 distinctly from other failures (e.code === 401 → needsLogin=true, else notFound=true). next-redirect URL is `encodeURIComponent(location.pathname + location.search)`, so query strings (e.g. ?notour=1) survive the round-trip — confirmed in DOM (`/login?next=%2Fu%2Ffebopta508d%2Flibrary%3Fnotour%3D1`).",
+    "PublicCoverProfile.jsx lazy library probe will also 401 for anon viewers; existing try/catch silently hides the 'Browse library' chip — behavior is correct, no leak."
+  ],
+  "updated_files": [
+    "/app/tests/test_public_library.py (anon assertions rewritten to 401, added authed sister tests + OG anon tests)",
+    "/app/tests/test_iteration_49.py (TestOverlap.test_unauthenticated_no_overlap → test_unauthenticated_returns_401; opted_book_sample fixture now uses opted_session not anon)",
+    "/app/tests/test_iteration_50.py (new — 12 tests covering 401 invariants, authed 200/404 split, owner self-view, and OG-stays-public)"
+  ],
+  "success_rate": {"backend": "100% (41/41)", "frontend": "100% (4/4 flows)"},
+  "test_credentials": "Opted-in fixture: TEST_fe_opted_e24c9d@example.com / hunter2pw! / @febopta508d (still valid). Private fixture handle: @febpri4c63f. Fresh users created during run via /api/auth/register.",
+  "seed_data_creation": "No mongo seeds beyond per-test fresh user registrations. Iteration_48 fixture users still exist and were login-verified at test start.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Public library API is auth-gated since 2026-06-26. The two existing test files (test_public_library.py, test_iteration_49.py) were UPDATED — any further tests that hit /api/users/{handle}/public-library MUST use _register()/login session cookies. The OG endpoint /api/share/u/{handle}/library is the explicit exception and stays anon — keep it that way for FB/Twitter crawlers. test_iteration_50.py codifies the new invariants and is now the canonical reference for the policy.",
+  "rca of the issue": "N/A — no bugs found. Policy change implemented cleanly: dependency-level auth gate on the FastAPI route, frontend branches on 401 to render the dedicated needs-login card with next-redirect baked into both CTAs."
+}
