@@ -740,8 +740,11 @@ export default function UploadZone({ onUploaded, compact = false }) {
         <>
           <UploadCloud className="w-10 h-10 text-[#E07A5F] mb-4" />
           <p className="font-serif text-2xl text-[#2C2C2C] mb-1">Drop files or folders here</p>
-          <p className="text-sm text-[#6B705C] mb-4">
+          <p className="text-sm text-[#6B705C] mb-2">
             EPUB · PDF · Kindle (.azw/.mobi) · DOCX · auto-converted to EPUB and sorted
+          </p>
+          <p className="text-xs text-[#A09A8B] italic mb-4 max-w-md text-center">
+            Tip: it&apos;s best to upload up to <strong className="text-[#6B705C] not-italic font-semibold">200 stories at a time</strong> — sorry about that! Bigger libraries import faster in smaller batches.
           </p>
           <div className="flex gap-3" onClick={(e) => e.stopPropagation()}>
             <button
