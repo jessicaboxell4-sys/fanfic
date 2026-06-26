@@ -7,6 +7,48 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 (afternoon, part 2) — Featured-eligibility floor + ★ stamp 🌟
+
+User said yes to the "potential improvement" pitched after the iter-57
+bundle: gate Featured Readers on the new completeness score and
+surface that visually in `/users`.  ~15-min batch, all green.
+
+### Backend — `/api/library/featured` eligibility floor
+- Added `"bio": {"$exists": True, "$nin": [None, ""]}` to the
+  `$match` stage so featured-eligibility now requires a bio in
+  addition to the existing public-library opt-in.  In effect:
+  `completeness_score >= 2` of the user-facing 3 dimensions (the
+  third — username — is already implicit via the
+  `library_visible_to_public` schema).
+- Bumped the over-fetch ratio from `limit*2` to `limit*3` so the
+  shrunken candidate pool still rarely produces an empty featured
+  strip.
+- Stops brand-new opt-ins with no bio from showing up as a
+  blank-feeling row in the landing-page shopfront.
+
+### Frontend — ★ Featured stamp on `/users` directory
+- Each row whose `completeness_score >= 2` now shows a small amber
+  ★ "Featured" pill between the handle and the existing 📚 Library
+  chip.  Soft social proof: those readers are the same ones who
+  appear in the landing-page Featured Readers strip.
+- New data-testid: `directory-featured-stamp-{username}`.
+
+### Tests
+- New `tests/test_iter58_featured_floor.py` — 3/3 PASS:
+  * a bare opt-in user (no bio) never appears in `/library/featured`
+    across 8×10-row samples;
+  * a bio+public user appears within 15 samples (statistical
+    inclusion check);
+  * passive payload invariant: every returned row has a non-empty
+    bio.
+
+### Smoke
+- Screenshot-verified the ★ stamp on `/users`: seeded a bio+public
+  user, registered a viewer, searched the directory.  The row
+  rendered: handle + amber **★ Featured** pill + purple **📚 Library**
+  chip + Add button.  Clean visual hierarchy.
+
+---
 ## 2026-06-27 (afternoon) — Profile-completeness bundle: meter + directory sort + toast 🎯
 
 User picked the "a+b+c bundle" from the next-up menu.  All three

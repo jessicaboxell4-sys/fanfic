@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { ArrowLeft, Search, UserPlus, Loader2, Check, Clock, Users as UsersIcon, ShieldOff, AtSign, AlertCircle, BookOpen, Sparkles, X } from "lucide-react";
+import { ArrowLeft, Search, UserPlus, Loader2, Check, Clock, Users as UsersIcon, ShieldOff, AtSign, AlertCircle, BookOpen, Sparkles, Star, X } from "lucide-react";
 import Navbar from "../components/Navbar";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
@@ -397,6 +397,22 @@ export default function UsersDirectory() {
                     <p className="text-sm font-semibold text-[#2C2C2C] flex items-center gap-1 truncate">
                       <AtSign className="w-3.5 h-3.5 text-[#6B705C] flex-shrink-0" />
                       <span className="truncate">{row.username || "(no handle)"}</span>
+                      {/* ★ stamp (iter 58) — the user has hit the
+                          featured-eligibility floor (bio + public
+                          library, score 2/2 in the directory view =
+                          3/3 user-facing).  Soft social proof: these
+                          are the profiles that also appear in the
+                          landing-page Featured Readers strip. */}
+                      {row.completeness_score >= 2 && (
+                        <span
+                          data-testid={`directory-featured-stamp-${row.username}`}
+                          title="Featured-eligible — full profile (handle, bio, public library)"
+                          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#FFF3D6] text-[#7C5F1F] border border-[#E8D89A] flex-shrink-0"
+                        >
+                          <Star className="w-2.5 h-2.5 fill-current" />
+                          <span>Featured</span>
+                        </span>
+                      )}
                     </p>
                   </div>
                   {/* 📚 chip when this user has opted into the public

@@ -50,19 +50,34 @@ from routes.notifications import create_notification
 # ---------------------------------------------------------------------
 @api_router.get("/library/featured")
 async def featured_libraries(limit: int = 5):
+    """Random sample of opted-in public libraries for the landing page.
+
+    Featured-eligibility floor (iter 58): only libraries belonging
+    to users with a completeness score >= 2 are sampled.  Score is
+    (handle implicit since username is required) + (bio non-empty)
+    + (library_visible_to_public, which is also required here), so
+    in practice the floor reduces to **must have a bio**.  Without
+    this, brand-new opt-ins with no bio could show up as a row of
+    "@handle · N books" with no copy — bad shopfront UX.  Pairs
+    with the ★ stamp on /users for the same readers.
+    """
     limit = max(1, min(int(limit or 5), 10))
     candidates: List[Dict[str, Any]] = await db.users.aggregate([
         {"$match": {
             "library_visible_to_public": True,
             "approval_status": {"$in": [None, "approved"]},
             "username": {"$exists": True, "$nin": [None, ""]},
+            "bio": {"$exists": True, "$nin": [None, ""]},
         }},
-        {"$sample": {"size": limit * 2}},  # over-fetch; we drop empty libs
+        # Over-fetch x3 (was x2) since the new bio filter shrinks the
+        # pool — keeps the chance of an empty featured strip low while
+        # still being cheap.
+        {"$sample": {"size": limit * 3}},
         {"$project": {
             "_id": 0,
             "user_id": 1, "username": 1, "name": 1, "picture": 1, "bio": 1,
         }},
-    ]).to_list(length=limit * 2)
+    ]).to_list(length=limit * 3)
     if not candidates:
         return {"featured": []}
     out: List[Dict[str, Any]] = []
