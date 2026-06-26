@@ -7,6 +7,100 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 (afternoon, part 3) — Community Recommendations (Phase 1 of community library) 🌍
+
+User pitched a "community library where users can put books in that
+they think others would use."  After a design discussion about the
+legal/cost cliffs of file-sharing, we landed on a **three-phase
+plan** with Phase 1 shipping today — a recommendation surface that
+reuses every piece of existing infrastructure and adds **zero** new
+copyright / DMCA exposure.  See iter-59 entry in CHANGELOG for the
+full phase plan.
+
+### Phase 1 — Backend: `routes/community.py`
+- New `POST /api/community/recommend` — owner adds a rec for a book
+  they own.  Body: `{book_id, note}` (note ≤200 chars).  Gates:
+    * Eligibility — user must have `completeness_score == 3`:
+      handle + bio + `library_visible_to_public = True`.  Per-state
+      error message points the user at the missing dimension.
+    * Ownership — the book must belong to the recommender.
+    * AV — book must be `av_status = clean`.
+    * Rate limit — **20 recommendations per rolling 24h**.
+    * Idempotent — re-posting same `book_id` updates the note in
+      place, doesn't double-count the rate limit, returns
+      `{updated: true, rec_id}`.
+    * Admin-hidden recs return 409 if the owner re-posts.
+- `DELETE /api/community/recommend/{rec_id}` — owner-only retract;
+  cascades the heart rows.
+- `GET /api/community/feed?sort=recent|hearted&fandom=…&page=…&limit=…`
+  — signed-in only.  Enriches each row with owner + book payloads.
+  **Privacy invariant**: filters out recs whose owner flipped
+  `library_visible_to_public` off after creating, or whose book
+  was infected/removed.
+- `POST /api/community/recommend/{rec_id}/heart` — toggle, reuses
+  the `book_reactions` pattern.  Self-hearts no-op.
+  Updates the denormalized `hearts_count` on the rec doc atomically
+  via `$inc` so the feed's "Most hearted" sort is cheap.
+- `GET /api/community/my-recommendations` — owner's own list, with
+  parallel `book_ids` array + `rec_ids` map for the per-book
+  Recommend toggle on BookDetail.
+- Admin `POST /api/admin/community/{rec_id}/hide` — moderation.
+- Two new collections: `community_recommendations`,
+  `recommendation_reactions`.  Schema documented in the module
+  docstring.
+
+### Phase 1 — Frontend
+- **New `/community` page** (`CommunityPage.jsx`) — header, two
+  sort tabs (Recent / Most hearted), grid of recommendation tiles
+  with cover, title/author/fandom, italic note, owner chip linking
+  to their public library, and a heart pill.  Optimistic heart UI
+  with rollback on error.  Empty state CTA: "Recommend a book."
+  "How it works" footer reminds visitors that no files are shared.
+- **New nav-drawer link** — "Community picks" sits between "Find
+  readers" and "Reading rooms" in the drawer.
+- **New `RecommendToCommunityButton` on BookDetail** —
+  self-fetches `/auth/me` and `/my-recommendations` to compute its
+  own state.  Three states:
+    * Ineligible → small "To recommend: claim a @handle / add a
+      bio / share your library publicly" pill with link to
+      `/account`.
+    * Eligible, not yet recommended → "Recommend to community"
+      button → opens an inline 2-row textarea (200-char counter)
+      + Cancel/Recommend submit.
+    * Already recommended → green "✓ Recommended to community"
+      pill with an inline ✕ retract button.
+- Rate-limit counter (`N/20 used today`) shown in the recommend
+  form so the user can see their budget.
+
+### Tests
+- New `tests/test_iter59_community_recommend.py`: **10/10 PASS**
+  covering: eligibility gate, happy path, idempotency, ownership,
+  AV rejection, privacy invariant (rec disappears when owner opts
+  out), heart toggle (self-react no-op + viewer toggle), owner-only
+  delete, my-recommendations shape (incl. `rec_ids` map), and the
+  anon auth gate on all five endpoints.
+
+### Smoke
+- Screenshot-verified the `/community` page with a seeded
+  "Piranesi · Susanna Clarke" rec.  Render shows the cover slot,
+  italic note, owner chip linking to `/u/<handle>/library`, and a
+  hearted pill (count incremented after a smoke-click).  Clean
+  visual hierarchy.
+
+### Phase 2 (parked) — "I have a copy" request board
+A separate request thread surface where a user can post "looking
+for [X]" and anyone with that book in their library can click
+"I have a copy" → triggers the existing friend-DM flow.  Files
+still never touched by Shelfsort.  Same legal posture as Discord.
+
+### Phase 3 (DO NOT BUILD WITHOUT EXPLICIT GO) — file-sharing
+Adds real DMCA / R2 / moderation exposure.  Should be a separate
+opt-in "Library of Alexandria" mode with license attestation +
+admin moderation queue + hash-dedupe.  Parked indefinitely;
+agent must surface the legal/cost trade-offs before any
+implementation work.
+
+---
 ## 2026-06-27 (afternoon, part 2) — Featured-eligibility floor + ★ stamp 🌟
 
 User said yes to the "potential improvement" pitched after the iter-57

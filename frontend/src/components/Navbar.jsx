@@ -125,6 +125,9 @@ function SecondaryLinks({ user, unknownFandomCount, crossoverPendingCount, onNav
         <Link to="/users" data-testid="drawer-users-directory" className={itemBase} onClick={close}>
           <Users className="w-4 h-4" /> Find readers
         </Link>
+        <Link to="/community" data-testid="drawer-community" className={itemBase} onClick={close}>
+          <Sparkles className="w-4 h-4" /> Community picks
+        </Link>
         <Link to="/bookclubs" data-testid="drawer-bookclubs" className={itemBase} onClick={close}>
           <BookOpen className="w-4 h-4" /> Reading rooms
         </Link>

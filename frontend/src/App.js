@@ -43,6 +43,7 @@ import Account from "@/pages/Account";
 import AppearancePage from "@/pages/AppearancePage";
 import FriendsPage from "@/pages/FriendsPage";
 import UsersDirectory from "@/pages/UsersDirectory";
+import CommunityPage from "@/pages/CommunityPage";
 import RecentlyAddedPage from "@/pages/RecentlyAddedPage";
 import BookclubsPage from "@/pages/BookclubsPage";
 import RecommendationsPage from "@/pages/RecommendationsPage";
@@ -181,6 +182,7 @@ function AppRouter() {
       <Route path="/messages/:roomId" element={<MessagesRoomRedirect />} />
       <Route path="/friends" element={<ProtectedRoute><FriendsPage /></ProtectedRoute>} />
       <Route path="/users" element={<ProtectedRoute><UsersDirectory /></ProtectedRoute>} />
+      <Route path="/community" element={<ProtectedRoute><CommunityPage /></ProtectedRoute>} />
       <Route path="/library/recently-added" element={<ProtectedRoute><RecentlyAddedPage /></ProtectedRoute>} />
       <Route path="/bookclubs" element={<ProtectedRoute><BookclubsPage /></ProtectedRoute>} />
       <Route path="/bookclubs/:roomId" element={<ProtectedRoute><BookclubsPage /></ProtectedRoute>} />

@@ -9,6 +9,7 @@ import BookCohortProgress from "../components/BookCohortProgress";
 import AntivirusBadge from "../components/AntivirusBadge";
 import SimilarBooksStrip from "../components/SimilarBooksStrip";
 import CrossDeviceFinishStrip from "../components/CrossDeviceFinishStrip";
+import RecommendToCommunityButton from "../components/RecommendToCommunityButton";
 import { ArrowLeft, Download, Trash2, Sparkles, Book, Edit3, Heart, Link as LinkIcon, BookOpen, RefreshCw, Tag as TagIcon, Loader2, Upload, Smartphone, Laptop, Tablet, MonitorSmartphone, Send } from "lucide-react";
 import { toast } from "sonner";
 import { FETCHING_UI_ENABLED, SEND_TO_KINDLE_UI_ENABLED } from "../lib/featureFlags";
@@ -798,6 +799,12 @@ export default function BookDetail() {
                 >
                   <Trash2 className="w-4 h-4" /> Remove
                 </button>
+              </div>
+              {/* Community-recommendation toggle (iter 59).  Self-
+                  hides for ineligible users (score < 3) so we don't
+                  clutter the action bar for new accounts. */}
+              <div className="mt-4 flex items-center gap-2">
+                <RecommendToCommunityButton bookId={book.book_id} bookTitle={book.title} />
               </div>
               </>
             )}
