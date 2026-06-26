@@ -7,6 +7,34 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 (morning) — Public canary uptime pill 📊
+
+User asked for the "Potential improvement" pitched in the overnight
+summary — exposing the canary uptime on the public changelog so
+visitors can gauge platform stability.  Shipped end-to-end.
+
+- New anon endpoint `GET /api/canary/uptime?days=N` (clamped 1-90,
+  default 30) returns an aggregate slice of `db.canary_runs`:
+  `{available, days, total_runs, pass_count, fail_count, uptime_pct}`.
+  Cached 5 min in-process, keyed by `days`, so the public landing
+  surface never hammers Mongo.  Returns `{available:false, days}`
+  when no runs exist in the window (fresh install / secret
+  unconfigured) so the FE can hide the pill gracefully.  Slim
+  payload — no log tails, no per-run rows — to keep the admin
+  endpoint as the sole source of full canary history.
+- `Changelog.jsx` now renders a `CanaryUptimePill` inline with the
+  existing shields.io GitHub Actions badge.  Three-tier color
+  scheme: green ≥99%, amber 95-99%, red <95%.  Hover tooltip
+  shows raw pass/total counts.  Renders nothing on
+  `available:false`.
+- Backend tests at `tests/test_iter55_canary_uptime.py`: 6/6 PASS
+  covering anon access, query clamp, empty-state, 100% all-pass,
+  mixed pass/fail math, and out-of-window exclusion.  Tests use
+  distinct `days` values per case so the 5-min in-process cache
+  can't pollute results cross-test (can't bust cache across the
+  pytest/uvicorn process boundary).
+
+---
 ## 2026-06-27 (overnight) — Bundle A wrap: Help anchors, trending warn, canary sweep 🧹
 
 Closing pass on Iteration 53 + a tighter cleanup cron for the

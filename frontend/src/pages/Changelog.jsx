@@ -116,20 +116,23 @@ export default function Changelog() {
               The caption below adds "checked X ago" by polling
               /api/canary/status (5-min cached). */}
           <div className="mt-4">
-            <a
-              href="https://github.com/jessicaboxell4-sys/fanfic/actions/workflows/prod-smoke-canary.yml"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-block hover:opacity-80 transition-opacity"
-              data-testid="changelog-canary-badge-link"
-              title="Live status of Shelfsort's nightly production health check"
-            >
-              <img
-                src="https://img.shields.io/github/actions/workflow/status/jessicaboxell4-sys/fanfic/prod-smoke-canary.yml?branch=main&label=production%20canary&style=flat-square&logo=githubactions&logoColor=white"
-                alt="Production canary status"
-                data-testid="changelog-canary-badge-img"
-              />
-            </a>
+            <div className="flex items-center gap-2 flex-wrap">
+              <a
+                href="https://github.com/jessicaboxell4-sys/fanfic/actions/workflows/prod-smoke-canary.yml"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block hover:opacity-80 transition-opacity"
+                data-testid="changelog-canary-badge-link"
+                title="Live status of Shelfsort's nightly production health check"
+              >
+                <img
+                  src="https://img.shields.io/github/actions/workflow/status/jessicaboxell4-sys/fanfic/prod-smoke-canary.yml?branch=main&label=production%20canary&style=flat-square&logo=githubactions&logoColor=white"
+                  alt="Production canary status"
+                  data-testid="changelog-canary-badge-img"
+                />
+              </a>
+              <CanaryUptimePill />
+            </div>
             <CanaryCaption />
           </div>
         </header>
@@ -235,6 +238,50 @@ export default function Changelog() {
     </div>
   );
 }
+
+// Small "uptime" pill rendered inline with the GH Actions badge.
+// Pulls /api/canary/uptime (5-min server-cached) and displays
+// "99.7% uptime · 30 days".  Renders nothing on {available:false}
+// so a fresh install (no canary_runs yet) doesn't show a 0% pill.
+function CanaryUptimePill() {
+  const [info, setInfo] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await axios.get(`${API}/canary/uptime?days=30`);
+        if (cancelled) return;
+        if (res.data && res.data.available) setInfo(res.data);
+      } catch { /* silent — pill is optional */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  if (!info) return null;
+
+  const pct = info.uptime_pct;
+  // Color tiers: green ≥ 99, amber 95-99, red < 95.  Keeps the pill
+  // honest without being alarmist — a single bad week shouldn't go
+  // straight to red.
+  let cls;
+  if (pct >= 99) cls = "bg-[#E6F2E6] text-[#3D6B3D] border-[#C8E1C8]";
+  else if (pct >= 95) cls = "bg-[#FBF1D6] text-[#7C5F1F] border-[#E8D89A]";
+  else cls = "bg-[#FBE2E0] text-[#7C2D2A] border-[#E8B5B0]";
+
+  const label = `${pct.toFixed(pct === 100 ? 0 : 1)}% uptime · ${info.days} days`;
+  const title = `${info.pass_count}/${info.total_runs} canary runs passed over the last ${info.days} days`;
+  return (
+    <span
+      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border ${cls}`}
+      data-testid="changelog-canary-uptime-pill"
+      title={title}
+    >
+      <span data-testid="changelog-canary-uptime-pct">{label}</span>
+    </span>
+  );
+}
+
 
 // Small caption shown under the shields.io badge.  Pulls
 // /api/canary/status (5-min cached server-side) to render a friendly

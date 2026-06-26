@@ -234,3 +234,69 @@ async def canary_status():
     _CANARY_CACHE["data"] = response
     _CANARY_CACHE["fetched_at"] = now
     return response
+
+
+# ---------------------------------------------------------------------------
+# Public canary uptime — anon-safe slice of the admin canary-runs feed
+# ---------------------------------------------------------------------------
+# Operators run the prod-smoke-canary hourly; each run POSTs a row to
+# ``/api/canary/report`` (secret-gated).  ``GET /api/admin/canary-runs``
+# returns the full timeline (including log tails) to admins; this
+# endpoint exposes ONLY the aggregate uptime percentage + counts so the
+# changelog page can surface "99.7% over the last 30 days" as a public
+# trust signal.  No log tails, no per-run row data.
+
+_CANARY_UPTIME_CACHE: Dict[str, Any] = {"data": {}, "fetched_at": 0.0}
+_CANARY_UPTIME_CACHE_TTL_S = 300.0  # 5 min — matches /canary/status
+
+
+@api_router.get("/canary/uptime")
+async def canary_uptime(days: int = 30):
+    """Aggregate uptime over the last ``days`` days.
+
+    Anon-accessible.  Returns
+    ``{available, days, total_runs, pass_count, fail_count, uptime_pct}``.
+
+    ``available`` is False when zero runs have been recorded in the
+    window (fresh install, secret not configured, or the canary
+    workflow has been silent) so the FE can hide the pill.
+
+    Cached 5 min in-process to keep the public landing surface from
+    hammering Mongo on every visit.
+    """
+    days = max(1, min(int(days), 90))
+    cache_key = f"d{days}"
+    now = _time.monotonic()
+    cached = _CANARY_UPTIME_CACHE["data"].get(cache_key)
+    if cached is not None and (now - _CANARY_UPTIME_CACHE["fetched_at"]) < _CANARY_UPTIME_CACHE_TTL_S:
+        return cached
+
+    from datetime import timedelta as _td
+    cutoff = (datetime.now(timezone.utc) - _td(days=days)).isoformat()
+    # Count + pass-count in a tiny aggregation so we never load the
+    # full row payload (some include 4KB ``tail`` log excerpts).
+    pipeline = [
+        {"$match": {"finished_at": {"$gte": cutoff}}},
+        {"$group": {
+            "_id":   None,
+            "total": {"$sum": 1},
+            "pass":  {"$sum": {"$cond": [{"$eq": ["$status", "pass"]}, 1, 0]}},
+        }},
+    ]
+    rows = await db.canary_runs.aggregate(pipeline).to_list(length=1)
+    if not rows or not rows[0].get("total"):
+        result = {"available": False, "days": days}
+    else:
+        total = rows[0]["total"]
+        passed = rows[0]["pass"]
+        result = {
+            "available":   True,
+            "days":        days,
+            "total_runs":  total,
+            "pass_count":  passed,
+            "fail_count":  total - passed,
+            "uptime_pct":  round((passed / total) * 100.0, 2),
+        }
+    _CANARY_UPTIME_CACHE["data"][cache_key] = result
+    _CANARY_UPTIME_CACHE["fetched_at"] = now
+    return result
