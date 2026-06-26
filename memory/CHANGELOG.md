@@ -7,6 +7,62 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 (morning, part 2) — Quick-wins triple: anchor-guard + completeness nudge 🧰
+
+User asked to ship the three "Quick wins" in one batch.  One was
+already done in iter 53 (#9 friend-request deep-link — no email
+exists, the in-app notif link was the actual change).  Other two:
+
+### (a) Help.jsx anchor-integrity assert — iter 53 regression guard
+- `useEffect` on Help mount walks the `SECTIONS` array one frame
+  after paint and `console.warn`s any TOC entry whose `id` has no
+  matching `<Section>` in the DOM.  Runs in dev and prod (warn-only
+  — no behavior change for users) so the dead-anchor bug class
+  shipped in iter 53 (FAQ + TOC added, body Section forgotten —
+  silent until manual click) can't recur silently.
+- Smoke-verified clean: page loads with 0 Help.jsx warnings.
+
+### (c) Profile discovery polish — post-handle completeness nudge
+- `/api/auth/me` now exposes `library_visible_to_public` (bool,
+  default false) so the FE nudge can drive itself off the auth
+  context.  Read directly from the user doc since the Pydantic
+  `User` model doesn't carry the field.
+- New `PostHandleNudge` in `UsersDirectory.jsx` sits below the
+  existing "claim a handle" nudge.  Triggers when the user HAS a
+  @handle but is missing at least one of `bio` / `library_visible_to_public`.
+  Two CTAs:
+    * "Add a bio" → `/account#profile`
+    * "Share library" → `/account#privacy`
+  Per-state body copy so we don't show generic text:
+    * neither → "Add a bio and share your library publicly so
+      friends actually recognize you here."
+    * bio missing only → bio-specific copy
+    * library missing only → library-specific copy
+- Dismissible (localStorage `shelfsort.directoryPostHandleNudgeDismissed.v1`)
+  so a user who deliberately keeps things minimal isn't nagged.
+- Three new data-testids:
+  `directory-completeness-nudge`, `directory-completeness-bio-cta`,
+  `directory-completeness-public-cta`, plus
+  `directory-completeness-dismiss`.
+
+### (b) Friend-request deep-link — confirmed already shipped
+- No friend-request **email** exists; only in-app notifs.  The
+  notification body link (`/users?focus=<handle>`) was already
+  updated in iter 53.  No code change needed; ROADMAP cleaned up.
+
+### Bonus fix — iter 54 audit-write warning
+- The iter-54 canary-cleanup endpoint was calling
+  `record_admin_action(actor_user_id=..., target_type=..., details=...)`
+  but the real signature is `(actor, action, target, metadata)`.
+  Backend was logging a WARNING on every admin sweep.  Fixed.
+
+### Tests
+- New `tests/test_iter56_post_handle_nudge.py` — 3/3 PASS covering
+  `/auth/me` default-false flag, post-opt-in true flag, and
+  bio+lvtp coexistence regression.
+- iter54 + iter55 regression still 11/12 PASS (1 expected skip).
+
+---
 ## 2026-06-27 (morning) — Public canary uptime pill 📊
 
 User asked for the "Potential improvement" pitched in the overnight

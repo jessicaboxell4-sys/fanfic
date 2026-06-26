@@ -3489,11 +3489,10 @@ async def admin_canary_cleanup(
     if not body.dry_run and summary["deleted_users"] > 0:
         try:
             await record_admin_action(
-                actor_user_id=user.user_id,
+                actor=user,
                 action="canary_accounts_swept",
-                target_type="users",
-                target_id="",
-                details={
+                target="users",
+                metadata={
                     "deleted_users":   summary["deleted_users"],
                     "deleted_books":   summary["deleted_books"],
                     "min_age_minutes": summary["min_age_minutes"],

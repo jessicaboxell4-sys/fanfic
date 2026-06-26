@@ -279,6 +279,29 @@ export default function Help() {
     setMatchingSectionIds(matches);
   }, [query]);
 
+  // Anchor-integrity assert (post-iter-53 regression guard).  After
+  // first paint, walk SECTIONS and console.warn for any TOC entry
+  // whose id has no matching <Section id="..."> in the DOM.  This
+  // catches the dead-anchor class of bug that shipped in iter 53
+  // (FAQ + TOC added, body Section forgotten — silent until manual
+  // click).  Dev-helpful but harmless in prod (console.warn only).
+  useEffect(() => {
+    // Defer one frame so React has flushed the Section nodes.
+    const t = setTimeout(() => {
+      const missing = SECTIONS
+        .map((s) => s.id)
+        .filter((id) => !document.getElementById(id));
+      if (missing.length) {
+        console.warn(
+          "[Help.jsx] SECTIONS TOC contains ids with no matching <Section> in the DOM:",
+          missing,
+          "→ Add <Section id=\"...\"> blocks in the page body or remove them from SECTIONS.",
+        );
+      }
+    }, 0);
+    return () => clearTimeout(t);
+  }, []);
+
   // Fetch the latest server-side announcement on mount. If one exists and
   // is newer than what the user has dismissed, swap it in and show the
   // card. Network/auth errors silently keep the bundled fallback.

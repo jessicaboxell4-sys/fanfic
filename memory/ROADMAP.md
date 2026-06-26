@@ -24,7 +24,7 @@ Heuristic (highest priority first):
 | # | Reminder | Effort | Impact | Why this rank |
 |---|----------|--------|--------|---------------|
 | 1 | Amplify "Shipped from the community" social proof | ✅ DONE 2026-06-27 — Public `/changelog` "Built from your ideas" section + celebration email. Schema: `shipped_at`, `shipped_credit_sent_at`. Endpoint `GET /api/changelog`. Forward-only from 2026-06-25; handle-only credits; hidden-from-search users excluded. |
-| 2 | Profile discovery polish (scroll-to-row, completeness nudge) | ~30-45 min | Med (user) | Follow-up to Listed! toast; small UX delight |
+| 2 | Profile discovery polish (scroll-to-row, completeness nudge) | ✅ DONE 2026-06-27 — scroll-to-row + handle-claim nudge (iter 51) + post-handle completeness nudge (iter 56). See CHANGELOG. |
 | 3 | Canary test-account cleanup endpoint | ✅ DONE 2026-06-27 — `POST /api/admin/canary/cleanup` + hourly `:05` cron sweep canary throwaway accounts >60min old. See CHANGELOG. |
 | 4 | Canary polish bundle (5 sub-items) | ~2-3 h all | Med | Webhook + multi-region + tiered frequency + public badge + metrics dashboard — pick & choose (note: in-app widget & uptime card already shipped 2026-06-26; public shields.io badge + "Last checked X ago" caption shipped 2026-06-25) |
 | 5 | Tiered canary cadence — auto-retry 15 min after failure | ~20-30 min | Med | **Now that the badge is public**, a single transient prod blip would show "production canary | failing" to all `/changelog` visitors. Add a 2nd workflow (`prod-smoke-canary-retry.yml`) that's triggered on the main canary's `workflow_run.conclusion == 'failure'`, waits 15 min, re-runs the same job. If both fail → real issue, issue auto-opens. If retry passes → silent recovery, badge flips back to green. Public badge stays green during transient blips. Reminder added 2026-06-25.|
@@ -35,7 +35,7 @@ Heuristic (highest priority first):
 | 10 | Library login-gate conversion booster | ✅ DONE 2026-06-26 (iter 51) — preview owner + avatar + book count + top fandom + bio on the 401 gate. |
 | 11 | Trending books strip on landing | ~20 min | Med | Now that hearts + `/api/books/trending` exist (iter 52), render the top 5-8 hearted books under Featured Readers on the landing page. Consumption-side surface — "Hunger Games · 4 hearts this week" makes readers want to find a library that has it. Same anon-friendly pattern as Featured Readers. Reminder added 2026-06-26 (very late). |
 | 12 | Canary uptime sparkline on `/changelog` | ~30 min | Med | Now that the `96.7% uptime · 30 days` pill is live (iter 55), upgrade it with a 30-day mini bar chart (one bar per day, green/red) so visitors can instantly see *when* the bad day was vs a flat percentage. Reuses the same `db.canary_runs` aggregate — just group by day instead of total. Add a new `?bucket=day` query param to `GET /api/canary/uptime` or a sibling `GET /api/canary/uptime-daily`. Reminder added 2026-06-27. |
-| 13 | Dev-only Help.jsx anchor-integrity assert | ~10 min | Low | Add a `useEffect` on Help mount that walks `SECTIONS` and `console.warn`s for any id with no matching DOM node. Prevents the dead-anchor bug class shipped in iter 53 (TOC entry added, body Section forgotten — silent until manual click). Reminder added 2026-06-27. |
+| 13 | Dev-only Help.jsx anchor-integrity assert | ✅ DONE 2026-06-27 — `useEffect` warns on SECTIONS ids with no matching DOM node, guards against the iter-53 dead-anchor bug class. See CHANGELOG iter 56. |
 
 ### Convention for adding new reminders
 

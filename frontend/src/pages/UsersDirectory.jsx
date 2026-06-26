@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { ArrowLeft, Search, UserPlus, Loader2, Check, Clock, Users as UsersIcon, ShieldOff, AtSign, AlertCircle, BookOpen } from "lucide-react";
+import { ArrowLeft, Search, UserPlus, Loader2, Check, Clock, Users as UsersIcon, ShieldOff, AtSign, AlertCircle, BookOpen, Sparkles, X } from "lucide-react";
 import Navbar from "../components/Navbar";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
@@ -52,6 +52,94 @@ function RelationCta({ row, busy, onSend }) {
     </button>
   );
 }
+
+// Post-handle completeness nudge (iter 56) — shown to users who HAVE
+// claimed a @handle but are missing the two discoverability boosters
+// that make their profile stand out in the directory:
+//   1. bio  — a short "about" line that surfaces on hover + profile
+//   2. library_visible_to_public  — opt-in to the public-library URL
+//      AND the 📚 chip next to their handle in the directory
+// Dismissible (localStorage), and re-evaluated whenever the user
+// updates their profile so it disappears the moment they act.  Pulls
+// the truth from `useAuth().user`, which already includes both fields
+// after the /auth/me upgrade in iter 56.
+const POSTHANDLE_DISMISS_KEY = "shelfsort.directoryPostHandleNudgeDismissed.v1";
+
+function PostHandleNudge({ user, navigate }) {
+  const [dismissed, setDismissed] = useState(() => {
+    try { return localStorage.getItem(POSTHANDLE_DISMISS_KEY) === "1"; }
+    catch { return false; }
+  });
+  if (!user) return null;
+  const handle = (user.username || "").trim();
+  if (!handle) return null;  // The "claim a handle" nudge handles this.
+  if (dismissed) return null;
+  const hasBio = !!(user.bio || "").trim();
+  const isPublic = !!user.library_visible_to_public;
+  if (hasBio && isPublic) return null;  // Profile is "complete enough".
+
+  // Build a concise per-state body so we don't show generic copy.
+  let body;
+  if (!hasBio && !isPublic) {
+    body = "Add a bio and share your library publicly so friends actually recognize you here.";
+  } else if (!hasBio) {
+    body = "Add a one-line bio — friends are more likely to add you when they know what you read.";
+  } else {
+    body = "Share your library publicly to get a 📚 chip next to your handle (browsers + readers love it).";
+  }
+
+  const dismiss = () => {
+    setDismissed(true);
+    try { localStorage.setItem(POSTHANDLE_DISMISS_KEY, "1"); } catch { /* private mode */ }
+  };
+
+  return (
+    <div
+      data-testid="directory-completeness-nudge"
+      className="mb-5 p-4 rounded-xl border border-[#D6CCE8] bg-[#F7F3FF] flex items-start gap-3"
+    >
+      <Sparkles className="w-5 h-5 text-[#6B46C1] flex-shrink-0 mt-0.5" />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-[#2C2C2C]">
+          Boost your discoverability
+        </p>
+        <p className="text-xs text-[#6B705C] mt-1">{body}</p>
+        <div className="mt-2.5 flex flex-wrap gap-2">
+          {!hasBio && (
+            <button
+              type="button"
+              onClick={() => navigate("/account#profile")}
+              data-testid="directory-completeness-bio-cta"
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold bg-[#6B46C1] text-white hover:bg-[#553397]"
+            >
+              Add a bio
+            </button>
+          )}
+          {!isPublic && (
+            <button
+              type="button"
+              onClick={() => navigate("/account#privacy")}
+              data-testid="directory-completeness-public-cta"
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold bg-white text-[#6B46C1] border border-[#D6CCE8] hover:bg-[#F0EBFB]"
+            >
+              <BookOpen className="w-3.5 h-3.5" /> Share library
+            </button>
+          )}
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={dismiss}
+        data-testid="directory-completeness-dismiss"
+        aria-label="Dismiss"
+        className="text-[#A09A8B] hover:text-[#2C2C2C] p-1 flex-shrink-0"
+      >
+        <X className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}
+
 
 export default function UsersDirectory() {
   const { user } = useAuth();
@@ -236,6 +324,14 @@ export default function UsersDirectory() {
             </button>
           </div>
         )}
+
+        {/* Post-handle completeness nudge (iter 56) — fires when the
+            user HAS claimed a @handle but is missing at least one of
+            the two discoverability boosters: bio + public-library
+            opt-in.  Sister nudge to the claim-handle one above but
+            stays dismissible (localStorage) so it doesn't nag a user
+            who's deliberately keeping their profile minimal. */}
+        <PostHandleNudge user={user} navigate={navigate} />
 
         <div className="shelf-card p-3 mb-5 flex items-center gap-2">
           <Search className="w-4 h-4 text-[#6B705C] ml-1.5" />

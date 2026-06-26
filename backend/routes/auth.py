@@ -154,6 +154,13 @@ async def auth_google(request: Request, response: Response):
 
 @api_router.get("/auth/me")
 async def auth_me(user: User = Depends(get_current_user_any_status)):
+    # `library_visible_to_public` is stored on the user doc but not on
+    # the Pydantic model — fetch it directly so the FE can drive the
+    # post-handle completeness nudge (iter 56).
+    doc = await db.users.find_one(
+        {"user_id": user.user_id},
+        {"_id": 0, "library_visible_to_public": 1},
+    )
     return {
         "user_id": user.user_id,
         "email": user.email,
@@ -171,6 +178,9 @@ async def auth_me(user: User = Depends(get_current_user_any_status)):
         # RSS feed (we never include it in any public response).
         "bio": user.bio or "",
         "rss_token": user.rss_token or "",
+        # Library visibility flag (iter 56 — drives the post-handle
+        # completeness nudge in /users).  Boolean, defaults False.
+        "library_visible_to_public": bool((doc or {}).get("library_visible_to_public", False)),
     }
 
 
