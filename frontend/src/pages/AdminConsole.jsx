@@ -551,6 +551,14 @@ function FeedbackInboxCard() {
   const [openCount, setOpenCount] = useState(0);
   const [busyId, setBusyId] = useState(null);
   const [expanded, setExpanded] = useState(null);
+  // Mark-Shipped modal state.  `shipItem` is the suggestion row being
+  // shipped (null = modal closed); the modal collects admin_note + a
+  // "send celebration email" checkbox before PUT-ing status=done in
+  // one go.  Combines what used to be 3 separate admin steps.
+  const [shipItem, setShipItem] = useState(null);
+  const [shipNote, setShipNote] = useState("");
+  const [shipSendEmail, setShipSendEmail] = useState(true);
+  const [shipBusy, setShipBusy] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -581,6 +589,51 @@ function FeedbackInboxCard() {
       }
     } catch { toast.error("Couldn't update"); }
     finally { setBusyId(null); }
+  };
+
+  // Mark Shipped flow — opens a small modal so admin can attach a
+  // public-facing changelog note + choose whether to fire the
+  // celebration email, all in one click (used to be 3 steps).
+  const openShipModal = (it) => {
+    setShipItem(it);
+    setShipNote(it.admin_note || "");
+    // Default ON unless we've already sent the credit email for this
+    // suggestion (re-shipping = no double notification).
+    setShipSendEmail(!it.shipped_credit_sent_at);
+  };
+  const closeShipModal = () => {
+    if (shipBusy) return; // don't drop the modal mid-request
+    setShipItem(null);
+    setShipNote("");
+    setShipSendEmail(true);
+  };
+  const submitShip = async () => {
+    if (!shipItem) return;
+    setShipBusy(true);
+    const sid = shipItem.suggestion_id;
+    try {
+      const trimmed = shipNote.trim();
+      await api.put(`/admin/suggestions/${sid}`, {
+        status: "done",
+        admin_note: trimmed || null,
+        skip_email: !shipSendEmail,
+      });
+      toast.success(shipSendEmail ? "🚢 Shipped — celebration email sent" : "🚢 Shipped — email skipped");
+      // Same optimistic-update rules as setStatus().
+      if (filter !== "all" && filter !== "done") {
+        setItems(items.filter((i) => i.suggestion_id !== sid));
+        setOpenCount(Math.max(0, openCount - 1));
+      } else {
+        setItems(items.map((i) => i.suggestion_id === sid ? { ...i, status: "done", admin_note: trimmed || null } : i));
+      }
+      setShipItem(null);
+      setShipNote("");
+      setShipSendEmail(true);
+    } catch {
+      toast.error("Couldn't mark shipped");
+    } finally {
+      setShipBusy(false);
+    }
   };
 
   const statusBadge = (s) => {
@@ -737,8 +790,23 @@ function FeedbackInboxCard() {
                       </div>
                     )}
                     <div className="flex flex-wrap items-center gap-1.5">
+                      {/* Primary action: ship the suggestion in one
+                          modal click (status=done + admin_note +
+                          celebration email).  Hidden when the
+                          suggestion is already done — admin can still
+                          change status via the secondary chips below. */}
+                      {it.status !== "done" && (
+                        <button
+                          onClick={() => openShipModal(it)}
+                          disabled={busyId === it.suggestion_id || shipBusy}
+                          data-testid={`feedback-mark-shipped-${it.suggestion_id}`}
+                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#6B46C1] hover:bg-[#553B96] text-white text-xs font-semibold disabled:opacity-60 transition-colors"
+                        >
+                          <Send className="w-3 h-3" /> Mark shipped
+                        </button>
+                      )}
                       {["under_review", "planned", "done", "declined", "open"]
-                        .filter((s) => s !== it.status)
+                        .filter((s) => s !== it.status && s !== "done")
                         .map((s) => (
                           <button
                             key={s}
@@ -750,6 +818,19 @@ function FeedbackInboxCard() {
                             → {s.replace("_", " ")}
                           </button>
                         ))}
+                      {it.status === "done" && (
+                        // Once shipped, allow re-opening via the same
+                        // chip row.  Less-common path so it sits as a
+                        // de-emphasized chip.
+                        <button
+                          onClick={() => setStatus(it.suggestion_id, "open")}
+                          disabled={busyId === it.suggestion_id}
+                          data-testid={`feedback-status-${it.suggestion_id}-open`}
+                          className="px-2.5 py-1 rounded-full bg-[#F5F3EC] hover:bg-[#E8E2D4] text-[#2C2C2C] text-xs disabled:opacity-60 capitalize"
+                        >
+                          → open
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}
@@ -757,6 +838,106 @@ function FeedbackInboxCard() {
             );
           })}
         </ul>
+      )}
+      {/* Mark Shipped modal — opens from the primary button on each
+          row.  Combines status=done + admin_note + email-checkbox so
+          the most-rewarding admin action is one click + one submit. */}
+      {shipItem && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+          onClick={closeShipModal}
+          data-testid="feedback-ship-modal-backdrop"
+        >
+          <div
+            className="bg-[#FBF7EE] dark:bg-zinc-900 rounded-2xl shadow-2xl border border-[#E5DDC5] dark:border-zinc-700 w-full max-w-lg max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="feedback-ship-modal-title"
+            data-testid="feedback-ship-modal"
+          >
+            <div className="p-5 border-b border-[#E5DDC5] dark:border-zinc-700 flex items-start justify-between gap-3">
+              <div>
+                <h3 id="feedback-ship-modal-title" className="font-serif text-lg text-[#2C2C2C] dark:text-zinc-100 flex items-center gap-2">
+                  <Send className="w-4 h-4 text-[#6B46C1]" /> Mark suggestion shipped
+                </h3>
+                <p className="text-xs text-[#6B705C] mt-1 truncate max-w-[36ch]" title={shipItem.title}>
+                  &ldquo;{shipItem.title}&rdquo;
+                </p>
+              </div>
+              <button
+                onClick={closeShipModal}
+                disabled={shipBusy}
+                className="text-[#6B705C] hover:text-[#2C2C2C] disabled:opacity-50 p-1 -m-1"
+                aria-label="Close"
+                data-testid="feedback-ship-modal-close"
+              >
+                <XIcon className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label htmlFor="feedback-ship-note" className="block text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C] mb-1.5">
+                  Public note (optional)
+                </label>
+                <textarea
+                  id="feedback-ship-note"
+                  value={shipNote}
+                  onChange={(e) => setShipNote(e.target.value.slice(0, 1000))}
+                  rows={3}
+                  placeholder='e.g. "Now ships with iPhone Safari support."'
+                  disabled={shipBusy}
+                  className="w-full px-3 py-2 rounded-lg border border-[#E5DDC5] dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm text-[#2C2C2C] dark:text-zinc-100 placeholder-[#A5A29A] focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/40 resize-none"
+                  data-testid="feedback-ship-note-input"
+                />
+                <p className="text-[11px] text-[#6B705C] mt-1">
+                  Shown publicly on the <span className="font-medium">/changelog</span> credit row.
+                </p>
+              </div>
+              <label className="flex items-start gap-2.5 cursor-pointer select-none" data-testid="feedback-ship-email-label">
+                <input
+                  type="checkbox"
+                  checked={shipSendEmail}
+                  onChange={(e) => setShipSendEmail(e.target.checked)}
+                  disabled={shipBusy || !!shipItem.shipped_credit_sent_at}
+                  className="mt-1 w-4 h-4 accent-[#6B46C1]"
+                  data-testid="feedback-ship-email-checkbox"
+                />
+                <span className="text-sm text-[#2C2C2C] dark:text-zinc-100">
+                  Send celebration email to <span className="font-medium">{shipItem.submitter_name || shipItem.submitter_email || "submitter"}</span>
+                  {shipItem.shipped_credit_sent_at ? (
+                    <span className="block text-[11px] text-[#6B705C] mt-0.5 italic">
+                      Already sent — re-shipping won&rsquo;t notify again.
+                    </span>
+                  ) : (
+                    <span className="block text-[11px] text-[#6B705C] mt-0.5">
+                      Fires the &ldquo;Your idea shipped!&rdquo; email (once per suggestion).
+                    </span>
+                  )}
+                </span>
+              </label>
+            </div>
+            <div className="p-5 pt-3 border-t border-[#E5DDC5] dark:border-zinc-700 flex items-center justify-end gap-2">
+              <button
+                onClick={closeShipModal}
+                disabled={shipBusy}
+                className="px-4 py-1.5 rounded-full text-sm text-[#6B705C] hover:text-[#2C2C2C] disabled:opacity-50"
+                data-testid="feedback-ship-modal-cancel"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitShip}
+                disabled={shipBusy}
+                className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-[#6B46C1] hover:bg-[#553B96] text-white text-sm font-semibold disabled:opacity-60 transition-colors"
+                data-testid="feedback-ship-modal-submit"
+              >
+                {shipBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                {shipBusy ? "Shipping…" : "Ship it"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </Card>
   );

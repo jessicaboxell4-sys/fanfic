@@ -66,6 +66,11 @@ _MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
 class SuggestionUpdate(BaseModel):
     status: Optional[Literal["open", "under_review", "planned", "done", "declined"]] = None
     admin_note: Optional[str] = Field(default=None, max_length=1000)
+    # When True, suppress the auto-sent submitter email (in-app
+    # notification still fires).  Useful when admin uses the
+    # "Mark Shipped" modal but wants to skip the celebration email
+    # for a tiny tweak.  Default False = preserve existing behavior.
+    skip_email: bool = False
 
 
 def _serialize(doc: Dict[str, Any], me: Optional[str] = None) -> Dict[str, Any]:
@@ -375,7 +380,8 @@ async def admin_update(sid: str, body: SuggestionUpdate, user: User = Depends(re
             doc["submitter_user_id"], kind="suggestion_status",
             title=notif_title, body=notif_body, link=link,
         )
-        # Email — best-effort
+        # Email — best-effort (skipped when admin opted out via
+        # ``skip_email`` in the Mark Shipped modal).
         submitter_email = doc.get("submitter_email", "")
         # When the suggestion ships, send a stronger "Your idea shipped!"
         # celebration email — once per suggestion (tracked via
@@ -386,7 +392,7 @@ async def admin_update(sid: str, body: SuggestionUpdate, user: User = Depends(re
             and doc.get("status") != "done"
             and not doc.get("shipped_credit_sent_at")
         )
-        if RESEND_API_KEY and submitter_email:
+        if RESEND_API_KEY and submitter_email and not body.skip_email:
             try:
                 resend.api_key = RESEND_API_KEY
                 if is_first_ship:
