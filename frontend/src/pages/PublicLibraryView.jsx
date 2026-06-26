@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams, Link, useLocation } from "react-router-dom";
-import { Library, Search, BookOpen, Sparkles, ArrowLeft, ExternalLink, LogIn } from "lucide-react";
+import { Library, Search, BookOpen, Sparkles, ArrowLeft, ExternalLink, LogIn, Heart } from "lucide-react";
 import { api } from "../lib/api";
 import Navbar from "../components/Navbar";
 
@@ -36,6 +36,10 @@ export default function PublicLibraryView() {
   const [previewData, setPreviewData] = useState(null);
   const [q, setQ] = useState("");
   const [fandomFilter, setFandomFilter] = useState("");
+  // Per-book heart state.  Map<book_id, true/false>.  Lazy-fetched
+  // for the visible page only — we don't pre-load reactions for
+  // every book to avoid an N-request stampede on large libraries.
+  const [hearts, setHearts] = useState({});
 
   useEffect(() => {
     let alive = true;
@@ -48,6 +52,14 @@ export default function PublicLibraryView() {
         if (alive) {
           setData(payload);
           document.title = `@${payload.owner.username}'s library · Shelfsort`;
+          // Fire the rate-limited view-ping so the owner sees an
+          // "@<viewer> peeked at your library" notification (max
+          // once per 24h per viewer/owner pair).  Backend rejects
+          // self-views silently — no UI handling needed.
+          if (payload.viewer_is_signed_in) {
+            try { await api.post(`/users/${username}/public-library/view-ping`); }
+            catch { /* best-effort */ }
+          }
         }
       } catch (e) {
         if (alive) {
@@ -88,6 +100,25 @@ export default function PublicLibraryView() {
       return hay.includes(needle);
     });
   }, [data, q, fandomFilter]);
+
+  // Toggle a heart on someone else's book.  Optimistic update with
+  // rollback on error.  Self-react returns {self_react: true} — we
+  // surface a quick toast instead of mutating state.
+  const toggleHeart = async (bookId) => {
+    const prev = !!hearts[bookId];
+    setHearts((h) => ({ ...h, [bookId]: !prev }));
+    try {
+      const { data: res } = await api.post(`/books/${bookId}/react`);
+      if (res?.self_react) {
+        // Owner can't heart their own book — undo the optimistic flip.
+        setHearts((h) => ({ ...h, [bookId]: false }));
+        return;
+      }
+      setHearts((h) => ({ ...h, [bookId]: !!res?.hearted }));
+    } catch {
+      setHearts((h) => ({ ...h, [bookId]: prev }));
+    }
+  };
 
   if (loading) {
     return (
@@ -406,6 +437,31 @@ export default function PublicLibraryView() {
                     )}
                   </div>
                 </div>
+                {/* Heart button — visible only when viewer is a
+                    signed-in non-owner (data.viewer_is_signed_in true).
+                    Owner sees their own books and can't heart them.
+                    Anon viewers (401) never reach this branch since
+                    they're redirected to the gate before render. */}
+                {data.viewer_is_signed_in && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); toggleHeart(b.book_id); }}
+                    data-testid={`public-library-heart-${b.book_id}`}
+                    aria-pressed={!!hearts[b.book_id]}
+                    aria-label={hearts[b.book_id] ? "Unheart this book" : "Heart this book"}
+                    className={
+                      "flex-shrink-0 p-2 rounded-full transition-colors " +
+                      (hearts[b.book_id]
+                        ? "bg-[#FDE2E4] text-[#C53030] hover:bg-[#FBC4C8]"
+                        : "bg-transparent text-[#6B705C] hover:bg-[#F5F3EC] hover:text-[#C53030]")
+                    }
+                  >
+                    <Heart
+                      className="w-4 h-4"
+                      fill={hearts[b.book_id] ? "currentColor" : "none"}
+                    />
+                  </button>
+                )}
               </li>
             ))}
           </ul>

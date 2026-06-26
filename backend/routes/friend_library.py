@@ -271,6 +271,33 @@ async def set_public_library_visibility(
     if first_time:
         update["first_public_share_shown_at"] = datetime.now(timezone.utc)
     await db.users.update_one({"user_id": user.user_id}, {"$set": update})
+    # On first public opt-in, fan out a friendly notification to all
+    # accepted friends so they immediately see the new library surface.
+    # Best-effort — never block the toggle if notif insert fails.
+    if first_time:
+        try:
+            from routes.notifications import create_notification
+            handle = (user.username or "").strip()
+            display = f"@{handle}" if handle else (user.name or "A friend")
+            friend_links = await db.friendships.find(
+                {"$or": [{"user_a": user.user_id}, {"user_b": user.user_id}],
+                 "status": "accepted"},
+                {"_id": 0, "user_a": 1, "user_b": 1},
+            ).to_list(length=2000)
+            friend_ids = {
+                (link["user_b"] if link["user_a"] == user.user_id else link["user_a"])
+                for link in friend_links
+            }
+            for fid in friend_ids:
+                await create_notification(
+                    user_id=fid,
+                    kind="friend_library_public",
+                    title=f"{display} made their library public",
+                    body="Browse what they're reading on Shelfsort.",
+                    link=f"/u/{handle}/library" if handle else "/users",
+                )
+        except Exception:
+            logger.warning("friend-went-public fan-out failed", exc_info=True)
     return {
         "library_visible_to_public": new_val,
         # Frontend uses this flag to open the share modal exactly once.

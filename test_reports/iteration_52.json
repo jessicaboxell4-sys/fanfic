@@ -1,0 +1,42 @@
+{
+  "summary": "Iteration 52 — Groups B+D+E + Featured Readers (5 features) tested end-to-end. Backend: 19/19 new pytest cases in test_iteration_52.py pass after fixing ONE critical bug found during testing — friend_library.set_public_library_visibility was querying db.friends (which does not exist; collection is named db.friendships) so the friend-went-public fan-out silently produced zero notifications. Single-line collection-name fix applied + retested. Frontend Playwright covered all 6 specified flows: featured-readers strip on landing, fandom-discovery page testids/links, anon library gate (no hearts), signed-in non-owner heart toggle (aria-pressed false→true→false) + view-ping fired once, owner self-view (no hearts). All 18 backend assertions + 6 frontend flows green.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/tests/test_iteration_52.py",
+    "/app/test_reports/pytest/iteration_52.xml"
+  ],
+  "action_items": [
+    "Fixed during testing: friend_library.py line ~282 — db.friends → db.friendships (collection-name typo broke friend-went-public fan-out entirely). Already verified end-to-end (B receives kind='friend_library_public' notif within ~1s of A's first toggle ON). No further main-agent action required."
+  ],
+  "critical_code_review_comments": [
+    "BUG (FIXED): set_public_library_visibility queried db.friends but Shelfsort's actual collection is db.friendships (43 docs in prod, 0 in db.friends). Fan-out silently no-op'd. The problem statement note 'db.friends collection schema is {user_a,user_b,status}' was wrong about the collection name. Best-effort try/except meant zero error logs, so this would have shipped invisibly without a focused test. Recommend: add a structured 'fan-out: notified N friends' info log inside the try-block so future regressions surface.",
+    "library_social.toggle_book_reaction has a subtle race: two simultaneous POSTs from the same viewer can both pass the existing-check, then both insert (no unique index on book_reactions {book_id, viewer_user_id}). At worst the user sees heart_count=2 from a double-click. Consider a partial-unique index or use replace_one(upsert).",
+    "trending_books over-fetches limit*2 (capped at 60) and re-fetches book+owner per row — N+1 query pattern. Fine at current scale, but if reactions volume grows this becomes a hotspot. Consider a $lookup pipeline.",
+    "view-ping create_notification is wrapped in try/except but the rate-limit insert is NOT wrapped — if the notif insert fails AFTER the ping was inserted, the next call still 24h-rate-limits. Acceptable trade-off for an at-most-once notif.",
+    "featured_libraries projection uses 'name' (not 'display_name') from the user doc — matches the rest of the codebase, but the response field is renamed to 'display_name'. Confirmed alignment with FandomDiscovery — both endpoints use 'name OR username' fallback, good.",
+    "test_react_non_opted_in_owner_404 test currently only validates the 404-on-nonexistent-book path (which exercises the same 404 code path). Uploading a real book to a non-opted-in user via the test would be more thorough but requires a file upload flow — not blocking, the underlying 404 branch is the same."
+  ],
+  "updated_files": [
+    "/app/backend/routes/friend_library.py (line ~282: db.friends → db.friendships)",
+    "/app/tests/test_iteration_52.py (new — 19 tests)",
+    "/app/test_reports/pytest/iteration_52.xml (junit output)"
+  ],
+  "success_rate": {
+    "backend": "100% (19/19)",
+    "frontend": "100% (6/6 flows)"
+  },
+  "test_credentials": "Re-used iteration_51 fixtures: TEST_fe_opted_e24c9d@example.com / hunter2pw! / @febopta508d (opted-in, 2 books: 1 Harry Potter + 1 Marvel). TEST_fe_overlap_70fa84@example.com / hunter2pw! (non-owner viewer used for heart + view-ping). Friend fan-out test registers two ephemeral users (TEST_fwpA_* and TEST_fwpB_*) per run.",
+  "seed_data_creation": "Each TestFriendWentPublic invocation registers 2 fresh users (A,B) via /api/auth/register, friends them, then toggles A public twice. No persistent data needed in advance. No mutation to the opted-in fixture user's library. book_reactions inserted/deleted symmetrically — final DB state matches pre-test state.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "The friends collection name is db.friendships (NOT db.friends — the problem-statement note in iteration_52 was wrong on that). Schema is {friendship_id, user_a, user_b, status: 'accepted'|'pending'|'blocked', requested_by, ...}. Notifications endpoint is GET /api/notifications (NOT /api/notifications/list — that 404s). Notification response shape: {items:[...]} with each item having notification_id, kind, title, body, link, read, created_at. The opted-in fixture user has bio='FE bio test zzzzzzzzzzzzzzzzzzzz' from iter51 — preserved. Book ids on that user: TEST_bk_91871715 (Harry Potter) + the Marvel one.",
+  "rca of the issue": "BUG: friend-went-public fan-out silently produced zero notifications. ROOT CAUSE: set_public_library_visibility in /app/backend/routes/friend_library.py queried `await db.friends.find(...)` but the actual collection in the codebase is `db.friendships` (used everywhere else — friends.py, friend_library.py earlier sections). The try/except around the fan-out swallowed nothing because there was no exception — db.friends is just an empty collection (Mongo auto-creates on first read). REPRO: register 2 users A,B → friendship accepted → A PUT /api/account/public-library-visibility {library_visible_to_public:true} → response correctly shows show_first_share_modal:true (toggle succeeds) → but GET /api/notifications as B returns 0 items with kind='friend_library_public'. MITIGATION: One-line fix — `db.friends.find` → `db.friendships.find` at line ~282 of friend_library.py. Re-tested: B now receives the notification within ~1s. Second toggle (off→on→off→on) correctly does NOT re-fan-out (first_public_share_shown_at gate works)."
+}

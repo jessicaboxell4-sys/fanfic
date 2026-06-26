@@ -21,6 +21,7 @@ import { api } from "../lib/api";
 import PrimaryCTAButton from "../components/PrimaryCTAButton";
 import SecondaryCTAButton from "../components/SecondaryCTAButton";
 import CommunityShowcase from "../components/CommunityShowcase";
+import FeaturedReadersStrip from "../components/FeaturedReadersStrip";
 import SiteFooter from "../components/SiteFooter";
 
 // A curated rotation of well-known fandoms we already sort into. Stays static
@@ -331,6 +332,7 @@ export default function Landing() {
 
       {/* Bottom CTA — last push before the visitor leaves. */}
       <CommunityShowcase />
+      <FeaturedReadersStrip />
       <section className="max-w-4xl mx-auto px-6 md:px-8 py-24 text-center">
         <h2 className="font-serif text-3xl sm:text-4xl text-[#2C2C2C] mb-4">
           Ready to see your library, sorted?
