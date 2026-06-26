@@ -965,29 +965,76 @@ export default function AllBooksPage() {
                     <span className="text-xs text-[#A09A8B]" data-testid="library-chip-filter-count">
                       {visibleBooks.length} of {books.length} books match
                     </span>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
                       {visibleBooks.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            // Chip-aware Surprise me (iter 62) — picks a
-                            // random book from the *currently filtered*
-                            // pool so a user who's selected "Quick +
-                            // Unread" gets a quick unread book, not a
-                            // random tome from elsewhere.  Routes to the
-                            // reader for instant flow.
-                            const pick = visibleBooks[Math.floor(Math.random() * visibleBooks.length)];
-                            if (pick && pick.book_id) {
-                              window.location.href = `/read/${pick.book_id}`;
-                            }
-                          }}
-                          data-testid="chip-shuffle-filtered"
-                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-[#6B46C1] text-white hover:bg-[#553397]"
-                          title={`Pick a random book from the ${visibleBooks.length} matching your filters`}
-                        >
-                          <Sparkles className="w-3 h-3" />
-                          Shuffle these {visibleBooks.length}
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              // Pure-random shuffle (iter 62) — picks
+                              // uniformly from the filtered pool.
+                              const pick = visibleBooks[Math.floor(Math.random() * visibleBooks.length)];
+                              if (pick && pick.book_id) {
+                                window.location.href = `/read/${pick.book_id}`;
+                              }
+                            }}
+                            data-testid="chip-shuffle-filtered"
+                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white text-[#6B46C1] border border-[#D6CCE8] hover:bg-[#F0EBFB]"
+                            title={`Pick a uniformly-random book from the ${visibleBooks.length} matching your filters`}
+                          >
+                            <Sparkles className="w-3 h-3" />
+                            Shuffle these {visibleBooks.length}
+                          </button>
+                          {/* Taste-weighted pick (iter 63) — opt-in
+                              per-click.  Scores each filtered book by
+                              how closely its fandom/category/author
+                              matches what the user has previously
+                              finished, then picks weighted-random.
+                              Falls back to uniform when the user has
+                              no reading history yet. */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const finished = books.filter((b) => (b.progress_fraction || 0) >= 0.99);
+                              // Build taste profile from finished books
+                              const fandomCount = {};
+                              const catCount = {};
+                              const authorCount = {};
+                              for (const b of finished) {
+                                if (b.fandom) fandomCount[b.fandom] = (fandomCount[b.fandom] || 0) + 1;
+                                if (b.category) catCount[b.category] = (catCount[b.category] || 0) + 1;
+                                if (b.author) authorCount[b.author] = (authorCount[b.author] || 0) + 1;
+                              }
+                              // Score each filtered book.  Baseline of
+                              // 1 so unfamiliar books still have a
+                              // chance — pure "echo chamber" picks
+                              // would defeat the purpose.
+                              const weighted = visibleBooks.map((b) => ({
+                                book: b,
+                                weight: 1
+                                  + (fandomCount[b.fandom] || 0) * 3
+                                  + (catCount[b.category] || 0) * 2
+                                  + (authorCount[b.author] || 0) * 2,
+                              }));
+                              const total = weighted.reduce((s, w) => s + w.weight, 0);
+                              let r = Math.random() * total;
+                              let pick = weighted[0].book;
+                              for (const w of weighted) {
+                                r -= w.weight;
+                                if (r <= 0) { pick = w.book; break; }
+                              }
+                              if (pick && pick.book_id) {
+                                window.location.href = `/read/${pick.book_id}`;
+                              }
+                            }}
+                            data-testid="chip-pick-for-me"
+                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-[#6B46C1] text-white hover:bg-[#553397]"
+                            title="Like Shuffle, but biased toward books that match the fandoms, categories, and authors you've already finished. Falls back to random if you have no reading history yet."
+                          >
+                            <Heart className="w-3 h-3" />
+                            Pick for me
+                          </button>
+                        </>
                       )}
                       <button
                         type="button"

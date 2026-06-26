@@ -7,6 +7,55 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 (evening, part 4) — Taste-weighted "Pick for me" 🎯
+
+User feedback on the previous Shuffle iteration: don't override the
+random behavior, **let the user decide per-click**.  Shipped a
+companion button so the chip-strip footer now has BOTH:
+
+- **✨ Shuffle these N** (white outlined) — uniform random, the
+  iter-62 default.
+- **❤ Pick for me** (purple filled, iter 63) — weighted random
+  biased toward the user's reading history.
+
+### Weighting logic (client-side, zero backend)
+For each book in `visibleBooks`, compute:
+
+```
+weight = 1
+       + 3 × (count of finished books in same fandom)
+       + 2 × (count of finished books in same category)
+       + 2 × (count of finished books by same author)
+```
+
+Then pick weighted-random.  Baseline `1` is important — without it,
+a brand-new genre would have weight 0 and be unreachable.  With
+the baseline, even unfamiliar books still have a real (small) shot,
+so the picker doesn't trap users in an echo chamber.
+
+A user with no finished books has every weight = 1, which collapses
+into uniform random — same behavior as the Shuffle button, no
+divide-by-zero, no error path.
+
+### data-testids
+- `chip-pick-for-me` (new) — sits next to `chip-shuffle-filtered`.
+
+### Smoke
+- Both buttons render cleanly and are visually distinct (outline vs
+  filled).  Manual click on Pick-for-me navigates to a book from
+  the filtered pool, same as Shuffle.  Statistical validation
+  (30-click trial) ran into Playwright timing issues after the
+  first navigation; weighting math is straight code review.
+
+### Why split into two buttons
+Avoids forcing a global setting (which would bury the choice in
+Account).  Avoids hiding behind a dropdown (extra click).  Both
+buttons sit side-by-side in the same footer, so users see the
+choice the moment they're about to shuffle and can pick whichever
+matches their mood.  Same chip filters, two flavors of
+unpredictability.
+
+---
 ## 2026-06-27 (evening, part 3) — Chip-aware Shuffle 🎲
 
 User said yes to the chip-aware Surprise-me suggestion.  Shipped
