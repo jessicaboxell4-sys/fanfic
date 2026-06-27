@@ -435,3 +435,20 @@ async def list_stuck_upload_jobs(
         "count": len(jobs),
         "jobs": jobs,
     }
+
+
+
+@api_router.post("/admin/upload-jobs/recover-now")
+async def recover_upload_jobs_now(user: User = Depends(require_admin)):
+    """Admin-triggered: run ``recover_stuck_upload_jobs`` on demand
+    instead of waiting up to 5 min for the next cron tick.
+
+    Useful during a brief Atlas blip when the operator wants
+    recovery to happen *right now* in front of a user reporting
+    their upload "stuck".  Idempotent — the recovery sweeper
+    re-reads job state on entry, so calling it twice in a row is
+    safe.
+    """
+    recovered = await recover_stuck_upload_jobs()
+    logger.info("admin %s manually re-kicked %d stuck upload job(s)", user.user_id, recovered)
+    return {"recovered": recovered}

@@ -146,3 +146,48 @@ def test_list_stuck_upload_jobs_clamps_threshold(shared_event_loop):
         assert r2["threshold_minutes"] == 240
 
     shared_event_loop.run_until_complete(_run())
+
+
+def test_recover_upload_jobs_now_rekicks_stale(shared_event_loop):
+    """POST /admin/upload-jobs/recover-now re-runs the sweeper and
+    returns the count of jobs re-kicked.  Stale jobs with bytes on
+    disk are re-kicked; fresh jobs are left alone."""
+    from unittest.mock import patch
+    from routes.upload_jobs import recover_upload_jobs_now, _JOB_STAGING_DIR
+
+    async def _run():
+        cli = AsyncIOMotorClient(os.environ["MONGO_URL"])
+        db = cli[os.environ["DB_NAME"]]
+        job_id = f"job_{uuid.uuid4().hex[:10]}"
+        user_id = f"user_{uuid.uuid4().hex[:10]}"
+        staging = _JOB_STAGING_DIR / job_id
+        try:
+            staging.mkdir(parents=True, exist_ok=True)
+            (staging / "fake.epub").write_bytes(b"PK\x03\x04")
+            await db.upload_jobs.insert_one({
+                "job_id": job_id,
+                "user_id": user_id,
+                "status": "queued",
+                "total": 1,
+                "processed": 0,
+                "staged_files": [{"path": str(staging / "fake.epub"), "original_name": "fake.epub"}],
+                "keep_originals": [],
+                "created_at": (datetime.now(timezone.utc) - timedelta(minutes=12)).isoformat(),
+                "started_at": None,
+            })
+
+            # Patch the worker so we don't actually run the pipeline.
+            with patch("routes.upload_jobs._run_upload_job") as worker_mock:
+                worker_mock.return_value = None
+                result = await recover_upload_jobs_now(user=_admin_stub(user_id))
+
+            assert "recovered" in result
+            assert result["recovered"] >= 1
+        finally:
+            await db.upload_jobs.delete_many({"job_id": job_id})
+            if staging.exists():
+                import shutil
+                shutil.rmtree(staging, ignore_errors=True)
+            cli.close()
+
+    shared_event_loop.run_until_complete(_run())

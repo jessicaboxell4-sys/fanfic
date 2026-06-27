@@ -65,7 +65,19 @@ All 4 new + 2 existing recovery tests green.
   and reachable via the Cmd+K palette ("stuck", "uploads",
   "queued", "atlas", "failover").
 - Tests in `backend/tests/test_admin_stuck_upload_jobs.py`
-  (surfaces stale rows / empty when healthy / clamps threshold).
+  (surfaces stale rows / empty when healthy / clamps threshold /
+  recover-now re-kicks stale).
+
+### Manual recovery trigger (follow-on)
+
+- **`POST /api/admin/upload-jobs/recover-now`** — admin-only.
+  Runs the sweeper synchronously and returns
+  `{"recovered": <count>}`.  Idempotent.
+- **"Re-kick now" button** on `StuckUploadsCard` (only renders
+  when there are stuck jobs).  Tells the operator how many were
+  re-kicked via toast and refetches the list.  Avoids the
+  up-to-5-min wait when an operator wants recovery to happen
+  *right now* in front of a user reporting their upload "stuck".
 
 
 ### User impact

@@ -3390,6 +3390,7 @@ function StuckUploadsCard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [recovering, setRecovering] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -3401,6 +3402,24 @@ function StuckUploadsCard() {
       setError(e?.response?.data?.detail || e.message || "Failed to load stuck uploads");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const recoverNow = async () => {
+    setRecovering(true);
+    try {
+      const { data: r } = await api.post("/admin/upload-jobs/recover-now");
+      const n = r?.recovered ?? 0;
+      if (n > 0) {
+        toast.success(`Re-kicked ${n} stuck upload job${n === 1 ? "" : "s"} — they'll re-run in the background.`);
+      } else {
+        toast.success("Nothing to recover right now — all jobs are healthy.");
+      }
+      await load();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || e.message || "Recovery failed");
+    } finally {
+      setRecovering(false);
     }
   };
 
@@ -3468,12 +3487,23 @@ function StuckUploadsCard() {
               </div>
             );
           })}
-          <p className="text-[11px] text-[#7C2D2A] italic mt-1">
-            These rows are still recoverable — the 5-min cron re-kicks them
-            as soon as Atlas / the staging disk recovers.  Persistent growth
-            here means the cron itself is wedged or the staging volume is
-            full.
-          </p>
+          <div className="flex items-center justify-between mt-2 gap-2">
+            <p className="text-[11px] text-[#7C2D2A] italic">
+              Still recoverable — the 5-min cron re-kicks these as soon as
+              Atlas / the staging disk recovers.  Persistent growth here
+              means the cron itself is wedged or the staging volume is full.
+            </p>
+            <button
+              type="button"
+              onClick={recoverNow}
+              disabled={recovering}
+              className="shrink-0 px-3 py-1.5 rounded-lg bg-[#7C2D2A] hover:bg-[#5C1F1D] disabled:opacity-50 text-white text-xs font-semibold inline-flex items-center gap-1.5 transition-colors"
+              data-testid="admin-stuck-uploads-recover-now"
+            >
+              {recovering ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
+              {recovering ? "Re-kicking…" : "Re-kick now"}
+            </button>
+          </div>
         </div>
       )}
     </Card>
