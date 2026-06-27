@@ -109,7 +109,16 @@ export default function UploadZone({ onUploaded, compact = false }) {
   // `batch` / `batches` are populated when a drop exceeds CHUNK_SIZE so the
   // progress line can read "Batch 2 of 5 · 347 of 1000 processed".  For
   // smaller drops they stay at 1/1 and the UI hides the batch prefix.
-  const [progress, setProgress] = useState({ done: 0, total: 0, batch: 1, batches: 1 });
+  const [progress, setProgress] = useState({ done: 0, total: 0, batch: 1, batches: 1, inFlight: 0, startedAt: 0 });
+  // 1-second heartbeat so the "Xs elapsed" line in the progress UI
+  // re-renders even when no file has resolved yet.  Only ticking
+  // while ``uploading`` is true keeps it a no-op the rest of the time.
+  const [nowTick, setNowTick] = useState(0);
+  useEffect(() => {
+    if (!uploading) return undefined;
+    const id = setInterval(() => setNowTick((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, [uploading]);
   const [formatPrefs, setFormatPrefs] = useState({}); // {pdf: "ask"|"convert"|"skip", ...}
 
   // Lazy-load the user's per-format preferences once. Default to "ask"
@@ -377,7 +386,7 @@ export default function UploadZone({ onUploaded, compact = false }) {
     setUploading(true);
     inFlightRef.current = true;
     const totalBatches = Math.ceil(filesToSend.length / CHUNK_SIZE);
-    setProgress({ done: 0, total: filesToSend.length, batch: 1, batches: totalBatches });
+    setProgress({ done: 0, total: filesToSend.length, batch: 1, batches: totalBatches, inFlight: 0, startedAt: Date.now() });
     const duplicates = [];
     const allActions = [];
     const allUrlLists = [];
@@ -414,7 +423,18 @@ export default function UploadZone({ onUploaded, compact = false }) {
       //     800ms backoff per-request inside sendOne
       //   • Failed files accumulate in `failedFiles[]` and the final
       //     toast surfaces a sticky one-click "Retry N" button
-      const CONCURRENCY = 4;
+      // 2026-06-27 — Production throughput tune.  User reported "barely
+      // moves" on a 50-200 file drop.  Doubled-up the parallelism:
+      //   • CONCURRENCY 4 → 6 — 50% more files in flight per round.
+      //     Still well under Cloudflare's connection ceiling and under
+      //     the backend's AV_BG_CONCURRENCY=4 (R2 mirror is wrapped in
+      //     asyncio.to_thread so even with 6 in-flight backend jobs
+      //     the bottleneck is upstream LLM, not the I/O loop).
+      //   • POLL_INTERVAL 1500ms → 1000ms — counter ticks ~33% sooner
+      //     after each file resolves.
+      //   • Track inFlight count + elapsed seconds so the progress
+      //     subtext gives the user a heartbeat between counter bumps.
+      const CONCURRENCY = 6;
       let uploaded = 0;
       let totalAuto = 0;
       let lastPolicy = null;
@@ -452,8 +472,8 @@ export default function UploadZone({ onUploaded, compact = false }) {
             // Poll up to ~3 minutes.  Larger EPUBs + slow Claude can
             // take 30–60s; we give 4–5× headroom so an LLM hiccup
             // doesn't surface as a fake failure.
-            const POLL_INTERVAL_MS = 1500;
-            const MAX_POLLS = 120;
+            const POLL_INTERVAL_MS = 1000;
+            const MAX_POLLS = 180;  // 3 min wall-clock at 1s intervals
             for (let i = 0; i < MAX_POLLS; i++) {
               await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
               let pollRes;
@@ -524,12 +544,18 @@ export default function UploadZone({ onUploaded, compact = false }) {
       // setProgress calls naturally.
       const tickProgress = (batchIdx) => {
         uploaded += 1;
-        setProgress({
+        setProgress((p) => ({
+          ...p,
           done: uploaded,
           total: filesToSend.length,
           batch: batchIdx + 1,
           batches: totalBatches,
-        });
+          // inFlight is decremented when a file resolves; the round
+          // dispatcher below increments it before kicking off each
+          // file.  Together they give the user a live "currently
+          // working on N books" readout.
+          inFlight: Math.max(0, p.inFlight - 1),
+        }));
       };
 
       // Walk the files list in batches of CHUNK_SIZE (sequential) and
@@ -541,6 +567,10 @@ export default function UploadZone({ onUploaded, compact = false }) {
         const batchFiles = filesToSend.slice(batchStart, batchStart + CHUNK_SIZE);
         for (let i = 0; i < batchFiles.length; i += CONCURRENCY) {
           const round = batchFiles.slice(i, i + CONCURRENCY);
+          // Mark every file in this round as in-flight before we kick
+          // off the parallel sendOne calls.  Each call decrements via
+          // tickProgress once it resolves.
+          setProgress((p) => ({ ...p, inFlight: p.inFlight + round.length }));
           const settled = await Promise.allSettled(round.map(async (file) => {
             const result = await sendOne(file);
             tickProgress(batchIdx);  // bump counter as soon as THIS file finishes
@@ -786,6 +816,21 @@ export default function UploadZone({ onUploaded, compact = false }) {
               ? `Batch ${progress.batch} of ${progress.batches} · ${progress.done} of ${progress.total} processed`
               : `${progress.done} of ${progress.total} processed`}
           </p>
+          {(progress.inFlight > 0 || progress.startedAt > 0) && (
+            <p
+              className="text-xs text-[#6B705C] mt-1 italic"
+              data-testid="upload-progress-flight"
+            >
+              {progress.inFlight > 0
+                ? `${progress.inFlight} book${progress.inFlight === 1 ? "" : "s"} currently sorting`
+                : "Wrapping up"}
+              {progress.startedAt > 0 && (
+                // nowTick participates in render so the 1s heartbeat
+                // re-evaluates Date.now() between file completions.
+                <> · {Math.max(1, Math.floor((Date.now() - progress.startedAt + nowTick * 0) / 1000))}s elapsed</>
+              )}
+            </p>
+          )}
         </>
       ) : compact ? (
         <div className="flex flex-col sm:flex-row items-center gap-4 w-full justify-center">

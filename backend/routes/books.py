@@ -2496,22 +2496,34 @@ async def upload_books(
             # is searchable from `/library/search/fulltext` immediately. Any
             # failure here is logged inside the helper; we never want a
             # fulltext glitch to break the upload itself, so we swallow.
-            try:
-                from utils.epub_fulltext import extract_epub_text, upsert_fulltext, count_words  # noqa: WPS433
-                from pathlib import Path as _P  # noqa: WPS433
-                # Reconstruct the on-disk path from STORAGE_DIR + user_id + book_id.
-                _epub_path = STORAGE_DIR / user.user_id / f"{doc['book_id']}.epub"
-                _ft_text = extract_epub_text(_epub_path)
-                await upsert_fulltext(db, doc["book_id"], user.user_id, _ft_text)
-                _wc = count_words(_ft_text)
-                if _wc > 0:
-                    await db.books.update_one(
-                        {"book_id": doc["book_id"]},
-                        {"$set": {"word_count": _wc}},
-                    )
-                    doc["word_count"] = _wc
-            except Exception as _ft_exc:
-                logger.warning("fulltext index on upload failed for %s: %s", doc.get("book_id"), _ft_exc)
+            #
+            # 2026-06-27 — Fire-and-forget the indexing.  EPUB body
+            # extraction is the slowest part of a successful upload
+            # (2-5s on a 5-10MB EPUB) and the user doesn't need
+            # fulltext to be ready for the upload to "succeed" — they
+            # just need the book in the library.  Backgrounding it
+            # cuts the visible upload time by several seconds per
+            # file, which compounds dramatically on a 100-file drop.
+            #
+            # The task captures the local variables it needs (book_id,
+            # user_id) so it's still correct even if `doc` is reassigned
+            # later in the loop.  Failure still only logs — fulltext is
+            # a search-quality nicety, not a correctness invariant.
+            async def _index_fulltext(book_id: str, user_id: str):
+                try:
+                    from utils.epub_fulltext import extract_epub_text, upsert_fulltext, count_words  # noqa: WPS433
+                    _epub_path = STORAGE_DIR / user_id / f"{book_id}.epub"
+                    _ft_text = extract_epub_text(_epub_path)
+                    await upsert_fulltext(db, book_id, user_id, _ft_text)
+                    _wc = count_words(_ft_text)
+                    if _wc > 0:
+                        await db.books.update_one(
+                            {"book_id": book_id},
+                            {"$set": {"word_count": _wc}},
+                        )
+                except Exception as _ft_exc:  # noqa: BLE001
+                    logger.warning("fulltext index on upload failed for %s: %s", book_id, _ft_exc)
+            _asyncio.create_task(_index_fulltext(doc["book_id"], user.user_id))
             results.append({k: v for k, v in doc.items() if k != '_id'})
         except Exception as _file_err:  # noqa: BLE001 — per-file isolation
             logger.exception(

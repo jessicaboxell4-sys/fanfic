@@ -7,6 +7,58 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 — Upload speed-up (frontend + backend) ⚡
+
+User reported "files just sit at 'Uploading…' / progress bar barely
+moves" on a 50-200 file production drop.  The pipeline architecture
+itself was fine — bottleneck was per-file processing time amplifying
+into long wall-clock waits.  Four-pronged fix:
+
+### Frontend (`components/UploadZone.jsx`)
+
+1. **`CONCURRENCY` 4 → 6** — 50% more files in flight per round.
+   Still under Cloudflare's connection ceiling.
+2. **Poll interval 1500ms → 1000ms** — counter ticks ~33% sooner
+   after each file resolves (MAX_POLLS adjusted to 180 → same 3-min
+   wall-clock headroom).
+3. **In-flight counter** — new sub-line under the progress text:
+   `"N books currently sorting · 47s elapsed"`.  Visible
+   feedback even between counter bumps so the user sees the
+   parallelism instead of staring at a frozen number.
+4. **1s heartbeat ticker** — keeps the elapsed-time readout alive
+   between file completions; only ticks while ``uploading`` is true.
+
+### Backend (`routes/books.py`)
+
+5. **EPUB fulltext indexing → background task** (saves 2-5s per
+   file).  Previously each upload_books call awaited
+   ``extract_epub_text`` + ``upsert_fulltext`` + ``count_words``
+   inline.  Now it's fire-and-forget via ``asyncio.create_task`` —
+   the book lands in the library immediately, fulltext search picks
+   it up a few seconds later.  Mirror of the AV-background pattern
+   from yesterday.  Failure still only logs (search-quality nicety,
+   not a correctness invariant).
+
+### Expected impact
+
+For a 100-file drop on production:
+- Before: ~6 concurrent files × ~12s ⇒ ~3-4 min wall-clock, counter
+  visibly stuck between rounds.
+- After: ~6 concurrent files × ~7-9s (fulltext deferred) ⇒
+  ~1.5-2 min wall-clock, plus a live "N currently sorting" readout
+  so the user sees motion the whole time.
+
+### Tests
+
+- `tests/test_upload_fulltext_bg.py` — pins the
+  fire-and-forget indexing wiring.
+- 11/11 tests pass (full backend suite for the affected modules).
+
+Test IDs: `upload-progress-text` (unchanged), new
+`upload-progress-flight` for the in-flight + elapsed sub-line.
+
+---
+
 ## 2026-06-27 — Breadcrumbs on all drill-down pages 🧭
 
 The character → fandom → pairing → book navigation is now 3-4 levels
