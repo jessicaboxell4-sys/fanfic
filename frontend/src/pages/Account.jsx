@@ -217,6 +217,123 @@ function AdminAccessCard() {
 }
 
 
+// 2026-06-27 — Library mode preference (Phase 1 of the fanfic/non-
+// fanfic separation work).  Three radio options that flip how the
+// library page lays out content:
+//
+//   • fanfic   — fandom-first navigation, AO3 chrome (pairings,
+//                fandom shelves) visible.  The original Shelfsort
+//                experience and current default for existing users.
+//   • original — author-first navigation, AO3 chrome hidden so
+//                "normal" book browsing isn't distracted by fanfic
+//                metadata.
+//   • mixed    — both worlds, separate visual sections (Fanfic /
+//                Original & Non-fic) on the same library page.
+//                Default for newly-registered users.
+//
+// Persists via PATCH /api/auth/library-mode → user.library_mode.
+// The library page reads user.library_mode from AuthContext and
+// renders accordingly (see AllBooksPage).  Friends viewing the
+// user's public library will eventually inherit this preference
+// in a Phase 2 follow-up.
+function LibraryModeCard() {
+  const { user, refresh } = useAuth();
+  const [mode, setMode] = useState(user?.library_mode || "mixed");
+  const [saving, setSaving] = useState(false);
+
+  // Keep in sync if AuthContext refreshes user out from under us
+  // (e.g. login flip, another tab made the change).
+  useEffect(() => {
+    if (user?.library_mode && user.library_mode !== mode) {
+      setMode(user.library_mode);
+    }
+  }, [user?.library_mode, mode]);
+
+  const change = async (newMode) => {
+    if (newMode === mode) return;
+    setSaving(true);
+    setMode(newMode);  // optimistic
+    try {
+      await api.patch("/auth/library-mode", { mode: newMode });
+      toast.success("Library mode updated");
+      // Pull fresh user doc so AuthContext stays authoritative.
+      if (typeof refresh === "function") await refresh();
+    } catch (e) {
+      // Roll back optimistic update on failure.
+      setMode(user?.library_mode || "mixed");
+      toast.error(errMsg(e?.response?.data?.detail) || "Couldn't save library mode");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const options = [
+    {
+      value: "mixed",
+      label: "Mixed",
+      blurb: "Best of both worlds. Fanfic and original/non-fic in separate sections on the same page.",
+      icon: "📚",
+    },
+    {
+      value: "fanfic",
+      label: "Fanfic first",
+      blurb: "Fandom-first navigation. Pairings, fandom shelves, AO3 chrome front and centre.",
+      icon: "💜",
+    },
+    {
+      value: "original",
+      label: "Original & Non-fic first",
+      blurb: "Author-first navigation. Fanfic chrome stays hidden so original fiction & non-fic don't compete.",
+      icon: "📖",
+    },
+  ];
+
+  return (
+    <section
+      className="shelf-card p-6 mb-6"
+      id="library-mode"
+      data-testid="library-mode-card"
+    >
+      <h2 className="font-serif text-2xl text-[#2C2C2C] mb-1">Library mode</h2>
+      <p className="text-sm text-[#6B705C] mb-4">
+        How should Shelfsort lay out your library?  This is a personal
+        preference — pick what fits the books you actually read.  You
+        can change it any time.
+      </p>
+      <div className="space-y-2" data-testid="library-mode-options">
+        {options.map((opt) => {
+          const active = mode === opt.value;
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => change(opt.value)}
+              disabled={saving}
+              aria-pressed={active}
+              data-testid={`library-mode-option-${opt.value}`}
+              className={`w-full text-left flex items-start gap-3 p-3 rounded-lg border transition-colors ${
+                active
+                  ? "bg-[#EEE9FB] border-[#6B46C1]"
+                  : "bg-white border-[#E8E6E1] hover:border-[#C9C2B0]"
+              } ${saving ? "opacity-60 cursor-wait" : ""}`}
+            >
+              <span className="text-2xl shrink-0" aria-hidden="true">{opt.icon}</span>
+              <span className="flex-1 min-w-0">
+                <span className={`block font-semibold ${active ? "text-[#553397]" : "text-[#2C2C2C]"}`}>
+                  {opt.label}
+                  {active && <span className="ml-2 text-xs font-normal text-[#6B46C1]">· current</span>}
+                </span>
+                <span className="block text-xs text-[#6B705C] mt-0.5">{opt.blurb}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+
 // the Friends page. Anchored at id="privacy" so banners can scroll here.
 function PrivacyMessagingCard({ navigate }) {
   const { user } = useAuth();
@@ -2017,6 +2134,11 @@ export default function Account() {
 
         {/* Privacy & messaging */}
         <PrivacyMessagingCard navigate={navigate} />
+        {/* Library mode (2026-06-27) — fanfic/original/mixed
+            preference.  Mounted right after Privacy so it's visible
+            near the top of the page when users are configuring their
+            account, before the more advanced sections. */}
+        <LibraryModeCard />
         <AdminAccessCard />
 
         {/* E-reader sync (OPDS catalog) */}

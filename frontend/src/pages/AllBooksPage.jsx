@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { api } from "../lib/api";
+import { useAuth } from "../context/AuthContext";
 import Navbar from "../components/Navbar";
 import BookCard from "../components/BookCard";
 import SelectionBar from "../components/SelectionBar";
@@ -23,6 +24,12 @@ const DEFAULT_CATEGORIES = ["All", "Fanfiction", "Original Fiction", "Non-fictio
 
 export default function AllBooksPage() {
   const navigate = useNavigate();
+  const { user, refresh: refreshAuth } = useAuth();
+  // 2026-06-27 — Library mode (fanfic / original / mixed).  Drives the
+  // default category chip and (in mixed mode) splits the book list
+  // into separate sections.  Read from AuthContext so a change on
+  // /account flows here immediately on the next refresh.
+  const libraryMode = user?.library_mode || "mixed";
   const [searchParams] = useSearchParams();
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -31,7 +38,17 @@ export default function AllBooksPage() {
   const [unreadableCount, setUnreadableCount] = useState(0);
   const [unknownSourcesCount, setUnknownSourcesCount] = useState(0);
   const [statusCounts, setStatusCounts] = useState({ complete: 0, ongoing: 0 });
-  const [category, setCategory] = useState("All");
+  // Initial category default is keyed off library_mode:
+  //   • fanfic    → "Fanfiction"
+  //   • original  → "Original Fiction"
+  //   • mixed/any → "All"
+  // Users can still click any other chip; this only affects the
+  // landing default the first time the page renders for the session.
+  const [category, setCategory] = useState(() => (
+    libraryMode === "fanfic" ? "Fanfiction" :
+    libraryMode === "original" ? "Original Fiction" :
+    "All"
+  ));
   const [fandom, setFandom] = useState(null);
   const [relationship, setRelationship] = useState(null);
   const [ao3Filters, setAo3Filters] = useState({ rating: null, ao3_category: null, warning: null, exclude_warning: null });
@@ -557,6 +574,56 @@ export default function AllBooksPage() {
             <p className="text-[#6B705C] mt-2">
               {stats.fandoms.slice(0, 4).map(f => `${f.name} (${f.count})`).join(" · ")}
             </p>
+          )}
+          {/* 2026-06-27 — Library-mode pill cluster.  Mirrors the
+              /account preference but lets users switch on the fly
+              without leaving the library page.  Writes back via the
+              same PATCH endpoint and refreshes AuthContext so the
+              category default + layout flip immediately. */}
+          {stats.total > 0 && (
+            <div
+              className="inline-flex items-center gap-1 mt-3 p-1 rounded-full border border-[#E8E6E1] bg-white text-xs"
+              data-testid="library-mode-pills"
+            >
+              <span className="px-2 text-[10px] uppercase tracking-wider text-[#A09A8B] font-semibold">Mode:</span>
+              {[
+                { value: "mixed",    label: "📚 Mixed"     },
+                { value: "fanfic",   label: "💜 Fanfic"    },
+                { value: "original", label: "📖 Original"  },
+              ].map((opt) => {
+                const active = libraryMode === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={async () => {
+                      if (active) return;
+                      try {
+                        await api.patch("/auth/library-mode", { mode: opt.value });
+                        if (typeof refreshAuth === "function") await refreshAuth();
+                        toast.success(`Library mode: ${opt.label.replace(/^[^\w]+/, "").trim()}`);
+                      } catch (e) {
+                        toast.error("Couldn't change library mode");
+                      }
+                    }}
+                    aria-pressed={active}
+                    data-testid={`library-mode-pill-${opt.value}`}
+                    className={`px-3 py-1 rounded-full font-medium transition-colors ${
+                      active
+                        ? "bg-[#6B46C1] text-white"
+                        : "text-[#6B705C] hover:bg-[#F5F3EC]"
+                    }`}
+                    title={
+                      opt.value === "fanfic"   ? "Fandom-first navigation, AO3 chrome visible" :
+                      opt.value === "original" ? "Author-first, fanfic chrome hidden" :
+                                                 "Both worlds, separate sections on the same page"
+                    }
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
           )}
           {trashCount > 0 && (
             <Link

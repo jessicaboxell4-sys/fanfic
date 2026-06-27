@@ -7,6 +7,78 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 — Library mode preference (fanfic / original / mixed) Phase 1 🎚️
+
+David Webber's Facebook question — "Jessica, is this just for
+fanfictions? Or can it sort other epub books?" — surfaced a real
+gap: while Shelfsort *does* handle any EPUB, the library experience
+is fanfic-first by default (pairings, fandom shelves, AO3 chrome
+front-and-centre).  Original-fiction and non-fic readers feel like
+afterthoughts on their own libraries.
+
+Phase 1 ships the foundation: a single user preference + four UI
+layers that read from it.
+
+### Backend (`routes/auth.py`)
+
+- New field `user.library_mode` with three valid values:
+    - `"fanfic"`   — fandom-first, AO3 chrome visible (the prior
+      default behaviour)
+    - `"original"` — author-first, AO3 chrome hidden
+    - `"mixed"`    — both worlds, separate sections (new-user default)
+- Surfaced on `GET /api/auth/me`.  Defaults to `"mixed"` for any
+  user who hasn't set one yet — backward-compat for existing users.
+- New `PATCH /api/auth/library-mode` endpoint accepts
+  `{"mode": "..."}` with case-insensitive + whitespace-tolerant
+  normalization (`.strip().lower()`).  422s on anything else.
+- Tests (`backend/tests/test_iter71_library_mode.py`) — 10/10 pass:
+  default value, round-trip across all three modes, 7 invalid-value
+  cases (including case-sensitivity edge cases), and the auth-
+  required guard for the PATCH endpoint.
+
+### Frontend (`pages/Account.jsx → LibraryModeCard`)
+
+- New section on `/account` between Privacy & Admin access.
+- Three radio-style cards with icon + label + blurb describing
+  what each mode does.  Optimistic update + rollback on error,
+  pulls fresh `/auth/me` after save so the change propagates
+  immediately to AuthContext.
+
+### Frontend (`pages/AllBooksPage.jsx`)
+
+- Reads `user.library_mode` from AuthContext (new `useAuth` import).
+- **Initial category default** now keyed off the mode:
+    - `fanfic`   → `"Fanfiction"` chip selected
+    - `original` → `"Original Fiction"` chip selected
+    - `mixed`/anything else → `"All"` (current behaviour)
+- **On-the-fly mode pill cluster** rendered under the page heading:
+  `Mode: [📚 Mixed] [💜 Fanfic] [📖 Original]`.  Click any pill to
+  switch modes without leaving the library page — writes back via
+  the same `PATCH /api/auth/library-mode` and refreshes AuthContext.
+  Tooltips describe each option.
+
+### What's not yet shipped (Phase 2 backlog)
+
+- Homepage hero copy variants per mode (logged-in users)
+- Public profile pages respecting the viewed user's mode
+- In `mixed` mode: visual section split (Fanfic / Original & Non-fic)
+  on the library grid — currently the chip-default change does the
+  heavy lifting, but a proper sectional layout will land next phase.
+
+### Verification
+- 10/10 backend tests pass
+- esbuild parses both `Account.jsx` and `AllBooksPage.jsx` cleanly
+- Homepage renders with 0 JS errors
+- Lint clean on new code (same pre-existing unescaped-quote warnings
+  elsewhere in both files)
+
+Files touched: `backend/routes/auth.py`,
+`backend/tests/test_iter71_library_mode.py` (new),
+`frontend/src/pages/Account.jsx`,
+`frontend/src/pages/AllBooksPage.jsx`.
+
+---
+
 ## 2026-06-27 — Grid-mode card-size slider 📐
 
 Companion to today's earlier list-mode density toggle.  Same UX

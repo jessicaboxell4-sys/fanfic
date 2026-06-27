@@ -157,9 +157,11 @@ async def auth_me(user: User = Depends(get_current_user_any_status)):
     # `library_visible_to_public` is stored on the user doc but not on
     # the Pydantic model — fetch it directly so the FE can drive the
     # post-handle completeness nudge (iter 56).
+    # 2026-06-27 — also fetching `library_mode` so the library page
+    # can render fanfic-first / original-first / mixed accordingly.
     doc = await db.users.find_one(
         {"user_id": user.user_id},
-        {"_id": 0, "library_visible_to_public": 1},
+        {"_id": 0, "library_visible_to_public": 1, "library_mode": 1},
     )
     return {
         "user_id": user.user_id,
@@ -181,6 +183,13 @@ async def auth_me(user: User = Depends(get_current_user_any_status)):
         # Library visibility flag (iter 56 — drives the post-handle
         # completeness nudge in /users).  Boolean, defaults False.
         "library_visible_to_public": bool((doc or {}).get("library_visible_to_public", False)),
+        # 2026-06-27 — Library mode preference.  Three values:
+        #   "fanfic"   = fandom-first everything (current default behaviour)
+        #   "original" = author-first, AO3 chrome hidden
+        #   "mixed"    = both worlds, separate sections (default for new users)
+        # The FE library page (`AllBooksPage`), homepage hero, and
+        # `/account → Library mode` panel all read this field.
+        "library_mode": (doc or {}).get("library_mode") or "mixed",
     }
 
 
@@ -591,6 +600,31 @@ async def update_profile(body: UpdateProfileBody, user: User = Depends(get_curre
         {"$set": {"name": name}},
     )
     return {"ok": True, "name": name}
+
+
+# 2026-06-27 — Library mode (fanfic / original / mixed).  See the
+# `/auth/me` field-level comment for the full rationale.  Accepts a
+# tiny enum body and 422s on anything else.
+_VALID_LIBRARY_MODES = {"fanfic", "original", "mixed"}
+
+
+class LibraryModeBody(BaseModel):
+    mode: str = Field(min_length=1, max_length=16)
+
+
+@api_router.patch("/auth/library-mode")
+async def update_library_mode(body: LibraryModeBody, user: User = Depends(get_current_user)):
+    mode = (body.mode or "").strip().lower()
+    if mode not in _VALID_LIBRARY_MODES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid library_mode '{mode}'. Must be one of: {sorted(_VALID_LIBRARY_MODES)}",
+        )
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": {"library_mode": mode}},
+    )
+    return {"ok": True, "library_mode": mode}
 
 
 @api_router.post("/auth/change-password")
