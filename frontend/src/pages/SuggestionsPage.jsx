@@ -51,7 +51,7 @@ function ShippedCredit({ submitterName, isMine }) {
   return (
     <p
       data-testid="suggestion-shipped-credit"
-      className="text-[11px] mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-[#EDE7FB] to-[#E6F0E8] text-[#1F4D2A] font-semibold border border-[#C9DFC9]"
+      className="text-[11px] mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#EDE7FB] text-[#1F4D2A] font-semibold border border-[#C9DFC9]"
       title={isMine ? "Thanks for making Shelfsort better!" : "Crowd-sourced from a reader's suggestion"}
     >
       <Sparkles className="w-3 h-3 text-[#6B46C1]" />

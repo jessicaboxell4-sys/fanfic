@@ -71,7 +71,7 @@ export default function UrlPasteCard() {
   return (
     <section
       data-testid="url-paste-card"
-      className="shelf-card p-6 md:p-8 bg-gradient-to-br from-[#EDE7FB] via-[#FAF6EE] to-white border border-[#6B46C1]/20 rounded-2xl"
+      className="shelf-card p-6 md:p-8 bg-[#EDE7FB] border border-[#6B46C1]/20 rounded-2xl"
     >
       <div className="flex items-start gap-4 mb-4">
         <div className="w-11 h-11 rounded-xl bg-[#6B46C1]/10 text-[#6B46C1] flex items-center justify-center flex-shrink-0">

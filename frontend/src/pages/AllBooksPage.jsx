@@ -740,7 +740,7 @@ export default function AllBooksPage() {
           (overview && (overview.books_finished > 0 || overview.pages_read > 0 || overview.reading_streak_days > 0))) && (
           <section
             data-testid="at-a-glance-folder"
-            className="mb-10 shelf-card p-6 md:p-8 bg-gradient-to-br from-[#FDF3E1]/60 via-white to-[#EDE7FB]/40 border-[#B87A00]/20"
+            className="mb-10 shelf-card p-6 md:p-8 bg-[#FDF3E1] border-[#B87A00]/20"
           >
             <div className="flex items-center justify-between mb-5">
               <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] flex items-center gap-2">
@@ -950,7 +950,7 @@ export default function AllBooksPage() {
         {unclassifiedCount > 0 && (
           <div
             data-testid="reclassify-all-banner"
-            className="mb-8 shelf-card p-5 flex flex-wrap items-center justify-between gap-4 bg-gradient-to-r from-[#FDF3E1] to-white border-[#E07A5F]/30"
+            className="mb-8 shelf-card p-5 flex flex-wrap items-center justify-between gap-4 bg-[#FDF3E1] border-[#E07A5F]/30"
           >
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-lg bg-[#E07A5F]/10 text-[#E07A5F] flex items-center justify-center flex-shrink-0">
@@ -989,7 +989,7 @@ export default function AllBooksPage() {
         {refreshStatus.refreshable > 0 && FETCHING_UI_ENABLED && (
           <div
             data-testid="refresh-all-banner"
-            className="mb-8 shelf-card p-5 flex flex-wrap items-center justify-between gap-4 bg-gradient-to-r from-[#EDE7FB] to-white border-[#6B46C1]/30"
+            className="mb-8 shelf-card p-5 flex flex-wrap items-center justify-between gap-4 bg-[#EDE7FB] border-[#6B46C1]/30"
           >
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-lg bg-[#6B46C1]/10 text-[#6B46C1] flex items-center justify-center flex-shrink-0">

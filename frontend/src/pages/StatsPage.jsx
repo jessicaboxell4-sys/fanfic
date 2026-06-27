@@ -138,7 +138,7 @@ export default function StatsPage() {
           <Link
             to={`/library/year/${new Date().getFullYear()}`}
             data-testid="open-year-in-books"
-            className="block shelf-card p-6 mb-6 bg-gradient-to-br from-[#FDF3E1] to-[#FDFBF7] border-[#B87A00]/20 hover:shadow-lg transition-shadow group"
+            className="block shelf-card p-6 mb-6 bg-[#FDF3E1] border-[#B87A00]/20 hover:shadow-lg transition-shadow group"
           >
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div>

@@ -571,7 +571,7 @@ export default function Help() {
         <aside
           data-testid="help-whats-new"
           hidden={!showWhatsNew}
-          className="mb-10 rounded-2xl border border-[#E07A5F]/30 bg-gradient-to-br from-[#FCEFE6] to-[#F8E3D3] p-5 md:p-6 shadow-sm relative"
+          className="mb-10 rounded-2xl border border-[#E07A5F]/30 bg-[#FCEFE6] p-5 md:p-6 shadow-sm relative"
         >
           <button
             type="button"
