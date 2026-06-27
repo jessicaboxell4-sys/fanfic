@@ -7,6 +7,55 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 — Fix: friend requests no longer show "Someone" 👤
+
+**P0 user-reported bug.**  An incoming friend request on the Friends
+page rendered the sender as the literal string "Someone" — the
+recipient had no way to tell who had requested them.
+
+### Root cause
+
+`_hard_delete_user` (in `routes/auth.py`) purged a user's books,
+shelves, sessions, and the user document itself — but **did not**
+cascade to `friendships`, `invites`, or `notifications`.  Any
+friendship row that referenced the now-deleted user became an
+orphan: `_hydrate_users` on the recipient's `GET /friends` call
+couldn't find the sender's doc, so the serialized row carried
+empty `name` / `email` / `username`, and the frontend's
+`DisplayName.jsx` fell through to its literal "Someone" fallback.
+
+### Fix (three layers)
+
+1. **Cascade delete** — `_hard_delete_user` now also deletes
+   `friendships` (both `user_a` and `user_b` sides), `invites`
+   (`inviter_user_id`), and `notifications` (`user_id`).
+2. **Defensive GC at read time** — `GET /api/friends` (in
+   `routes/friends.py`) now physically deletes any orphan row
+   whose other party can't be hydrated and excludes it from the
+   response.  This sweeps legacy orphans from before the
+   cascade fix the next time the recipient opens the page.
+3. **Notification-title fallback** — new `_display_name(user)`
+   helper builds the `friend_request` / `friend_accepted` titles
+   from `@username` → `name` → email-prefix → `"A Shelfsort
+   reader"`, so the title is never a bare " wants to be friends"
+   even when `name` and `email` are both blank strings.
+
+### Verification
+
+Testing agent run iteration 55 — backend-only, **4/4 tests pass**:
+
+- `tests/test_friend_orphan_cleanup.py` — direct unit tests for the
+  cascade + read-time GC.
+- `tests/test_friends_e2e_someone_bug.py` — HTTP e2e against
+  `localhost:8001` covering register → request → delete →
+  recipient's `/friends` no longer shows the orphan.
+
+No frontend changes required — `DisplayName.jsx` and the
+`FriendsPage` rendering are unchanged; the bug was purely upstream
+data shape.
+
+---
+
 ## 2026-06-27 — Verdicts: private reading state + sentiment marks ✨
 
 A new private "Verdicts" axis on every book.  Two independent
