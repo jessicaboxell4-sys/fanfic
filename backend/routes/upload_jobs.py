@@ -92,6 +92,8 @@ async def _run_upload_job(job_id: str, user_id: str) -> None:
         return
 
     staging = _job_dir(job_id)
+    preserve_staging = False  # flipped True on transient Mongo errors so the
+    # recovery cron still has the bytes to retry the pipeline.
     try:
         await _persist_job(job_id, {"status": "processing", "started_at": datetime.now(timezone.utc).isoformat()})
 
@@ -180,9 +182,10 @@ async def _run_upload_job(job_id: str, user_id: str) -> None:
                 "started_at": None,
                 "error": friendly_mongo_message(exc),
             })
-            # Don't sweep the staging directory — the recovery cron
-            # will need those bytes to re-run the pipeline.  Return
-            # early to skip the rmtree in `finally`.
+            # ``finally`` runs even after ``return``, so we can't rely
+            # on returning early to skip the rmtree — flip a flag the
+            # ``finally`` block honours instead.
+            preserve_staging = True
             return
         logger.exception("upload job %s failed", job_id)
         await _persist_job(job_id, {
@@ -194,6 +197,10 @@ async def _run_upload_job(job_id: str, user_id: str) -> None:
         # Always sweep the staging directory — the bytes have either
         # been mirrored into the per-user store by the handler, or
         # they're junk from a failure we don't want lingering.
+        # Exception: transient Mongo errors set ``preserve_staging``
+        # so the 5-min recovery cron has the bytes to retry.
+        if preserve_staging:
+            return
         try:
             if staging.exists():
                 shutil.rmtree(staging, ignore_errors=True)

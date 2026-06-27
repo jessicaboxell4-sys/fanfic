@@ -7,6 +7,57 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 — Graceful MongoDB transient-failover handling 🌐
+
+User reported a raw `ReplicaSetNoPrimary` / `ServerSelectionTimeoutError`
+topology dump bleeding into the production upload UI during an Atlas
+primary-election window.  Replaced the leak with a friendly, recoverable
+flow.
+
+### What shipped
+
+- **`backend/utils/db_retry.py`** — typed transient-error helpers:
+  - `is_transient_mongo_error(exc)` — predicate covering
+    `ServerSelectionTimeoutError`, `NetworkTimeout`, `AutoReconnect`,
+    `NotPrimaryError`, `ConnectionFailure`, `WaitQueueTimeoutError`.
+  - `friendly_mongo_message(exc)` — one-sentence translation
+    (no raw replica-set names, no class names).
+  - `retry_on_transient(coro_factory, attempts=3, ...)` —
+    exponential-backoff wrapper for ad-hoc Mongo writes.
+- **`backend/routes/upload_jobs.py`** — `_run_upload_job()` now
+  branches on `is_transient_mongo_error`:
+  - Transient → row stays `status="queued"`, `started_at=None`,
+    `error="Our database briefly had no primary node — …"`, and
+    the staging directory is preserved so the 5-min
+    `recover_stuck_upload_jobs` cron can re-kick it.
+  - Real bugs still flip to `status="failed"` and sweep staging.
+- **Bug fix**: previous implementation `return`ed from `except` to
+  skip `rmtree` — but `finally` runs even after `return`, so the
+  staging bytes were swept anyway, defeating recovery.  Added a
+  `preserve_staging` flag the `finally` block honours.
+
+### Tests added
+
+- `backend/tests/test_upload_job_transient_mongo.py` (4 tests):
+  - `friendly_mongo_message` covers every transient type and
+    never leaks raw class names.
+  - `is_transient_mongo_error` rejects real bugs.
+  - Transient `ServerSelectionTimeoutError` → row stays `queued`,
+    friendly error, staging dir preserved.
+  - `RuntimeError` → row goes `failed`, staging swept.
+
+All 4 new + 2 existing recovery tests green.
+
+### User impact
+
+- No more raw topology dumps in upload toasts during Atlas elections.
+- Uploads in flight during a failover are auto-retried by the
+  existing 5-min recovery cron — user just sees "Database briefly
+  unavailable — Shelfsort will retry automatically" until it
+  recovers, then the books appear in their library normally.
+
+---
+
 ## 2026-06-27 — In-app feature announcement convention 📣
 
 User-stated rule: **whenever a new feature goes live, an in-context
