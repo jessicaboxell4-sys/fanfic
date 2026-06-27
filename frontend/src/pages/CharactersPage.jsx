@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Search, Users, CheckCircle2, Clock } from "lucide-react";
 import { api } from "../lib/api";
 import Navbar from "../components/Navbar";
+import Breadcrumb from "../components/Breadcrumb";
 
 // CHARACTERS DIRECTORY — `/library/characters` lists every character
 // Shelfsort can derive from the user's library, sorted by book count.
@@ -45,6 +46,13 @@ export function CharactersDirectory() {
         >
           <ArrowLeft className="w-4 h-4" /> Back to library
         </button>
+        <Breadcrumb
+          testId="characters-breadcrumb"
+          items={[
+            { label: "Library", to: "/library" },
+            { label: "Characters" },
+          ]}
+        />
         <header className="mb-6 flex items-start gap-4">
           <div className="w-12 h-12 rounded-2xl bg-[#6B46C1]/10 text-[#6B46C1] flex items-center justify-center flex-shrink-0">
             <Users className="w-6 h-6" />
@@ -154,6 +162,14 @@ export function CharacterShelf() {
         >
           <ArrowLeft className="w-4 h-4" /> All characters
         </button>
+        <Breadcrumb
+          testId="character-shelf-breadcrumb"
+          items={[
+            { label: "Library", to: "/library" },
+            { label: "Characters", to: "/library/characters" },
+            { label: character },
+          ]}
+        />
 
         <header className="mb-6 flex items-start gap-4">
           <div className="w-12 h-12 rounded-2xl bg-[#6B46C1]/10 text-[#6B46C1] flex items-center justify-center flex-shrink-0">

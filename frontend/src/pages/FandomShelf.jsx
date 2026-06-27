@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams, Link } from "react-router-dom"
 import { api } from "../lib/api";
 import Navbar from "../components/Navbar";
 import BookCard from "../components/BookCard";
+import Breadcrumb from "../components/Breadcrumb";
 import { ArrowLeft, ArrowLeftRight, Download, Link as LinkIcon, Search, BookOpen, Users, X } from "lucide-react";
 import { toast } from "sonner";
 
@@ -132,6 +133,16 @@ export default function FandomShelf() {
         >
           <ArrowLeft className="w-4 h-4" /> Back to library
         </button>
+        <Breadcrumb
+          testId="fandom-breadcrumb"
+          items={[
+            { label: "Library", to: "/library" },
+            character
+              ? { label: fandom, to: `/library/fandom/${encodeURIComponent(fandom)}` }
+              : { label: fandom },
+            ...(character ? [{ label: `${character} books` }] : []),
+          ]}
+        />
 
         <div className="mb-10 flex flex-wrap items-end justify-between gap-6">
           <div>

@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams, Link } from "react-router-dom"
 import { ArrowLeft, Search, Heart, CheckCircle2, Clock, Users, X } from "lucide-react";
 import { api } from "../lib/api";
 import Navbar from "../components/Navbar";
+import Breadcrumb from "../components/Breadcrumb";
 
 // PAIRINGS DIRECTORY — `/library/pairings` lists every ship the user
 // has in their library, sorted by book count. Click → per-pairing shelf.
@@ -78,6 +79,16 @@ export function PairingsDirectory() {
         >
           <ArrowLeft className="w-4 h-4" /> Back to library
         </button>
+        <Breadcrumb
+          testId="pairings-breadcrumb"
+          items={[
+            { label: "Library", to: "/library" },
+            character
+              ? { label: "Pairings", to: "/library/pairings" }
+              : { label: "Pairings" },
+            ...(character ? [{ label: `${character} ships` }] : []),
+          ]}
+        />
         <header className="mb-6 flex items-start gap-4">
           <div className="w-12 h-12 rounded-2xl bg-[#6B46C1]/10 text-[#6B46C1] flex items-center justify-center flex-shrink-0">
             <Heart className="w-6 h-6" />
@@ -248,6 +259,14 @@ export function PairingShelf() {
         >
           <ArrowLeft className="w-4 h-4" /> All pairings
         </button>
+        <Breadcrumb
+          testId="pairing-shelf-breadcrumb"
+          items={[
+            { label: "Library", to: "/library" },
+            { label: "Pairings", to: "/library/pairings" },
+            { label: pairing },
+          ]}
+        />
 
         <header className="mb-6 flex items-start gap-4">
           <div className="w-12 h-12 rounded-2xl bg-[#6B46C1]/10 text-[#6B46C1] flex items-center justify-center flex-shrink-0">

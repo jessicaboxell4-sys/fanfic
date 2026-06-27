@@ -7,6 +7,37 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 — Breadcrumbs on all drill-down pages 🧭
+
+The character → fandom → pairing → book navigation is now 3-4 levels
+deep.  Added a dependency-free `Breadcrumb` component
+(`/app/frontend/src/components/Breadcrumb.jsx`) mounted on every
+drill-down page so users can hop up one level instead of relying on
+the browser back button.
+
+Pages wired up:
+
+- `/library/pairings` — `Library › Pairings` (and
+  `Library › Pairings › Harry Potter ships` when filtered)
+- `/library/by-pairing/:pairing` —
+  `Library › Pairings › Harry Potter/Draco Malfoy`
+- `/library/characters` — `Library › Characters`
+- `/library/by-character/:character` —
+  `Library › Characters › Harry Potter`
+- `/library/fandom/:fandom` (only when a character filter is active)
+  — `Library › Harry Potter › Harry Potter books`
+
+The previous "Back to library" / "All pairings" buttons stay — the
+breadcrumb is additive, sitting between the back button and the
+header.
+
+Test IDs: `breadcrumb` (default), or page-specific via the `testId`
+prop — e.g. `pairings-breadcrumb`, `character-shelf-breadcrumb`,
+`fandom-breadcrumb`.  Per-item IDs: `<testId>-link-<idx>` and
+`<testId>-current-<idx>`.
+
+---
+
 ## 2026-06-27 — Character drill-down on the Pairings browser 🔎
 
 Mirrors the per-fandom drill-down: a "Filter by character" rail at
