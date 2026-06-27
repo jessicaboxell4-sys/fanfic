@@ -321,7 +321,7 @@ _CANARY_UPTIME_CACHE_TTL_S = 300.0  # 5 min — matches /canary/status
 
 
 @api_router.get("/canary/uptime")
-async def canary_uptime(days: int = 30):
+async def canary_uptime(days: int = 30, include_daily: bool = False):
     """Aggregate uptime over the last ``days`` days.
 
     Anon-accessible.  Returns
@@ -331,11 +331,16 @@ async def canary_uptime(days: int = 30):
     window (fresh install, secret not configured, or the canary
     workflow has been silent) so the FE can hide the pill.
 
+    When ``include_daily=true``, also includes a ``daily`` array of
+    ``{date, total, pass, fail}`` rows — one per day in the window,
+    oldest first.  Powers the public 30-day sparkline on
+    ``/changelog`` next to the uptime pill.
+
     Cached 5 min in-process to keep the public landing surface from
     hammering Mongo on every visit.
     """
     days = max(1, min(int(days), 90))
-    cache_key = f"d{days}"
+    cache_key = f"d{days}_daily{int(bool(include_daily))}"
     now = _time.monotonic()
     cached = _CANARY_UPTIME_CACHE["data"].get(cache_key)
     if cached is not None and (now - _CANARY_UPTIME_CACHE["fetched_at"]) < _CANARY_UPTIME_CACHE_TTL_S:
@@ -367,6 +372,45 @@ async def canary_uptime(days: int = 30):
             "fail_count":  total - passed,
             "uptime_pct":  round((passed / total) * 100.0, 2),
         }
+        if include_daily:
+            # Group runs by UTC calendar day so the FE can render a
+            # one-cell-per-day sparkline.  The substr on the ISO
+            # ``finished_at`` is fast (string prefix) and avoids
+            # parsing the timestamp twice.
+            daily_pipeline = [
+                {"$match": {"finished_at": {"$gte": cutoff}}},
+                {"$project": {
+                    "day":    {"$substr": ["$finished_at", 0, 10]},
+                    "status": 1,
+                }},
+                {"$group": {
+                    "_id":   "$day",
+                    "total": {"$sum": 1},
+                    "pass":  {"$sum": {"$cond": [{"$eq": ["$status", "pass"]}, 1, 0]}},
+                }},
+                {"$sort": {"_id": 1}},
+            ]
+            day_rows = await db.canary_runs.aggregate(daily_pipeline).to_list(length=days + 5)
+            # Build a dense day-by-day array — fill gaps where no
+            # canary ran with `total=0` so the sparkline keeps a
+            # consistent length and renders an empty slot.
+            by_day = {r["_id"]: r for r in day_rows}
+            today = datetime.now(timezone.utc).date()
+            dense = []
+            for i in range(days):
+                d = today - _td(days=days - 1 - i)
+                key = d.isoformat()
+                src = by_day.get(key)
+                if src:
+                    dense.append({
+                        "date":  key,
+                        "total": src["total"],
+                        "pass":  src["pass"],
+                        "fail":  src["total"] - src["pass"],
+                    })
+                else:
+                    dense.append({"date": key, "total": 0, "pass": 0, "fail": 0})
+            result["daily"] = dense
     _CANARY_UPTIME_CACHE["data"][cache_key] = result
     _CANARY_UPTIME_CACHE["fetched_at"] = now
     return result

@@ -70,20 +70,29 @@ export default function AllBooksPage() {
   const [chipFilters, setChipFilters] = useState(() => {
     try {
       const raw = window.localStorage.getItem("shelfsort_chip_filters");
-      if (raw) return JSON.parse(raw);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        // 2026-06-27 — `series` chip dimension added; older
+        // localStorage payloads won't have it.  Default to "all"
+        // so an upgraded session doesn't fail the active-filter
+        // check below.
+        if (parsed && parsed.series == null) parsed.series = "all";
+        return parsed;
+      }
     } catch { /* ignore */ }
-    return { length: "all", status: "all", dateAdded: "any" };
+    return { length: "all", status: "all", dateAdded: "any", series: "all" };
   });
   useEffect(() => {
     try { window.localStorage.setItem("shelfsort_chip_filters", JSON.stringify(chipFilters)); }
     catch { /* ignore */ }
   }, [chipFilters]);
   const setChip = (dim, value) => setChipFilters((f) => ({ ...f, [dim]: value }));
-  const clearChipFilters = () => setChipFilters({ length: "all", status: "all", dateAdded: "any" });
+  const clearChipFilters = () => setChipFilters({ length: "all", status: "all", dateAdded: "any", series: "all" });
   const chipFiltersActive =
     chipFilters.length !== "all" ||
     chipFilters.status !== "all" ||
-    chipFilters.dateAdded !== "any";
+    chipFilters.dateAdded !== "any" ||
+    chipFilters.series !== "all";
   const [overview, setOverview] = useState(null);
   const [seriesList, setSeriesList] = useState([]);
   const [fandomQuery, setFandomQuery] = useState("");
@@ -350,6 +359,43 @@ export default function AllBooksPage() {
         if (chipFilters.dateAdded === "older") return age >  MONTH;
         return true;
       });
+    }
+    // 2026-06-27 — Series / Standalone chip.  Operates entirely on
+    // already-loaded EPUB metadata (`series_name`).  "Partway"
+    // requires looking across all books to find series where ≥1 is
+    // finished and ≥1 is unread, so we precompute the partway set
+    // once per chip evaluation rather than recomputing per row.
+    if (chipFilters.series !== "all") {
+      if (chipFilters.series === "standalone") {
+        pool = pool.filter((b) => !b.series_name);
+      } else if (chipFilters.series === "in_series") {
+        pool = pool.filter((b) => !!b.series_name);
+      } else if (chipFilters.series === "partway") {
+        // Build the partway set from the FULL books list (not the
+        // currently-filtered pool) so other chip filters can
+        // narrow down WITHIN a partway series.
+        const seriesProgress = new Map();  // series_name → {finished, total}
+        for (const b of books) {
+          if (!b.series_name) continue;
+          const slot = seriesProgress.get(b.series_name) || { finished: 0, started: 0, total: 0 };
+          slot.total += 1;
+          const p = b.progress_fraction;
+          if (p >= 0.99) slot.finished += 1;
+          else if (p > 0.001) slot.started += 1;
+          seriesProgress.set(b.series_name, slot);
+        }
+        const partwaySet = new Set();
+        for (const [name, s] of seriesProgress) {
+          // "Partway" = at least one finished AND at least one not
+          // finished, OR at least one in-progress and total > 1.
+          // Avoids flagging single-book "series" as partway forever.
+          if (s.total < 2) continue;
+          if ((s.finished > 0 && s.finished < s.total) || s.started > 0) {
+            partwaySet.add(name);
+          }
+        }
+        pool = pool.filter((b) => b.series_name && partwaySet.has(b.series_name));
+      }
     }
     return pool;
   }, [books, justAddedIds, chipFilters]);
@@ -934,6 +980,22 @@ export default function AllBooksPage() {
                       { value: "week",  label: "This week" },
                       { value: "month", label: "This month" },
                       { value: "older", label: "Older" },
+                    ],
+                  },
+                  {
+                    // 2026-06-27 — Series / Standalone chip.  Helps
+                    // readers who keep coming back to a library wall
+                    // of "what was I in the middle of?" answer that
+                    // question fast.  "Partway" surfaces only series
+                    // where ≥1 book is finished and ≥1 isn't — the
+                    // exact set of "I should keep reading these".
+                    dim: "series",
+                    label: "📖 Series",
+                    options: [
+                      { value: "all",        label: "All" },
+                      { value: "standalone", label: "Standalone" },
+                      { value: "in_series",  label: "In a series" },
+                      { value: "partway",    label: "Partway through" },
                     ],
                   },
                 ].map((row) => (

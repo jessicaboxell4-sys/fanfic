@@ -243,6 +243,17 @@ export default function Changelog() {
 // Pulls /api/canary/uptime (5-min server-cached) and displays
 // "99.7% uptime · 30 days".  Renders nothing on {available:false}
 // so a fresh install (no canary_runs yet) doesn't show a 0% pill.
+//
+// 2026-06-27 — Now also fetches a per-day breakdown via
+// ?include_daily=true and renders a 30-cell mini bar chart next
+// to the pill.  Each cell = one UTC calendar day:
+//   • green = 100% pass on that day
+//   • amber = mixed pass/fail
+//   • red   = 100% fail
+//   • blank = no canary ran that day (gap in the schedule)
+// The bar gives at-a-glance pattern recognition that a flat
+// "99.7%" percentage can't — clusters of red cells reveal incidents
+// that hit on consecutive days even when overall uptime stays high.
 function CanaryUptimePill() {
   const [info, setInfo] = useState(null);
 
@@ -250,7 +261,7 @@ function CanaryUptimePill() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await axios.get(`${API}/canary/uptime?days=30`);
+        const res = await axios.get(`${API}/canary/uptime?days=30&include_daily=true`);
         if (cancelled) return;
         if (res.data && res.data.available) setInfo(res.data);
       } catch { /* silent — pill is optional */ }
@@ -271,13 +282,53 @@ function CanaryUptimePill() {
 
   const label = `${pct.toFixed(pct === 100 ? 0 : 1)}% uptime · ${info.days} days`;
   const title = `${info.pass_count}/${info.total_runs} canary runs passed over the last ${info.days} days`;
+
+  // Sparkline cell classifier — mirrors the pill color tiers but
+  // applied per-day so the eye can scan for incident clusters.
+  // Blank/grey for "no data" days keeps the chart length stable
+  // (always 30 cells, oldest left) so visual comparisons across
+  // visits aren't thrown off by missing cron runs.
+  const cellClass = (d) => {
+    if (!d || d.total === 0) return "bg-[#EDE9DF]";        // no-data grey
+    if (d.fail === 0) return "bg-[#5C8A5C]";               // all green
+    if (d.pass === 0) return "bg-[#C75450]";               // all red
+    return "bg-[#D49A33]";                                 // mixed
+  };
+  const cellTitle = (d) => {
+    if (!d || d.total === 0) return `${d?.date || ""} — no canary run`;
+    if (d.fail === 0) return `${d.date} — ${d.pass}/${d.total} passed (✓)`;
+    if (d.pass === 0) return `${d.date} — ${d.fail}/${d.total} failed (✗)`;
+    return `${d.date} — mixed: ${d.pass} passed, ${d.fail} failed`;
+  };
+
   return (
     <span
-      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border ${cls}`}
-      data-testid="changelog-canary-uptime-pill"
-      title={title}
+      className="inline-flex items-center gap-2 flex-wrap"
+      data-testid="changelog-canary-uptime-wrap"
     >
-      <span data-testid="changelog-canary-uptime-pct">{label}</span>
+      <span
+        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border ${cls}`}
+        data-testid="changelog-canary-uptime-pill"
+        title={title}
+      >
+        <span data-testid="changelog-canary-uptime-pct">{label}</span>
+      </span>
+      {info.daily && info.daily.length > 0 && (
+        <span
+          className="inline-flex items-end gap-[2px] py-1"
+          data-testid="changelog-canary-uptime-sparkline"
+          aria-label={`Daily canary status for the last ${info.daily.length} days`}
+        >
+          {info.daily.map((d) => (
+            <span
+              key={d.date}
+              title={cellTitle(d)}
+              className={`inline-block w-[5px] h-3.5 rounded-[1.5px] ${cellClass(d)}`}
+              data-testid={`changelog-canary-spark-${d.date}`}
+            />
+          ))}
+        </span>
+      )}
     </span>
   );
 }

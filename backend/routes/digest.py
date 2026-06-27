@@ -1087,18 +1087,30 @@ def start_digest_scheduler():
         replace_existing=True,
     )
 
-    # Object-storage mirror tick — every 10 min, re-upload any
+    # Object-storage mirror tick — every 20 min, re-upload any
     # locally-cached file that Emergent doesn't already have.  This
     # is how new uploads make it to durable storage without modifying
     # the 20+ STORAGE_DIR write sites in `books.py`.  Idempotent via
     # 409 = "already exists" short-circuit.
+    #
+    # 2026-06-27 — Bumped from 10 → 20 min after observing recurring
+    # APScheduler "maximum number of running instances reached (1)"
+    # warnings every 10 min in prod: the backfill processes batches
+    # of 5000 files and on busy days simply can't finish before the
+    # next 10-min tick fires.  ``coalesce=True`` collapses missed
+    # ticks into a single delayed run so a slow tick doesn't queue
+    # up a backlog.  Net effect on prod: silent logs, same total
+    # throughput, worst-case new-upload-to-mirror lag bumps from
+    # ~10 min to ~20 min (still well inside our durability SLO).
     from routes.storage_admin import storage_backfill_tick
     sched.add_job(
         wrap_cron_job(storage_backfill_tick, "storage_backfill_tick"),
         "interval",
-        minutes=10,
+        minutes=20,
         id="storage_backfill_tick",
         replace_existing=True,
+        coalesce=True,
+        max_instances=1,
     )
 
     # Fridays 09:00 UTC — consolidated "Your week on Shelfsort" email

@@ -7,6 +7,78 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 (P2/P3 batch) — Three shipped: sparkline, series chip, cron fix 🎯
+
+### 🟡 P2: Canary 30-day uptime sparkline on `/changelog`
+
+- **Backend** (`routes/changelog.py`) — `/api/canary/uptime` gained an
+  optional `?include_daily=true` parameter that returns a dense
+  30-cell `daily: [{date, total, pass, fail}, ...]` array oldest-first,
+  with zero-fills for days where the canary didn't run.  Tiny Mongo
+  aggregation using `$substr` on `finished_at` to group by UTC day —
+  no full row loads, no log-tail bytes shipped.  Same 5-min cache,
+  cache key extended to `d{days}_daily{0|1}` so flagged + unflagged
+  callers don't collide.
+- **Frontend** (`Changelog.jsx → CanaryUptimePill`) — renders 30 tiny
+  5×14px cells inline next to the uptime pill:
+    - 🟢 green = 100% pass that day
+    - 🟠 amber = mixed pass+fail
+    - 🔴 red   = 100% fail
+    - ⚪ grey  = no canary ran that day (gap)
+  Hover any cell for `2026-06-27 — 2/2 passed (✓)`.  Clusters of red
+  cells reveal incidents that a flat "99.7%" % can't.
+- **Tests** (`backend/tests/test_iter67_canary_uptime_daily.py`) — 2
+  tests, both pass: dense 30-cell window with mixed-day handling, and
+  default behaviour omits the `daily` field for a tiny payload.
+- **Live-validated** on preview: seeded 61 mixed runs, sparkline
+  rendered `91.8% uptime · 30 days` with the day-5 red cluster, the
+  day-10/11 amber cells, and the day-20 gap all clearly visible.
+
+### 🟡 P2: Series/Standalone filter chip on Library
+
+- **Frontend** (`AllBooksPage.jsx`) — new 4th chip row "📖 Series":
+    - **All**             → no series filter
+    - **Standalone**      → only books without `series_name`
+    - **In a series**     → only books with `series_name`
+    - **Partway through** → only books in series where ≥1 book is
+      finished AND ≥1 isn't (or where ≥1 is in_progress), and the
+      series has ≥2 books (avoids flagging accidentally-tagged
+      single-book "series" as partway forever)
+  AND-composes with the existing Length / Status / Added chips so
+  users can compose e.g. "Partway through · short reads · last week"
+  to surface exactly the right next-read.
+- Active-filter pill count + Shuffle / Pick-for-me buttons now also
+  honour the series chip (active-state check + clear-chips reset
+  both extended).
+- localStorage payload from prior sessions auto-migrates: missing
+  `series` key defaults to "all", so the upgrade is transparent.
+
+### 🟢 P3: `storage_backfill_tick` overlap log spam fixed
+
+- **Backend** (`routes/digest.py`) — interval bumped 10 → 20 min and
+  added `coalesce=True, max_instances=1` to the APScheduler job.
+- Was logging `apscheduler.scheduler - WARNING - Execution of job
+  "storage_backfill_tick" skipped: maximum number of running
+  instances reached (1)` every 10 min in prod because the backfill
+  processes batches of 5000 files and on busy days simply can't
+  finish before the next tick.  Doubling the interval gives the
+  task room to complete; coalesce collapses any missed ticks into a
+  single delayed run instead of queuing a backlog.  Net effect:
+  silent logs, same total throughput, worst-case new-upload-to-mirror
+  lag bumps from ~10 min to ~20 min (still well inside our durability
+  SLO since uploads also mirror synchronously in the upload path).
+
+### Files touched
+- `backend/routes/changelog.py`
+- `backend/routes/digest.py`
+- `backend/tests/test_iter67_canary_uptime_daily.py` (new)
+- `frontend/src/pages/Changelog.jsx`
+- `frontend/src/pages/AllBooksPage.jsx`
+
+All 13 canary-related tests pass; lint clean on every touched file.
+
+---
+
 ## 2026-06-27 (later) — Tab-aware live tick on `/changelog` heartbeat ⏱️
 
 Polish on top of today's heartbeat caption.  User constraint: "as
