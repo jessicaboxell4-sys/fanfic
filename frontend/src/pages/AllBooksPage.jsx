@@ -187,6 +187,50 @@ export default function AllBooksPage() {
         ? "grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
         : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"
   );
+
+  // 2026-06-27 Phase 2 — Mixed-mode visual section split.
+  // When library_mode is "mixed", group visibleBooks into two
+  // sections (Fanfic / Original & Non-fic) so the user can see
+  // each world distinctly without losing the unified library.
+  // For "fanfic" / "original" modes a single "section" carries
+  // the whole list — the rest of the render code below doesn't
+  // need to branch on mode at all.  Category match is case-
+  // insensitive against the categories defined at the top of
+  // this file (DEFAULT_CATEGORIES).
+  const isMixedMode = libraryMode === "mixed";
+  const bookSections = useMemo(() => {
+    if (!isMixedMode) return [{ key: "all", label: null, books: visibleBooks }];
+    const fanfic = [];
+    const other = [];
+    for (const b of visibleBooks) {
+      const cat = (b.category || "").toLowerCase();
+      if (cat === "fanfiction") fanfic.push(b);
+      else other.push(b);
+    }
+    // Suppress whichever section is empty so we don't render a
+    // sad "💜 Fanfic · 0" header on an all-original library.
+    const out = [];
+    if (fanfic.length) out.push({ key: "fanfic",   label: "💜 Fanfic",            books: fanfic });
+    if (other.length)  out.push({ key: "original", label: "📖 Original & Non-fic", books: other });
+    // Edge case: no books at all → fall back to a single section
+    // so the empty-state copy below still renders cleanly.
+    if (out.length === 0) return [{ key: "all", label: null, books: [] }];
+    return out;
+  }, [isMixedMode, visibleBooks]);
+
+  // Per-section collapse state.  Keyed by section.key so users can
+  // hide one side of the library while keeping the other expanded.
+  const [collapsedSections, setCollapsedSections] = useState(() => {
+    try {
+      const raw = window.localStorage.getItem("shelfsort_section_collapse");
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem("shelfsort_section_collapse", JSON.stringify(collapsedSections)); }
+    catch { /* ignore */ }
+  }, [collapsedSections]);
+  const toggleSection = (key) => setCollapsedSections((c) => ({ ...c, [key]: !c[key] }));
   const [overview, setOverview] = useState(null);
   const [seriesList, setSeriesList] = useState([]);
   const [fandomQuery, setFandomQuery] = useState("");
@@ -1905,7 +1949,30 @@ export default function AllBooksPage() {
                   <span className="w-16 shrink-0 text-right hidden xl:inline">Added</span>
                 </div>
                 <ul className="divide-y divide-[#E8E6E1]">
-                  {visibleBooks.map(b => {
+                  {bookSections.map((sec) => (
+                    <React.Fragment key={sec.key}>
+                      {sec.label && (
+                        <li
+                          key={`${sec.key}-header`}
+                          className="bg-[#FAF6EE] px-4 py-2"
+                          data-testid={`books-section-list-${sec.key}`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => toggleSection(sec.key)}
+                            aria-expanded={!collapsedSections[sec.key]}
+                            className="flex items-center gap-2 w-full text-left"
+                          >
+                            <span className="font-serif text-base text-[#2C2C2C]">{sec.label}</span>
+                            <span className="text-xs text-[#A09A8B]">· {sec.books.length}</span>
+                            <span
+                              aria-hidden="true"
+                              className={`ml-auto text-[#6B705C] text-xs transition-transform ${collapsedSections[sec.key] ? "" : "rotate-180"}`}
+                            >▼</span>
+                          </button>
+                        </li>
+                      )}
+                      {!collapsedSections[sec.key] && sec.books.map(b => {
                     const wordsK = b.word_count ? (b.word_count >= 1000 ? `${Math.round(b.word_count / 1000)}k` : String(b.word_count)) : "";
                     // Iter 61 — also surface a reading-time estimate
                     // (270 wpm avg).  Shown next to the word count so
@@ -2007,6 +2074,8 @@ export default function AllBooksPage() {
                       </li>
                     );
                   })}
+                    </React.Fragment>
+                  ))}
                 </ul>
               </div>
             ) : viewMode === "compact" ? (
@@ -2119,22 +2188,42 @@ export default function AllBooksPage() {
                   })}
                 </div>
                 <div className={`grid ${gridColsClass} gap-6`} data-testid="books-grid">
-                  {visibleBooks.map(b => (
-                    <BookCard
-                      key={b.book_id}
-                      book={b}
-                      selectMode={selectMode}
-                      selected={selectedIds.has(b.book_id)}
-                      onToggleSelect={(id) => {
-                        setSelectedIds((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(id)) next.delete(id); else next.add(id);
-                          return next;
-                        });
-                      }}
-                      onChanged={load}
-                      crossDeviceHint={crossDeviceHints[b.book_id]}
-                    />
+                  {bookSections.map((sec) => (
+                    <React.Fragment key={sec.key}>
+                      {sec.label && (
+                        <button
+                          type="button"
+                          onClick={() => toggleSection(sec.key)}
+                          aria-expanded={!collapsedSections[sec.key]}
+                          data-testid={`books-section-${sec.key}`}
+                          className="col-span-full flex items-center gap-2 px-2 py-2 mt-2 first:mt-0 border-b border-[#E8E6E1] text-left hover:bg-[#F5F3EC] transition-colors"
+                        >
+                          <span className="font-serif text-xl text-[#2C2C2C]">{sec.label}</span>
+                          <span className="text-xs text-[#A09A8B]">· {sec.books.length}</span>
+                          <span
+                            aria-hidden="true"
+                            className={`ml-auto text-[#6B705C] transition-transform ${collapsedSections[sec.key] ? "" : "rotate-180"}`}
+                          >▼</span>
+                        </button>
+                      )}
+                      {!collapsedSections[sec.key] && sec.books.map(b => (
+                        <BookCard
+                          key={b.book_id}
+                          book={b}
+                          selectMode={selectMode}
+                          selected={selectedIds.has(b.book_id)}
+                          onToggleSelect={(id) => {
+                            setSelectedIds((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(id)) next.delete(id); else next.add(id);
+                              return next;
+                            });
+                          }}
+                          onChanged={load}
+                          crossDeviceHint={crossDeviceHints[b.book_id]}
+                        />
+                      ))}
+                    </React.Fragment>
                   ))}
                 </div>
               </>

@@ -513,7 +513,7 @@ async def public_library(
         {"username": uname},
         {"_id": 0, "user_id": 1, "username": 1, "name": 1, "bio": 1,
          "library_visible_to_public": 1, "hidden_from_search": 1, "approval_status": 1,
-         "created_at": 1, "picture": 1},
+         "created_at": 1, "picture": 1, "library_mode": 1},
     )
     # Treat "not opted in" and "doesn't exist" identically to keep the
     # endpoint from doubling as a handle-enumeration oracle.
@@ -583,6 +583,12 @@ async def public_library(
             "joined_at": owner.get("created_at"),
             "picture": owner.get("picture") or "",
             "bio": (owner.get("bio") or "").strip(),
+            # 2026-06-27 — owner's library_mode so the viewer's public
+            # library page can respect THEIR reading style (fanfic
+            # readers' libraries show fandoms first; original-fic
+            # readers' libraries show authors first).  Defaults to
+            # "mixed" if unset for backward-compat.
+            "library_mode": owner.get("library_mode") or "mixed",
         },
         "books": books,
         "total_returned": len(books),

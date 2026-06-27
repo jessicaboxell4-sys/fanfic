@@ -340,6 +340,7 @@ async def unblock_user(other_user_id: str, user: User = Depends(get_current_user
 async def users_directory(
     page: int = 1,
     limit: int = 60,
+    mode: Optional[str] = None,
     user: User = Depends(get_current_user),
 ):
     """Browseable directory of all users on Shelfsort.
@@ -356,6 +357,12 @@ async def users_directory(
       - Users without a `username` (legacy accounts that never claimed
         a handle) are silently omitted — there'd be nothing for the
         directory to show.
+
+    2026-06-27 — ``mode`` query param filters by the viewed user's
+    ``library_mode`` ("fanfic" / "original" / "mixed").  Powers the
+    Friends-discovery "fic readers see fic readers first" chip.
+    Unrecognized values are ignored (no filter applied) so the
+    endpoint stays forgiving to FE drift.
     """
     page = max(1, int(page or 1))
     limit = max(1, min(int(limit or 60), 100))
@@ -375,6 +382,16 @@ async def users_directory(
         "hidden_from_search": {"$ne": True},
         "username": {"$exists": True, "$nin": [None, ""]},
     }
+    # 2026-06-27 — Optional library_mode filter.  When set to a valid
+    # value, only return users whose library_mode matches.  Note that
+    # users without an explicit library_mode default to "mixed" on
+    # the read side, so for the "mixed" filter we accept both the
+    # explicit value AND the missing-field case (otherwise older
+    # users would be invisible).
+    if mode in ("fanfic", "original"):
+        q["library_mode"] = mode
+    elif mode == "mixed":
+        q["$or"] = [{"library_mode": "mixed"}, {"library_mode": {"$exists": False}}, {"library_mode": None}]
     total = await db.users.count_documents(q)
     # Sort by *profile completeness* (DESC) then alphabetical (ASC).
     # The intent: when a brand-new visitor lands on /users, polished
@@ -411,6 +428,7 @@ async def users_directory(
             "user_id": 1,
             "username": 1,
             "library_visible_to_public": 1,
+            "library_mode": 1,
             "_completeness": 1,
         }},
     ]
@@ -421,6 +439,11 @@ async def users_directory(
                 "user_id": u["user_id"],
                 "username": u.get("username") or "",
                 "has_public_library": bool(u.get("library_visible_to_public", False)),
+                # 2026-06-27 — surface the reader's library mode so
+                # the directory can render a small chip ("💜 fanfic
+                # reader" / "📖 original-fic reader") and so the
+                # mode-compat filter has client-side data.
+                "library_mode": u.get("library_mode") or "mixed",
                 # Surface the score so the FE can render a small tier
                 # indicator (and so e2e tests have something concrete
                 # to assert on).  0-2 (username is implicit).

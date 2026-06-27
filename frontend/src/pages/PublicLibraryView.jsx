@@ -278,6 +278,23 @@ export default function PublicLibraryView() {
           >
             @{owner.username}&rsquo;s shelves.
           </h1>
+          {/* 2026-06-27 Phase 2 — Owner library_mode badge.  Tells
+              visitors at a glance what kind of reader they're looking
+              at, and ALSO foreshadows the fandom-strip-or-not below
+              so the layout doesn't feel inconsistent. */}
+          {(owner.library_mode === "fanfic" || owner.library_mode === "original") && (
+            <span
+              className="inline-flex items-center gap-1 px-2 py-0.5 mt-2 mr-2 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-[#EEE9FB] text-[#6B46C1]"
+              data-testid="public-library-owner-mode"
+              title={
+                owner.library_mode === "fanfic"
+                  ? "This reader's library is fandom-first — pairings, fandom shelves, the works."
+                  : "This reader keeps it author-first — original fiction and non-fic, fanfic chrome hidden."
+              }
+            >
+              {owner.library_mode === "fanfic" ? "💜 Fanfic reader" : "📖 Original-fic reader"}
+            </span>
+          )}
           {owner.bio && (
             <p
               className="text-sm text-[#6B705C] italic mt-2 max-w-xl"
@@ -330,7 +347,11 @@ export default function PublicLibraryView() {
           )}
         </header>
 
-        {(data.top_fandoms || []).length > 0 && (
+        {/* 2026-06-27 Phase 2 — Hide fandom chip strip when owner is
+            an original-fic reader.  Their library legitimately has
+            no fandoms; rendering a near-empty strip would look like
+            a bug, not a feature. */}
+        {owner.library_mode !== "original" && (data.top_fandoms || []).length > 0 && (
           <div className="mb-6 flex flex-wrap gap-2" data-testid="public-library-fandom-chips">
             <button
               type="button"

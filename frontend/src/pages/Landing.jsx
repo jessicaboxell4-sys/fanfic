@@ -160,7 +160,17 @@ export default function Landing() {
           </p>
           <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl text-[#2C2C2C] leading-[1.05] mb-6">
             Your EPUBs,<br/>
-            sorted by <span className="italic text-[#E07A5F]">fandom</span>.
+            {/* 2026-06-27 Phase 2 — hero headline adapts to the
+                logged-in user's library_mode.  Anonymous visitors
+                keep the original "by fandom" framing (most
+                marketable since fandom is the core differentiator),
+                signed-in users see a hero that matches how THEIR
+                library is actually being sorted. */}
+            sorted by <span className="italic text-[#E07A5F]">{(
+              user?.library_mode === "original" ? "author" :
+              user?.library_mode === "mixed" ? "shelf" :
+              "fandom"
+            )}</span>.
           </h1>
           <p className="text-base sm:text-lg text-[#6B705C] leading-relaxed mb-6 max-w-lg">
             Got a Downloads folder full of nameless EPUBs? Shelfsort reads the
