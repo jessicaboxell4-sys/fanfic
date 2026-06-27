@@ -1066,6 +1066,73 @@ async def system_health(user: User = Depends(require_admin)):
     except Exception as e:  # noqa: BLE001
         out["storage"] = {"error": str(e)[:200]}
 
+    # 2026-06-27 — Watchdogs.  Surface the latest state of every
+    # automated kill-switch alongside the regular health pills so
+    # operators have a one-glance "is anything currently auto-paused?"
+    # answer.  Each watchdog persists its state in the
+    # ``system_health`` collection under a known _id; the canary
+    # status lives in /app/memory/canary_status.json (committed back
+    # by the retry workflow).
+    watchdogs: list[Dict[str, Any]] = []
+    try:
+        av_state = await db.system_health.find_one({"_id": "av_watchdog"}) or {}
+        watchdogs.append({
+            "name":          "Antivirus (ClamAV)",
+            "key":           "av_watchdog",
+            "flag":          "uploads_enabled",
+            "last_check":    av_state.get("last_check"),
+            "auto_paused":   bool(av_state.get("auto_paused")),
+            "last_status":   "down" if av_state.get("last_status") is False else ("up" if av_state.get("last_status") is True else None),
+            "summary":       (
+                f"Down for {int((datetime.now(timezone.utc) - datetime.fromisoformat(av_state['down_since'])).total_seconds() // 60)} min"
+                if av_state.get("down_since") else None
+            ),
+        })
+    except Exception as e:  # noqa: BLE001
+        watchdogs.append({"name": "Antivirus (ClamAV)", "key": "av_watchdog", "error": str(e)[:200]})
+
+    try:
+        eq_state = await db.system_health.find_one({"_id": "email_quota_watchdog"}) or {}
+        last_metrics = eq_state.get("last_metrics") or {}
+        summary_bits = []
+        if last_metrics.get("daily_avg_7d") is not None:
+            summary_bits.append(f"avg {last_metrics['daily_avg_7d']}/day")
+        if last_metrics.get("cliff_eta_days") is not None:
+            summary_bits.append(f"cliff in {last_metrics['cliff_eta_days']}d")
+        watchdogs.append({
+            "name":          "Email quota (Resend)",
+            "key":           "email_quota_watchdog",
+            "flag":          "outbound_emails_enabled",
+            "last_check":    eq_state.get("last_check"),
+            "auto_paused":   bool(eq_state.get("auto_paused")),
+            "last_status":   eq_state.get("last_warning"),
+            "summary":       " · ".join(summary_bits) if summary_bits else None,
+        })
+    except Exception as e:  # noqa: BLE001
+        watchdogs.append({"name": "Email quota (Resend)", "key": "email_quota_watchdog", "error": str(e)[:200]})
+
+    # Canary status — lives in a repo-committed JSON file rather
+    # than Mongo (the retry workflow commits it on every decision).
+    try:
+        canary_path = Path("/app/memory/canary_status.json")
+        if canary_path.exists():
+            import json as _json
+            cdata = _json.loads(canary_path.read_text())
+            watchdogs.append({
+                "name":          "Production canary (retry)",
+                "key":           "canary_retry",
+                "flag":          None,
+                "last_check":    cdata.get("updated_at"),
+                "auto_paused":   cdata.get("status") == "fail",
+                "last_status":   cdata.get("status"),
+                "summary":       cdata.get("note") or cdata.get("last_event"),
+                "extra_url":     cdata.get("retry_run_url") or cdata.get("upstream_run_url"),
+            })
+    except Exception as e:  # noqa: BLE001
+        watchdogs.append({"name": "Production canary (retry)", "key": "canary_retry", "error": str(e)[:200]})
+
+    out["watchdogs"] = watchdogs
+
     return out
 
 

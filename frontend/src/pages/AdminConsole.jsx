@@ -3247,6 +3247,54 @@ function HealthCard() {
         <HealthPill ok={health.llm?.configured} label="LLM key" />
         <HealthPill ok={health.digest_scheduler?.running} label="Digest scheduler" />
       </div>
+      {/* 2026-06-27 — Watchdog summary table.  Shows the latest
+          state of every automated kill-switch (AV / email-quota /
+          canary) so the operator gets a one-glance answer to
+          "is anything currently auto-paused?".  Surfaces last-check
+          time, current state, the underlying flag, and the
+          watchdog's own summary blurb.  Red row background when
+          auto_paused === true so it pops on a busy admin page. */}
+      {Array.isArray(health.watchdogs) && health.watchdogs.length > 0 && (
+        <div className="mb-4" data-testid="admin-health-watchdogs">
+          <div className="text-[10px] uppercase tracking-[0.15em] text-[#6B705C] mb-1.5 font-semibold">
+            Automated guardians
+          </div>
+          <div className="space-y-1.5">
+            {health.watchdogs.map((w) => {
+              const paused = w.auto_paused === true;
+              const last = w.last_check
+                ? new Date(w.last_check).toLocaleString(undefined, {
+                    month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+                  })
+                : "—";
+              return (
+                <div
+                  key={w.key}
+                  className={`text-xs flex items-center gap-2 px-3 py-2 rounded-lg border ${
+                    paused
+                      ? "bg-[#FBE2E0] border-[#E8B5B0] text-[#7C2D2A]"
+                      : "bg-[#F4F8F0] border-[#D6E0CC] text-[#3A4A2E]"
+                  }`}
+                  data-testid={`admin-watchdog-${w.key}`}
+                >
+                  <span className={`inline-block w-2 h-2 rounded-full shrink-0 ${paused ? "bg-[#C5564B]" : "bg-[#5C8A5C]"}`} aria-hidden="true" />
+                  <span className="font-semibold shrink-0">{w.name}</span>
+                  <span className="ml-auto text-[11px] text-[#6B705C] shrink-0">
+                    {paused ? "🛑 auto-paused" : "✓ active"}
+                  </span>
+                  <span className="text-[11px] text-[#A09A8B] shrink-0">· checked {last}</span>
+                </div>
+              );
+            })}
+            {health.watchdogs.some((w) => w.auto_paused) && (
+              <p className="text-[11px] text-[#7C2D2A] italic mt-1">
+                One or more guardians have auto-paused.  Re-enable manually
+                from Feature flags after auditing the trigger.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-4" data-testid="admin-health-collections">
         {Object.entries(health.collections || {}).map(([name, n]) => (
           <div key={name} className="text-xs bg-[#FBFAF6] border border-[#E5DDC5] rounded-lg px-3 py-2">

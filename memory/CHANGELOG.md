@@ -7,6 +7,74 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 — System Health watchdog overview on `/admin` 🛡️
+
+Engagement follow-on to today's email-quota watchdog: now that we
+have THREE independent guardians (AV, email-quota, canary retry),
+surface them together so the operator has a one-glance answer to
+"is anything currently auto-paused?".
+
+### What shipped
+
+- **Backend** (`routes/admin.py → GET /api/admin/system-health`) —
+  response now includes a `watchdogs` array:
+  ```json
+  [
+    {"name": "Antivirus (ClamAV)", "key": "av_watchdog",
+     "flag": "uploads_enabled", "last_check": "...",
+     "auto_paused": false, "last_status": "up", "summary": null},
+    {"name": "Email quota (Resend)", "key": "email_quota_watchdog",
+     "flag": "outbound_emails_enabled", "last_check": "...",
+     "auto_paused": false, "last_status": "ok",
+     "summary": "avg 47.29/day · cliff in 10d"},
+    {"name": "Production canary (retry)", "key": "canary_retry",
+     "flag": null, "last_check": "...", "auto_paused": false,
+     "last_status": "ok", "summary": "Default seed — no canary
+     failure detected yet.", "extra_url": null}
+  ]
+  ```
+  - AV + email-quota states read from the `system_health` Mongo
+    collection (each watchdog already persists state there).
+  - Canary state reads from `/app/memory/canary_status.json` —
+    committed back to the repo by the retry workflow.
+  - Every row defensively try/except'd; a single watchdog failing
+    to read state never breaks the rest of the system-health
+    response.
+
+- **Frontend** (`AdminConsole.jsx → HealthCard`) — new "Automated
+  guardians" section directly below the existing health pills.
+  Each watchdog renders as a one-line pill row:
+    - ✓ green when active (`auto_paused === false`)
+    - 🛑 red row background + red dot when auto-paused
+    - Shows last-check timestamp (locale-formatted) and the
+      watchdog's own summary blurb inline
+  A red italic footer appears when ANY guardian is paused:
+  *"One or more guardians have auto-paused. Re-enable manually
+  from Feature flags after auditing the trigger."*  No new fetch —
+  reuses the existing system-health poll.
+
+- **Tests** (`backend/tests/test_iter69_system_health_watchdogs.py`)
+  — 4 tests, all pass:
+    1. All three watchdogs present in response
+    2. Seeded states are correctly surfaced (status, flag, summary
+       string formatting)
+    3. Canary watchdog reads from the status file
+    4. Missing state collection rows render as placeholder rows
+       (no exception, no error — fresh-install friendly)
+
+### Net effect
+Three independent guardians now have a single visible home.  Any
+auto-pause across AV / Resend / Canary surfaces in one place on
+`/admin`, with the underlying feature flag named so the operator
+knows exactly where to go to re-enable.  Closes the
+operational-confidence loop today's batch of watchdog work opened.
+
+Files touched: `backend/routes/admin.py`,
+`frontend/src/pages/AdminConsole.jsx`,
+`backend/tests/test_iter69_system_health_watchdogs.py` (new).
+
+---
+
 ## 2026-06-27 — Email-quota auto-brake watchdog + forecast bug fix 🚦
 
 Closes the gap surfaced by today's quota-brake audit: the manual
