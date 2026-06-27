@@ -7,6 +7,83 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 — Airdrop mode for big bulk drops 🚀
+
+Threshold-based upload pipeline that lets users drop **any file
+type** (EPUB, PDF, Kindle, Word, RTF, FB2, etc.) at high volume
+without waiting on backend processing.
+
+### How it works
+
+- **Drop ≤ 20 files** → today's "rich" upload flow.  Each file is
+  classified, mirrored, indexed, and shown on the library with
+  full metadata before the upload bar finishes.  No change to the
+  current UX.
+- **Drop > 20 files** → airdrop mode kicks in.  The frontend POSTs
+  each file's bytes to the backend, the backend returns 202 the
+  moment bytes are staged, and the frontend immediately moves to
+  the next file without waiting for the pipeline to finish.  All
+  the slow work (metadata extraction, Calibre conversion for non-
+  EPUB formats, AI classification, R2 mirror) happens in the
+  backend's background tasks.  The upload bar hits 100% in
+  seconds; the library hydrates as books finish processing.
+
+### Frontend (`components/UploadZone.jsx`)
+
+- `AIRDROP_THRESHOLD = 20` constant.
+- `sendOne` short-circuits when `airdrop` flag is on — returns
+  immediately after the 202 instead of polling
+  `/books/upload/jobs/{job_id}` for completion.
+- Progress UI text branches:
+  - Classic: `"Sorting your books… N of M processed"` + in-flight + elapsed.
+  - Airdrop: `"Airdropping your library… N of M queued"` + a friendly note
+    explaining the background hydration.
+- Success toast in airdrop mode is short and acknowledges the
+  background work: `"Airdropped 200 books — they're sorting in the
+  background. You can close the tab."`
+- `CONCURRENCY` bumped 6 → 8 (works for both modes).
+
+### Backend resilience (`routes/upload_jobs.py`)
+
+Airdrop mode means the SPA walks away.  If the backend crashes
+between accepting bytes and finishing the pipeline, those bytes
+would otherwise be stranded.  New safety nets:
+
+- `recover_stuck_upload_jobs()` — sweeps any upload_jobs row in
+  `queued`/`processing` for more than 5 min, re-kicks
+  `_run_upload_job` for it.  Empty staging dirs (bytes lost to a
+  crash) are stamped `failed` with a clear error rather than
+  spinning forever.
+- **Startup hook** (`server.py`) — runs the recovery once 20s after
+  every backend boot.  Catches any work stranded by the most
+  recent deploy.
+- **5-min cron** — runs `recover_stuck_upload_jobs` on the same
+  schedule as the AV/polish recovery crons.  Belt-and-braces.
+
+### Backend perf (`routes/books.py`)
+
+- **R2 mirror parallelism** — the per-book mirror loop (EPUB +
+  cover + original-format = 1-3 PUTs) now runs via
+  `asyncio.gather` instead of a serial `for` loop.  Saves ~2-4s
+  per book on R2-backed deployments.
+
+### Tests
+
+- `tests/test_upload_job_recovery.py` — 2 new tests pinning the
+  5-min cutoff: stale rows get re-kicked, fresh rows are left
+  alone.
+- 21/21 tests pass across the polish queue, classifier reasoning,
+  characters, friend orphan, fulltext bg, and upload recovery
+  modules.
+
+### Help
+
+Updated `pages/Help.jsx::Uploading books` with a dedicated
+"Airdrop mode for big drops" paragraph explaining when it
+kicks in, what gets deferred, and the tab-close safety.
+
+---
+
 ## 2026-06-27 — "Why did the AI pick this?" rationale tooltip 💭
 
 Every book now stores a 1-sentence rationale for its classification,

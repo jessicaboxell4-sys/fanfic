@@ -386,7 +386,25 @@ export default function UploadZone({ onUploaded, compact = false }) {
     setUploading(true);
     inFlightRef.current = true;
     const totalBatches = Math.ceil(filesToSend.length / CHUNK_SIZE);
-    setProgress({ done: 0, total: filesToSend.length, batch: 1, batches: totalBatches, inFlight: 0, startedAt: Date.now() });
+    // Airdrop mode: when the user drops more than AIRDROP_THRESHOLD
+    // files at once, the frontend stops blocking on the per-job
+    // processing pipeline.  ``sendOne`` returns the moment the
+    // backend has buffered the bytes (HTTP 202 + job_id), and the
+    // server keeps grinding through metadata extraction / Calibre
+    // conversion / classification / R2 mirror in the background.
+    // The user gets the upload bar to 100% in seconds instead of
+    // minutes, and the library hydrates as books finish processing.
+    //
+    // 20 is the sweet spot from the user trial — a casual drop of
+    // 1-10 books still gets clean metadata immediately on the cards,
+    // but a bulk archive import (50, 200, 1000+ books) flies.
+    //
+    // The persisted localStorage job IDs still survive the early
+    // return so the backend's recovery cron + a future "Pending
+    // uploads" admin page can reconcile any work that didn't finish.
+    const AIRDROP_THRESHOLD = 20;
+    const airdropMode = filesToSend.length > AIRDROP_THRESHOLD;
+    setProgress({ done: 0, total: filesToSend.length, batch: 1, batches: totalBatches, inFlight: 0, startedAt: Date.now(), airdrop: airdropMode });
     const duplicates = [];
     const allActions = [];
     const allUrlLists = [];
@@ -423,18 +441,18 @@ export default function UploadZone({ onUploaded, compact = false }) {
       //     800ms backoff per-request inside sendOne
       //   • Failed files accumulate in `failedFiles[]` and the final
       //     toast surfaces a sticky one-click "Retry N" button
-      // 2026-06-27 — Production throughput tune.  User reported "barely
-      // moves" on a 50-200 file drop.  Doubled-up the parallelism:
-      //   • CONCURRENCY 4 → 6 — 50% more files in flight per round.
-      //     Still well under Cloudflare's connection ceiling and under
-      //     the backend's AV_BG_CONCURRENCY=4 (R2 mirror is wrapped in
-      //     asyncio.to_thread so even with 6 in-flight backend jobs
-      //     the bottleneck is upstream LLM, not the I/O loop).
-      //   • POLL_INTERVAL 1500ms → 1000ms — counter ticks ~33% sooner
-      //     after each file resolves.
-      //   • Track inFlight count + elapsed seconds so the progress
-      //     subtext gives the user a heartbeat between counter bumps.
-      const CONCURRENCY = 6;
+      // 2026-06-27 — Bumped CONCURRENCY 6 → 8 alongside the airdrop
+      // mode work.  The backend's AV_BG_CONCURRENCY and
+      // POLISH_CONCURRENCY are both 4, but neither competes with
+      // upload-staging directly — upload_jobs is just buffered disk
+      // I/O + a fire-and-forget task.  Cloudflare's per-IP
+      // connection ceiling is well above 8, and the backend event
+      // loop happily handles 8 simultaneous async file copies.
+      //   • Airdrop mode (filesToSend > 20): no polling, so 8
+      //     concurrent POSTs sustain near-line-rate bandwidth.
+      //   • Classic mode (≤ 20 files): still 8 concurrent POSTs,
+      //     each polling its job for completion.
+      const CONCURRENCY = 8;
       let uploaded = 0;
       let totalAuto = 0;
       let lastPolicy = null;
@@ -469,6 +487,18 @@ export default function UploadZone({ onUploaded, compact = false }) {
             // refreshes / closes the tab mid-upload.  Removed in the
             // finally-equivalent paths below (done/failed/timeout).
             trackPendingJob(jobId, file.name);
+
+            // Airdrop short-circuit: bytes are safely on the backend
+            // (HTTP 202 received), the asyncio task is already
+            // running, and the backend cron + on-startup recovery
+            // hook will pick up any work we lose track of.  Return
+            // immediately so the next file in the concurrency slot
+            // can start uploading.
+            if (airdropMode) {
+              // We keep the job ID in localStorage — a future visit
+              // to the library will reconcile.  No data lost.
+              return { ok: true, file, data: {}, airdrop: true };
+            }
             // Poll up to ~3 minutes.  Larger EPUBs + slow Claude can
             // take 30–60s; we give 4–5× headroom so an LLM hiccup
             // doesn't surface as a fake failure.
@@ -737,6 +767,21 @@ export default function UploadZone({ onUploaded, compact = false }) {
       console.error(e);
       toast.error("Upload failed. Please try again.");
     } finally {
+      // Airdrop-mode-specific success toast: the rest of the success
+      // path can't fire toasts about "N classified" or "fandom merge
+      // suggestions" because we never waited for the backend to
+      // produce that data.  Replace the standard "N books sorted"
+      // toast with a friendly "your books are landing" message that
+      // also nudges the user toward the polish banner.
+      if (airdropMode && failedFiles.length === 0) {
+        toast.success(
+          `Airdropped ${filesToSend.length.toLocaleString()} books — they're sorting in the background.`,
+          {
+            duration: 12000,
+            description: "You can close the tab. Refresh the library page to see them appear as each one finishes.",
+          },
+        );
+      }
       setUploading(false);
       setProgress({ done: 0, total: 0, batch: 1, batches: 1 });
       inFlightRef.current = false;
@@ -810,13 +855,23 @@ export default function UploadZone({ onUploaded, compact = false }) {
       {uploading ? (
         <>
           <Loader2 className={`${compact ? "w-6 h-6 mb-2" : "w-10 h-10 mb-4"} text-[#E07A5F] animate-spin`} />
-          <p className={`font-serif ${compact ? "text-lg" : "text-2xl"} text-[#2C2C2C]`}>Sorting your books…</p>
+          <p className={`font-serif ${compact ? "text-lg" : "text-2xl"} text-[#2C2C2C]`}>
+            {progress.airdrop ? "Airdropping your library…" : "Sorting your books…"}
+          </p>
           <p className="text-sm text-[#6B705C] mt-1" data-testid="upload-progress-text">
             {progress.batches > 1
-              ? `Batch ${progress.batch} of ${progress.batches} · ${progress.done} of ${progress.total} processed`
-              : `${progress.done} of ${progress.total} processed`}
+              ? `Batch ${progress.batch} of ${progress.batches} · ${progress.done} of ${progress.total} ${progress.airdrop ? "queued" : "processed"}`
+              : `${progress.done} of ${progress.total} ${progress.airdrop ? "queued" : "processed"}`}
           </p>
-          {(progress.inFlight > 0 || progress.startedAt > 0) && (
+          {progress.airdrop && (
+            <p
+              className="text-xs text-[#6B705C] mt-1 italic max-w-md text-center"
+              data-testid="upload-progress-airdrop-note"
+            >
+              Bytes are landing fast — sorting, covers and AI classification will fill in on the library page as each book finishes processing.
+            </p>
+          )}
+          {(progress.inFlight > 0 || progress.startedAt > 0) && !progress.airdrop && (
             <p
               className="text-xs text-[#6B705C] mt-1 italic"
               data-testid="upload-progress-flight"
@@ -825,8 +880,6 @@ export default function UploadZone({ onUploaded, compact = false }) {
                 ? `${progress.inFlight} book${progress.inFlight === 1 ? "" : "s"} currently sorting`
                 : "Wrapping up"}
               {progress.startedAt > 0 && (
-                // nowTick participates in render so the 1s heartbeat
-                // re-evaluates Date.now() between file completions.
                 <> · {Math.max(1, Math.floor((Date.now() - progress.startedAt + nowTick * 0) / 1000))}s elapsed</>
               )}
             </p>

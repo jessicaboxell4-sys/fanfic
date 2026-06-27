@@ -2660,7 +2660,14 @@ async def upload_books(
             cover_local = user_dir / f"{bid}.cover"
             if cover_local.exists():
                 mirror_targets.append((cover_local, _r2_key(user.user_id, bid, ".cover")))
-            for local_path, key in mirror_targets:
+            # 2026-06-27 — R2 mirror parallelism.  Each mirror_targets
+            # call is an independent network PUT to Cloudflare R2
+            # (~500ms-2s each).  Running them serially per book meant
+            # a typical "EPUB + cover + original-format" upload waited
+            # ~3-6s on R2.  asyncio.gather + asyncio.to_thread fans the
+            # PUTs out so all three complete in ~1 round-trip — saves
+            # ~2-4s per book on R2-backed deployments.
+            async def _mirror_one(local_path: Path, key: str) -> None:
                 try:
                     ok = await _asyncio.to_thread(_r2_mirror_up, local_path, key)
                     if not ok:
@@ -2675,6 +2682,12 @@ async def upload_books(
                         "file safe on local disk, cron will retry.",
                         local_path.name, key, e,
                     )
+
+            if mirror_targets:
+                await _asyncio.gather(
+                    *[_mirror_one(p, k) for p, k in mirror_targets],
+                    return_exceptions=False,
+                )
 
     # 2026-06-27 — Kick off the deferred-classifier polish drain for
     # this user.  Internally gated by ``_inflight_users`` so concurrent

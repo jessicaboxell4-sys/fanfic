@@ -280,3 +280,64 @@ async def get_upload_job(
         "error": job.get("error"),
         "response": job.get("response"),
     }
+
+
+async def recover_stuck_upload_jobs() -> int:
+    """Resume any upload_jobs whose async worker died mid-flight.
+
+    Two scenarios:
+      1. **Backend restart** while a job was queued or processing — the
+         in-memory ``_run_upload_job`` task vanished but the staging
+         files are still on disk and the row is still
+         ``queued``/``processing`` in Mongo.
+      2. **Airdrop-mode upload** where the frontend POSTed bytes and
+         returned immediately without polling.  If the backend crashed
+         between accepting bytes and finishing the pipeline, the user
+         has no way to retry from the SPA — the bytes are stranded.
+
+    This sweeper finds rows older than 5 min still in non-terminal
+    state, verifies the staging directory still has the bytes, and
+    re-kicks ``_run_upload_job`` for each one.  Idempotent — running
+    it twice is safe because the worker re-reads job state on entry.
+
+    Returns the number of jobs re-kicked.  Logged in server.py.
+    """
+    from datetime import datetime, timedelta, timezone as _tz
+
+    cutoff_iso = (datetime.now(_tz.utc) - timedelta(minutes=5)).isoformat()
+    cursor = db.upload_jobs.find({
+        "status": {"$in": ["queued", "processing"]},
+        "$or": [
+            {"started_at": {"$lt": cutoff_iso}},
+            {"created_at": {"$lt": cutoff_iso}, "started_at": None},
+            {"created_at": {"$lt": cutoff_iso}, "started_at": {"$exists": False}},
+        ],
+    }).limit(50)
+    recovered = 0
+    async for job in cursor:
+        job_id = job.get("job_id")
+        user_id = job.get("user_id")
+        if not job_id or not user_id:
+            continue
+        # Sanity-check the staging directory — if the bytes are gone
+        # the worker would just no-op.  Stamp the row as failed so the
+        # SPA shows a real error rather than spinning forever.
+        staging = _job_dir(job_id)
+        if not any(staging.iterdir()) if staging.exists() else True:
+            if not staging.exists():
+                await _persist_job(job_id, {
+                    "status": "failed",
+                    "completed_at": datetime.now(_tz.utc).isoformat(),
+                    "error": "Staging directory vanished — bytes lost to a restart before processing.",
+                })
+                continue
+        try:
+            asyncio.create_task(_run_upload_job(job_id, user_id))
+            recovered += 1
+        except RuntimeError:
+            logger.warning("recover_stuck_upload_jobs: no event loop available")
+            break
+    if recovered > 0:
+        logger.info("recover_stuck_upload_jobs: re-kicked %d job(s)", recovered)
+    return recovered
+

@@ -174,6 +174,30 @@ async def on_startup():
         _asyncio.create_task(_initial_backfill_delayed())
     except Exception as e:
         logger.warning(f"Could not schedule initial storage backfill: {e}")
+
+    # 2026-06-27 — Upload-job recovery on startup.  If the pod crashed
+    # mid-upload (e.g. during a deploy), books that were buffered to
+    # staging but not yet processed will have their upload_jobs row
+    # stuck in "queued" or "processing".  Re-kick the worker for each
+    # so the bytes don't strand on local disk.  The 5-min cron then
+    # picks up anything that's still stuck.
+    try:
+        import asyncio as _asyncio_recov
+        from routes.upload_jobs import recover_stuck_upload_jobs as _initial_upload_recover
+
+        async def _initial_upload_recovery_delayed():
+            await _asyncio_recov.sleep(20)  # let the rest of startup settle
+            try:
+                n = await _initial_upload_recover()
+                if n > 0:
+                    logger.info("Startup upload recovery re-kicked %d job(s).", n)
+            except Exception as e:  # noqa: BLE001
+                logger.warning("Startup upload recovery failed: %s", e)
+
+        _asyncio_recov.create_task(_initial_upload_recovery_delayed())
+    except Exception as e:
+        logger.warning(f"Could not schedule startup upload recovery: {e}")
+
     # One-time migration (2026-05): rename legacy `fichub_*` DB fields on
     # existing book records to their new names. Idempotent: only matches docs
     # that still have at least one legacy field. Safe to run on every startup.
@@ -409,6 +433,26 @@ async def on_startup():
                 logger.info("Polish-recovery job scheduled (every 5 min).")
             except Exception as e:
                 logger.warning("Polish-recovery failed to schedule: %s", e)
+
+            # 2026-06-27 — Upload-job recovery cron.  Airdrop-mode
+            # uploads (>20 files) have the frontend walk away the
+            # moment the backend accepts the bytes.  If the backend
+            # restarts between byte-acceptance and pipeline-completion
+            # the in-memory _run_upload_job task vanishes.  This cron
+            # re-kicks any upload_jobs row stuck in
+            # queued/processing > 5 min.
+            try:
+                from routes.upload_jobs import recover_stuck_upload_jobs as _upload_recover
+                digest._scheduler.add_job(
+                    wrap_cron_job(_upload_recover, "upload_recovery"),
+                    "interval",
+                    minutes=5,
+                    id="upload_recovery",
+                    replace_existing=True,
+                )
+                logger.info("Upload-job recovery cron scheduled (every 5 min).")
+            except Exception as e:
+                logger.warning("Upload-job recovery failed to schedule: %s", e)
 
             # Weekly admin digest — Sundays 09:00 UTC.  Drains the
             # admin_pending_alerts queue (populated by cron-failure
