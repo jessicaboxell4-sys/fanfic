@@ -715,6 +715,17 @@ books?" anxiety moment. Eliminating it builds trust.
 
 ## ⏰ Parked reminders — bring up next session
 
+### 🅿️ Parked 2026-06-27 — "Days since last incident" counter on sparkline
+
+Add a tiny `📅 12 days since last incident` counter next to the
+30-day uptime pill on `/changelog`.  Resets to 0 on any red cell.
+Quiet "we run a tight ship" trust signal that quietly counts up
+between outages.  Compute from existing `info.daily[]`: find the
+latest-indexed cell with `fail > 0`, then
+`info.daily.length - 1 - lastRedIdx`.  Couple of lines in
+`CanaryUptimePill`.  User asked to revisit later.
+
+
 ### 🅿️ Parked 2026-06-27 — Open Graph reliability unfurl for `/changelog`
 
 Now that the public trust-signal stack is built (badge + state word
