@@ -7,6 +7,39 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 — Grid-mode card-size slider 📐
+
+Companion to today's earlier list-mode density toggle.  Same UX
+pattern, different mode.
+
+### What shipped
+
+- **Frontend** (`AllBooksPage.jsx`) — Grid view now has a small
+  `Size: [S] [M] [L]` toggle above the card grid.  Variable column
+  count drives card size:
+    - **S** = `grid-cols-3 sm:4 md:5 lg:7 xl:8` (~50% more covers
+      per screen — fic-heavy libraries)
+    - **M** = current default (`grid-cols-2 sm:3 md:4 lg:5 xl:6`)
+    - **L** = `grid-cols-2 sm:2 md:3 lg:4 xl:5` (bigger covers,
+      easier to read titles)
+- **Persistence**: `localStorage.shelfsort_grid_size`, follows the
+  same pattern as `shelfsort_list_density` and `shelfsort_chips_pref`
+  shipped earlier today.
+- **Scope**: only the main Grid view.  Compact mode keeps its own
+  high-density grid (it's already explicitly the "see every cover"
+  mode), and List mode has its own density toggle.
+- Hover tooltips on each S/M/L button explain what the choice
+  actually does — no guessing.
+
+### Files
+- `frontend/src/pages/AllBooksPage.jsx`
+
+Pure frontend, no backend / test impact.  esbuild parse OK, lint
+clean on new code (same pre-existing unescaped-quote warnings
+elsewhere in the file), page renders with 0 JS errors.
+
+---
+
 ## 2026-06-27 — Library: collapsible chips + list-row density toggle 🎚️
 
 Two power-user controls layered on top of today's earlier library

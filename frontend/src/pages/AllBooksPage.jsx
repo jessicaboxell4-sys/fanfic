@@ -140,6 +140,36 @@ export default function AllBooksPage() {
     listDensity === "cozy"        ? "py-4" :
                                     "py-2"   // comfortable (default)
   );
+
+  // 2026-06-27 — Grid-mode card-size slider.
+  // Three sizes: S (more columns / smaller covers — great for big
+  // libraries), M (default, current behaviour), L (fewer columns /
+  // bigger covers — easier to read titles).  Only applies to the
+  // main Grid view; Compact mode keeps its own hard-coded high-
+  // density grid since it's already explicitly the "see ALL covers"
+  // mode.  Persisted across refreshes.
+  const [gridSize, setGridSize] = useState(() => {
+    try {
+      const raw = window.localStorage.getItem("shelfsort_grid_size");
+      if (raw === "s" || raw === "m" || raw === "l") return raw;
+    } catch { /* ignore */ }
+    return "m";
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem("shelfsort_grid_size", gridSize); }
+    catch { /* ignore */ }
+  }, [gridSize]);
+  // Variable-column-count grid class string.  Smaller breakpoints
+  // stay stable so mobile / narrow screens get a reasonable layout
+  // regardless of the desktop-side preference — the slider mostly
+  // affects md+ widths where libraries actually live.
+  const gridColsClass = (
+    gridSize === "s"
+      ? "grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8"
+      : gridSize === "l"
+        ? "grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
+        : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"
+  );
   const [overview, setOverview] = useState(null);
   const [seriesList, setSeriesList] = useState([]);
   const [fandomQuery, setFandomQuery] = useState("");
@@ -1983,25 +2013,64 @@ export default function AllBooksPage() {
                 ))}
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6" data-testid="books-grid">
-                {visibleBooks.map(b => (
-                  <BookCard
-                    key={b.book_id}
-                    book={b}
-                    selectMode={selectMode}
-                    selected={selectedIds.has(b.book_id)}
-                    onToggleSelect={(id) => {
-                      setSelectedIds((prev) => {
-                        const next = new Set(prev);
-                        if (next.has(id)) next.delete(id); else next.add(id);
-                        return next;
-                      });
-                    }}
-                    onChanged={load}
-                    crossDeviceHint={crossDeviceHints[b.book_id]}
-                  />
-                ))}
-              </div>
+              <>
+                {/* 2026-06-27 — Grid-size slider.  S = smaller cards
+                    + more columns (~50% more covers on screen),
+                    M = current default, L = bigger cards + fewer
+                    columns (easier to read titles).  Only renders
+                    in Grid mode; Compact has its own high-density
+                    grid that doesn't need user control. */}
+                <div className="flex items-center justify-end gap-1 mb-3 text-[10px] uppercase tracking-wider text-[#A09A8B]" data-testid="grid-size-toggle">
+                  <span className="mr-1">Size:</span>
+                  {[
+                    { value: "s", label: "S" },
+                    { value: "m", label: "M" },
+                    { value: "l", label: "L" },
+                  ].map((opt) => {
+                    const active = gridSize === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setGridSize(opt.value)}
+                        aria-pressed={active}
+                        data-testid={`grid-size-${opt.value}`}
+                        className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider transition-colors ${
+                          active
+                            ? "bg-[#6B46C1] text-white"
+                            : "text-[#6B705C] hover:bg-[#F5F3EC] border border-transparent hover:border-[#E8E6E1]"
+                        }`}
+                        title={
+                          opt.value === "s" ? "Small — see ~50% more covers per screen" :
+                          opt.value === "l" ? "Large — easier to read titles" :
+                          "Medium (default)"
+                        }
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className={`grid ${gridColsClass} gap-6`} data-testid="books-grid">
+                  {visibleBooks.map(b => (
+                    <BookCard
+                      key={b.book_id}
+                      book={b}
+                      selectMode={selectMode}
+                      selected={selectedIds.has(b.book_id)}
+                      onToggleSelect={(id) => {
+                        setSelectedIds((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(id)) next.delete(id); else next.add(id);
+                          return next;
+                        });
+                      }}
+                      onChanged={load}
+                      crossDeviceHint={crossDeviceHints[b.book_id]}
+                    />
+                  ))}
+                </div>
+              </>
             )}
           </>
         )}
