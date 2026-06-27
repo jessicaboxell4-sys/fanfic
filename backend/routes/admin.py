@@ -2850,10 +2850,19 @@ async def _aggregate_suppression_reasons(window_start) -> list[dict]:
 # deep-link straight into the room.
 
 @api_router.get("/admin/bookclubs/watching")
-async def list_watched_bookclubs(user: User = Depends(require_admin)):
+async def list_watched_bookclubs(
+    include_tests: bool = False,
+    user: User = Depends(require_admin),
+):
     """Return rooms where the *requesting admin* is a member with role
     ``oversight`` OR ``owner``. We let any admin call this — but unless they
-    are the platform owner, they'll usually see an empty list."""
+    are the platform owner, they'll usually see an empty list.
+
+    2026-06-27 — ``include_tests`` defaults to False; clubs owned by
+    test-account users (integration fixtures) are hidden so the
+    oversight tray reflects real-user activity.  Toggle on when
+    debugging fixture-created clubs.
+    """
     rows = await db.bookclub_members.find(
         {"user_id": user.user_id, "role": {"$in": ["oversight", "owner"]}, "status": "active"},
         {"_id": 0, "room_id": 1, "role": 1},
@@ -2864,9 +2873,19 @@ async def list_watched_bookclubs(user: User = Depends(require_admin)):
     room_ids = [r["room_id"] for r in rows]
     role_by_room = {r["room_id"]: r["role"] for r in rows}
 
-    rooms = await db.bookclubs.find(
-        {"room_id": {"$in": room_ids}}, {"_id": 0},
-    ).to_list(length=2000)
+    rooms_query: Dict[str, Any] = {"room_id": {"$in": room_ids}}
+    if not include_tests:
+        from utils.test_account_filter import mongo_exclude_test_user_ids_clause
+        # Exclude clubs whose owner is a test-account user.  Caught
+        # at the bookclubs level (not bookclub_members) so the
+        # member-count + message-count aggregations below stay
+        # cheap — they all join via ``room_id``, and we've already
+        # narrowed the room list here.
+        rooms_query.update(await mongo_exclude_test_user_ids_clause(db, "owner_user_id"))
+    rooms = await db.bookclubs.find(rooms_query, {"_id": 0}).to_list(length=2000)
+    # Narrow downstream room_ids to the surviving set so the
+    # aggregations don't crunch hidden test clubs.
+    visible_room_ids = [r["room_id"] for r in rooms]
     owner_ids = list({r.get("owner_user_id") for r in rooms if r.get("owner_user_id")})
     owners_meta = {}
     if owner_ids:
@@ -2878,7 +2897,7 @@ async def list_watched_bookclubs(user: User = Depends(require_admin)):
 
     # Member-count agg (real members, excludes oversight) + last-message-at.
     count_agg = db.bookclub_members.aggregate([
-        {"$match": {"room_id": {"$in": room_ids}, "status": "active", "role": {"$ne": "oversight"}}},
+        {"$match": {"room_id": {"$in": visible_room_ids}, "status": "active", "role": {"$ne": "oversight"}}},
         {"$group": {"_id": "$room_id", "n": {"$sum": 1}}},
     ])
     member_counts: Dict[str, int] = {}
@@ -2886,7 +2905,7 @@ async def list_watched_bookclubs(user: User = Depends(require_admin)):
         member_counts[row["_id"]] = int(row["n"])
 
     msg_agg = db.bookclub_messages.aggregate([
-        {"$match": {"room_id": {"$in": room_ids}}},
+        {"$match": {"room_id": {"$in": visible_room_ids}}},
         {"$group": {"_id": "$room_id", "last_at": {"$max": "$created_at"}, "total": {"$sum": 1}}},
     ])
     msg_meta: Dict[str, Dict[str, Any]] = {}

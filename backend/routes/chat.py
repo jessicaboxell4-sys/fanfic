@@ -101,8 +101,25 @@ async def _get_room_for_member(room_id: str, user_id: str) -> Dict[str, Any]:
 # ---------------------------------------------------------------------
 
 @api_router.get("/admin/chat-rooms")
-async def admin_list_chat_rooms(user: User = Depends(require_admin)):
-    rooms = await db.chat_rooms.find({}, {"_id": 0}).to_list(length=200)
+async def admin_list_chat_rooms(
+    include_tests: bool = False,
+    user: User = Depends(require_admin),
+):
+    """List all admin-created chat rooms.
+
+    2026-06-27 — ``include_tests`` defaults to False so rooms created
+    by test-admin accounts (integration fixtures) are hidden from the
+    real ops view.  Filter is on ``created_by`` (the admin who set
+    the room up) because room *members* are usually a mix of real
+    users + test agents in fixture flows, while ``created_by`` cleanly
+    discriminates "this whole room exists for test purposes" vs
+    "this is a real room that happens to include a test user".
+    """
+    query: Dict[str, Any] = {}
+    if not include_tests:
+        from utils.test_account_filter import mongo_exclude_test_user_ids_clause
+        query.update(await mongo_exclude_test_user_ids_clause(db, "created_by"))
+    rooms = await db.chat_rooms.find(query, {"_id": 0}).to_list(length=200)
     return {"rooms": [_serialize_room(r) for r in rooms]}
 
 

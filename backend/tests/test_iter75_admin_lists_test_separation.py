@@ -184,3 +184,57 @@ def test_av_quarantine_shows_tests_when_opted_in(seeded):
     uids = [row.get("user_id") for row in r.json()["rows"]]
     assert seeded["real_user_id"] in uids
     assert seeded["fixture_user_id"] in uids
+
+
+def test_chat_rooms_hide_test_admin_created_rooms_by_default(seeded):
+    """Admin-created chat rooms whose creator is a test-account admin
+    must be hidden from /admin/chat-rooms by default (iter75 follow-up
+    after the FB screenshot flagged the chat-rooms card explicitly).
+    """
+    import requests
+    db = _db()
+    suffix = seeded["suffix"]
+    real_room_id = f"room_real_{suffix}"
+    fix_room_id = f"room_fix_{suffix}"
+    now = datetime.now(timezone.utc)
+    # Seed two rooms: one created by the real admin (visible), one
+    # created by a fixture admin (hidden by default).
+    fixture_admin_id = f"user_iter75chatadmin_{suffix}"  # `user_` prefix → test
+    db.users.insert_one({
+        "user_id": fixture_admin_id, "email": f"fixchat-{suffix}@example.com",
+        "name": "Fix Chat Admin", "picture": "", "is_admin": True,
+        "is_test_account": True, "approval_status": "approved",
+        "created_at": now.isoformat(),
+    })
+    db.chat_rooms.insert_many([
+        {"room_id": real_room_id, "name": "Real Room",
+         "member_user_ids": [seeded["admin_id"]], "created_at": now,
+         "created_by": seeded["admin_id"], "last_message_at": None,
+         "_iter75": suffix},
+        {"room_id": fix_room_id, "name": "TEST_iter75_chatroom",
+         "member_user_ids": [fixture_admin_id], "created_at": now,
+         "created_by": fixture_admin_id, "last_message_at": None,
+         "_iter75": suffix},
+    ])
+    try:
+        r = requests.get(
+            f"{BASE}/api/admin/chat-rooms",
+            headers=_auth(seeded["admin_token"]), timeout=15,
+        )
+        assert r.status_code == 200, r.text
+        room_ids = [room["room_id"] for room in r.json()["rooms"]]
+        assert real_room_id in room_ids
+        assert fix_room_id not in room_ids
+
+        # Opt-in shows both.
+        r2 = requests.get(
+            f"{BASE}/api/admin/chat-rooms",
+            params={"include_tests": "true"},
+            headers=_auth(seeded["admin_token"]), timeout=15,
+        )
+        room_ids2 = [room["room_id"] for room in r2.json()["rooms"]]
+        assert real_room_id in room_ids2
+        assert fix_room_id in room_ids2
+    finally:
+        db.chat_rooms.delete_many({"_iter75": suffix})
+        db.users.delete_one({"user_id": fixture_admin_id})
