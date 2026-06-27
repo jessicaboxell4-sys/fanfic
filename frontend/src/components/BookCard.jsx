@@ -268,7 +268,22 @@ export default function BookCard({ book, selectMode, selected, onToggleSelect, o
       </div>
       <div className="p-3">
         <div className="flex items-center gap-1.5 flex-wrap">
-          <span className={categoryBadgeClass(effectiveCategory)} data-testid={`book-badge-${book.book_id}`}>
+          <span
+            className={categoryBadgeClass(effectiveCategory)}
+            data-testid={`book-badge-${book.book_id}`}
+            title={
+              polishOverride?.classifier_reason
+              || book.classifier_reason
+              || (isPending
+                ? "AI is still sorting this book — hover the 'Sort now' chip to force it through."
+                : `Sorted by ${
+                    (polishOverride?.classifier || book.classifier) === "ai" ? "Claude (AI)" :
+                    (polishOverride?.classifier || book.classifier) === "metadata" ? "metadata keyword match" :
+                    (polishOverride?.classifier || book.classifier) === "manual" ? "you (manual)" :
+                    (polishOverride?.classifier || book.classifier) || "the heuristic classifier"
+                  }.`)
+            }
+          >
             {label}
           </span>
           {user?.is_admin && <ClassifierChip classifier={polishOverride?.classifier || book.classifier} />}

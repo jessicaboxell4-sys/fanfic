@@ -7,6 +7,60 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 — "Why did the AI pick this?" rationale tooltip 💭
+
+Every book now stores a 1-sentence rationale for its classification,
+surfaced as a tooltip on the category badge.
+
+### Backend
+
+- `utils/classifier.py`:
+  - AI prompt extended with a `reasoning` field (cap 140 chars,
+    "what signal in the metadata drove the call").
+  - Both `classify_with_ai` paths (real LLM + canned-response test
+    hook) capture and return it.
+  - `classify_by_metadata` synthesizes a rationale for every
+    branch:
+    - Single-fandom hit → `"Matched 3 keywords for Harry Potter
+      (e.g. 'hogwarts') in title/description/sample text."`
+    - Crossover (2+ fandoms) → `"Found 5 keyword hits across 2
+      fandoms: hogwarts (Harry Potter), wand (Harry Potter)…"`
+    - Generic fanfic signal → `"Generic fanfic signal in
+      metadata; couldn't pin to a specific fandom."`
+    - Non-fiction → `"Non-fiction signal in metadata (publisher
+      / description keywords)."`
+    - Unclassified → `"Metadata didn't match any known fandom or
+      genre signal."`
+- `utils/polish_worker.py` + `routes/books.py::upload_books` +
+  `routes/books.py::reclassify_book` all persist the rationale as
+  `book.classifier_reason`.
+
+### Frontend
+
+- `components/BookCard.jsx`: the category badge now carries a
+  `title=` tooltip with the stored rationale.  Fallback copy when
+  the field is missing (legacy books) says e.g. `"Sorted by Claude
+  (AI)."` / `"Sorted by metadata keyword match."` / `"Sorted by
+  you (manual)."`.
+- Pending books show `"AI is still sorting this book — hover the
+  'Sort now' chip to force it through."`
+
+### Tests
+
+`tests/test_classifier_reasoning.py` — 4/4 pass:
+- heuristic single-fandom path names the matched fandom
+- heuristic unclassified path returns non-empty rationale
+- AI canned-response passes the model's reasoning through
+- polish_one_book persists `classifier_reason` to the doc
+
+18/18 tests pass across all touched modules.
+
+Native `title=` tooltip used intentionally — zero new dependency,
+zero new bundle weight, works on every browser including
+screen-readers.
+
+---
+
 ## 2026-06-27 — Per-book "Sort now" / "Re-sort" affordance 🔄
 
 Follow-up to the deferred-classifier queue.  Every book card on

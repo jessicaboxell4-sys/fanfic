@@ -2417,6 +2417,7 @@ async def upload_books(
                 "fandom": _canonicalize_fandom(classification.get('fandom'), fandom_aliases),
                 "confidence": classification.get('confidence'),
                 "classifier": classification.get('classifier'),
+                "classifier_reason": classification.get('reasoning'),
                 "size_bytes": len(content),
                 "links_count": len(links),
                 "source_url": source_url,
@@ -3367,6 +3368,7 @@ async def reclassify_book(book_id: str, body: ReclassifyBody, user: User = Depen
             "fandom": _canonicalize_fandom(classification.get('fandom')),
             "confidence": classification['confidence'],
             "classifier": classification['classifier'],
+            "classifier_reason": classification.get('reasoning'),
         }},
     )
     return classification

@@ -159,11 +159,23 @@ def classify_by_metadata(meta: Dict[str, Any], overlay: Dict[str, list] = None) 
         # Multi-fandom crossover.  Alphabetize so "A / B" == "B / A".
         crossover = " / ".join(sorted(strong.keys(), key=lambda x: x.lower()))
         total_hits = sum(len(h) for h in strong.values())
+        # Sample up to 3 hits across the matched fandoms for the
+        # reasoning blurb — gives the user "why this fandom" in plain
+        # English without dumping every keyword.
+        sample_hits = []
+        for f in sorted(strong.keys()):
+            for h in sorted(strong[f])[:1]:
+                sample_hits.append(f"{h} ({f})")
+        reasoning = (
+            f"Found {total_hits} keyword hits across {len(strong)} fandoms: "
+            f"{', '.join(sample_hits[:3])}."
+        )
         return {
             "category":   "Fanfiction",
             "fandom":     crossover,
             "confidence": min(0.7 + 0.05 * total_hits, 0.95),
             "classifier": "metadata",
+            "reasoning":  reasoning,
         }
 
     # Single-fandom path — unchanged from the original behavior.
@@ -172,18 +184,27 @@ def classify_by_metadata(meta: Dict[str, Any], overlay: Dict[str, list] = None) 
         best_fandom, best_hits = best[0], best[1]
         best_count = len(best_hits)
         if best_count >= 1:
+            sample_kw = next(iter(best_hits))
+            reasoning = (
+                f"Matched {best_count} keyword{'s' if best_count > 1 else ''} for {best_fandom} "
+                f"(e.g. '{sample_kw}') in title/description/sample text."
+            )
             return {
                 "category":   "Fanfiction",
                 "fandom":     best_fandom,
                 "confidence": min(0.6 + 0.1 * best_count, 0.95),
                 "classifier": "metadata",
+                "reasoning":  reasoning,
             }
     if is_fanfic:
-        return {"category": "Fanfiction", "fandom": "Other", "confidence": 0.7, "classifier": "metadata"}
+        return {"category": "Fanfiction", "fandom": "Other", "confidence": 0.7, "classifier": "metadata",
+                "reasoning": "Generic fanfic signal in metadata; couldn't pin to a specific fandom."}
     if is_nonfic:
-        return {"category": "Non-fiction", "fandom": None, "confidence": 0.7, "classifier": "metadata"}
+        return {"category": "Non-fiction", "fandom": None, "confidence": 0.7, "classifier": "metadata",
+                "reasoning": "Non-fiction signal in metadata (publisher / description keywords)."}
 
-    return {"category": "Unclassified", "fandom": None, "confidence": 0.2, "classifier": "metadata"}
+    return {"category": "Unclassified", "fandom": None, "confidence": 0.2, "classifier": "metadata",
+            "reasoning": "Metadata didn't match any known fandom or genre signal."}
 
 
 async def classify_with_ai(meta: Dict[str, Any]) -> Dict[str, Any]:
@@ -207,13 +228,14 @@ async def classify_with_ai(meta: Dict[str, Any]) -> Dict[str, Any]:
                 "confidence": float(obj.get("confidence", 0.8)),
                 "classifier": "ai",
                 "tags":       _normalize_tags(obj.get("tags") or []),
+                "reasoning":  (obj.get("reasoning") or "")[:200],
             }
         except Exception:
             pass
 
     system_msg = (
         "You are a librarian classifying ebooks. Given book metadata, respond with strict JSON only: "
-        '{"category": "Fanfiction|Original Fiction|Non-fiction", "fandom": "<specific fandom name, or null if not fanfiction>", "confidence": 0.0-1.0, "tags": ["tag1","tag2","tag3"]}. '
+        '{"category": "Fanfiction|Original Fiction|Non-fiction", "fandom": "<specific fandom name, or null if not fanfiction>", "confidence": 0.0-1.0, "tags": ["tag1","tag2","tag3"], "reasoning": "<one short sentence explaining the call>"}. '
         "Use Fanfiction only when it is clearly fan-derived from another work. "
         "For original fiction novels (even popular ones like the actual Harry Potter series by Rowling), use Original Fiction, not Fanfiction. "
         "Fandom names: use AO3's canonical tag form. For multi-property franchises with distinct sub-fandoms, bucket into the specific sub-fandom rather than the umbrella. "
@@ -221,6 +243,7 @@ async def classify_with_ai(meta: Dict[str, Any]) -> Dict[str, Any]:
         "Common fandoms: Harry Potter, Twilight, Marvel, DC Comics, Star Wars, Lord of the Rings, Sherlock Holmes, Percy Jackson and the Olympians, Heroes of Olympus, Trials of Apollo, Magnus Chase, The Kane Chronicles, Doctor Who, Supernatural, Game of Thrones, Hunger Games, Naruto, My Hero Academia, BTS, One Direction, Stargate SG-1, Stargate Atlantis, Stargate Universe, Stargate (Movies). "
         "If a work spans multiple sub-fandoms, return them joined with ' / ' (e.g. 'Stargate SG-1 / Stargate Atlantis') so it lands on the crossover shelf. "
         "Tags: 2-4 short lowercase descriptive labels (e.g. 'fluff', 'angst', 'au', 'wip', 'slow-burn', 'enemies-to-lovers', 'romance', 'mystery', 'historical', 'biography', 'self-help'). "
+        "Reasoning: ONE short sentence (<140 chars) — what signal in the metadata drove the call (e.g. 'Fandom tag explicitly names Harry Potter and pairing uses Hogwarts characters.'). "
         "Return ONLY the JSON object, no markdown."
     )
     user_text = (
@@ -259,12 +282,14 @@ async def classify_with_ai(meta: Dict[str, Any]) -> Dict[str, Any]:
             if fandom in (None, "null", "None", ""):
                 fandom = None
             conf = float(obj.get('confidence', 0.5))
+            reasoning = (obj.get('reasoning') or '').strip()[:200]
             return {
                 "category":   cat,
                 "fandom":     fandom,
                 "confidence": conf,
                 "classifier": "ai",
                 "tags":       _normalize_tags(obj.get("tags") or []),
+                "reasoning":  reasoning,
             }
     except Exception as e:
         logger.error(f"AI classify failed: {e}")
@@ -278,7 +303,7 @@ async def classify_with_ai(meta: Dict[str, Any]) -> Dict[str, Any]:
             )
         except Exception:
             pass
-    return {"category": "Unclassified", "fandom": None, "confidence": 0.0, "classifier": "ai"}
+    return {"category": "Unclassified", "fandom": None, "confidence": 0.0, "classifier": "ai", "reasoning": "AI classifier didn't return a usable answer."}
 
 
 async def classify_book(meta: Dict[str, Any], force_ai: bool = False) -> Dict[str, Any]:

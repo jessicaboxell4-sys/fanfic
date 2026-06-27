@@ -148,6 +148,7 @@ async def polish_one_book(user_id: str, book: dict) -> dict:
         "fandom": _canonicalize_fandom(classification.get("fandom"), aliases),
         "confidence": classification.get("confidence"),
         "classifier": classification.get("classifier") or "claude",
+        "classifier_reason": classification.get("reasoning"),
         "polished_at": datetime.now(timezone.utc).isoformat(),
     }
     # Only write what actually changed so we don't churn the doc on
