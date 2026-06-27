@@ -6559,7 +6559,7 @@ export default function AdminConsole() {
                     }}
                     title={card.subtitle}
                     data-testid={`admin-sidebar-recent-${card.testid}`}
-                    className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-[#6B705C] hover:bg-[#FFF4E0] hover:text-[#9B5A00] transition-colors truncate"
+                    className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-[#6B705C] hover:bg-[#FDF3E1] hover:text-[#B87A00] transition-colors truncate"
                   >
                     <span className="text-[10px] mr-1.5 opacity-60">↻</span>{card.title}
                   </button>
