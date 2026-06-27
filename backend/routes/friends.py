@@ -33,6 +33,28 @@ def _pair(a: str, b: str) -> Tuple[str, str]:
     return (a, b) if a < b else (b, a)
 
 
+def _display_name(user: User) -> str:
+    """Best-effort human-readable label for ``user`` in a notification
+    title.  Prefers ``@handle`` so the recipient sees something stable
+    even when the sender hasn't filled in their display name; falls
+    back through name → email-prefix → generic 'A Shelfsort reader' so
+    the title never reads as a bare ' wants to be friends'."""
+    handle = (getattr(user, "username", None) or "").strip()
+    if handle:
+        return f"@{handle}"
+    name = (getattr(user, "name", "") or "").strip()
+    if name:
+        return name
+    email = (getattr(user, "email", "") or "").strip()
+    if email:
+        # email.split("@")[0] degrades cleanly when the address is also
+        # missing — empty string falls through to the generic label.
+        prefix = email.split("@")[0]
+        if prefix:
+            return prefix
+    return "A Shelfsort reader"
+
+
 def _serialize_friendship(doc: Dict[str, Any], me: str) -> Dict[str, Any]:
     """Surface from the perspective of `me` — who's the other person."""
     other = doc["user_b"] if doc["user_a"] == me else doc["user_a"]
@@ -89,6 +111,22 @@ async def list_friends(user: User = Depends(get_current_user)):
         for r in rows
     ]
     by_id = await _hydrate_users(other_ids)
+
+    # Defensive cleanup: any friendship row whose other party is no longer
+    # in the users collection is orphaned (legacy account-delete that didn't
+    # cascade).  Showing it would render as "Someone" — purge it instead.
+    orphaned_ids = [oid for oid in other_ids if oid not in by_id]
+    if orphaned_ids:
+        await db.friendships.delete_many({
+            "$or": [
+                {"user_a": user.user_id, "user_b": {"$in": orphaned_ids}},
+                {"user_b": user.user_id, "user_a": {"$in": orphaned_ids}},
+            ],
+        })
+        rows = [
+            r for r in rows
+            if (r["user_b"] if r["user_a"] == user.user_id else r["user_a"]) in by_id
+        ]
 
     accepted, pending_in, pending_out, blocked = [], [], [], []
     for r in rows:
@@ -184,7 +222,7 @@ async def send_friend_request(body: FriendRequestBody, user: User = Depends(get_
             )
             await create_notification(
                 target["user_id"], kind="friend_accepted",
-                title=f"{user.name or user.email} accepted your friend request",
+                title=f"{_display_name(user)} accepted your friend request",
                 body="You can now DM each other and share books.",
                 link="/friends",
             )
@@ -210,7 +248,7 @@ async def send_friend_request(body: FriendRequestBody, user: User = Depends(get_
     request_link = f"/users?focus={requester_handle}" if requester_handle else "/users"
     await create_notification(
         target["user_id"], kind="friend_request",
-        title=f"{user.name or user.email} wants to be friends",
+        title=f"{_display_name(user)} wants to be friends",
         body="See them in the directory, then accept on the Friends page.",
         link=request_link,
     )
@@ -243,7 +281,7 @@ async def accept_friend(other_user_id: str, user: User = Depends(get_current_use
     # Notify the original requester that their friend request was accepted.
     await create_notification(
         rel["requested_by"], kind="friend_accepted",
-        title=f"{user.name or user.email} accepted your friend request",
+        title=f"{_display_name(user)} accepted your friend request",
         body="You can now DM each other and share books.",
         link="/friends",
     )

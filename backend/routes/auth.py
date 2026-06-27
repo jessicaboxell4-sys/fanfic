@@ -910,6 +910,13 @@ async def _hard_delete_user(user_id: str) -> Dict[str, int]:
         "categories": (await db.categories.delete_many({"user_id": user_id})).deleted_count,
         "user_sessions": (await db.user_sessions.delete_many({"user_id": user_id})).deleted_count,
         "password_reset_tokens": (await db.password_reset_tokens.delete_many({"user_id": user_id})).deleted_count,
+        # Social cascades — without these, leftover rows reference a now-
+        # missing user and surface as "Someone" in the recipient's UI.
+        "friendships": (await db.friendships.delete_many(
+            {"$or": [{"user_a": user_id}, {"user_b": user_id}]}
+        )).deleted_count,
+        "invites": (await db.invites.delete_many({"inviter_user_id": user_id})).deleted_count,
+        "notifications": (await db.notifications.delete_many({"user_id": user_id})).deleted_count,
         "users": (await db.users.delete_one({"user_id": user_id})).deleted_count,
         "files_removed": files_removed,
     }

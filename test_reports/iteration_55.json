@@ -1,0 +1,34 @@
+{
+  "summary": "P0 'Someone' friend-request name bug — backend cascade + read-time orphan cleanup verified end-to-end. Ran both the pre-existing direct unit tests (test_friend_orphan_cleanup.py) and a new HTTP-driven e2e regression (test_friends_e2e_someone_bug.py) against the live backend at localhost:8001. All 4 tests pass.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_friend_orphan_cleanup.py",
+    "/app/backend/tests/test_friends_e2e_someone_bug.py",
+    "/app/test_reports/pytest/iteration_55.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Cascade in _hard_delete_user is targeted and correct: deletes friendships where either user_a or user_b matches, invites by inviter_user_id, and notifications by user_id. Note that B's friend_request notification (which references A's now-deleted user_id only via the title string captured at send time) is intentionally preserved — that's fine because the notification title is rendered as plain text on the client, not re-hydrated. Good.",
+    "_display_name fallback chain in /app/backend/routes/friends.py:36-55 is robust: @username → name → email-prefix → 'A Shelfsort reader'. No way to produce a bare ' wants to be friends' title now.",
+    "GET /api/friends defensive GC in list_friends (lines ~117-129) correctly hard-deletes the orphan row so it's permanently swept, not just filtered from the response. Idempotent and cheap. Good.",
+    "Minor observation (not blocking): _hard_delete_user only purges notifications WHERE user_id == deleted_user_id. Notifications other users received that *reference* the deleted user only in the title remain; this is acceptable (title is a captured string, not a live lookup), but worth documenting if the data model ever adds a sender_user_id field for re-hydration."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_friends_e2e_someone_bug.py (new)"
+  ],
+  "success_rate": {"backend": "100% (4/4)", "frontend": "n/a (backend-only run per request)"},
+  "test_credentials": "E2E test registers ephemeral TEST_*@example.com accounts via /api/auth/register and authenticates them via Bearer token extracted from Set-Cookie (cookie jar drops the Secure-flagged cookie on plain http). Tests clean up after themselves.",
+  "seed_data_creation": "Each e2e test creates 2 fresh users, 1 friendship, 1 notification, 1 invite, then deletes them in a finally block. No persistent footprint.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Two regression test files cover the 'Someone' bug end-to-end: direct unit (test_friend_orphan_cleanup.py — 2 tests using shared_event_loop) and HTTP e2e against localhost:8001 (test_friends_e2e_someone_bug.py — 2 tests). Run both with `python -m pytest tests/test_friend_orphan_cleanup.py tests/test_friends_e2e_someone_bug.py -v` from /app/backend. The HTTP tests use Authorization: Bearer (not the cookie jar) because session_token cookies are flagged Secure and `requests` drops them on http://localhost. If backend restarts mid-test (uvicorn watches /app/backend/tests too — annoying), wait ~7s then re-run; pre-restart you can `sudo supervisorctl restart backend` to guarantee a clean slate.",
+  "rca of the issue": "When an account was hard-deleted via _hard_delete_user, the cascade purged books/shelves/sessions but left the friendships, invites, and notifications collections untouched. A friendship row referencing the deleted user remained, so when the recipient opened /friends, _hydrate_users couldn't find the now-missing other-party doc; the serialized row carried empty name/email/username, and DisplayName.jsx fell through to its literal 'Someone' fallback. Fix is two-layered: (1) cascade in _hard_delete_user removes friendships/invites/notifications by user_id (verified by test_hard_delete_cascades_friendships and the e2e cascade test); (2) defensive GC at read time in list_friends physically deletes any orphan that slips through and excludes it from the response (verified by test_get_friends_garbage_collects_orphans). Plus _display_name now guarantees a non-empty title in friend_request/friend_accepted notifications even when name+email are both blank strings."
+}
