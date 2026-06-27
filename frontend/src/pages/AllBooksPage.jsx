@@ -1062,22 +1062,43 @@ export default function AllBooksPage() {
                               const fandomCount = {};
                               const catCount = {};
                               const authorCount = {};
+                              // 2026-06-27 (ROADMAP #20) — pairings
+                              // intersection.  For fic-heavy libraries,
+                              // readers stick with their ships harder
+                              // than their fandoms (you might read across
+                              // multiple Marvel pairings but never stray
+                              // from your one Steve/Bucky preference).
+                              // Each finished book contributes its
+                              // pairings into the tally; the scorer
+                              // below counts how many of the candidate
+                              // book's pairings overlap.
+                              const pairingCount = {};
                               for (const b of finished) {
                                 if (b.fandom) fandomCount[b.fandom] = (fandomCount[b.fandom] || 0) + 1;
                                 if (b.category) catCount[b.category] = (catCount[b.category] || 0) + 1;
                                 if (b.author) authorCount[b.author] = (authorCount[b.author] || 0) + 1;
+                                for (const p of (b.pairings || [])) {
+                                  if (p) pairingCount[p] = (pairingCount[p] || 0) + 1;
+                                }
                               }
                               // Score each filtered book.  Baseline of
                               // 1 so unfamiliar books still have a
                               // chance — pure "echo chamber" picks
                               // would defeat the purpose.
-                              const weighted = visibleBooks.map((b) => ({
-                                book: b,
-                                weight: 1
-                                  + (fandomCount[b.fandom] || 0) * 3
-                                  + (catCount[b.category] || 0) * 2
-                                  + (authorCount[b.author] || 0) * 2,
-                              }));
+                              const weighted = visibleBooks.map((b) => {
+                                let pairingOverlap = 0;
+                                for (const p of (b.pairings || [])) {
+                                  if (pairingCount[p]) pairingOverlap += pairingCount[p];
+                                }
+                                return {
+                                  book: b,
+                                  weight: 1
+                                    + (fandomCount[b.fandom] || 0) * 3
+                                    + (catCount[b.category] || 0) * 2
+                                    + (authorCount[b.author] || 0) * 2
+                                    + pairingOverlap * 2,
+                                };
+                              });
                               const total = weighted.reduce((s, w) => s + w.weight, 0);
                               let r = Math.random() * total;
                               let pick = weighted[0].book;
@@ -1091,7 +1112,7 @@ export default function AllBooksPage() {
                             }}
                             data-testid="chip-pick-for-me"
                             className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-[#6B46C1] text-white hover:bg-[#553397]"
-                            title="Like Shuffle, but biased toward books that match the fandoms, categories, and authors you've already finished. Falls back to random if you have no reading history yet."
+                            title="Like Shuffle, but biased toward books that match the fandoms, categories, authors, and ships you've already finished. Falls back to random if you have no reading history yet."
                           >
                             <Heart className="w-3 h-3" />
                             Pick for me

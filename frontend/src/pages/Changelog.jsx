@@ -283,6 +283,40 @@ function CanaryUptimePill() {
   const label = `${pct.toFixed(pct === 100 ? 0 : 1)}% uptime · ${info.days} days`;
   const title = `${info.pass_count}/${info.total_runs} canary runs passed over the last ${info.days} days`;
 
+  // 2026-06-27 — "Days since last incident" trust counter.  Scans
+  // the daily array (oldest-first) for the latest-indexed cell with
+  // any failures and computes the gap to the most recent cell.
+  // Renders one of:
+  //   • "12 days since last incident" — normal case
+  //   • "Today" — incident on today's UTC day
+  //   • "30+ days since last incident" — no fail in the window
+  // Quiet "we run a tight ship" signal that quietly counts up
+  // between outages.  Skipped entirely if the sparkline data is
+  // missing (e.g. fresh install with no canary_runs yet).
+  let incidentChip = null;
+  if (info.daily && info.daily.length > 0) {
+    let lastRedIdx = -1;
+    for (let i = info.daily.length - 1; i >= 0; i--) {
+      if ((info.daily[i].fail || 0) > 0) { lastRedIdx = i; break; }
+    }
+    if (lastRedIdx === -1) {
+      incidentChip = {
+        text: `${info.daily.length}+ days clean`,
+        title: `No failures in the ${info.daily.length}-day window — earlier history may exist.`,
+      };
+    } else {
+      const gap = info.daily.length - 1 - lastRedIdx;
+      if (gap === 0) {
+        incidentChip = { text: "Incident today", title: "A canary failure happened today (UTC)." };
+      } else {
+        incidentChip = {
+          text: `${gap} day${gap === 1 ? "" : "s"} since last incident`,
+          title: `Latest red cell: ${info.daily[lastRedIdx].date}`,
+        };
+      }
+    }
+  }
+
   // Sparkline cell classifier — mirrors the pill color tiers but
   // applied per-day so the eye can scan for incident clusters.
   // Blank/grey for "no data" days keeps the chart length stable
@@ -327,6 +361,16 @@ function CanaryUptimePill() {
               data-testid={`changelog-canary-spark-${d.date}`}
             />
           ))}
+        </span>
+      )}
+      {incidentChip && (
+        <span
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#F0EBE2] text-[#6B705C] border border-[#E4D9C8]"
+          title={incidentChip.title}
+          data-testid="changelog-canary-incident-counter"
+        >
+          <span aria-hidden="true">📅</span>
+          <span>{incidentChip.text}</span>
         </span>
       )}
     </span>

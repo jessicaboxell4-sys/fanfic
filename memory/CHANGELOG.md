@@ -7,6 +7,57 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 (a + b combo) — Incident counter + Pairing-weighted picks 🎯
+
+Two micro-features on top of today's foundation work.
+
+### (a) "Days since last incident" counter on `/changelog`
+
+- **Frontend** (`Changelog.jsx → CanaryUptimePill`) — scans the new
+  `info.daily[]` array for the latest-indexed cell with `fail > 0`
+  and renders one of three messages right after the sparkline:
+    - `📅 12 days since last incident` (normal case)
+    - `📅 Incident today` (red cell on today's UTC day)
+    - `📅 30+ days clean` (no fail in the entire window)
+  Hover tooltip surfaces the exact date of the most recent red cell.
+- **Verified live**: seeded 30 runs with a single fail 5 days ago →
+  page rendered `96.7% uptime · 30 days` / 30-cell bar with one red
+  / `📅 5 days since last incident` all inline.
+
+### (b) Pairing-intersection boost in Pick-for-me weighting (ROADMAP #20)
+
+- **Frontend** (`AllBooksPage.jsx → chip-pick-for-me handler`) — the
+  weight formula now reads:
+  ```
+  weight = 1
+         + 3 × (count of finished books in same fandom)
+         + 2 × (count of finished books in same category)
+         + 2 × (count of finished books by same author)
+         + 2 × (overlap with finished books' pairings)   ← NEW
+  ```
+- For each finished book, every entry in `b.pairings` adds to a
+  `pairingCount` tally.  Candidate books then score `sum of
+  pairingCount[p] for p in candidate.pairings` × 2.  Multi-pairing
+  books accumulate naturally; books with no pairings score 0 on
+  this dimension (same as their fandom/category/author behaviour).
+- Title attribute updated to mention "ships" alongside fandoms/
+  categories/authors so users know what's happening.
+- Rationale (from ROADMAP #20): fic-heavy readers stick with their
+  ships harder than their fandoms.  You might read across multiple
+  Marvel pairings but never stray from your one Steve/Bucky
+  preference — Pick-for-me now respects that.
+
+### Cost / risk
+Both changes are pure client-side, AND-additive (no existing
+behaviour changes when the new signal is absent: zero pairings on a
+book = same score as before).  Lint clean on both files.  No new
+backend routes, no DB migrations.
+
+Files touched: `frontend/src/pages/Changelog.jsx`,
+`frontend/src/pages/AllBooksPage.jsx`.
+
+---
+
 ## 2026-06-27 (P2/P3 batch) — Three shipped: sparkline, series chip, cron fix 🎯
 
 ### 🟡 P2: Canary 30-day uptime sparkline on `/changelog`
