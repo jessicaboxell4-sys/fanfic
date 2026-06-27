@@ -381,7 +381,7 @@ function ShelfPreview({ shelf }) {
         {shelf.books.map((b) => (
           <li
             key={b.title}
-            className="flex items-center gap-3 p-2 -mx-1 rounded-lg hover:bg-[#FAF6EE]"
+            className="flex items-center gap-3 p-2 -mx-1 rounded-lg hover:bg-[#F5F3EC]"
           >
             <div
               className="w-7 h-10 rounded-sm shrink-0 shadow-sm"

@@ -148,7 +148,7 @@ export default function PdfTtsControls({ currentPage, totalPages, scrollContaine
           type="button"
           data-testid="pdf-tts-start"
           onClick={start}
-          className="px-2 py-1 text-xs rounded-md border border-[#E5DDC5] hover:bg-[#FAF6EE] text-[#2C2C2C] inline-flex items-center gap-1"
+          className="px-2 py-1 text-xs rounded-md border border-[#E5DDC5] hover:bg-[#F5F3EC] text-[#2C2C2C] inline-flex items-center gap-1"
           title="Read this PDF aloud (Web Speech)"
         >
           <Headphones className="w-3.5 h-3.5" /> Read aloud
@@ -160,7 +160,7 @@ export default function PdfTtsControls({ currentPage, totalPages, scrollContaine
             type="button"
             data-testid="pdf-tts-pause"
             onClick={togglePause}
-            className="p-1 rounded hover:bg-[#FAF6EE]"
+            className="p-1 rounded hover:bg-[#F5F3EC]"
             title={paused ? "Resume" : "Pause"}
           >
             {paused ? <Play className="w-4 h-4 text-[#2C2C2C]" /> : <Pause className="w-4 h-4 text-[#2C2C2C]" />}
@@ -169,7 +169,7 @@ export default function PdfTtsControls({ currentPage, totalPages, scrollContaine
             type="button"
             data-testid="pdf-tts-stop"
             onClick={stopAll}
-            className="p-1 rounded hover:bg-[#FAF6EE]"
+            className="p-1 rounded hover:bg-[#F5F3EC]"
             title="Stop"
           >
             <Square className="w-4 h-4 text-[#2C2C2C]" />

@@ -569,7 +569,7 @@ export default function ReadOriginal() {
                   <li
                     key={bm.bookmark_id}
                     data-testid={`readoriginal-bookmark-row-${bm.bookmark_id}`}
-                    className="border border-[#E8E6E1] rounded-lg p-3 hover:bg-[#FAF6EE] group"
+                    className="border border-[#E8E6E1] rounded-lg p-3 hover:bg-[#F5F3EC] group"
                   >
                     <button
                       type="button"

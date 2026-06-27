@@ -615,7 +615,7 @@ export default function BackgroundJobsBell() {
                     setHoveredJobId((cur) => (cur === j.jobId ? null : j.jobId));
                   },
                   className: `block cursor-pointer transition-colors ${
-                    isHovered ? "bg-[#FAF6EE]" : "hover:bg-[#FAF6EE]"
+                    isHovered ? "bg-[#F5F3EC]" : "hover:bg-[#F5F3EC]"
                   }`,
                 };
 

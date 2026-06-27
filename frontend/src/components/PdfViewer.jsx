@@ -180,7 +180,7 @@ export default function PdfViewer({
           onClick={() => goPage(currentPage - 1)}
           disabled={currentPage <= 1}
           className={`p-1.5 rounded-md disabled:opacity-30 ${
-            isDark ? "hover:bg-zinc-800" : "hover:bg-[#FAF6EE]"
+            isDark ? "hover:bg-zinc-800" : "hover:bg-[#F5F3EC]"
           }`}
         >
           <ChevronLeft className="w-4 h-4" />
@@ -209,7 +209,7 @@ export default function PdfViewer({
           onClick={() => goPage(currentPage + 1)}
           disabled={!numPages || currentPage >= numPages}
           className={`p-1.5 rounded-md disabled:opacity-30 ${
-            isDark ? "hover:bg-zinc-800" : "hover:bg-[#FAF6EE]"
+            isDark ? "hover:bg-zinc-800" : "hover:bg-[#F5F3EC]"
           }`}
         >
           <ChevronRight className="w-4 h-4" />
@@ -222,7 +222,7 @@ export default function PdfViewer({
             data-testid="pdf-zoom-out"
             onClick={() => setScale((s) => Math.max(0.5, +(s - 0.1).toFixed(2)))}
             className={`p-1.5 rounded-md ${
-              isDark ? "hover:bg-zinc-800" : "hover:bg-[#FAF6EE]"
+              isDark ? "hover:bg-zinc-800" : "hover:bg-[#F5F3EC]"
             }`}
           >
             <Minus className="w-4 h-4" />
@@ -234,7 +234,7 @@ export default function PdfViewer({
             data-testid="pdf-zoom-in"
             onClick={() => setScale((s) => Math.min(2.5, +(s + 0.1).toFixed(2)))}
             className={`p-1.5 rounded-md ${
-              isDark ? "hover:bg-zinc-800" : "hover:bg-[#FAF6EE]"
+              isDark ? "hover:bg-zinc-800" : "hover:bg-[#F5F3EC]"
             }`}
           >
             <Plus className="w-4 h-4" />
