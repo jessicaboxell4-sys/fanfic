@@ -4187,7 +4187,10 @@ async def list_relationships(user: User = Depends(get_current_user)):
         {"$match": {"user_id": user.user_id, "category": {"$ne": TRASH_SHELF}, "relationships": {"$exists": True, "$ne": []}}},
         {"$unwind": "$relationships"},
         {"$group": {"_id": "$relationships", "count": {"$sum": 1}, "fandoms": {"$addToSet": "$fandom"}}},
-        {"$sort": {"count": -1}},
+        # count desc, then canonical pairing name asc — gives a stable
+        # ordering on ties instead of relying on MongoDB's insertion
+        # order (which would shuffle as books get uploaded/deleted).
+        {"$sort": {"count": -1, "_id": 1}},
     ]
     out = []
     async for r in db.books.aggregate(pipeline):

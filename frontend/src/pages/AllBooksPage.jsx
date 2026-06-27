@@ -1721,6 +1721,15 @@ export default function AllBooksPage() {
                   Browse pairings
                   <ArrowRight className="w-3 h-3" />
                 </button>
+                <button
+                  onClick={() => navigate("/library/characters")}
+                  data-testid="dashboard-characters-chip"
+                  className="mb-3 mr-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-[#6B46C1]/10 text-[#6B46C1] border border-[#6B46C1]/30 hover:bg-[#6B46C1] hover:text-white transition-colors"
+                  title="Browse every character mentioned in your library's pairings"
+                >
+                  Browse characters
+                  <ArrowRight className="w-3 h-3" />
+                </button>
                 {(() => {
                   const q = fandomQuery.trim().toLowerCase();
                   const visibleFandoms = q

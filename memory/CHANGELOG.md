@@ -7,6 +7,49 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 — Characters dimension + sort tiebreaks 👥
+
+Two-part follow-up to "how are characters sorted?":
+
+### 1. New first-class Characters browser
+
+- New endpoints in `routes/characters.py`:
+  - `GET /api/library/characters` — every character + book count + fandoms + 3 sample titles, sorted by **count DESC, name ASC**.
+  - `GET /api/library/by-character?character=X` — case-insensitive lookup of every book mentioning X.
+- Characters are **derived at read-time** by splitting each book's
+  `relationships` array on AO3's `/` (romantic), ` & ` (platonic),
+  and space-padded ` x ` separators.  No EPUB re-parse needed — works
+  on every book in the DB today.
+- Same-book dedupe: a character that appears in multiple
+  relationships of the same book counts once (so a polycule fic
+  doesn't inflate the count).
+- New page `CharactersPage.jsx` with `CharactersDirectory` and
+  `CharacterShelf` components mirroring the Pairings UX.
+- Routes: `/library/characters` and
+  `/library/by-character/:character`.
+- "Browse characters" chip added on `/library/all` next to "Browse
+  pairings" — same purple pill, same hover, no extra clutter.
+- Help docs updated with the new section.
+
+### 2. Deterministic tiebreak on /api/relationships
+
+Previously `GET /api/relationships` sorted only by `count DESC`, so
+ties relied on MongoDB's insertion order (which shuffles as books get
+uploaded/deleted).  Now sorts `count DESC, _id ASC` to match
+`/api/library/pairings` — identical counts always render in the same
+order on every page load.
+
+### Tests
+
+`tests/test_characters.py` — 5 tests, all pass:
+- `_split_characters` covers `/`, `&`, and space-padded `x`
+- Directory sort = count DESC then name ASC
+- Same-book dedupe
+- Case-insensitive `/by-character` lookup
+- `/api/relationships` alpha tiebreak
+
+---
+
 ## 2026-06-27 — Inline friend-request nudge on /library/all 👋
 
 Small follow-up to the "Someone" bug fix.  Now that incoming
