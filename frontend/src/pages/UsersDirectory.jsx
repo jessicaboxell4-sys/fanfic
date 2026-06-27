@@ -153,6 +153,15 @@ export default function UsersDirectory() {
   const [filter, setFilter] = useState("");
   const [busy, setBusy] = useState(null);
   const [sentTo, setSentTo] = useState(() => new Set());
+  // 2026-06-27 Phase 2 — Library-mode filter chip.  Empty string = no
+  // filter (show everyone, current default).  "fanfic" / "original" /
+  // "mixed" map directly to the backend's ?mode= param.  Lifted into
+  // searchParams so the chip state survives refresh + can be deep-
+  // linked from the FB reply ("here's how to find fic readers").
+  const [modeFilter, setModeFilter] = useState(() => {
+    const raw = (searchParams.get("mode") || "").toLowerCase();
+    return ["fanfic", "original", "mixed"].includes(raw) ? raw : "";
+  });
   // Handle of the row to scroll to + highlight when the URL contains
   // ?focus=somehandle.  Stored in state (not derived) so a successful
   // scroll can clear it locally without re-triggering on next render.
@@ -191,12 +200,15 @@ export default function UsersDirectory() {
     }
   }, [user, navigate]);
 
-  const load = async (p) => {
+  const load = async (p, modeOverride) => {
     setLoading(true);
     try {
-      const { data } = await api.get("/users/directory", {
-        params: { page: p, limit: PAGE_SIZE },
-      });
+      // 2026-06-27 Phase 2 — pass through the mode filter; backend
+      // accepts fanfic/original/mixed and ignores anything else.
+      const m = modeOverride !== undefined ? modeOverride : modeFilter;
+      const params = { page: p, limit: PAGE_SIZE };
+      if (m) params.mode = m;
+      const { data } = await api.get("/users/directory", { params });
       setRows(data?.users || []);
       setTotal(data?.total || 0);
       setHasMore(!!data?.has_more);
@@ -208,6 +220,18 @@ export default function UsersDirectory() {
     }
   };
   useEffect(() => { load(1); }, []);
+
+  // Re-fetch + sync the ?mode= query param whenever the mode chip
+  // changes.  Skipped on first render (the initial load above already
+  // honoured the URL param).
+  const firstModeRender = useRef(true);
+  useEffect(() => {
+    if (firstModeRender.current) { firstModeRender.current = false; return; }
+    const next = new URLSearchParams(searchParams);
+    if (modeFilter) next.set("mode", modeFilter); else next.delete("mode");
+    setSearchParams(next, { replace: true });
+    load(1, modeFilter);
+  }, [modeFilter]);
 
   // Auto-scroll to a row when /users?focus=handle is used (e.g. from a
   // crossover suggestion or friend-request link).  We wait until rows
@@ -354,6 +378,55 @@ export default function UsersDirectory() {
           )}
         </div>
 
+        {/* 2026-06-27 Phase 2 — Library-mode chip row.  Lets readers
+            narrow the directory to people whose libraries match their
+            own taste (e.g. fic readers find fic readers).  The "Like
+            me" chip is conditionally rendered only when the viewer
+            has picked a non-default mode in Account → Library — for
+            "mixed" / unset users the explicit mode pills are clearer
+            than a tautological "like me = everyone" affordance. */}
+        <div
+          className="mb-5 flex flex-wrap items-center gap-2"
+          data-testid="directory-mode-chips"
+        >
+          <span className="text-xs uppercase tracking-wider text-[#6B705C] font-semibold mr-1">
+            Reader type:
+          </span>
+          {[
+            { value: "", label: "All readers", testid: "directory-mode-chip-all" },
+            { value: "fanfic", label: "💜 Fanfic", testid: "directory-mode-chip-fanfic" },
+            { value: "original", label: "📖 Original fic", testid: "directory-mode-chip-original" },
+            { value: "mixed", label: "🔀 Mixed", testid: "directory-mode-chip-mixed" },
+          ].map((opt) => (
+            <button
+              key={opt.value || "all"}
+              type="button"
+              onClick={() => setModeFilter(opt.value)}
+              data-testid={opt.testid}
+              aria-pressed={modeFilter === opt.value}
+              className={
+                "px-3 py-1.5 rounded-full text-xs font-semibold transition " +
+                (modeFilter === opt.value
+                  ? "bg-[#6B46C1] text-white"
+                  : "bg-[#F5F3EC] text-[#2C2C2C] hover:bg-[#E8E2D4]")
+              }
+            >
+              {opt.label}
+            </button>
+          ))}
+          {user?.library_mode && user.library_mode !== "mixed" && modeFilter !== user.library_mode && (
+            <button
+              type="button"
+              onClick={() => setModeFilter(user.library_mode)}
+              data-testid="directory-mode-chip-likeme"
+              title={`Show readers who share your "${user.library_mode}" library mode`}
+              className="px-3 py-1.5 rounded-full text-xs font-semibold bg-[#FFF3D6] text-[#7C5F1F] border border-[#E8D89A] hover:bg-[#FCE9B0]"
+            >
+              ✨ Like me ({user.library_mode === "fanfic" ? "fanfic" : "original"})
+            </button>
+          )}
+        </div>
+
         {loading ? (
           <div className="text-center py-16 text-[#6B705C]" data-testid="directory-loading">
             <Loader2 className="w-6 h-6 animate-spin mx-auto mb-3" />
@@ -433,6 +506,19 @@ export default function UsersDirectory() {
                     >
                       <BookOpen className="w-3 h-3" /> Library
                     </Link>
+                  )}
+                  {/* 2026-06-27 Phase 2 — Per-row library-mode chip.
+                      Only rendered for fanfic / original (mixed = no
+                      visible signal needed; it's the default).  Tiny
+                      so it never competes with the Add button. */}
+                  {(row.library_mode === "fanfic" || row.library_mode === "original") && (
+                    <span
+                      data-testid={`directory-mode-${row.username}`}
+                      title={row.library_mode === "fanfic" ? "Fanfic reader" : "Original-fic reader"}
+                      className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#F5F3EC] text-[#6B705C] flex-shrink-0"
+                    >
+                      {row.library_mode === "fanfic" ? "💜 fic" : "📖 og"}
+                    </span>
                   )}
                   {sent ? (
                     <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#3D8B79] px-2 py-1" data-testid={`directory-sent-${row.username}`}>
