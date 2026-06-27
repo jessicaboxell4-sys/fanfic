@@ -8,6 +8,7 @@ import {
   trackPendingJob,
   untrackPendingJob,
 } from "../lib/uploadJobs";
+import AirdropInfoTip from "./AirdropInfoTip";
 
 // Every format the backend accepts — .epub goes through the EPUB pipeline,
 // the rest land on the "Needs conversion" shelf with a Calibre nudge.
@@ -819,6 +820,8 @@ export default function UploadZone({ onUploaded, compact = false }) {
           </span>
         </div>
       )}
+      {/* One-time educational tip: tab-close-safe upload pipeline. */}
+      <AirdropInfoTip compact={compact} />
       <div
         data-testid="upload-zone"
         onDragOver={(e) => { e.preventDefault(); setDrag(true); }}

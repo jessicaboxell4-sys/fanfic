@@ -7,6 +7,42 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 — One-time "you can close the tab" tip 💡
+
+User-requested educational moment: every user — existing or
+brand-new — should see a one-time message the first time they hit
+the upload zone after the airdrop-mode launch, explaining that
+they can close the tab once the upload bar finishes.
+
+### Implementation
+
+- New `components/AirdropInfoTip.jsx`:
+  - Small dismissible info card.
+  - Two variants: `compact` (for the dashboard's compact upload
+    zone) and full (for the dedicated upload page).
+  - Copy: *"Heads-up: once the upload bar finishes, you can close
+    this tab. Shelfsort keeps sorting on the server — books appear
+    in your library as each one finishes processing. Big drops use
+    airdrop mode automatically (20+ files)."*
+  - Dismissal persisted in `localStorage` under
+    `shelfsort.tip.airdrop-tab-close-dismissed` — never reappears
+    on the same browser once acknowledged.
+- Mounted **inside** `UploadZone.jsx` (above the dropzone), so the
+  tip is co-located with the upload action it describes.  Renders
+  for every user on first visit; auto-hides forever once they X
+  out.
+
+### Why a banner, not a toast
+
+Toast notifications fire-and-forget — users could miss them in the
+flood of upload feedback.  An inline banner sits *next to* the
+upload zone the user is about to interact with, so they read it in
+context, then dismiss when ready.
+
+Test IDs: `airdrop-info-tip`, `airdrop-info-tip-dismiss`.
+
+---
+
 ## 2026-06-27 — "Books arriving" inline indicator 📥
 
 Follow-up to the airdrop-mode launch.  Now that uploads return
