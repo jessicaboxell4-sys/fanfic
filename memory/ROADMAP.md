@@ -715,6 +715,22 @@ books?" anxiety moment. Eliminating it builds trust.
 
 ## ⏰ Parked reminders — bring up next session
 
+### 🅿️ Parked 2026-06-27 — Composable `<TrustStrip />` component
+
+The `/changelog` trust-signal stack (shields.io badge + state word
++ heartbeat caption + 30-day sparkline + incident counter) is dense
+enough to be reusable.  Extract it into a single `<TrustStrip />`
+component that other public surfaces can drop in with one import:
+  • `/` (marketing homepage)
+  • `/users` (directory)
+  • the login gate / 401 wall
+Same data fetcher (`/api/canary/status` + `/api/canary/uptime`
+with shared 5-min in-process cache, so additional mount points
+don't fan-out extra requests).  ~20 min refactor for compound
+reliability-broadcast payoff across every public landing.
+User asked to revisit later.
+
+
 ### 🅿️ Parked 2026-06-27 — "Days since last incident" counter on sparkline
 
 Add a tiny `📅 12 days since last incident` counter next to the
