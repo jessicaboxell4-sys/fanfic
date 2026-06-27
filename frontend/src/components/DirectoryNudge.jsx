@@ -30,7 +30,7 @@ export default function DirectoryNudge({ totalBooks }) {
   return (
     <aside
       data-testid="directory-nudge"
-      className="mb-6 p-4 rounded-xl border border-[#6B46C1]/20 bg-gradient-to-r from-[#EEE9FB] to-[#FBFAF6] flex items-start gap-3"
+      className="mb-6 p-4 rounded-xl border border-[#6B46C1]/20 bg-[#EEE9FB] flex items-start gap-3"
     >
       <div className="w-9 h-9 rounded-lg bg-white text-[#6B46C1] flex items-center justify-center flex-shrink-0 shadow-sm">
         <Users className="w-5 h-5" />
