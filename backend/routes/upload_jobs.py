@@ -164,6 +164,26 @@ async def _run_upload_job(job_id: str, user_id: str) -> None:
             "processed": len(staged_files),
         })
     except Exception as exc:  # noqa: BLE001
+        # 2026-06-27 — Transient Mongo errors (Atlas primary election,
+        # network blip, autoscale roll) should NOT mark the job
+        # failed.  Leave it as "queued" with a friendly error blurb
+        # so the 5-min recover_stuck_upload_jobs cron picks it up
+        # once Atlas recovers.  Real bugs still land in "failed".
+        from utils.db_retry import is_transient_mongo_error, friendly_mongo_message
+        if is_transient_mongo_error(exc):
+            logger.warning(
+                "upload job %s hit transient Mongo error (%s) — leaving as queued for recovery cron",
+                job_id, type(exc).__name__,
+            )
+            await _persist_job(job_id, {
+                "status": "queued",
+                "started_at": None,
+                "error": friendly_mongo_message(exc),
+            })
+            # Don't sweep the staging directory — the recovery cron
+            # will need those bytes to re-run the pipeline.  Return
+            # early to skip the rmtree in `finally`.
+            return
         logger.exception("upload job %s failed", job_id)
         await _persist_job(job_id, {
             "status": "failed",
