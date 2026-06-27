@@ -81,6 +81,7 @@ async def list_books(
     category: Optional[str] = None,
     fandom: Optional[str] = None,
     relationship: Optional[str] = None,
+    character: Optional[str] = None,
     q: Optional[str] = None,
     smart: Optional[str] = None,
     include_originals: bool = False,
@@ -100,6 +101,20 @@ async def list_books(
         query['fandom'] = fandom
     if relationship:
         query['relationships'] = relationship
+    if character and character.strip():
+        # Match any relationship string that mentions this character.
+        # Characters aren't stored as a first-class field — they're
+        # derived from the canonical ``relationships`` array (see
+        # ``routes/characters.py``).  A case-insensitive regex on
+        # the escaped name is enough: chip clicks always pass the
+        # full derived name (e.g. "Harry Potter"), so partial-name
+        # collisions like "Harry" vs "Harry Potter" don't happen in
+        # the normal navigation flow.
+        import re as _re
+        query['relationships'] = {
+            "$regex": _re.escape(character.strip()),
+            "$options": "i",
+        }
     # AO3 metadata filters (added 2026-06-13). Each is exact-match on a
     # canonical value (e.g. "Mature", "M/M", "Graphic Depictions Of Violence").
     if rating:

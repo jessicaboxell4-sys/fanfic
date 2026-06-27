@@ -7,6 +7,37 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 — In-fandom character drill-down 🔎
+
+Click any chip on the "Top characters in {fandom}" rail and the
+fandom shelf now narrows to *only* the books featuring that
+character — no jump to the global by-character view.  Stays inside
+the fandom context.
+
+- `GET /api/books` accepts a new `character` query param.  Matches
+  any book whose `relationships` array mentions the character
+  (case-insensitive, regex-escaped, no first-class field).
+- `FandomShelf.jsx` reads `?character=X` from the URL via
+  `useSearchParams`, passes it to the books endpoint, and toggles
+  it via chip clicks (click an active chip again to clear).
+- New "Filtered to books featuring {X} — clear filter" status line
+  appears below the rail when active.
+- Books-count caption now says "N HP books featuring Harry Potter"
+  when filtered, instead of the generic "N books on this shelf".
+- "See all →" pill added at the end of the rail so users can still
+  reach the global characters directory in one click.
+
+### Tests
+`tests/test_characters.py::test_list_books_filters_by_character`
+pins the new query param — only HP books mentioning Harry Potter
+come back, MCU books with "Harry Osborn" are excluded.  7/7 tests
+pass.
+
+Test IDs: `fandom-character-filter-status`,
+`fandom-character-filter-clear`, `fandom-top-characters-see-all`.
+
+---
+
 ## 2026-06-27 — "Top characters" rail on fandom shelves 👥
 
 Follow-up to the Characters browser launched earlier today.

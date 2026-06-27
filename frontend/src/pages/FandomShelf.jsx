@@ -1,15 +1,17 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams, Link } from "react-router-dom";
 import { api } from "../lib/api";
 import Navbar from "../components/Navbar";
 import BookCard from "../components/BookCard";
-import { ArrowLeft, ArrowLeftRight, Download, Link as LinkIcon, Search, BookOpen, Users } from "lucide-react";
+import { ArrowLeft, ArrowLeftRight, Download, Link as LinkIcon, Search, BookOpen, Users, X } from "lucide-react";
 import { toast } from "sonner";
 
 export default function FandomShelf() {
   const params = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const fandom = decodeURIComponent(params.fandom || "");
+  const character = (searchParams.get("character") || "").trim();
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -20,13 +22,18 @@ export default function FandomShelf() {
     setLoading(true);
     try {
       const { data } = await api.get("/books", {
-        params: { category: "Fanfiction", fandom, ...(search ? { q: search } : {}) },
+        params: {
+          category: "Fanfiction",
+          fandom,
+          ...(search ? { q: search } : {}),
+          ...(character ? { character } : {}),
+        },
       });
       setBooks(data.books || []);
     } finally {
       setLoading(false);
     }
-  }, [fandom, search]);
+  }, [fandom, search, character]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -156,10 +163,12 @@ export default function FandomShelf() {
                 </div>
               );
             })()}
-            <p className="text-[#6B705C] mt-3">
+            <p className="text-[#6B705C] mt-3" data-testid="fandom-books-count">
               {loading
                 ? "Loading shelf…"
-                : `${books.length} book${books.length === 1 ? "" : "s"} on this shelf`}
+                : character
+                  ? `${books.length} ${fandom} book${books.length === 1 ? "" : "s"} featuring ${character}`
+                  : `${books.length} book${books.length === 1 ? "" : "s"} on this shelf`}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -201,19 +210,72 @@ export default function FandomShelf() {
               Top characters in {fandom}
             </p>
             <div className="flex flex-wrap gap-2">
-              {topCharacters.map((c) => (
-                <button
-                  key={c.name}
-                  onClick={() => navigate(`/library/by-character/${encodeURIComponent(c.name)}`)}
-                  data-testid={`fandom-top-character-${c.name.replace(/\s+/g, "-").toLowerCase()}`}
-                  className="px-3 py-1.5 rounded-full text-xs font-semibold border bg-[#FDF3E1] text-[#6B46C1] border-[#6B46C1]/30 hover:bg-[#6B46C1] hover:text-white transition-colors inline-flex items-center gap-2"
-                  title={`${c.count} book${c.count === 1 ? "" : "s"} in ${fandom} feature ${c.name}`}
-                >
-                  <span>{c.name}</span>
-                  <span className="text-[10px] opacity-70">· {c.count}</span>
-                </button>
-              ))}
+              {topCharacters.map((c) => {
+                const isActive = c.name.toLowerCase() === character.toLowerCase();
+                return (
+                  <button
+                    key={c.name}
+                    onClick={() => {
+                      // Drill DOWN inside the current fandom shelf instead
+                      // of jumping to the global by-character view. Click
+                      // again on the active chip to clear the filter.
+                      const next = new URLSearchParams(searchParams);
+                      if (isActive) {
+                        next.delete("character");
+                      } else {
+                        next.set("character", c.name);
+                      }
+                      setSearchParams(next, { replace: false });
+                    }}
+                    data-testid={`fandom-top-character-${c.name.replace(/\s+/g, "-").toLowerCase()}`}
+                    aria-pressed={isActive}
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold border inline-flex items-center gap-2 transition-colors ${
+                      isActive
+                        ? "bg-[#6B46C1] text-white border-[#6B46C1]"
+                        : "bg-[#FDF3E1] text-[#6B46C1] border-[#6B46C1]/30 hover:bg-[#6B46C1] hover:text-white"
+                    }`}
+                    title={
+                      isActive
+                        ? `Showing only ${c.name} books in ${fandom} — click to clear`
+                        : `${c.count} book${c.count === 1 ? "" : "s"} in ${fandom} feature ${c.name}`
+                    }
+                  >
+                    <span>{c.name}</span>
+                    <span className="text-[10px] opacity-70">· {c.count}</span>
+                    {isActive && <X className="w-3 h-3" aria-hidden="true" />}
+                  </button>
+                );
+              })}
+              <Link
+                to="/library/characters"
+                data-testid="fandom-top-characters-see-all"
+                className="px-3 py-1.5 rounded-full text-xs font-semibold border bg-transparent text-[#6B705C] border-[#E5DDC5] hover:bg-[#F5F3EC] hover:text-[#2C2C2C] transition-colors inline-flex items-center gap-1"
+                title="Browse every character across your whole library"
+              >
+                See all →
+              </Link>
             </div>
+            {character && (
+              <p
+                className="text-xs text-[#6B705C] italic mt-2"
+                data-testid="fandom-character-filter-status"
+              >
+                Filtered to books featuring <span className="font-semibold text-[#2C2C2C]">{character}</span>
+                {" — "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = new URLSearchParams(searchParams);
+                    next.delete("character");
+                    setSearchParams(next, { replace: false });
+                  }}
+                  data-testid="fandom-character-filter-clear"
+                  className="underline underline-offset-2 hover:text-[#6B46C1]"
+                >
+                  clear filter
+                </button>
+              </p>
+            )}
           </section>
         )}
 

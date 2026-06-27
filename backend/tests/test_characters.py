@@ -199,6 +199,70 @@ def test_list_characters_scoped_to_fandom(shared_event_loop):
     shared_event_loop.run_until_complete(_run())
 
 
+def test_list_books_filters_by_character(shared_event_loop):
+    """`GET /api/books?fandom=X&character=Y` returns only books whose
+    relationships array mentions character Y inside fandom X.  Powers
+    the drill-down chip on the per-fandom shelf."""
+    from routes.library_reads import list_books
+    from models import User
+    from fastapi import Request
+
+    async def _run():
+        cli = AsyncIOMotorClient(os.environ["MONGO_URL"])
+        db = cli[os.environ["DB_NAME"]]
+        uid = _uid()
+        try:
+            await db.users.insert_one({
+                "user_id": uid,
+                "email": f"{uid}@example.com",
+                "name": "Charter",
+                "approval_status": "approved",
+            })
+            await db.books.insert_one({
+                "book_id": "bk_hp_harry",
+                "user_id": uid, "title": "Harry fic",
+                "fandom": "Harry Potter", "category": "Fanfiction",
+                "relationships": ["Harry Potter/Draco Malfoy"],
+            })
+            await db.books.insert_one({
+                "book_id": "bk_hp_other",
+                "user_id": uid, "title": "Hermione + Ron fic",
+                "fandom": "Harry Potter", "category": "Fanfiction",
+                "relationships": ["Hermione Granger/Ron Weasley"],
+            })
+            await db.books.insert_one({
+                "book_id": "bk_mcu_harry",
+                "user_id": uid, "title": "Different fandom",
+                "fandom": "Marvel", "category": "Fanfiction",
+                "relationships": ["Harry Osborn/Peter Parker"],
+            })
+
+            me = User(user_id=uid, email=f"{uid}@example.com", name="Charter")
+            scope = Request({"type": "http", "method": "GET", "headers": []})
+
+            # Filter by Harry Potter character INSIDE HP fandom.
+            res = await list_books(
+                request=scope,
+                category="Fanfiction",
+                fandom="Harry Potter",
+                relationship=None,
+                character="Harry Potter",
+                q=None, smart=None,
+                include_originals=False,
+                rating=None, ao3_category=None,
+                warning=None, exclude_warning=None,
+                user=me,
+            )
+            ids = {b["book_id"] for b in res["books"]}
+            assert ids == {"bk_hp_harry"}, ids
+        finally:
+            await db.users.delete_many({"user_id": uid})
+            await db.books.delete_many({"user_id": uid})
+            cli.close()
+
+    shared_event_loop.run_until_complete(_run())
+
+
 def test_by_character_is_case_insensitive(shared_event_loop):
     """list_books_by_character matches the character name
     case-insensitively so 'harry potter' finds the same books as
