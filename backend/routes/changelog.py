@@ -169,13 +169,77 @@ def invalidate_changelog_cache() -> None:
 _GH_OWNER = "jessicaboxell4-sys"
 _GH_REPO = "fanfic"
 _GH_WORKFLOW = "prod-smoke-canary.yml"
+_GH_RETRY_WORKFLOW = "prod-smoke-canary-retry.yml"
 _GH_RUNS_URL = (
     f"https://api.github.com/repos/{_GH_OWNER}/{_GH_REPO}"
     f"/actions/workflows/{_GH_WORKFLOW}/runs?per_page=1"
 )
+_GH_RETRY_RUNS_URL = (
+    f"https://api.github.com/repos/{_GH_OWNER}/{_GH_REPO}"
+    f"/actions/workflows/{_GH_RETRY_WORKFLOW}/runs?per_page=1"
+)
 
 _CANARY_CACHE: Dict[str, Any] = {"data": None, "fetched_at": 0.0}
 _CANARY_CACHE_TTL_S = 300.0  # 5 minutes
+
+
+async def _fetch_one_workflow_run(client: httpx.AsyncClient, url: str) -> Optional[Dict[str, Any]]:
+    """Fetch the latest workflow_run from a given GitHub Actions URL.
+
+    Returns minimal dict or None on any error.  Used by both the
+    primary canary fetch and the new retry-workflow fetch (so the
+    public caption can distinguish *confirmed* failures from blips
+    that the retry workflow is silently recovering).
+    """
+    try:
+        resp = await client.get(
+            url,
+            headers={
+                "Accept": "application/vnd.github+json",
+                "User-Agent": "shelfsort-canary-status/1.0",
+            },
+        )
+        if resp.status_code != 200:
+            return None
+        runs = (resp.json() or {}).get("workflow_runs") or []
+        if not runs:
+            return None
+        r = runs[0]
+        return {
+            "conclusion": r.get("conclusion"),
+            "status":     r.get("status"),
+            "updated_at": r.get("updated_at"),
+            "html_url":   r.get("html_url"),
+            "run_number": r.get("run_number"),
+        }
+    except (httpx.HTTPError, ValueError, KeyError):
+        return None
+
+
+def _compute_effective_state(primary: Optional[Dict[str, Any]], retry: Optional[Dict[str, Any]]) -> str:
+    """Collapse (primary, retry) into a single public-facing state.
+
+    States used by the changelog caption:
+      • "healthy"   — primary's latest run succeeded
+      • "retrying"  — primary failed AND retry is in_progress / queued
+      • "recovered" — primary failed AND a newer retry succeeded
+      • "failing"   — primary failed AND a newer retry also failed
+      • "unknown"   — primary status couldn't be fetched
+    """
+    if not primary:
+        return "unknown"
+    if primary.get("conclusion") == "success":
+        return "healthy"
+    # Primary failed (or is still running) — see what the retry says.
+    if retry and retry.get("status") in ("in_progress", "queued", "waiting"):
+        return "retrying"
+    # Both must have finished_at-ish timestamps to compare ordering.
+    if retry and retry.get("updated_at") and primary.get("updated_at"):
+        if retry["updated_at"] >= primary["updated_at"]:
+            return "recovered" if retry.get("conclusion") == "success" else "failing"
+    # Primary failed and we have no fresher retry yet — it's either
+    # within the 15-min cool-down or the retry workflow isn't wired.
+    return "failing"
 
 
 async def _fetch_canary_status() -> Optional[Dict[str, Any]]:
@@ -183,35 +247,41 @@ async def _fetch_canary_status() -> Optional[Dict[str, Any]]:
 
     Network errors and rate-limit responses are swallowed deliberately —
     the caption is a nice-to-have, never a blocker for the changelog
-    page render.
+    page render.  2026-06-27: also fetches the retry workflow in
+    parallel so the response can carry an ``effective_state`` field
+    that distinguishes transient blips (status=retrying / recovered)
+    from confirmed failures (status=failing).
     """
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.get(
-                _GH_RUNS_URL,
-                headers={
-                    "Accept": "application/vnd.github+json",
-                    "User-Agent": "shelfsort-canary-status/1.0",
-                },
+            primary, retry = await _asyncio_gather_safe(
+                _fetch_one_workflow_run(client, _GH_RUNS_URL),
+                _fetch_one_workflow_run(client, _GH_RETRY_RUNS_URL),
             )
-        if resp.status_code != 200:
-            return None
-        payload = resp.json()
-        runs = payload.get("workflow_runs") or []
-        if not runs:
-            return None
-        run = runs[0]
-        return {
-            # ``conclusion`` is the final state (success/failure/cancelled);
-            # ``status`` describes the lifecycle (completed/in_progress).
-            "conclusion": run.get("conclusion"),
-            "status":     run.get("status"),
-            "updated_at": run.get("updated_at"),
-            "html_url":   run.get("html_url"),
-            "run_number": run.get("run_number"),
-        }
     except (httpx.HTTPError, ValueError, KeyError):
         return None
+    if primary is None:
+        return None
+    effective = _compute_effective_state(primary, retry)
+    return {
+        **primary,
+        "effective_state": effective,
+        "retry": retry,  # full retry-run details (or None) so the FE
+                         # can deep-link to the recovery run when shown
+    }
+
+
+async def _asyncio_gather_safe(*coros):
+    """Gather coroutines, swallowing exceptions to None.
+
+    Mirrors what the caller used to do when only one fetch existed —
+    keeps the caption resilient if one workflow fetch fails (e.g. the
+    retry workflow doesn't exist yet on the repo) while the other
+    succeeds.
+    """
+    import asyncio as _asyncio
+    results = await _asyncio.gather(*coros, return_exceptions=True)
+    return tuple(r if not isinstance(r, BaseException) else None for r in results)
 
 
 @api_router.get("/canary/status")

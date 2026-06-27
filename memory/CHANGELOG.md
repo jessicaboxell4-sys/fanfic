@@ -7,6 +7,96 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 (later) — Tab-aware live tick on `/changelog` heartbeat ⏱️
+
+Polish on top of today's heartbeat caption.  User constraint: "as
+long as it doesn't bother the user" — so the auto-refresh has to be
+truly background-quiet.
+
+### What shipped (all in `Changelog.jsx → CanaryCaption`)
+
+- **Local clock tick (60 s)** — increments a tick counter every
+  minute so the "X min ago" relative string updates without any
+  network call.  60 s matches our coarsest formatter unit.
+- **Backend refresh (5 min)** — re-fetches `/api/canary/status`
+  every 5 min, matching the server-side cache TTL exactly.  Going
+  faster would just hit the cached response and burn bandwidth.
+- **Tab-visibility gating** — BOTH intervals check
+  `document.visibilityState === "visible"` before running.  When
+  the user tabs away, both timers go dormant; when they tab back,
+  a `visibilitychange` listener immediately refetches so they're
+  never staring at stale data on focus.
+- **No spinner, no shimmer** on background refetches — initial
+  fetch sets the state, subsequent ones silently swap it in.  The
+  caption stays ambient.
+- **Clean unmount** — both intervals + the visibilitychange
+  listener get torn down properly, no leak across navigations.
+
+### Cost profile
+Worst case (visible tab, never closed) = 12 requests/hour to
+`/api/canary/status`.  All but one in every five minutes hit the
+server cache.  Backend load: negligible.  Bandwidth: ~1 kB / 5 min.
+
+Files touched: `frontend/src/pages/Changelog.jsx`.
+
+---
+
+## 2026-06-27 (later) — Live heartbeat caption on `/changelog` 💗
+
+Follow-on engagement polish to the tiered canary cadence + retry
+badge shipped earlier today.  Public-page reinforcement: the
+shields.io badge under "Shelfsort Changelog" header now shows a
+plain-English state word alongside the freshness pill, so visitors
+instantly know whether prod is healthy / recovering / failing
+without having to read the SVG.
+
+### What shipped
+
+- **Backend (`routes/changelog.py`)** — `/api/canary/status` now
+  fetches BOTH `prod-smoke-canary.yml` and the new
+  `prod-smoke-canary-retry.yml` workflows in parallel
+  (`asyncio.gather`) and collapses them into a derived
+  ``effective_state`` ∈ `{healthy, retrying, recovered, failing,
+  unknown}`.  Same 5-min cache so we stay way under GitHub's
+  unauthenticated rate limit (max ~24 req/hr per instance now,
+  vs. their 60/hr ceiling).  Response also includes the full
+  `retry` run details for FE deep-linking.
+- **Frontend (`pages/Changelog.jsx → CanaryCaption`)** — new
+  rendering:
+    - 🟢 **healthy** — green dot + green word
+    - 🟢 **recovered after blip** — green + a dotted-underline
+      "recovered via 15-min retry" link that opens the retry run
+      on GitHub
+    - 🟡 **retrying after blip** — amber dot + amber word (the
+      15-min cool-down is in progress)
+    - 🔴 **needs attention** — red dot + red word (confirmed
+      failure, primary + retry both red)
+    - ⚪ **status pending** — neutral grey fallback when GitHub's
+      API is unreachable
+  Graceful degrade: if the backend hasn't shipped `effective_state`
+  yet (mid-rollout), the FE falls back to the old pass/fail logic.
+- **Tests (`backend/tests/test_iter66_canary_effective_state.py`)** —
+  9 unit tests covering every state-machine branch including
+  edge cases (stale retry from prior incident, GitHub-unreachable,
+  retry-older-than-primary, retry queued vs in_progress).  All
+  pass.
+
+### Why it matters
+The shields.io badge tells you "passing/failing" but not "is this a
+real fail or a transient blip?".  The new caption turns the badge
+into a live, contextual heartbeat — visitors browsing `/changelog`
+for confidence-building before signing up get exactly that signal in
+1-2 words instead of having to click into GitHub Actions.
+
+Verified on the running preview deploy: caption renders
+`● healthy · last checked 12 hours ago · run #23`.
+
+Files touched: `backend/routes/changelog.py`,
+`frontend/src/pages/Changelog.jsx`,
+`backend/tests/test_iter66_canary_effective_state.py` (new).
+
+---
+
 ## 2026-06-27 (later) — "Confirmed by retry · 15 min" trust badge 🏷️
 
 Follow-up engagement polish on the tiered canary cadence shipped

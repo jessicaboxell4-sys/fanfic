@@ -287,19 +287,80 @@ function CanaryUptimePill() {
 // /api/canary/status (5-min cached server-side) to render a friendly
 // "Last checked: 2h ago" line.  Renders nothing when the endpoint
 // returns {available:false} so we never show a broken state.
+//
+// 2026-06-27 — backend now also fetches the retry workflow in
+// parallel and returns `effective_state` ∈ {healthy, retrying,
+// recovered, failing}.  We surface that as a word + colored dot
+// so visitors instantly know whether prod is fine, mid-recovery,
+// or actually broken — without having to read the badge SVG.
+//
+// 2026-06-27 (later) — Live heartbeat behaviour:
+//   • Re-render every 60 s so the "X min ago" relative string
+//     ticks naturally without any network call.
+//   • Re-fetch /api/canary/status every 5 min, matching the
+//     server-side cache TTL exactly — polling faster than that
+//     would just hit the cache and burn bandwidth.
+//   • Pause BOTH timers when the tab is hidden
+//     (`document.visibilityState !== "visible"`).  Resume on
+//     visibilitychange, and trigger an immediate refetch so the
+//     visitor sees fresh data the moment they tab back in.
+//   • No spinner, no loading shimmer on background refetches —
+//     the caption is meant to be ambient, not attention-grabbing.
 function CanaryCaption() {
   const [info, setInfo] = useState(null);
+  // Tick counter — incrementing this every 60 s re-runs the
+  // relative-time calculation below.  Lets the caption say
+  // "5 min ago" → "6 min ago" without any network traffic.
+  const [, setClockTick] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+
+    const fetchStatus = async () => {
       try {
         const res = await axios.get(`${API}/canary/status`);
         if (cancelled) return;
         if (res.data && res.data.available) setInfo(res.data);
       } catch { /* silent — caption is optional */ }
-    })();
-    return () => { cancelled = true; };
+    };
+
+    // Initial fetch on mount.
+    fetchStatus();
+
+    // Local clock tick — drives the "X min ago" relative label.
+    // 60 s is the smallest unit our formatter renders, so finer
+    // ticks would just re-render with the same string.
+    const clockInterval = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        setClockTick((t) => t + 1);
+      }
+    }, 60_000);
+
+    // Backend refresh — every 5 min to match the server-side
+    // cache TTL (anything faster hits the cached response).
+    const fetchInterval = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        fetchStatus();
+      }
+    }, 5 * 60_000);
+
+    // When the tab becomes visible again after being hidden,
+    // immediately refetch so the visitor isn't staring at stale
+    // data from before they tabbed away.
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        fetchStatus();
+        setClockTick((t) => t + 1);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      cancelled = true;
+      clearInterval(clockInterval);
+      clearInterval(fetchInterval);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, []);
 
   if (!info || !info.updated_at) return null;
@@ -318,17 +379,59 @@ function CanaryCaption() {
     relative = `${d} ${d === 1 ? "day" : "days"} ago`;
   }
 
-  const passed = info.conclusion === "success";
-  const dotColor = passed ? "bg-[#5C8A5C]" : "bg-[#C75450]";
+  // Map effective_state → (label, color).  Fall back to the old
+  // pass/fail logic when the backend hasn't shipped the new field
+  // yet (graceful degrade for live deploys mid-rollout).
+  const state = info.effective_state || (info.conclusion === "success" ? "healthy" : "failing");
+  const STATE_LABELS = {
+    healthy:   { word: "healthy",                dot: "bg-[#5C8A5C]", text: "text-[#5C8A5C]" },
+    recovered: { word: "recovered after blip",   dot: "bg-[#5C8A5C]", text: "text-[#5C8A5C]" },
+    retrying:  { word: "retrying after blip",    dot: "bg-[#D49A33]", text: "text-[#D49A33]" },
+    failing:   { word: "needs attention",        dot: "bg-[#C75450]", text: "text-[#C75450]" },
+    unknown:   { word: "status pending",         dot: "bg-[#A09A8B]", text: "text-[#6B705C]" },
+  };
+  const cfg = STATE_LABELS[state] || STATE_LABELS.unknown;
+
+  // When the retry recovered prod, prefer linking to the retry run
+  // so curious visitors can see exactly what triggered the bounce.
+  const recoveredViaRetry = state === "recovered" && info.retry && info.retry.html_url;
 
   return (
     <p
-      className="text-xs text-[#6B705C] mt-1.5 flex items-center gap-1.5"
+      className="text-xs text-[#6B705C] mt-1.5 flex items-center gap-1.5 flex-wrap"
       data-testid="changelog-canary-caption"
     >
-      <span className={`inline-block w-1.5 h-1.5 rounded-full ${dotColor}`} aria-hidden="true" />
-      Last checked <span className="font-medium" data-testid="changelog-canary-relative">{relative}</span>
-      {info.run_number ? <> · run #{info.run_number}</> : null}
+      <span
+        className={`inline-block w-1.5 h-1.5 rounded-full ${cfg.dot}`}
+        aria-hidden="true"
+        data-testid="changelog-canary-state-dot"
+      />
+      <span
+        className={`font-medium ${cfg.text}`}
+        data-testid="changelog-canary-state-word"
+      >
+        {cfg.word}
+      </span>
+      <span aria-hidden="true">·</span>
+      <span>
+        last checked <span className="font-medium" data-testid="changelog-canary-relative">{relative}</span>
+      </span>
+      {info.run_number ? <span aria-hidden="true">·</span> : null}
+      {info.run_number ? <span>run #{info.run_number}</span> : null}
+      {recoveredViaRetry ? (
+        <>
+          <span aria-hidden="true">·</span>
+          <a
+            href={info.retry.html_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-[#5C8A5C] underline decoration-dotted hover:opacity-80"
+            data-testid="changelog-canary-retry-link"
+          >
+            recovered via 15-min retry
+          </a>
+        </>
+      ) : null}
     </p>
   );
 }
