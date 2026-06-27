@@ -7,6 +7,24 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 — Inline friend-request nudge on /library/all 👋
+
+Small follow-up to the "Someone" bug fix.  Now that incoming
+requests render correctly, surface them where people actually
+look: the top of `/library/all`.
+
+- New `FriendRequestBanner` component (no new endpoint — reuses
+  `GET /api/friends/pending-count`).
+- Single-line, dismissible per session (sessionStorage), self-
+  hides when count is 0.  Links to `/friends`.
+- Mounted between the "Back to your library" link and the page
+  header in `AllBooksPage.jsx`.
+
+Test IDs: `friend-request-banner`, `friend-request-banner-count`,
+`friend-request-banner-link`, `friend-request-banner-dismiss`.
+
+---
+
 ## 2026-06-27 — Fix: friend requests no longer show "Someone" 👤
 
 **P0 user-reported bug.**  An incoming friend request on the Friends
