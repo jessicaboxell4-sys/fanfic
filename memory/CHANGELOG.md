@@ -7,6 +7,49 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 — In-app feature announcement convention 📣
+
+User-stated rule: **whenever a new feature goes live, an in-context
+popup shows up.**  Baked this into the codebase so every future
+session follows the pattern automatically.
+
+### What shipped
+
+- **`components/OneTimeTip.jsx`** — generic dismissible tip
+  component.  Props: `tipKey` (kebab-case slug),
+  `title` (defaults to "Heads-up:"), `accent` (`purple` /
+  `amber`), `compact`.  Dismissal persisted under
+  `localStorage["shelfsort.tip.<tipKey>-dismissed"]`.
+- **`components/AirdropInfoTip.jsx`** refactored to a thin
+  wrapper around `OneTimeTip` (preserves the existing
+  dismissal key so users who already X'd it stay dismissed).
+- **`/app/memory/CONVENTIONS.md`** — new doc capturing the
+  convention with rules for tip-key naming, copy style, accent
+  choice, compact variant, and a feature/key table for
+  in-flight work.  Future agents are pointed here from PRD.md.
+- **`/app/memory/PRD.md`** — added a top-level user preference
+  noting the convention.
+
+### Applied retroactively to this session
+
+`AllBooksPage.jsx` now mounts a `OneTimeTip
+tipKey="characters-and-rationale-2026-06-27"` introducing the
+Characters browser, the per-book sort chip, and the classifier
+rationale tooltip — all features that shipped this session
+without their own dedicated tip.
+
+### Going forward
+
+Every PR that adds a user-facing feature must also add a
+`OneTimeTip` near the affected surface, with a `tipKey` in the
+form `<feature-slug>` (or `<feature-slug>-<YYYY-MM-DD>` for
+multi-feature group tips).  See CONVENTIONS.md for the template.
+
+Test IDs: `one-time-tip-<tipKey>`,
+`one-time-tip-<tipKey>-dismiss`.
+
+---
+
 ## 2026-06-27 — One-time "you can close the tab" tip 💡
 
 User-requested educational moment: every user — existing or

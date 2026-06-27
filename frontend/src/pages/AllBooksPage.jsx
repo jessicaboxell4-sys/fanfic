@@ -15,6 +15,7 @@ import UrlListDedupeModal from "../components/UrlListDedupeModal";
 import BackupReminderBanner from "../components/BackupReminderBanner";
 import FriendRequestBanner from "../components/FriendRequestBanner";
 import PendingPolishBanner from "../components/PendingPolishBanner";
+import OneTimeTip from "../components/OneTimeTip";
 import LibraryActivityWidgets from "../components/LibraryActivityWidgets";
 import Ao3FilterChips from "../components/Ao3FilterChips";
 import FandomFinder from "../components/FandomFinder";
@@ -689,6 +690,13 @@ export default function AllBooksPage() {
         </Link>
         <FriendRequestBanner />
         <PendingPolishBanner onPolished={load} />
+        <OneTimeTip tipKey="characters-and-rationale-2026-06-27">
+          two new things to play with — your library now has a{" "}
+          <a href="/library/characters" className="underline underline-offset-2 hover:text-[#6B46C1]">Characters browser</a>{" "}
+          (every character across your fandoms, sorted by book count), and hovering any book&rsquo;s category badge now shows{" "}
+          <strong>why Claude picked that fandom</strong>.
+          Each book card also has a tiny ✨ button — click it to re-sort a book if the AI got it wrong.
+        </OneTimeTip>
         <div className="mb-10">
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-2">
             All books

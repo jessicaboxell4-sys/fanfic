@@ -6,6 +6,13 @@
 
 ## User preferences — apply across sessions
 
+- **New-feature announcements — always ship a `OneTimeTip`.**  Whenever
+  a new user-facing feature ships (or a major change to an existing
+  one), drop a `OneTimeTip` (`frontend/src/components/OneTimeTip.jsx`)
+  next to the surface it affects so existing users discover it the
+  next time they visit that page.  Full convention + naming rules in
+  `/app/memory/CONVENTIONS.md`.  Do not surface major changes only in
+  CHANGELOG or release notes — always wire an in-context tip too.
 - **Bug checks → always run the deep-dive automatically.**  Whenever
   the user asks "any bugs?", "is anything wrong?", "do a check",
   "deep dive", or any equivalent, run the full sweep without asking
