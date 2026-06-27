@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Book, Check, CheckCircle2, Circle, ListPlus, ListChecks, Smartphone } from "lucide-react";
+import { Book, Check, CheckCircle2, Circle, ListPlus, ListChecks, Smartphone, Sparkles, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
 import { pulseGoalsCheck } from "../lib/goalHitWatcher";
@@ -51,6 +51,33 @@ export default function BookCard({ book, selectMode, selected, onToggleSelect, o
   const [marking, setMarking] = useState(false);
   const [queueing, setQueueing] = useState(false);
   const [inQueue, setInQueue] = useState(!!book.in_queue);
+  const [polishing, setPolishing] = useState(false);
+  // Track the locally-applied classifier output so the card flips from
+  // "Pending sort" → final fandom/category the moment the user hits
+  // "Sort now", without waiting for a full library reload.
+  const [polishOverride, setPolishOverride] = useState(null);
+
+  const isPending = (polishOverride?.classifier || book.classifier) === "pending";
+  const polishNow = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (polishing) return;
+    setPolishing(true);
+    try {
+      const { data } = await api.post(`/polish/${book.book_id}`);
+      setPolishOverride(data);
+      toast.success(
+        data?.fandom
+          ? `Sorted into ${data.fandom}`
+          : `Sorted into ${data?.category || "library"}`
+      );
+      if (onChanged) onChanged();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Couldn't sort that book");
+    } finally {
+      setPolishing(false);
+    }
+  };
 
   // "Just landed" pulse — true when this book_id was added in the last
   // ~30s via the BackgroundJobsBell's `markBookFresh` call.  Applied
@@ -77,9 +104,12 @@ export default function BookCard({ book, selectMode, selected, onToggleSelect, o
     ? `${process.env.REACT_APP_BACKEND_URL}/api/books/${book.book_id}/cover`
     : null;
 
-  const label = book.category === "Fanfiction" && book.fandom
-    ? book.fandom
-    : book.category;
+  // Local override flips the visible badge instantly after polish.
+  const effectiveCategory = polishOverride?.category || book.category;
+  const effectiveFandom = polishOverride?.fandom || book.fandom;
+  const label = effectiveCategory === "Fanfiction" && effectiveFandom
+    ? effectiveFandom
+    : effectiveCategory;
 
   const isRead = typeof book.progress_fraction === "number" && book.progress_fraction >= 0.99;
 
@@ -237,11 +267,37 @@ export default function BookCard({ book, selectMode, selected, onToggleSelect, o
         )}
       </div>
       <div className="p-3">
-        <div className="flex items-center gap-1.5">
-          <span className={categoryBadgeClass(book.category)} data-testid={`book-badge-${book.book_id}`}>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className={categoryBadgeClass(effectiveCategory)} data-testid={`book-badge-${book.book_id}`}>
             {label}
           </span>
-          {user?.is_admin && <ClassifierChip classifier={book.classifier} />}
+          {user?.is_admin && <ClassifierChip classifier={polishOverride?.classifier || book.classifier} />}
+          {/* "Sort now" affordance.  Shown when classifier === "pending"
+              so the user can manually flush a single book through the
+              AI classifier without waiting for the polish drain to
+              reach it. Also acts as a "Re-polish" affordance on
+              already-classified books — same endpoint, same effect. */}
+          {!selectMode && (
+            <button
+              type="button"
+              onClick={polishNow}
+              disabled={polishing}
+              data-testid={`book-polish-${book.book_id}`}
+              title={isPending ? "Sort this book with AI" : "Re-sort this book with AI"}
+              className={`ml-auto inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full transition-colors ${
+                isPending
+                  ? "bg-[#6B46C1] text-white hover:bg-[#5a3aab]"
+                  : "bg-transparent text-[#6B705C] hover:bg-[#EEE9FB] hover:text-[#6B46C1] opacity-0 group-hover:opacity-100 focus:opacity-100"
+              } disabled:opacity-50 disabled:cursor-not-allowed`}
+            >
+              {polishing ? (
+                <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />
+              ) : (
+                <Sparkles className="w-3 h-3" aria-hidden="true" />
+              )}
+              {isPending ? "Sort now" : "Re-sort"}
+            </button>
+          )}
         </div>
         <h3 className="font-serif text-lg mt-2 text-[#2C2C2C] line-clamp-2 leading-tight">
           {book.title}

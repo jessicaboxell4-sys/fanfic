@@ -7,6 +7,37 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 — Per-book "Sort now" / "Re-sort" affordance 🔄
+
+Follow-up to the deferred-classifier queue.  Every book card on
+`/library/all` (and any per-fandom / character / pairing shelf) now
+has a tiny ✨ button next to the category badge:
+
+- **`classifier === "pending"`** → button is solid purple "Sort
+  now", clearly actionable.  One click hits the polish endpoint and
+  flips the card to its final fandom/category as soon as Claude
+  returns.
+- **already classified** → button becomes a faint "Re-sort"
+  that only shows on card hover.  Same endpoint, same effect —
+  lets the user ask the AI to try again if Claude picked the wrong
+  fandom, without leaving the library view.
+
+Wired against `POST /polish/{book_id}` (new endpoint from the
+deferred-classifier session).  Local state immediately updates the
+badge so the user sees feedback before a parent reload — no
+flicker, no waiting on the next polling tick.
+
+Test ID: `book-polish-<book_id>`.
+
+The pre-existing "Reclassify with AI" button on the BookDetail page
+stays — it goes through a different endpoint
+(`POST /books/{id}/reclassify`) that re-reads the EPUB from disk
+(useful if the file was re-uploaded with new metadata).  The new
+card button uses the cached metadata for a faster round-trip — both
+arrive at the same final classification.
+
+---
+
 ## 2026-06-27 — Deferred classifier + background polish queue ✨
 
 Big upload-speed win for large libraries.
