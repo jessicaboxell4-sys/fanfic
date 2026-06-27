@@ -2077,51 +2077,70 @@ async def upload_books(
             # admin Health card instead of breaking user uploads.
             #
             # 2026-07-04 EVENING — `AV_SCAN_ON_UPLOAD=false` opt-out.
-            # When ClamAV takes ~3 seconds per file and we're parallel-
-            # uploading at scale, AV can be ~15% of total upload time.
-            # Operators who want faster uploads can flip the env var to
-            # `false` — uploads then skip the inline scan and the file is
-            # marked `av_status: "unscanned"` so:
-            #   • the existing /account/safety "Unscanned" count surfaces
-            #     it to the user (they can hit "Rescan my library")
-            #   • the existing admin antivirus rescan picks it up
-            #   • Send-to-Kindle still refuses infected/unscanned files
-            # The default is `true` — explicit opt-out keeps the safe
-            # behaviour for anyone who doesn't read this code.
+            # 2026-06-27 — Background AV scan.
+            # AV used to be inline (~6-8s per file cold-load, ~50-200ms
+            # warm).  On a 100-file bulk drop that's 10+ minutes of
+            # spinner time.  Now the file moves through the pipeline
+            # IMMEDIATELY and the AV scan runs as a fire-and-forget
+            # background task via ``utils.av_background``.  The book
+            # is marked ``av_status: "pending"`` until the scan
+            # completes (transitions to ``clean`` / ``infected`` /
+            # ``unscanned`` from the background task).
+            #
+            # Safety still holds:
+            #   • Send-to-Kindle / friend-share / public-library
+            #     already refuse non-"clean" rows
+            #   • /account/safety surfaces "Pending" + "Infected"
+            #     counts so the user always sees a real-time signal
+            #   • The ``av_pending_recovery_tick`` cron rescans any
+            #     row stuck pending for >5 minutes (covers backend
+            #     restart mid-scan)
+            #   • Operators can force the OLD inline behaviour by
+            #     setting ``AV_SCAN_ON_UPLOAD=true`` if they need
+            #     the synchronous block for compliance reasons.
             import asyncio as _asyncio
             from utils.antivirus import scan_bytes, record_quarantine
-            _av_skipped = (os.environ.get("AV_SCAN_ON_UPLOAD", "true").lower() in ("0", "false", "no", "off"))
+            _av_force_inline = (os.environ.get("AV_SCAN_ON_UPLOAD", "false").lower() in ("1", "true", "yes", "on"))
             _av_bytes = await f.read()
             await f.seek(0)
-            if _av_skipped:
-                _av_result = {"infected": False, "ok": True, "skipped": True}
-            else:
+            if _av_force_inline:
                 _av_result = await _asyncio.to_thread(scan_bytes, _av_bytes, hint_name=(f.filename or "upload.bin"))
-            if _av_result.get("infected"):
-                await record_quarantine(
-                    user_id=user.user_id,
-                    filename=f.filename or "",
-                    scan=_av_result,
-                    source="upload",
-                    extra={"size_bytes": len(_av_bytes)},
-                )
-                # 2026-07-04 — Previously raised HTTPException 400, which
-                # killed the whole multipart batch (typically 3 files) and
-                # then the frontend aborted the remaining ~80 books from
-                # a 100-book drop.  Now we record the rejection in the
-                # response and continue with the next file so one bad
-                # apple doesn't take down its siblings.
-                results.append({
-                    "filename": f.filename,
-                    "av_infected": True,
-                    "av_signature": _av_result.get("signature"),
-                    "error": (
-                        f"\"{f.filename or 'this file'}\" appears unsafe "
-                        f"({_av_result.get('signature') or 'flagged by antivirus'}). Upload blocked."
-                    ),
-                    "failed": True,
-                })
-                continue
+                if _av_result.get("infected"):
+                    await record_quarantine(
+                        user_id=user.user_id,
+                        filename=f.filename or "",
+                        scan=_av_result,
+                        source="upload",
+                        extra={"size_bytes": len(_av_bytes)},
+                    )
+                    # 2026-07-04 — Previously raised HTTPException 400, which
+                    # killed the whole multipart batch (typically 3 files) and
+                    # then the frontend aborted the remaining ~80 books from
+                    # a 100-book drop.  Now we record the rejection in the
+                    # response and continue with the next file so one bad
+                    # apple doesn't take down its siblings.
+                    results.append({
+                        "filename": f.filename,
+                        "av_infected": True,
+                        "av_signature": _av_result.get("signature"),
+                        "error": (
+                            f"\"{f.filename or 'this file'}\" appears unsafe "
+                            f"({_av_result.get('signature') or 'flagged by antivirus'}). Upload blocked."
+                        ),
+                        "failed": True,
+                    })
+                    continue
+                # Inline path: the scan already ran cleanly.  Stash
+                # the result so the post-write book doc inserts with
+                # ``av_status: "clean"`` instead of "pending".
+                _av_bg_pending = False
+            else:
+                # Background path (the new default).  We DON'T scan here;
+                # we just hold the bytes for the post-insert task to pick
+                # up.  Book doc is inserted with ``av_status: "pending"``
+                # below and the background task flips it when done.
+                _av_result = None
+                _av_bg_pending = True
             # -------------------------------------------------------------
 
             # `.txt` is a special case — it could be a plain-text manuscript
@@ -2448,18 +2467,31 @@ async def upload_books(
                 doc["duplicate_of"] = dupes
 
             # 2026-07-04 — When `AV_SCAN_ON_UPLOAD=false`, mark the book
-            # as `unscanned` so /account/safety surfaces it in the
-            # "Unscanned" counter (user can hit "Rescan my library" to
-            # backfill) and admin rescan flows pick it up.  When AV ran
-            # successfully and the file was clean, we stamp it as such
-            # so the same surfaces show it as already-protected.
-            if _av_skipped:
-                doc["av_status"] = "unscanned"
+            # 2026-06-27 — Three-state av_status at insert time:
+            #   • _av_bg_pending=True  → stamp "pending", task will flip it
+            #   • inline scan ran      → stamp "clean" (cleared above)
+            #   • forced inline + skip → "unscanned" (legacy path)
+            if _av_bg_pending:
+                doc["av_status"] = "pending"
             else:
                 doc["av_status"] = "clean"
                 doc["av_scanned_at"] = datetime.now(timezone.utc).isoformat()
 
             await db.books.insert_one(doc)
+            # 2026-06-27 — Kick off the background AV scan AFTER the
+            # book doc is persisted.  Scheduling before the insert
+            # would race the update_one in the task against a missing
+            # doc.  Skipped on the inline path (av is already done).
+            if _av_bg_pending:
+                try:
+                    from utils.av_background import schedule_background_scan
+                    schedule_background_scan(
+                        user.user_id, doc["book_id"], _av_bytes,
+                        f.filename or f"{doc['book_id']}.epub",
+                    )
+                except Exception as _bg_exc:
+                    logger.warning("Failed to schedule background AV for %s: %s",
+                                   doc.get("book_id"), _bg_exc)
             # Hook in full-text index — extract the EPUB body so the new book
             # is searchable from `/library/search/fulltext` immediately. Any
             # failure here is logged inside the helper; we never want a

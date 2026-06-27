@@ -365,6 +365,29 @@ async def on_startup():
             except Exception as e:
                 logger.warning("ClamAV watchdog failed to schedule: %s", e)
 
+            # 2026-06-27 — Recovery cron for the new background AV scan
+            # path (utils.av_background).  Fresh uploads schedule a
+            # fire-and-forget task that flips ``av_status: "pending"``
+            # → "clean" / "infected" / "unscanned" when ClamAV returns.
+            # If the backend restarts mid-scan or the in-memory task
+            # was lost to OOM, the book is stuck in "pending".  This
+            # tick walks any rows pending for >5 minutes and re-scans
+            # them from disk so no upload is ever silently unscanned.
+            try:
+                from utils.av_background import rescan_pending
+                async def _av_pending_recovery_tick():
+                    return await rescan_pending(max_age_seconds=300)
+                digest._scheduler.add_job(
+                    wrap_cron_job(_av_pending_recovery_tick, "av_pending_recovery"),
+                    "interval",
+                    minutes=5,
+                    id="av_pending_recovery",
+                    replace_existing=True,
+                )
+                logger.info("AV pending-recovery job scheduled (every 5 min).")
+            except Exception as e:
+                logger.warning("AV pending-recovery failed to schedule: %s", e)
+
             # Weekly admin digest — Sundays 09:00 UTC.  Drains the
             # admin_pending_alerts queue (populated by cron-failure
             # alerts + other admin signals) into one consolidated
