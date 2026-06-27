@@ -75,6 +75,7 @@ const ADMIN_CARD_MANIFEST = [
   { testid: "admin-email-diagnostic-card", category: "email", title: "Email diagnostic", subtitle: "One-shot diagnostic email.", keywords: "email diagnostic test send resend troubleshoot mail" },
   { testid: "admin-banner-card", category: "system", title: "Maintenance banner", subtitle: "Site-wide announcement banner.", keywords: "maintenance banner outage announcement downtime planned heads-up" },
   { testid: "admin-health-card", category: "system", title: "System health", subtitle: "External dependencies + storage snapshot.", keywords: "health system mongo storage disk dependencies status" },
+  { testid: "admin-stuck-uploads-card", category: "system", title: "Stuck uploads", subtitle: "Upload jobs sitting queued/processing for >10 min — leading indicator of Atlas instability or staging-disk loss.", keywords: "stuck uploads upload jobs queued processing mongo atlas failover recovery cron stranded airdrop" },
   { testid: "cron-health-card", category: "system", title: "Scheduled jobs", subtitle: "Last-run telemetry for crons.", keywords: "cron jobs scheduled task background failure last-run" },
   { testid: "route-catalogue-card", category: "system", title: "Route catalogue", subtitle: "Every /api/* endpoint.", keywords: "route catalogue endpoint api list routes urls" },
   { testid: "admin-flags-card", category: "system", title: "Feature flags", subtitle: "Runtime kill switches.", keywords: "feature flags toggles kill switch runtime config" },
@@ -3368,6 +3369,117 @@ function GuardiansBanner() {
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Stuck Uploads card (2026-06-27)
+// ---------------------------------------------------------------------------
+// Surfaces upload_jobs sitting in queued/processing for longer than
+// 10 min — the leading indicator of either sustained MongoDB
+// instability (Atlas elections that take longer than the recovery
+// cron's 5-min window) or staging-disk loss between accept and
+// process.  Healthy admin pages render nothing visually noisy here
+// (just a "✓ no stuck jobs" line).
+//
+// • Auto-poll every 60s when visible (matches the watchdog cadence).
+// • Reads `/api/admin/upload-jobs/stuck?threshold_minutes=10`.
+// • Renders the friendly error blurb the user would have seen, plus
+//   the age in minutes — operator can spot a worsening pattern
+//   without flipping into Mongo.
+// ---------------------------------------------------------------------------
+function StuckUploadsCard() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data } = await api.get("/admin/upload-jobs/stuck?threshold_minutes=10");
+      setData(data);
+    } catch (e) {
+      setError(e?.response?.data?.detail || e.message || "Failed to load stuck uploads");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+    const id = setInterval(() => {
+      if (document.visibilityState === "visible") load();
+    }, 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const count = data?.count ?? 0;
+  const jobs = Array.isArray(data?.jobs) ? data.jobs : [];
+
+  return (
+    <Card
+      icon={Inbox}
+      title="Stuck uploads"
+      subtitle="Upload jobs older than 10 min still queued/processing. Empty = healthy."
+      testid="admin-stuck-uploads-card"
+    >
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs text-[#6B705C]" data-testid="admin-stuck-uploads-count">
+          {loading && !data
+            ? "Loading…"
+            : count === 0
+              ? "✓ No stuck jobs — the recovery cron is keeping up."
+              : `${count} job${count === 1 ? "" : "s"} stuck (>10 min)`}
+        </p>
+        <button
+          type="button"
+          onClick={load}
+          disabled={loading}
+          className="text-xs text-[#6B46C1] hover:underline disabled:opacity-50 inline-flex items-center gap-1"
+          data-testid="admin-stuck-uploads-refresh"
+        >
+          {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
+          refresh
+        </button>
+      </div>
+      {error && (
+        <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3 mb-3" data-testid="admin-stuck-uploads-error">
+          {error}
+        </div>
+      )}
+      {count > 0 && (
+        <div className="space-y-1.5" data-testid="admin-stuck-uploads-list">
+          {jobs.map((j) => {
+            const age = j.age_minutes != null ? `${j.age_minutes} min` : "—";
+            return (
+              <div
+                key={j.job_id}
+                className="text-xs flex flex-col gap-1 px-3 py-2 rounded-lg border bg-[#FBE2E0] border-[#E8B5B0] text-[#7C2D2A]"
+                data-testid={`admin-stuck-upload-${j.job_id}`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="inline-block w-2 h-2 rounded-full shrink-0 bg-[#C5564B]" aria-hidden="true" />
+                  <code className="font-semibold">{j.job_id}</code>
+                  <span className="text-[11px] opacity-80">· {j.status} · {age} old · {j.total} file{j.total === 1 ? "" : "s"}</span>
+                  <span className="ml-auto text-[10px] text-[#A09A8B]">user {j.user_id}</span>
+                </div>
+                {j.error && (
+                  <p className="text-[11px] italic opacity-90 pl-4">{j.error}</p>
+                )}
+              </div>
+            );
+          })}
+          <p className="text-[11px] text-[#7C2D2A] italic mt-1">
+            These rows are still recoverable — the 5-min cron re-kicks them
+            as soon as Atlas / the staging disk recovers.  Persistent growth
+            here means the cron itself is wedged or the staging volume is
+            full.
+          </p>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 
 function HealthCard() {
   const [health, setHealth] = useState(null);
@@ -6866,6 +6978,7 @@ export default function AdminConsole() {
                       case "admin-email-diagnostic-card":       return <EmailDiagnosticCard key={c.testid} />;
                       case "admin-banner-card":                 return <MaintenanceBannerCard key={c.testid} />;
                       case "admin-health-card":                 return <HealthCard key={c.testid} />;
+                      case "admin-stuck-uploads-card":          return <StuckUploadsCard key={c.testid} />;
                       case "cron-health-card":                  return <CronHealthCard key={c.testid} />;
                       case "route-catalogue-card":              return <RouteCatalogueCard key={c.testid} />;
                       case "admin-flags-card":                  return <FeatureFlagsCard key={c.testid} />;

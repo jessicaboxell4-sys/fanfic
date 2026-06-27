@@ -48,6 +48,26 @@ flow.
 
 All 4 new + 2 existing recovery tests green.
 
+### Operator visibility (follow-on)
+
+- **`GET /api/admin/upload-jobs/stuck?threshold_minutes=10`** —
+  admin-only diagnostic that lists every upload_jobs row sitting
+  in `queued` / `processing` for longer than the threshold.
+  Defaults to 10 min (so a job is only "stuck" if it has *already*
+  missed one recovery-cron window).  Clamped to [1, 240].
+- **`StuckUploadsCard`** (frontend `pages/AdminConsole.jsx`) —
+  renders the list with friendly error blurbs + age-in-minutes,
+  auto-polls every 60s when visible.  Healthy admin pages just
+  show "✓ no stuck jobs — the recovery cron is keeping up";
+  growth here is the operator's leading indicator that the cron
+  itself is wedged or the staging volume is full.
+- Registered in the admin manifest under `category: "system"`
+  and reachable via the Cmd+K palette ("stuck", "uploads",
+  "queued", "atlas", "failover").
+- Tests in `backend/tests/test_admin_stuck_upload_jobs.py`
+  (surfaces stale rows / empty when healthy / clamps threshold).
+
+
 ### User impact
 
 - No more raw topology dumps in upload toasts during Atlas elections.

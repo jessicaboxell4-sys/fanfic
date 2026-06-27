@@ -40,7 +40,7 @@ from typing import List, Optional
 from fastapi import Depends, File, Form, HTTPException, UploadFile
 from starlette.datastructures import Headers
 
-from auth_dep import get_current_user
+from auth_dep import get_current_user, require_admin
 from deps import STORAGE_DIR, api_router, db
 from models import User
 
@@ -368,3 +368,70 @@ async def recover_stuck_upload_jobs() -> int:
         logger.info("recover_stuck_upload_jobs: re-kicked %d job(s)", recovered)
     return recovered
 
+
+@api_router.get("/admin/upload-jobs/stuck")
+async def list_stuck_upload_jobs(
+    user: User = Depends(require_admin),
+    threshold_minutes: int = 10,
+):
+    """Admin diagnostic: surface upload jobs that have been sitting
+    in ``queued`` / ``processing`` for longer than ``threshold_minutes``.
+
+    Operator value: during the next Atlas failover we want a
+    one-glance answer to "is the 5-min recovery cron actually keeping
+    up?".  A healthy system has an empty list here — jobs flicker
+    through "queued" and are gone in under a minute.  A growing list
+    is a leading indicator of either (a) sustained Mongo instability,
+    (b) staging-disk loss, or (c) the recovery cron itself being down.
+
+    Defaults to a 10-min cutoff (vs the 5-min recovery cron) so a
+    job is only "stuck" if it has *already* missed one recovery
+    window.  Returns the same fields the user-facing poll endpoint
+    returns, plus an ``age_minutes`` convenience for the UI.
+    """
+    threshold_minutes = max(1, min(int(threshold_minutes if threshold_minutes is not None else 10), 240))
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=threshold_minutes)
+    cutoff_iso = cutoff.isoformat()
+
+    cursor = db.upload_jobs.find(
+        {
+            "status": {"$in": ["queued", "processing"]},
+            "created_at": {"$lt": cutoff_iso},
+        },
+        {
+            "_id": 0,
+            "job_id": 1, "user_id": 1, "status": 1,
+            "total": 1, "processed": 1, "total_bytes": 1,
+            "created_at": 1, "started_at": 1,
+            "error": 1,
+        },
+    ).sort("created_at", 1).limit(50)
+
+    now = datetime.now(timezone.utc)
+    jobs: list[dict] = []
+    async for row in cursor:
+        created_at_iso = row.get("created_at")
+        age_min: float | None = None
+        if created_at_iso:
+            try:
+                age_min = round((now - datetime.fromisoformat(created_at_iso)).total_seconds() / 60.0, 1)
+            except ValueError:
+                pass
+        jobs.append({
+            "job_id":       row.get("job_id"),
+            "user_id":      row.get("user_id"),
+            "status":       row.get("status"),
+            "total":        row.get("total", 0),
+            "processed":    row.get("processed", 0),
+            "total_bytes":  row.get("total_bytes", 0),
+            "created_at":   created_at_iso,
+            "started_at":   row.get("started_at"),
+            "age_minutes":  age_min,
+            "error":        row.get("error"),
+        })
+
+    return {
+        "threshold_minutes": threshold_minutes,
+        "count": len(jobs),
+        "jobs": jobs,
+    }
