@@ -3217,6 +3217,91 @@ function HealthPill({ ok, label }) {
   );
 }
 
+// 2026-06-27 — Floating "guardian paused" banner.
+//
+// Cross-page sticky alert that surfaces ANY auto-paused watchdog
+// (AV, email-quota, canary) at the top of `/admin`, no matter
+// which card the operator is focused on at the moment.  Without
+// this, a paused brake could sit unnoticed for hours while the
+// operator is deep in a different admin task — exactly the kind
+// of "you don't realize until users complain" gap the watchdogs
+// were meant to close in the first place.
+//
+// Implementation notes:
+//   • Independent fetch / polling from HealthCard so we don't
+//     couple them — the banner needs to live for the whole admin
+//     session, HealthCard only when expanded.
+//   • Poll interval = 60s.  Faster wouldn't help (watchdog crons
+//     themselves run every 2h) and would just hit Mongo unnecessarily.
+//   • Renders NOTHING when nothing is paused → zero visual cost
+//     on healthy admin pages.
+//   • Click handler scrolls smoothly to the System Health card so
+//     the operator can take action immediately.
+function GuardiansBanner() {
+  const [paused, setPaused] = useState([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchHealth = async () => {
+      try {
+        const { data } = await api.get("/admin/system-health");
+        if (cancelled) return;
+        const list = Array.isArray(data?.watchdogs) ? data.watchdogs : [];
+        setPaused(list.filter((w) => w.auto_paused === true));
+      } catch { /* silent — banner is optional */ }
+    };
+    fetchHealth();
+    const id = setInterval(() => {
+      if (document.visibilityState === "visible") fetchHealth();
+    }, 60_000);
+    const onVis = () => { if (document.visibilityState === "visible") fetchHealth(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, []);
+
+  if (paused.length === 0) return null;
+
+  // Friendly summary text — "1 guardian paused: Email quota" or
+  // "2 guardians paused: Email quota, Antivirus".
+  const names = paused.map((w) => w.name.replace(/\s*\(.+\)$/, "")).join(", ");
+
+  const jumpToHealthCard = () => {
+    const el = document.querySelector('[data-testid="admin-health-card"]');
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      el.style.transition = "box-shadow 0.4s ease-in-out";
+      el.style.boxShadow = "0 0 0 3px #C5564B";
+      setTimeout(() => { el.style.boxShadow = ""; }, 1600);
+    }
+  };
+
+  return (
+    <div
+      className="sticky top-0 z-30 -mx-6 px-6 py-2.5 bg-[#7C2D2A] text-white shadow-md flex items-center gap-3 text-sm"
+      role="alert"
+      data-testid="admin-guardians-paused-banner"
+    >
+      <span aria-hidden="true">🛑</span>
+      <span className="font-semibold">
+        {paused.length} guardian{paused.length === 1 ? "" : "s"} auto-paused:
+      </span>
+      <span className="opacity-90" data-testid="admin-guardians-paused-names">{names}</span>
+      <button
+        type="button"
+        onClick={jumpToHealthCard}
+        className="ml-auto px-3 py-1 rounded bg-white/15 hover:bg-white/25 text-xs font-semibold transition-colors"
+        data-testid="admin-guardians-jump-to-health"
+      >
+        Review →
+      </button>
+    </div>
+  );
+}
+
 function HealthCard() {
   const [health, setHealth] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -6447,6 +6532,12 @@ export default function AdminConsole() {
     <div className="min-h-screen bg-[#FAF6EE]">
       <Navbar />
       <main className="max-w-7xl mx-auto px-6 py-10 lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-8" data-testid="admin-console">
+        {/* Cross-page sticky banner — only renders when a watchdog has
+            auto-paused.  Sits inside <main> so the layout grid still
+            collapses cleanly on small screens. */}
+        <div className="lg:col-span-2">
+          <GuardiansBanner />
+        </div>
         {/* ─── Sticky category sidebar (2026-06-22) — jump-nav across the 33 cards. ─── */}
         <aside className="hidden lg:block sticky top-6 self-start" data-testid="admin-sidebar">
           {recentCards.length > 0 && (

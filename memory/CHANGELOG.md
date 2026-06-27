@@ -7,6 +7,59 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 — Cross-page "🛑 guardian paused" sticky banner 🚨
+
+Closes the last gap in today's three-watchdog stack: until now, an
+auto-pause only surfaced when the operator opened the System Health
+card on `/admin`.  Buried 20 cards deep means a paused brake could
+sit unnoticed for hours while the operator firefights a different
+subsystem — exactly the visibility gap watchdogs were meant to close.
+
+### What shipped
+
+- **`AdminConsole.jsx → GuardiansBanner`** (new component) — polls
+  `/api/admin/system-health` every 60s (visibility-gated; pauses
+  when tab hidden, refetches on visibility change).  Renders
+  nothing when zero watchdogs are paused.  When any are paused,
+  renders a sticky red banner at the top of the admin page:
+
+  > **🛑 1 guardian auto-paused: Email quota                    [Review →]**
+
+  Click "Review →" → smooth-scroll to the System Health card +
+  brief red box-shadow flash so the operator's eye finds it.
+- **Mount point** — at the top of `<main>` in the AdminConsole
+  layout grid (spans both columns on `lg:` breakpoints, single
+  column on mobile).  Same banner visible across every admin card
+  / tab without per-card wiring.
+- **Visibility-gated polling** — same pattern as the changelog
+  heartbeat: zero traffic, zero re-renders when the tab is hidden.
+  Net cost on a healthy admin session: 60 fetches/hr, all returning
+  the existing health-card payload — Mongo aggregation is already
+  cached server-side.
+
+### Tests
+- **`backend/tests/test_iter70_guardians_banner_data.py`** — 3
+  tests, all pass:
+    1. Paused watchdog surfaces in response with `auto_paused=True`
+       so the FE filter catches it
+    2. All-healthy state returns zero paused watchdogs → banner
+       renders nothing
+    3. Summary blurb is populated + human-readable for the inline
+       label
+- 19/19 cumulative watchdog tests pass (3 new + 4 system-health +
+  12 email-quota).
+
+### Net effect
+Operator now has a hard visual interrupt for any auto-paused brake
+regardless of which admin card they're focused on.  Closes the
+operational-confidence loop today's batch of watchdog work opened.
+Three independent prod guardians, one persistent visibility surface.
+
+Files touched: `frontend/src/pages/AdminConsole.jsx`,
+`backend/tests/test_iter70_guardians_banner_data.py` (new).
+
+---
+
 ## 2026-06-27 — System Health watchdog overview on `/admin` 🛡️
 
 Engagement follow-on to today's email-quota watchdog: now that we
