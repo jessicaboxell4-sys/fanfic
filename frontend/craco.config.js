@@ -29,6 +29,22 @@ let webpackConfig = {
       rules: {
         "react-hooks/rules-of-hooks": "error",
         "react-hooks/exhaustive-deps": "warn",
+        // 2026-06-27 — TDZ guard.  A previous edit declared the
+        // `bookSections` useMemo above `visibleBooks` and shipped a
+        // blank /library/all to production ("Cannot access 'visibleBooks'
+        // before initialization").  React's runtime only catches that
+        // when the deps array is first evaluated — too late.  Promote
+        // the lint rule to an ERROR so the build fails the next time
+        // a hook references a const/let declared further down the
+        // file.  Functions are still allowed (`functions: false`)
+        // because hoisted `function foo()` declarations don't have a
+        // TDZ and many useCallback handlers cross-reference each other.
+        "no-use-before-define": ["error", {
+          functions: false,
+          classes: true,
+          variables: true,
+          allowNamedExports: false,
+        }],
       },
     },
   },

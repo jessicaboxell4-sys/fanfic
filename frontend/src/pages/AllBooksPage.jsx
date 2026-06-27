@@ -188,35 +188,7 @@ export default function AllBooksPage() {
         : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"
   );
 
-  // 2026-06-27 Phase 2 — Mixed-mode visual section split.
-  // When library_mode is "mixed", group visibleBooks into two
-  // sections (Fanfic / Original & Non-fic) so the user can see
-  // each world distinctly without losing the unified library.
-  // For "fanfic" / "original" modes a single "section" carries
-  // the whole list — the rest of the render code below doesn't
-  // need to branch on mode at all.  Category match is case-
-  // insensitive against the categories defined at the top of
-  // this file (DEFAULT_CATEGORIES).
   const isMixedMode = libraryMode === "mixed";
-  const bookSections = useMemo(() => {
-    if (!isMixedMode) return [{ key: "all", label: null, books: visibleBooks }];
-    const fanfic = [];
-    const other = [];
-    for (const b of visibleBooks) {
-      const cat = (b.category || "").toLowerCase();
-      if (cat === "fanfiction") fanfic.push(b);
-      else other.push(b);
-    }
-    // Suppress whichever section is empty so we don't render a
-    // sad "💜 Fanfic · 0" header on an all-original library.
-    const out = [];
-    if (fanfic.length) out.push({ key: "fanfic",   label: "💜 Fanfic",            books: fanfic });
-    if (other.length)  out.push({ key: "original", label: "📖 Original & Non-fic", books: other });
-    // Edge case: no books at all → fall back to a single section
-    // so the empty-state copy below still renders cleanly.
-    if (out.length === 0) return [{ key: "all", label: null, books: [] }];
-    return out;
-  }, [isMixedMode, visibleBooks]);
 
   // Per-section collapse state.  Keyed by section.key so users can
   // hide one side of the library while keeping the other expanded.
@@ -563,6 +535,43 @@ export default function AllBooksPage() {
     }
     return pool;
   }, [books, justAddedIds, chipFilters, user?.library_mode]);
+
+  // 2026-06-27 Phase 2 — Mixed-mode visual section split.
+  // When library_mode is "mixed", group visibleBooks into two
+  // sections (Fanfic / Original & Non-fic) so the user can see
+  // each world distinctly without losing the unified library.
+  // For "fanfic" / "original" modes a single "section" carries
+  // the whole list — the rest of the render code below doesn't
+  // need to branch on mode at all.  Category match is case-
+  // insensitive against the categories defined at the top of
+  // this file (DEFAULT_CATEGORIES).
+  //
+  // Placement note: this useMemo MUST sit AFTER the visibleBooks
+  // declaration above.  An earlier revision placed it before, which
+  // landed `visibleBooks` in the dependency array's Temporal Dead
+  // Zone and crashed AllBooksPage with "Cannot access 'visibleBooks'
+  // before initialization" the moment React evaluated the deps on
+  // first render.  Production redeploy 2026-06-27 surfaced this as
+  // a blank /library/all screen.
+  const bookSections = useMemo(() => {
+    if (!isMixedMode) return [{ key: "all", label: null, books: visibleBooks }];
+    const fanfic = [];
+    const other = [];
+    for (const b of visibleBooks) {
+      const cat = (b.category || "").toLowerCase();
+      if (cat === "fanfiction") fanfic.push(b);
+      else other.push(b);
+    }
+    // Suppress whichever section is empty so we don't render a
+    // sad "💜 Fanfic · 0" header on an all-original library.
+    const out = [];
+    if (fanfic.length) out.push({ key: "fanfic",   label: "💜 Fanfic",            books: fanfic });
+    if (other.length)  out.push({ key: "original", label: "📖 Original & Non-fic", books: other });
+    // Edge case: no books at all → fall back to a single section
+    // so the empty-state copy below still renders cleanly.
+    if (out.length === 0) return [{ key: "all", label: null, books: [] }];
+    return out;
+  }, [isMixedMode, visibleBooks]);
 
   // Poll the conversion-status endpoint while uploads with heavy formats
   // (PDF, MOBI etc.) are running — Calibre conversion can take 30+ seconds.
