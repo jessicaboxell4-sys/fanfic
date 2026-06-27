@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from deps import app, api_router, db, logger, client
 
 # Import each routes module so its @api_router decorators register.
-from routes import root, auth, books, bulk_ops, covers, conversions, library_reads, user_prefs, library_backup, tags, authors, pairings, characters, trash, bookmarks, library_discovery, stats, series_categories, digest, year, smart_shelves, announcements, admin, admin_db, fulltext, chat, friends, invites, friend_library, suggestions, notifications, bookclubs, recommendations, opds, wordcount, goals, refresh, duplicates, url_lists, fandoms, exports, reading_activity, library_views, duplicate_resolution, view_consents, cover_public, reading_sync, push, analytics, operator_digest, storage_admin, help_analytics, suggestions_box, signup_config, health, admin_antivirus, account_safety, reader_prefs, admin_whats_new, upload_jobs, changelog, library_social, community, verdicts  # noqa: F401
+from routes import root, auth, books, bulk_ops, covers, conversions, library_reads, user_prefs, library_backup, tags, authors, pairings, characters, trash, bookmarks, library_discovery, stats, series_categories, digest, year, smart_shelves, announcements, admin, admin_db, fulltext, chat, friends, invites, friend_library, suggestions, notifications, bookclubs, recommendations, opds, wordcount, goals, refresh, duplicates, url_lists, fandoms, exports, reading_activity, library_views, duplicate_resolution, view_consents, cover_public, reading_sync, push, analytics, operator_digest, storage_admin, help_analytics, suggestions_box, signup_config, health, admin_antivirus, account_safety, reader_prefs, admin_whats_new, upload_jobs, changelog, library_social, community, verdicts, polish  # noqa: F401
 
 # Some static-path routes (e.g. /api/books/refresh-status, /api/books/recent)
 # live in route modules that are imported *after* books.py, which means
@@ -387,6 +387,28 @@ async def on_startup():
                 logger.info("AV pending-recovery job scheduled (every 5 min).")
             except Exception as e:
                 logger.warning("AV pending-recovery failed to schedule: %s", e)
+
+            # 2026-06-27 — Polish recovery cron.  The deferred-
+            # classifier worker (utils/polish_worker.py) fires a task
+            # per upload, but if the backend restarts mid-drain the
+            # in-memory task dies.  This cron periodically sweeps for
+            # books stuck in classifier:"pending" >2 min old and re-
+            # schedules polish for the owning user.  Tab-close
+            # resilience: even if the user closes the SPA before the
+            # original drain finishes, this cron picks up the
+            # remainder within 5 min.
+            try:
+                from utils.polish_worker import polish_recovery_tick as _polish_tick
+                digest._scheduler.add_job(
+                    wrap_cron_job(_polish_tick, "polish_recovery"),
+                    "interval",
+                    minutes=5,
+                    id="polish_recovery",
+                    replace_existing=True,
+                )
+                logger.info("Polish-recovery job scheduled (every 5 min).")
+            except Exception as e:
+                logger.warning("Polish-recovery failed to schedule: %s", e)
 
             # Weekly admin digest — Sundays 09:00 UTC.  Drains the
             # admin_pending_alerts queue (populated by cron-failure

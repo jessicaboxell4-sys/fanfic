@@ -1104,7 +1104,7 @@ from utils.status_detector import (  # noqa: E402
     COMPLETE as STATUS_COMPLETE,
     ONGOING as STATUS_ONGOING,
 )
-from utils.constants import TRASH_SHELF, TRASH_GRACE_DAYS  # noqa: E402
+from utils.constants import TRASH_SHELF, TRASH_GRACE_DAYS, PENDING_SORT_SHELF  # noqa: E402
 
 
 # ---- Tag helpers (moved to utils.tags as part of books.py refactor Phase 2)
@@ -2342,37 +2342,31 @@ async def upload_books(
                 results.append({k: v for k, v in doc.items() if k != "_id"})
                 continue
 
-            # 2026-07-04 — Tight timeout on the AI classifier so a slow
-            # upstream LLM (Claude/Gemini) doesn't push the whole upload
-            # past Cloudflare's 100s edge timeout.  When upstream is
-            # throttled, classify_book can take 30-60s per file, and a
-            # batch of 3 then takes 90-180s → Cloudflare returns 524
-            # and the user sees an "Upload failed" with zero books
-            # landing.  Now: classify gets at most 8 seconds; on
-            # timeout we fall back to the pure-Python metadata
-            # heuristic (no LLM) — slower to land on the right fandom
-            # but always fast and offline.
-            try:
-                classification = await _asyncio.wait_for(
-                    classify_book(meta), timeout=8.0,
-                )
-            except _asyncio.TimeoutError:
-                logger.warning(
-                    "classify_book timed out for %s — falling back to rule-based classifier",
-                    meta.get("title") or f.filename,
-                )
-                # Pure-Python regex matching against the fandom name
-                # table — no network calls, runs in <1ms.  Books
-                # classified this way can be re-classified later
-                # via the "Reclassify" admin action once upstream
-                # LLMs recover.
-                try:
-                    classification = classify_by_metadata(meta) or {}
-                except Exception:  # noqa: BLE001
-                    classification = {}
-                # Tag the classifier so admin can audit which books
-                # landed in fallback mode and bulk-reclassify them.
-                classification["classifier"] = "timeout-fallback"
+            # 2026-06-27 — Classifier is now DEFERRED to the polish
+            # worker.  We used to call ``classify_book(meta)`` inline
+            # here, which dominated per-file wall-clock (~1-8s).
+            # Instead we stamp the book as ``classifier: "pending"``
+            # and ``category: "Pending sort"``, then fire a fire-and-
+            # forget polish drain at the end of the batch (see
+            # ``utils.polish_worker.schedule_polish_for_user``).
+            #
+            # Net effect: upload returns in ~1-2s/file, books appear
+            # in the library immediately with title/author/cover/AO3
+            # tags, and the Claude classification fills in
+            # fandom/category within 5-30s in the background.
+            #
+            # Tab-close resilient: the polish task lives on the
+            # backend event loop, NOT on the browser HTTP connection.
+            # A 5-min recovery cron sweeps any pending book that's
+            # been stuck (backend restart, missed schedule call) so
+            # closing the tab can never strand a book in "Pending sort"
+            # forever.
+            classification = {
+                "category": PENDING_SORT_SHELF,
+                "fandom": None,
+                "confidence": None,
+                "classifier": "pending",
+            }
 
             # Save cover separately if exists
             cover_path = user_dir / f"{book_id}.cover"
@@ -2680,6 +2674,19 @@ async def upload_books(
                         "file safe on local disk, cron will retry.",
                         local_path.name, key, e,
                     )
+
+    # 2026-06-27 — Kick off the deferred-classifier polish drain for
+    # this user.  Internally gated by ``_inflight_users`` so concurrent
+    # uploads from the same user don't spawn duplicate workers, and
+    # the drain naturally re-queries between rounds so books inserted
+    # during the run are picked up too.  Tab-close resilient: the
+    # task runs on the backend event loop, not the HTTP connection.
+    try:
+        from utils.polish_worker import schedule_polish_for_user
+        schedule_polish_for_user(user.user_id)
+    except Exception as _polish_exc:  # noqa: BLE001
+        logger.warning("upload_books: failed to schedule polish for %s: %s",
+                       user.user_id, _polish_exc)
 
     return {
         "uploaded": len(results),

@@ -7,6 +7,85 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 — Deferred classifier + background polish queue ✨
+
+Big upload-speed win for large libraries.
+
+### What changed
+
+- `upload_books` no longer awaits ``classify_book`` inline.  Every
+  uploaded book lands with:
+    - `category: "Pending sort"` (new constant in `utils/constants.py`)
+    - `fandom: None`, `confidence: None`
+    - `classifier: "pending"` (sentinel)
+- Books still get title, author, cover, AO3 tags, URL extraction,
+  duplicate detection, and fulltext indexing on the upload path —
+  the **only** deferred step is the Claude classifier.
+- At the end of every upload batch, `upload_books` fires
+  `utils.polish_worker.schedule_polish_for_user(user_id)` — a
+  fire-and-forget asyncio task that drains the pending queue in
+  parallel (semaphore-capped at `POLISH_CONCURRENCY=4`).
+
+### Tab-close resilience
+
+The polish task runs on the **backend event loop**, not the browser
+HTTP connection.  Closing the tab during upload (or during the
+polish drain) does NOT abandon the work.
+
+For backend-restart resilience:
+
+- New cron `polish_recovery_tick` (server.py, every 5 minutes)
+  scans for users with `classifier: "pending"` books still in the
+  queue and re-schedules a drain for each one.
+- `_inflight_users` gate prevents the upload trigger + cron trigger
+  from double-classifying the same user's books.
+- Polish failures stamp `classifier: "polish-failed"` so the
+  recovery cron doesn't loop forever on broken EPUBs; user can
+  retry via the "Polish now" button.
+
+### New endpoints
+
+- `GET /api/polish/stats` — `{pending, failed, in_progress}` for the
+  current user.  Powers the banner.
+- `POST /api/polish` — re-kicks the drain (resets `polish-failed`
+  rows back to `pending`).  Returns immediately.
+- `POST /api/polish/{book_id}` — polish one book inline (used by
+  the per-book "Sort now" mini-button planned for follow-up).
+
+### Frontend
+
+- New `components/PendingPolishBanner.jsx` mounts at the top of
+  `/library/all` (under FriendRequestBanner).  Self-hides when no
+  pending books.  Polls `/polish/stats` every 5s; calls back into
+  the library `load()` whenever the count drops so newly classified
+  books appear in real time.
+- Visible states:
+  - Idle (no pending): hidden
+  - In-flight: spinner + "N books sorting in the background — Claude is reading each one. You can close this tab — they'll keep going."
+  - Failed: "N books failed to sort — Polish now to retry"
+
+### Tests
+
+`tests/test_polish_queue.py` — 4/4 pass:
+- polish_one_book classifies & writes the result
+- polish_recovery_tick picks up orphaned pending users
+- inflight gate prevents double-polish
+- count_pending_for_user respects the trash exclusion
+
+Test IDs: `pending-polish-banner`, `pending-polish-banner-count`,
+`pending-polish-banner-action`.
+
+### Net impact
+
+Per-file upload time drops from ~7-10s → ~1-2s (the classifier was
+the dominant cost).  For a 100-file drop, that's ~3-4 min → ~25-40s
+of foreground wall-clock; the AI classification continues in the
+background and finishes within a minute or two after the upload
+returns.  User can close the tab the moment the upload bar hits
+100%.
+
+---
+
 ## 2026-06-27 — Upload speed-up (frontend + backend) ⚡
 
 User reported "files just sit at 'Uploading…' / progress bar barely

@@ -14,6 +14,7 @@ import DuplicateResolutionModal from "../components/DuplicateResolutionModal";
 import UrlListDedupeModal from "../components/UrlListDedupeModal";
 import BackupReminderBanner from "../components/BackupReminderBanner";
 import FriendRequestBanner from "../components/FriendRequestBanner";
+import PendingPolishBanner from "../components/PendingPolishBanner";
 import LibraryActivityWidgets from "../components/LibraryActivityWidgets";
 import Ao3FilterChips from "../components/Ao3FilterChips";
 import FandomFinder from "../components/FandomFinder";
@@ -687,6 +688,7 @@ export default function AllBooksPage() {
           <ArrowRight className="w-4 h-4 rotate-180" /> Back to your library
         </Link>
         <FriendRequestBanner />
+        <PendingPolishBanner onPolished={load} />
         <div className="mb-10">
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-2">
             All books
