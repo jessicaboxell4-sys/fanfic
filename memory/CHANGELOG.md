@@ -7,6 +7,28 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 — "Top characters" rail on fandom shelves 👥
+
+Follow-up to the Characters browser launched earlier today.
+
+- `GET /api/library/characters` now accepts optional `fandom` and
+  `limit` query params, so callers can scope the aggregation to a
+  single fandom shelf.
+- New "Top characters in {fandom}" chip rail on
+  `/library/fandom/:fandom`, rendered between the search box and the
+  books grid.  Shows up to 8 most-tagged characters in that fandom
+  (count DESC, name ASC), each chip links to the per-character
+  shelf (`/library/by-character/:name`).
+- Hidden entirely when no characters are derivable from the shelf
+  (relationships array is empty across the board).
+- New test `tests/test_characters.py::test_list_characters_scoped_to_fandom`
+  pins the fandom-scoping behaviour — Harry Potter scope must not
+  return Steve Rogers.  6/6 tests pass.
+
+Test IDs: `fandom-top-characters`, `fandom-top-character-<slug>`.
+
+---
+
 ## 2026-06-27 — Characters dimension + sort tiebreaks 👥
 
 Two-part follow-up to "how are characters sorted?":

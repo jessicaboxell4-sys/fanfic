@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import { api } from "../lib/api";
 import Navbar from "../components/Navbar";
 import BookCard from "../components/BookCard";
-import { ArrowLeft, ArrowLeftRight, Download, Link as LinkIcon, Search, BookOpen } from "lucide-react";
+import { ArrowLeft, ArrowLeftRight, Download, Link as LinkIcon, Search, BookOpen, Users } from "lucide-react";
 import { toast } from "sonner";
 
 export default function FandomShelf() {
@@ -14,6 +14,7 @@ export default function FandomShelf() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [related, setRelated] = useState([]);
+  const [topCharacters, setTopCharacters] = useState([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -40,6 +41,24 @@ export default function FandomShelf() {
       try {
         const { data } = await api.get(`/fandoms/${encodeURIComponent(fandom)}/crossovers`);
         if (!cancelled) setRelated(data?.crossovers || []);
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+  }, [fandom]);
+
+  // Top characters within this fandom shelf — derived from each book's
+  // relationships field at read-time (see /api/library/characters).
+  // Surfaced as a chip rail at the top of the books grid so the user
+  // can jump straight to a per-character shelf without leaving the
+  // fandom context.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get("/library/characters", {
+          params: { fandom, limit: 8 },
+        });
+        if (!cancelled) setTopCharacters(data?.characters || []);
       } catch { /* ignore */ }
     })();
     return () => { cancelled = true; };
@@ -174,6 +193,29 @@ export default function FandomShelf() {
             className="w-full bg-white border border-[#E8E6E1] rounded-lg pl-10 pr-3 py-2.5 text-sm focus:outline-none focus:border-[#E07A5F] focus:ring-2 focus:ring-[#E07A5F]/20"
           />
         </div>
+
+        {topCharacters.length > 0 && (
+          <section className="mb-8" data-testid="fandom-top-characters">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-3 flex items-center gap-2">
+              <Users className="w-3.5 h-3.5" aria-hidden="true" />
+              Top characters in {fandom}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {topCharacters.map((c) => (
+                <button
+                  key={c.name}
+                  onClick={() => navigate(`/library/by-character/${encodeURIComponent(c.name)}`)}
+                  data-testid={`fandom-top-character-${c.name.replace(/\s+/g, "-").toLowerCase()}`}
+                  className="px-3 py-1.5 rounded-full text-xs font-semibold border bg-[#FDF3E1] text-[#6B46C1] border-[#6B46C1]/30 hover:bg-[#6B46C1] hover:text-white transition-colors inline-flex items-center gap-2"
+                  title={`${c.count} book${c.count === 1 ? "" : "s"} in ${fandom} feature ${c.name}`}
+                >
+                  <span>{c.name}</span>
+                  <span className="text-[10px] opacity-70">· {c.count}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
 
         {loading ? (
           <p className="text-[#6B705C] py-12 text-center">Loading…</p>

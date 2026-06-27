@@ -152,6 +152,53 @@ def test_character_count_dedupes_within_one_book(shared_event_loop):
     shared_event_loop.run_until_complete(_run())
 
 
+def test_list_characters_scoped_to_fandom(shared_event_loop):
+    """When ``fandom`` is supplied, only books on that fandom shelf
+    contribute to the character counts.  Powers the 'Top characters'
+    rail on /library/fandom/:fandom."""
+    from routes.characters import list_characters
+    from models import User
+
+    async def _run():
+        cli = AsyncIOMotorClient(os.environ["MONGO_URL"])
+        db = cli[os.environ["DB_NAME"]]
+        uid = _uid()
+        try:
+            await db.users.insert_one({
+                "user_id": uid,
+                "email": f"{uid}@example.com",
+                "name": "Charter",
+                "approval_status": "approved",
+            })
+            # One HP book and one MCU book — Harry only appears in HP.
+            await db.books.insert_one({
+                "book_id": f"bk_{uuid.uuid4().hex[:10]}",
+                "user_id": uid, "title": "HP fic",
+                "fandom": "Harry Potter", "category": "Fanfiction",
+                "relationships": ["Harry Potter/Hermione Granger"],
+            })
+            await db.books.insert_one({
+                "book_id": f"bk_{uuid.uuid4().hex[:10]}",
+                "user_id": uid, "title": "MCU fic",
+                "fandom": "Marvel", "category": "Fanfiction",
+                "relationships": ["Steve Rogers/Tony Stark"],
+            })
+
+            me = User(user_id=uid, email=f"{uid}@example.com", name="Charter")
+            hp = await list_characters(user=me, fandom="Harry Potter", limit=10)
+            hp_names = {c["name"] for c in hp["characters"]}
+            assert "Harry Potter" in hp_names
+            assert "Hermione Granger" in hp_names
+            assert "Steve Rogers" not in hp_names
+            assert "Tony Stark" not in hp_names
+        finally:
+            await db.users.delete_many({"user_id": uid})
+            await db.books.delete_many({"user_id": uid})
+            cli.close()
+
+    shared_event_loop.run_until_complete(_run())
+
+
 def test_by_character_is_case_insensitive(shared_event_loop):
     """list_books_by_character matches the character name
     case-insensitively so 'harry potter' finds the same books as

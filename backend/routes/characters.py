@@ -29,9 +29,9 @@ relying on MongoDB's insertion order.
 from __future__ import annotations
 
 import re
-from typing import List
+from typing import List, Optional
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Query
 
 from auth_dep import get_current_user
 from deps import api_router, db
@@ -59,18 +59,29 @@ def _split_characters(relationship: str) -> List[str]:
 
 
 @api_router.get("/library/characters")
-async def list_characters(user: User = Depends(get_current_user)):
+async def list_characters(
+    user: User = Depends(get_current_user),
+    fandom: Optional[str] = Query(None, description="If provided, only count books on this fandom shelf"),
+    limit: int = Query(500, ge=1, le=500),
+):
     """Every character across the user's library with a book count, the
     fandoms they appear in, and up to 3 sample titles.  Derived from
     the ``relationships`` field — characters that only show up in
     freeform tags are not included.
+
+    When ``fandom`` is supplied, the aggregation is scoped to books on
+    that fandom shelf — this is what powers the "Top characters" rail
+    on `/library/fandom/:fandom`.
     """
+    match = {
+        "user_id": user.user_id,
+        "category": {"$ne": TRASH_SHELF},
+        "relationships": {"$exists": True, "$ne": []},
+    }
+    if fandom and isinstance(fandom, str) and fandom.strip():
+        match["fandom"] = fandom.strip()
     pipeline = [
-        {"$match": {
-            "user_id": user.user_id,
-            "category": {"$ne": TRASH_SHELF},
-            "relationships": {"$exists": True, "$ne": []},
-        }},
+        {"$match": match},
         # Keep one row per (book, relationship) so we can fold them
         # into characters in Python below — doing the split in $map
         # would require a $regex split inside an aggregation
@@ -120,7 +131,10 @@ async def list_characters(user: User = Depends(get_current_user)):
         # are deterministic.
         key=lambda c: (-c["count"], c["name"].casefold()),
     )
-    return {"count": len(characters), "characters": characters[:500]}
+    # Resolve the FastAPI Query default if the function is called
+    # directly from a test (where dependency injection isn't run).
+    cap = limit if isinstance(limit, int) else 500
+    return {"count": len(characters), "characters": characters[:cap]}
 
 
 @api_router.get("/library/by-character")
