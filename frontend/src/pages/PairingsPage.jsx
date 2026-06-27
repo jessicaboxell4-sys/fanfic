@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Search, Heart, CheckCircle2, Clock } from "lucide-react";
+import { useNavigate, useParams, useSearchParams, Link } from "react-router-dom";
+import { ArrowLeft, Search, Heart, CheckCircle2, Clock, Users, X } from "lucide-react";
 import { api } from "../lib/api";
 import Navbar from "../components/Navbar";
 
@@ -9,20 +9,44 @@ import Navbar from "../components/Navbar";
 // `relationships` is populated at upload time by the EPUB parser and
 // canonicalized (alphabetical order, "/" delimiter) so identical ships
 // from different sources group correctly.
+//
+// Optional ?character=X query param drills into only ships involving
+// the given character — same pattern used on /library/fandom/:fandom.
 export function PairingsDirectory() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const character = (searchParams.get("character") || "").trim();
   const [pairings, setPairings] = useState([]);
+  const [topCharacters, setTopCharacters] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
     (async () => {
       try {
-        const { data } = await api.get("/library/pairings");
+        const { data } = await api.get("/library/pairings", {
+          params: character ? { character } : {},
+        });
         if (!cancelled) setPairings(data?.pairings || []);
       } catch { /* ignore */ }
       finally { if (!cancelled) setLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [character]);
+
+  // Top-characters rail — always whole-library so the user can pivot
+  // between ships of different characters from one place.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get("/library/characters", {
+          params: { limit: 12 },
+        });
+        if (!cancelled) setTopCharacters(data?.characters || []);
+      } catch { /* ignore */ }
     })();
     return () => { cancelled = true; };
   }, []);
@@ -32,6 +56,16 @@ export function PairingsDirectory() {
     if (!needle) return pairings;
     return pairings.filter((p) => (p.pairing || "").toLowerCase().includes(needle));
   }, [pairings, search]);
+
+  const setCharacterFilter = (name) => {
+    const next = new URLSearchParams(searchParams);
+    if (!name || name.toLowerCase() === character.toLowerCase()) {
+      next.delete("character");
+    } else {
+      next.set("character", name);
+    }
+    setSearchParams(next, { replace: false });
+  };
 
   return (
     <div className="min-h-screen bg-[#FAF6EE]">
@@ -56,12 +90,75 @@ export function PairingsDirectory() {
           </div>
         </header>
 
+        {topCharacters.length > 0 && (
+          <section className="mb-6" data-testid="pairings-top-characters">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-3 flex items-center gap-2">
+              <Users className="w-3.5 h-3.5" aria-hidden="true" />
+              Filter by character
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {topCharacters.map((c) => {
+                const isActive = c.name.toLowerCase() === character.toLowerCase();
+                return (
+                  <button
+                    key={c.name}
+                    onClick={() => setCharacterFilter(c.name)}
+                    data-testid={`pairings-character-chip-${c.name.replace(/\s+/g, "-").toLowerCase()}`}
+                    aria-pressed={isActive}
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold border inline-flex items-center gap-2 transition-colors ${
+                      isActive
+                        ? "bg-[#6B46C1] text-white border-[#6B46C1]"
+                        : "bg-[#FDF3E1] text-[#6B46C1] border-[#6B46C1]/30 hover:bg-[#6B46C1] hover:text-white"
+                    }`}
+                    title={
+                      isActive
+                        ? `Showing only ships involving ${c.name} — click to clear`
+                        : `Show only pairings that include ${c.name}`
+                    }
+                  >
+                    <span>{c.name}</span>
+                    <span className="text-[10px] opacity-70">· {c.count}</span>
+                    {isActive && <X className="w-3 h-3" aria-hidden="true" />}
+                  </button>
+                );
+              })}
+              <Link
+                to="/library/characters"
+                data-testid="pairings-characters-see-all"
+                className="px-3 py-1.5 rounded-full text-xs font-semibold border bg-transparent text-[#6B705C] border-[#E5DDC5] hover:bg-[#F5F3EC] hover:text-[#2C2C2C] transition-colors inline-flex items-center gap-1"
+                title="Browse every character"
+              >
+                See all →
+              </Link>
+            </div>
+            {character && (
+              <p
+                className="text-xs text-[#6B705C] italic mt-2"
+                data-testid="pairings-character-filter-status"
+              >
+                Filtered to ships involving <span className="font-semibold text-[#2C2C2C]">{character}</span>
+                {" — "}
+                <button
+                  type="button"
+                  onClick={() => setCharacterFilter(null)}
+                  data-testid="pairings-character-filter-clear"
+                  className="underline underline-offset-2 hover:text-[#6B46C1]"
+                >
+                  clear filter
+                </button>
+              </p>
+            )}
+          </section>
+        )}
+
         <div className="shelf-card p-5 mb-6 flex items-center gap-4" data-testid="pairings-summary">
           <div className="font-serif text-3xl text-[#2C2C2C]" data-testid="pairings-count">
             {pairings.length}
           </div>
           <div className="text-xs text-[#6B705C] uppercase tracking-wide">
-            distinct pairing{pairings.length === 1 ? "" : "s"}
+            {character
+              ? <>{character} ship{pairings.length === 1 ? "" : "s"}</>
+              : <>distinct pairing{pairings.length === 1 ? "" : "s"}</>}
           </div>
         </div>
 

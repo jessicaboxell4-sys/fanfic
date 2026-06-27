@@ -7,6 +7,37 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 — Character drill-down on the Pairings browser 🔎
+
+Mirrors the per-fandom drill-down: a "Filter by character" rail at
+the top of `/library/pairings` lets you see only ships involving a
+chosen character (e.g. all Harry's ships, not just Harry/Hermione).
+
+- `GET /api/library/pairings` accepts new `character` query param.
+- Pre-narrows the aggregation with a case-insensitive regex against
+  the `relationships` array, then post-filters the unwound rows so
+  `$unwind` doesn't leak the *other* relationships of a polycule fic
+  (e.g. filtering for Harry must not return Ron/Hermione just
+  because they share a book with Harry/Hermione).
+- Frontend `PairingsDirectory` honors `?character=X` via
+  `useSearchParams`, top-12 characters rendered as toggle chips,
+  active chip turns solid purple with an X, status line + clear-
+  filter button below.  "See all →" pill jumps to the global
+  characters directory.
+- Summary card switches its caption to "N {Character} ships" when
+  filtered.
+
+### Tests
+
+`tests/test_characters.py::test_list_pairings_filters_by_character`
+pins the unwind-leak guard.  8/8 tests pass.
+
+Test IDs: `pairings-top-characters`, `pairings-character-chip-<slug>`,
+`pairings-character-filter-status`, `pairings-character-filter-clear`,
+`pairings-characters-see-all`.
+
+---
+
 ## 2026-06-27 — In-fandom character drill-down 🔎
 
 Click any chip on the "Top characters in {fandom}" rail and the

@@ -199,6 +199,61 @@ def test_list_characters_scoped_to_fandom(shared_event_loop):
     shared_event_loop.run_until_complete(_run())
 
 
+def test_list_pairings_filters_by_character(shared_event_loop):
+    """`GET /api/library/pairings?character=Harry` returns only ships
+    that mention Harry — drill-down on the Pairings browser."""
+    from routes.pairings import list_pairings
+    from models import User
+
+    async def _run():
+        cli = AsyncIOMotorClient(os.environ["MONGO_URL"])
+        db = cli[os.environ["DB_NAME"]]
+        uid = _uid()
+        try:
+            await db.users.insert_one({
+                "user_id": uid,
+                "email": f"{uid}@example.com",
+                "name": "Pairer",
+                "approval_status": "approved",
+            })
+            await db.books.insert_one({
+                "book_id": "bk_hd",
+                "user_id": uid, "title": "Harry/Draco book",
+                "fandom": "HP", "category": "Fanfiction",
+                "relationships": ["Harry Potter/Draco Malfoy"],
+            })
+            await db.books.insert_one({
+                "book_id": "bk_polycule",
+                "user_id": uid, "title": "Polycule book",
+                "fandom": "HP", "category": "Fanfiction",
+                # One Harry ship + one non-Harry ship in the same book.
+                # The filter must keep Harry/Hermione and DROP Ron/Hermione
+                # (otherwise the $unwind expansion would leak it).
+                "relationships": ["Harry Potter/Hermione Granger", "Ron Weasley/Hermione Granger"],
+            })
+            await db.books.insert_one({
+                "book_id": "bk_no_harry",
+                "user_id": uid, "title": "No Harry",
+                "fandom": "HP", "category": "Fanfiction",
+                "relationships": ["Severus Snape/Lily Evans"],
+            })
+
+            me = User(user_id=uid, email=f"{uid}@example.com", name="Pairer")
+            res = await list_pairings(user=me, character="Harry Potter")
+            names = {p["pairing"] for p in res["pairings"]}
+            assert "Harry Potter/Draco Malfoy" in names
+            assert "Harry Potter/Hermione Granger" in names
+            # $unwind+filter leak guard:
+            assert "Ron Weasley/Hermione Granger" not in names
+            assert "Severus Snape/Lily Evans" not in names
+        finally:
+            await db.users.delete_many({"user_id": uid})
+            await db.books.delete_many({"user_id": uid})
+            cli.close()
+
+    shared_event_loop.run_until_complete(_run())
+
+
 def test_list_books_filters_by_character(shared_event_loop):
     """`GET /api/books?fandom=X&character=Y` returns only books whose
     relationships array mentions character Y inside fandom X.  Powers

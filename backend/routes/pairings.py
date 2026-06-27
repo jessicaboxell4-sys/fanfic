@@ -14,7 +14,10 @@ Endpoints
 """
 from __future__ import annotations
 
-from fastapi import Depends, HTTPException
+import re
+from typing import Optional
+
+from fastapi import Depends, HTTPException, Query
 
 from auth_dep import get_current_user
 from deps import api_router, db
@@ -24,16 +27,37 @@ from utils.status_detector import effective_status
 
 
 @api_router.get("/library/pairings")
-async def list_pairings(user: User = Depends(get_current_user)):
+async def list_pairings(
+    user: User = Depends(get_current_user),
+    character: Optional[str] = Query(None, description="If provided, only pairings that mention this character"),
+):
     """Every canonical relationship across the user's library with a
-    book count and up to 3 sample titles, sorted by count DESC.
+    book count and up to 3 sample titles, sorted by count DESC and
+    pairing name ASC (alphabetical tiebreak so ties are deterministic).
+
+    When ``character`` is supplied, only pairings whose string contains
+    that character name (case-insensitive) are returned — this powers
+    the "show all of {Harry}'s ships" drill-down on /library/pairings.
     """
+    match = {
+        "user_id": user.user_id,
+        "category": {"$ne": TRASH_SHELF},
+        "relationships": {"$exists": True, "$ne": []},
+    }
+    if character and isinstance(character, str) and character.strip():
+        # Match books with at least one relationship mentioning the
+        # character.  The post-group filter below further trims out
+        # any individual relationship that doesn't mention the
+        # character.
+        match["relationships"] = {
+            "$regex": re.escape(character.strip()),
+            "$options": "i",
+            # NOTE: $exists/$ne aren't needed here because $regex on an
+            # array implicitly requires non-empty.  This shape works
+            # with Mongo's array matching.
+        }
     pipeline = [
-        {"$match": {
-            "user_id": user.user_id,
-            "category": {"$ne": TRASH_SHELF},
-            "relationships": {"$exists": True, "$ne": []},
-        }},
+        {"$match": match},
         {"$unwind": "$relationships"},
         {"$group": {
             "_id": "$relationships",
@@ -44,16 +68,21 @@ async def list_pairings(user: User = Depends(get_current_user)):
         {"$limit": 500},
     ]
     rows = await db.books.aggregate(pipeline).to_list(500)
-    pairings = [
-        {
+    needle = (character or "").strip().lower() if isinstance(character, str) else ""
+    pairings = []
+    for r in rows:
+        # Post-filter: $unwind expands every relationship, so a book
+        # tagged "Harry/Draco" + "Hermione/Ron" would also surface
+        # "Hermione/Ron" when we filter by "Harry".  Drop those.
+        if needle and needle not in (r["_id"] or "").lower():
+            continue
+        pairings.append({
             "pairing": r["_id"],
             "count": r["count"],
             # Cap samples at 3 client-side so MongoDB doesn't have to do
             # a $slice — keeps the pipeline simple and works on any version.
             "sample_titles": (r.get("sample_titles") or [])[:3],
-        }
-        for r in rows
-    ]
+        })
     return {"count": len(pairings), "pairings": pairings}
 
 
