@@ -104,7 +104,11 @@
 
 ## 3rd-Party Integrations
 - **Emergent LLM Key** — Claude Sonnet 4.6 for classification + tag suggestions
-- **Resend** (RESEND_API_KEY) — Year-in-books email recap + weekly digest
+- **Resend** (RESEND_API_KEY) — Year-in-books email recap + weekly digest.
+  ✅ `shelfsort.com` domain verified at Resend since 2026-06-19
+  (us-east-1). Sender = `Shelfsort <hello@shelfsort.com>`.  Real-inbox
+  delivery works end-to-end.  Future agents: do NOT re-flag domain
+  verification as a blocker — that was historical handoff cruft.
 - **Emergent-managed Google OAuth** — Login
 
 ## Testing
