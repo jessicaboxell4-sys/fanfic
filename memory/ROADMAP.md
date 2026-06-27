@@ -715,6 +715,17 @@ books?" anxiety moment. Eliminating it builds trust.
 
 ## ⏰ Parked reminders — bring up next session
 
+### 🅿️ Parked 2026-06-27 — Open Graph reliability unfurl for `/changelog`
+
+Now that the public trust-signal stack is built (badge + state word
++ heartbeat + uptime %), add a server-rendered `<meta>` /
+Open Graph card to `/changelog` that broadcasts the live healthy
+status when the URL is pasted into Twitter/Discord/Slack — e.g.
+*"Shelfsort changelog · 99.7% production uptime over 30 days · last
+checked 2 min ago"*.  Larger scope (needs the heartbeat fetched
+server-side at render time too).  User asked to revisit later.
+
+
 ### 🅿️ Parked 2026-06-27 — "Auto-share my Wrapped" follow-up
 
 When the user clicks the post-big-import **See my Wrapped** CTA
