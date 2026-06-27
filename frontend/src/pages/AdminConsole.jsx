@@ -551,6 +551,19 @@ function FeedbackInboxCard() {
   const [openCount, setOpenCount] = useState(0);
   const [busyId, setBusyId] = useState(null);
   const [expanded, setExpanded] = useState(null);
+  // 2026-06-27 — Show/hide test-fixture rows in the inbox.  Defaults
+  // to OFF (real-user view) so TEST_ship_* / TEST_dbg noise from
+  // integration tests stays out of the admin's eyeline.  Toggle is
+  // persisted to localStorage so an admin who flipped it ON for
+  // debugging stays in that mode across reloads.
+  const [includeTests, setIncludeTests] = useState(() => {
+    try { return localStorage.getItem("admin.feedback.include_tests") === "1"; }
+    catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("admin.feedback.include_tests", includeTests ? "1" : "0"); }
+    catch { /* ignore */ }
+  }, [includeTests]);
   // Mark-Shipped modal state.  `shipItem` is the suggestion row being
   // shipped (null = modal closed); the modal collects admin_note + a
   // "send celebration email" checkbox before PUT-ing status=done in
@@ -564,16 +577,17 @@ function FeedbackInboxCard() {
     setLoading(true);
     try {
       const params = filter === "all" ? {} : { status: filter };
+      if (includeTests) params.include_tests = true;
       const [{ data: list }, { data: count }] = await Promise.all([
         api.get("/suggestions", { params }),
-        api.get("/admin/suggestions/open-count"),
+        api.get("/admin/suggestions/open-count", { params: includeTests ? { include_tests: true } : {} }),
       ]);
       setItems(list?.suggestions || []);
       setOpenCount(count?.open || 0);
     } catch { toast.error("Couldn't load feedback"); }
     finally { setLoading(false); }
   };
-  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [filter]);
+  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [filter, includeTests]);
 
   const setStatus = async (sid, status) => {
     setBusyId(sid);
@@ -685,6 +699,27 @@ function FeedbackInboxCard() {
             {lbl}
           </button>
         ))}
+        {/* 2026-06-27 — Test-fixture toggle.  Off by default so the
+            inbox shows only real-user feedback; flip ON to debug
+            fixture leakage / verify integration-test rows landed
+            correctly.  Sits at the end of the chip row with a
+            distinct amber tint so it doesn't read as a status. */}
+        <button
+          type="button"
+          onClick={() => setIncludeTests((v) => !v)}
+          aria-pressed={includeTests}
+          data-testid="feedback-toggle-include-tests"
+          title={includeTests
+            ? "Hide TEST_ fixture rows from agent/test users"
+            : "Show TEST_ fixture rows submitted by test/agent accounts"}
+          className={`ml-auto px-3 py-1 rounded-full text-xs font-bold uppercase tracking-[0.15em] transition-colors ${
+            includeTests
+              ? "bg-[#FDF3E1] text-[#B87A00] border border-[#B87A00]/30"
+              : "bg-[#F5F3EC] text-[#6B705C] hover:bg-[#E8E2D4] border border-transparent"
+          }`}
+        >
+          {includeTests ? "🧪 Tests: shown" : "🧪 Tests: hidden"}
+        </button>
       </div>
       {loading ? (
         <p className="text-sm text-[#6B705C] italic">Loading…</p>
@@ -964,21 +999,34 @@ function HelpFeedbackCard() {
   const [pageFilter, setPageFilter] = useState(""); // "" = all pages
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(null);
+  // 2026-06-27 — Help-page feedback is also polluted by integration
+  // tests posting placeholder text from agent-account submitters
+  // (@example.com / user_* / etc.).  Mirror the FeedbackInboxCard
+  // toggle so admins see the real-user friction queue by default.
+  const [includeTests, setIncludeTests] = useState(() => {
+    try { return localStorage.getItem("admin.helpfeedback.include_tests") === "1"; }
+    catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("admin.helpfeedback.include_tests", includeTests ? "1" : "0"); }
+    catch { /* ignore */ }
+  }, [includeTests]);
 
   const load = async () => {
     setLoading(true);
     try {
       const statusParam = status === "all" ? "" : status;
+      const baseParams = { status: statusParam, ...(includeTests ? { include_tests: true } : {}) };
       const [{ data: agg }, { data: list }] = await Promise.all([
-        api.get("/admin/feedback/by-page", { params: { status: statusParam, limit: 30 } }),
-        api.get("/admin/feedback", { params: { status: statusParam, page: pageFilter || undefined, limit: 100 } }),
+        api.get("/admin/feedback/by-page", { params: { ...baseParams, limit: 30 } }),
+        api.get("/admin/feedback", { params: { ...baseParams, page: pageFilter || undefined, limit: 100 } }),
       ]);
       setByPage(agg?.rows || []);
       setRows(list?.rows || []);
     } catch { toast.error("Couldn't load help feedback"); }
     finally { setLoading(false); }
   };
-  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [status, pageFilter]);
+  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [status, pageFilter, includeTests]);
 
   const totalCount = byPage.reduce((s, r) => s + (r.count || 0), 0);
 
@@ -1017,6 +1065,25 @@ function HelpFeedbackCard() {
             Page: {pageFilter}
           </button>
         )}
+        {/* 2026-06-27 — Tests toggle.  Sits at the end of the chip
+            row (or right of the page-filter clear if visible).
+            Distinct amber tint so it doesn't read as a status pill. */}
+        <button
+          type="button"
+          onClick={() => setIncludeTests((v) => !v)}
+          aria-pressed={includeTests}
+          data-testid="help-feedback-toggle-include-tests"
+          title={includeTests
+            ? "Hide test-account submissions from the friction queue"
+            : "Show test-account submissions (debug fixture leakage)"}
+          className={`${pageFilter ? "" : "ml-auto"} px-3 py-1 rounded-full text-xs font-bold uppercase tracking-[0.15em] transition-colors ${
+            includeTests
+              ? "bg-[#FDF3E1] text-[#B87A00] border border-[#B87A00]/30"
+              : "bg-[#F5F3EC] text-[#6B705C] hover:bg-[#E8E2D4] border border-transparent"
+          }`}
+        >
+          {includeTests ? "🧪 Tests: shown" : "🧪 Tests: hidden"}
+        </button>
       </div>
 
       {loading ? (

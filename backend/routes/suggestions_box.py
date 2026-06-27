@@ -82,11 +82,20 @@ async def submit_suggestion(
 @api_router.get("/admin/feedback")
 async def list_suggestions(
     status: str = "open", page: Optional[str] = None, limit: int = 100,
+    include_tests: bool = False,
     _admin: User = Depends(require_admin),
 ):
     """Admin triage feed — sorted newest-first.  Optional ``page``
     filter (e.g., ``/library``) scopes to a single route so admins
-    can dig into the friction on one screen."""
+    can dig into the friction on one screen.
+
+    2026-06-27 — ``include_tests`` defaults to False so the admin
+    inbox excludes Help-page feedback submitted by test-account
+    users (@example.com / user_* / iter* / etc.).  Pass
+    ``include_tests=true`` from the UI when debugging fixture
+    leakage.  Detection matches the same canonical email predicate
+    used by the suggestions board + email watchdog.
+    """
     limit = max(1, min(int(limit or 100), 500))
     # The ``suggestions`` collection is shared with the older
     # /api/suggestions product-board (which uses {title, body, category,
@@ -98,6 +107,9 @@ async def list_suggestions(
         q["status"] = status
     if page:
         q["page"] = page
+    if not include_tests:
+        from utils.test_account_filter import mongo_exclude_tests_clause
+        q.update(mongo_exclude_tests_clause("user_email"))
     rows: List[dict] = []
     async for r in db.suggestions.find(q).sort("ts", -1).limit(limit):
         r.pop("_id", None)
@@ -108,11 +120,17 @@ async def list_suggestions(
 @api_router.get("/admin/feedback/by-page")
 async def suggestions_by_page(
     status: str = "open", limit: int = 30,
+    include_tests: bool = False,
     _admin: User = Depends(require_admin),
 ):
     """Aggregate count of suggestions grouped by page.  Powers an
     admin widget that surfaces which routes are causing the most
-    user friction."""
+    user friction.
+
+    2026-06-27 — Honours ``include_tests`` so the per-page friction
+    counter matches the list endpoint and the rolled-up numbers don't
+    include fixture noise from agent flows.
+    """
     limit = max(1, min(int(limit or 30), 100))
     # Same shape-discriminator as the list endpoint above — legacy
     # rows from the /api/suggestions board don't carry a ``text``
@@ -120,6 +138,9 @@ async def suggestions_by_page(
     match: Dict[str, Any] = {"text": {"$exists": True, "$ne": None}}
     if status:
         match["status"] = status
+    if not include_tests:
+        from utils.test_account_filter import mongo_exclude_tests_clause
+        match.update(mongo_exclude_tests_clause("user_email"))
     pipeline = [
         {"$match": match},
         {"$group": {

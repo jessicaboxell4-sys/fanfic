@@ -166,6 +166,7 @@ async def list_suggestions(
     status: Optional[str] = None,
     category: Optional[str] = None,
     mine_only: bool = False,
+    include_tests: bool = False,
     user: User = Depends(get_current_user),
 ):
     # The ``suggestions`` collection is shared with the newer
@@ -180,6 +181,18 @@ async def list_suggestions(
         query["category"] = category
     if mine_only:
         query["submitter_user_id"] = user.user_id
+    # 2026-06-27 — Hide test-fixture rows (TEST_ship_*, TEST_dbg, etc.
+    # submitted by agent users like @example.com) from the human-facing
+    # board.  Admins can flip ``?include_tests=true`` to see them
+    # again when debugging fixture leakage.  Detection matches by
+    # submitter_email against the canonical test-account predicate so
+    # the rule stays consistent with the user-approval test inbox and
+    # the email quota watchdog.  Their own submissions are preserved
+    # if ``mine_only`` is in effect (caller explicitly asked for their
+    # own rows).
+    if not include_tests and not mine_only:
+        from utils.test_account_filter import mongo_exclude_tests_clause
+        query.update(mongo_exclude_tests_clause("submitter_email"))
     docs = await db.suggestions.find(query, {"_id": 0}).to_list(length=500)
     # Sort: open ones first, then by votes desc, then by recency.
     status_rank = {"open": 0, "under_review": 1, "planned": 2, "done": 3, "declined": 4}
@@ -478,7 +491,10 @@ async def admin_delete(sid: str, user: User = Depends(require_admin)):
 
 
 @api_router.get("/admin/suggestions/open-count")
-async def admin_open_count(user: User = Depends(require_admin)):
+async def admin_open_count(
+    include_tests: bool = False,
+    user: User = Depends(require_admin),
+):
     """Quick count for the Admin Console badge.
 
     Must match the same scope as the ``GET /suggestions`` list above —
@@ -488,9 +504,18 @@ async def admin_open_count(user: User = Depends(require_admin)):
     filter, the count picked up those Help-page records too and the
     badge said "7 open" while the inbox list said "No open feedback"
     (bug 2026-06-20).
+
+    2026-06-27 — Honours the same ``include_tests`` toggle as the list
+    endpoint so the "(N open)" header in the inbox card matches the
+    rows the admin actually sees.  Default ``False`` hides
+    TEST_ship_* / TEST_dbg fixture noise.
     """
-    n = await db.suggestions.count_documents({
+    q: Dict[str, Any] = {
         "suggestion_id": {"$exists": True},
         "status": "open",
-    })
+    }
+    if not include_tests:
+        from utils.test_account_filter import mongo_exclude_tests_clause
+        q.update(mongo_exclude_tests_clause("submitter_email"))
+    n = await db.suggestions.count_documents(q)
     return {"open": n}

@@ -118,3 +118,39 @@ def mongo_test_account_filter() -> dict:
     # email field was set to a raw user_id.
     or_clauses.append({"email": {"$not": {"$regex": "@", "$options": "i"}}})
     return {"$or": or_clauses}
+
+
+def mongo_exclude_tests_clause(email_field: str = "email") -> dict:
+    """Return a Mongo ``$nor`` clause that excludes test-fixture rows
+    by checking ``email_field`` against the same domain/prefix rules
+    used by :func:`is_test_account`.
+
+    Examples::
+
+        # On the ``suggestions`` collection (Suggestions board, field
+        # ``submitter_email``)
+        q = {"suggestion_id": {"$exists": True}, **mongo_exclude_tests_clause("submitter_email")}
+
+        # On the Help-page feedback rows (field ``user_email``)
+        q = {"text": {"$exists": True}, **mongo_exclude_tests_clause("user_email")}
+
+    Internally rewrites the canonical "match-test" $or to target the
+    chosen field, then wraps in $nor.  Used by the admin Feedback inbox
+    to hide TEST_ fixture rows from the human-facing queue without
+    deleting them (so integration tests keep passing).
+    """
+    or_clauses = mongo_test_account_filter()["$or"]
+    rewritten: list[dict] = []
+    for c in or_clauses:
+        # Each canonical clause is shaped {"email": {...}}.  Move the
+        # body under the caller's field name.
+        if "email" in c:
+            rewritten.append({email_field: c["email"]})
+        else:
+            rewritten.append(c)
+    # Also exclude rows where the email is null/missing — those are
+    # ambiguous (anonymous Help-page feedback can have user_email=None)
+    # and should not be treated as test fixtures.  The $nor only fires
+    # on rows that POSITIVELY match a test pattern; null falls through
+    # to "visible" automatically.  No extra clause needed.
+    return {"$nor": rewritten}
