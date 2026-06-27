@@ -4122,11 +4122,39 @@ function CanaryCard() {
               <div className="text-[10px] uppercase tracking-[0.15em] text-[#6B705C]">Failed</div>
             </div>
             {lastRun && (
-              <div className="ml-auto text-right">
+              <div className="ml-auto text-right" data-testid="admin-canary-last-run">
                 <div className={`text-sm font-semibold ${lastRun.status === "pass" ? "text-[#3D8B79]" : "text-[#C5564B]"}`}>
                   {lastRun.status === "pass" ? "✓ Last run passed" : "✗ Last run failed"}
                 </div>
                 <div className="text-[10px] text-[#6B705C]">{fmtTime(lastRun.finished_at)}</div>
+                {/* 2026-06-27 — Tiered cadence badge.  The retry
+                    workflow (`prod-smoke-canary-retry.yml`) sets
+                    retry=true on its report POST, so we can
+                    distinguish *confirmed* failures (failed both the
+                    primary run AND the 15-min retry — operator must
+                    investigate) from *recovered* runs (primary
+                    failed, retry passed — silent recovery).  This
+                    badge turns the 15-min cadence into a visible
+                    trust signal: "yep, we double-checked, this is
+                    real" or "no panic, prod recovered itself". */}
+                {lastRun.retry && lastRun.status === "fail" && (
+                  <div
+                    className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#FBE7E4] text-[#C5564B] border border-[#C5564B]/30"
+                    title="The primary canary failed AND the 15-min auto-retry also failed — this is a real production issue, not a transient blip."
+                    data-testid="admin-canary-confirmed-badge"
+                  >
+                    Confirmed by retry · 15 min
+                  </div>
+                )}
+                {lastRun.retry && lastRun.status === "pass" && (
+                  <div
+                    className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#E4F4EE] text-[#3D8B79] border border-[#3D8B79]/30"
+                    title="The primary canary failed but the 15-min auto-retry passed — prod recovered itself, no action needed."
+                    data-testid="admin-canary-recovered-badge"
+                  >
+                    Recovered via retry · 15 min
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -4157,6 +4185,15 @@ function CanaryCard() {
                 >
                   <span className={`w-2 h-2 rounded-full ${r.status === "pass" ? "bg-[#3D8B79]" : "bg-[#C5564B]"}`} />
                   <span className="text-[#2C2C2C] font-semibold">{r.status.toUpperCase()}</span>
+                  {r.retry && (
+                    <span
+                      className="text-[9px] font-semibold uppercase tracking-wider text-[#6B46C1] bg-[#F0EAFE] px-1 rounded"
+                      title="15-min auto-retry run"
+                      data-testid={`admin-canary-row-retry-${r.run_id}`}
+                    >
+                      retry
+                    </span>
+                  )}
                   <span className="text-[#6B705C]">{fmtTime(r.finished_at)}</span>
                   <span className="text-[#6B705C] ml-auto tabular-nums">{r.passed}/{r.total}</span>
                   {r.duration_s != null && <span className="text-[#6B705C] tabular-nums">{Math.round(r.duration_s)}s</span>}

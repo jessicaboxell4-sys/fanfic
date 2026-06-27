@@ -228,6 +228,8 @@ jobs:
               "The production smoke canary failed **twice** (initial run + 15-min retry).",
               "This is a confirmed production issue — please investigate.",
               "",
+              "> 🔴 **Confirmed by retry · 15 min** — this is not a transient blip.",
+              "",
               `**Initial run:** ${upstream && upstream.html_url ? upstream.html_url : '(unknown)'}`,
               `**Retry run:**   ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
               `**Target:**      ${process.env.REACT_APP_BACKEND_URL || '(unset)'}`,

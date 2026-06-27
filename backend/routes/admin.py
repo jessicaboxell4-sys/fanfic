@@ -3274,6 +3274,12 @@ class _CanaryReportBody(BaseModel):
     duration_s:  Optional[float] = Field(default=None, ge=0)
     finished_at: Optional[str] = None  # ISO; defaults to now if missing
     tail:        Optional[str] = Field(default=None, max_length=4000)
+    # 2026-06-27 — Set to True by `prod-smoke-canary-retry.yml` when
+    # the run is the 15-min retry after a transient primary failure.
+    # Used by the AdminConsole widget to badge confirmed failures
+    # ("Confirmed by retry · 15 min") so operators can tell at a
+    # glance that this isn't a one-off blip — it failed twice.
+    retry:       Optional[bool] = Field(default=False)
 
 
 @api_router.post("/canary/report")
@@ -3307,6 +3313,7 @@ async def canary_report(body: _CanaryReportBody, secret: Optional[str] = None):
                 "finished_at":  finished_at,
                 "tail":         (body.tail or "")[:4000],
                 "received_at":  now_iso,
+                "retry":        bool(body.retry),
             },
         },
         upsert=True,

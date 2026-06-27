@@ -7,6 +7,51 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 (later) — "Confirmed by retry · 15 min" trust badge 🏷️
+
+Follow-up engagement polish on the tiered canary cadence shipped
+earlier today (item #5).  Now that the retry workflow distinguishes
+*confirmed* failures from *transient blips*, surface that signal
+visibly across all operator surfaces so anyone glancing at the
+canary state knows whether to drop what they're doing.
+
+### What shipped
+
+- **Backend (`routes/admin.py`)** — added `retry: Optional[bool] = False`
+  to `_CanaryReportBody` and persisted it on every `canary_runs` row.
+  Default-false ensures existing pre-retry rows render cleanly in the
+  widget.
+- **Admin Console widget (`AdminConsole.jsx` → `CanaryCard`)** — when
+  the last run has `retry == true`:
+    - **Confirmed by retry · 15 min** badge (red/amber, top-right of
+      the headline) on failed retry runs — "this is real, not a blip"
+    - **Recovered via retry · 15 min** badge (green) on passed retry
+      runs — "prod recovered itself, no action needed"
+    - **`retry` pill** in the per-run detail list so historical retry
+      runs are visually distinct from primary runs.
+- **GitHub issue body (`prod-smoke-canary-retry.yml`)** — every
+  confirmed-failure issue now opens with a callout-quoted line:
+  > 🔴 **Confirmed by retry · 15 min** — this is not a transient blip.
+
+### Trust signal angle
+Operators previously had to read the workflow filename to know
+whether an alert was the first failure or the post-retry confirmed
+one.  The badge collapses that cognitive step — one glance, full
+context.  Same data, much higher signal-per-pixel.
+
+### Tests
+- `backend/tests/test_iter65_canary_retry_flag.py` (new) — verifies
+  the `retry` flag round-trips through `POST /api/canary/report` and
+  defaults to `False` when omitted.  Both tests pass against the live
+  backend.
+
+Files touched: `backend/routes/admin.py`,
+`frontend/src/pages/AdminConsole.jsx`,
+`.github/workflows/prod-smoke-canary-retry.yml`,
+`backend/tests/test_iter65_canary_retry_flag.py` (new).
+
+---
+
 ## 2026-06-27 (P1) — Tiered canary cadence with agent-observable status 🐤
 
 ROADMAP item **#5** shipped.  Problem: a single transient prod blip
