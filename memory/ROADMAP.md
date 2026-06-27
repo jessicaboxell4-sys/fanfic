@@ -715,6 +715,24 @@ books?" anxiety moment. Eliminating it builds trust.
 
 ## ⏰ Parked reminders — bring up next session
 
+### 🅿️ Parked 2026-06-27 — Reply to David Webber on Facebook
+
+Once Phase 2 of the library-mode work ships AND is deployed to prod,
+post a follow-up reply to David Webber's question on Jessica's
+Shelfsort Facebook post.  Draft (in Jessica's voice):
+
+> Hey David, quick follow-up — just shipped a Library mode setting
+> in /account so you can tell Shelfsort whether you're fanfic-first
+> or original-fic-first.  Pick **Original & Non-fic first** and the
+> AO3 chrome (pairings, fandom shelves) disappears so it feels like
+> a normal ebook library.  Thanks for the nudge that made this a
+> real priority!
+
+Closing the loop with the user who asked = real proof we listen,
+which is rare on social.  User said: **wait until Phase 2 is live
+before posting**.  Do NOT auto-post this — confirm with user first.
+
+
 ### 🅿️ Parked 2026-06-27 — Library appearance prefs panel on `/account`
 
 Three persisted library-view prefs were shipped today
