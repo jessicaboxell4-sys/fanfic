@@ -154,3 +154,41 @@ def mongo_exclude_tests_clause(email_field: str = "email") -> dict:
     # on rows that POSITIVELY match a test pattern; null falls through
     # to "visible" automatically.  No extra clause needed.
     return {"$nor": rewritten}
+
+
+async def test_user_ids_set(db) -> set[str]:
+    """Return the set of ``user_id`` values currently flagged as test
+    fixtures (``is_test_account: True`` on the ``users`` collection).
+
+    For admin endpoints whose rows reference users by id only (audit
+    log, av_quarantine, etc.) and have no embedded email — caller
+    converts to a list and uses ``$nin`` against the relevant field.
+
+    The startup hook in ``server.py`` backfills this flag, so the
+    set is authoritative for every user that has ever signed up.
+    Brand-new test users created mid-test won't be stamped until the
+    next backend restart, but those rows also won't appear in admin
+    queues until the next cron tick — close enough for "real-user view".
+    """
+    docs = await db.users.find(
+        {"is_test_account": True},
+        {"_id": 0, "user_id": 1},
+    ).to_list(length=50000)
+    return {d["user_id"] for d in docs}
+
+
+async def mongo_exclude_test_user_ids_clause(db, user_id_field: str = "user_id") -> dict:
+    """Return a Mongo clause that excludes rows whose ``user_id_field``
+    points at a test-account user.  Use for collections that store
+    only ``user_id`` (no submitter_email), e.g. ``admin_audit``
+    (target field), ``av_quarantine`` (user_id field).
+
+    Returns an empty dict when no test users exist, so callers can
+    safely spread it into a wider query without a guard::
+
+        q = {"action": {"$in": MOD_ACTIONS}, **await mongo_exclude_test_user_ids_clause(db, "target")}
+    """
+    ids = await test_user_ids_set(db)
+    if not ids:
+        return {}
+    return {user_id_field: {"$nin": list(ids)}}

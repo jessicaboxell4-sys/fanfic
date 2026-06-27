@@ -111,12 +111,20 @@ async def admin_av_status(_admin: User = Depends(require_admin)) -> Dict[str, An
 async def admin_av_quarantine(
     limit: int = 50,
     source: Optional[str] = None,
+    include_tests: bool = False,
     _admin: User = Depends(require_admin),
 ) -> Dict[str, Any]:
     limit = max(1, min(int(limit or 50), 500))
     query: Dict[str, Any] = {}
     if source:
         query["source"] = source
+    if not include_tests:
+        from utils.test_account_filter import mongo_exclude_test_user_ids_clause
+        # av_quarantine stores user_id only — convert to a $nin clause
+        # against the set of currently-known test-account user_ids.
+        # Quarantine hits from fixture flows (uploads by @example.com)
+        # are noise; admins almost never need them in the daily feed.
+        query.update(await mongo_exclude_test_user_ids_clause(db, "user_id"))
     rows: List[Dict[str, Any]] = []
     async for r in db.av_quarantine.find(query).sort("ts", -1).limit(limit):
         r.pop("_id", None)

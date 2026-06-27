@@ -1311,15 +1311,28 @@ async def set_feature_flag(body: FeatureFlagBody, user: User = Depends(require_a
 async def get_audit_log(
     limit: int = 100,
     action_prefix: Optional[str] = None,
+    include_tests: bool = False,
     user: User = Depends(require_admin),
 ):
     """Return the most recent audit entries (newest first). Use
     `?action_prefix=user.` to filter by action group. Capped at 500.
+
+    2026-06-27 — ``include_tests`` defaults to False.  When False, any
+    row whose ``target`` is a test-account user (``is_test_account=True``)
+    is hidden so the audit feed reflects real-user history.  Pass
+    ``include_tests=true`` when you need to verify fixture activity.
     """
     limit = max(1, min(int(limit), 500))
     query: Dict[str, Any] = {}
     if action_prefix:
         query["action"] = {"$regex": f"^{action_prefix}"}
+    if not include_tests:
+        from utils.test_account_filter import mongo_exclude_test_user_ids_clause
+        # Only the `target` field needs filtering — audit rows whose
+        # actor is a test-account admin are extremely rare and useful
+        # signal when they do occur.  The 99% case is "admin acted on
+        # a test user" which we want hidden.
+        query.update(await mongo_exclude_test_user_ids_clause(db, "target"))
     cursor = db.admin_audit.find(query, {"_id": 0}).sort("ts", -1).limit(limit)
     rows = await cursor.to_list(length=limit)
     for r in rows:
@@ -1356,6 +1369,7 @@ async def get_moderation_log(
     offset: int = 0,
     actor_id: Optional[str] = None,
     action: Optional[str] = None,
+    include_tests: bool = False,
     user: User = Depends(require_moderator_or_admin),
 ):
     """Paginated, all-time history of moderator actions.
@@ -1387,6 +1401,11 @@ async def get_moderation_log(
         if action not in MODERATION_ACTION_SLUGS:
             raise HTTPException(status_code=400, detail=f"Unknown moderation action: {action}")
         query["action"] = action  # narrow from the $in to a single value
+    if not include_tests:
+        from utils.test_account_filter import mongo_exclude_test_user_ids_clause
+        # Filter by target — same intent as the audit log: hide rows
+        # where the moderation action targeted a test-account user.
+        query.update(await mongo_exclude_test_user_ids_clause(db, "target"))
     total = await db.admin_audit.count_documents(query)
     cursor = (
         db.admin_audit.find(query, {"_id": 0})
