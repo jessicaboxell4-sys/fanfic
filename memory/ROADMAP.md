@@ -715,6 +715,20 @@ books?" anxiety moment. Eliminating it builds trust.
 
 ## ⏰ Parked reminders — bring up next session
 
+### 🅿️ Parked 2026-06-27 — Public-facing `/status` page
+
+Build a focused, public read-only `/status` route (statuspage.io
+style) that lifts the existing `/changelog` trust-signal components
+(canary heartbeat caption + 30-day sparkline + "days since last
+incident" counter + uptime %) onto a standalone page.  Add a tiny
+"current incidents" banner pulling from `/app/memory/canary_status.json`
+to show any active failure prominently.  The natural "for our users"
+companion to the admin watchdog dashboard; perfect link for the
+Twitter bio / footer / docs.  ~20 min — most components already
+exist, just need a new route + a slimmed-down layout without the
+changelog entries.  User asked to revisit later.
+
+
 ### 🅿️ Parked 2026-06-27 — Composable `<TrustStrip />` component
 
 The `/changelog` trust-signal stack (shields.io badge + state word
