@@ -715,6 +715,19 @@ books?" anxiety moment. Eliminating it builds trust.
 
 ## ⏰ Parked reminders — bring up next session
 
+### 🅿️ Parked 2026-06-27 — Library appearance prefs panel on `/account`
+
+Three persisted library-view prefs were shipped today
+(`chips_pref`, `list_density`, `grid_size`).  They're currently
+discoverable only by clicking around the library page.  Lift them
+into a single `/account → Library appearance` panel with live
+previews so a new user can dial in their preferred view ONCE on
+signup instead of stumbling across each control individually.  Add
+a "Reset to defaults" link too.  All persistence already exists in
+localStorage — this is purely a forms + live-preview wrapper.
+~15 min.  User asked to revisit later.
+
+
 ### 🅿️ Parked 2026-06-27 — Public-facing `/status` page
 
 Build a focused, public read-only `/status` route (statuspage.io
