@@ -535,8 +535,34 @@ export default function AllBooksPage() {
         pool = pool.filter((b) => b.series_name && partwaySet.has(b.series_name));
       }
     }
+    // 2026-06-27 — Library-mode hard filter.  Switching the inline
+    // mode pill (Mixed / Fanfic / Original) must ACTUALLY hide
+    // books from the other world, not just relabel the layout.
+    // Earlier this was a layout-only concern (mixed mode split into
+    // two sections) and Original/Fanfic modes inherited whatever
+    // category chip happened to be selected — which let fanfics
+    // leak into Original view if the user was on the "All" chip.
+    //
+    // Semantics:
+    //   • fanfic   — keep only books whose category is "Fanfiction"
+    //                (case-insensitive)
+    //   • original — drop books whose category is "Fanfiction".
+    //                Original Fiction, Non-fiction, Unclassified,
+    //                and any custom user category all stay visible.
+    //   • mixed    — no extra filter; the section split below
+    //                handles the visual divide.
+    //
+    // Applied AFTER the chip filters above so users can still ask
+    // for "Original mode + Unread + This week" and get the right
+    // intersection.
+    const lm = user?.library_mode || "mixed";
+    if (lm === "fanfic") {
+      pool = pool.filter((b) => (b.category || "").toLowerCase() === "fanfiction");
+    } else if (lm === "original") {
+      pool = pool.filter((b) => (b.category || "").toLowerCase() !== "fanfiction");
+    }
     return pool;
-  }, [books, justAddedIds, chipFilters]);
+  }, [books, justAddedIds, chipFilters, user?.library_mode]);
 
   // Poll the conversion-status endpoint while uploads with heavy formats
   // (PDF, MOBI etc.) are running — Calibre conversion can take 30+ seconds.

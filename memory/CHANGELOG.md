@@ -7,7 +7,34 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
-## 2026-06-27 — Library mode preference Phase 2 (Friends discovery) ✨
+## 2026-06-27 — Fix: fanfics no longer leak into Original/Fanfic modes 🐛
+
+David's bug report on the inline `/library` mode pill: switching to
+Original mode still showed fanfic books because the pill only
+changed `library_mode` + the section layout — it never asked the
+book list to *exclude* the other world.  Same gap in reverse for
+Fanfic mode (you'd see original-fic if your last category chip
+selection was "All").
+
+Now applied at the `visibleBooks` useMemo level in `AllBooksPage.jsx`:
+
+- `fanfic`   — keep books where `category.toLowerCase() === "fanfiction"`
+- `original` — drop books where `category.toLowerCase() === "fanfiction"`
+              (Original Fiction, Non-fiction, Unclassified, and any
+              custom user category stay visible)
+- `mixed`    — pass-through; the section split still handles the
+              visual divide
+
+Applied AFTER the chip filters so combinations like "Original +
+Unread + This week" still intersect correctly.
+
+Unit-tested at `/app/frontend/tests/test_iter73_library_mode_filter.js`
+(8 assertions, including the critical regression: original mode
+must NEVER include a Fanfiction-category book).
+
+---
+
+
 
 Closing out the UX side of `library_mode`.  Phase 1 shipped the
 preference + Account toggle; Phase 2 surfaces it across the public
