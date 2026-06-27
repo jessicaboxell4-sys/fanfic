@@ -7,6 +7,61 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 — Library: collapsible chips + list-row density toggle 🎚️
+
+Two power-user controls layered on top of today's earlier library
+toolbar relocation.
+
+### (a) Collapsible chip stack
+
+Old: Length / Status / Added / Series chips occupied 4 always-visible
+rows above the book list — roughly 180px of vertical real estate
+even when zero filters were active.
+
+New (`library-chip-toggle` button at the top of the chip card):
+
+  > 🎛️ Filters · `None active` ▼
+  > 🎛️ Filters · `2 active`    ▼   (active count chip when filters set)
+
+Click to expand/collapse the full 4-row chip grid.  Smart defaults:
+
+- Fresh visit, no filters       → **closed** (clean library page)
+- Fresh visit, filters present  → **open** (so user sees what's
+  filtering their view)
+- Explicit user toggle          → sticky (`localStorage.shelfsort_chips_pref`
+  = "open" | "closed" | "auto"), honored across refreshes
+
+The "X of Y books match · Shuffle · Pick for me" row stays
+always-visible (when filters are active) so quick actions are
+always reachable.
+
+### (b) List-mode row density toggle
+
+Old: every list row hard-coded to `py-2` padding.
+
+New: a small `Density: [Compact] [Comfortable] [Cozy]` toggle
+appears in a thin bar above the table header (only in list mode —
+Grid and Compact already have their own implicit densities).
+
+- **Compact**     → `py-1` (~32px rows — see ~40% more books per
+  scroll on a 1080px screen)
+- **Comfortable** → `py-2` (default, current behaviour)
+- **Cozy**        → `py-4` (~64px rows — generous breathing room)
+
+State persisted to `localStorage.shelfsort_list_density`.  Wired
+via a `listRowPadding` derived class string applied to every
+`<li>` in the list — zero risk to the row layout, only changes
+vertical padding.
+
+### Files
+- `frontend/src/pages/AllBooksPage.jsx`
+
+Pure JSX + state, no backend changes, no test impact.  Lint clean
+(same pre-existing unescaped-quote warnings elsewhere in the file).
+JSX parses cleanly via esbuild; page renders with 0 JS errors.
+
+---
+
 ## 2026-06-27 (UX nits) — Library toolbar relocation + list-row hover fix 🛠️
 
 Two small library-page polish items the user spotted via

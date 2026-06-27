@@ -93,6 +93,53 @@ export default function AllBooksPage() {
     chipFilters.status !== "all" ||
     chipFilters.dateAdded !== "any" ||
     chipFilters.series !== "all";
+
+  // 2026-06-27 — Chip-stack open/closed state.
+  // Persisted explicit user choice ("auto" = no choice yet, defer to
+  // chipFiltersActive; "open"/"closed" = sticky user override).
+  // Default behaviour:
+  //   • Fresh visit, no filters       → closed (clean library page)
+  //   • Fresh visit, filters present  → open    (so user sees what's filtering)
+  //   • After user clicks the toggle  → their choice is honored
+  //     across refreshes via localStorage.
+  const [chipsPref, setChipsPref] = useState(() => {
+    try {
+      const raw = window.localStorage.getItem("shelfsort_chips_pref");
+      if (raw === "open" || raw === "closed") return raw;
+    } catch { /* ignore */ }
+    return "auto";
+  });
+  const chipsExpanded = chipsPref === "open" || (chipsPref === "auto" && chipFiltersActive);
+  const setChipsExpanded = (next) => {
+    const value = typeof next === "function" ? next(chipsExpanded) : next;
+    const pref = value ? "open" : "closed";
+    setChipsPref(pref);
+    try { window.localStorage.setItem("shelfsort_chips_pref", pref); } catch { /* ignore */ }
+  };
+
+  // 2026-06-27 — List-mode row density.
+  // Three options ranging from "see every row" → "more breathing room".
+  // Only applies when viewMode === "list" (Grid + Compact already have
+  // their own implicit densities via card sizes).  Persisted so the
+  // user's pick survives refreshes.
+  const [listDensity, setListDensity] = useState(() => {
+    try {
+      const raw = window.localStorage.getItem("shelfsort_list_density");
+      if (raw === "compact" || raw === "comfortable" || raw === "cozy") return raw;
+    } catch { /* ignore */ }
+    return "comfortable";
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem("shelfsort_list_density", listDensity); }
+    catch { /* ignore */ }
+  }, [listDensity]);
+  // py-* class per density level — keeps the existing list row's
+  // flex layout intact, only changes vertical padding.
+  const listRowPadding = (
+    listDensity === "compact"     ? "py-1" :
+    listDensity === "cozy"        ? "py-4" :
+                                    "py-2"   // comfortable (default)
+  );
   const [overview, setOverview] = useState(null);
   const [seriesList, setSeriesList] = useState([]);
   const [fandomQuery, setFandomQuery] = useState("");
@@ -857,6 +904,47 @@ export default function AllBooksPage() {
                 className="mb-4 p-3 rounded-xl bg-[#FAF6EE] border border-[#E8E6E1] flex flex-col gap-2 text-sm"
                 data-testid="library-chip-filters"
               >
+                {/* 2026-06-27 — Collapsible header.  The chip stack
+                    used to occupy 4 always-visible rows above the
+                    book list; collapsed by default it's a single
+                    18px-tall summary, opens on click.  Defaults
+                    OPEN when any filter is active (so the user can
+                    see WHY their list is filtered) and CLOSED when
+                    everything is at "All" / "Any time".  Explicit
+                    user toggles are persisted in localStorage so a
+                    power-user who wants the chips always-open stays
+                    that way across sessions. */}
+                <button
+                  type="button"
+                  onClick={() => setChipsExpanded((v) => !v)}
+                  aria-expanded={chipsExpanded}
+                  aria-controls="library-chip-rows"
+                  className="flex items-center gap-2 text-left -mx-1 px-1 py-0.5 rounded hover:bg-[#F0EAD9] transition-colors"
+                  data-testid="library-chip-toggle"
+                >
+                  <span className="text-xs font-semibold text-[#6B705C]">🎛️ Filters</span>
+                  {chipFiltersActive ? (
+                    <span
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#6B46C1] text-white"
+                      data-testid="library-chip-active-count"
+                    >
+                      {[
+                        chipFilters.length !== "all",
+                        chipFilters.status !== "all",
+                        chipFilters.dateAdded !== "any",
+                        chipFilters.series !== "all",
+                      ].filter(Boolean).length} active
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-[#A09A8B]">None active</span>
+                  )}
+                  <span
+                    className={`ml-auto text-[#6B705C] text-xs transition-transform ${chipsExpanded ? "rotate-180" : ""}`}
+                    aria-hidden="true"
+                  >▼</span>
+                </button>
+                {chipsExpanded && (
+                <div id="library-chip-rows" className="flex flex-col gap-2">
                 {[
                   {
                     dim: "length",
@@ -929,6 +1017,8 @@ export default function AllBooksPage() {
                     })}
                   </div>
                 ))}
+                </div>
+                )}
                 {chipFiltersActive && (
                   <div className="flex items-center justify-between pt-1 gap-3 flex-wrap">
                     <span className="text-xs text-[#A09A8B]" data-testid="library-chip-filter-count">
@@ -1674,6 +1764,37 @@ export default function AllBooksPage() {
               // full metadata.  Responsive columns: pairings/wordcount/
               // date hide on narrow screens so mobile stays tidy.
               <div className="bg-white rounded-xl border border-[#E8E6E1] overflow-hidden" data-testid="books-list">
+                {/* 2026-06-27 — Row-density toggle.  Only appears in
+                    list mode (Grid + Compact have their own implicit
+                    densities via card sizes).  Compact for dense
+                    scanning, Comfortable as default, Cozy for users
+                    who want more breathing room per row. */}
+                <div className="flex items-center justify-end gap-1 px-3 py-1.5 bg-[#FAF6EE] border-b border-[#E8E6E1] text-[10px] uppercase tracking-wider text-[#A09A8B]" data-testid="list-density-toggle">
+                  <span className="mr-1">Density:</span>
+                  {[
+                    { value: "compact",     label: "Compact" },
+                    { value: "comfortable", label: "Comfortable" },
+                    { value: "cozy",        label: "Cozy" },
+                  ].map((opt) => {
+                    const active = listDensity === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setListDensity(opt.value)}
+                        aria-pressed={active}
+                        data-testid={`list-density-${opt.value}`}
+                        className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider transition-colors ${
+                          active
+                            ? "bg-[#6B46C1] text-white"
+                            : "text-[#6B705C] hover:bg-white"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
                 {/* Sticky-ish header row.  Sortability deliberately
                     deferred — the existing top-bar sort dropdown
                     already drives this list. */}
@@ -1710,7 +1831,7 @@ export default function AllBooksPage() {
                       <li
                         key={b.book_id}
                         data-testid={`book-row-${b.book_id}`}
-                        className={`flex items-center gap-3 px-4 py-2 hover:bg-[#F5F3EC] transition-colors cursor-pointer ${
+                        className={`flex items-center gap-3 px-4 ${listRowPadding} hover:bg-[#F5F3EC] transition-colors cursor-pointer ${
                           selectMode && selectedIds.has(b.book_id) ? "bg-[#EEE9FB]" : ""
                         }`}
                         onClick={() => {
