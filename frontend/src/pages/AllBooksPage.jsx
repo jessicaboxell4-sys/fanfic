@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import Navbar from "../components/Navbar";
 import BookCard from "../components/BookCard";
 import SelectionBar from "../components/SelectionBar";
+import { useVerdictTaxonomy } from "../lib/useVerdictTaxonomy";
 import ContinueReadingRail from "../components/ContinueReadingRail";
 import StatsCard from "../components/StatsCard";
 import PoweredByFanFicFare from "../components/PoweredByFanFicFare";
@@ -94,22 +95,35 @@ export default function AllBooksPage() {
         // so an upgraded session doesn't fail the active-filter
         // check below.
         if (parsed && parsed.series == null) parsed.series = "all";
+        // 2026-06-27 — `verdict` + `readingState` chip dimensions
+        // added with the Verdicts feature.  Default both to "all"
+        // for older sessions so the active-filter check below
+        // doesn't false-fire and force the chip stack open.
+        if (parsed && parsed.verdict == null) parsed.verdict = "all";
+        if (parsed && parsed.readingState == null) parsed.readingState = "all";
         return parsed;
       }
     } catch { /* ignore */ }
-    return { length: "all", status: "all", dateAdded: "any", series: "all" };
+    return { length: "all", status: "all", dateAdded: "any", series: "all", verdict: "all", readingState: "all" };
   });
   useEffect(() => {
     try { window.localStorage.setItem("shelfsort_chip_filters", JSON.stringify(chipFilters)); }
     catch { /* ignore */ }
   }, [chipFilters]);
   const setChip = (dim, value) => setChipFilters((f) => ({ ...f, [dim]: value }));
-  const clearChipFilters = () => setChipFilters({ length: "all", status: "all", dateAdded: "any", series: "all" });
+  const clearChipFilters = () => setChipFilters({ length: "all", status: "all", dateAdded: "any", series: "all", verdict: "all", readingState: "all" });
+
+  // 2026-06-27 — Taxonomy hook for the new Verdict + Reading-state
+  // chip rows.  Cached at module level so this fetch only fires once
+  // per session no matter how many components use it.
+  const { taxonomy: verdictTax } = useVerdictTaxonomy();
   const chipFiltersActive =
     chipFilters.length !== "all" ||
     chipFilters.status !== "all" ||
     chipFilters.dateAdded !== "any" ||
-    chipFilters.series !== "all";
+    chipFilters.series !== "all" ||
+    chipFilters.verdict !== "all" ||
+    chipFilters.readingState !== "all";
 
   // 2026-06-27 — Chip-stack open/closed state.
   // Persisted explicit user choice ("auto" = no choice yet, defer to
@@ -532,6 +546,35 @@ export default function AllBooksPage() {
       pool = pool.filter((b) => (b.category || "").toLowerCase() === "fanfiction");
     } else if (lm === "original") {
       pool = pool.filter((b) => (b.category || "").toLowerCase() !== "fanfiction");
+    }
+
+    // 2026-06-27 — Verdict filter (private "Verdicts" axis).
+    // Two independent dimensions, both applied as AND:
+    //   • chipFilters.verdict      — one specific verdict key,
+    //                                "favorite" / "least_favorite" /
+    //                                "never_again" / "reread_material"
+    //                                / "recommend" / custom_*.
+    //                                "all" = no filter,
+    //                                "any" = at least one verdict set,
+    //                                "none" = no verdicts.
+    //   • chipFilters.readingState — single-select reading state.
+    //                                "all" = no filter,
+    //                                "unset" = books with no state set.
+    if (chipFilters.verdict !== "all") {
+      if (chipFilters.verdict === "any") {
+        pool = pool.filter((b) => (b.verdicts || []).length > 0);
+      } else if (chipFilters.verdict === "none") {
+        pool = pool.filter((b) => (b.verdicts || []).length === 0);
+      } else {
+        pool = pool.filter((b) => (b.verdicts || []).includes(chipFilters.verdict));
+      }
+    }
+    if (chipFilters.readingState !== "all") {
+      if (chipFilters.readingState === "unset") {
+        pool = pool.filter((b) => !b.reading_state);
+      } else {
+        pool = pool.filter((b) => b.reading_state === chipFilters.readingState);
+      }
     }
     return pool;
   }, [books, justAddedIds, chipFilters, user?.library_mode]);
@@ -1167,6 +1210,46 @@ export default function AllBooksPage() {
                       { value: "standalone", label: "Standalone" },
                       { value: "in_series",  label: "In a series" },
                       { value: "partway",    label: "Partway through" },
+                    ],
+                  },
+                  // 2026-06-27 — Verdict chip row.  "Any" / "None" are
+                  // meta-filters that don't tie to a specific verdict
+                  // key (useful for "show me everything I've marked"
+                  // or "show me the unmarked backlog").  The named
+                  // chips are populated from the live taxonomy so
+                  // adding a built-in or custom verdict surfaces
+                  // here for filtering automatically.
+                  {
+                    dim: "verdict",
+                    label: "🏷️ Verdict",
+                    options: [
+                      { value: "all",  label: "All" },
+                      { value: "any",  label: "Any verdict" },
+                      { value: "none", label: "Unmarked" },
+                      ...((verdictTax?.builtin_verdicts || []).map((v) => ({
+                        value: v.key,
+                        label: `${v.emoji} ${v.label}`,
+                      }))),
+                      ...((verdictTax?.custom_verdicts || []).map((v) => ({
+                        value: v.key,
+                        label: `${v.emoji} ${v.label}`,
+                      }))),
+                    ],
+                  },
+                  // 2026-06-27 — Reading-state chip row.  Single-select
+                  // mutually-exclusive position in the reader's queue.
+                  // "Unset" filters to books with no state declared
+                  // yet — i.e. the "I haven't decided" backlog.
+                  {
+                    dim: "readingState",
+                    label: "📚 State",
+                    options: [
+                      { value: "all",   label: "All" },
+                      { value: "unset", label: "Unset" },
+                      ...((verdictTax?.reading_states || []).map((s) => ({
+                        value: s.key,
+                        label: `${s.emoji} ${s.label}`,
+                      }))),
                     ],
                   },
                 ].map((row) => (

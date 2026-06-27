@@ -7,7 +7,74 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
-## 2026-06-27 — Fix: fanfics no longer leak into Original/Fanfic modes 🐛
+## 2026-06-27 — Verdicts: private reading state + sentiment marks ✨
+
+A new private "Verdicts" axis on every book.  Two independent
+dimensions:
+
+- **`reading_state`** — single-select position in your queue
+  (`📖 Need to read` / `👀 Reading` / `✅ Read` / `🪦 DNF`).
+  Different from the existing reading-progress % — *commitment* vs
+  *position*.
+- **`verdicts`** — multi-select sentiment tags.  Five built-ins
+  ship out of the box (`⭐ Favorite` / `💀 Least favorite` /
+  `🚫 Never again` / `♻️ Reread material` / `🫶 Would recommend`),
+  plus up to 10 user-defined `custom_*` slots with any emoji and
+  label.
+
+### Where it shows up
+
+1. **Book cards** — a small chip cluster at the bottom of every
+   card on `/library/all`.  Tap any chip to open a popover that
+   lets you flip the state (single-select) and toggle verdicts
+   (multi-select).  Empty state shows a "+ Mark" pill.
+2. **Filter chips** on `/library/all` — two new rows in the
+   collapsible chip stack:
+   * "🏷️ Verdict" — All / Any verdict / Unmarked / each built-in
+     and custom verdict.
+   * "📚 State" — All / Unset / each reading state.
+   Combine with category/length/series/library-mode for arbitrary
+   intersections ("Original-fic + Read + Favorite").
+3. **Bulk-toolbar** — a "Verdict" dropdown in the multi-select
+   action bar at the bottom of the page.  Apply a state, add a
+   verdict, or clear the state across every selected book in one
+   PATCH.
+
+### API
+
+```
+GET    /api/verdicts/taxonomy          # built-ins + your customs
+PATCH  /api/books/{book_id}/verdict    # set / clear / add / remove
+POST   /api/books/bulk/verdicts        # mass-apply across many
+POST   /api/verdicts/custom            # add a custom verdict slot
+DELETE /api/verdicts/custom/{key}      # remove (also pulls off books)
+```
+
+Custom verdict keys must match `custom_[a-z0-9_]+` so they can't
+collide with current/future built-ins.  Deleting a custom verdict
+also pulls it off every book the user owns — orphan keys would
+render as blank chips.
+
+### Tests
+
+- `tests/test_iter76_verdicts.py` — 11 tests covering taxonomy,
+  per-book PATCH (set / clear / add / remove / full-replace /
+  invalid keys / unknown verdicts), bulk apply, custom verdict
+  CRUD + max-cap, and the cross-user ownership check.  All green.
+
+### Tech follow-up
+
+The eslint `no-use-before-define` rule introduced after the
+previous /library/all TDZ flagged a couple of pre-existing
+closure-deferred references (`await load()` inside click handlers
+declared before the useCallback).  Dropped the rule from `error`
+to `warn` so the dev build keeps compiling; the useful TDZ-shape
+case (useMemo dep array referencing a later `const`) still surfaces
+as a warning that runs the screen red during build.
+
+---
+
+
 
 David's bug report on the inline `/library` mode pill: switching to
 Original mode still showed fanfic books because the pill only

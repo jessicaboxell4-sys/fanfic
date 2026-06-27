@@ -8,6 +8,7 @@ import { useAuth } from "../context/AuthContext";
 import { isBookFresh, subscribeFreshArrivals } from "../lib/freshArrivals";
 import RegenerateCoverButton from "./RegenerateCoverButton";
 import AntivirusBadge from "./AntivirusBadge";
+import VerdictBadges from "./VerdictBadges";
 
 const categoryBadgeClass = (category) => {
   if (category === "Fanfiction") return "badge-fandom";
@@ -261,6 +262,14 @@ export default function BookCard({ book, selectMode, selected, onToggleSelect, o
             )}
           </div>
         )}
+        {/* 2026-06-27 — Verdict badges (private reading state +
+            sentiment).  Sits at the bottom of the card chrome so it
+            doesn't compete with title/author for first-read attention.
+            Clicks bubble-stop inside VerdictBadges so the parent Link
+            doesn't navigate when the user opens the popover. */}
+        <div className="mt-2" data-testid={`book-verdict-row-${book.book_id}`}>
+          <VerdictBadges book={book} compact={true} onChange={onChanged} />
+        </div>
       </div>
     </>
   );

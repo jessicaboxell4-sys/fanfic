@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { Trash2, Move, X, ChevronDown, Edit3 } from "lucide-react";
+import { Trash2, Move, X, ChevronDown, Edit3, Tag } from "lucide-react";
 import { api } from "../lib/api";
 import { toast } from "sonner";
 import TagInput from "./TagInput";
+import { useVerdictTaxonomy } from "../lib/useVerdictTaxonomy";
 
 const DEFAULT_SHELVES = ["Fanfiction", "Original Fiction", "Non-fiction", "Unclassified", "Updated stories", "Old stories"];
 
@@ -246,12 +247,34 @@ export default function SelectionBar({ selectedIds, customCats, onDone, onCancel
   const [busy, setBusy] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [editMeta, setEditMeta] = useState(false);
+  const [showVerdictMenu, setShowVerdictMenu] = useState(false);
+  const { taxonomy: verdictTax } = useVerdictTaxonomy();
 
   const count = selectedIds.size;
   if (count === 0) return null;
 
   const ids = Array.from(selectedIds);
   const allShelves = [...DEFAULT_SHELVES, ...customCats];
+
+  // 2026-06-27 — Bulk-apply a verdict or reading-state to every
+  // selected book.  Each menu entry maps to a single PATCH against
+  // /books/bulk/verdicts; we surface only the most common actions
+  // (mark as favorite / read / DNF / clear all marks) inline to
+  // avoid making the bottom toolbar wider than the screen.
+  const bulkVerdict = async (label, body) => {
+    setShowVerdictMenu(false);
+    setBusy(true);
+    try {
+      const { data } = await api.post("/books/bulk/verdicts", { book_ids: ids, ...body });
+      const n = (data && data.updated) || count;
+      toast.success(`${label} · ${n} book${n === 1 ? "" : "s"}`);
+      onDone && onDone();
+    } catch (e) {
+      toast.error("Couldn't apply verdict");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const move = async (category) => {
     setBusy(true);
@@ -276,8 +299,7 @@ export default function SelectionBar({ selectedIds, customCats, onDone, onCancel
     if (!window.confirm(`Move ${count} book${count === 1 ? "" : "s"} to Trash? They'll be auto-deleted after 30 days unless you restore them.`)) return;
     setBusy(true);
     try {
-      await api.post("/books/bulk/delete", { book_ids: ids });
-      toast.success(`Moved ${count} book${count === 1 ? "" : "s"} to Trash · restorable for 30 days`);
+      await api.post("/books/bulk/delete", { book_ids: ids });      toast.success(`Moved ${count} book${count === 1 ? "" : "s"} to Trash · restorable for 30 days`);
       onDone && onDone();
     } catch (e) {
       toast.error("Couldn't delete selection");
@@ -339,6 +361,62 @@ export default function SelectionBar({ selectedIds, customCats, onDone, onCancel
                     {s}
                   </button>
                 ))}
+              </div>
+            )}
+          </div>
+
+          <div className="relative">
+            <button
+              data-testid="bulk-verdict-btn"
+              disabled={busy}
+              onClick={() => setShowVerdictMenu((s) => !s)}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-white/10 text-sm font-medium disabled:opacity-50"
+            >
+              <Tag className="w-4 h-4" />
+              Verdict
+              <ChevronDown className="w-3.5 h-3.5 opacity-70" />
+            </button>
+            {showVerdictMenu && (
+              <div
+                className="absolute bottom-full mb-2 right-0 bg-white text-[#2C2C2C] rounded-xl shadow-2xl border border-[#E8E6E1] min-w-[260px] py-1 max-h-96 overflow-y-auto"
+                data-testid="bulk-verdict-menu"
+              >
+                <div className="text-[10px] uppercase tracking-wider font-bold text-[#A09A8B] px-4 pt-2 pb-1">
+                  Reading state
+                </div>
+                {(verdictTax?.reading_states || []).map((s) => (
+                  <button
+                    key={s.key}
+                    data-testid={`bulk-verdict-state-${s.key}`}
+                    onClick={() => bulkVerdict(`${s.emoji} ${s.label}`, { reading_state: s.key })}
+                    className="block w-full text-left px-4 py-2 text-sm hover:bg-[#F5F3EC]"
+                  >
+                    {s.emoji} {s.label}
+                  </button>
+                ))}
+                <div className="text-[10px] uppercase tracking-wider font-bold text-[#A09A8B] px-4 pt-2 pb-1 border-t border-[#F0EDE5] mt-1">
+                  Add verdict
+                </div>
+                {[...(verdictTax?.builtin_verdicts || []), ...(verdictTax?.custom_verdicts || [])].map((v) => (
+                  <button
+                    key={`add-${v.key}`}
+                    data-testid={`bulk-verdict-add-${v.key}`}
+                    onClick={() => bulkVerdict(`${v.emoji} ${v.label}`, { verdicts_add: [v.key] })}
+                    className="block w-full text-left px-4 py-2 text-sm hover:bg-[#F5F3EC]"
+                  >
+                    {v.emoji} {v.label}
+                  </button>
+                ))}
+                <div className="text-[10px] uppercase tracking-wider font-bold text-[#A09A8B] px-4 pt-2 pb-1 border-t border-[#F0EDE5] mt-1">
+                  Clear
+                </div>
+                <button
+                  data-testid="bulk-verdict-clear-state"
+                  onClick={() => bulkVerdict("Reading state cleared", { reading_state: "" })}
+                  className="block w-full text-left px-4 py-2 text-sm hover:bg-[#F5F3EC] text-[#B43F26]"
+                >
+                  Clear reading state
+                </button>
               </div>
             )}
           </div>
