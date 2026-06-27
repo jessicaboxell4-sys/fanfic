@@ -26,15 +26,15 @@ import {
 // deploy, POST to /api/announcements with a fresh `version` string.
 // `version` doubles as the per-user localStorage dismissal key.
 const FALLBACK_WHATS_NEW = {
-  version: "2026-06-27-crossover-storyid-canary",
-  title: "✨ Smarter classification, broken-URL recovery, and an admin canary",
+  version: "2026-06-27-library-mode-phase2",
+  title: "✨ Library mode (Fanfic / Original / Mixed) + dark-mode polish",
   items: [
-    { to: "/library/crossovers", label: "Smarter crossover detection — now scans character names", desc: "When a fic mentions characters from two different fandoms (think Hogwarts students at Forks High), Shelfsort now sees the crossover even if the title and tags only mention one. Character keyword overlays are admin-curated and self-improving via an AI feedback loop." },
-    { to: "/library/all", label: "Bare 'Storyid:' URLs now reconstructed automatically", desc: "Older FanFicFare exports sometimes shipped with 'Storyid: 6032563' + 'FanFiction.net' on the cover page but no actual link. We now rebuild the canonical URL automatically on upload — AO3, FanFiction.net, Royal Road, Wattpad, FictionPress all supported. Old uploads can be backfilled via /admin." },
-    { to: "/library/all", label: "Public users directory + 'Listed!' toast", desc: "Your @handle now powers a public profile page — share covers, suggestions, and reading milestones. Saving a handle for the first time shows a 'You're listed!' toast with a link to the directory." },
-    { to: "/library/originals", label: "Read PDFs natively in-app", desc: "PDFs render directly via pdf.js — selectable text, keyboard navigation, zoom, page-jump. No Calibre conversion needed. Works on mobile Safari and iOS." },
-    { to: "/library/all", label: "Uploads are dramatically faster and more resilient", desc: "The upload pipeline runs fully asynchronously. Drop 50 files, close the tab, come back later — your library will be waiting. Cloudflare timeouts are structurally impossible." },
-    { to: "/help", label: "Help page is now public and searchable", desc: "Shelfsort's help guide is reachable without signing in and indexed by Google. Help search has 10+ curated Q&A pairs covering uploads, PDFs, OPDS, book clubs and more." },
+    { to: "/account#library-mode", label: "New: Library mode — sort fanfic and original-fic libraries differently", desc: "Tell Shelfsort whether your library is mostly fanfic, mostly original/non-fic, or both. Mixed mode shows two collapsible grids on /library/all; Fanfic mode keeps the AO3 chrome up front; Original mode hides fanfic UI so novels and non-fic don't compete. Switching modes actually filters the book list, not just the layout." },
+    { to: "/library/all", label: "Inline mode pill on the library page", desc: "Three pills (📚 Mixed / 💜 Fanfic / 📖 Original) at the top of /library/all let you flip mode on the fly without leaving the page. Pairs with the detailed picker in Account → Library mode." },
+    { to: "/users", label: "Reader directory now has a 'Reader type' filter", desc: "Filter the public reader directory by Fanfic / Original / Mixed to find people who read the same kinds of books. Deep-link via ?mode=fanfic. If your own mode is non-Mixed, a '✨ Like me' shortcut chip one-clicks the filter to your taste. Each row also shows a small mode badge so you know what you'll find." },
+    { to: "/help#library-mode", label: "Library Mode docs (this page!)", desc: "Full walkthrough of the three modes, where the preference shows up, and how the directory + public-library + landing page all adapt. Includes the 'Like me' chip + deep-link tricks." },
+    { to: "/library/all", label: "Dark-mode polish: hover flashes + popup banners fixed", desc: "Several hover states (View toggle, PdfViewer, PDF TTS controls, Background Jobs bell) used a bright cream that flashed jarringly under Chrome's force-dark flag. Banners that used Tailwind gradients (Find readers nudge, URL paste card, Year in Books hero, library reclassify banners, Help 'What's new' card) bypassed the dark-mode retargeting entirely. All swapped to flat backgrounds with proper dark-mode tints." },
+    { to: "/library/crossovers", label: "Smarter crossover detection — now scans character names", desc: "When a fic mentions characters from two different fandoms (think Hogwarts students at Forks High), Shelfsort now sees the crossover even if the title and tags only mention one." },
   ],
 };
 const WHATS_NEW_KEY = "shelfsort.whatsNewDismissed";
@@ -77,8 +77,11 @@ const SEO_FAQ = [
     a: "Shelfsort reconstructs the canonical URL automatically. Older FanFicFare exports sometimes show 'Storyid: 6032563' and 'FanFiction.net' as separate lines without a clickable link — we now stitch those together into 'https://www.fanfiction.net/s/6032563' during the upload scan. Supported sites: FanFiction.net, Archive of Our Own, Royal Road, Wattpad, FictionPress. Existing books can be backfilled by an admin.",
   },
   {
-    id: "data-safety",
-    q: "Can I back up or export my Shelfsort library?",
+    id: "library-mode",
+    q: "Can Shelfsort sort original fiction and non-fic, not just fanfic?",
+    a: "Yes — Shelfsort handles every EPUB. The Library mode preference (Account → Library mode, or the inline pill on /library/all) lets you choose Fanfic-first, Original/Non-fic first, or Mixed (both, in separate sections on the same page). Original mode hides fanfic chrome (pairings, fandom shelves) so original fiction and non-fic don't compete for attention; Fanfic mode keeps the AO3-style fandom-first layout front and centre; Mixed mode shows two collapsible grids on the library page so you can browse each world distinctly. Switching mode actually filters the book list — original mode never shows fanfic-category books, and vice versa.",
+  },
+  {
     a: "Yes. The Cloud Library Mirror automatically copies every EPUB to Cloudflare R2 the moment you upload it. You can also export the full library as a ZIP (raw EPUBs) or an Excel workbook (title + author + source URL) from /library/download. Backups are reminded if your last export is older than the configured threshold.",
   },
   {
@@ -126,6 +129,7 @@ const SECTIONS = [
   { id: "uploads", label: "Uploading books" },
   { id: "quick-search", label: "Navbar quick-search" },
   { id: "shelves", label: "Shelves & filters" },
+  { id: "library-mode", label: "Library mode (Fanfic / Original / Mixed)" },
   { id: "discovery", label: "Browsing & discovery" },
   { id: "ao3-metadata", label: "AO3 metadata: ratings, warnings, tags" },
   { id: "ao3-filters", label: "AO3 filter chips & Save-as-shelf" },
@@ -747,6 +751,93 @@ export default function Help() {
                 <li><strong>Smart Shelves</strong> — saved filter combinations (fandom + tag + status + …); manage them on the Account page</li>
               </ul>
               <p>The Dashboard surfaces a count chip for any non-empty special shelf so you can see what needs attention.</p>
+            </Section>
+
+            <Section id="library-mode" icon={Repeat} title="Library mode (Fanfic / Original / Mixed)">
+              <p>
+                Shelfsort handles every EPUB you throw at it — fanfic, original novels,
+                non-fiction, manuals, the lot. <strong>Library mode</strong> tells the app
+                <em> which of those worlds you mostly read</em>, so the layout, default
+                category, and friend-finding chips all match. Pick once, change it any
+                time.
+              </p>
+              <ul>
+                <li>
+                  <strong>💜 Fanfic-first</strong> — the original Shelfsort flow.
+                  Fandom shelves up front, pairings panel visible, AO3 chrome (ratings,
+                  warnings, tags) front-and-centre.  The library shows only books
+                  classified as <em>Fanfiction</em>; original-fic and non-fic stay
+                  hidden so the fandom feel isn&rsquo;t diluted.
+                </li>
+                <li>
+                  <strong>📖 Original / Non-fic first</strong> — author-first navigation.
+                  The fandom chip strip and pairings rail are hidden, the default
+                  category chip lands on <em>Original Fiction</em>, and the library
+                  drops fanfic-category books out of view.  Built for readers whose
+                  EPUB collection is mostly novels and non-fiction; fanfic isn&rsquo;t
+                  deleted, just out of sight until you switch modes.
+                </li>
+                <li>
+                  <strong>🔀 Mixed</strong> (default for new accounts) — both worlds,
+                  same page.  The library renders two collapsible grids: a 💜 Fanfic
+                  grid above an 📖 Original &amp; Non-fic grid, with the categories
+                  fully sorted between them.  Empty side?  Its grid is silently
+                  suppressed so you don&rsquo;t see a sad &ldquo;0 books&rdquo; header.
+                </li>
+              </ul>
+              <p><strong>How to change it:</strong></p>
+              <ul>
+                <li>
+                  <strong>Inline pill</strong> at the top of <Link to="/library/all">
+                  /library/all</Link> — three buttons (📚 Mixed / 💜 Fanfic / 📖 Original)
+                  flip the mode on the fly without leaving the page.  Hover any pill
+                  for a one-line description.
+                </li>
+                <li>
+                  <strong>Detailed picker</strong> at <Link to="/account#library-mode">
+                  Account → Library mode</Link> — three cards with full descriptions
+                  if you&rsquo;d rather think about it before clicking.
+                </li>
+              </ul>
+              <p>
+                Both surfaces hit the same <code>PATCH /api/auth/library-mode</code>
+                endpoint and refresh your auth context immediately, so the layout
+                and book list update without a page reload.
+              </p>
+              <p><strong>Where the preference shows up:</strong></p>
+              <ul>
+                <li>
+                  <strong>Library page</strong> — book list filtered to the chosen
+                  world (plus the mixed-mode split-grid layout above).
+                </li>
+                <li>
+                  <strong>Landing page</strong> — the marketing hero text adapts
+                  (&ldquo;sorted by fandom&rdquo; vs &ldquo;sorted by author&rdquo;
+                  vs &ldquo;both worlds&rdquo;) so signed-in visitors see the
+                  pitch that matches their library.
+                </li>
+                <li>
+                  <strong>Your public library page</strong> (when you&rsquo;ve
+                  opted in) shows a small mode badge under your handle (💜 Fanfic
+                  reader / 📖 Original-fic reader) so visitors know what to expect.
+                  Original-mode profiles automatically hide the fandom chip strip
+                  — original fiction libraries have no fandoms, and an empty strip
+                  reads like a bug.
+                </li>
+                <li>
+                  <strong><Link to="/users">Reader directory</Link></strong> — a
+                  &ldquo;Reader type&rdquo; chip row lets you filter the directory
+                  by mode (💜 Fanfic / 📖 Original fic / 🔀 Mixed / All).  Deep-link
+                  via <code>?mode=fanfic</code> etc.  If your own mode is non-Mixed,
+                  an extra <em>✨ Like me</em> shortcut chip one-clicks the filter
+                  to your own mode — great for finding readers with similar taste.
+                </li>
+              </ul>
+              <p className="text-xs text-[#6B705C]">
+                Tip: legacy accounts (created before this preference shipped) default
+                to <strong>Mixed</strong> and remain fully visible in the directory.
+                Nothing breaks if you never touch the setting.
+              </p>
             </Section>
 
             <Section id="discovery" icon={UserIcon} title="Browsing & discovery">
