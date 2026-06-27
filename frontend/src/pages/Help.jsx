@@ -13,7 +13,7 @@ import {
   Filter, Heart, AlertTriangle, Settings, GitCompare, Bell, LineChart,
   Globe, Shield, CheckCircle2, Clock, FileWarning, User as UserIcon, X,
   MessageSquare, Search, ListChecks, AtSign, Target, Compass, Lightbulb,
-  Dna, Repeat, Command, Send,
+  Dna, Repeat, Command, Send, Tag,
 } from "lucide-react";
 
 // Help guide — kept current with the app. Last updated: 2026-06-24.
@@ -26,15 +26,15 @@ import {
 // deploy, POST to /api/announcements with a fresh `version` string.
 // `version` doubles as the per-user localStorage dismissal key.
 const FALLBACK_WHATS_NEW = {
-  version: "2026-06-27-library-mode-phase2",
-  title: "✨ Library mode (Fanfic / Original / Mixed) + dark-mode polish",
+  version: "2026-06-27-verdicts-and-fast-uploads",
+  title: "✨ Verdicts (favorite, never again, etc.) + lightning-fast uploads",
   items: [
-    { to: "/account#library-mode", label: "New: Library mode — sort fanfic and original-fic libraries differently", desc: "Tell Shelfsort whether your library is mostly fanfic, mostly original/non-fic, or both. Mixed mode shows two collapsible grids on /library/all; Fanfic mode keeps the AO3 chrome up front; Original mode hides fanfic UI so novels and non-fic don't compete. Switching modes actually filters the book list, not just the layout." },
-    { to: "/library/all", label: "Inline mode pill on the library page", desc: "Three pills (📚 Mixed / 💜 Fanfic / 📖 Original) at the top of /library/all let you flip mode on the fly without leaving the page. Pairs with the detailed picker in Account → Library mode." },
-    { to: "/users", label: "Reader directory now has a 'Reader type' filter", desc: "Filter the public reader directory by Fanfic / Original / Mixed to find people who read the same kinds of books. Deep-link via ?mode=fanfic. If your own mode is non-Mixed, a '✨ Like me' shortcut chip one-clicks the filter to your taste. Each row also shows a small mode badge so you know what you'll find." },
-    { to: "/help#library-mode", label: "Library Mode docs (this page!)", desc: "Full walkthrough of the three modes, where the preference shows up, and how the directory + public-library + landing page all adapt. Includes the 'Like me' chip + deep-link tricks." },
-    { to: "/library/all", label: "Dark-mode polish: hover flashes + popup banners fixed", desc: "Several hover states (View toggle, PdfViewer, PDF TTS controls, Background Jobs bell) used a bright cream that flashed jarringly under Chrome's force-dark flag. Banners that used Tailwind gradients (Find readers nudge, URL paste card, Year in Books hero, library reclassify banners, Help 'What's new' card) bypassed the dark-mode retargeting entirely. All swapped to flat backgrounds with proper dark-mode tints." },
-    { to: "/library/crossovers", label: "Smarter crossover detection — now scans character names", desc: "When a fic mentions characters from two different fandoms (think Hogwarts students at Forks High), Shelfsort now sees the crossover even if the title and tags only mention one." },
+    { to: "/library/all", label: "New: Verdicts — mark books as favorite, need-to-read, never again", desc: "A private take on every book. Reading state (📖 Need to read / 👀 Reading / ✅ Read / 🪦 DNF) + sentiment verdicts (⭐ Favorite / 💀 Least favorite / 🚫 Never again / ♻️ Reread material / 🫶 Would recommend). Plus up to 10 custom marks of your own. Tap any chip on a card to set/clear, or bulk-apply to a whole selection." },
+    { to: "/library/all", label: "Bulk-set verdicts from the selection toolbar", desc: "Multi-select books, hit 'Verdict' in the bottom toolbar, pick a state or verdict, and it applies to all selected books in one PATCH. Mark 50 books as 'Read' or '⭐ Favorite' in a single click." },
+    { to: "/library/all", label: "Filter by verdict + reading state", desc: "Two new chip rows in the collapsible filter stack — '🏷️ Verdict' and '📚 State'. Combine with category / length / series / library-mode for arbitrary intersections ('Original-fic + Read + Favorite')." },
+    { to: "/library/all", label: "Uploads are dramatically faster — AV moved to background", desc: "ClamAV scans used to block every upload for ~6-8 seconds per file. On a 100-file bulk drop that was 10+ minutes of spinner. Now the upload returns instantly with av_status='pending', the scan runs as a fire-and-forget background task, and the card flips to 'clean' (or quarantines if infected) within a second or two. Send-to-Kindle / friend-share / public-library still refuse non-clean rows so safety is preserved." },
+    { to: "/help#verdicts", label: "Verdicts docs (this page!)", desc: "Full walkthrough of the two-axis Verdicts system + bulk + filter integrations." },
+    { to: "/library/all", label: "TDZ build-time guard added", desc: "Last week's blank /library/all bug (Cannot access 'visibleBooks' before initialization) was a Temporal Dead Zone — a hook's dep array referenced a const declared further down the file. Added eslint no-use-before-define so the build warns about this exact shape." },
   ],
 };
 const WHATS_NEW_KEY = "shelfsort.whatsNewDismissed";
@@ -77,6 +77,11 @@ const SEO_FAQ = [
     a: "Shelfsort reconstructs the canonical URL automatically. Older FanFicFare exports sometimes show 'Storyid: 6032563' and 'FanFiction.net' as separate lines without a clickable link — we now stitch those together into 'https://www.fanfiction.net/s/6032563' during the upload scan. Supported sites: FanFiction.net, Archive of Our Own, Royal Road, Wattpad, FictionPress. Existing books can be backfilled by an admin.",
   },
   {
+    id: "verdicts",
+    q: "Can I mark books as favorites, need-to-read, or never-reading-again?",
+    a: "Yes — Shelfsort has a private 'Verdicts' axis on every book. Two independent dimensions: (1) Reading state — single-select (📖 Need to read / 👀 Reading / ✅ Read / 🪦 DNF), shows your commitment to the book (different from reading-progress %); (2) Verdicts — multi-select sentiment tags (⭐ Favorite, 💀 Least favorite, 🚫 Never again, ♻️ Reread material, 🫶 Would recommend) plus up to 10 user-defined custom slots. Tap any chip on a book card to open the popover and toggle marks. Bulk-select multiple books and use the 'Verdict' dropdown in the toolbar to apply state/verdicts to many at once. Filter the library by verdict or reading state via the chip stack on the library page. Marks are private to you — no public exposure.",
+  },
+  {
     id: "library-mode",
     q: "Can Shelfsort sort original fiction and non-fic, not just fanfic?",
     a: "Yes — Shelfsort handles every EPUB. The Library mode preference (Account → Library mode, or the inline pill on /library/all) lets you choose Fanfic-first, Original/Non-fic first, or Mixed (both, in separate sections on the same page). Original mode hides fanfic chrome (pairings, fandom shelves) so original fiction and non-fic don't compete for attention; Fanfic mode keeps the AO3-style fandom-first layout front and centre; Mixed mode shows two collapsible grids on the library page so you can browse each world distinctly. Switching mode actually filters the book list — original mode never shows fanfic-category books, and vice versa.",
@@ -87,7 +92,7 @@ const SEO_FAQ = [
   {
     id: "antivirus",
     q: "Does Shelfsort scan uploaded files for viruses?",
-    a: "Yes. Every file is scanned with ClamAV — fresh uploads queue for a background sweep that runs automatically the next time you visit Polish your library. Infected files are quarantined and blocked from sharing. You can run a manual rescan from /account/safety.",
+    a: "Yes. Every file you upload — EPUB, PDF, MOBI, AZW3, Kindle exports, the lot — gets scanned with ClamAV. As of June 2026 the scan runs as a fire-and-forget background task (the upload returns instantly so you're not stuck watching a spinner) and your book card flips from 'pending' to 'clean' within a second or two. Infected files are quarantined and blocked from Send-to-Kindle, friend sharing, and your public library. You can see scan status + run a manual rescan from /account/safety.",
   },
   {
     id: "cross-device",
@@ -130,6 +135,7 @@ const SECTIONS = [
   { id: "quick-search", label: "Navbar quick-search" },
   { id: "shelves", label: "Shelves & filters" },
   { id: "library-mode", label: "Library mode (Fanfic / Original / Mixed)" },
+  { id: "verdicts", label: "Verdicts (favorite, need to read, never again…)" },
   { id: "discovery", label: "Browsing & discovery" },
   { id: "ao3-metadata", label: "AO3 metadata: ratings, warnings, tags" },
   { id: "ao3-filters", label: "AO3 filter chips & Save-as-shelf" },
@@ -837,6 +843,74 @@ export default function Help() {
                 Tip: legacy accounts (created before this preference shipped) default
                 to <strong>Mixed</strong> and remain fully visible in the directory.
                 Nothing breaks if you never touch the setting.
+              </p>
+            </Section>
+
+            <Section id="verdicts" icon={Tag} title="Verdicts (favorite, need to read, never again…)">
+              <p>
+                A book&rsquo;s <strong>verdict</strong> is your private take on it —
+                separate from shelves, separate from categories, separate from the
+                reading-progress %.  Two independent dimensions, both shown as
+                chip clusters on every book card:
+              </p>
+              <ul>
+                <li>
+                  <strong>Reading state</strong> (single-select, one value at a time):
+                  <em>📖 Need to read</em> · <em>👀 Reading</em> · <em>✅ Read</em> ·
+                  <em>🪦 DNF</em>.  Different from the existing reading-progress %
+                  on the card — state is <strong>commitment</strong> (do I plan to
+                  finish?), progress is <strong>position</strong> (how far have I
+                  gotten?).  A book can be 80% read and DNF; that&rsquo;s a valid
+                  combination.
+                </li>
+                <li>
+                  <strong>Verdicts</strong> (multi-select, stack as many as you
+                  want): <em>⭐ Favorite</em> · <em>💀 Least favorite</em> ·
+                  <em>🚫 Never again</em> · <em>♻️ Reread material</em> ·
+                  <em>🫶 Would recommend</em>.  Mix freely — a fic can be
+                  <em>♻️ Reread material</em> AND <em>🫶 Would recommend</em>.
+                </li>
+              </ul>
+              <p>
+                You can also add up to <strong>10 custom verdicts</strong> of your
+                own (label + emoji of your choice) via the API for now — a UI
+                manager on the Account page is coming.
+              </p>
+
+              <p><strong>Three ways to set a verdict:</strong></p>
+              <ul>
+                <li>
+                  <strong>One book at a time</strong> — tap any chip on the card
+                  (or the <em>+ Mark</em> pill if it&rsquo;s unmarked).  A popover
+                  opens with all the reading states + verdicts; tap to toggle.
+                  Each click round-trips to the server.  No save button.
+                </li>
+                <li>
+                  <strong>Bulk</strong> — flip on multi-select mode (the checkbox
+                  on each card, or the &ldquo;Select&rdquo; button at the top of
+                  the library page).  When the bottom toolbar appears, click
+                  <strong>Verdict</strong> to open a dropdown — pick a reading
+                  state to set, or a verdict to add, across every selected book in
+                  one shot.  &ldquo;Clear reading state&rdquo; removes the state
+                  from all selected.
+                </li>
+                <li>
+                  <strong>Filter the library by verdict</strong> — open the
+                  collapsible filter chip stack at the top of
+                  {" "}<Link to="/library/all">/library/all</Link> and you&rsquo;ll
+                  see two new rows: <em>🏷️ Verdict</em> (All / Any verdict /
+                  Unmarked / each individual verdict) and <em>📚 State</em>
+                  (All / Unset / each reading state).  Stacks with the existing
+                  category / length / series / library-mode filters, so you can
+                  ask for &ldquo;Original-fic + Read + Favorite&rdquo; and the
+                  library narrows to exactly that.
+                </li>
+              </ul>
+              <p className="text-xs text-[#6B705C]">
+                Marks are <strong>private to you</strong>.  Your friends can&rsquo;t
+                see which books you marked &ldquo;Never again&rdquo;.  Verdicts
+                power your own organisation and the new chip filters, not the
+                public-library or friend-library experiences.
               </p>
             </Section>
 
