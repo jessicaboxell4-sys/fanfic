@@ -7,6 +7,50 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 — Library mode preference Phase 2 (Friends discovery) ✨
+
+Closing out the UX side of `library_mode`.  Phase 1 shipped the
+preference + Account toggle; Phase 2 surfaces it across the public
+app so the fanfic/original split is felt, not just configured.
+
+### Frontend
+
+- `UsersDirectory.jsx` — new "Reader type" chip row above the
+  search box: `All readers` (default), `💜 Fanfic`, `📖 Original
+  fic`, `🔀 Mixed`.  Selection round-trips through `?mode=…` so the
+  filter is deep-linkable and bookmarkable.  When the viewer's own
+  `library_mode` is non-mixed, an additional `✨ Like me` shortcut
+  chip one-clicks the filter to their own mode.
+- Per-row mode badge (`💜 fic` / `📖 og`) on every directory row;
+  mixed/unset rows render nothing so the eye isn't taxed.
+- `PublicLibraryView.jsx` — owner-mode badge under the heading
+  (`💜 Fanfic reader` / `📖 Original-fic reader`).  Fandom-chip
+  strip is auto-hidden when the owner's mode is `"original"` —
+  empty strips read like bugs, not features.
+- `AllBooksPage.jsx` — mixed-mode users now see two collapsible
+  grids (Fanfic above Original/non-fic) instead of one undifferentiated
+  pile.
+- `Landing.jsx` — hero text now varies by signed-in user's mode.
+
+### Backend
+
+- `GET /api/users/directory` accepts `?mode=fanfic|original|mixed`.
+  The "mixed" filter intentionally includes legacy rows missing the
+  field (defaults to mixed on the read side).  Unrecognised values
+  are silently ignored so the FE stays forgiving across deploys.
+- Each directory row surfaces `library_mode` so the FE can render
+  per-row chips without an N+1 fetch.
+
+### Tests
+
+- `tests/test_iter72_directory_mode_filter.py` — 6 tests covering
+  every filter branch + the legacy-mixed fall-through.  All green.
+- `tests/test_iter71_library_mode.py` — 10 Phase-1 tests still
+  green after the Phase-2 changes.
+
+---
+
+
 ## 2026-06-27 — Library mode preference (fanfic / original / mixed) Phase 1 🎚️
 
 David Webber's Facebook question — "Jessica, is this just for
