@@ -7,6 +7,48 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 (UX nits) — Library toolbar relocation + list-row hover fix 🛠️
+
+Two small library-page polish items the user spotted via
+screenshot annotations.
+
+### (a) Search / Select / View-mode toolbar moved down
+
+Old position: top of the library page, above the filter chips,
+shelves, fandoms, and authors.  Problem: by the time the user
+scrolled past all the discovery affordances and was looking at the
+actual book list, the search bar and view-mode toggle were off-
+screen and required scrolling back up.
+
+New position: directly above the book list (between
+`<Ao3FilterChips />` and the table/grid render).  The toolbar now
+sits adjacent to the content it actually drives, which means:
+- Search is on-screen when the user is staring at books
+- View-mode toggle (Grid / Compact / List) is one thumb-reach
+  from the rows it switches
+- Filter chips + shelves + fandoms + authors still occupy the
+  visual hierarchy first (discovery → action)
+
+### (b) List-row hover state less jarring on dark-mode displays
+
+Old: `hover:bg-[#FAF6EE]` (warm cream).  Looked fine in light
+mode but on user displays running force-dark Chrome experimental
+flag / dark-mode extensions, the cream background didn't get
+remapped → individual hovered rows looked like loud beige strips
+against the otherwise-dark page, easy to misread as a bug.
+
+New: `hover:bg-[#F5F3EC]` (lighter, less saturated cream — same
+hover color the View-mode toggle and Select button already use,
+so the page now has a consistent hover treatment).  Still
+visible in light mode, but ~40% lower contrast in force-dark
+remapping → no longer reads as "this row is broken".
+
+Files touched: `frontend/src/pages/AllBooksPage.jsx`.  Pure
+JSX/CSS — no test changes required (the affected blocks are
+visual styling), lint clean on the touched file.
+
+---
+
 ## 2026-06-27 — Cross-page "🛑 guardian paused" sticky banner 🚨
 
 Closes the last gap in today's three-watchdog stack: until now, an

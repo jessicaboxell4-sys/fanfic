@@ -841,107 +841,14 @@ export default function AllBooksPage() {
           </div>
         ) : (
           <>
-            {/* Filters */}
-            <div className="flex flex-wrap items-center gap-3 mb-6">
-              <div className="relative flex-1 min-w-[220px]">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#6B705C]" />
-                <input
-                  data-testid="search-input"
-                  type="text"
-                  placeholder={fulltextMode ? "Search inside book text…" : "Search by title or author…"}
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="w-full bg-white border border-[#E8E6E1] rounded-lg pl-10 pr-3 py-2.5 text-sm focus:outline-none focus:border-[#6B46C1] focus:ring-2 focus:ring-[#EEE9FB]"
-                />
-              </div>
-              <button
-                type="button"
-                onClick={() => { setFulltextMode((v) => !v); setFulltextResults(null); }}
-                data-testid="toggle-fulltext-search"
-                title="Toggle searching the body text of EPUBs (vs. just titles/authors)"
-                aria-pressed={fulltextMode}
-                className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium border transition-colors ${
-                  fulltextMode
-                    ? "bg-[#6B46C1] text-white border-[#6B46C1] hover:bg-[#553397]"
-                    : "bg-white text-[#6B46C1] border-[#6B46C1]/30 hover:bg-[#EEE9FB]"
-                }`}
-              >
-                <BookOpen className="w-4 h-4" /> Search inside
-              </button>
-              <button
-                data-testid="toggle-select-mode"
-                onClick={() => {
-                  setSelectMode((m) => {
-                    if (m) setSelectedIds(new Set());
-                    return !m;
-                  });
-                }}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium border transition-colors ${
-                  selectMode
-                    ? "bg-[#2C2C2C] text-white border-[#2C2C2C]"
-                    : "bg-white border-[#E8E6E1] text-[#2C2C2C] hover:bg-[#F5F3EC]"
-                }`}
-              >
-                <CheckSquare className="w-4 h-4" />
-                {selectMode ? "Done" : "Select"}
-              </button>
-              {/* View-mode toggle — Grid (cards) vs List (compact rows).
-                  List mode dramatically reduces visual noise for libraries
-                  with hundreds of books. Persisted to localStorage. */}
-              <div
-                className="inline-flex border border-[#E8E6E1] rounded-lg overflow-hidden bg-white"
-                data-testid="view-mode-toggle"
-                role="radiogroup"
-                aria-label="View mode"
-              >
-                <button
-                  type="button"
-                  onClick={() => setViewMode("grid")}
-                  data-testid="view-mode-grid"
-                  aria-pressed={viewMode === "grid"}
-                  title="Card grid — see every cover"
-                  className={`flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-colors ${
-                    viewMode === "grid"
-                      ? "bg-[#2C2C2C] text-white"
-                      : "text-[#2C2C2C] hover:bg-[#F5F3EC]"
-                  }`}
-                >
-                  <LayoutGrid className="w-4 h-4" />
-                  <span className="hidden sm:inline">Grid</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewMode("compact")}
-                  data-testid="view-mode-compact"
-                  aria-pressed={viewMode === "compact"}
-                  title="Compact grid — fit ~2× more covers on screen"
-                  className={`flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium border-l border-[#E8E6E1] transition-colors ${
-                    viewMode === "compact"
-                      ? "bg-[#2C2C2C] text-white"
-                      : "text-[#2C2C2C] hover:bg-[#F5F3EC]"
-                  }`}
-                >
-                  <Grid3x3 className="w-4 h-4" />
-                  <span className="hidden sm:inline">Compact</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewMode("list")}
-                  data-testid="view-mode-list"
-                  aria-pressed={viewMode === "list"}
-                  title="List — full metadata, table-style"
-                  className={`flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium border-l border-[#E8E6E1] transition-colors ${
-                    viewMode === "list"
-                      ? "bg-[#2C2C2C] text-white"
-                      : "text-[#2C2C2C] hover:bg-[#F5F3EC]"
-                  }`}
-                >
-                  <ListIcon className="w-4 h-4" />
-                  <span className="hidden sm:inline">List</span>
-                </button>
-              </div>
-            </div>
-
+            {/* 2026-06-27 — The search/Select/View-mode toolbar used
+                to sit here, above the filter chips.  Moved it down
+                to just above the book list so it's:
+                  (a) Adjacent to the content it actually controls
+                  (b) On-screen when the user is staring at books
+                  (c) Still present, just lower in the visual hierarchy
+                See ``listToolbar`` JSX block below — it's rendered
+                directly before the table/grid for that exact reason. */}
             {/* Composable filter chips (iter 61) — Length × Status ×
                 Date Added.  Three rows; pick one chip per row; AND-
                 combine.  Hidden if the user has zero books. */}
@@ -1605,6 +1512,110 @@ export default function AllBooksPage() {
               </div>
             )}
             <Ao3FilterChips value={ao3Filters} onChange={setAo3Filters} onShelfSaved={() => { load(); reloadPinnedShelves(); }} />
+
+            {/* 2026-06-27 — Search / Select / View-mode toolbar.
+                Moved DOWN here from above the chips so it sits
+                directly adjacent to the book list/table it actually
+                drives.  Users who've scrolled past the chip stack
+                still have search + view-mode controls within thumb
+                reach when they're actually looking at books. */}
+            <div className="flex flex-wrap items-center gap-3 mb-6" data-testid="library-toolbar">
+              <div className="relative flex-1 min-w-[220px]">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#6B705C]" />
+                <input
+                  data-testid="search-input"
+                  type="text"
+                  placeholder={fulltextMode ? "Search inside book text…" : "Search by title or author…"}
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full bg-white border border-[#E8E6E1] rounded-lg pl-10 pr-3 py-2.5 text-sm focus:outline-none focus:border-[#6B46C1] focus:ring-2 focus:ring-[#EEE9FB]"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => { setFulltextMode((v) => !v); setFulltextResults(null); }}
+                data-testid="toggle-fulltext-search"
+                title="Toggle searching the body text of EPUBs (vs. just titles/authors)"
+                aria-pressed={fulltextMode}
+                className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium border transition-colors ${
+                  fulltextMode
+                    ? "bg-[#6B46C1] text-white border-[#6B46C1] hover:bg-[#553397]"
+                    : "bg-white text-[#6B46C1] border-[#6B46C1]/30 hover:bg-[#EEE9FB]"
+                }`}
+              >
+                <BookOpen className="w-4 h-4" /> Search inside
+              </button>
+              <button
+                data-testid="toggle-select-mode"
+                onClick={() => {
+                  setSelectMode((m) => {
+                    if (m) setSelectedIds(new Set());
+                    return !m;
+                  });
+                }}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium border transition-colors ${
+                  selectMode
+                    ? "bg-[#2C2C2C] text-white border-[#2C2C2C]"
+                    : "bg-white border-[#E8E6E1] text-[#2C2C2C] hover:bg-[#F5F3EC]"
+                }`}
+              >
+                <CheckSquare className="w-4 h-4" />
+                {selectMode ? "Done" : "Select"}
+              </button>
+              <div
+                className="inline-flex border border-[#E8E6E1] rounded-lg overflow-hidden bg-white"
+                data-testid="view-mode-toggle"
+                role="radiogroup"
+                aria-label="View mode"
+              >
+                <button
+                  type="button"
+                  onClick={() => setViewMode("grid")}
+                  data-testid="view-mode-grid"
+                  aria-pressed={viewMode === "grid"}
+                  title="Card grid — see every cover"
+                  className={`flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-colors ${
+                    viewMode === "grid"
+                      ? "bg-[#2C2C2C] text-white"
+                      : "text-[#2C2C2C] hover:bg-[#F5F3EC]"
+                  }`}
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                  <span className="hidden sm:inline">Grid</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("compact")}
+                  data-testid="view-mode-compact"
+                  aria-pressed={viewMode === "compact"}
+                  title="Compact grid — fit ~2× more covers on screen"
+                  className={`flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium border-l border-[#E8E6E1] transition-colors ${
+                    viewMode === "compact"
+                      ? "bg-[#2C2C2C] text-white"
+                      : "text-[#2C2C2C] hover:bg-[#F5F3EC]"
+                  }`}
+                >
+                  <Grid3x3 className="w-4 h-4" />
+                  <span className="hidden sm:inline">Compact</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("list")}
+                  data-testid="view-mode-list"
+                  aria-pressed={viewMode === "list"}
+                  title="List — full metadata, table-style"
+                  className={`flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium border-l border-[#E8E6E1] transition-colors ${
+                    viewMode === "list"
+                      ? "bg-[#2C2C2C] text-white"
+                      : "text-[#2C2C2C] hover:bg-[#F5F3EC]"
+                  }`}
+                >
+                  <ListIcon className="w-4 h-4" />
+                  <span className="hidden sm:inline">List</span>
+                </button>
+              </div>
+            </div>
+
             {fulltextMode && (
               <div className="mb-6" data-testid="fulltext-results-panel">
                 {fulltextLoading && (
@@ -1699,7 +1710,7 @@ export default function AllBooksPage() {
                       <li
                         key={b.book_id}
                         data-testid={`book-row-${b.book_id}`}
-                        className={`flex items-center gap-3 px-4 py-2 hover:bg-[#FAF6EE] transition-colors cursor-pointer ${
+                        className={`flex items-center gap-3 px-4 py-2 hover:bg-[#F5F3EC] transition-colors cursor-pointer ${
                           selectMode && selectedIds.has(b.book_id) ? "bg-[#EEE9FB]" : ""
                         }`}
                         onClick={() => {
