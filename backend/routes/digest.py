@@ -1113,6 +1113,26 @@ def start_digest_scheduler():
         max_instances=1,
     )
 
+    # 2026-06-27 — Email-quota watchdog (Resend free-tier guard).
+    # Calls ``email_volume_forecast()`` every 2h; if the 7-day average
+    # has reached the 100/day cap OR the linear projection puts us
+    # over within 24h, auto-flips ``outbound_emails_enabled`` → False.
+    # Mirrors the ``av_watchdog`` pattern: does NOT auto-unpause; the
+    # operator must explicitly flip the flag back on after auditing
+    # the spike (most common cause: cron-failure fan-out, see
+    # 2026-06-22 incident).  See ``utils/email_quota_watchdog.py``
+    # for the full rationale + decision matrix.
+    from utils.email_quota_watchdog import email_quota_watchdog_tick
+    sched.add_job(
+        wrap_cron_job(email_quota_watchdog_tick, "email_quota_watchdog"),
+        "interval",
+        hours=2,
+        id="email_quota_watchdog",
+        replace_existing=True,
+        coalesce=True,
+        max_instances=1,
+    )
+
     # Fridays 09:00 UTC — consolidated "Your week on Shelfsort" email
     # for users who opted into ``weekly_summary.enabled``.  Replaces
     # the 3-5 kind-specific weekly emails (stats digest, fic updates,

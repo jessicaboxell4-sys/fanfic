@@ -52,7 +52,17 @@ DAILY_CAP = 100
 
 
 async def _past_counts(window_days: int) -> Dict[str, Any]:
-    """Group ``email_logs`` by kind + status for the given window."""
+    """Group ``email_logs`` by kind + status for the given window.
+
+    2026-06-27 — ``total`` now reflects ONLY ``status="ok"`` rows
+    (real sends that actually consumed Resend's daily quota).
+    Suppressed rows (test recipients, outbound-pause flag, per-user
+    opt-outs) and error rows are tracked per-kind for diagnostics
+    but excluded from the cap-budget number — they never hit
+    Resend.  This keeps the auto-pause watchdog from triggering on
+    a high suppression rate (e.g. a noisy preview env full of
+    fixture welcome emails) when zero real quota is being burned.
+    """
     cutoff = datetime.now(timezone.utc) - timedelta(days=window_days)
     pipeline = [
         {"$match": {"sent_at": {"$gte": cutoff}}},
@@ -62,7 +72,8 @@ async def _past_counts(window_days: int) -> Dict[str, Any]:
         }},
     ]
     by_kind: Dict[str, Dict[str, int]] = {}
-    total = 0
+    total_ok = 0
+    total_all = 0
     async for r in db.email_logs.aggregate(pipeline):
         kind = (r["_id"].get("kind") or "unknown")
         status = (r["_id"].get("status") or "unknown")
@@ -71,8 +82,20 @@ async def _past_counts(window_days: int) -> Dict[str, Any]:
         bucket = status if status in slot else "other"
         slot[bucket] += n
         slot["total"] += n
-        total += n
-    return {"window_days": window_days, "total": total, "by_kind": by_kind}
+        total_all += n
+        if status == "ok":
+            total_ok += n
+    return {
+        "window_days": window_days,
+        # `total` drives the cap-budget math (auto-pause watchdog,
+        # `warning_level`, cliff ETA).  Only real Resend sends count.
+        "total":         total_ok,
+        # Diagnostic-only — operators may want to see the full
+        # mailroom volume (including what was suppressed).
+        "total_all":     total_all,
+        "total_ok":      total_ok,
+        "by_kind":       by_kind,
+    }
 
 
 async def _real_user_filter() -> Dict[str, Any]:

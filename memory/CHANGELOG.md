@@ -7,6 +7,77 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 — Email-quota auto-brake watchdog + forecast bug fix 🚦
+
+Closes the gap surfaced by today's quota-brake audit: the manual
+`outbound_emails_enabled` feature flag protected us once it was
+flipped, but there was nothing automatically flipping it. After the
+2026-06-22 incident (200% of free-tier quota), this needed a real
+auto-pause.
+
+### What shipped
+
+#### Auto-brake watchdog (new)
+- **`utils/email_quota_watchdog.py`** — mirrors the `av_watchdog.py`
+  pattern.  Every 2 hours:
+    1. Calls `email_volume_forecast()`
+    2. If `warning_level == "critical"` **OR** `cliff_eta_days <= 1`,
+       auto-flips `outbound_emails_enabled` → False (via the existing
+       `feature_flags.set_flag` API — same path the manual `/admin`
+       toggle uses)
+    3. Writes an `audit_log` row tagged `email.auto_pause`
+    4. Drops an in-app notification into every admin's queue
+       (kind = `email_quota_auto_pause`)
+    5. Appends to `admin_pending_alerts` so the Sunday weekly admin
+       digest also surfaces it via email (if outbound recovers)
+    6. Persists state in `system_health` so subsequent ticks know
+       not to re-fire the alerts
+  **Critically: does NOT auto-unpause.**  Once the brake is on, the
+  operator must explicitly flip the flag back in `/admin → Feature
+  flags` — same safety posture as the AV watchdog.
+- **Env kill-switch**: `EMAIL_QUOTA_WATCHDOG_DISABLED=1` silences
+  the automation entirely (useful for controlled quota testing).
+- **Wired** in `routes/digest.py` at the same scheduler as the other
+  crons.  Cadence: every 2h with `coalesce=True, max_instances=1`.
+
+#### Forecast bug fix
+- **`utils/email_volume_forecast.py → _past_counts`** previously
+  summed ALL email_logs rows toward the `total` field — including
+  rows with `status="suppressed"` (test recipients, outbound-paused
+  flag, per-user opt-outs).  But suppressed sends never hit Resend's
+  quota, so they shouldn't inflate the cap-budget math.
+- Fixed: `total` is now the count of `status="ok"` rows only.
+  Added a separate `total_all` field for diagnostic display
+  (operators can still see the full mailroom volume on the admin
+  card if it's wired in later).
+- **Discovered while live-testing**: this preview env had 589
+  fixture-driven `welcome_auto_approve` suppressed rows in past 7d.
+  Pre-fix: forecast said 98.57/day, watchdog auto-paused outbound.
+  Post-fix: forecast correctly reads 47.29/day, cliff = 10 days,
+  brake stays off.  Real bug, real catch — exactly what an
+  auto-brake exists for.
+
+### Tests
+- **`backend/tests/test_iter68_email_quota_watchdog.py`** — 12
+  tests, all pass:
+    - 7 pure-function tests on `_classify_trigger` covering every
+      warning_level / cliff_eta combination
+    - 5 end-to-end tick tests driving the live backend: auto-pause
+      on critical, idempotent re-tick, no auto-unpause on recovery,
+      env kill-switch honored, no-op when forecast healthy
+  Test fixture invalidates the feature-flags in-process cache
+  between tests to prevent state leakage.
+- 22/22 total email-related tests pass (12 new + 5 forecast + 5
+  suppression).
+
+Files touched:
+- `backend/utils/email_quota_watchdog.py` (new)
+- `backend/utils/email_volume_forecast.py` (forecast bug fix)
+- `backend/routes/digest.py` (scheduler wiring)
+- `backend/tests/test_iter68_email_quota_watchdog.py` (new)
+
+---
+
 ## 2026-06-27 (a + b combo) — Incident counter + Pairing-weighted picks 🎯
 
 Two micro-features on top of today's foundation work.
