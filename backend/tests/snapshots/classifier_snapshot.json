@@ -52,7 +52,7 @@
     "category": "Fanfiction",
     "classifier": "metadata",
     "confidence": 0.95,
-    "fandom": "Sherlock Holmes",
+    "fandom": "Sherlock (TV) / Sherlock Holmes",
     "id": "sherlock-bbc"
   },
   {
@@ -122,7 +122,7 @@
     "category": "Fanfiction",
     "classifier": "metadata",
     "confidence": 0.95,
-    "fandom": "Harry Potter",
+    "fandom": "Harry Potter / Marvel",
     "id": "crossover-hp-marvel"
   },
   {
@@ -154,10 +154,10 @@
     "id": "origfic-thriller"
   },
   {
-    "category": "Non-fiction",
+    "category": "Fanfiction",
     "classifier": "metadata",
     "confidence": 0.7,
-    "fandom": null,
+    "fandom": "DC Comics",
     "id": "nonfic-memoir"
   },
   {
@@ -168,10 +168,10 @@
     "id": "nonfic-cookbook"
   },
   {
-    "category": "Non-fiction",
+    "category": "Fanfiction",
     "classifier": "metadata",
     "confidence": 0.7,
-    "fandom": null,
+    "fandom": "Star Wars",
     "id": "nonfic-bio"
   },
   {

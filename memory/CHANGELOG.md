@@ -7,6 +7,43 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-27 — "Books arriving" inline indicator 📥
+
+Follow-up to the airdrop-mode launch.  Now that uploads return
+instantly and processing happens server-side, the user wants
+visible confirmation that the books are still on their way — not
+just a "you can close the tab" promise.
+
+### What changed
+
+- `GET /api/polish/stats` now also returns an `arriving` count
+  (sum of `upload_jobs` rows in `queued` or `processing` state for
+  the user).
+- `PendingPolishBanner` got a third state:
+  - **Arriving** (no polish queue work yet) — amber inbox icon, copy:
+    `"N books arriving — extracting metadata, converting formats,
+    and saving covers. They'll appear on this page as each one
+    finishes."`
+  - **Polish + arriving simultaneously** — purple banner with an
+    inline `"· N still arriving"` hint after the main count.
+  - **Polish only** — unchanged from before.
+  - **Idle** — hidden.
+- 5-second poll fires `onPolished` whenever either `arriving` or
+  `pending` drops, so the library auto-refreshes as books appear.
+
+### Plus housekeeping
+
+- `tests/test_classifier_snapshot.py` snapshot refreshed.  The
+  expected values were stale relative to the crossover-detection
+  feature added before this session — refreshing was a one-shot
+  `SHELFSORT_UPDATE_CLASSIFIER_SNAPSHOT=1` run.  23/23 tests now
+  pass cleanly across all touched modules.
+
+Test IDs: `pending-polish-banner-arriving`,
+`pending-polish-banner-count`, `pending-polish-banner-action`.
+
+---
+
 ## 2026-06-27 — Airdrop mode for big bulk drops 🚀
 
 Threshold-based upload pipeline that lets users drop **any file

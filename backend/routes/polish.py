@@ -36,6 +36,11 @@ async def polish_stats(user: User = Depends(get_current_user)):
     """Cheap snapshot for the "Polish N pending" banner on
     `/library/all`.  Returns the count of books waiting on the
     deferred classifier + whether a drain is currently running.
+
+    Also bundles the count of upload_jobs currently in flight
+    (``arriving``) so a single banner on the library page can
+    represent the entire "books still moving through the pipeline"
+    state — uploads coming in, then polish draining.
     """
     pending = await count_pending_for_user(user.user_id)
     failed = await db.books.count_documents({
@@ -43,9 +48,20 @@ async def polish_stats(user: User = Depends(get_current_user)):
         "classifier": "polish-failed",
         "category": {"$ne": TRASH_SHELF},
     })
+    # Books that have been POSTed but haven't finished server-side
+    # processing yet (metadata extraction, Calibre conversion, R2
+    # mirror).  Once these finish they land in db.books as
+    # ``classifier: "pending"`` and are then counted by the polish
+    # stats above — so the user sees a smooth "arriving → polish →
+    # done" flow on the banner.
+    arriving = await db.upload_jobs.count_documents({
+        "user_id": user.user_id,
+        "status": {"$in": ["queued", "processing"]},
+    })
     return {
         "pending": pending,
         "failed": failed,
+        "arriving": arriving,
         "in_progress": user.user_id in _inflight_users,
     }
 
