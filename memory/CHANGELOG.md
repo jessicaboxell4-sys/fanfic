@@ -7,6 +7,112 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-28 — Persistent failed-uploads dashboard 📋
+
+User: "Can you make a place that the user can see what files DID
+NOT get uploaded, that way they know what to try again."
+
+Until today, the only surface that showed upload failures was a
+sticky toast on the upload zone that timed out after 20s.  Once
+the user navigated away or the toast disappeared, they had no
+way to find out which specific files needed re-uploading from a
+big batch.
+
+### Backend — new `upload_failures` MongoDB collection
+
+- **`/app/backend/routes/upload_failures.py`** (new) — full CRUD
+  for per-user failure rows.  Schema:
+
+  ```
+  { failure_id, user_id, filename, size_bytes, error,
+    failure_stage, bytes_available, job_id?, book_id?,
+    original_format?, retry_count, last_retried_at?,
+    dismissed_at?, created_at }
+  ```
+
+  Error strings truncated to 500 chars (no runaway Cloudflare
+  HTML bloat); filenames truncated to 280.
+- **Endpoints** (all `Depends(get_current_user)`, per-user scoped):
+  - `POST   /api/uploads/failures`               — frontend hook
+  - `GET    /api/uploads/failures?days=N`        — list, default 30
+  - `POST   /api/uploads/failures/{id}/dismiss`
+  - `POST   /api/uploads/failures/dismiss-all`
+  - `POST   /api/uploads/failures/dismiss-by-filenames`
+  - `DELETE /api/uploads/failures/{id}`          — hard delete
+- **`_run_upload_job` hook** — when a job flips to `failed`
+  (non-transient real bug), one `upload_failures` row is emitted
+  per staged file with the friendly error blurb.  Users see the
+  per-file filenames in the dashboard, not an opaque job id.
+
+### Frontend — shared `<FailedUploadsList />` component
+
+- **`/app/frontend/src/components/FailedUploadsList.jsx`** (new)
+  — used in two places:
+  - **Banner on `/library/all`** (compact mode, 7-day window,
+    last 3 visible + "…N more" link to /account).  Dismissible
+    via the chevron.
+  - **Section on `/account#failed-uploads`** (full mode, 30-day
+    window, all rows visible).  Reachable from the banner's
+    "see the full list" link.
+- **Per-row UI**: file icon · filename · stage label
+  ("Network glitch" / "Conversion failed" / "Flagged by virus
+  scan" / etc.) · age ("3 hours ago") · friendly error blurb ·
+  individual dismiss button.
+- **Bulk re-drop button** — opens the native file picker with a
+  confirm dialog listing the filenames to look for (browser
+  security prevents pre-populating the picker).  Picked files
+  are dispatched as a `shelfsort:upload-files` CustomEvent the
+  on-page `UploadZone` listens for.  No prop-drilling, no
+  imperative refs — works across page boundaries.
+- **Auto-dismiss on successful re-upload**: when files complete
+  via the normal upload flow, `UploadZone` POSTs
+  `dismiss-by-filenames` with the successful names.  Their
+  failure rows quietly disappear from the banner without the
+  user clicking dismiss.
+
+### Other wiring
+
+- **`UploadZone.jsx`** — fire-and-forget POST to
+  `/uploads/failures` for every per-file failure in `failedFiles`;
+  global `window.addEventListener("shelfsort:upload-files", ...)`
+  bridges the banner's re-drop picker to `handleFiles`.
+- **`AllBooksPage.jsx`** — banner renders above the existing
+  `PendingPolishBanner` and friend-request banner.
+- **`Account.jsx`** — full section renders above the
+  `BackupCard`; reachable via `/account#failed-uploads` and
+  scrolled-to from the banner's "see full list" link.
+
+### Tests
+
+- `backend/tests/test_upload_failures.py` (6 tests, all pass):
+  - schema-correct row insert,
+  - error truncation,
+  - GET filters by user / days / dismissed flag,
+  - dismiss is per-user (can't dismiss someone else's row),
+  - dismiss-all only touches calling user,
+  - real-bug failure in `_run_upload_job` emits one row per
+    staged file.
+
+### User flow (the magic moment)
+
+1. User drops 200 files → Cloudflare 520 cascade fails 50 of them.
+2. Frontend's auto-retry recovers most; the rest (say, 8)
+   stay failed.  Their rows are persisted to `upload_failures`.
+3. User navigates away.  Returns later, lands on `/library/all`.
+4. Banner: "8 uploads didn't go through" with the first 3
+   filenames visible + "…5 more on /account".
+5. User clicks "Re-drop 8 files" → confirm dialog lists the
+   filenames → file picker opens.
+6. User selects them from disk → upload runs → the 8 rows
+   quietly disappear from both the banner and /account.
+
+### Scope
+
+Backend + frontend.  No new dependencies, no env vars.  Needs
+both backend and frontend redeploys.
+
+---
+
 ## 2026-06-28 — Cloudflare 520-class upload hardening ☁️
 
 User reported a production bulk upload where 200 files dropped to

@@ -193,6 +193,33 @@ async def _run_upload_job(job_id: str, user_id: str) -> None:
             "completed_at": datetime.now(timezone.utc).isoformat(),
             "error": str(exc) or exc.__class__.__name__,
         })
+        # 2026-06-28 — Persist per-file failures so the user has a
+        # visible record on /account and the banner on /library/all.
+        # When the whole job dies (Calibre crash, unhandled exception
+        # in the handler) every staged file is effectively a failure;
+        # we emit one row per file so the UI can show their actual
+        # names instead of an opaque job id.  Bytes_available=False
+        # because the staging dir is about to be swept by the
+        # `finally` block.
+        try:
+            from routes.upload_failures import record_upload_failure
+            friendly = (
+                str(exc).strip()[:280]
+                or exc.__class__.__name__
+                or "Upload pipeline failed."
+            )
+            for sf in staged_files:
+                await record_upload_failure(
+                    user_id=user_id,
+                    filename=sf.get("original_name") or "(unknown)",
+                    error=friendly,
+                    failure_stage="process",
+                    size_bytes=int(sf.get("size") or 0),
+                    bytes_available=False,
+                    job_id=job_id,
+                )
+        except Exception:  # noqa: BLE001 — telemetry must never re-raise.
+            logger.exception("upload job %s: failed to persist upload_failures rows", job_id)
     finally:
         # Always sweep the staging directory — the bytes have either
         # been mirrored into the per-user store by the handler, or

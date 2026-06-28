@@ -11,6 +11,7 @@ import PushHandoffToggle from "../components/PushHandoffToggle";
 import ReadingPrivacyToggle from "../components/ReadingPrivacyToggle";
 import UploadChimeCard from "../components/UploadChimeCard";
 import ProfileCompletenessCard from "../components/ProfileCompletenessCard";
+import FailedUploadsList from "../components/FailedUploadsList";
 import { emitCompletenessChange } from "../lib/profileCompleteness";
 // PalettePickerCard moved to /account/appearance (linked from the navbar appearance popover)
 import { FETCHING_UI_ENABLED, SEND_TO_KINDLE_UI_ENABLED } from "../lib/featureFlags";
@@ -1963,6 +1964,24 @@ export default function Account() {
 
         <BackupCard />
         <CloudBackupCard />
+
+        {/* Failed uploads — persistent record of files that didn't make it.
+            Banner version (compact, 7-day window) also lives on /library/all.
+            This is the full 30-day history with the same re-drop affordance. */}
+        <section id="failed-uploads" data-testid="failed-uploads-section">
+          <FailedUploadsList
+            compact={false}
+            days={30}
+            onReupload={(files) => {
+              window.dispatchEvent(new CustomEvent("shelfsort:upload-files", { detail: files }));
+              // The Account page doesn't render an UploadZone, so
+              // re-dropping from here would silently no-op.  Bounce
+              // the user to /library/all where UploadZone is mounted
+              // and the listener will pick the files up.
+              navigate("/library/all");
+            }}
+          />
+        </section>
 
         {/* Profile info */}
         <section className="shelf-card p-6 mb-6">

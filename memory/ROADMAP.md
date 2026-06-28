@@ -716,6 +716,29 @@ books?" anxiety moment. Eliminating it builds trust.
 ## ⏰ Parked reminders — bring up next session
 
 
+### 🅿️ Parked 2026-06-28 — Weekly upload-failure digest line
+
+Now that `upload_failures` rows are persisted per-user, add a
+single summary line to the existing Sunday `operator_digest`
+cron:
+
+> *"This week: 47 user upload failures across 12 users.  Top
+> reasons: 'Cloudflare 520' (28), 'EPUB malformed' (11),
+> 'Calibre OOM' (8)."*
+
+**Scope** (~30 LOC):
+- Aggregate by `failure_stage` + a regex bucket on the error
+  text (Cloudflare-class, Calibre-class, AV-class, malformed).
+- Sort top 3, append to the digest body.
+- Tells the operator whether the client-side hardening is
+  winning *over time*, or whether one specific backend path
+  needs surgery.
+
+Trivial slot-in to `routes/operator_digest.py` — pick up when
+there's downtime.
+
+
+
 ### 🅿️ Parked 2026-06-28 — Origin-saturation watch card on /admin
 
 Sibling of the Stuck-uploads card.  After the Cloudflare 520

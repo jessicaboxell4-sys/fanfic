@@ -737,7 +737,36 @@ export default function UploadZone({ onUploaded, compact = false }) {
       }
       resp = { auto_resolved: totalAuto, policy: lastPolicy, actions: allActions };
       const succeededCount = filesToSend.length - failedFiles.length;
+      // 2026-06-28 — Auto-dismiss any previously-failed
+      // upload_failures rows whose filename matches one of the files
+      // we just successfully uploaded.  Makes the banner feel magic:
+      // re-drop the failed files → their entries quietly disappear
+      // without the user clicking dismiss.  Fire-and-forget.
+      if (succeededCount > 0) {
+        const failedNames = new Set(failedFiles.map((f) => f.file?.name));
+        const successNames = filesToSend
+          .map((f) => f?.name)
+          .filter((n) => n && !failedNames.has(n));
+        if (successNames.length > 0) {
+          api.post("/uploads/failures/dismiss-by-filenames", {
+            filenames: successNames,
+          }).catch(() => {});
+        }
+      }
       if (failedFiles.length > 0) {
+        // 2026-06-28 — Persist per-file failures so the user can
+        // review them later from the banner on /library/all and
+        // the section on /account.  Fire-and-forget; we don't want
+        // a telemetry POST to surface its own error toast on top
+        // of the upload one the user is already looking at.
+        for (const ff of failedFiles) {
+          api.post("/uploads/failures", {
+            filename: ff.file?.name || "(unknown)",
+            size_bytes: ff.file?.size || 0,
+            error: String(ff.error || "Upload failed").slice(0, 500),
+            failure_stage: "network",
+          }).catch(() => {});
+        }
         // Some files failed.  Pop a sticky summary toast with a
         // one-click retry button so the user doesn't lose their work.
         // 5xx errors are fast-failed (no retry), so the user sees the
@@ -878,6 +907,25 @@ export default function UploadZone({ onUploaded, compact = false }) {
       inFlightRef.current = false;
     }
   }, [onUploaded, formatPrefs]);
+
+  // 2026-06-28 — Global "shelfsort:upload-files" event listener.
+  // Pages outside the UploadZone subtree (e.g. the FailedUploadsList
+  // banner on /library/all and the section on /account) need a way
+  // to hand a `File[]` array back to this component without
+  // prop-drilling refs or restructuring the layout.  A page-level
+  // CustomEvent is a tiny, declarative integration point that
+  // survives router changes and keeps the upload pipeline as the
+  // single place where retry / throttle / progress / failure
+  // telemetry lives.
+  useEffect(() => {
+    const onUploadFilesEvent = (e) => {
+      const files = e?.detail;
+      if (!files || (Array.isArray(files) && files.length === 0)) return;
+      handleFiles(files);
+    };
+    window.addEventListener("shelfsort:upload-files", onUploadFilesEvent);
+    return () => window.removeEventListener("shelfsort:upload-files", onUploadFilesEvent);
+  }, [handleFiles]);
 
   const handleDrop = async (e) => {
     e.preventDefault();

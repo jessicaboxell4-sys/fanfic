@@ -15,6 +15,7 @@ import UrlListDedupeModal from "../components/UrlListDedupeModal";
 import BackupReminderBanner from "../components/BackupReminderBanner";
 import FriendRequestBanner from "../components/FriendRequestBanner";
 import PendingPolishBanner from "../components/PendingPolishBanner";
+import FailedUploadsList from "../components/FailedUploadsList";
 import OneTimeTip from "../components/OneTimeTip";
 import LibraryActivityWidgets from "../components/LibraryActivityWidgets";
 import Ao3FilterChips from "../components/Ao3FilterChips";
@@ -690,6 +691,17 @@ export default function AllBooksPage() {
         </Link>
         <FriendRequestBanner />
         <PendingPolishBanner onPolished={load} />
+        <FailedUploadsList
+          compact
+          days={7}
+          onReupload={(files) => {
+            // Fire a global event the on-page UploadZone listens for.
+            // Avoids prop-drilling or imperative refs through nested
+            // sidebars.  See `UploadZone.jsx` useEffect that wires
+            // window.addEventListener("shelfsort:upload-files", ...).
+            window.dispatchEvent(new CustomEvent("shelfsort:upload-files", { detail: files }));
+          }}
+        />
         <OneTimeTip tipKey="characters-and-rationale-2026-06-27">
           two new things to play with — your library now has a{" "}
           <a href="/library/characters" className="underline underline-offset-2 hover:text-[#6B46C1]">Characters browser</a>{" "}
