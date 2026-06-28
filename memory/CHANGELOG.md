@@ -7,6 +7,68 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-28 — Mid-deploy upload-loss hardening 🛡️
+
+User redeployed during an active 200-file Airdrop on production
+and saw a wave of *"Staging directory vanished — bytes lost to
+a restart before processing."* errors.  The cause: the staging
+volume was a top-level path that didn't survive the pod bounce
+on Emergent K8s, even though per-user storage directly under
+``STORAGE_DIR/<user_id>/`` did.  Two-pronged fix.
+
+### (a) Per-user staging path — `_user_job_dir()`
+
+- **Before**: ``STORAGE_DIR / "_upload_jobs" / <job_id>`` (top-level
+  subdir, observed to vanish on production pod restart).
+- **After**: ``STORAGE_DIR / <user_id> / "_pending_uploads" / <job_id>``
+  — lives under the user's own persistent storage area, which is
+  empirically restart-survivable on the same volume.
+- ``_job_dir(job_id, user_id=None)`` is the lookup helper:
+  resolves the new per-user path first, falls back to the legacy
+  top-level path for jobs queued before the refactor, defaults
+  to the new path for brand-new submissions.
+- All three callers (submit endpoint, ``_run_upload_job`` worker,
+  ``recover_stuck_upload_jobs`` cron) now pass ``user_id`` so the
+  resolution always picks the right path.
+- The recovery cron's *"Staging directory vanished"* branch now
+  also emits ``upload_failures`` rows so the user-visible
+  dashboard on ``/library/all`` + ``/account#failed-uploads``
+  shows them (previously only ``BackgroundJobsBell``'s
+  transient toast surfaced these).
+
+### (b) "Don't redeploy" admin banner — `InFlightUploadsBanner`
+
+- **`GET /api/admin/upload-jobs/in-flight`** — admin-only, cheap
+  ``count_documents`` over ``status in {queued, processing}``.
+  Returns ``{queued, processing, total, users}``.
+- **`InFlightUploadsBanner`** in ``AdminConsole.jsx`` — polls
+  every 30s when visible, renders nothing on healthy pages, and
+  renders a red sticky strip at the top of /admin when any user
+  has in-flight uploads:
+
+  > *"⚠️ Don't redeploy right now — 47 upload jobs in-flight
+  > across 12 users.  A redeploy interrupts the async worker."*
+
+  Includes a deep-link button that jumps to the Stuck-uploads
+  card so the operator can re-kick any stragglers after the
+  count drops.
+
+### Tests
+
+- ``test_count_in_flight_upload_jobs`` — verifies the endpoint
+  counts only non-terminal statuses + distinct-user count.
+- ``test_run_upload_job_records_per_file_failures_on_real_bug``
+  still passes against the new per-user staging path.
+
+All **17** upload-related tests green.
+
+### Scope
+
+Backend + frontend.  No new dependencies, no env vars.  Needs
+both backend and frontend redeploys.
+
+---
+
 ## 2026-06-28 — Persistent failed-uploads dashboard 📋
 
 User: "Can you make a place that the user can see what files DID

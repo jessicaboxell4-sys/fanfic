@@ -3305,6 +3305,78 @@ function HealthPill({ ok, label }) {
 //     on healthy admin pages.
 //   • Click handler scrolls smoothly to the System Health card so
 //     the operator can take action immediately.
+// ---------------------------------------------------------------------------
+// In-flight uploads warning banner (2026-06-28)
+// ---------------------------------------------------------------------------
+// Renders a red sticky strip at the top of /admin when any users
+// have upload_jobs in `queued` or `processing` state.  The point is
+// to make redeploying-during-an-active-Airdrop a *visible* choice
+// rather than a silent regret.  A redeploy will reliably interrupt
+// the asyncio worker and (until the staging-path refactor lands)
+// can lose in-flight bytes if the staging volume doesn't survive.
+//
+// Polls GET /api/admin/upload-jobs/in-flight every 30s while the
+// tab is visible.  Returns null when count===0 → zero visual cost
+// on healthy admin pages.
+// ---------------------------------------------------------------------------
+function InFlightUploadsBanner() {
+  const [data, setData] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      try {
+        const { data } = await api.get("/admin/upload-jobs/in-flight");
+        if (alive) setData(data);
+      } catch {
+        if (alive) setData(null);
+      }
+    };
+    load();
+    const id = setInterval(() => {
+      if (document.visibilityState === "visible") load();
+    }, 30_000);
+    return () => { alive = false; clearInterval(id); };
+  }, []);
+
+  const total = data?.total ?? 0;
+  if (total === 0) return null;
+  const users = data?.users ?? 0;
+  return (
+    <div
+      className="mb-4 rounded-xl border border-[#C5564B] bg-[#FBE2E0] text-[#7C2D2A] p-4 flex items-start gap-3"
+      role="alert"
+      data-testid="admin-in-flight-uploads-banner"
+    >
+      <AlertOctagon className="w-5 h-5 shrink-0 mt-0.5 text-[#C5564B]" aria-hidden="true" />
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold text-sm">
+          ⚠️ Don&rsquo;t redeploy right now — {total} upload job{total === 1 ? "" : "s"} in-flight
+          {users > 0 ? ` across ${users} user${users === 1 ? "" : "s"}` : ""}.
+        </p>
+        <p className="text-xs mt-0.5 opacity-90">
+          A redeploy interrupts the async worker.  Wait until the count
+          drops to zero (or call the &ldquo;Re-kick now&rdquo; button on the{" "}
+          <button
+            type="button"
+            onClick={() => {
+              const el = document.querySelector('[data-testid="admin-stuck-uploads-card"]');
+              if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
+            className="underline hover:text-[#5C1F1D]"
+            data-testid="admin-in-flight-uploads-jump"
+          >
+            Stuck uploads card
+          </button>
+          {" "}afterwards if any get stranded).
+        </p>
+      </div>
+    </div>
+  );
+}
+
+
+
 function GuardiansBanner() {
   const [paused, setPaused] = useState([]);
 
@@ -6746,6 +6818,7 @@ export default function AdminConsole() {
             collapses cleanly on small screens. */}
         <div className="lg:col-span-2">
           <GuardiansBanner />
+          <InFlightUploadsBanner />
         </div>
         {/* ─── Sticky category sidebar (2026-06-22) — jump-nav across the 33 cards. ─── */}
         <aside className="hidden lg:block sticky top-6 self-start" data-testid="admin-sidebar">

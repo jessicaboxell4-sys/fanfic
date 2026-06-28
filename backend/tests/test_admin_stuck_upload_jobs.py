@@ -191,3 +191,48 @@ def test_recover_upload_jobs_now_rekicks_stale(shared_event_loop):
             cli.close()
 
     shared_event_loop.run_until_complete(_run())
+
+
+def test_count_in_flight_upload_jobs(shared_event_loop):
+    """GET /admin/upload-jobs/in-flight returns counts split by
+    status + distinct-user count.  The frontend banner uses these
+    to nudge the operator away from redeploying mid-Airdrop."""
+    from routes.upload_jobs import count_in_flight_upload_jobs
+
+    async def _run():
+        cli = AsyncIOMotorClient(os.environ["MONGO_URL"])
+        db = cli[os.environ["DB_NAME"]]
+        user_a = f"user_{uuid.uuid4().hex[:10]}"
+        user_b = f"user_{uuid.uuid4().hex[:10]}"
+        ids = []
+        try:
+            for name, status, owner in [
+                ("a1", "queued", user_a),
+                ("a2", "processing", user_a),
+                ("b1", "queued", user_b),
+                ("c1", "done", user_b),   # terminal — must NOT count.
+                ("d1", "failed", user_a), # terminal — must NOT count.
+            ]:
+                jid = f"job_{uuid.uuid4().hex[:6]}_{name}"
+                ids.append(jid)
+                await db.upload_jobs.insert_one({
+                    "job_id": jid, "user_id": owner, "status": status,
+                    "total": 1, "processed": 0, "total_bytes": 0,
+                    "staged_files": [], "keep_originals": [],
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "started_at": None,
+                })
+
+            res = await count_in_flight_upload_jobs(user=_admin_stub(user_a))
+            # We must be lower-bounded by what we just inserted.  Other
+            # rows from other tenants may exist in the shared DB, so
+            # check >= rather than ==.
+            assert res["queued"]     >= 2
+            assert res["processing"] >= 1
+            assert res["total"]      >= 3
+            assert res["users"]      >= 2
+        finally:
+            await db.upload_jobs.delete_many({"job_id": {"$in": ids}})
+            cli.close()
+
+    shared_event_loop.run_until_complete(_run())

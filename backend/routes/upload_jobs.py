@@ -51,6 +51,21 @@ logger = logging.getLogger("upload_jobs")
 # failure) so /app/uploads doesn't fill up with abandoned bytes.
 _JOB_STAGING_DIR = STORAGE_DIR / "_upload_jobs"
 _JOB_STAGING_DIR.mkdir(parents=True, exist_ok=True)
+# Per-user pending uploads subdir name — lives under
+# ``STORAGE_DIR / <user_id> / _pending_uploads / <job_id> /``.
+# Empirically, per-user storage survives pod restarts on Emergent K8s
+# (books don't disappear on redeploy), whereas a top-level
+# ``_upload_jobs`` directory has been observed to vanish during a
+# deploy bounce — losing in-flight Airdrops to "Staging directory
+# vanished" failures.  New jobs land here; the legacy
+# ``_JOB_STAGING_DIR`` path is kept readable for backward compat
+# with jobs queued before this refactor (2026-06-28).
+_PENDING_SUBDIR = "_pending_uploads"
+
+
+def _user_job_dir(user_id: str, job_id: str) -> Path:
+    """Per-user staging directory for an in-flight upload job."""
+    return STORAGE_DIR / user_id / _PENDING_SUBDIR / job_id
 
 # Cap the size of a single async batch.  Mirrors the operational
 # parallel-4-chunks default on the frontend (4 × ~25 = 100), with
@@ -58,7 +73,26 @@ _JOB_STAGING_DIR.mkdir(parents=True, exist_ok=True)
 _MAX_FILES_PER_JOB = 200
 
 
-def _job_dir(job_id: str) -> Path:
+def _job_dir(job_id: str, user_id: str | None = None) -> Path:
+    """Return the staging directory for a job.
+
+    Resolution order (2026-06-28 refactor):
+      1. If ``user_id`` is supplied and the per-user path exists →
+         return it.  This is the path NEW jobs use.
+      2. Fall back to the legacy top-level path so jobs queued
+         before the refactor still resolve.
+      3. If neither exists and ``user_id`` is supplied, return the
+         per-user path (the caller is about to create it).
+      4. No ``user_id`` provided → legacy path for back-compat.
+    """
+    if user_id:
+        new_path = _user_job_dir(user_id, job_id)
+        if new_path.exists():
+            return new_path
+        legacy = _JOB_STAGING_DIR / job_id
+        if legacy.exists():
+            return legacy
+        return new_path
     return _JOB_STAGING_DIR / job_id
 
 
@@ -91,7 +125,7 @@ async def _run_upload_job(job_id: str, user_id: str) -> None:
         logger.warning("_run_upload_job: job %s missing", job_id)
         return
 
-    staging = _job_dir(job_id)
+    staging = _job_dir(job_id, user_id=user_id)
     preserve_staging = False  # flipped True on transient Mongo errors so the
     # recovery cron still has the bytes to retry the pipeline.
     try:
@@ -260,7 +294,7 @@ async def upload_books_async(
         )
 
     job_id = uuid.uuid4().hex
-    staging = _job_dir(job_id)
+    staging = _job_dir(job_id, user_id=user.user_id)
     staging.mkdir(parents=True, exist_ok=True)
 
     staged_files: list[dict] = []
@@ -376,14 +410,36 @@ async def recover_stuck_upload_jobs() -> int:
         # Sanity-check the staging directory — if the bytes are gone
         # the worker would just no-op.  Stamp the row as failed so the
         # SPA shows a real error rather than spinning forever.
-        staging = _job_dir(job_id)
+        staging = _job_dir(job_id, user_id=user_id)
         if not any(staging.iterdir()) if staging.exists() else True:
             if not staging.exists():
+                friendly = "Staging directory vanished — bytes lost to a restart before processing."
                 await _persist_job(job_id, {
                     "status": "failed",
                     "completed_at": datetime.now(_tz.utc).isoformat(),
-                    "error": "Staging directory vanished — bytes lost to a restart before processing.",
+                    "error": friendly,
                 })
+                # 2026-06-28 — also emit upload_failures rows so the
+                # user-visible dashboard on /library/all and /account
+                # surfaces these (otherwise they only existed as a
+                # transient toast via BackgroundJobsBell).
+                try:
+                    from routes.upload_failures import record_upload_failure
+                    for sf in (job.get("staged_files") or []):
+                        await record_upload_failure(
+                            user_id=user_id,
+                            filename=sf.get("original_name") or "(unknown)",
+                            error=friendly,
+                            failure_stage="process",
+                            size_bytes=int(sf.get("size") or 0),
+                            bytes_available=False,
+                            job_id=job_id,
+                        )
+                except Exception:  # noqa: BLE001 — telemetry must never re-raise.
+                    logger.exception(
+                        "recover_stuck_upload_jobs: failed to persist upload_failures for %s",
+                        job_id,
+                    )
                 continue
         try:
             asyncio.create_task(_run_upload_job(job_id, user_id))
@@ -479,3 +535,36 @@ async def recover_upload_jobs_now(user: User = Depends(require_admin)):
     recovered = await recover_stuck_upload_jobs()
     logger.info("admin %s manually re-kicked %d stuck upload job(s)", user.user_id, recovered)
     return {"recovered": recovered}
+
+
+
+@api_router.get("/admin/upload-jobs/in-flight")
+async def count_in_flight_upload_jobs(user: User = Depends(require_admin)):
+    """Admin diagnostic — returns the count of upload jobs that are
+    currently ``queued`` or ``processing``.
+
+    Used by a sticky banner on /admin to warn the operator
+    "Don't redeploy right now — N user uploads are in-flight".
+    A redeploy interrupts the asyncio worker; if the staging
+    directory doesn't survive (it should now, post-refactor) the
+    in-flight bytes are lost and the jobs flip to "Staging
+    directory vanished" via the recovery cron.
+
+    Cheap to call (single ``count_documents`` with a covered
+    index on ``status``).  The frontend polls it every 30s.
+    """
+    queued = await db.upload_jobs.count_documents({"status": "queued"})
+    processing = await db.upload_jobs.count_documents({"status": "processing"})
+    total = queued + processing
+    return {
+        "queued":     queued,
+        "processing": processing,
+        "total":      total,
+        # Distinct user count is a useful operator signal too —
+        # a single user with 200 in-flight uploads is a different
+        # decision than 50 different users with 1-2 each.
+        "users": len(await db.upload_jobs.distinct(
+            "user_id",
+            {"status": {"$in": ["queued", "processing"]}},
+        )),
+    }
