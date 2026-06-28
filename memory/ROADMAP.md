@@ -902,26 +902,16 @@ Not blocking anything — pick up between bigger features.
 
 
 
-### 🅿️ Parked 2026-06-28 — `scripts/run_all_lints.sh` wrapper
+### ✅ Shipped 2026-06-28 — `scripts/run_all_lints.sh` wrapper
 
-Two standing lints exist (`check_dark_mode_coverage.py`,
-`check_tiny_fonts.py`) plus `mcp_lint_python` /
-`mcp_lint_javascript`.  Wrap them in a single
-`./scripts/run_all_lints.sh` so pre-commit / pre-deploy is one
-command, not four.  ~10 lines of bash:
-
-```bash
-#!/usr/bin/env bash
-set -e
-ruff check backend/
-eslint frontend/src/
-python3 scripts/check_dark_mode_coverage.py
-python3 scripts/check_tiny_fonts.py
-echo "✓ all lints green"
-```
-
-Future-proof for when lint #3 lands.  Trivial scope, only ship
-when there's downtime between bigger tasks.
+Single-keystroke runner that chains the three Shelfsort-specific
+standing lints (dark-mode coverage, tiny-font accessibility,
+gitignore health).  Scoped intentionally — does NOT include
+ruff / eslint because of pre-existing baseline noise; those go
+through `mcp_lint_python` / `mcp_lint_javascript` instead.
+Honours `--strict`, `--quiet`, `--help`.  Verified pass + fail
+paths both work cleanly.  See `/app/memory/CONVENTIONS.md`
+section 6 for the convention.
 
 
 ### 🅿️ Parked 2026-06-27 — Reply to David Webber on Facebook

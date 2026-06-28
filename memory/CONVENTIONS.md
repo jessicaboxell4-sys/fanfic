@@ -254,6 +254,47 @@ body text, `text-xs` only for chips and meta.
    ```
 
 
+
+## 6. Run-all-lints wrapper (2026-06-28)
+
+> **Before any commit or deploy, run
+> `./scripts/run_all_lints.sh`.**
+
+Single keystroke for every Shelfsort-specific guardrail.  Chains
+the three standing lints (dark-mode coverage, tiny-font
+accessibility, gitignore health) and prints a green-bordered
+all-clear or a red-bordered list of what failed.
+
+### Usage
+
+```bash
+./scripts/run_all_lints.sh           # standard run
+./scripts/run_all_lints.sh --strict  # also flag bg-white/N overlays
+./scripts/run_all_lints.sh --quiet   # only print failures + summary
+./scripts/run_all_lints.sh --help    # show this help
+```
+
+### Exit codes
+
+* `0` — every lint passed; safe to commit / deploy.
+* `1` — at least one failed.  The summary block at the bottom
+  lists which ones; scroll up for the per-lint detail.
+
+### Scope (intentional)
+
+* ✅ Dark-mode coverage
+* ✅ Tiny-font accessibility
+* ✅ Gitignore health
+* ❌ Ruff (backend Python) — too noisy with pre-existing
+  baseline; use `mcp_lint_python` for path-scoped checks.
+* ❌ ESLint (frontend JS/JSX) — same reason; use
+  `mcp_lint_javascript`.
+
+The wrapper is deliberately a thin chain.  Each lint is
+runnable standalone — the wrapper just makes "did I break
+anything Shelfsort-specific?" a one-keystroke question.
+
+
 ## 5. Gitignore health (2026-06-28)
 
 > **`.gitignore` and `.dockerignore` MUST NOT contain `.env` /
