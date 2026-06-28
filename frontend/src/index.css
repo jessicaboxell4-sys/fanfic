@@ -549,6 +549,14 @@ html, body {
 :root[data-theme="dark"] .text-\[\#6B705C\],
 :root[data-theme="dark"] .text-\[\#6E6E6E\] { color: var(--text-secondary); }
 
+/* Deep red accents used by the failed-uploads + in-flight banners.
+   On dark surfaces these need to brighten so the stage labels and
+   "Couldn't sort" markers don't sink into the background. */
+:root[data-theme="dark"] .text-\[\#A03D33\],
+:root[data-theme="dark"] .text-\[\#7C2D2A\],
+:root[data-theme="dark"] .text-\[\#B53C39\],
+:root[data-theme="dark"] .text-\[\#C5564B\] { color: #FFB0A6; }
+
 /* Borders — the cream `#E8E6E1` / `#E5DDC5` / `#D5D2CC` all converge  */
 :root[data-theme="dark"] .border-\[\#E8E6E1\],
 :root[data-theme="dark"] .border-\[\#E8E2D4\],

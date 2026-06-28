@@ -235,7 +235,7 @@ export default function FailedUploadsList({
               return (
                 <div
                   key={r.failure_id}
-                  className="flex items-start gap-3 p-3 bg-white/70 rounded-lg border border-[#E07A5F]/20"
+                  className="flex items-start gap-3 p-3 bg-[#FBE7E4] rounded-lg border border-[#E07A5F]/20"
                   data-testid={`failed-upload-row-${r.failure_id}`}
                 >
                   <FileX2 className="w-4 h-4 text-[#A03D33] shrink-0 mt-0.5" aria-hidden="true" />
@@ -286,7 +286,7 @@ export default function FailedUploadsList({
               type="button"
               onClick={dismissAll}
               disabled={busy || rows.length === 0}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-white hover:bg-[#FAF6EE] disabled:opacity-50 text-[#6B705C] text-sm border border-[#E07A5F]/30 transition-colors"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#FAF6EE] hover:bg-[#F2EEE5] disabled:opacity-50 text-[#6B705C] text-sm border border-[#E07A5F]/30 transition-colors"
               data-testid="failed-uploads-dismiss-all"
             >
               {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
