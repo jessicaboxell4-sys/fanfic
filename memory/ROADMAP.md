@@ -716,6 +716,28 @@ books?" anxiety moment. Eliminating it builds trust.
 ## ⏰ Parked reminders — bring up next session
 
 
+### 🅿️ Parked 2026-06-28 — Post-deploy auth canary
+
+After today's redeploy, users hit a "Google auth → bounce to
+login" window for a few minutes because the new pod's Mongo
+connection pool wasn't fully warm + Cloudflare was briefly
+serving cached 5xx from the cutover.  Self-healed, but silently
+— no operator alert.
+
+**Scope** (~15 LOC):
+- Seed a long-lived test session token in `test_credentials.md`.
+- Add a step to the existing prod-smoke canary
+  (`.github/workflows/prod-smoke-canary*.yml`) that hits
+  `GET https://shelfsort.com/api/auth/me` with the test token
+  every 15 min and asserts 200 + valid user JSON.
+- On 401 / 5xx, write to `canary_status.json` so the next
+  "any bugs?" deep-dive surfaces it.
+
+Catches a future deploy-broke-auth window before any real user
+reports it.  Trivial slot-in to the canary that already runs.
+
+
+
 ### 🅿️ Parked 2026-06-28 — Graceful-shutdown checkpointing for upload worker
 
 The async upload worker is fire-and-forget; a SIGTERM
