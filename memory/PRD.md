@@ -54,6 +54,15 @@
        16×16 px squares, intentional cover-overlay text).  Also
        run this script after any frontend change that introduces
        a new `text-[Npx]` class.
+    9. **Gitignore health** — run
+       `python3 scripts/check_gitignore_health.py`.  Fails if
+       `.gitignore` (or `.dockerignore`) blocks `.env` files,
+       or if the `.env` files themselves are missing/empty.
+       This regression has bitten twice (2026-06-27 + 2026-06-28)
+       via IDE auto-completion silently re-adding the patterns;
+       the lint kills that class of bug permanently.  Run this
+       **before every deploy** and after any commit that touches
+       `.gitignore` / `.dockerignore`.
   Report findings ranked by severity (HIGH = runtime crash path,
   MED = potential 500, LOW = code smell).  Don't truncate the lint
   output — the worst bugs hide in the long tail.

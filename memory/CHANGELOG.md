@@ -7,6 +7,55 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-28 — Gitignore-health standing lint 🛡️
+
+Third standing lint in the toolbox.  Sibling of
+`check_dark_mode_coverage.py` and `check_tiny_fonts.py`.  Kills
+the specific deploy regression that bit us twice today.
+
+### Background
+
+Emergent's deploy pipeline reads the committed
+`/app/backend/.env` and `/app/frontend/.env` files to propagate
+env vars into production.  If those files are gitignored, they
+aren't in the deploy commit; MANAGE_SECRETS falls back to
+"fetch from source pod", the source pod is ephemeral and gets
+cleaned up, deploy dies with `pods "agent-env-..." not found`.
+
+This regression hit twice in 24 hours: both times an IDE
+auto-completion / `.gitignore` template merge silently re-added
+`.env` / `.env.*` / `*.env` to the bottom of `.gitignore` —
+directly under the explicit comment block that warns against it.
+The first time cost ~10 minutes of debugging; the second time,
+about the same.  Permanently kill the class.
+
+### What shipped
+
+- **`scripts/check_gitignore_health.py`** — fails if
+  `.gitignore` or `.dockerignore` contains any of `.env`,
+  `.env.*`, `*.env`, `**/.env`, `backend/.env`, `frontend/.env`
+  (and equivalents) as active rules.  Comments and `!negation`
+  exemptions are honoured.  Also fails if the `.env` files
+  themselves are missing or empty.  Prints `line N: 'pattern'`
+  for fast fix.
+- **`/app/memory/PRD.md`** — added step 9 to the "any bugs?"
+  deep-dive checklist.  Future agents will run this
+  automatically before every deploy.
+- **`/app/memory/CONVENTIONS.md`** — new section 5 documenting
+  the rule and the underlying failure mode.
+
+Verified the lint catches the regression by simulating it
+(appending `.env` to `.gitignore` → script fails with the exact
+filename + line number + cause explanation; reverted → script
+passes).
+
+### Scope
+
+Scripts + memory files only.  No runtime code change, no
+redeploy needed.
+
+---
+
 ## 2026-06-28 — R2-mirrored staging + toast spam fix ☁️🛡️
 
 User reported the per-user `_pending_uploads/` staging dir ALSO

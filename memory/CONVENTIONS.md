@@ -253,3 +253,54 @@ body text, `text-xs` only for chips and meta.
    <span className="text-[8px] ...">Title</span> {/* fontsize-ok — fallback inside 60px thumb */}
    ```
 
+
+## 5. Gitignore health (2026-06-28)
+
+> **`.gitignore` and `.dockerignore` MUST NOT contain `.env` /
+> `.env.*` / `*.env` (or any equivalent pattern that excludes
+> `backend/.env` or `frontend/.env`).**
+
+Why: Emergent's deploy pipeline reads the **committed**
+`/app/backend/.env` and `/app/frontend/.env` files to propagate
+env vars into the production pod.  If those files are gitignored,
+they aren't in the deploy commit; the secrets-management step
+silently falls back to "fetch from source pod", the source pod is
+ephemeral and gets cleaned up, and the deploy dies with
+`failed to get pod: pods "agent-env-..." not found`.
+
+This regression has now bitten **twice in 24 hours** — each time
+via an IDE auto-completion / `.gitignore` template merge silently
+re-adding the patterns right under the explicit warning comment.
+The lint kills that class of bug permanently.
+
+### The check
+
+```bash
+python3 scripts/check_gitignore_health.py
+```
+
+* Fails if `.gitignore` or `.dockerignore` contains any of:
+  `.env`, `.env.*`, `*.env`, `**/.env`, `backend/.env`,
+  `frontend/.env`, etc. as active rules (comments and
+  `!negations` are fine).
+* Fails if `backend/.env` or `frontend/.env` is missing or empty.
+* Prints `line N: 'pattern'` so you can jump straight to the fix.
+* Exits 1 on any failure.
+
+### When to run it
+
+* **Before every deploy** — single most common cause of a
+  mysterious "pods not found" deploy error.
+* After any commit that touches `.gitignore` or `.dockerignore`.
+* As part of the "any bugs?" deep-dive (PRD.md step 9).
+* The fork-agent system prompt mentions this as a protected file —
+  this lint is the *enforcement* of that rule.
+
+### Fixing a flagged pattern
+
+Remove the offending lines.  The comment block at the top of the
+`.gitignore` env-section explains why.  Real secrets must go
+through the platform's secrets UI, not through env files — env
+files are for **non-secret config** (URLs, feature flags, port
+numbers).
+
