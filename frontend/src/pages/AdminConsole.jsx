@@ -6881,7 +6881,7 @@ export default function AdminConsole() {
         <div>
         {/* Mobile category jump (lg:hidden — sidebar above replaces it on desktop).
             Sticky so it stays visible while scrolling long sections. */}
-        <div className="lg:hidden mb-4 sticky top-2 z-10 bg-white/90 backdrop-blur-sm rounded-xl p-2 border border-[#E5DDC5]">
+        <div className="lg:hidden mb-4 sticky top-2 z-10 bg-white/90 backdrop-blur-sm rounded-xl p-2 border border-[#E5DDC5]"> {/* dark-ok — bg-white/90 is remapped in index.css */}
           <label htmlFor="admin-mobile-jump" className="text-[10px] uppercase tracking-wider text-[#6B705C] mb-1 block px-1">
             Jump to section
           </label>

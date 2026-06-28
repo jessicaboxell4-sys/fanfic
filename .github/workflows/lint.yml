@@ -1,0 +1,46 @@
+name: Shelfsort lints
+
+# Belt-and-suspenders for the pre-commit hook.  Anyone who
+# bypasses the local hook with `--no-verify` still has to clear
+# this CI check before a PR can merge.
+#
+# Runs the same three Shelfsort-specific guardrails the local
+# hook does:
+#   1. Dark-mode coverage
+#   2. Tiny-font accessibility
+#   3. Gitignore health
+#
+# Does NOT run ruff or eslint here — they have a pre-existing
+# baseline of ~422 issues across the codebase that would make
+# this check perpetually red.  Path-scoped MCP linters cover
+# those during normal development.
+#
+# Setup required (one-time, repo settings → Branches →
+# Protection rules → "Require status checks to pass before
+# merging"): add "Shelfsort lints / lint" to the required-check
+# list so PRs can't merge while a lint is red.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch: {}
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Make scripts executable
+        run: chmod +x scripts/*.py scripts/*.sh
+
+      - name: Run Shelfsort lints
+        run: ./scripts/run_all_lints.sh

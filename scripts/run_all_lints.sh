@@ -87,6 +87,14 @@ run "gitignore health" \
     python3 scripts/check_gitignore_health.py
 
 # ---------------------------------------------------------------- #
+# 4. bg-white/N inside card (2026-06-28).  Catches the FailedUploadsList
+#    class of bug — `bg-white/N` inside a `shelf-card` / `rounded-xl`
+#    panel renders as light-gray-on-dark-gray in dark mode.
+# ---------------------------------------------------------------- #
+run "bg-white/N in-card" \
+    python3 scripts/check_white_overlay_in_card.py
+
+# ---------------------------------------------------------------- #
 # Summary
 # ---------------------------------------------------------------- #
 echo

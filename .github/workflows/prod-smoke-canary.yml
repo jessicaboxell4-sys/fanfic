@@ -95,6 +95,53 @@ jobs:
           echo "total_count=$((PASSED + FAILED))" >> $GITHUB_OUTPUT
           exit $STATUS
 
+      - name: Auth-flow probe (2026-06-28)
+        # Smoke-checks the auth pipeline end-to-end against prod.
+        # Catches the "Mongo pool warmup race after redeploy" class
+        # of bug we saw 2026-06-28 — the regression-smoke band
+        # creates a fresh account per run, but doesn't specifically
+        # assert the cookie + /auth/me round-trip survives.
+        # This probe does exactly that:
+        #   1. POST /api/auth/register with a throwaway account.
+        #   2. Re-fetch the cookie from the response.
+        #   3. GET /api/auth/me with that cookie.
+        #   4. Assert 200 + the returned user_id matches.
+        # If any of the four fails, the canary fails — same alert
+        # path as the regression band.
+        if: always() && env.REACT_APP_BACKEND_URL != ''
+        run: |
+          set -e
+          STAMP=$(date +%s)
+          EMAIL="shelfsort-canary-auth-${STAMP}@example.com"
+          PW="canary-${STAMP}-aB1!"
+          REG=$(curl -sS -c /tmp/canary-cookies.txt \
+            -X POST "${REACT_APP_BACKEND_URL}/api/auth/register" \
+            -H "Content-Type: application/json" \
+            --data "{\"email\":\"$EMAIL\",\"password\":\"$PW\",\"name\":\"Canary Auth\"}" \
+            -w "HTTP:%{http_code}" -o /tmp/reg.json)
+          REG_CODE=$(echo "$REG" | grep -oE 'HTTP:[0-9]+' | cut -d: -f2)
+          if [ "$REG_CODE" != "200" ] && [ "$REG_CODE" != "201" ]; then
+            echo "::error::auth canary: /auth/register returned $REG_CODE (expected 200/201)"
+            cat /tmp/reg.json
+            exit 1
+          fi
+          ME=$(curl -sS -b /tmp/canary-cookies.txt \
+            "${REACT_APP_BACKEND_URL}/api/auth/me" \
+            -w "HTTP:%{http_code}" -o /tmp/me.json)
+          ME_CODE=$(echo "$ME" | grep -oE 'HTTP:[0-9]+' | cut -d: -f2)
+          if [ "$ME_CODE" != "200" ]; then
+            echo "::error::auth canary: /auth/me returned $ME_CODE — session cookie not surviving redeploy"
+            cat /tmp/me.json
+            exit 1
+          fi
+          USER_ID=$(python -c "import json,sys;print(json.load(open('/tmp/me.json')).get('user_id',''))")
+          if [ -z "$USER_ID" ]; then
+            echo "::error::auth canary: /auth/me returned 200 but no user_id"
+            cat /tmp/me.json
+            exit 1
+          fi
+          echo "✓ auth canary: register → cookie → /auth/me round-trip passed (user_id=$USER_ID)"
+
       - name: Push canary result to AdminConsole widget
         # GitHub Actions doesn't allow `secrets.X` in `if:` expressions
         # for security.  Instead we map the secret to env at step scope

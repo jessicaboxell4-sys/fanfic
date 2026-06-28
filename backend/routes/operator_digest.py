@@ -94,9 +94,66 @@ async def _gather_funnel(days: int) -> Dict[str, Any]:
     }
 
 
+async def _gather_upload_failures(days: int = 7) -> Dict[str, Any]:
+    """Aggregate upload_failures rows from the last ``days`` for the
+    operator weekly digest.  Buckets by friendly cause family so a
+    growing trend in one bucket is visible at a glance.
+
+    Buckets (regex-matched on ``error`` field, fallback to ``failure_stage``):
+
+    * ``cloudflare``  — Cloudflare 5xx / origin-overloaded class
+    * ``mongo``       — Atlas transient / topology errors
+    * ``staging``     — bytes lost to a pod restart
+    * ``calibre``     — conversion crash / OOM
+    * ``av``          — flagged by virus scan
+    * ``classify``    — Claude / classifier failures
+    * ``other``       — anything else
+
+    Returns ``{total, users, buckets: [{label, count}, ...]}``.
+    """
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    total = 0
+    users: set[str] = set()
+    bucket_counts: Dict[str, int] = {}
+    cursor = db.upload_failures.find(
+        {"created_at": {"$gte": cutoff}, "dismissed_at": None},
+        {"_id": 0, "user_id": 1, "error": 1, "failure_stage": 1},
+    )
+    async for row in cursor:
+        total += 1
+        if row.get("user_id"):
+            users.add(row["user_id"])
+        err = (row.get("error") or "").lower()
+        stage = (row.get("failure_stage") or "").lower()
+        if "cloudflare" in err or "origin web server" in err or "overloaded" in err:
+            label = "Cloudflare 5xx"
+        elif "mongo" in err or "primary node" in err or "replica set" in err:
+            label = "Atlas transient"
+        elif "staging directory vanished" in err:
+            label = "Staging vanished"
+        elif "calibre" in err or "convert" in err or stage == "convert":
+            label = "Calibre/convert"
+        elif stage == "av" or "virus" in err or "flagged" in err:
+            label = "AV-flagged"
+        elif stage == "classify" or "classifier" in err or "claude" in err:
+            label = "Classifier"
+        else:
+            label = "Other"
+        bucket_counts[label] = bucket_counts.get(label, 0) + 1
+    # Sort buckets newest-first by count, top 3 only — keeps the
+    # digest line scannable.
+    sorted_buckets = sorted(bucket_counts.items(), key=lambda x: -x[1])
+    return {
+        "total":   total,
+        "users":   len(users),
+        "buckets": [{"label": k, "count": v} for k, v in sorted_buckets[:3]],
+    }
+
+
 async def _build_operator_payload(user_doc: Dict[str, Any]) -> Dict[str, Any]:
     name = (user_doc.get("name") or user_doc.get("email", "").split("@")[0] or "Operator").split(" ")[0]
     data = await _gather_funnel(days=7)
+    uploads = await _gather_upload_failures(days=7)
     funnel = data["funnel"]
     base = (FRONTEND_URL or os.environ.get("REACT_APP_BACKEND_URL", "") or "").rstrip("/")
     admin_url = f"{base}/admin"

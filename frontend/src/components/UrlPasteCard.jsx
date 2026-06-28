@@ -93,7 +93,7 @@ export default function UrlPasteCard() {
         onChange={(e) => setText(e.target.value)}
         rows={5}
         placeholder={"https://archiveofourown.org/works/12345\nhttps://www.fanfiction.net/s/67890/\nhttps://www.royalroad.com/fiction/111\n…"}
-        className="w-full px-4 py-3 rounded-xl border border-[#E8E6E1] bg-white/80 backdrop-blur-sm text-sm text-[#2C2C2C] font-mono leading-relaxed placeholder:text-[#6B705C]/60 placeholder:font-mono focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/30 focus:border-[#6B46C1] resize-y min-h-[120px]"
+        className="w-full px-4 py-3 rounded-xl border border-[#E8E6E1] bg-white/80 backdrop-blur-sm text-sm text-[#2C2C2C] font-mono leading-relaxed placeholder:text-[#6B705C]/60 placeholder:font-mono focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/30 focus:border-[#6B46C1] resize-y min-h-[120px]"  /* dark-ok — bg-white/80 is remapped in index.css */
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3 mt-4">
