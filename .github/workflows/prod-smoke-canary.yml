@@ -72,6 +72,56 @@ jobs:
           fi
           echo "Canary target: ${REACT_APP_BACKEND_URL}"
 
+      - name: Probe /api/health (fast-fail on env-config regression)
+        # Hits the public /api/health probe FIRST, before running the
+        # full smoke band.  Catches the prod-outage fingerprint (CF
+        # 520 on every endpoint after MANAGE_SECRETS drops MONGO_URL
+        # because .gitignore re-added .env blocks) in <2 s instead of
+        # waiting for the full smoke band to time out and time-bleed
+        # the on-call's morning.
+        #
+        # Surfaces three failure modes loudly:
+        #   1. /api/health unreachable → CF 520 / pod down
+        #   2. checks.env_config.ok == false → missing/malformed env
+        #   3. checks.mongo.ok == false → Mongo connection broken
+        # Each failure prints the exact failing var/error so the alert
+        # text is actionable without needing to dig through logs.
+        run: |
+          set +e
+          HTTP_CODE=$(curl -sS -o /tmp/health.json -w "%{http_code}" -m 15 \
+            "${REACT_APP_BACKEND_URL}/api/health")
+          CURL_RC=$?
+          set -e
+          if [ "$CURL_RC" != "0" ] || [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::/api/health unreachable (curl=$CURL_RC http=$HTTP_CODE). Prod pod is likely down or CF↔origin broken."
+            cat /tmp/health.json 2>/dev/null | head -40 || true
+            exit 1
+          fi
+          # Parse with python (already on the runner) — jq isn't preinstalled.
+          python <<'PY'
+          import json, sys
+          with open("/tmp/health.json") as f:
+              h = json.load(f)
+          status = h.get("status")
+          checks = h.get("checks", {})
+          env_cfg = checks.get("env_config", {})
+          mongo   = checks.get("mongo", {})
+          print(f"::notice::/api/health → status={status} boot_id={h.get('boot_id')} version={h.get('version')}")
+          if not env_cfg.get("ok", False):
+              findings = env_cfg.get("findings") or []
+              names = ", ".join(f.get("var", "?") for f in findings) or "(no detail)"
+              print(f"::error::env_config FAIL — missing/malformed: {names}")
+              for f in findings:
+                  print(f"::error::  ✗ {f.get('var')}: {f.get('error')}")
+              print("::error::This is the .gitignore-blocks-.env / MANAGE_SECRETS regression.")
+              print("::error::Fix: ensure backend/.env and frontend/.env are committed (run scripts/check_gitignore_health.py).")
+              sys.exit(2)
+          if not mongo.get("ok", False):
+              print(f"::error::mongo FAIL — {mongo.get('error', 'unknown')}")
+              sys.exit(3)
+          print("✓ /api/health → status:ok, env_config:ok, mongo:ok — safe to run full smoke band")
+          PY
+
       - name: Run regression smoke against prod
         id: smoke
         working-directory: backend
