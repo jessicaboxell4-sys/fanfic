@@ -79,6 +79,25 @@ All 4 new + 2 existing recovery tests green.
   up-to-5-min wait when an operator wants recovery to happen
   *right now* in front of a user reporting their upload "stuck".
 
+### Polish / deploy prep (same day)
+
+- **Dark-mode fixes** for two cream surfaces that survived earlier
+  sweeps: `bg-white/90` (admin mobile "Jump to section" dropdown
+  wrapper) and `bg-[#FFF6E5]` (upload "Picking up where you left
+  off…" resume banner).  Both now map to the dark surface via
+  `index.css`'s attribute-selector bridge — the warm peach banner
+  gets a faint purple tint so it still reads as a callout, the
+  admin dropdown converges on the standard translucent dark
+  surface.
+- **`AdminHelp.jsx`** — new "Stuck uploads & Atlas failover"
+  section documenting the new card, the three usual stall causes
+  (Atlas election / staging-disk loss / cron wedged), the
+  "Re-kick now" button, and the underlying diagnostic API.
+- **`.gitignore`** — removed three lines (`.env`, `.env.*`,
+  `*.env`) that had silently re-crept into the file. The comment
+  above them explains exactly why they cannot exist; deployment
+  agent re-confirmed PASS after the removal.
+
 
 ### User impact
 
