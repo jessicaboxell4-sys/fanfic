@@ -2259,7 +2259,7 @@ export default function AllBooksPage() {
                         />
                       ) : (
                         <div className="w-full h-full bg-gradient-to-br from-[#6B46C1] to-[#4C2A99] flex items-center justify-center p-1">
-                          <span className="text-[8px] text-white text-center line-clamp-3 leading-tight font-serif">
+                          <span className="text-[8px] text-white text-center line-clamp-3 leading-tight font-serif"> {/* fontsize-ok — fallback title overlay in a 60px-wide thumbnail tile */}
                             {b.title || "Untitled"}
                           </span>
                         </div>

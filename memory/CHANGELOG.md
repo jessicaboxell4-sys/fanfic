@@ -120,6 +120,23 @@ All 4 new + 2 existing recovery tests green.
   automatically on every health check and after any frontend
   change.
 
+### Sibling lint — tiny-font accessibility (same day)
+
+- **`scripts/check_tiny_fonts.py`** — same pattern as the
+  dark-mode lint.  Flags `text-[Npx]` where N ≤ 9 (sub-readable).
+  Auto-exempts the standard `uppercase tracking-wider` badge
+  pattern.  Honours `// fontsize-ok` line opt-out.
+- **Cleaned 21 → 7 → 0** findings: 14 were already legitimate
+  uppercase-tracked badges (auto-exempted by the script), the
+  remaining 7 (notification count bubbles, single-char classifier
+  chips, palette-token preview, cover-overlay text) got explicit
+  `// fontsize-ok` markers with reasoning comments — exactly the
+  intentional-tiny-text pattern the lint is designed to catch
+  *and* document.
+- **`/app/memory/CONVENTIONS.md`** section 4 + **`/app/memory/PRD.md`**
+  deep-dive step 8 baked the lint into the standing checklist.
+  Future agents will run it automatically.
+
 
 ### User impact
 

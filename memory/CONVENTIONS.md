@@ -200,3 +200,56 @@ Two options:
 * Don't disable the check by reducing the luminance threshold —
   the cutoff is calibrated to catch every cream/pastel that reads
   as "white-ish" without the user squinting.
+
+## 4. Tiny-font accessibility (2026-06-28)
+
+> **No `text-[Npx]` class where N ≤ 9 is allowed without an
+> explicit `// fontsize-ok` opt-out on the same line.**
+
+Why: anything below 10px is below the WCAG comfort threshold for
+any text on any surface — even readers with 20/20 vision squint.
+The codebase has a few legitimate cases (single-character chips,
+count bubbles inside 16×16 px squares, intentional cover-overlay
+text on thumbnails) but they should be deliberate, marked, and
+reviewed — not slipping in unnoticed.
+
+### The check
+
+```bash
+python3 scripts/check_tiny_fonts.py
+```
+
+* Scans every `.js` / `.jsx` / `.ts` / `.tsx` under
+  `frontend/src/` for `text-[Npx]` patterns with N = 1–9.
+* Auto-exempts the standard `uppercase tracking-wider` badge
+  pattern (e.g. status pills, role badges) — tight letters at
+  9px read as well as un-tracked 11px, so flagging them would
+  generate noise.
+* Honours `// fontsize-ok` on the same line as the escape hatch.
+* Exits 1 on any unmarked finding.
+
+Note: `text-xs` (12px) is **not** flagged — it's used 1000+ times
+in the codebase for legitimate badges and meta info.  The
+standing rule is: use `text-sm` (14px) minimum for paragraph /
+body text, `text-xs` only for chips and meta.
+
+### When to run it
+
+* **After any frontend change that introduces a new `text-[Npx]`
+  class.**
+* As part of the "any bugs?" deep-dive (PRD.md step 8).
+* Before any deploy that touches frontend files.
+
+### Fixing a flagged class
+
+1. **Bump the size** — `text-[10px]` is the smallest comfortable
+   value for most cases; `text-xs` is preferred for everything
+   that isn't a single character or count.
+2. **`// fontsize-ok` marker** — append to the JSX line if the
+   tiny size is genuinely needed.  Explain in a brief inline
+   comment why:
+
+   ```jsx
+   <span className="text-[8px] ...">Title</span> {/* fontsize-ok — fallback inside 60px thumb */}
+   ```
+

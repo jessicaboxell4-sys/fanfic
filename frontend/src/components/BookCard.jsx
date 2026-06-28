@@ -39,7 +39,7 @@ function ClassifierChip({ classifier }) {
     <span
       data-testid={`book-classifier-chip-${classifier}`}
       title={cfg.title}
-      className={`inline-flex items-center justify-center w-4 h-4 text-[9px] font-bold rounded ${cfg.cls}`}
+      className={`inline-flex items-center justify-center w-4 h-4 text-[9px] font-bold rounded ${cfg.cls}`} /* fontsize-ok — single-letter classifier chip in a 16×16 px square */
     >
       {cfg.letter}
     </span>

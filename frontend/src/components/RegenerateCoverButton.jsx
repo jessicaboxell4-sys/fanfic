@@ -431,7 +431,7 @@ export default function RegenerateCoverButton({ book, onCoverChanged }) {
                             >
                               <Download className="w-3 h-3" /> Use this
                             </button>
-                            <p className="absolute top-0.5 left-0.5 text-[9px] bg-white/85 text-[#6B705C] px-1.5 py-0.5 rounded">
+                            <p className="absolute top-0.5 left-0.5 text-[9px] bg-white/85 text-[#6B705C] px-1.5 py-0.5 rounded">{/* fontsize-ok — corner attribution overlay on a 100px cover thumbnail */}
                               @{c.shared_by} · {c.import_count}×
                             </p>
                             <button

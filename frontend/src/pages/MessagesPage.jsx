@@ -96,7 +96,7 @@ function MessageRow({ msg, isMine, currentUserId, onApplyPalette }) {
               <p className={`text-xs font-semibold truncate ${isMine ? "text-white" : "text-[#2C2C2C]"}`}>
                 Palette: {msg.attachment.palette_name || "shared palette"}
               </p>
-              <code className={`text-[9px] font-mono truncate block ${isMine ? "text-white/70" : "text-[#6B705C]"}`}>
+              <code className={`text-[9px] font-mono truncate block ${isMine ? "text-white/70" : "text-[#6B705C]"}`}>{/* fontsize-ok — palette token preview, intentionally tiny mono */}
                 {msg.attachment.palette_token.slice(0, 36)}{msg.attachment.palette_token.length > 36 ? "…" : ""}
               </code>
             </div>

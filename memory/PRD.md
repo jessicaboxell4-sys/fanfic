@@ -44,6 +44,16 @@
        Also run this script **after any frontend change that
        introduces a new `bg-[#…]` class** — don't wait for the
        user to screenshot the bug.
+    8. **Tiny-font accessibility** — run
+       `python3 scripts/check_tiny_fonts.py`.  Flags any
+       `text-[Npx]` where N ≤ 9 (sub-readable).  Auto-exempts the
+       standard `uppercase tracking-wider` badge pattern.  Fix by
+       bumping to `text-[10px]` minimum OR append
+       `// fontsize-ok` to the JSX line if the tiny size is
+       genuinely needed (single-char chips, count bubbles inside
+       16×16 px squares, intentional cover-overlay text).  Also
+       run this script after any frontend change that introduces
+       a new `text-[Npx]` class.
   Report findings ranked by severity (HIGH = runtime crash path,
   MED = potential 500, LOW = code smell).  Don't truncate the lint
   output — the worst bugs hide in the long tail.

@@ -45,7 +45,7 @@ export default function ChatInboxIcon() {
       {total > 0 && (
         <span
           data-testid="navbar-messages-badge"
-          className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-[var(--primary)] text-white text-[9px] font-bold flex items-center justify-center ring-2 ring-[#FDFBF7]"
+          className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-[var(--primary)] text-white text-[9px] font-bold flex items-center justify-center ring-2 ring-[#FDFBF7]" /* fontsize-ok — unread count bubble */
         >
           {total > 99 ? "99+" : total}
         </span>
