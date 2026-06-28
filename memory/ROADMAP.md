@@ -716,6 +716,28 @@ books?" anxiety moment. Eliminating it builds trust.
 ## ⏰ Parked reminders — bring up next session
 
 
+### 🅿️ Parked 2026-06-28 — `_staging/` orphan sweeper
+
+After the R2-mirrored staging fix, the `_staging/<user_id>/<job_id>/`
+prefix is reserved for transient upload bytes that get cleaned up
+after the worker ingests them.  But edge cases (job died between
+`mirror_up` and the `upload_jobs` row insert; backend killed mid-
+finally-block before `delete_remote` ran) can leave orphan bytes
+in R2 forever.
+
+**Scope** (~20 LOC):
+- Daily cron slot-in to `routes/operator_digest.py` (or a new
+  `crons/cleanup_staging.py`).
+- `list_objects(prefix="_staging/")` → for each key, `head_object`
+  → if `LastModified` > 24h ago AND no matching
+  `upload_jobs.staged_files.cloud_key`, `delete_remote(key)`.
+- Log the count so the operator digest line can include "cleaned
+  N orphan staging bytes" weekly.
+
+Not blocking — pick up when there's a calm window.
+
+
+
 ### 🅿️ Parked 2026-06-28 — Airdrop perceived-speed improvements
 
 User asked "what does airdropping do? it's still sorta slow."  Two
