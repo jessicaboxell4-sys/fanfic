@@ -82,6 +82,7 @@ import AdminViewAs from "@/pages/AdminViewAs";
 import ModInbox from "@/pages/ModInbox";
 import AuthCallback from "@/pages/AuthCallback";
 import ResetPassword from "@/pages/ResetPassword";
+import Status from "@/pages/Status";
 import MaintenanceBanner from "@/components/MaintenanceBanner";
 import NewVersionBanner from "@/components/NewVersionBanner";
 import PendingDeletionBanner from "@/components/PendingDeletionBanner";
@@ -147,6 +148,7 @@ function AppRouter() {
       <Route path="/terms" element={<Terms />} />
       <Route path="/help/kindle-import" element={<KindleImport />} />
       <Route path="/changelog" element={<Changelog />} />
+      <Route path="/status" element={<Status />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/share/yib/:token" element={<PublicYearInBooks />} />
       <Route path="/u/:username" element={<PublicCoverProfile />} />

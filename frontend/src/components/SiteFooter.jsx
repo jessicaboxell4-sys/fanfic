@@ -84,6 +84,15 @@ export default function SiteFooter() {
                   Suggestions board
                 </Link>
               </li>
+              <li>
+                <Link
+                  to="/status"
+                  data-testid="footer-link-status"
+                  className="text-[#2C2C2C] hover:text-[#6B46C1] hover:underline"
+                >
+                  System status
+                </Link>
+              </li>
             </ul>
           </div>
 
