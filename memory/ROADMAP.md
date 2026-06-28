@@ -716,6 +716,28 @@ books?" anxiety moment. Eliminating it builds trust.
 ## ⏰ Parked reminders — bring up next session
 
 
+### 🅿️ Parked 2026-06-28 — Graceful-shutdown checkpointing for upload worker
+
+The async upload worker is fire-and-forget; a SIGTERM
+(deploy / pod eviction) kills it mid-pipeline.  Today's
+`InFlightUploadsBanner` makes that visible BEFORE redeploy, and
+the per-user `_pending_uploads/` path makes the bytes survive,
+but the worker itself still loses progress mid-batch.
+
+**Scope** (~50 LOC):
+- Hook a `signal.SIGTERM` handler in `server.py` that flips a
+  module-level `_shutdown_event = asyncio.Event()`.
+- `_run_upload_job` checks `_shutdown_event.is_set()` between
+  files in the loop; if set, persists "paused at file N/M" and
+  returns cleanly.
+- Recovery cron resumes paused jobs from `processed_index`.
+- K8s gives ~30s grace; that's plenty for a clean checkpoint.
+
+Means future redeploys *during* a bulk just pause-and-resume
+instead of losing in-flight work.
+
+
+
 ### 🅿️ Parked 2026-06-28 — Weekly upload-failure digest line
 
 Now that `upload_failures` rows are persisted per-user, add a
