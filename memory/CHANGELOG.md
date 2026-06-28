@@ -7,6 +7,24 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-28 — Cluster 🟢 finalized: CI lint workflow + white-overlay lint + post-deploy auth canary + operator weekly digest
+
+Closed out the 4-item additive reliability cluster.
+
+### Shipped
+1. **`.github/workflows/lint.yml`** — GitHub Action that runs `scripts/run_all_lints.sh` on every PR + push to main. All 4 standing lints (dark-mode coverage, tiny fonts, gitignore health, white-overlay in card) gate merges.
+2. **`scripts/check_white_overlay_in_card.py`** — fourth standing lint. Flags `bg-white/N` (or any opacity variant) inside an enclosing `Card` to prevent the dark-mode "white pill on dark card" regression we shipped twice.
+3. **`.github/workflows/prod-smoke-canary.yml`** — runs auth + library smoke 5 min after deploy on prod; pings #alerts via webhook on failure.
+4. **`backend/routes/operator_digest.py`** — weekly upload-failure + funnel telemetry email to opted-in admins (`/api/admin/operator-digest` GET/PUT, `/preview` POST). Powered by Resend.
+
+### Verification
+- `bash scripts/run_all_lints.sh` → all 4 lints green
+- `operator_digest.py` imports cleanly, registers 3 admin endpoints under `api_router`
+- `curl /api/health` → 200, `curl /api/admin/operator-digest` → 401 (auth-gated as expected)
+- Both new workflow YAMLs parse with `yaml.safe_load`
+
+---
+
 ## 2026-06-28 — Gitignore-health standing lint 🛡️
 
 Third standing lint in the toolbox.  Sibling of
