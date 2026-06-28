@@ -128,3 +128,75 @@ When adding a new collection that stores a `user_id`, append it to
 the `_hard_delete_user` purge list immediately.
 
 ---
+
+
+## 3. Dark-mode coverage (2026-06-28)
+
+> **Every light-coloured `bg-[#XXXXXX]` background MUST have a
+> matching `:root[data-theme="dark"]` rule in
+> `frontend/src/index.css`, OR an explicit `// dark-ok` opt-out on
+> the JSX line.**
+
+Why: Shelfsort uses literal hex utility classes
+(`bg-[#FBFAF6]` etc.) throughout the codebase and flips to dark
+mode by *retargeting those exact compiled class names* via
+attribute selectors in `index.css`.  A light hex background
+without a dark-mode rule renders as a giant white slab when the
+user flips the theme — the kind of bug spotted with the admin
+"Jump to section" dropdown and the upload resume banner.
+
+### The check
+
+```bash
+python3 scripts/check_dark_mode_coverage.py
+```
+
+* Scans every `.js` / `.jsx` / `.ts` / `.tsx` file under
+  `frontend/src/`.
+* Flags any `bg-[#XXXXXX]` or opaque `bg-white` with WCAG
+  luminance > 0.70 that doesn't appear in a
+  `:root[data-theme="dark"]` rule in `index.css`.
+* Skips `bg-white/N` semi-transparent overlays by default (they're
+  almost always intentional on dark gradients — pass
+  `--include-white-opacity` for strict mode).
+* Exits 1 on any uncovered class, prints `file:line` so you can
+  jump straight to the fix.
+
+### When to run it
+
+* **After any frontend change that introduces a new `bg-[#…]`
+  class** — don't wait for the user to screenshot the bug.
+* As part of the "any bugs?" deep-dive (see PRD.md step 7).
+* Before any deploy that touches frontend files.
+
+### Fixing a flagged class
+
+Two options:
+
+1. **Add the dark-mode mapping** — at the bottom of `index.css`
+   (look for the dated "Dark-mode coverage backfill" block), group
+   the new hex under the right accent family (cream / purple /
+   mint / peach / amber / sky).  Each family maps to an
+   appropriately-tinted dark surface so the colour identity is
+   preserved.
+
+   ```css
+   :root[data-theme="dark"] .bg-\[\#XXXXXX\] { background-color: rgba(…); }
+   ```
+
+2. **`// dark-ok`** — append the marker to the JSX line if the
+   bright background is intentional in both modes.  Example:
+   a hero overlay using `bg-white/10` over a saturated gradient,
+   or a deliberately bright sticker chip.
+
+   ```jsx
+   <div className="bg-white/40 ..."> {/* dark-ok — intentional overlay on hero gradient */}
+   ```
+
+### Don't
+
+* Don't add a generic catch-all like `*[class*="bg-["]` — it would
+  steamroll every per-colour tinted design.
+* Don't disable the check by reducing the luminance threshold —
+  the cutoff is calibrated to catch every cream/pastel that reads
+  as "white-ish" without the user squinting.

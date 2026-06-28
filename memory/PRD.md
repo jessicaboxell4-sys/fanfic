@@ -33,6 +33,17 @@
        (`.github/workflows/prod-smoke-canary-retry.yml`) commits
        this file back to the repo after each 15-min retry, so it
        reflects the latest confirmed prod state.
+    7. **Dark-mode coverage** — run
+       `python3 scripts/check_dark_mode_coverage.py`.  Any light
+       hex `bg-[#XXXXXX]` background without a matching
+       `:root[data-theme="dark"]` rule in `frontend/src/index.css`
+       is flagged.  Fix by adding the dark-mode mapping (group by
+       accent family at the bottom of `index.css`) OR appending
+       `// dark-ok` to the JSX line if the bright background is
+       intentional in both modes (e.g. overlay on a dark gradient).
+       Also run this script **after any frontend change that
+       introduces a new `bg-[#…]` class** — don't wait for the
+       user to screenshot the bug.
   Report findings ranked by severity (HIGH = runtime crash path,
   MED = potential 500, LOW = code smell).  Don't truncate the lint
   output — the worst bugs hide in the long tail.

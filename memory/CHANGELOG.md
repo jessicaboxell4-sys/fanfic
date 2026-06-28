@@ -98,6 +98,28 @@ All 4 new + 2 existing recovery tests green.
   above them explains exactly why they cannot exist; deployment
   agent re-confirmed PASS after the removal.
 
+### Standing prevention — dark-mode coverage lint (same day)
+
+- **`scripts/check_dark_mode_coverage.py`** — Python lint that
+  greps every `.jsx` for `bg-[#XXXXXX]` and `bg-white` classes,
+  computes WCAG luminance, and flags any light background
+  (L > 0.70) without a matching `:root[data-theme="dark"]` rule
+  in `frontend/src/index.css`.  Skips semi-transparent
+  `bg-white/N` overlays by default (almost always intentional on
+  dark gradients); supports a line-level `// dark-ok` opt-out.
+- **`index.css`** — bulk backfill of 61 previously-uncovered light
+  hex backgrounds, grouped by accent family (cream / purple /
+  mint / peach / amber / sky) so each tinted surface stays
+  identifiable in dark mode instead of going pure-dark.  Default
+  lint run is now green.
+- **`/app/memory/CONVENTIONS.md`** — new section 3 documenting
+  the rule, when to run the check, and the two ways to fix a
+  flagged class (CSS mapping vs `// dark-ok`).
+- **`/app/memory/PRD.md`** — added step 7 to the "any bugs?"
+  deep-dive checklist: future agents will now run this script
+  automatically on every health check and after any frontend
+  change.
+
 
 ### User impact
 

@@ -868,3 +868,92 @@ html, body {
     color: inherit !important;
 }
 
+
+/* ────────────────────────────────────────────────────────────────────
+ * 2026-06-28 — Dark-mode coverage backfill.
+ *
+ * Surfaces flagged by ``scripts/check_dark_mode_coverage.py`` —
+ * light hex backgrounds that were rendering as giant white slabs
+ * when the user flipped to dark theme.  Grouped by accent family
+ * so each light tint converges on an appropriately-tinted dark
+ * surface (purple stays purple, mint stays mint, etc.).
+ *
+ * If you add a new ``bg-[#XXXXXX]`` to JSX, run
+ * ``python3 scripts/check_dark_mode_coverage.py`` and either add
+ * the mapping here or append ``// dark-ok`` to the JSX line if the
+ * bright background is intentional in both modes.
+ * ──────────────────────────────────────────────────────────────── */
+
+/* Cream / paper / oat — converge on the neutral dark surface. */
+:root[data-theme="dark"] .bg-\[\#FDF8F0\],
+:root[data-theme="dark"] .bg-\[\#FAF7F2\],
+:root[data-theme="dark"] .bg-\[\#F5F2EE\],
+:root[data-theme="dark"] .bg-\[\#F5F2EA\],
+:root[data-theme="dark"] .bg-\[\#F2EEE5\],
+:root[data-theme="dark"] .bg-\[\#F1F1F0\],
+:root[data-theme="dark"] .bg-\[\#F0EDE5\],
+:root[data-theme="dark"] .bg-\[\#EFEDE7\],
+:root[data-theme="dark"] .bg-\[\#EDE9DF\],
+:root[data-theme="dark"] .bg-\[\#EAE4D6\],
+:root[data-theme="dark"] .bg-\[\#E8E6E1\],
+:root[data-theme="dark"] .bg-\[\#E8E2D4\],
+:root[data-theme="dark"] .bg-\[\#ddd\] { background-color: var(--surface); }
+
+/* Pale purple / lavender tints — keep the purple identity but on  */
+/* a dark backdrop so dark-text-on-pale becomes light-text-on-tint.*/
+:root[data-theme="dark"] .bg-\[\#F7F3FF\],
+:root[data-theme="dark"] .bg-\[\#F0EAFE\],
+:root[data-theme="dark"] .bg-\[\#F0EBFB\],
+:root[data-theme="dark"] .bg-\[\#EFE7FD\],
+:root[data-theme="dark"] .bg-\[\#E5DDF9\],
+:root[data-theme="dark"] .bg-\[\#EDE6FA\],
+:root[data-theme="dark"] .bg-\[\#EDE7FB\]\/40,
+:root[data-theme="dark"] .bg-\[\#EDE7FB\]\/60 { background-color: rgba(167, 139, 250, 0.14); }
+
+/* Pale mint / sage tints — keep the green identity. */
+:root[data-theme="dark"] .bg-\[\#F4F8F0\],
+:root[data-theme="dark"] .bg-\[\#F1F8E9\],
+:root[data-theme="dark"] .bg-\[\#EEF7E9\],
+:root[data-theme="dark"] .bg-\[\#E8F3EC\],
+:root[data-theme="dark"] .bg-\[\#E6F4EA\],
+:root[data-theme="dark"] .bg-\[\#E6F2E8\],
+:root[data-theme="dark"] .bg-\[\#E6F2E6\],
+:root[data-theme="dark"] .bg-\[\#E4F4EE\] { background-color: rgba(129, 178, 154, 0.14); }
+
+/* Peach / blush / coral tints — keep warm coral identity. */
+:root[data-theme="dark"] .bg-\[\#FFEFEC\],
+:root[data-theme="dark"] .bg-\[\#FDECEC\],
+:root[data-theme="dark"] .bg-\[\#FDE2E4\],
+:root[data-theme="dark"] .bg-\[\#FBEAE7\],
+:root[data-theme="dark"] .bg-\[\#FBE7E4\],
+:root[data-theme="dark"] .bg-\[\#FBE2E0\],
+:root[data-theme="dark"] .bg-\[\#FBE9E9\],
+:root[data-theme="dark"] .bg-\[\#F9DED5\],
+:root[data-theme="dark"] .bg-\[\#F6D7CE\] { background-color: rgba(224, 122, 95, 0.14); }
+
+/* Butter / amber / honey tints — keep warm amber identity. */
+:root[data-theme="dark"] .bg-\[\#FFF8EC\],
+:root[data-theme="dark"] .bg-\[\#FFF8E1\],
+:root[data-theme="dark"] .bg-\[\#FFF7E6\],
+:root[data-theme="dark"] .bg-\[\#FFF6D6\],
+:root[data-theme="dark"] .bg-\[\#FFF3D6\],
+:root[data-theme="dark"] .bg-\[\#FFF2DE\],
+:root[data-theme="dark"] .bg-\[\#FFF1E5\],
+:root[data-theme="dark"] .bg-\[\#FFE9C2\],
+:root[data-theme="dark"] .bg-\[\#FDF6D6\],
+:root[data-theme="dark"] .bg-\[\#FDF3E1\]\/40,
+:root[data-theme="dark"] .bg-\[\#FCE9C2\],
+:root[data-theme="dark"] .bg-\[\#FCE9B0\],
+:root[data-theme="dark"] .bg-\[\#FBF6E9\],
+:root[data-theme="dark"] .bg-\[\#FBF1D6\],
+:root[data-theme="dark"] .bg-\[\#FBE8C8\],
+:root[data-theme="dark"] .bg-\[\#F8E8D8\]\/40,
+:root[data-theme="dark"] .bg-\[\#F5EFE0\],
+:root[data-theme="dark"] .bg-\[\#F3EBE0\],
+:root[data-theme="dark"] .bg-\[\#F0EBE2\],
+:root[data-theme="dark"] .bg-\[\#F0EBE0\],
+:root[data-theme="dark"] .bg-\[\#F0EBDE\],
+:root[data-theme="dark"] .bg-\[\#F0EAD9\] { background-color: rgba(240, 200, 120, 0.12); }
+
+/* Sky / cool blue tints. */
+:root[data-theme="dark"] .bg-\[\#DCE8EF\] { background-color: rgba(140, 180, 210, 0.14); }
