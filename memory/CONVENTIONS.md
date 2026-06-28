@@ -294,6 +294,24 @@ The wrapper is deliberately a thin chain.  Each lint is
 runnable standalone — the wrapper just makes "did I break
 anything Shelfsort-specific?" a one-keystroke question.
 
+### Git pre-commit hook (2026-06-28)
+
+The wrapper is also wired as a **git pre-commit hook** at
+`.git/hooks/pre-commit`.  Every `git commit` now auto-runs
+`run_all_lints.sh --quiet` and aborts the commit if anything
+fails.  The original Emergent platform large-file guard
+(`>90M` strip) is preserved as a second step in the same hook.
+
+**Bypass (emergencies only)**:
+
+```bash
+git commit --no-verify -m "..."
+```
+
+But realistically only the gitignore-health lint catches actual
+deploy blockers — bypassing the other two just means the
+screenshot of the bug comes back later.
+
 
 ## 5. Gitignore health (2026-06-28)
 
