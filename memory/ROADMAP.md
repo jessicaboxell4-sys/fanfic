@@ -715,6 +715,29 @@ books?" anxiety moment. Eliminating it builds trust.
 
 ## ⏰ Parked reminders — bring up next session
 
+
+### 🅿️ Parked 2026-06-28 — `scripts/run_all_lints.sh` wrapper
+
+Two standing lints exist (`check_dark_mode_coverage.py`,
+`check_tiny_fonts.py`) plus `mcp_lint_python` /
+`mcp_lint_javascript`.  Wrap them in a single
+`./scripts/run_all_lints.sh` so pre-commit / pre-deploy is one
+command, not four.  ~10 lines of bash:
+
+```bash
+#!/usr/bin/env bash
+set -e
+ruff check backend/
+eslint frontend/src/
+python3 scripts/check_dark_mode_coverage.py
+python3 scripts/check_tiny_fonts.py
+echo "✓ all lints green"
+```
+
+Future-proof for when lint #3 lands.  Trivial scope, only ship
+when there's downtime between bigger tasks.
+
+
 ### 🅿️ Parked 2026-06-27 — Reply to David Webber on Facebook
 
 Once Phase 2 of the library-mode work ships AND is deployed to prod,
