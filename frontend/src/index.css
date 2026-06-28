@@ -516,10 +516,15 @@ html, body {
 /* surface (NOT cream) so toggle icons and nav links remain visible.   */
 :root[data-theme="dark"] .bg-\[\#FDFBF7\]\/80,
 :root[data-theme="dark"] .bg-\[\#FBFAF6\]\/80,
-:root[data-theme="dark"] .bg-white\/80 { background-color: rgba(38, 38, 43, 0.82); }
+:root[data-theme="dark"] .bg-white\/80,
+:root[data-theme="dark"] .bg-white\/90 { background-color: rgba(38, 38, 43, 0.82); }
 :root[data-theme="dark"] .bg-\[\#FAF6EE\],
 :root[data-theme="dark"] .bg-\[\#FBF7EE\],
 :root[data-theme="dark"] .bg-\[\#F2EDDF\] { background-color: var(--bg); }
+/* `#FFF6E5` — warm peach-cream used by the upload-resume banner.
+   Map it to a faint purple-tinted surface so it still reads as a
+   callout in dark mode instead of going pure-dark and disappearing. */
+:root[data-theme="dark"] .bg-\[\#FFF6E5\] { background-color: rgba(167, 139, 250, 0.12); }
 :root[data-theme="dark"] .bg-\[\#F5F3EC\],
 :root[data-theme="dark"] .hover\:bg-\[\#F5F3EC\]:hover,
 :root[data-theme="dark"] .bg-\[\#FDF3E1\]\/60,

@@ -34,6 +34,7 @@ const SECTIONS = [
   { id: "bookclubs",        label: "Book-club moderation",    icon: Users },
   { id: "unknown-sources",  label: "Unknown sources triage",  icon: Eye },
   { id: "av-flag",          label: "AV scan-on-upload toggle", icon: Shield },
+  { id: "stuck-uploads",    label: "Stuck uploads & Atlas failover", icon: Inbox },
   { id: "troubleshooting",  label: "Troubleshooting & slowness", icon: LifeBuoy },
 ];
 
@@ -334,6 +335,73 @@ export default function AdminHelp() {
               need a <code>ensure_av_clean_for_sharing()</code> guard so
               unscanned books can&apos;t be sent to other users. Already
               scoped in ROADMAP.md as P1.
+            </p>
+          </Section>
+
+          <Section id="stuck-uploads" icon={Inbox} title="Stuck uploads & Atlas failover">
+            <p>
+              <strong>What this is</strong>: the <em>Stuck uploads</em>{" "}
+              card on /admin surfaces upload jobs that have been sitting
+              in <code>queued</code> or <code>processing</code> for
+              longer than 10 minutes. A healthy system has an empty
+              list — uploads flicker through &ldquo;queued&rdquo; and
+              are gone in under a minute.
+            </p>
+            <p>
+              <strong>Why it matters</strong>: this is the leading
+              indicator that something has stalled the async upload
+              pipeline. The three usual suspects:
+            </p>
+            <ul className="list-disc pl-5 my-2 space-y-1">
+              <li>
+                <strong>MongoDB Atlas failover / election</strong> — the
+                replica set briefly has no primary while Atlas hands
+                over.  Our <code>db_retry.py</code> wrapper catches
+                <code>ServerSelectionTimeoutError</code> /{" "}
+                <code>NetworkTimeout</code> / <code>AutoReconnect</code>
+                {" "}and leaves the job <code>queued</code> with a
+                friendly &ldquo;Database briefly unavailable —
+                Shelfsort will retry automatically&rdquo; message
+                instead of raw topology output.  The 5-min recovery
+                cron then re-runs the pipeline once Atlas recovers.
+              </li>
+              <li>
+                <strong>Staging-disk loss</strong> — uploaded bytes are
+                buffered into <code>/app/uploads/_upload_jobs/&lt;job_id&gt;/</code>{" "}
+                before processing. If the pod restarted between accept
+                and process and the volume isn&rsquo;t persistent, the
+                recovery cron will flip those jobs to{" "}
+                <code>status: failed</code> with{" "}
+                <em>&ldquo;Staging directory vanished&rdquo;</em>.
+              </li>
+              <li>
+                <strong>The recovery cron itself is wedged</strong> —
+                check <em>Scheduled jobs</em> on the same admin page.
+                The job <code>upload_job_recovery_tick</code> should
+                run every 5 min; if its <em>last run</em> is &gt; 15
+                min stale, that&rsquo;s the real bug.
+              </li>
+            </ul>
+            <p>
+              <strong>&ldquo;Re-kick now&rdquo; button</strong>: appears
+              on the card only when there are stuck jobs. Calls{" "}
+              <code>POST /api/admin/upload-jobs/recover-now</code> which
+              runs <code>recover_stuck_upload_jobs()</code> synchronously
+              and returns the count.  Use this during a brief Atlas
+              blip when you want recovery to happen <em>right now</em>{" "}
+              in front of a user reporting their upload &ldquo;stuck&rdquo;,
+              instead of waiting up to 5 min for the next cron tick.
+              Idempotent — safe to call twice.
+            </p>
+            <p>
+              <strong>Diagnostic API</strong>:{" "}
+              <code>GET /api/admin/upload-jobs/stuck?threshold_minutes=10</code>{" "}
+              (admin-only). Threshold is clamped to [1, 240]. Returns
+              up to 50 jobs sorted by <code>created_at</code> ascending
+              (oldest first), each with <code>age_minutes</code>,{" "}
+              <code>status</code>, the user-facing <code>error</code>{" "}
+              blurb, and the originating <code>user_id</code> so you
+              can DM them directly if needed.
             </p>
           </Section>
 
