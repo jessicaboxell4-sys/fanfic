@@ -716,6 +716,31 @@ books?" anxiety moment. Eliminating it builds trust.
 ## ⏰ Parked reminders — bring up next session
 
 
+### 🅿️ Parked 2026-06-28 — Lint: `bg-white/N` inside panel/card
+
+The default dark-mode lint skips `bg-white/N` (semi-transparent
+white) because those are *usually* intentional overlays on dark
+gradients (hero banners, share modals, button hover states).
+But today's `FailedUploadsList` showed a real contrast bug:
+`bg-white/70` inside a `shelf-card` panel reads as light-gray-
+on-dark-gray in dark mode — exactly the bug the lint is supposed
+to catch.
+
+**Scope** (~20 LOC):
+- Sibling lint to `check_dark_mode_coverage.py`: walk JSX tags,
+  flag any `bg-white/N` whose ancestor chain includes
+  ``shelf-card`` / ``rounded-(xl|2xl)`` / a `<section>` element.
+  Skip when the ancestor chain hints at a hero/gradient
+  (``from-`` / ``to-`` / ``bg-gradient-``).
+- Honour the existing `// dark-ok` opt-out.
+- Wire into the standing "any bugs?" deep-dive checklist
+  (PRD.md step 7-equivalent).
+
+Catches the next FailedUploadsList-class bug *before* the
+screenshot lands in chat.
+
+
+
 ### 🅿️ Parked 2026-06-28 — `_staging/` orphan sweeper
 
 After the R2-mirrored staging fix, the `_staging/<user_id>/<job_id>/`
