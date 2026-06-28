@@ -7,6 +7,54 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-28 — Cloudflare 520-class upload hardening ☁️
+
+User reported a production bulk upload where 200 files dropped to
+"Uploaded 24 of 200 · 176 failed" with a raw "Cloudflare could
+not parse origin response" toast.  Classic origin-saturation
+cascade: first wave consumes worker slots, subsequent requests
+die mid-flight, Cloudflare can't parse the dropped responses,
+frontend sees a wall of 520s.
+
+### What shipped — `frontend/src/components/UploadZone.jsx`
+
+- **Fail-fast 5xx changed to retry-on-transient** — every
+  Cloudflare 5xx (520-527 = origin connectivity/parse/SSL/no-reach)
+  plus classic 502/503/504 is now treated as transient.  Up to
+  4 attempts per file with exponential backoff (0ms, 1s, 3s, 8s).
+- **Sliding-window adaptive concurrency** — once 3+ of the last
+  8 sendOne calls came back transient, `CONCURRENCY` drops from
+  8 → 3 for the rest of the run.  Gives the saturated origin
+  breathing room without abandoning the work.
+- **Body-text fallback detection** — some Cloudflare configurations
+  return an HTML error page with status 200; we now scan
+  ``e.response.data`` for "Cloudflare could not parse",
+  "origin web server", "malformed http", "empty response" and
+  classify those as transient too.
+- **Friendly user-facing message** — replaces the raw Cloudflare
+  HTML body with `"Server briefly overloaded — please wait a
+  moment and retry. Other uploads will keep running."`  The
+  existing "Retry N" sticky toast still works as a fallback for
+  cases where all 4 attempts fail.
+
+### User impact
+
+For the same 200-file bulk that surfaced this:
+- Most of the 176 "failed" files would now auto-recover within
+  the first 1-3 retries instead of needing the manual "Retry 176"
+  click.
+- The adaptive concurrency throttle (8 → 3) prevents the rolling
+  origin saturation that caused the failure mode in the first
+  place — once the cascade starts, the throttle stops feeding it.
+- No raw Cloudflare topology / HTML leaks to the user.
+
+### Scope
+
+Frontend-only — no backend redeploy needed.  The fix needs to
+ship to production via a frontend redeploy.
+
+---
+
 ## 2026-06-27 — Graceful MongoDB transient-failover handling 🌐
 
 User reported a raw `ReplicaSetNoPrimary` / `ServerSelectionTimeoutError`

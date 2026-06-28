@@ -453,7 +453,63 @@ export default function UploadZone({ onUploaded, compact = false }) {
       //     concurrent POSTs sustain near-line-rate bandwidth.
       //   • Classic mode (≤ 20 files): still 8 concurrent POSTs,
       //     each polling its job for completion.
-      const CONCURRENCY = 8;
+      // 2026-06-28 — Cloudflare 520-class hardening.  Production hit
+      // a 200-file bulk where Cloudflare returned ~176 "origin web
+      // server sent a response that Cloudflare could not parse"
+      // errors after ~24 successful uploads.  Classic origin
+      // saturation: the first wave consumes the connection pool /
+      // worker slots, subsequent requests die mid-flight, Cloudflare
+      // can't parse the (empty/dropped) origin response, frontend
+      // sees a wall of 520s.
+      //
+      // Fix has three layers:
+      //   1. Treat 5xx as TRANSIENT (auto-retry with exp backoff)
+      //      not terminal.  Up to 4 attempts: ~1s, 3s, 8s.
+      //   2. Sliding-window transient-error counter throttles
+      //      CONCURRENCY 8 → 3 when 3+ of the last 8 sendOne calls
+      //      came back transient, giving the origin breathing room.
+      //   3. Friendly error message replaces the raw Cloudflare body
+      //      in the toast.  The "Retry N" button still works as
+      //      before — but with the new retry-on-transient behaviour
+      //      the typical user never has to click it.
+      let CONCURRENCY = 8;
+      const transientWindow = [];          // last N booleans, 1 = transient
+      const TRANSIENT_WINDOW = 8;
+      const TRANSIENT_THROTTLE = 3;
+      const THROTTLED_CONCURRENCY = 3;
+      const recordTransient = (isTransient) => {
+        transientWindow.push(isTransient ? 1 : 0);
+        if (transientWindow.length > TRANSIENT_WINDOW) transientWindow.shift();
+        const recent = transientWindow.reduce((a, b) => a + b, 0);
+        if (recent >= TRANSIENT_THROTTLE && CONCURRENCY > THROTTLED_CONCURRENCY) {
+          CONCURRENCY = THROTTLED_CONCURRENCY;
+          console.warn(
+            `[upload] origin appears saturated (${recent}/${transientWindow.length} recent transients) — ` +
+            `dropping concurrency to ${THROTTLED_CONCURRENCY} to give it breathing room`,
+          );
+        }
+      };
+
+      // Detect the "transient origin error" pattern we want to
+      // auto-retry.  Covers Cloudflare 5xx (520-527 = origin
+      // connectivity / parse / SSL / no-reachable-origin), classic
+      // server-overload codes (502/503/504), and the body-text
+      // signature Cloudflare uses when it returns a parseable status
+      // but the body says "could not parse" (some edges return 200
+      // with an HTML error page in unusual configurations).
+      const isTransientOriginError = (status, errMessage) => {
+        if (typeof status === "number") {
+          if (status === 502 || status === 503 || status === 504) return true;
+          if (status >= 520 && status <= 527) return true;
+        }
+        const msg = String(errMessage || "").toLowerCase();
+        if (msg.includes("cloudflare could not parse")) return true;
+        if (msg.includes("origin web server")) return true;
+        if (msg.includes("malformed http")) return true;
+        if (msg.includes("empty response")) return true;
+        return false;
+      };
+
       let uploaded = 0;
       let totalAuto = 0;
       let lastPolicy = null;
@@ -475,13 +531,24 @@ export default function UploadZone({ onUploaded, compact = false }) {
         form.append("files", file);
         if (keepSet.has(file.name)) form.append("keep_originals", file.name);
         let lastErr = null;
-        for (let attempt = 0; attempt < 2; attempt++) {
+        // 2026-06-28 — bumped 2 → 4 attempts for transient origin
+        // errors.  Backoff schedule: 0ms, ~1000ms, ~3000ms, ~8000ms.
+        // Real bugs (400/401/413/422 etc.) still fail-fast on attempt
+        // 0 via the ``isTransientOriginError`` gate below.
+        const MAX_ATTEMPTS = 4;
+        const TRANSIENT_BACKOFFS_MS = [0, 1000, 3000, 8000];
+        let sawTransient = false;
+        for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+          if (attempt > 0) {
+            await new Promise((r) => setTimeout(r, TRANSIENT_BACKOFFS_MS[attempt] || 8000));
+          }
           try {
             const submitRes = await api.post("/books/upload/async", form, {
               headers: { "Content-Type": "multipart/form-data" },
             });
             const jobId = submitRes?.data?.job_id;
             if (!jobId) {
+              recordTransient(sawTransient);
               return { ok: false, file, error: "Server didn't return a job id.", status: 500 };
             }
             // Persist the job ID so we can resume polling if the user
@@ -496,6 +563,7 @@ export default function UploadZone({ onUploaded, compact = false }) {
             // immediately so the next file in the concurrency slot
             // can start uploading.
             if (airdropMode) {
+              recordTransient(sawTransient);
               // We keep the job ID in localStorage — a future visit
               // to the library will reconcile.  No data lost.
               return { ok: true, file, data: {}, airdrop: true };
@@ -517,6 +585,7 @@ export default function UploadZone({ onUploaded, compact = false }) {
                 const ps = pollErr?.response?.status;
                 if (ps === 404) {
                   untrackPendingJob(jobId);
+                  recordTransient(sawTransient);
                   return { ok: false, file, error: "Upload job disappeared.", status: 404 };
                 }
                 continue;
@@ -524,10 +593,12 @@ export default function UploadZone({ onUploaded, compact = false }) {
               const status = pollRes?.data?.status;
               if (status === "done") {
                 untrackPendingJob(jobId);
+                recordTransient(sawTransient);
                 return { ok: true, file, data: pollRes.data.response || {} };
               }
               if (status === "failed") {
                 untrackPendingJob(jobId);
+                recordTransient(sawTransient);
                 return {
                   ok: false,
                   file,
@@ -539,21 +610,40 @@ export default function UploadZone({ onUploaded, compact = false }) {
             // Poll loop ran to MAX_POLLS without resolving — leave the
             // job tracked so the next mount can pick it up.  The
             // backend is likely still processing.
+            recordTransient(sawTransient);
             return { ok: false, file, error: "Server processing took too long.", status: 504 };
           } catch (e) {
             lastErr = e;
             const status = e?.response?.status;
-            // Real server status — not transient. Don't retry.
-            if (typeof status === "number" && status >= 400) break;
-            if (attempt === 0) await new Promise((r) => setTimeout(r, 800));
+            const body = e?.response?.data;
+            // Body might be a Cloudflare HTML page; stringify to scan.
+            const bodyText = typeof body === "string" ? body : JSON.stringify(body || "");
+            const transient = isTransientOriginError(status, e?.message + " " + bodyText);
+            if (transient) {
+              sawTransient = true;
+              // Loop to next attempt with backoff.
+              continue;
+            }
+            // No status = network blip; treat as transient too.
+            if (typeof status !== "number") {
+              sawTransient = true;
+              continue;
+            }
+            // Real client error (4xx that isn't 429) — fail-fast.
+            break;
           }
         }
+        // All attempts exhausted.
+        recordTransient(sawTransient);
         const status = lastErr?.response?.status;
         let detail =
           lastErr?.response?.data?.detail ||
           lastErr?.message ||
           "Upload failed";
-        if (status === 524 || status === 504) {
+        if ((typeof status === "number" && status >= 520 && status <= 527)
+            || isTransientOriginError(status, detail + " " + JSON.stringify(lastErr?.response?.data || ""))) {
+          detail = "Server briefly overloaded — please wait a moment and retry. Other uploads will keep running.";
+        } else if (status === 524 || status === 504) {
           detail = "Server took too long to accept this file. Try again in a few minutes.";
         } else if (status === 502 || status === 503) {
           detail = "Server is temporarily unavailable. Try again in a moment.";
