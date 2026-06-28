@@ -716,6 +716,28 @@ books?" anxiety moment. Eliminating it builds trust.
 ## ⏰ Parked reminders — bring up next session
 
 
+### 🅿️ Parked 2026-06-28 — Origin-saturation watch card on /admin
+
+Sibling of the Stuck-uploads card.  After the Cloudflare 520
+cascade today, we have client-side hardening (adaptive throttle
++ retry-on-transient) but no visibility into *why* the origin
+saturates under bulk-upload load.
+
+**Scope** (~80 LOC):
+- Backend: `GET /api/admin/origin-load` returning a snapshot of
+  active-request count (FastAPI middleware counter), open file
+  descriptors (`/proc/self/fd`), and recent 5xx count from the
+  Cloudflare-status sentinel.
+- Frontend: small live card on `/admin` polling every 5s, with
+  a red-tinted strip if any signal crosses a sane threshold.
+- Decision tool: tells us concretely during the *next* bulk
+  whether to bump uvicorn `--workers` 1 → 2 or whether the
+  client-side throttle is already enough.
+
+Not blocking — pick up when there's a calm window.
+
+
+
 ### 🅿️ Parked 2026-06-28 — "Format" dimension on the library
 
 Add a "by-format" drilldown so users can slice their library by
