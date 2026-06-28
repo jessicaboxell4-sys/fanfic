@@ -716,6 +716,26 @@ books?" anxiety moment. Eliminating it builds trust.
 ## ⏰ Parked reminders — bring up next session
 
 
+### 🅿️ Parked 2026-06-28 — CI lint check on GitHub mirror
+
+Local pre-commit hook now enforces the three Shelfsort lints on
+every `git commit`, but a `--no-verify` bypass gets through.
+Belt-and-suspenders: add a GitHub Action that runs
+`./scripts/run_all_lints.sh` on every push to the mirror — can't
+be bypassed.
+
+**Scope** (~10 LOC of YAML):
+- `.github/workflows/lint.yml`: on push, `ubuntu-latest`,
+  checkout, `chmod +x scripts/*.{py,sh}`,
+  `./scripts/run_all_lints.sh`.  Done.
+- Pair with branch-protection: require the check to pass before
+  merge to main.
+
+Complementary to the pre-commit hook (hook = local fast
+feedback; CI = unbypassable guardrail).  Trivial slot-in.
+
+
+
 ### 🅿️ Parked 2026-06-28 — Lint: `bg-white/N` inside panel/card
 
 The default dark-mode lint skips `bg-white/N` (semi-transparent
