@@ -1,0 +1,35 @@
+{
+  "summary": "Backend-only regression for the new GET /api/books/upload/queue-summary endpoint (Iter56 'real-progress strip' P0). Wrote /app/backend/tests/test_upload_queue_summary.py with 9 tests covering the four explicit contract clauses (6-key 200 for empty user, 401 unauthenticated, fetched_at is valid tz-aware ISO, cross-user isolation), the end-to-end coupling with /api/books/upload/async (jobs_done_recent rolls forward when the owner's job completes), and smoke checks on the sibling endpoints (/api/auth/me, /api/books/upload/jobs/{id}, /api/admin/upload-jobs/stuck, /api/admin/upload-jobs/failures). All 9 tests PASS in 6.24s against localhost:8001. Preview URL (https://genre-sort.preview.emergentagent.com/api/books/upload/queue-summary) also confirmed reachable and returns 401 unauthenticated.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_upload_queue_summary.py",
+    "/app/test_reports/pytest/iteration_56.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "upload_queue_summary (/app/backend/routes/upload_jobs.py L417-481) is correctly scoped — every count is keyed on user_id pulled from get_current_user, no admin/global leakage. Cross-user isolation test (test_queue_summary_user_isolation) confirms a different user's queued+done jobs don't bump this user's counters.",
+    "polish_pending uses count_pending_for_user (utils/polish_worker.py L84-90) which filters {classifier:'pending', category:{$ne:TRASH_SHELF}}. polish_failed in the new endpoint mirrors that filter (TRASH exclusion present) — semantics match, good.",
+    "Minor observation: jobs_done_recent is summed via aggregate $sum:$processed instead of count_documents — that means it returns the count of BOOKS processed in recently-done jobs, not the count of recently-done JOBS. The docstring '5-min window' could be misread to mean job-count; the response key 'jobs_done_recent' is also slightly misleading. Both consumers and the inline comment confirm book-count is the intended UX (chip shows 'sorted N'); just worth a one-line clarifying comment.",
+    "datetime.now(timezone.utc).isoformat() emits '+00:00' (not 'Z'); fromisoformat parses that correctly on Python 3.11. No regex/strict-Z consumers in tree. OK.",
+    "The endpoint does 4 indexed Mongo count_documents + 1 aggregate per call. With a 2s SPA poll interval and 100+ concurrent uploaders that's ~5 ops × 50 = 250 ops/sec — well within Mongo's headroom, but a covered compound index on (user_id, status) for upload_jobs and (user_id, classifier, category) for books is worth confirming exists if it doesn't already (didn't audit indexes in this run).",
+    "No retry / failure-mode test for the endpoint itself (e.g. Mongo blip mid-call). Acceptable for an additive cheap-count endpoint; a 500 here would degrade the chip strip but never the upload itself, which is fine."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_upload_queue_summary.py (new)"
+  ],
+  "success_rate": {"backend": "100% (9/9)", "frontend": "n/a (backend-only per request)"},
+  "test_credentials": "Each test registers a fresh TEST_qsum-<uuid>@example.com via /api/auth/register on the live backend and authenticates via Bearer token extracted from Set-Cookie (cookie is Secure-flagged, requests drops it on http://localhost). No reliance on the shelfsort-tester@example.com seeded account.",
+  "seed_data_creation": "Each test creates 1 ephemeral user (isolation test creates 2). Two tests POST one ~3KB EPUB each via /api/books/upload/async; the worker drains them within ~5s, contributing one upload_jobs row + one books row per test. No persistent fixtures, all data prefixed for easy admin cleanup.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run `cd /app/backend && python -m pytest tests/test_upload_queue_summary.py -v` (6 seconds). Backend uvicorn watches /app/backend recursively including tests/, so any edit to a test file triggers a reload that can break in-flight runs — if a test hangs, `sudo supervisorctl restart backend && sleep 10` then re-run. BASE URL defaults to http://localhost:8001 via the REACT_APP_BACKEND_URL env fallback in the test; both localhost and the preview ingress (https://genre-sort.preview.emergentagent.com) return 401 unauthenticated on the new route as expected. Auth uses Authorization: Bearer <session_token> extracted from the Set-Cookie header because the cookie itself is Secure-flagged.",
+  "rca of the issue": "N/A — this iteration is a feature-add regression suite, not a bug fix. The new endpoint behaves exactly per spec across the 4 explicit contract clauses + the e2e coupling with the async upload flow."
+}

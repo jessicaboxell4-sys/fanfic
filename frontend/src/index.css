@@ -965,3 +965,6 @@ html, body {
 
 /* Sky / cool blue tints. */
 :root[data-theme="dark"] .bg-\[\#DCE8EF\] { background-color: rgba(140, 180, 210, 0.14); }
+
+/* Pale purple tints (e.g. UploadZone queue-summary "processing" chip). */
+:root[data-theme="dark"] .bg-\[\#E8E0F4\] { background-color: rgba(167, 139, 250, 0.18); }

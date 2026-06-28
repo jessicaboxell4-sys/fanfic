@@ -120,6 +120,31 @@ export default function UploadZone({ onUploaded, compact = false }) {
     const id = setInterval(() => setNowTick((n) => n + 1), 1000);
     return () => clearInterval(id);
   }, [uploading]);
+
+  // 2026-06-28 — Real-progress strip below the upload bar.  Even in
+  // airdrop mode (where the per-file poller is skipped), users want
+  // to see "yes things are happening" — the existing line shows only
+  // bytes-queued, not what the backend has actually finished.  We
+  // poll a lightweight summary endpoint every 2s and render a second
+  // strip: "Saved N to library · M still sorting · K queued".
+  // No new schema — counts come from existing upload_jobs +
+  // books.classifier columns.
+  const [queueSummary, setQueueSummary] = useState(null);
+  useEffect(() => {
+    if (!uploading) return undefined;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const { data } = await api.get("/books/upload/queue-summary");
+        if (!cancelled) setQueueSummary(data);
+      } catch {
+        /* silent — the strip just hides until the next poll succeeds */
+      }
+    };
+    tick();  // fire once immediately so the strip renders without 2s gap
+    const id = setInterval(tick, 2000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [uploading]);
   const [formatPrefs, setFormatPrefs] = useState({}); // {pdf: "ask"|"convert"|"skip", ...}
 
   // Lazy-load the user's per-format preferences once. Default to "ask"
@@ -1024,6 +1049,68 @@ export default function UploadZone({ onUploaded, compact = false }) {
                 <> · {Math.max(1, Math.floor((Date.now() - progress.startedAt + nowTick * 0) / 1000))}s elapsed</>
               )}
             </p>
+          )}
+          {queueSummary && (
+            queueSummary.jobs_done_recent > 0 ||
+            queueSummary.polish_pending > 0 ||
+            queueSummary.jobs_queued > 0 ||
+            queueSummary.jobs_processing > 0 ||
+            queueSummary.polish_failed > 0
+          ) && (
+            <div
+              className="mt-3 inline-flex items-center gap-2 flex-wrap justify-center text-[11px] text-[#6B705C]"
+              data-testid="upload-queue-summary-strip"
+            >
+              {queueSummary.jobs_done_recent > 0 && (
+                <span
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#E6F2E6] text-[#3D6B3D] border border-[#C8E1C8] font-semibold"
+                  data-testid="qs-saved"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#5C8A5C]" />
+                  {queueSummary.jobs_done_recent.toLocaleString()} saved to library
+                </span>
+              )}
+              {queueSummary.polish_pending > 0 && (
+                <span
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FBF1D6] text-[#7C5F1F] border border-[#E8D89A] font-semibold"
+                  data-testid="qs-polishing"
+                  title="Claude is filling in fandom + category for these books in the background."
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#D49A33] animate-pulse" />
+                  {queueSummary.polish_pending.toLocaleString()} still sorting
+                </span>
+              )}
+              {queueSummary.jobs_processing > 0 && (
+                <span
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#E8E0F4] text-[#553397] border border-[#D4C5EE] font-semibold"
+                  data-testid="qs-processing"
+                  title="Async upload jobs currently being parsed by the worker."
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#6B46C1] animate-pulse" />
+                  {queueSummary.jobs_processing.toLocaleString()} processing
+                </span>
+              )}
+              {queueSummary.jobs_queued > 0 && (
+                <span
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#F0EBE2] text-[#6B705C] border border-[#E4D9C8] font-semibold"
+                  data-testid="qs-queued"
+                  title="Async upload jobs waiting for the worker to pick them up."
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#A09A8B]" />
+                  {queueSummary.jobs_queued.toLocaleString()} queued
+                </span>
+              )}
+              {queueSummary.polish_failed > 0 && (
+                <span
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FBE2E0] text-[#7C2D2A] border border-[#E8B5B0] font-semibold"
+                  data-testid="qs-polish-failed"
+                  title="The classifier gave up on these books — they're still in your library but stayed in 'Pending sort'. Use 'Sort now' on each to retry."
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#C75450]" />
+                  {queueSummary.polish_failed.toLocaleString()} couldn&apos;t classify
+                </span>
+              )}
+            </div>
           )}
         </>
       ) : compact ? (

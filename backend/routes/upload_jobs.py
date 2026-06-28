@@ -414,6 +414,73 @@ async def get_upload_job(
     }
 
 
+@api_router.get("/books/upload/queue-summary")
+async def upload_queue_summary(
+    user: User = Depends(get_current_user),
+):
+    """Live counts for the in-upload "real progress" strip.
+
+    Powers the UploadZone secondary status line: "Saved 47 to library
+    · 14 still sorting · 168 queued".  Cheap aggregate — every count
+    is an indexed equality match on already-existing collections, so
+    polling this every 2 s during an active drop is fine.
+
+    Returns ``{ polish_pending, polish_failed, jobs_queued,
+    jobs_processing, jobs_done_recent }`` — see the comments below
+    for the exact semantics so the SPA can render them honestly.
+    """
+    from utils.constants import PENDING_SORT_SHELF, TRASH_SHELF
+    from utils.polish_worker import count_pending_for_user
+
+    # Books still waiting on the deferred classifier.  Same query the
+    # polish_worker uses internally, so the count exactly mirrors what
+    # the worker still has on its plate.
+    polish_pending = await count_pending_for_user(user.user_id)
+
+    # Books the polish worker tried and gave up on (Claude raised,
+    # timeout fallback failed too).  Stays "Pending sort" in the
+    # library; surfaced separately so the strip can call them out.
+    polish_failed = await db.books.count_documents({
+        "user_id": user.user_id,
+        "classifier": "polish-failed",
+        "category": {"$ne": TRASH_SHELF},
+    })
+
+    # Async upload jobs not yet picked up by the worker (just staged).
+    jobs_queued = await db.upload_jobs.count_documents({
+        "user_id": user.user_id,
+        "status": "queued",
+    })
+    # Currently mid-flight in the worker.
+    jobs_processing = await db.upload_jobs.count_documents({
+        "user_id": user.user_id,
+        "status": "processing",
+    })
+    # Jobs the worker finished in the last 5 minutes — gives the user
+    # a "sorted X" line that grows as books land in the library, even
+    # in airdrop mode where the per-file poller is skipped.
+    cutoff_iso = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
+    jobs_done_recent_pipeline = [
+        {"$match": {
+            "user_id": user.user_id,
+            "status": "done",
+            "completed_at": {"$gte": cutoff_iso},
+        }},
+        {"$group": {"_id": None, "total": {"$sum": {"$ifNull": ["$processed", 0]}}}},
+    ]
+    rows = await db.upload_jobs.aggregate(jobs_done_recent_pipeline).to_list(length=1)
+    jobs_done_recent = rows[0]["total"] if rows else 0
+
+    return {
+        "polish_pending": polish_pending,
+        "polish_failed": polish_failed,
+        "jobs_queued": jobs_queued,
+        "jobs_processing": jobs_processing,
+        "jobs_done_recent": jobs_done_recent,
+        "fetched_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
 async def recover_stuck_upload_jobs() -> int:
     """Resume any upload_jobs whose async worker died mid-flight.
 
