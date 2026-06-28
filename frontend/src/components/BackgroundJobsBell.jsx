@@ -278,10 +278,21 @@ export default function BackgroundJobsBell() {
           }
         } else if (data.status === "failed" && !toastedRef.current.has(j.jobId)) {
           toastedRef.current.add(j.jobId);
-          toast.error(
-            `Couldn't sort ${j.filename}`,
-            { duration: 9000, description: data.error || undefined },
-          );
+          // 2026-06-28 — Suppress the toast for "Staging directory
+          // vanished" — the persistent failed-uploads dashboard on
+          // /library/all and /account#failed-uploads is a much better
+          // surface for these (one entry per file, with a re-drop
+          // button) than a wall of red toasts.  Other failure reasons
+          // still get the per-file toast since they're rarer and
+          // worth showing immediately.
+          const errLower = String(data.error || "").toLowerCase();
+          const isVanishedStaging = errLower.includes("staging directory vanished");
+          if (!isVanishedStaging) {
+            toast.error(
+              `Couldn't sort ${j.filename}`,
+              { duration: 9000, description: data.error || undefined },
+            );
+          }
         }
       } catch (e) {
         const s = e?.response?.status;

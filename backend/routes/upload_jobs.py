@@ -267,6 +267,23 @@ async def _run_upload_job(job_id: str, user_id: str) -> None:
                 shutil.rmtree(staging, ignore_errors=True)
         except Exception:  # noqa: BLE001
             pass
+        # 2026-06-28 — Sweep the cloud mirror of the staged bytes.
+        # They were only stored there for pod-restart resilience; the
+        # worker has either successfully ingested them (book bytes now
+        # live under the user's permanent storage prefix) or recorded
+        # the failure.  Either way, the _staging/ mirror is now junk.
+        try:
+            from utils import storage_cloud as _storage
+            if _storage.is_enabled():
+                for sf in staged_files:
+                    key = sf.get("cloud_key")
+                    if key:
+                        try:
+                            _storage.delete_remote(key)
+                        except Exception:  # noqa: BLE001
+                            pass
+        except Exception:  # noqa: BLE001
+            pass
 
 
 @api_router.post("/books/upload/async", status_code=202)
@@ -297,6 +314,21 @@ async def upload_books_async(
     staging = _job_dir(job_id, user_id=user.user_id)
     staging.mkdir(parents=True, exist_ok=True)
 
+    # 2026-06-28 — Mirror staged bytes to R2/Emergent object storage
+    # in addition to the local disk.  Production has shown that even
+    # the per-user ``_pending_uploads`` directory can vanish across
+    # pod restarts under certain conditions; without a durable
+    # mirror, an interrupted upload is unrecoverable.  R2 is the
+    # source of truth — disk is just the fast scratch area for the
+    # worker.  Cost is trivial (~$0.0000045 per file PUT, deleted
+    # immediately after the worker processes it).
+    try:
+        from utils import storage_cloud as _storage
+        _cloud_enabled = _storage.is_enabled()
+    except Exception:  # noqa: BLE001
+        _storage = None
+        _cloud_enabled = False
+
     staged_files: list[dict] = []
     total_bytes = 0
     try:
@@ -306,10 +338,22 @@ async def upload_books_async(
             content = await f.read()
             target.write_bytes(content)
             total_bytes += len(content)
+            cloud_key: str | None = None
+            if _cloud_enabled and _storage is not None:
+                # Key shape: ``_staging/<user_id>/<job_id>/<idx>__<name>``.
+                # The leading ``_staging`` prefix lets a sweeper hard-cap
+                # transient junk later, separately from permanent books.
+                cloud_key = f"_staging/{user.user_id}/{job_id}/{idx:04d}__{safe_basename}"
+                try:
+                    _storage.mirror_up(target, cloud_key)
+                except Exception:  # noqa: BLE001
+                    logger.exception("upload_jobs: cloud mirror failed for %s (will fall back to disk-only)", cloud_key)
+                    cloud_key = None  # don't lie about it being there.
             staged_files.append({
                 "original_name": f.filename or safe_basename,
                 "path": str(target),
                 "size": len(content),
+                "cloud_key": cloud_key,
             })
     except Exception as exc:
         # Failed during staging — clean up the partial directory so
@@ -413,34 +457,70 @@ async def recover_stuck_upload_jobs() -> int:
         staging = _job_dir(job_id, user_id=user_id)
         if not any(staging.iterdir()) if staging.exists() else True:
             if not staging.exists():
-                friendly = "Staging directory vanished — bytes lost to a restart before processing."
-                await _persist_job(job_id, {
-                    "status": "failed",
-                    "completed_at": datetime.now(_tz.utc).isoformat(),
-                    "error": friendly,
-                })
-                # 2026-06-28 — also emit upload_failures rows so the
-                # user-visible dashboard on /library/all and /account
-                # surfaces these (otherwise they only existed as a
-                # transient toast via BackgroundJobsBell).
+                # 2026-06-28 — Before declaring the bytes lost, try to
+                # restore them from the cloud mirror.  Production has
+                # shown that the per-user staging dir can disappear
+                # across pod restarts; the R2 mirror is the durable
+                # source of truth.
+                cloud_recovered = False
                 try:
-                    from routes.upload_failures import record_upload_failure
-                    for sf in (job.get("staged_files") or []):
-                        await record_upload_failure(
-                            user_id=user_id,
-                            filename=sf.get("original_name") or "(unknown)",
-                            error=friendly,
-                            failure_stage="process",
-                            size_bytes=int(sf.get("size") or 0),
-                            bytes_available=False,
-                            job_id=job_id,
-                        )
-                except Exception:  # noqa: BLE001 — telemetry must never re-raise.
+                    from utils import storage_cloud as _storage
+                    if _storage.is_enabled():
+                        staged_files_raw = job.get("staged_files") or []
+                        cloud_keys = [sf.get("cloud_key") for sf in staged_files_raw if sf.get("cloud_key")]
+                        if cloud_keys:
+                            staging.mkdir(parents=True, exist_ok=True)
+                            restored = 0
+                            for sf in staged_files_raw:
+                                key = sf.get("cloud_key")
+                                path = sf.get("path")
+                                if not key or not path:
+                                    continue
+                                target = Path(path)
+                                target.parent.mkdir(parents=True, exist_ok=True)
+                                if _storage.restore_to_disk(target, key):
+                                    restored += 1
+                            if restored == len(cloud_keys):
+                                cloud_recovered = True
+                                logger.info(
+                                    "recover_stuck_upload_jobs: restored %d staged file(s) for job %s from cloud mirror",
+                                    restored, job_id,
+                                )
+                except Exception:  # noqa: BLE001
                     logger.exception(
-                        "recover_stuck_upload_jobs: failed to persist upload_failures for %s",
+                        "recover_stuck_upload_jobs: cloud-restore attempt failed for job %s",
                         job_id,
                     )
-                continue
+
+                if not cloud_recovered:
+                    friendly = "Staging directory vanished — bytes lost to a restart before processing."
+                    await _persist_job(job_id, {
+                        "status": "failed",
+                        "completed_at": datetime.now(_tz.utc).isoformat(),
+                        "error": friendly,
+                    })
+                    # 2026-06-28 — also emit upload_failures rows so the
+                    # user-visible dashboard on /library/all and /account
+                    # surfaces these (otherwise they only existed as a
+                    # transient toast via BackgroundJobsBell).
+                    try:
+                        from routes.upload_failures import record_upload_failure
+                        for sf in (job.get("staged_files") or []):
+                            await record_upload_failure(
+                                user_id=user_id,
+                                filename=sf.get("original_name") or "(unknown)",
+                                error=friendly,
+                                failure_stage="process",
+                                size_bytes=int(sf.get("size") or 0),
+                                bytes_available=False,
+                                job_id=job_id,
+                            )
+                    except Exception:  # noqa: BLE001 — telemetry must never re-raise.
+                        logger.exception(
+                            "recover_stuck_upload_jobs: failed to persist upload_failures for %s",
+                            job_id,
+                        )
+                    continue
         try:
             asyncio.create_task(_run_upload_job(job_id, user_id))
             recovered += 1

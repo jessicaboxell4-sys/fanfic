@@ -7,6 +7,68 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-28 — R2-mirrored staging + toast spam fix ☁️🛡️
+
+User reported the per-user `_pending_uploads/` staging dir ALSO
+vanishes on production pod restarts (Story B of the dashboard
+clarification flow).  Means the previous "move to per-user
+storage" fix didn't go far enough — even user-subdirs aren't
+fully restart-survivable on prod K8s.  The fix: stop trusting
+local disk as the source of truth for staging bytes.
+
+### What shipped
+
+- **`routes/upload_jobs.py` submit path** — every staged file is
+  now ALSO mirrored to R2 / Emergent object storage under the
+  key ``_staging/<user_id>/<job_id>/<idx>__<name>``.  The
+  `cloud_key` is stored in `staged_files[]`.  Best-effort — a
+  failed mirror sets `cloud_key=None` and falls back to disk-only
+  behaviour (no regression for the cloud-disabled case).
+- **`recover_stuck_upload_jobs` cron** — when the staging dir is
+  gone, the cron now tries to `restore_to_disk` from each
+  `cloud_key` before declaring the job failed.  If all files
+  restore, the job re-enters the queue and runs normally.  Only
+  if the cloud mirror is ALSO gone does the job flip to
+  `"Staging directory vanished"`.
+- **`_run_upload_job` finally-block** — after the worker
+  successfully ingests the bytes (or records the failure), the
+  `_staging/` cloud mirror is swept via `delete_remote`.  R2
+  cost stays trivial (~$0.0000045 per file PUT, mirror lives for
+  seconds-to-minutes, then deleted).
+- **`BackgroundJobsBell.jsx` toast spam** — the "Couldn't sort
+  X" per-file error toast is now suppressed specifically for
+  `"Staging directory vanished"` errors.  The persistent
+  failed-uploads dashboard on `/library/all` and
+  `/account#failed-uploads` is the better surface for these
+  (one entry per file, with a re-drop button).  All other
+  failure reasons still get the per-file toast since they're
+  rarer and worth showing immediately.
+
+### Why this works where the previous fix didn't
+
+Even if pod-local disk under any path (top-level _upload_jobs/
+OR per-user _pending_uploads/) is non-survivable on prod, R2 is
+durable by design.  As long as the user's bytes reach the
+backend ONCE (HTTP 202 OK), they're safe — the worker can pull
+them back from cloud storage even after multiple pod restarts.
+
+### Cost & cleanup
+
+- R2 PUT/GET pricing: $4.50 per million ops.  A 200-file
+  Airdrop costs ~$0.0000018 in mirror ops (negligible).
+- Storage: ~400MB per 200-EPUB drop, deleted within minutes of
+  processing.  Effectively free.
+- The `_staging/` key prefix is reserved so a future sweeper
+  cron can hard-cap any orphan transient bytes by listing
+  `_staging/` and deleting anything older than 24h.
+
+### Scope
+
+Backend changes (submit + recovery + cleanup) + frontend toast
+suppression.  Needs backend + frontend redeploy.
+
+---
+
 ## 2026-06-28 — Mid-deploy upload-loss hardening 🛡️
 
 User redeployed during an active 200-file Airdrop on production
