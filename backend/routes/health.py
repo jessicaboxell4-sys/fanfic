@@ -96,6 +96,21 @@ def _probe_antivirus() -> Dict[str, Any]:
         return {"ok": False, "error": str(e)[:200]}
 
 
+def _probe_env_config() -> Dict[str, Any]:
+    """Surface the startup env-config self-check on the public health
+    probe so the canary turns red the moment a deploy lands with
+    missing MONGO_URL / DB_NAME / CORS_ORIGINS (the prod-outage
+    fingerprint that caused 3 shelfsort.com 520 incidents)."""
+    try:
+        from utils import env_check
+        return {
+            "ok": env_check.CONFIG_OK,
+            "findings": env_check.CONFIG_FINDINGS,
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e)[:200]}
+
+
 # ---------------------------------------------------------------------------
 # Public endpoint
 # ---------------------------------------------------------------------------
@@ -105,8 +120,13 @@ async def health():
     scheduler = _probe_scheduler()
     storage = _probe_storage()
     av = _probe_antivirus()
+    env_config = _probe_env_config()
 
-    critical_ok = mongo["ok"]  # Mongo is the only hard dep.
+    # Mongo + env-config are the hard deps. A pod booting with no
+    # MONGO_URL would already be crash-looping, but env_config also
+    # catches the "MONGO_URL set but malformed" case that motor would
+    # silently fail on.
+    critical_ok = mongo["ok"] and env_config["ok"]
     degraded = not (scheduler["ok"] and storage["ok"] and av["ok"])
 
     if not critical_ok:
@@ -126,6 +146,7 @@ async def health():
             "scheduler":  scheduler,
             "storage":    storage,
             "antivirus":  av,
+            "env_config": env_config,
         },
     }
 

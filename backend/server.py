@@ -43,6 +43,15 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def on_startup():
+    # 2026-06-28 — Loud env-config self-check. Catches the prod outage
+    # where Emergent's MANAGE_SECRETS step silently drops MONGO_URL /
+    # DB_NAME (root cause of the 3 shelfsort.com 520 incidents).
+    # Result also surfaces on /api/health so the canary flags it red.
+    try:
+        from utils.env_check import validate_critical_env
+        validate_critical_env()
+    except Exception as e:
+        logger.error(f"env_check raised unexpectedly: {e}")
     # Install the email suppression layer FIRST so any startup hook
     # that might fire an email (digest backfill, etc.) routes through
     # the test-recipient + outbound-pause gates.
