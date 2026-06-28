@@ -716,6 +716,28 @@ books?" anxiety moment. Eliminating it builds trust.
 ## ⏰ Parked reminders — bring up next session
 
 
+### 🅿️ Parked 2026-06-28 — "Format" dimension on the library
+
+Add a "by-format" drilldown so users can slice their library by
+original upload format (PDF · HTML · MOBI · DOCX · EPUB).
+The data is already there — every book carries
+`original_format` — but there's no surface to filter on it.
+
+**Scope** (~1-2 hours):
+- **Backend**: extend `GET /api/books` with an
+  `original_format` query param (~5 LOC).
+- **Frontend**: add a Format chip rail in `/library/all`'s
+  sidebar (next to Fandoms / Characters / Tags) and a
+  `/library/format/:fmt` drilldown shelf.  Reuse the existing
+  `OriginalsShelf` layout — it already renders a by-format
+  list, just scoped to opt-outs today.
+- **Counts**: stats overview already aggregates by
+  `original_format`, can lift directly into the chip labels.
+
+Not blocking anything — pick up between bigger features.
+
+
+
 ### 🅿️ Parked 2026-06-28 — `scripts/run_all_lints.sh` wrapper
 
 Two standing lints exist (`check_dark_mode_coverage.py`,
