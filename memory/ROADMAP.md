@@ -716,6 +716,34 @@ books?" anxiety moment. Eliminating it builds trust.
 ## ⏰ Parked reminders — bring up next session
 
 
+### 🅿️ Parked 2026-06-28 — Airdrop perceived-speed improvements
+
+User asked "what does airdropping do? it's still sorta slow."  Two
+focused improvements, both ranked higher-impact than (a) parallel
+worker / (c) batch-classifier, both small enough to land in a
+short session:
+
+**(d) — Move cover generation off the upload hot path** (~40 LOC)
+- Today `_run_upload_job` blocks on cover render per file.  A
+  slow cover queue (especially Nano-Banana generation) drags the
+  whole pipeline.
+- Move it to its own deferred queue like Polish — covers fill in
+  asynchronously without holding up "book visible on shelf".
+- Expected: ~25-40% shorter wall-clock for big drops.
+
+**(b) — Real-progress strip below the upload bar** (~50 LOC)
+- Doesn't make it faster, makes it FEEL dramatically faster.
+- Below the existing "Airdropping… 47/200" bar, add a second
+  thinner strip: "Sorted 12/200 · 6 covers generating · 14 in
+  AI classify · 168 queued."  Pulls from existing
+  `upload_jobs.status` + `book.polish_status` counts.
+- User sees motion the whole time the server is grinding.
+
+Skip (a) parallel worker for now (Claude QPS risk).  Skip (c)
+batch classifier (prompt-engineering risk).
+
+
+
 ### 🅿️ Parked 2026-06-28 — Post-deploy auth canary
 
 After today's redeploy, users hit a "Google auth → bounce to
