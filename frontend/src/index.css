@@ -968,3 +968,7 @@ html, body {
 
 /* Pale purple tints (e.g. UploadZone queue-summary "processing" chip). */
 :root[data-theme="dark"] .bg-\[\#E8E0F4\] { background-color: rgba(167, 139, 250, 0.18); }
+
+/* Pale red hover tints (e.g. UploadZone retry-inbox failed chip hover). */
+:root[data-theme="dark"] .bg-\[\#F8D2CE\],
+:root[data-theme="dark"] .hover\:bg-\[\#F8D2CE\]:hover { background-color: rgba(199, 84, 80, 0.22); }

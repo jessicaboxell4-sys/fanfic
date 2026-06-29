@@ -76,16 +76,56 @@ async def polish_all(user: User = Depends(get_current_user)):
     # Also reset any "polish-failed" rows so the user can retry them
     # via the same button.  Failed status is a sentinel set when
     # classify_book raised mid-drain; once cleared they get re-queued.
+    # Reset the attempt counter too so the worker treats them as
+    # fresh — the inbox is an explicit user action, not an auto-retry.
     await db.books.update_many(
         {
             "user_id": user.user_id,
             "classifier": "polish-failed",
             "category": {"$ne": TRASH_SHELF},
         },
-        {"$set": {"classifier": "pending"}},
+        {
+            "$set": {"classifier": "pending"},
+            "$unset": {"polish_attempts": "", "polish_last_error": "", "polish_failed_at": ""},
+        },
     )
     schedule_polish_for_user(user.user_id)
     return {"queued": pending, "in_progress": True}
+
+
+@api_router.get("/polish/failed")
+async def polish_failed_inbox(user: User = Depends(get_current_user)):
+    """Retry inbox — list books the polish worker gave up on.
+
+    Powers the modal that opens from the "N couldn't classify" chip
+    on the upload-progress strip + a permanent entry-point in the
+    library.  Returns lightweight rows so the modal renders fast even
+    for users with hundreds of failures.  POST /polish (above) is the
+    bulk-retry button — clearing the sentinel + re-queueing happens
+    there, so this endpoint stays a pure read.
+    """
+    rows = await db.books.find(
+        {
+            "user_id": user.user_id,
+            "classifier": "polish-failed",
+            "category": {"$ne": TRASH_SHELF},
+        },
+        {
+            "_id": 0,
+            "book_id": 1,
+            "title": 1,
+            "author": 1,
+            "fandom": 1,
+            "filename": 1,
+            "polish_attempts": 1,
+            "polish_last_error": 1,
+            "polish_failed_at": 1,
+        },
+    ).sort("polish_failed_at", -1).limit(200).to_list(200)
+    return {
+        "count": len(rows),
+        "books": rows,
+    }
 
 
 @api_router.post("/polish/{book_id}")

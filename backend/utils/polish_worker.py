@@ -182,18 +182,51 @@ async def _polish_drain(user_id: str) -> None:
                 async with sem:
                     try:
                         await polish_one_book(user_id, b)
-                    except Exception:  # noqa: BLE001
+                    except Exception as exc:  # noqa: BLE001
+                        # 2026-06-28 — distinguish transient (Mongo blip,
+                        # Atlas failover, AutoReconnect) from permanent
+                        # (bad metadata, classifier bug).  Transient
+                        # errors leave the book as ``pending`` so the
+                        # recovery cron picks it up next tick — the
+                        # original code permanently sentinelized them,
+                        # which was the most likely cause of the "a few
+                        # books wouldn't polish" complaint.
+                        from utils.db_retry import is_transient_mongo_error
+                        if is_transient_mongo_error(exc):
+                            logger.warning(
+                                "polish_one_book transient-Mongo for %s: %s — leaving as pending for recovery cron",
+                                b.get("book_id"), type(exc).__name__,
+                            )
+                            return
                         logger.exception(
-                            "polish_one_book failed for %s — marking as polish-failed so the recovery cron skips it next pass",
-                            b.get("book_id"),
+                            "polish_one_book failed for %s — marking polish-failed (attempt %d)",
+                            b.get("book_id"), (b.get("polish_attempts") or 0) + 1,
                         )
-                        # Stamp a different sentinel so the recovery
-                        # cron doesn't pick it up over and over.  User
-                        # can still hit "Sort now" to retry per-book.
-                        await db.books.update_one(
-                            {"book_id": b["book_id"], "user_id": user_id},
-                            {"$set": {"classifier": "polish-failed"}},
-                        )
+                        # Best-effort sentinel write; wrap in retry so a
+                        # second blip doesn't lose the book's audit
+                        # trail.  Records attempt count + last error so
+                        # the retry inbox can show the user something
+                        # actionable instead of a mystery.
+                        from utils.db_retry import retry_on_transient
+                        attempts = (b.get("polish_attempts") or 0) + 1
+                        try:
+                            await retry_on_transient(
+                                lambda: db.books.update_one(
+                                    {"book_id": b["book_id"], "user_id": user_id},
+                                    {"$set": {
+                                        "classifier": "polish-failed",
+                                        "polish_attempts": attempts,
+                                        "polish_last_error": (str(exc) or type(exc).__name__)[:200],
+                                        "polish_failed_at": datetime.now(timezone.utc).isoformat(),
+                                    }},
+                                ),
+                                label="polish-sentinel-write",
+                            )
+                        except Exception:  # noqa: BLE001
+                            logger.exception(
+                                "polish-sentinel write also failed for %s — book stays pending",
+                                b.get("book_id"),
+                            )
 
             await asyncio.gather(*[_one(b) for b in batch])
     finally:

@@ -130,6 +130,56 @@ export default function UploadZone({ onUploaded, compact = false }) {
   // No new schema — counts come from existing upload_jobs +
   // books.classifier columns.
   const [queueSummary, setQueueSummary] = useState(null);
+  // Retry-inbox modal — opens when the user clicks the
+  // "N couldn't classify" chip on the queue-summary strip.  Lazy-loads
+  // the list of polish-failed books from /api/polish/failed and lets
+  // the user retry the whole set with one button.  Keeping the modal
+  // logic here (rather than a separate page) means the UX flows
+  // continuously from the strip → the modal → the retry button, all
+  // without a route change interrupting an in-flight upload.
+  const [retryInboxOpen, setRetryInboxOpen] = useState(false);
+  const [retryInboxLoading, setRetryInboxLoading] = useState(false);
+  const [retryInboxBooks, setRetryInboxBooks] = useState([]);
+  const [retryInboxBusy, setRetryInboxBusy] = useState(false);
+
+  const openRetryInbox = useCallback(async () => {
+    setRetryInboxOpen(true);
+    setRetryInboxLoading(true);
+    try {
+      const { data } = await api.get("/polish/failed");
+      setRetryInboxBooks(data?.books || []);
+    } catch (e) {
+      toast.error("Couldn't load the retry inbox. Try again in a moment.");
+      setRetryInboxBooks([]);
+    } finally {
+      setRetryInboxLoading(false);
+    }
+  }, []);
+
+  const retryAllStuck = useCallback(async () => {
+    setRetryInboxBusy(true);
+    try {
+      const { data } = await api.post("/polish");
+      toast.success(
+        data?.queued
+          ? `Retrying ${data.queued + retryInboxBooks.length} book${data.queued + retryInboxBooks.length === 1 ? "" : "s"}.`
+          : `Retrying ${retryInboxBooks.length} stuck book${retryInboxBooks.length === 1 ? "" : "s"}.`
+      );
+      setRetryInboxOpen(false);
+      setRetryInboxBooks([]);
+      // Immediate re-poll so the chip count updates without waiting
+      // for the 2 s tick.
+      try {
+        const { data: qs } = await api.get("/books/upload/queue-summary");
+        setQueueSummary(qs);
+      } catch { /* silent */ }
+    } catch (e) {
+      toast.error("Retry failed. Please try again.");
+    } finally {
+      setRetryInboxBusy(false);
+    }
+  }, [retryInboxBooks.length]);
+
   useEffect(() => {
     if (!uploading) return undefined;
     let cancelled = false;
@@ -1101,14 +1151,17 @@ export default function UploadZone({ onUploaded, compact = false }) {
                 </span>
               )}
               {queueSummary.polish_failed > 0 && (
-                <span
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FBE2E0] text-[#7C2D2A] border border-[#E8B5B0] font-semibold"
+                <button
+                  type="button"
+                  onClick={openRetryInbox}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FBE2E0] text-[#7C2D2A] border border-[#E8B5B0] font-semibold hover:bg-[#F8D2CE] focus:outline-none focus:ring-2 focus:ring-[#7C2D2A]/40 cursor-pointer transition-colors"
                   data-testid="qs-polish-failed"
-                  title="The classifier gave up on these books — they're still in your library but stayed in 'Pending sort'. Use 'Sort now' on each to retry."
+                  title="Click to review and retry stuck books."
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-[#C75450]" />
                   {queueSummary.polish_failed.toLocaleString()} couldn&apos;t classify
-                </span>
+                  <span className="ml-1 opacity-70 text-[10px]">↗</span>
+                </button>
               )}
             </div>
           )}
@@ -1172,6 +1225,98 @@ export default function UploadZone({ onUploaded, compact = false }) {
         </>
       )}
     </div>
+    {retryInboxOpen && (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-8"
+        data-testid="retry-inbox-modal"
+        onClick={() => !retryInboxBusy && setRetryInboxOpen(false)}
+      >
+        <div
+          className="w-full max-w-2xl max-h-[80vh] flex flex-col rounded-2xl bg-white border border-[#EDE6D5] shadow-2xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="px-6 py-5 border-b border-[#EDE6D5]">
+            <h3 className="font-serif text-2xl text-[#2C2C2C]">
+              Books that couldn&apos;t classify
+            </h3>
+            <p className="text-sm text-[#6B705C] mt-1">
+              The classifier gave up on these — usually a transient Claude/network blip.
+              Hit <strong>Retry all</strong> to send them back through the pipeline.
+            </p>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-6 py-4" data-testid="retry-inbox-list">
+            {retryInboxLoading && (
+              <p className="text-sm text-[#6B705C] py-6 text-center">
+                <Loader2 className="w-4 h-4 inline-block animate-spin mr-2" /> Loading…
+              </p>
+            )}
+            {!retryInboxLoading && retryInboxBooks.length === 0 && (
+              <p className="text-sm text-[#6B705C] py-6 text-center" data-testid="retry-inbox-empty">
+                No stuck books right now — everything classified successfully.
+              </p>
+            )}
+            {!retryInboxLoading && retryInboxBooks.map((b) => (
+              <div
+                key={b.book_id}
+                className="py-3 border-b border-[#EDE6D5] last:border-b-0"
+                data-testid={`retry-inbox-item-${b.book_id}`}
+              >
+                <p className="font-serif text-base text-[#2C2C2C] truncate">
+                  {b.title || b.filename || "Untitled"}
+                </p>
+                <p className="text-xs text-[#6B705C] truncate">
+                  {b.author || "Unknown author"}
+                </p>
+                {b.polish_last_error && (
+                  <p
+                    className="text-xs text-[#7C2D2A] font-mono mt-1 line-clamp-1"
+                    title={b.polish_last_error}
+                    data-testid={`retry-inbox-error-${b.book_id}`}
+                  >
+                    ✗ {b.polish_last_error}
+                  </p>
+                )}
+                {b.polish_attempts > 1 && (
+                  <p className="text-[10px] text-[#A09A8B] uppercase tracking-[0.12em] mt-1">
+                    {b.polish_attempts} attempts
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="px-6 py-4 border-t border-[#EDE6D5] flex items-center justify-between gap-3">
+            <p className="text-xs text-[#6B705C]">
+              {retryInboxBooks.length > 0
+                ? `${retryInboxBooks.length} book${retryInboxBooks.length === 1 ? "" : "s"} ready to retry.`
+                : ""}
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setRetryInboxOpen(false)}
+                disabled={retryInboxBusy}
+                data-testid="retry-inbox-close-btn"
+                className="px-3 py-1.5 rounded-lg text-sm font-medium bg-white border border-[#EDE6D5] text-[#6B705C] hover:bg-[#FDFBF7] disabled:opacity-50"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={retryAllStuck}
+                disabled={retryInboxBusy || retryInboxLoading || retryInboxBooks.length === 0}
+                data-testid="retry-inbox-retry-all-btn"
+                className="px-3 py-1.5 rounded-lg text-sm font-medium bg-[#E07A5F] text-white hover:bg-[#d06a4f] disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
+              >
+                {retryInboxBusy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                Retry all
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
     </>
   );
 }
