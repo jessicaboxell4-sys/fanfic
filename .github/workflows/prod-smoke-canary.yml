@@ -43,7 +43,7 @@ jobs:
       REACT_APP_BACKEND_URL: ${{ secrets.SHELFSORT_PROD_URL }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Symlink /app to checkout for hardcoded test paths
         # Tests reference absolute /app/... paths — see the same step
