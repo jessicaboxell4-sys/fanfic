@@ -4,21 +4,21 @@
 Background
 ----------
 
-Emergent's deploy pipeline reads ``/app/backend/.env`` and
-``/app/frontend/.env`` as committed git files to propagate env
-vars into the production pod.  If those files are gitignored,
-they're not in the deploy commit; the secrets-management step
-silently falls back to "fetch from source pod", the source pod
-is ephemeral and has already been cleaned up, and the deploy
-dies with::
+Emergent's deploy pipeline propagates env vars to the production
+pod from a combination of: (a) the platform-managed secrets store
+and (b) any ``backend/.env`` / ``frontend/.env`` files present in
+the deploy commit.  If ``.gitignore`` blocks those files, the
+secrets-management step silently falls back to "fetch from source
+pod", the source pod is ephemeral and has already been cleaned up,
+and the deploy dies with::
 
     failed to get pod: pods "agent-env-..." not found
 
-This exact regression bit us twice in 24 hours (2026-06-27 and
-2026-06-28).  Each time, an IDE auto-complete / .gitignore
-template merge silently re-added ``.env`` / ``.env.*`` / ``*.env``
-to the bottom of ``.gitignore`` — right under the explicit
-comment block that says those lines MUST NOT exist.
+This exact regression bit us three times in 48 hours (2026-06-27,
+2026-06-28 AM, 2026-06-28 PM).  Each time, an IDE auto-complete /
+.gitignore template merge silently re-added ``.env`` / ``.env.*``
+/ ``*.env`` to the bottom of ``.gitignore`` — right under the
+explicit comment block that says those lines MUST NOT exist.
 
 This lint kills that regression permanently.  Run it as part of
 the standing "any bugs?" deep-dive and before every deploy.
@@ -26,8 +26,8 @@ the standing "any bugs?" deep-dive and before every deploy.
 Rules
 -----
 
-Fails if **any** of these patterns appears in ``.gitignore`` as
-an active rule (not a comment):
+Fails if **any** of these patterns appears as an active rule
+(not a comment) in ``.gitignore`` or ``.dockerignore``:
 
 * ``.env``
 * ``.env.*``
@@ -36,13 +36,13 @@ an active rule (not a comment):
 * ``backend/.env``
 * ``frontend/.env``
 
-Also checks the same patterns aren't present in ``.dockerignore``
-— same failure mode would apply at the Docker build step
-(``.env`` files excluded from the image context).
-
-Optionally checks the files themselves exist and are non-empty
-(an empty ``.env`` is functionally equivalent to a missing one
-on most platforms).
+We deliberately do NOT check whether the ``.env`` files exist on
+disk.  Whether the files end up in the deploy commit is Emergent's
+business (the auto-commit happens server-side after each session
+and isn't visible during CI runs on a freshly-checked-out clone).
+The "env vars actually missing at runtime" case is caught much
+more loudly by ``backend/utils/env_check.py`` on app boot — that's
+the right place for that signal, not a static repo lint.
 
 Usage
 -----
@@ -61,8 +61,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 GITIGNORE = ROOT / ".gitignore"
 DOCKERIGNORE = ROOT / ".dockerignore"
-BACKEND_ENV = ROOT / "backend" / ".env"
-FRONTEND_ENV = ROOT / "frontend" / ".env"
 
 # Exact patterns that MUST NOT appear as active rules.  These are
 # the same patterns Emergent's deployment_agent flags as a blocker.
@@ -120,11 +118,12 @@ def main() -> int:
         failures.append(
             ".gitignore blocks Emergent-required env files:\n"
             + "\n".join(f"    line {ln}: {pat!r}" for ln, pat in gi_hits)
-            + "\n  Remove these lines.  Emergent's deploy pipeline reads the\n"
-            + "  committed backend/.env and frontend/.env files at deploy time;\n"
-            + "  gitignoring them causes the MANAGE_SECRETS step to fall back to\n"
-            + "  fetching from an ephemeral source pod, which is no longer alive,\n"
-            + "  resulting in 'failed to get pod: pods \"agent-env-...\" not found'."
+            + "\n  Remove these lines.  Emergent's deploy pipeline needs the\n"
+            + "  backend/.env and frontend/.env paths to be ignorable-free so\n"
+            + "  the MANAGE_SECRETS step can include them in the deploy commit;\n"
+            + "  gitignoring them causes the step to fall back to fetching from\n"
+            + "  an ephemeral source pod, which is no longer alive, resulting\n"
+            + "  in 'failed to get pod: pods \"agent-env-...\" not found'."
         )
 
     # 2. .dockerignore must not block them either (same root cause).
@@ -137,23 +136,8 @@ def main() -> int:
             + "  .env files to bake env vars into the image."
         )
 
-    # 3. The .env files themselves must exist and be non-empty.
-    for env_file, label in [(BACKEND_ENV, "backend/.env"), (FRONTEND_ENV, "frontend/.env")]:
-        if not env_file.exists():
-            failures.append(
-                f"{label} is missing.  Emergent's deploy pipeline expects this file\n"
-                f"  to be committed (with real values for protected vars and\n"
-                f"  placeholders for everything else)."
-            )
-        elif env_file.stat().st_size == 0:
-            failures.append(
-                f"{label} exists but is empty.  Add at minimum the protected env\n"
-                f"  vars (MONGO_URL, DB_NAME for backend; REACT_APP_BACKEND_URL for\n"
-                f"  frontend)."
-            )
-
     if not failures:
-        print("✓ gitignore health: env files are tracked and ignorable patterns are clean")
+        print("✓ gitignore health: no forbidden env-blocking patterns in .gitignore / .dockerignore")
         return 0
 
     print(f"\n✗ gitignore health: {len(failures)} issue(s) found\n")
