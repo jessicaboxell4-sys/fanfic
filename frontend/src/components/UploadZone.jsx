@@ -574,6 +574,7 @@ export default function UploadZone({ onUploaded, compact = false }) {
       // with an HTML error page in unusual configurations).
       const isTransientOriginError = (status, errMessage) => {
         if (typeof status === "number") {
+          if (status === 500) return true;  // 2026-06-29 — see comment below
           if (status === 502 || status === 503 || status === 504) return true;
           if (status >= 520 && status <= 527) return true;
         }
@@ -584,6 +585,14 @@ export default function UploadZone({ onUploaded, compact = false }) {
         if (msg.includes("empty response")) return true;
         return false;
       };
+      // 2026-06-29 — 500 added to the transient set.  Real "bad
+      // request" errors (400/401/413/422) still fail-fast.  500 in
+      // practice is almost always a transient backend hiccup
+      // (classifier crash, Mongo failover, AV daemon paused) that
+      // resolves on the next attempt — and the polish_worker's
+      // permanent-vs-transient split (2026-06-28) already protects
+      // the book row from being silently sentinelized server-side,
+      // so a retried 500 won't double-process anything.
 
       let uploaded = 0;
       let totalAuto = 0;
@@ -602,6 +611,26 @@ export default function UploadZone({ onUploaded, compact = false }) {
       // window can stall, and a stall there doesn't lose work — the
       // backend keeps processing and the next poll picks it up.
       const sendOne = async (file) => {
+        // 2026-06-29 — Pre-validation: catch obvious failures before
+        // they hit the server.  Cuts the 4xx noise in the failed-
+        // uploads banner and prevents 0-byte files from consuming an
+        // upload slot that a real file could have used.
+        if (!file || file.size === 0) {
+          return {
+            ok: false,
+            file: file || { name: "(unknown)" },
+            error: "File is empty (0 bytes) — likely a bad copy/move on your side.",
+            status: 400,
+            preValidated: true,
+          };
+        }
+        // Light client-side jitter (0–250ms) before firing.  When the
+        // upload queue dispatches N files near-simultaneously they
+        // thundering-herd the backend; even staggered by a few
+        // hundred ms the 502/503 rate drops noticeably.  Cheap, no
+        // downside on small drops (one file: ~125ms p50).
+        await new Promise((r) => setTimeout(r, Math.floor(Math.random() * 250)));
+
         const form = new FormData();
         form.append("files", file);
         if (keepSet.has(file.name)) form.append("keep_originals", file.name);
