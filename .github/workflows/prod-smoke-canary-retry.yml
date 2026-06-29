@@ -54,7 +54,7 @@ jobs:
 
     steps:
       - name: Checkout default branch (for commit-back)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # Use default branch so the commit-back lands in the right
           # place.  workflow_run's checkout otherwise pins to the
