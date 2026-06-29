@@ -95,6 +95,15 @@ run "bg-white/N in-card" \
     python3 scripts/check_white_overlay_in_card.py
 
 # ---------------------------------------------------------------- #
+# 5. Text-contrast (2026-06-29).  Catches new `text-[#XXXXXX]`
+#    arbitrary values that drop below WCAG AA body contrast
+#    (4.5:1 on the paper bg).  Recognises an approved palette and
+#    a frozen grandfather list — see scripts/check_text_contrast.py.
+# ---------------------------------------------------------------- #
+run "text-contrast" \
+    python3 scripts/check_text_contrast.py
+
+# ---------------------------------------------------------------- #
 # Summary
 # ---------------------------------------------------------------- #
 echo
