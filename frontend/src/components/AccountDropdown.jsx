@@ -106,7 +106,7 @@ export default function AccountDropdown({ user, onLogout }) {
             )
             : (
               <span className="w-8 h-8 rounded-full bg-[#F5F3EC] border border-[#E8E6E1] flex items-center justify-center">
-                <UserIcon className="w-4 h-4 text-[#6B705C]" />
+                <UserIcon className="w-4 h-4 text-[#5B5F4D]" />
               </span>
             )
           }
@@ -160,13 +160,13 @@ export default function AccountDropdown({ user, onLogout }) {
                   onClick={() => setBackupOpen(false)}
                   title="About cloud backup"
                   data-testid="help-anchor-cloud-backup-popover"
-                  className="inline-flex text-[#6B705C] hover:text-[#6B46C1]"
+                  className="inline-flex text-[#5B5F4D] hover:text-[#6B46C1]"
                 >
                   <HelpCircle className="w-3.5 h-3.5" />
                 </Link>
               </p>
               {backupCount > 0 && (
-                <p className="text-xs text-[#6B705C] mt-0.5" data-testid="backup-fresh-count">
+                <p className="text-xs text-[#5B5F4D] mt-0.5" data-testid="backup-fresh-count">
                   {backupCount.toLocaleString()} file{backupCount === 1 ? "" : "s"} safe in cloud storage
                 </p>
               )}
@@ -195,7 +195,7 @@ export default function AccountDropdown({ user, onLogout }) {
               testid="account-menu-name"
             />
             {user.email && (
-              <p className="text-[11px] text-[#6B705C] truncate">{user.email}</p>
+              <p className="text-[11px] text-[#5B5F4D] truncate">{user.email}</p>
             )}
           </div>
           <Link
@@ -204,7 +204,7 @@ export default function AccountDropdown({ user, onLogout }) {
             onClick={() => setOpen(false)}
             className="flex items-center gap-2.5 px-3 py-2 text-sm text-[#2C2C2C] hover:bg-[#F5F3EC]"
           >
-            <Settings className="w-4 h-4 text-[#6B705C]" />
+            <Settings className="w-4 h-4 text-[#5B5F4D]" />
             Account settings
           </Link>
           <button
@@ -213,7 +213,7 @@ export default function AccountDropdown({ user, onLogout }) {
             onClick={() => { setOpen(false); onLogout(); }}
             className="w-full text-left flex items-center gap-2.5 px-3 py-2 text-sm text-[#2C2C2C] hover:bg-[#F5F3EC] border-t border-[#E8E6E1]"
           >
-            <LogOut className="w-4 h-4 text-[#6B705C]" />
+            <LogOut className="w-4 h-4 text-[#5B5F4D]" />
             Sign out
           </button>
         </div>

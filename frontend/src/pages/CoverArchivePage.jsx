@@ -48,9 +48,9 @@ export default function CoverArchivePage() {
         </header>
 
         {loading ? (
-          <p className="text-[#6B705C]">Loading…</p>
+          <p className="text-[#5B5F4D]">Loading…</p>
         ) : weeks.length === 0 ? (
-          <p className="text-[#6B705C] italic">
+          <p className="text-[#5B5F4D] italic">
             No archived weeks yet — check back after the next daily tick.
           </p>
         ) : (
@@ -62,13 +62,13 @@ export default function CoverArchivePage() {
                 data-testid={`archive-week-${w.iso_year}-${w.iso_week}`}
               >
                 <div>
-                  <p className="text-xs text-[#6B705C] uppercase tracking-wider">
+                  <p className="text-xs text-[#5B5F4D] uppercase tracking-wider">
                     Week {w.iso_week}, {w.iso_year}
                   </p>
                   <p className="font-serif text-lg text-[#2C2C2C]">
                     “{w.title || "Untitled"}”
                   </p>
-                  <p className="text-sm text-[#6B705C]">
+                  <p className="text-sm text-[#5B5F4D]">
                     {w.votes} hearts
                   </p>
                 </div>

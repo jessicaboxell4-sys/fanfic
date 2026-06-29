@@ -131,7 +131,7 @@ function CheckRow({ id, check }) {
             {stateLabel}
           </span>
         </div>
-        <p className="text-sm text-[#6B705C] mt-1">{meta.desc}</p>
+        <p className="text-sm text-[#5B5F4D] mt-1">{meta.desc}</p>
         {/* Surface structured failure detail when present (env_config emits these). */}
         {!ok && Array.isArray(check?.findings) && check.findings.length > 0 && (
           <ul
@@ -194,12 +194,12 @@ function CanarySparkline({ info }) {
   return (
     <div className="mt-6" data-testid="status-canary-sparkline-wrap">
       <div className="flex items-baseline justify-between flex-wrap gap-2 mb-3">
-        <p className="text-xs uppercase tracking-[0.18em] text-[#6B705C] font-bold">
+        <p className="text-xs uppercase tracking-[0.18em] text-[#5B5F4D] font-bold">
           Production canary — last {info.days} days
         </p>
         <p className="text-sm text-[#2C2C2C]" data-testid="status-uptime-pct">
           <span className="font-bold">{info.uptime_pct.toFixed(info.uptime_pct === 100 ? 0 : 1)}%</span>
-          <span className="text-[#6B705C]"> uptime · {info.pass_count}/{info.total_runs} runs</span>
+          <span className="text-[#5B5F4D]"> uptime · {info.pass_count}/{info.total_runs} runs</span>
         </p>
       </div>
       <div
@@ -216,7 +216,7 @@ function CanarySparkline({ info }) {
           />
         ))}
       </div>
-      <p className="text-xs text-[#6B705C] mt-2" data-testid="status-incident-counter">
+      <p className="text-xs text-[#5B5F4D] mt-2" data-testid="status-incident-counter">
         {incidentLine}
       </p>
     </div>
@@ -300,7 +300,7 @@ export default function Status() {
         <h1 className="font-serif text-4xl sm:text-5xl text-[#2C2C2C] mb-2">
           Shelfsort, right now.
         </h1>
-        <p className="text-[#6B705C] mb-8">
+        <p className="text-[#5B5F4D] mb-8">
           Auto-refreshes every 30 seconds. Last checked{" "}
           <span data-testid="status-last-checked">
             {lastChecked ? lastChecked.toLocaleTimeString() : "…"}
@@ -321,7 +321,7 @@ export default function Status() {
 
         {canary && <CanarySparkline info={canary} />}
 
-        <section className="mt-10 text-sm text-[#6B705C] space-y-2" data-testid="status-meta">
+        <section className="mt-10 text-sm text-[#5B5F4D] space-y-2" data-testid="status-meta">
           {health?.boot_id && (
             <p>
               Backend boot ID:{" "}

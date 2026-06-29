@@ -146,7 +146,7 @@ export default function BookclubsPage() {
           </button>
         </div>
         <div className="mt-2 relative">
-          <Search className="w-3 h-3 text-[#6B705C] absolute left-2.5 top-1/2 -translate-y-1/2" />
+          <Search className="w-3 h-3 text-[#5B5F4D] absolute left-2.5 top-1/2 -translate-y-1/2" />
           <input
             data-testid="room-search"
             value={query}
@@ -165,7 +165,7 @@ export default function BookclubsPage() {
               {invites.map((inv) => (
                 <li key={inv.room_id} data-testid={`invite-${inv.room_id}`} className="bg-white border border-[#E5C780] rounded-lg p-2">
                   <p className="text-sm font-semibold text-[#2C2C2C] truncate">{inv.name}</p>
-                  <p className="text-[11px] text-[#6B705C] truncate">{inv.book_title}</p>
+                  <p className="text-[11px] text-[#5B5F4D] truncate">{inv.book_title}</p>
                   <div className="flex gap-1 mt-2">
                     <button data-testid={`accept-invite-${inv.room_id}`} disabled={busyInvite === inv.room_id} onClick={() => respondInvite(inv, "accept")} className="btn-primary text-[11px] flex-1 flex items-center justify-center gap-1">
                       <Check className="w-3 h-3" /> Accept
@@ -181,15 +181,15 @@ export default function BookclubsPage() {
         )}
 
         {loadingList ? (
-          <div className="p-4 text-xs text-[#6B705C] flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Loading…</div>
+          <div className="p-4 text-xs text-[#5B5F4D] flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Loading…</div>
         ) : filteredRooms.length === 0 ? (
           rooms.length === 0 ? (
-            <div className="p-4 text-center text-xs text-[#6B705C]">
+            <div className="p-4 text-center text-xs text-[#5B5F4D]">
               <Users className="w-8 h-8 text-[#E5DDC5] mx-auto mb-1" />
               No reading rooms yet. Hit <span className="text-[#6B46C1] font-semibold">+</span> to start one.
             </div>
           ) : (
-            <div className="p-4 text-center text-xs text-[#6B705C]">No rooms match &quot;{query}&quot;.</div>
+            <div className="p-4 text-center text-xs text-[#5B5F4D]">No rooms match &quot;{query}&quot;.</div>
           )
         ) : (
           <ul data-testid="rooms-list">
@@ -224,13 +224,13 @@ export default function BookclubsPage() {
                       </p>
                       <RoleBadge role={r.my_role} />
                     </div>
-                    <p className="text-[11px] text-[#6B705C] truncate">{r.book_title}</p>
+                    <p className="text-[11px] text-[#5B5F4D] truncate">{r.book_title}</p>
                     {r.book_total_chapters > 0 && (
                       <div className="mt-1.5">
                         <div className="h-1 bg-[#F5F3EC] rounded-full overflow-hidden">
                           <div className="h-full bg-[#6B46C1] rounded-full" style={{ width: `${progress}%` }} />
                         </div>
-                        <p className="text-[10px] text-[#6B705C] mt-1 flex items-center gap-2">
+                        <p className="text-[10px] text-[#5B5F4D] mt-1 flex items-center gap-2">
                           <span>ch. {r.my_current_chapter}/{r.book_total_chapters}</span>
                           <span>·</span>
                           <span><Users className="w-2.5 h-2.5 inline" /> {r.member_count}</span>
@@ -286,7 +286,7 @@ export default function BookclubsPage() {
         {/* Main panel */}
         <section className="flex-1 flex min-h-0">
           {!activeRoomId ? (
-            <div className="flex-1 flex items-center justify-center px-8 py-16 text-center text-[#6B705C]" data-testid="empty-room-pane">
+            <div className="flex-1 flex items-center justify-center px-8 py-16 text-center text-[#5B5F4D]" data-testid="empty-room-pane">
               <div>
                 {loadingList ? (
                   <Loader2 className="w-6 h-6 animate-spin mx-auto" />

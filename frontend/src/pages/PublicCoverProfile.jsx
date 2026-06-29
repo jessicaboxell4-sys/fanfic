@@ -88,7 +88,7 @@ export default function PublicCoverProfile() {
       <div className="min-h-screen bg-paper">
         <Navbar />
         <main className="max-w-5xl mx-auto px-6 py-14">
-          <p className="text-[#6B705C]" data-testid="profile-loading">Loading…</p>
+          <p className="text-[#5B5F4D]" data-testid="profile-loading">Loading…</p>
         </main>
       </div>
     );
@@ -99,7 +99,7 @@ export default function PublicCoverProfile() {
         <Navbar />
         <main className="max-w-5xl mx-auto px-6 py-14 text-center" data-testid="profile-not-found">
           <h1 className="font-serif text-4xl text-[#2C2C2C] mb-3">No such reader</h1>
-          <p className="text-[#6B705C] mb-6">
+          <p className="text-[#5B5F4D] mb-6">
             We couldn’t find a public profile for <code>@{username}</code>.
           </p>
           <Link
@@ -138,11 +138,11 @@ export default function PublicCoverProfile() {
             @{profile.username}
           </h1>
           {profile.display_name && profile.display_name !== profile.username && (
-            <p className="text-lg text-[#6B705C] mt-1">{profile.display_name}</p>
+            <p className="text-lg text-[#5B5F4D] mt-1">{profile.display_name}</p>
           )}
           {profile.bio && (
             <p
-              className="text-sm text-[#6B705C] italic mt-3 max-w-xl"
+              className="text-sm text-[#5B5F4D] italic mt-3 max-w-xl"
               data-testid="profile-bio"
             >
               &ldquo;{profile.bio}&rdquo;
@@ -151,17 +151,17 @@ export default function PublicCoverProfile() {
           <div className="flex flex-wrap items-center gap-5 mt-5 text-sm text-[#2C2C2C]">
             <span data-testid="profile-total-shared">
               <strong>{profile.totals?.shared || 0}</strong>{" "}
-              <span className="text-[#6B705C]">covers shared</span>
+              <span className="text-[#5B5F4D]">covers shared</span>
             </span>
             <span className="text-[#E8E6E1]">·</span>
             <span data-testid="profile-total-votes">
               <strong>{profile.totals?.votes || 0}</strong>{" "}
-              <span className="text-[#6B705C]">hearts earned</span>
+              <span className="text-[#5B5F4D]">hearts earned</span>
             </span>
             <span className="text-[#E8E6E1]">·</span>
             <span data-testid="profile-total-imports">
               <strong>{profile.totals?.imports || 0}</strong>{" "}
-              <span className="text-[#6B705C]">imports</span>
+              <span className="text-[#5B5F4D]">imports</span>
             </span>
           </div>
           <div className="mt-5 flex items-center gap-3 flex-wrap">
@@ -171,7 +171,7 @@ export default function PublicCoverProfile() {
             />
             <a
               href={`${process.env.REACT_APP_BACKEND_URL}/api/feeds/covers/user/${profile.username}.rss`}
-              className="inline-flex items-center gap-1 text-xs font-semibold text-[#6B705C] hover:text-[#6B46C1]"
+              className="inline-flex items-center gap-1 text-xs font-semibold text-[#5B5F4D] hover:text-[#6B46C1]"
               data-testid="profile-rss-link"
             >
               <Rss className="w-3 h-3" /> RSS
@@ -204,7 +204,7 @@ export default function PublicCoverProfile() {
                 </span>
               )}
               {profile.achievements.length > 1 && (
-                <span className="text-xs text-[#6B705C] self-center">
+                <span className="text-xs text-[#5B5F4D] self-center">
                   · {profile.achievements.length} all-time
                 </span>
               )}
@@ -217,7 +217,7 @@ export default function PublicCoverProfile() {
             <Sparkles className="w-3 h-3" /> Top covers
           </p>
           {(profile.covers || []).length === 0 ? (
-            <p className="text-[#6B705C] italic">
+            <p className="text-[#5B5F4D] italic">
               {profile.username} hasn’t shared any covers yet.
             </p>
           ) : (
@@ -245,11 +245,11 @@ export default function PublicCoverProfile() {
                       {c.title || "Untitled"}
                     </p>
                     {c.author && (
-                      <p className="text-[11px] text-[#6B705C] mt-0.5 truncate" title={c.author}>
+                      <p className="text-[11px] text-[#5B5F4D] mt-0.5 truncate" title={c.author}>
                         {c.author}
                       </p>
                     )}
-                    <div className="flex items-center gap-3 mt-2 text-[11px] text-[#6B705C]">
+                    <div className="flex items-center gap-3 mt-2 text-[11px] text-[#5B5F4D]">
                       <span className="inline-flex items-center gap-1">
                         <Heart className="w-3 h-3" /> {c.votes || 0}
                       </span>

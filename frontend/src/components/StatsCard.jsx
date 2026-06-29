@@ -41,14 +41,14 @@ export default function StatsCard({ stats, viewMoreTo }) {
               {t.icon}
             </div>
             <div className="min-w-0">
-              <p className="text-xs uppercase tracking-wider text-[#6B705C] font-semibold truncate">
+              <p className="text-xs uppercase tracking-wider text-[#5B5F4D] font-semibold truncate">
                 {t.label}
               </p>
               <p className="font-serif text-2xl sm:text-3xl text-[#2C2C2C] tabular-nums leading-none mt-1">
                 {t.value}
               </p>
               {t.hint && (
-                <p className="text-[10px] text-[#6B705C] mt-0.5">{t.hint}</p>
+                <p className="text-[10px] text-[#5B5F4D] mt-0.5">{t.hint}</p>
               )}
             </div>
           </div>

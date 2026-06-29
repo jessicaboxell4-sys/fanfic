@@ -100,7 +100,7 @@ export default function ContinueReadingRail({ books }) {
                 <h3 className="font-serif text-base text-[#2C2C2C] line-clamp-2 leading-tight">
                   {b.title}
                 </h3>
-                <p className="text-xs text-[#6B705C] mt-1 line-clamp-1">{b.author}</p>
+                <p className="text-xs text-[#5B5F4D] mt-1 line-clamp-1">{b.author}</p>
                 {/* Cross-device caption: only render when the latest
                     cursor came from a *different* device than the one
                     currently viewing the dashboard.  Reveals the

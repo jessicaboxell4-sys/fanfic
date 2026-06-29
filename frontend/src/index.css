@@ -7,7 +7,7 @@
     --surface: #FFFFFF;
     --surface-hover: #F5F3EC;
     --text-primary: #2C2C2C;
-    --text-secondary: #6B705C;
+    --text-secondary: #5B5F4D;
     /* Brand accent (purple). Swap these four lines to recolor the whole  */
     /* site — every accent in JSX uses `text-[var(--primary)]` / `bg-     */
     /* [var(--accent-pale-1)]` etc. so there are no hex hardcodes to     */
@@ -204,7 +204,7 @@
 }
 .badge-unclassified {
     background: #F1EEE8;
-    color: #6B705C;
+    color: #5B5F4D;
     border: 1px solid var(--border);
     padding: 0.125rem 0.625rem;
     border-radius: 9999px;
@@ -546,7 +546,7 @@ html, body {
 
 /* Text — primary headings + body, and the muted "sage" support text. */
 :root[data-theme="dark"] .text-\[\#2C2C2C\] { color: var(--text-primary); }
-:root[data-theme="dark"] .text-\[\#6B705C\],
+:root[data-theme="dark"] .text-\[\#5B5F4D\],
 :root[data-theme="dark"] .text-\[\#6E6E6E\] { color: var(--text-secondary); }
 
 /* Deep red accents used by the failed-uploads + in-flight banners.
@@ -588,7 +588,7 @@ html, body {
    restore readable contrast (user-reported "can't read it"). */
 :root[data-theme="dark"] .bg-\[\#FDF3E1\] .text-\[\#2C2C2C\],
 :root[data-theme="dark"] .bg-\[\#FDF3E1\] .text-\[\#3F4034\] { color: #FBEACB !important; }
-:root[data-theme="dark"] .bg-\[\#FDF3E1\] .text-\[\#6B705C\] { color: #F5E0AE !important; }
+:root[data-theme="dark"] .bg-\[\#FDF3E1\] .text-\[\#5B5F4D\] { color: #F5E0AE !important; }
 /* The former AO3-maroon `#900` accent was retired in favour of the purple    */
 /* primary `#6B46C1` everywhere (2026-06-13 theme parity sweep). The text     */
 /* and border overrides that lived here are no longer referenced by any JSX  */
@@ -660,7 +660,7 @@ html, body {
 /* reject-reason error CTA.  Sea-green family for mod tints, deep coral */
 /* for the destructive "Reject & email" button.                        */
 :root[data-theme="dark"] .bg-\[\#E0F0EA\] { background-color: rgba(125, 217, 195, 0.14); }
-:root[data-theme="dark"] .text-\[\#3D8B79\] { color: #7DD9C3; }
+:root[data-theme="dark"] .text-\[\#2F6E60\] { color: #7DD9C3; }
 :root[data-theme="dark"] .text-\[\#C04A3F\] { color: #FF7A6F; }
 
 /* Light cream border `#EFEAE0` — disabled-row outline in the mute     */
@@ -842,7 +842,7 @@ html, body {
 /* ---------------------------------------------------------------------- */
 /* 2026-06-18 — Contrast sweep                                            */
 /* ---------------------------------------------------------------------- */
-/* Multiple cards across the app render ``text-[#6B705C]`` (medium olive  */
+/* Multiple cards across the app render ``text-[#5B5F4D]`` (medium olive  */
 /* gray) body text on saturated pastel backgrounds — purple ``#EDE6FA``,  */
 /* mint ``#E8F3EC``, butter ``#FDF3E1``, blush ``#FDECE6``, cream         */
 /* ``#FBE9E5``.  That combo only hits ~3.5:1 contrast (WCAG AA needs      */
@@ -854,14 +854,14 @@ html, body {
 /* known colored background that contains a known faded text color      */
 /* gets its descendant text bumped to ``#3F4034`` (luminance ~0.14 =    */
 /* 5.5:1 against ``#EDE6FA``, passes WCAG AA).                          */
-[class*="bg-[#EDE6FA]"] [class*="text-[#6B705C]"],
-[class*="bg-[#E8F3EC]"] [class*="text-[#6B705C]"],
-[class*="bg-[#FDF3E1]"] [class*="text-[#6B705C]"],
-[class*="bg-[#FDECE6]"] [class*="text-[#6B705C]"],
-[class*="bg-[#FBE9E5]"] [class*="text-[#6B705C]"],
-[class*="bg-[#F5F0E0]"] [class*="text-[#6B705C]"],
-[class*="bg-[#EDE6FA]"] [class*="text-[#6B705C]"] *,
-[class*="bg-[#E8F3EC]"] [class*="text-[#6B705C]"] * {
+[class*="bg-[#EDE6FA]"] [class*="text-[#5B5F4D]"],
+[class*="bg-[#E8F3EC]"] [class*="text-[#5B5F4D]"],
+[class*="bg-[#FDF3E1]"] [class*="text-[#5B5F4D]"],
+[class*="bg-[#FDECE6]"] [class*="text-[#5B5F4D]"],
+[class*="bg-[#FBE9E5]"] [class*="text-[#5B5F4D]"],
+[class*="bg-[#F5F0E0]"] [class*="text-[#5B5F4D]"],
+[class*="bg-[#EDE6FA]"] [class*="text-[#5B5F4D]"] *,
+[class*="bg-[#E8F3EC]"] [class*="text-[#5B5F4D]"] * {
     color: #3F4034 !important;
 }
 /* 2026-06-18 — Dark-mode escape hatch.  The light-mode `#3F4034`
@@ -870,9 +870,9 @@ html, body {
    per-card text colors (defined above, e.g. cream cards →
    `#F8E8C5`) win.  Without this, the prior rule's `!important`
    would beat them.  */
-:root[data-theme="dark"] [class*="bg-["][class*="text-[#6B705C]"],
-:root[data-theme="dark"] [class*="bg-["] [class*="text-[#6B705C]"],
-:root[data-theme="dark"] [class*="bg-["] [class*="text-[#6B705C]"] * {
+:root[data-theme="dark"] [class*="bg-["][class*="text-[#5B5F4D]"],
+:root[data-theme="dark"] [class*="bg-["] [class*="text-[#5B5F4D]"],
+:root[data-theme="dark"] [class*="bg-["] [class*="text-[#5B5F4D]"] * {
     color: inherit !important;
 }
 

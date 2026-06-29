@@ -41,7 +41,7 @@ export default function ChatInboxIcon() {
       className="relative p-2 hover:bg-[#F5F3EC] rounded-lg"
       title={title}
     >
-      <MessageSquare className="w-4 h-4 text-[#6B705C]" />
+      <MessageSquare className="w-4 h-4 text-[#5B5F4D]" />
       {total > 0 && (
         <span
           data-testid="navbar-messages-badge"

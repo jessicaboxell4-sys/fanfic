@@ -24,12 +24,12 @@ function PersonRow({ row, children, testid }) {
         {row.picture ? (
           <img src={row.picture} alt={row.name} className="w-full h-full rounded-full object-cover" />
         ) : (
-          <Mail className="w-3.5 h-3.5 text-[#6B705C]" />
+          <Mail className="w-3.5 h-3.5 text-[#5B5F4D]" />
         )}
       </div>
       <div className="min-w-0 flex-1">
         <DisplayName user={row} className="text-sm font-semibold text-[#2C2C2C] truncate block" testid={testid ? `${testid}-name` : undefined} />
-        <p className="text-[10px] text-[#6B705C] truncate">{row.email}</p>
+        <p className="text-[10px] text-[#5B5F4D] truncate">{row.email}</p>
       </div>
       <div className="flex items-center gap-1 flex-shrink-0">{children}</div>
     </li>
@@ -349,7 +349,7 @@ export default function FriendsPage() {
     <div className="min-h-screen bg-[#FBF7EE]">
       <Navbar />
       <main className="max-w-3xl mx-auto px-4 sm:px-6 py-8" data-testid="friends-page">
-        <Link to="/account" className="inline-flex items-center gap-1 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-4">
+        <Link to="/account" className="inline-flex items-center gap-1 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-4">
           <ArrowLeft className="w-4 h-4" /> back to account
         </Link>
         <div className="flex items-center gap-3 mb-6">
@@ -358,7 +358,7 @@ export default function FriendsPage() {
           </div>
           <div>
             <h1 className="font-serif text-3xl sm:text-4xl text-[#2C2C2C]">Friends</h1>
-            <p className="text-sm text-[#6B705C]">
+            <p className="text-sm text-[#5B5F4D]">
               Send friend requests, accept incoming ones, manage blocks. Click <strong>Message</strong> on any friend to chat inline.
             </p>
             <PrimaryCTAButton
@@ -374,7 +374,7 @@ export default function FriendsPage() {
 
         {/* Search */}
         <section className="shelf-card p-5 mb-5" data-testid="friends-search-card">
-          <p className="text-xs font-bold uppercase tracking-wider text-[#6B705C] mb-2 flex items-center gap-1.5">
+          <p className="text-xs font-bold uppercase tracking-wider text-[#5B5F4D] mb-2 flex items-center gap-1.5">
             <Search className="w-3 h-3" /> Find someone
           </p>
           <input
@@ -388,9 +388,9 @@ export default function FriendsPage() {
           {q.trim().length >= 2 && (
             <ul className="mt-3 rounded-lg border border-[#E8E6E1] bg-white overflow-hidden">
               {searching ? (
-                <li className="px-3 py-2 text-xs text-[#6B705C]">Searching…</li>
+                <li className="px-3 py-2 text-xs text-[#5B5F4D]">Searching…</li>
               ) : results.length === 0 ? (
-                <li className="px-3 py-2 text-xs text-[#6B705C] italic">No users found</li>
+                <li className="px-3 py-2 text-xs text-[#5B5F4D] italic">No users found</li>
               ) : results.map((u) => (
                 <PersonRow key={u.user_id} row={u} testid={`friends-search-result-${u.user_id}`}>
                   {u.relation === "none" && (
@@ -405,7 +405,7 @@ export default function FriendsPage() {
                     </button>
                   )}
                   {u.relation === "pending_out" && (
-                    <span className="text-[11px] text-[#6B705C] italic">Request sent</span>
+                    <span className="text-[11px] text-[#5B5F4D] italic">Request sent</span>
                   )}
                   {u.relation === "pending_in" && (
                     <button
@@ -434,10 +434,10 @@ export default function FriendsPage() {
 
         {/* Invite by email — for people not on Shelfsort yet */}
         <section className="shelf-card p-5 mb-5" data-testid="friends-invite-card">
-          <p className="text-xs font-bold uppercase tracking-wider text-[#6B705C] mb-2 flex items-center gap-1.5">
+          <p className="text-xs font-bold uppercase tracking-wider text-[#5B5F4D] mb-2 flex items-center gap-1.5">
             <Mail className="w-3 h-3" /> Find a friend
           </p>
-          <p className="text-xs text-[#6B705C] mb-3">
+          <p className="text-xs text-[#5B5F4D] mb-3">
             Already on Shelfsort? Type <code className="bg-[#F5F3EC] px-1 rounded">@handle</code> to find them. Not yet? Send an email invite — they get a one-click link to sign up and become your friend automatically.
           </p>
           <div className="space-y-2 relative">
@@ -468,11 +468,11 @@ export default function FriendsPage() {
                     >
                       {u.picture
                         ? <img src={u.picture} alt={u.username} className="w-6 h-6 rounded-full flex-shrink-0" />
-                        : <div className="w-6 h-6 rounded-full bg-[#E5DDC5] flex-shrink-0 flex items-center justify-center text-xs font-mono text-[#6B705C]">@</div>}
+                        : <div className="w-6 h-6 rounded-full bg-[#E5DDC5] flex-shrink-0 flex items-center justify-center text-xs font-mono text-[#5B5F4D]">@</div>}
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-mono text-[#2C2C2C] truncate">@{u.username}</p>
                         {u.previous_username && (
-                          <p className="text-[10px] text-[#6B705C] truncate">was @{u.previous_username}</p>
+                          <p className="text-[10px] text-[#5B5F4D] truncate">was @{u.previous_username}</p>
                         )}
                       </div>
                       {requestingId === u.username && <Loader2 className="w-3 h-3 animate-spin text-[#6B46C1]" />}
@@ -482,7 +482,7 @@ export default function FriendsPage() {
               </ul>
             )}
             {showSuggest && inviteEmail.trim().startsWith("@") && inviteSuggestions.length === 0 && inviteEmail.trim().length >= 3 && (
-              <div className="absolute left-0 right-0 top-[42px] z-20 bg-white border border-[#E5DDC5] rounded-lg shadow-lg px-3 py-2 text-xs text-[#6B705C]" data-testid="friends-invite-no-results">
+              <div className="absolute left-0 right-0 top-[42px] z-20 bg-white border border-[#E5DDC5] rounded-lg shadow-lg px-3 py-2 text-xs text-[#5B5F4D]" data-testid="friends-invite-no-results">
                 No one with that handle yet.
               </div>
             )}
@@ -507,7 +507,7 @@ export default function FriendsPage() {
           </div>
           {myInvites.filter((i) => i.status === "pending").length > 0 && (
             <details className="mt-4" data-testid="friends-invite-pending-details">
-              <summary className="text-xs font-semibold text-[#6B705C] cursor-pointer">
+              <summary className="text-xs font-semibold text-[#5B5F4D] cursor-pointer">
                 Pending invites ({myInvites.filter((i) => i.status === "pending").length})
               </summary>
               <ul className="mt-2 rounded-lg border border-[#E8E6E1]">
@@ -517,12 +517,12 @@ export default function FriendsPage() {
                     data-testid={`friends-invite-row-${inv.invite_id}`}
                     className="px-3 py-2 flex items-center gap-2 border-b border-[#E8E6E1] last:border-b-0 text-xs"
                   >
-                    <Mail className="w-3 h-3 text-[#6B705C]" />
+                    <Mail className="w-3 h-3 text-[#5B5F4D]" />
                     <span className="flex-1 truncate text-[#2C2C2C]">{inv.target_email}</span>
                     <button
                       type="button"
                       onClick={() => cancelInvite(inv.invite_id)}
-                      className="text-[10px] px-2 py-0.5 rounded border border-[#E5DDC5] text-[#6B705C]"
+                      className="text-[10px] px-2 py-0.5 rounded border border-[#E5DDC5] text-[#5B5F4D]"
                     >
                       Cancel
                     </button>
@@ -535,7 +535,7 @@ export default function FriendsPage() {
 
         {/* Three lists */}
         {loading ? (
-          <p className="text-sm text-[#6B705C]"><Loader2 className="inline w-4 h-4 animate-spin mr-1" /> Loading…</p>
+          <p className="text-sm text-[#5B5F4D]"><Loader2 className="inline w-4 h-4 animate-spin mr-1" /> Loading…</p>
         ) : (
           <>
             <section className="shelf-card p-5 mb-5" data-testid="friends-incoming-card">
@@ -545,7 +545,7 @@ export default function FriendsPage() {
                 )}
               </h2>
               {data.pending_in.length === 0 ? (
-                <p className="text-xs text-[#6B705C] italic">No pending requests.</p>
+                <p className="text-xs text-[#5B5F4D] italic">No pending requests.</p>
               ) : (
                 <ul className="rounded-lg border border-[#E8E6E1]">
                   {data.pending_in.map((r) => (
@@ -553,7 +553,7 @@ export default function FriendsPage() {
                       <button type="button" onClick={() => accept(r.other_user_id)} data-testid={`friends-accept-btn-${r.other_user_id}`} className="text-[11px] px-2 py-1 rounded bg-[#6B46C1] text-white font-semibold inline-flex items-center gap-1">
                         <Check className="w-3 h-3" /> Accept
                       </button>
-                      <button type="button" onClick={() => decline(r.other_user_id)} data-testid={`friends-decline-btn-${r.other_user_id}`} className="text-[11px] px-2 py-1 rounded border border-[#E5DDC5] text-[#6B705C]">
+                      <button type="button" onClick={() => decline(r.other_user_id)} data-testid={`friends-decline-btn-${r.other_user_id}`} className="text-[11px] px-2 py-1 rounded border border-[#E5DDC5] text-[#5B5F4D]">
                         <XIcon className="w-3 h-3" />
                       </button>
                     </PersonRow>
@@ -562,7 +562,7 @@ export default function FriendsPage() {
               )}
               {/* "Switch to open" banner (Phase 1c — only shows when there are pending requests) */}
               {data.pending_in.length > 0 && (
-                <p className="text-xs text-[#6B705C] mt-3">
+                <p className="text-xs text-[#5B5F4D] mt-3">
                   Tired of friend requests?{" "}
                   <Link to="/account#privacy" className="underline text-[var(--primary)] font-semibold">
                     Switch to open DM mode →
@@ -574,7 +574,7 @@ export default function FriendsPage() {
             <section className="shelf-card p-5 mb-5" data-testid="friends-accepted-card">
               <h2 className="font-serif text-lg text-[#2C2C2C] mb-2">Friends ({data.accepted.length})</h2>
               {data.accepted.length === 0 ? (
-                <p className="text-xs text-[#6B705C] italic">No friends yet. Use the search above to find people.</p>
+                <p className="text-xs text-[#5B5F4D] italic">No friends yet. Use the search above to find people.</p>
               ) : (
                 <ul className="rounded-lg border border-[#E8E6E1]">
                   {data.accepted.map((r) => {
@@ -596,7 +596,7 @@ export default function FriendsPage() {
                           <span
                             data-testid={`friends-mutual-badge-${r.other_user_id}`}
                             title={`${m.count} of their ${m.their_total} books are in your library`}
-                            className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-[#FBFAF6] border border-[#E5DDC5] text-[#6B705C] font-semibold"
+                            className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-[#FBFAF6] border border-[#E5DDC5] text-[#5B5F4D] font-semibold"
                           >
                             🤝 {m.count}
                           </span>
@@ -605,7 +605,7 @@ export default function FriendsPage() {
                           type="button"
                           onClick={() => setLibraryFriend(r)}
                           data-testid={`friends-view-library-btn-${r.other_user_id}`}
-                          className="text-[11px] px-2 py-1 rounded border border-[#E5DDC5] text-[#6B705C] hover:bg-[#FBFAF6] inline-flex items-center gap-1"
+                          className="text-[11px] px-2 py-1 rounded border border-[#E5DDC5] text-[#5B5F4D] hover:bg-[#FBFAF6] inline-flex items-center gap-1"
                           title="Browse their library"
                         >
                           <Library className="w-3 h-3" /> Library
@@ -616,7 +616,7 @@ export default function FriendsPage() {
                         <button type="button" onClick={() => block(r.other_user_id)} className="text-[11px] px-2 py-1 rounded text-[#B43F26]" title="Block">
                           <Ban className="w-3 h-3" />
                         </button>
-                        <button type="button" onClick={() => remove(r.other_user_id)} data-testid={`friends-remove-btn-${r.other_user_id}`} className="text-[11px] px-2 py-1 rounded text-[#6B705C]" title="Remove">
+                        <button type="button" onClick={() => remove(r.other_user_id)} data-testid={`friends-remove-btn-${r.other_user_id}`} className="text-[11px] px-2 py-1 rounded text-[#5B5F4D]" title="Remove">
                           <XIcon className="w-3 h-3" />
                         </button>
                       </PersonRow>
@@ -632,7 +632,7 @@ export default function FriendsPage() {
                 <ul className="rounded-lg border border-[#E8E6E1]">
                   {data.pending_out.map((r) => (
                     <PersonRow key={r.friendship_id} row={r} testid={`friends-pending-out-${r.other_user_id}`}>
-                      <button type="button" onClick={() => decline(r.other_user_id)} className="text-[11px] px-2 py-1 rounded border border-[#E5DDC5] text-[#6B705C]">
+                      <button type="button" onClick={() => decline(r.other_user_id)} className="text-[11px] px-2 py-1 rounded border border-[#E5DDC5] text-[#5B5F4D]">
                         Cancel
                       </button>
                     </PersonRow>
@@ -644,12 +644,12 @@ export default function FriendsPage() {
             <section className="shelf-card p-5 mb-5" data-testid="friends-blocked-card">
               <h2 className="font-serif text-lg text-[#2C2C2C] mb-2">Blocked ({data.blocked.length})</h2>
               {data.blocked.length === 0 ? (
-                <p className="text-xs text-[#6B705C] italic">You haven&apos;t blocked anyone.</p>
+                <p className="text-xs text-[#5B5F4D] italic">You haven&apos;t blocked anyone.</p>
               ) : (
                 <ul className="rounded-lg border border-[#E8E6E1]">
                   {data.blocked.map((r) => (
                     <PersonRow key={r.friendship_id} row={r} testid={`friends-blocked-row-${r.other_user_id}`}>
-                      <button type="button" onClick={() => unblock(r.other_user_id)} data-testid={`friends-unblock-btn-${r.other_user_id}`} className="text-[11px] px-2 py-1 rounded border border-[#E5DDC5] text-[#6B705C] inline-flex items-center gap-1">
+                      <button type="button" onClick={() => unblock(r.other_user_id)} data-testid={`friends-unblock-btn-${r.other_user_id}`} className="text-[11px] px-2 py-1 rounded border border-[#E5DDC5] text-[#5B5F4D] inline-flex items-center gap-1">
                         <ShieldOff className="w-3 h-3" /> Unblock
                       </button>
                     </PersonRow>

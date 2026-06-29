@@ -368,19 +368,19 @@ export default function YearInBooksPage() {
               <button
                 onClick={() => setShareDialogOpen(false)}
                 data-testid="share-dialog-close"
-                className="w-9 h-9 rounded-full hover:bg-[#F5F3EC] flex items-center justify-center text-[#6B705C]"
+                className="w-9 h-9 rounded-full hover:bg-[#F5F3EC] flex items-center justify-center text-[#5B5F4D]"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="p-6 space-y-4">
-              <p className="text-sm text-[#6B705C]">
+              <p className="text-sm text-[#5B5F4D]">
                 Anyone with this link can see your {year} recap — no Shelfsort account needed. Your email and book IDs stay private.
               </p>
 
               <div className="relative">
-                <LinkIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#6B705C]" />
+                <LinkIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#5B5F4D]" />
                 <input
                   data-testid="share-url-input"
                   type="text"
@@ -413,7 +413,7 @@ export default function YearInBooksPage() {
               </div>
 
               <div className="flex items-center justify-between pt-3 border-t border-[#E8E6E1]">
-                <div className="flex items-center gap-2 text-sm text-[#6B705C]" data-testid="share-view-count">
+                <div className="flex items-center gap-2 text-sm text-[#5B5F4D]" data-testid="share-view-count">
                   <Eye className="w-4 h-4" />
                   {share.view_count ?? 0} view{(share.view_count ?? 0) === 1 ? "" : "s"}
                   {share.last_viewed_at && (

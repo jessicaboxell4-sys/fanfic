@@ -62,9 +62,9 @@ function NavDropdown({ label, icon: Icon, items, testid }) {
               className="flex items-center gap-2.5 px-3 py-2 text-sm text-[#2C2C2C] hover:bg-[#F5F3EC]"
               title={it.title}
             >
-              {it.icon && <it.icon className="w-4 h-4 text-[#6B705C]" />}
+              {it.icon && <it.icon className="w-4 h-4 text-[#5B5F4D]" />}
               <span className="flex-1">{it.label}</span>
-              {it.hint && <span className="text-[10px] text-[#6B705C]">{it.hint}</span>}
+              {it.hint && <span className="text-[10px] text-[#5B5F4D]">{it.hint}</span>}
             </Link>
           ))}
         </div>
@@ -103,19 +103,19 @@ function SecondaryLinks({ user, unknownFandomCount, crossoverPendingCount, onNav
     const itemBase = "flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-[#2C2C2C] hover:bg-[#F5F3EC] w-full";
     return (
       <div className="flex flex-col gap-1 w-full">
-        <p className="px-3 pt-1.5 pb-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B705C]">Library</p>
+        <p className="px-3 pt-1.5 pb-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[#5B5F4D]">Library</p>
         {libraryItems.map((it) => (
           <Link key={it.to} to={it.to} data-testid={`drawer-${it.testid.replace("navbar-","")}`} className={itemBase} onClick={close}>
             <it.icon className="w-4 h-4" /> {it.label}
           </Link>
         ))}
-        <p className="px-3 pt-2 pb-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B705C]">Export</p>
+        <p className="px-3 pt-2 pb-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[#5B5F4D]">Export</p>
         {exportItems.map((it) => (
           <Link key={it.to} to={it.to} data-testid={`drawer-${it.testid.replace("navbar-","")}`} className={itemBase} onClick={close}>
             <it.icon className="w-4 h-4" /> {it.label}
           </Link>
         ))}
-        <p className="px-3 pt-2 pb-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B705C]">Community</p>
+        <p className="px-3 pt-2 pb-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[#5B5F4D]">Community</p>
         <Link to="/friends" data-testid="drawer-messages" className={itemBase} onClick={close}>
           <MessageSquare className="w-4 h-4" /> Messages
         </Link>
@@ -135,14 +135,14 @@ function SecondaryLinks({ user, unknownFandomCount, crossoverPendingCount, onNav
             row on <sm screens (Appearance, Streak/Goals).  ``sm:hidden``
             keeps the drawer clean on tablet+ where the icons live in
             the navbar already. */}
-        <p className="px-3 pt-2 pb-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B705C] sm:hidden">Personal</p>
+        <p className="px-3 pt-2 pb-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[#5B5F4D] sm:hidden">Personal</p>
         <Link to="/account/appearance" data-testid="drawer-appearance" className={`${itemBase} sm:hidden`} onClick={close}>
           <Palette className="w-4 h-4" /> Appearance
         </Link>
         <Link to="/goals" data-testid="drawer-streak" className={`${itemBase} sm:hidden`} onClick={close}>
           <Flame className="w-4 h-4 text-[#E07A5F]" /> Reading streak &amp; goals
         </Link>
-        <p className="px-3 pt-2 pb-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[#6B705C]">Help &amp; feedback</p>
+        <p className="px-3 pt-2 pb-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[#5B5F4D]">Help &amp; feedback</p>
         <Link to="/help" data-testid="drawer-help" className={itemBase} onClick={close}>
           <HelpCircle className="w-4 h-4" /> Help &amp; guide
         </Link>
@@ -164,7 +164,7 @@ function SecondaryLinks({ user, unknownFandomCount, crossoverPendingCount, onNav
             above, so we only show this for mod-but-not-admin users. */}
         {user.is_moderator && !user.is_admin && (
           <Link to="/admin/pending" data-testid="drawer-mod-inbox" className={itemBase} onClick={close}>
-            <ShieldCheck className="w-4 h-4 text-[#3D8B79]" />
+            <ShieldCheck className="w-4 h-4 text-[#2F6E60]" />
             Mod inbox
           </Link>
         )}
@@ -207,7 +207,7 @@ function SecondaryLinks({ user, unknownFandomCount, crossoverPendingCount, onNav
           className="p-2 hover:bg-[#F5F3EC] rounded-lg"
           title="Mod inbox — pending sign-ups"
         >
-          <ShieldCheck className="w-4 h-4 text-[#3D8B79]" />
+          <ShieldCheck className="w-4 h-4 text-[#2F6E60]" />
         </Link>
       )}
     </div>
@@ -321,8 +321,8 @@ export default function Navbar() {
                   aria-label="Open menu"
                 >
                   {menuOpen
-                    ? <X className="w-5 h-5 text-[#6B705C]" />
-                    : <Menu className="w-5 h-5 text-[#6B705C]" />}
+                    ? <X className="w-5 h-5 text-[#5B5F4D]" />
+                    : <Menu className="w-5 h-5 text-[#5B5F4D]" />}
                   {unknownFandomCount > 0 && user.is_admin && !menuOpen && (
                     <span
                       data-testid="navbar-menu-admin-badge"

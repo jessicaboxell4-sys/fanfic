@@ -52,7 +52,7 @@ export default function AuthorShelf() {
         <button
           onClick={() => navigate("/library")}
           data-testid="back-to-library"
-          className="flex items-center gap-2 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-6"
+          className="flex items-center gap-2 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-6"
         >
           <ArrowLeft className="w-4 h-4" /> Back to library
         </button>
@@ -72,20 +72,20 @@ export default function AuthorShelf() {
               >
                 {author}
               </h1>
-              <p className="text-[#6B705C] mt-3">
+              <p className="text-[#5B5F4D] mt-3">
                 {loading
                   ? "Loading shelf…"
                   : `${books.length} book${books.length === 1 ? "" : "s"} on this shelf`}
               </p>
               {!loading && groupSummary && (
-                <p className="text-xs text-[#6B705C] mt-1">{groupSummary}</p>
+                <p className="text-xs text-[#5B5F4D] mt-1">{groupSummary}</p>
               )}
             </div>
           </div>
         </div>
 
         <div className="relative mb-8 max-w-md">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#6B705C]" />
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#5B5F4D]" />
           <input
             data-testid="author-search"
             type="text"
@@ -97,14 +97,14 @@ export default function AuthorShelf() {
         </div>
 
         {loading ? (
-          <p className="text-[#6B705C] py-12 text-center">Loading…</p>
+          <p className="text-[#5B5F4D] py-12 text-center">Loading…</p>
         ) : filtered.length === 0 ? (
           <div className="text-center py-16 shelf-card">
             <UserCircle2 className="w-12 h-12 text-[#E07A5F] mx-auto mb-4 opacity-70" />
             <h2 className="font-serif text-2xl text-[#2C2C2C] mb-2">
               No books by {author} match
             </h2>
-            <p className="text-[#6B705C] mb-6">
+            <p className="text-[#5B5F4D] mb-6">
               {books.length === 0
                 ? `We haven't catalogued anything by ${author} yet.`
                 : "Try a different search term."}

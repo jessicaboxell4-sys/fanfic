@@ -650,7 +650,7 @@ export default function Reader() {
             data-testid="reader-back"
             onClick={() => navigate(`/book/${id}`)}
             className="flex items-center gap-2 text-sm hover:opacity-100"
-            style={{ color: isDarkSkin ? `${activeTheme.wrapText}B3` : "#6B705C" }}
+            style={{ color: isDarkSkin ? `${activeTheme.wrapText}B3` : "#5B5F4D" }}
           >
             <ArrowLeft className="w-4 h-4" /> Back
           </button>
@@ -660,10 +660,10 @@ export default function Reader() {
                 <p className="font-serif text-base md:text-lg truncate" data-testid="reader-title" style={{ color: activeTheme.wrapText }}>
                   {book.title}
                 </p>
-                <p className="text-xs truncate" style={{ color: isDarkSkin ? `${activeTheme.wrapText}99` : "#6B705C" }}>{book.author}</p>
+                <p className="text-xs truncate" style={{ color: isDarkSkin ? `${activeTheme.wrapText}99` : "#5B5F4D" }}>{book.author}</p>
               </>
             ) : (
-              <p className="text-sm" style={{ color: isDarkSkin ? `${activeTheme.wrapText}99` : "#6B705C" }}>Opening book…</p>
+              <p className="text-sm" style={{ color: isDarkSkin ? `${activeTheme.wrapText}99` : "#5B5F4D" }}>Opening book…</p>
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -708,10 +708,10 @@ export default function Reader() {
                 data-testid="reader-heatmap-pill"
                 title={`${heatmap.cohort} readers · ${Math.round((heatmap.completion_rate || 0) * 100)}% finish rate`}
               >
-                <span className="text-[#6B705C] font-medium">
+                <span className="text-[#5B5F4D] font-medium">
                   {heatmap.cohort}
                 </span>
-                <span className="text-[#6B705C]">readers</span>
+                <span className="text-[#5B5F4D]">readers</span>
                 {/* Mini sparkline of the 10-bucket completion curve */}
                 <span className="flex items-end gap-0.5 h-3 ml-1">
                   {(heatmap.chapter_curve || []).map((c, i) => (
@@ -795,7 +795,7 @@ export default function Reader() {
               >
                 <Minus className="w-3.5 h-3.5" />
               </button>
-              <span className="text-xs text-[#6B705C] tabular-nums w-9 text-center">{fontSize}%</span>
+              <span className="text-xs text-[#5B5F4D] tabular-nums w-9 text-center">{fontSize}%</span>
               <button
                 data-testid="font-increase"
                 onClick={() => setFontSize((s) => Math.min(160, s + 10))}
@@ -832,7 +832,7 @@ export default function Reader() {
             <div className="flex-1 min-w-0 text-xs">
               <p className="text-[#2C2C2C] dark:text-zinc-100 leading-tight">
                 You were <span className="font-semibold">{handoff.percent ? `${Math.round(handoff.percent * 100)}%` : "reading"}</span> through this on your <span className="font-semibold">{handoff.deviceLabel}</span>
-                {handoff.updatedAt ? <span className="text-[#6B705C] dark:text-zinc-400"> · {relativeAge(handoff.updatedAt)}</span> : null}
+                {handoff.updatedAt ? <span className="text-[#5B5F4D] dark:text-zinc-400"> · {relativeAge(handoff.updatedAt)}</span> : null}
               </p>
               <div className="flex items-center gap-2 mt-1.5">
                 <button
@@ -850,7 +850,7 @@ export default function Reader() {
               data-testid="reader-handoff-dismiss"
               onClick={dismissHandoff}
               aria-label="Dismiss"
-              className="text-[#6B705C] hover:text-[#2C2C2C] dark:hover:text-zinc-100 flex-shrink-0"
+              className="text-[#5B5F4D] hover:text-[#2C2C2C] dark:hover:text-zinc-100 flex-shrink-0"
             >
               <XIcon className="w-3.5 h-3.5" />
             </button>
@@ -900,7 +900,7 @@ export default function Reader() {
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="text-center">
               <div className="inline-block h-8 w-8 border-2 border-[#E07A5F] border-t-transparent rounded-full animate-spin" />
-              <p className="mt-4 text-[#6B705C] font-serif text-lg">Opening your book…</p>
+              <p className="mt-4 text-[#5B5F4D] font-serif text-lg">Opening your book…</p>
             </div>
           </div>
         )}
@@ -925,7 +925,7 @@ export default function Reader() {
               <h3 className="font-serif text-lg text-[#2C2C2C]">Bookmarks</h3>
               <button
                 onClick={() => setShowBookmarkPanel(false)}
-                className="text-[#6B705C] hover:text-[#2C2C2C]"
+                className="text-[#5B5F4D] hover:text-[#2C2C2C]"
                 data-testid="bookmark-panel-close"
               >
                 <XIcon className="w-4 h-4" />
@@ -933,7 +933,7 @@ export default function Reader() {
             </div>
             <div className="p-4">
               {bookmarks.length === 0 ? (
-                <p className="text-sm text-[#6B705C] italic" data-testid="bookmark-panel-empty">
+                <p className="text-sm text-[#5B5F4D] italic" data-testid="bookmark-panel-empty">
                   No bookmarks yet. Tap the Bookmark button while reading to save your spot.
                 </p>
               ) : (
@@ -953,7 +953,7 @@ export default function Reader() {
                           <p className="text-sm font-medium text-[#2C2C2C]">{bm.chapter_label}</p>
                         )}
                         {bm.percent != null && (
-                          <p className="text-xs text-[#6B705C]">
+                          <p className="text-xs text-[#5B5F4D]">
                             {Math.round(bm.percent * 100)}% through
                           </p>
                         )}

@@ -313,7 +313,7 @@ export default function BookDetail() {
     return (
       <div className="min-h-screen bg-paper">
         <Navbar />
-        <div className="text-center py-20 text-[#6B705C]">Loading…</div>
+        <div className="text-center py-20 text-[#5B5F4D]">Loading…</div>
       </div>
     );
   }
@@ -328,7 +328,7 @@ export default function BookDetail() {
       <main className="max-w-5xl mx-auto px-6 md:px-8 py-8 md:py-12 fade-in">
         <button
           onClick={() => navigate("/library")}
-          className="flex items-center gap-2 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-8"
+          className="flex items-center gap-2 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-8"
           data-testid="back-to-library"
         >
           <ArrowLeft className="w-4 h-4" /> Back to library
@@ -419,7 +419,7 @@ export default function BookDetail() {
               {book.fandom && <span className="badge-fandom">{book.fandom}</span>}
               <StatusBadge book={book} onChange={(next) => setBook((b) => ({ ...b, ...next }))} />
               {Number.isFinite(book.confidence) && (
-                <span className="text-xs text-[#6B705C] px-2 py-1">
+                <span className="text-xs text-[#5B5F4D] px-2 py-1">
                   via {book.classifier} · {Math.round(book.confidence * 100)}% confident
                 </span>
               )}
@@ -508,12 +508,12 @@ export default function BookDetail() {
                       type="button"
                       data-testid="dismiss-suggestions"
                       onClick={() => setSuggested([])}
-                      className="text-xs text-[#6B705C] hover:text-[#2C2C2C]"
+                      className="text-xs text-[#5B5F4D] hover:text-[#2C2C2C]"
                     >
                       Dismiss
                     </button>
                   </div>
-                  <p className="text-xs text-[#6B705C] mb-2">Click to add:</p>
+                  <p className="text-xs text-[#5B5F4D] mb-2">Click to add:</p>
                   <div className="flex flex-wrap gap-1.5">
                     {suggested.map((t) => (
                       <button
@@ -544,7 +544,7 @@ export default function BookDetail() {
                 <p className="text-sm font-semibold text-[#2C2C2C] mb-1">
                   🚫 We couldn&apos;t find this story online
                 </p>
-                <p className="text-xs text-[#6B705C] mb-3">
+                <p className="text-xs text-[#5B5F4D] mb-3">
                   We tried <code className="bg-white/60 px-1.5 py-0.5 rounded text-[#E07A5F]">{book.source_url}</code>. If the work moved
                   (e.g., reposted under a new ID), paste the new URL and we&apos;ll try again.
                 </p>
@@ -563,7 +563,7 @@ export default function BookDetail() {
                     <button
                       type="button"
                       onClick={() => { setEditingSource(false); setNewSourceUrl(""); }}
-                      className="text-[#6B705C] hover:text-[#2C2C2C] text-sm px-3"
+                      className="text-[#5B5F4D] hover:text-[#2C2C2C] text-sm px-3"
                     >
                       Cancel
                     </button>
@@ -585,7 +585,7 @@ export default function BookDetail() {
                 <p className="text-sm font-semibold text-[#2C2C2C] mb-3">Edit book details</p>
                 <div className="grid sm:grid-cols-2 gap-3 mb-3">
                   <div className="sm:col-span-2">
-                    <label className="text-xs text-[#6B705C] mb-1 block">Title</label>
+                    <label className="text-xs text-[#5B5F4D] mb-1 block">Title</label>
                     <input
                       data-testid="edit-title"
                       type="text"
@@ -596,7 +596,7 @@ export default function BookDetail() {
                     />
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="text-xs text-[#6B705C] mb-1 block">Author</label>
+                    <label className="text-xs text-[#5B5F4D] mb-1 block">Author</label>
                     <input
                       data-testid="edit-author"
                       type="text"
@@ -607,7 +607,7 @@ export default function BookDetail() {
                     />
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="text-xs text-[#6B705C] mb-1 block">Description</label>
+                    <label className="text-xs text-[#5B5F4D] mb-1 block">Description</label>
                     <textarea
                       data-testid="edit-description"
                       value={editDescription}
@@ -618,7 +618,7 @@ export default function BookDetail() {
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-[#6B705C] mb-1 block">Category</label>
+                    <label className="text-xs text-[#5B5F4D] mb-1 block">Category</label>
                     <select
                       data-testid="edit-category"
                       value={editCategory}
@@ -629,7 +629,7 @@ export default function BookDetail() {
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs text-[#6B705C] mb-1 block">Fandom (optional)</label>
+                    <label className="text-xs text-[#5B5F4D] mb-1 block">Fandom (optional)</label>
                     <input
                       data-testid="edit-fandom"
                       type="text"
@@ -640,7 +640,7 @@ export default function BookDetail() {
                     />
                   </div>
                 </div>
-                <p className="text-xs text-[#6B705C] mb-3">
+                <p className="text-xs text-[#5B5F4D] mb-3">
                   Title, author and description are rewritten into the EPUB file itself — so when you re-download or send the book to another reader, your edits travel with it.
                 </p>
                 <div className="flex gap-2">
@@ -750,7 +750,7 @@ export default function BookDetail() {
                     disabled={refreshing}
                     className={`flex items-center gap-2 text-sm px-4 py-2 rounded-lg disabled:opacity-50 transition-colors ${
                       book.unavailable
-                        ? "bg-[#6B705C]/10 text-[#6B705C] hover:bg-[#6B705C]/20 border border-[#6B705C]/30"
+                        ? "bg-[#6B705C]/10 text-[#5B5F4D] hover:bg-[#6B705C]/20 border border-[#6B705C]/30"
                         : "btn-secondary"
                     }`}
                     title={book.unavailable ? ("Last error: " + (book.last_fetch_error || "FanFicFare couldn't find this")) : ("Source: " + book.source_url)}
@@ -930,7 +930,7 @@ export default function BookDetail() {
 function Meta({ label, value, testid }) {
   return (
     <div {...(testid ? { "data-testid": testid } : {})}>
-      <p className="text-xs uppercase tracking-wider text-[#6B705C] font-semibold mb-1">{label}</p>
+      <p className="text-xs uppercase tracking-wider text-[#5B5F4D] font-semibold mb-1">{label}</p>
       <p className="text-[#2C2C2C] break-words">{value}</p>
     </div>
   );
@@ -1042,7 +1042,7 @@ function StatusBadge({ book, onChange }) {
               type="button"
               onClick={() => apply(null)}
               data-testid="book-status-clear-manual"
-              className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-[#F5F3EC] text-[#6B705C] border-t border-[#E5DDC5] mt-1"
+              className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-[#F5F3EC] text-[#5B5F4D] border-t border-[#E5DDC5] mt-1"
             >
               Use auto-detected ({(book.status || "complete") === "ongoing" ? "Ongoing" : "Finished"})
             </button>

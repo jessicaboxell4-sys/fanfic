@@ -29,7 +29,7 @@ export default function HelpAnchor({ section, label, className = "" }) {
       title={label || "Open the help article for this feature"}
       aria-label={label || `Help — ${section}`}
       data-testid={`help-anchor-${section}`}
-      className={`inline-flex items-center justify-center w-4 h-4 rounded-full text-[#6B705C] hover:text-[#6B46C1] transition-colors ${className}`}
+      className={`inline-flex items-center justify-center w-4 h-4 rounded-full text-[#5B5F4D] hover:text-[#6B46C1] transition-colors ${className}`}
     >
       <HelpCircle className="w-3.5 h-3.5" />
     </Link>

@@ -114,17 +114,17 @@ export default function MongoInspectorCard() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Left rail — collections list */}
         <div className="md:col-span-1 border border-[#E8E6E1] rounded-lg overflow-hidden">
-          <div className="px-3 py-2 bg-[#F5F3EC] text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C]">
+          <div className="px-3 py-2 bg-[#F5F3EC] text-xs font-bold uppercase tracking-[0.15em] text-[#5B5F4D]">
             Collections ({collections.length})
           </div>
           <div className="max-h-[460px] overflow-y-auto" data-testid="admin-mongo-collections-list">
             {loadingCollections && (
-              <div className="p-3 text-xs text-[#6B705C] flex items-center gap-2">
+              <div className="p-3 text-xs text-[#5B5F4D] flex items-center gap-2">
                 <Loader2 className="w-3 h-3 animate-spin" /> loading…
               </div>
             )}
             {!loadingCollections && collections.length === 0 && (
-              <div className="p-3 text-xs text-[#6B705C]">No collections found.</div>
+              <div className="p-3 text-xs text-[#5B5F4D]">No collections found.</div>
             )}
             {collections.map((c) => {
               const active = c.name === selected;
@@ -142,9 +142,9 @@ export default function MongoInspectorCard() {
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-medium font-mono truncate">{c.name}</span>
-                    <ChevronRight className={`w-3 h-3 flex-shrink-0 ${active ? "text-white" : "text-[#6B705C]"}`} />
+                    <ChevronRight className={`w-3 h-3 flex-shrink-0 ${active ? "text-white" : "text-[#5B5F4D]"}`} />
                   </div>
-                  <div className={`text-[11px] mt-0.5 ${active ? "text-white/80" : "text-[#6B705C]"}`}>
+                  <div className={`text-[11px] mt-0.5 ${active ? "text-white/80" : "text-[#5B5F4D]"}`}>
                     {c.doc_count.toLocaleString()} doc{c.doc_count === 1 ? "" : "s"} · {fmtBytes(c.size_mb)} · last {fmtRelative(c.last_doc_at)}
                   </div>
                 </button>
@@ -156,7 +156,7 @@ export default function MongoInspectorCard() {
         {/* Right pane — selected collection */}
         <div className="md:col-span-2">
           {!selected && (
-            <div className="border border-dashed border-[#E5DDC5] rounded-lg p-6 text-center text-sm text-[#6B705C]">
+            <div className="border border-dashed border-[#E5DDC5] rounded-lg p-6 text-center text-sm text-[#5B5F4D]">
               <Database className="w-6 h-6 mx-auto mb-1.5 text-[#6B46C1]" aria-hidden="true" />
               Pick a collection on the left to browse its documents.
             </div>
@@ -167,7 +167,7 @@ export default function MongoInspectorCard() {
               {/* Search header */}
               <div className="mb-3 flex items-center gap-2 flex-wrap" data-testid="admin-mongo-search-row">
                 <div className="relative flex-1 min-w-[200px]">
-                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#6B705C] pointer-events-none" aria-hidden="true" />
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#5B5F4D] pointer-events-none" aria-hidden="true" />
                   <input
                     type="text"
                     value={searchInput}
@@ -178,7 +178,7 @@ export default function MongoInspectorCard() {
                     className="w-full pl-9 pr-9 py-2 rounded-full border border-[#E5DDC5] bg-white text-sm text-[#2C2C2C] placeholder:text-[#9A9580] focus:outline-none focus:border-[#6B46C1] focus:ring-2 focus:ring-[#EEE9FB]"
                   />
                   {searchInput && (
-                    <button type="button" onClick={clearSearch} aria-label="Clear search" data-testid="admin-mongo-search-clear" className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B705C] hover:text-[#2C2C2C]">
+                    <button type="button" onClick={clearSearch} aria-label="Clear search" data-testid="admin-mongo-search-clear" className="absolute right-3 top-1/2 -translate-y-1/2 text-[#5B5F4D] hover:text-[#2C2C2C]">
                       <XIcon className="w-4 h-4" />
                     </button>
                   )}
@@ -195,7 +195,7 @@ export default function MongoInspectorCard() {
 
               {/* Pagination header */}
               {page && (
-                <div className="mb-2 flex items-center justify-between text-xs text-[#6B705C]" data-testid="admin-mongo-pagination">
+                <div className="mb-2 flex items-center justify-between text-xs text-[#5B5F4D]" data-testid="admin-mongo-pagination">
                   <span>
                     {page.total === 0 ? "0 documents" : `${(skip + 1).toLocaleString()}–${Math.min(skip + PAGE_SIZE, page.total).toLocaleString()} of ${page.total.toLocaleString()}`}
                     {appliedQuery && <> · <span className="text-[#6B46C1] font-semibold">match "{appliedQuery}"</span></>}
@@ -227,12 +227,12 @@ export default function MongoInspectorCard() {
               {/* Documents table */}
               <div className="border border-[#E8E6E1] rounded-lg overflow-hidden">
                 {loadingPage && (
-                  <div className="p-3 text-xs text-[#6B705C] flex items-center gap-2">
+                  <div className="p-3 text-xs text-[#5B5F4D] flex items-center gap-2">
                     <Loader2 className="w-3 h-3 animate-spin" /> loading…
                   </div>
                 )}
                 {!loadingPage && page && page.docs.length === 0 && (
-                  <div className="p-6 text-center text-sm text-[#6B705C]" data-testid="admin-mongo-empty">
+                  <div className="p-6 text-center text-sm text-[#5B5F4D]" data-testid="admin-mongo-empty">
                     No documents match {appliedQuery ? `"${appliedQuery}"` : "this page"}.
                   </div>
                 )}

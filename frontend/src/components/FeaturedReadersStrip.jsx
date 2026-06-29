@@ -29,7 +29,7 @@ export default function FeaturedReadersStrip({ limit = 5 }) {
 
   if (loading) {
     return (
-      <div className="py-6 text-center text-[#6B705C]" data-testid="featured-readers-loading">
+      <div className="py-6 text-center text-[#5B5F4D]" data-testid="featured-readers-loading">
         <Loader2 className="w-5 h-5 animate-spin mx-auto opacity-60" />
       </div>
     );
@@ -85,12 +85,12 @@ export default function FeaturedReadersStrip({ limit = 5 }) {
                   <p className="font-semibold text-[#2C2C2C] truncate">
                     @{u.username}
                   </p>
-                  <p className="text-xs text-[#6B705C] mt-0.5">
+                  <p className="text-xs text-[#5B5F4D] mt-0.5">
                     <span className="font-semibold text-[#2C2C2C]">{u.total_books}</span> {u.total_books === 1 ? "book" : "books"}
                     {u.top_fandom ? <> · {u.top_fandom}</> : null}
                   </p>
                   {u.bio ? (
-                    <p className="text-xs text-[#6B705C] italic mt-1.5 line-clamp-2">
+                    <p className="text-xs text-[#5B5F4D] italic mt-1.5 line-clamp-2">
                       &ldquo;{u.bio}&rdquo;
                     </p>
                   ) : null}
@@ -102,7 +102,7 @@ export default function FeaturedReadersStrip({ limit = 5 }) {
             </Link>
           ))}
         </div>
-        <p className="mt-6 text-xs text-[#6B705C] flex items-center gap-1.5">
+        <p className="mt-6 text-xs text-[#5B5F4D] flex items-center gap-1.5">
           <Sparkles className="w-3.5 h-3.5 text-[#6B46C1]" />
           These readers opted in to sharing their library publicly.
           <Link to="/account#privacy" className="text-[#6B46C1] font-semibold hover:underline">

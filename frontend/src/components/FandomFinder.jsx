@@ -27,7 +27,7 @@ export default function FandomFinder({ fandoms, query, onChange }) {
     <div className="mb-4" data-testid="fandom-finder">
       <div className="relative">
         <Search
-          className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#6B705C] pointer-events-none"
+          className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#5B5F4D] pointer-events-none"
           aria-hidden="true"
         />
         <input
@@ -44,13 +44,13 @@ export default function FandomFinder({ fandoms, query, onChange }) {
             onClick={() => onChange("")}
             aria-label="Clear fandom search"
             data-testid="fandom-finder-clear"
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B705C] hover:text-[#2C2C2C]"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-[#5B5F4D] hover:text-[#2C2C2C]"
           >
             <XIcon className="w-4 h-4" />
           </button>
         )}
       </div>
-      <div className="mt-2 flex items-center gap-2 flex-wrap text-xs text-[#6B705C]">
+      <div className="mt-2 flex items-center gap-2 flex-wrap text-xs text-[#5B5F4D]">
         <span className="italic">Try:</span>
         {suggestions.map((name) => {
           const active = q === name.toLowerCase();

@@ -30,7 +30,7 @@ export default function SeriesShelf() {
         <button
           onClick={() => navigate("/library")}
           data-testid="back-to-library"
-          className="flex items-center gap-2 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-6"
+          className="flex items-center gap-2 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-6"
         >
           <ArrowLeft className="w-4 h-4" /> Back to library
         </button>
@@ -42,7 +42,7 @@ export default function SeriesShelf() {
           <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl text-[#2C2C2C] leading-[1.05]" data-testid="series-title">
             {seriesName}
           </h1>
-          <p className="text-[#6B705C] mt-3">
+          <p className="text-[#5B5F4D] mt-3">
             {loading
               ? "Loading shelf…"
               : `${books.length} book${books.length === 1 ? "" : "s"} in order`}
@@ -50,7 +50,7 @@ export default function SeriesShelf() {
         </div>
 
         {loading ? (
-          <p className="text-[#6B705C] py-12 text-center">Loading…</p>
+          <p className="text-[#5B5F4D] py-12 text-center">Loading…</p>
         ) : books.length === 0 ? (
           <div className="text-center py-16 shelf-card">
             <BookOpen className="w-12 h-12 text-[#E07A5F] mx-auto mb-4 opacity-70" />

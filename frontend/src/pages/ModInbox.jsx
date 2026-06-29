@@ -90,14 +90,14 @@ export default function ModInbox() {
     <div className="min-h-screen bg-paper">
       <Navbar />
       <main className="max-w-3xl mx-auto px-4 py-8" data-testid="mod-inbox-page">
-        <Link to="/library" className="inline-flex items-center gap-1.5 text-sm text-[#6B705C] hover:text-[var(--primary)] mb-4">
+        <Link to="/library" className="inline-flex items-center gap-1.5 text-sm text-[#5B5F4D] hover:text-[var(--primary)] mb-4">
           <ArrowLeft className="w-3.5 h-3.5" /> Back to library
         </Link>
         <div className="flex items-center gap-3 mb-6">
-          <ShieldCheck className="w-7 h-7 text-[#3D8B79]" />
+          <ShieldCheck className="w-7 h-7 text-[#2F6E60]" />
           <div>
             <h1 className="font-serif text-3xl text-[#2C2C2C]">Mod inbox</h1>
-            <p className="text-sm text-[#6B705C]">
+            <p className="text-sm text-[#5B5F4D]">
               Hi {user?.name || "moderator"} — approve or reject new sign-ups below.
             </p>
           </div>
@@ -108,13 +108,13 @@ export default function ModInbox() {
           data-testid="mod-pending-users-card"
         >
           <header className="flex items-center gap-2 mb-4">
-            <Inbox className="w-4 h-4 text-[#6B705C]" />
+            <Inbox className="w-4 h-4 text-[#5B5F4D]" />
             <h2 className="font-serif text-lg text-[#2C2C2C]">
               Pending sign-ups{pending.length > 0 ? ` (${pending.length})` : ""}
             </h2>
           </header>
           {loading ? (
-            <p className="text-sm text-[#6B705C] italic" data-testid="mod-pending-loading">Loading…</p>
+            <p className="text-sm text-[#5B5F4D] italic" data-testid="mod-pending-loading">Loading…</p>
           ) : pending.length === 0 ? (
             <p className="text-sm text-[#1F8F4E] italic inline-flex items-center gap-1.5" data-testid="mod-pending-empty">
               <Check className="w-3.5 h-3.5" /> No one waiting. The queue is empty.
@@ -130,8 +130,8 @@ export default function ModInbox() {
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-[#2C2C2C]">{u.name || u.email}</p>
-                      <p className="text-xs text-[#6B705C]">{u.email}</p>
-                      <p className="text-xs text-[#6B705C] mt-0.5">
+                      <p className="text-xs text-[#5B5F4D]">{u.email}</p>
+                      <p className="text-xs text-[#5B5F4D] mt-0.5">
                         Signed up {fmtTime(u.created_at)}
                       </p>
                     </div>
@@ -151,7 +151,7 @@ export default function ModInbox() {
                         onClick={() => { setRejectingId(u.user_id); setRejectReason(""); }}
                         disabled={busyId === u.user_id}
                         data-testid={`mod-pending-reject-${u.user_id}`}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-[#E5DDC5] text-[#6B705C] hover:border-[#C04A3F] hover:text-[#C04A3F] disabled:opacity-60"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-[#E5DDC5] text-[#5B5F4D] hover:border-[#C04A3F] hover:text-[#C04A3F] disabled:opacity-60"
                       >
                         <XIcon className="w-3.5 h-3.5" /> Reject…
                       </button>
@@ -171,7 +171,7 @@ export default function ModInbox() {
                         <button
                           type="button"
                           onClick={() => { setRejectingId(null); setRejectReason(""); }}
-                          className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-[#E5DDC5] text-[#6B705C] hover:border-[#6B705C]"
+                          className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-[#E5DDC5] text-[#5B5F4D] hover:border-[#6B705C]"
                         >
                           Cancel
                         </button>
@@ -203,19 +203,19 @@ export default function ModInbox() {
           data-testid="mod-history-card"
         >
           <header className="flex items-center gap-2 mb-4">
-            <History className="w-4 h-4 text-[#6B705C]" />
+            <History className="w-4 h-4 text-[#5B5F4D]" />
             <h2 className="font-serif text-lg text-[#2C2C2C]">My moderation history</h2>
           </header>
           {user?.user_id ? (
             <ModerationLogCard pageSize={20} actorId={user.user_id} />
           ) : (
-            <p className="text-sm text-[#6B705C] italic">Loading user…</p>
+            <p className="text-sm text-[#5B5F4D] italic">Loading user…</p>
           )}
         </section>
 
         {/* Future-mod-power placeholder — kept as a quiet note so mods know
             their permission scope without us showing dead cards. */}
-        <p className="mt-6 text-xs text-[#6B705C] italic" data-testid="mod-inbox-scope-note">
+        <p className="mt-6 text-xs text-[#5B5F4D] italic" data-testid="mod-inbox-scope-note">
           As a moderator you can also lock unruly bookclub rooms from inside the
           room itself. More moderation tools coming soon.
         </p>

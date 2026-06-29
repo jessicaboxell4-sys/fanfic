@@ -175,7 +175,7 @@ function RuleEditor({ rule, onChange, onRemove, tagSuggestions, fandomList, auth
             onChange={(e) => set({ min: e.target.value })}
             className="w-24 bg-white border border-[#E8E6E1] rounded-lg px-2 py-1.5 text-sm"
           />
-          <span className="text-[#6B705C]">to</span>
+          <span className="text-[#5B5F4D]">to</span>
           <input
             type="number"
             data-testid={`rule-max-${rule._id}`}
@@ -184,7 +184,7 @@ function RuleEditor({ rule, onChange, onRemove, tagSuggestions, fandomList, auth
             onChange={(e) => set({ max: e.target.value })}
             className="w-24 bg-white border border-[#E8E6E1] rounded-lg px-2 py-1.5 text-sm"
           />
-          <span className="text-xs text-[#6B705C]">words</span>
+          <span className="text-xs text-[#5B5F4D]">words</span>
         </div>
       )}
 
@@ -192,7 +192,7 @@ function RuleEditor({ rule, onChange, onRemove, tagSuggestions, fandomList, auth
         type="button"
         onClick={onRemove}
         data-testid={`rule-remove-${rule._id}`}
-        className="ml-auto text-[#6B705C] hover:text-[#D9534F] p-1.5"
+        className="ml-auto text-[#5B5F4D] hover:text-[#D9534F] p-1.5"
         title="Remove rule"
       >
         <X className="w-4 h-4" />
@@ -306,14 +306,14 @@ function SmartShelfBuilder({ initial, onClose, onSaved }) {
               {initial ? "Edit shelf" : "New smart shelf"}
             </h2>
           </div>
-          <button onClick={onClose} data-testid="builder-close" className="w-9 h-9 rounded-full hover:bg-[#F5F3EC] flex items-center justify-center text-[#6B705C]">
+          <button onClick={onClose} data-testid="builder-close" className="w-9 h-9 rounded-full hover:bg-[#F5F3EC] flex items-center justify-center text-[#5B5F4D]">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <div className="p-6 overflow-y-auto flex-1">
           <div className="mb-5">
-            <label className="text-xs font-semibold uppercase tracking-wider text-[#6B705C] mb-1 block">
+            <label className="text-xs font-semibold uppercase tracking-wider text-[#5B5F4D] mb-1 block">
               Name
             </label>
             <input
@@ -329,7 +329,7 @@ function SmartShelfBuilder({ initial, onClose, onSaved }) {
 
           <div className="mb-4 flex items-center gap-4 flex-wrap">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold uppercase tracking-wider text-[#6B705C]">Match</span>
+              <span className="text-xs font-semibold uppercase tracking-wider text-[#5B5F4D]">Match</span>
               <select
                 data-testid="builder-combinator"
                 value={combinator}
@@ -353,7 +353,7 @@ function SmartShelfBuilder({ initial, onClose, onSaved }) {
 
           <div className="space-y-2 mb-4" data-testid="builder-rules">
             {rules.length === 0 && (
-              <p className="text-sm text-[#6B705C] italic px-3">No rules yet — every book matches.</p>
+              <p className="text-sm text-[#5B5F4D] italic px-3">No rules yet — every book matches.</p>
             )}
             {rules.map((r) => (
               <RuleEditor
@@ -391,7 +391,7 @@ function SmartShelfBuilder({ initial, onClose, onSaved }) {
                   : `${preview.count} book${preview.count === 1 ? "" : "s"} match.`}
             </p>
             {preview.sample?.length > 0 && (
-              <p className="text-xs text-[#6B705C] mt-2 truncate">
+              <p className="text-xs text-[#5B5F4D] mt-2 truncate">
                 Including: {preview.sample.slice(0, 3).map((b) => `"${b.title}"`).join(", ")}
                 {preview.count > 3 && ` and ${preview.count - 3} more`}
               </p>
@@ -460,7 +460,7 @@ export default function SmartShelves() {
         <button
           onClick={() => navigate("/library")}
           data-testid="back-to-library"
-          className="flex items-center gap-2 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-6"
+          className="flex items-center gap-2 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-6"
         >
           <ArrowLeft className="w-4 h-4" /> Back to library
         </button>
@@ -473,7 +473,7 @@ export default function SmartShelves() {
             <h1 className="font-serif text-4xl sm:text-5xl text-[#2C2C2C]" data-testid="smart-shelves-title">
               Smart shelves
             </h1>
-            <p className="text-[#6B705C] mt-3">
+            <p className="text-[#5B5F4D] mt-3">
               Filters that stay alive — pin them to your dashboard for one-click access.
             </p>
           </div>
@@ -497,12 +497,12 @@ export default function SmartShelves() {
         </div>
 
         {loading ? (
-          <p className="text-[#6B705C] py-12 text-center">Loading…</p>
+          <p className="text-[#5B5F4D] py-12 text-center">Loading…</p>
         ) : shelves.length === 0 ? (
           <div className="shelf-card p-12 text-center">
             <Filter className="w-10 h-10 text-[#E07A5F] mx-auto mb-4 opacity-70" />
             <h2 className="font-serif text-2xl text-[#2C2C2C] mb-2">No smart shelves yet</h2>
-            <p className="text-[#6B705C] mb-6 max-w-md mx-auto">
+            <p className="text-[#5B5F4D] mb-6 max-w-md mx-auto">
               Combine tags, fandoms, authors, status, and word counts into living filters. "Long Harry Potter WIPs", "Comfort re-reads", "Quick non-fiction" — your library, your rules.
             </p>
             <button
@@ -532,7 +532,7 @@ export default function SmartShelves() {
                     <button
                       onClick={() => togglePin(s)}
                       data-testid={`toggle-pin-${s.shelf_id}`}
-                      className="p-1.5 rounded hover:bg-[#F5F3EC] text-[#6B705C]"
+                      className="p-1.5 rounded hover:bg-[#F5F3EC] text-[#5B5F4D]"
                       title={s.pinned ? "Unpin" : "Pin to dashboard"}
                     >
                       {s.pinned ? <PinOff className="w-4 h-4" /> : <Pin className="w-4 h-4" />}
@@ -540,7 +540,7 @@ export default function SmartShelves() {
                     <button
                       onClick={() => { setEditing(s); setBuilderOpen(true); }}
                       data-testid={`edit-${s.shelf_id}`}
-                      className="p-1.5 rounded hover:bg-[#F5F3EC] text-[#6B705C]"
+                      className="p-1.5 rounded hover:bg-[#F5F3EC] text-[#5B5F4D]"
                       title="Edit"
                     >
                       <Edit3 className="w-4 h-4" />
@@ -556,7 +556,7 @@ export default function SmartShelves() {
                   </div>
                 </div>
 
-                <p className="text-xs text-[#6B705C] mb-3">
+                <p className="text-xs text-[#5B5F4D] mb-3">
                   {(s.query?.combinator || "AND")} · {s.query?.rules?.length || 0} rule{s.query?.rules?.length === 1 ? "" : "s"}
                 </p>
 

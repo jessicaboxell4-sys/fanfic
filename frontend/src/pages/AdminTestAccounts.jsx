@@ -72,7 +72,7 @@ export default function AdminTestAccounts() {
         <Link
           to="/admin"
           data-testid="back-to-admin"
-          className="inline-flex items-center gap-2 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-6"
+          className="inline-flex items-center gap-2 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-6"
         >
           <ArrowLeft className="w-4 h-4" /> Back to Admin Console
         </Link>
@@ -89,7 +89,7 @@ export default function AdminTestAccounts() {
                   ? "No fixture accounts."
                   : `${rows.length} fixture account${rows.length === 1 ? "" : "s"}.`}
             </h1>
-            <p className="text-[#6B705C] mt-3 max-w-2xl">
+            <p className="text-[#5B5F4D] mt-3 max-w-2xl">
               Accounts whose email matches the test-fixture patterns
               (<code className="font-mono text-xs">@test.local</code>,
               <code className="font-mono text-xs"> @example.com</code>, prefixes like
@@ -105,7 +105,7 @@ export default function AdminTestAccounts() {
               onClick={load}
               disabled={loading}
               data-testid="test-accounts-refresh"
-              className="px-3 py-2 rounded-xl border border-[#E8E6E1] bg-white text-sm text-[#6B705C] hover:bg-[#F5F3EC] inline-flex items-center gap-2 disabled:opacity-50"
+              className="px-3 py-2 rounded-xl border border-[#E8E6E1] bg-white text-sm text-[#5B5F4D] hover:bg-[#F5F3EC] inline-flex items-center gap-2 disabled:opacity-50"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} /> Refresh
             </button>
@@ -123,12 +123,12 @@ export default function AdminTestAccounts() {
         </header>
 
         {loading ? (
-          <p className="text-[#6B705C] py-10 text-center" data-testid="test-accounts-loading">Loading…</p>
+          <p className="text-[#5B5F4D] py-10 text-center" data-testid="test-accounts-loading">Loading…</p>
         ) : rows.length === 0 ? (
           <div className="shelf-card p-10 text-center" data-testid="test-accounts-empty">
             <Check className="w-10 h-10 text-[#1F8F4E] mx-auto mb-4 opacity-70" />
             <h2 className="font-serif text-2xl text-[#2C2C2C] mb-2">All clean</h2>
-            <p className="text-[#6B705C] max-w-md mx-auto">
+            <p className="text-[#5B5F4D] max-w-md mx-auto">
               No fixture accounts in the database right now. The next test-agent run will land here.
             </p>
           </div>
@@ -145,11 +145,11 @@ export default function AdminTestAccounts() {
                 >
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-[#2C2C2C] truncate">{u.name || u.email}</p>
-                    <p className="text-xs text-[#6B705C] truncate font-mono">{u.email}</p>
+                    <p className="text-xs text-[#5B5F4D] truncate font-mono">{u.email}</p>
                     {u.username && (
-                      <p className="text-xs text-[#6B705C] mt-0.5">@{u.username}</p>
+                      <p className="text-xs text-[#5B5F4D] mt-0.5">@{u.username}</p>
                     )}
-                    <p className="text-xs text-[#6B705C] mt-1">
+                    <p className="text-xs text-[#5B5F4D] mt-1">
                       Created {fmtTime(u.created_at)}
                       {u.approved_at && ` · approved ${fmtTime(u.approved_at)}`}
                     </p>

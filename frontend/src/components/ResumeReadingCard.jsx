@@ -65,7 +65,7 @@ export default function ResumeReadingCard() {
           >
             {book.title || "Untitled"}
           </p>
-          <p className="text-sm text-[#6B705C] truncate">
+          <p className="text-sm text-[#5B5F4D] truncate">
             {book.author || "Unknown author"} · {pct}% in
           </p>
         </div>

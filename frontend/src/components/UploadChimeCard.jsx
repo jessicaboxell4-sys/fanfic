@@ -41,7 +41,7 @@ export default function UploadChimeCard() {
         </div>
         <div className="flex-1">
           <h2 className="font-serif text-2xl text-[#2C2C2C]">Upload chime</h2>
-          <p className="text-sm text-[#6B705C] mt-0.5">
+          <p className="text-sm text-[#5B5F4D] mt-0.5">
             Play a soft two-note tone when your last in-flight upload finishes — handy if you tab away while a big batch is sorting.
           </p>
         </div>
@@ -51,7 +51,7 @@ export default function UploadChimeCard() {
           <p className="text-sm font-semibold text-[#2C2C2C]">
             {enabled ? "Chime is on" : "Chime is off"}
           </p>
-          <p className="text-xs text-[#6B705C]">
+          <p className="text-xs text-[#5B5F4D]">
             Settings live on this device only — turn it on once per browser.
           </p>
         </div>
@@ -60,7 +60,7 @@ export default function UploadChimeCard() {
             type="button"
             onClick={preview}
             data-testid="upload-chime-preview-btn"
-            className="text-xs px-3 py-1.5 rounded border border-[#E5DDC5] text-[#6B705C] hover:bg-white"
+            className="text-xs px-3 py-1.5 rounded border border-[#E5DDC5] text-[#5B5F4D] hover:bg-white"
           >
             Preview
           </button>

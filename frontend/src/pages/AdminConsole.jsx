@@ -174,7 +174,7 @@ function Card({ icon: Icon, title, subtitle, children, testid }) {
         </div>
         <div className="flex-1 min-w-0">
           <h2 className="font-serif text-2xl text-[#2C2C2C]">{title}</h2>
-          {subtitle && <p className="text-sm text-[#6B705C] mt-0.5">{subtitle}</p>}
+          {subtitle && <p className="text-sm text-[#5B5F4D] mt-0.5">{subtitle}</p>}
         </div>
         <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-[0.15em] text-[#6B46C1] flex-shrink-0 pt-1.5">
           {open ? "Hide" : "Show"}
@@ -345,7 +345,7 @@ function PendingUsersCard() {
           </button>
           {refCampaigns.length > 0 && (
             <>
-              <span className="text-[10px] uppercase tracking-wider text-[#6B705C] ml-2">or by campaign:</span>
+              <span className="text-[10px] uppercase tracking-wider text-[#5B5F4D] ml-2">or by campaign:</span>
               {refCampaigns.map(([ref, n]) => (
                 <button
                   key={ref}
@@ -362,7 +362,7 @@ function PendingUsersCard() {
                     <Check className="w-3 h-3 text-[#1F8F4E]" />
                   )}
                   <span className="capitalize">{ref}</span>
-                  <span className="text-[#6B705C]">({n})</span>
+                  <span className="text-[#5B5F4D]">({n})</span>
                 </button>
               ))}
             </>
@@ -371,7 +371,7 @@ function PendingUsersCard() {
       )}
 
       {loading ? (
-        <p className="text-sm text-[#6B705C] italic" data-testid="admin-pending-loading">Loading…</p>
+        <p className="text-sm text-[#5B5F4D] italic" data-testid="admin-pending-loading">Loading…</p>
       ) : pending.length === 0 ? (
         <p className="text-sm text-[#1F8F4E] italic inline-flex items-center gap-1.5" data-testid="admin-pending-empty">
           <Check className="w-3.5 h-3.5" /> No one waiting. The queue is empty.
@@ -387,8 +387,8 @@ function PendingUsersCard() {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-[#2C2C2C]">{u.name || u.email}</p>
-                  <p className="text-xs text-[#6B705C]">{u.email}</p>
-                  <p className="text-xs text-[#6B705C] mt-0.5">
+                  <p className="text-xs text-[#5B5F4D]">{u.email}</p>
+                  <p className="text-xs text-[#5B5F4D] mt-0.5">
                     Signed up {fmtTime(u.created_at)}
                   </p>
                   {u?.onboarding?.referral && (
@@ -449,11 +449,11 @@ function PendingUsersCard() {
                     <button
                       type="button"
                       onClick={() => { setRejectingId(null); setRejectReason(""); }}
-                      className="px-3 py-1.5 rounded-full text-[#6B705C] text-xs font-medium hover:text-[#2C2C2C]"
+                      className="px-3 py-1.5 rounded-full text-[#5B5F4D] text-xs font-medium hover:text-[#2C2C2C]"
                     >
                       Cancel
                     </button>
-                    <span className="text-xs text-[#6B705C] ml-auto">{rejectReason.length}/500</span>
+                    <span className="text-xs text-[#5B5F4D] ml-auto">{rejectReason.length}/500</span>
                   </div>
                 </div>
               )}
@@ -495,7 +495,7 @@ function TodayPulseCard() {
       testid="admin-today-pulse-card"
     >
       {loading || !data ? (
-        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+        <p className="text-sm text-[#5B5F4D] italic">Loading…</p>
       ) : (
         <>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3" data-testid="admin-today-pulse-tiles">
@@ -661,7 +661,7 @@ function FeedbackInboxCard() {
       under_review: { bg: "bg-[#F5F0E0]", fg: "text-[#8B4F00]", label: "Reviewing" },
       planned: { bg: "bg-[#E8EEF5]", fg: "text-[#3A5A8C]", label: "Planned" },
       done: { bg: "bg-[#EEF3EC]", fg: "text-[#1F4D2A]", label: "Done" },
-      declined: { bg: "bg-[#F5F3EC]", fg: "text-[#6B705C]", label: "Declined" },
+      declined: { bg: "bg-[#F5F3EC]", fg: "text-[#5B5F4D]", label: "Declined" },
     };
     const t = map[s] || map.open;
     return <span className={`px-2 py-0.5 rounded-full ${t.bg} ${t.fg} text-xs font-medium`}>{t.label}</span>;
@@ -671,7 +671,7 @@ function FeedbackInboxCard() {
     bug: { fg: "text-[#B43F26]", label: "Bug" },
     improvement: { fg: "text-[#3A5A8C]", label: "Tweak" },
     feature: { fg: "text-[#6B46C1]", label: "Feature" },
-  }[c] || { fg: "text-[#6B705C]", label: c });
+  }[c] || { fg: "text-[#5B5F4D]", label: c });
 
   return (
     <Card
@@ -694,7 +694,7 @@ function FeedbackInboxCard() {
             onClick={() => setFilter(val)}
             data-testid={`feedback-filter-${val}`}
             className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-[0.15em] transition-colors ${
-              filter === val ? "bg-[#6B46C1] text-white" : "bg-[#F5F3EC] text-[#6B705C] hover:bg-[#E8E2D4]"
+              filter === val ? "bg-[#6B46C1] text-white" : "bg-[#F5F3EC] text-[#5B5F4D] hover:bg-[#E8E2D4]"
             }`}
           >
             {lbl}
@@ -716,14 +716,14 @@ function FeedbackInboxCard() {
           className={`ml-auto px-3 py-1 rounded-full text-xs font-bold uppercase tracking-[0.15em] transition-colors ${
             includeTests
               ? "bg-[#FDF3E1] text-[#B87A00] border border-[#B87A00]/30"
-              : "bg-[#F5F3EC] text-[#6B705C] hover:bg-[#E8E2D4] border border-transparent"
+              : "bg-[#F5F3EC] text-[#5B5F4D] hover:bg-[#E8E2D4] border border-transparent"
           }`}
         >
           {includeTests ? "🧪 Tests: shown" : "🧪 Tests: hidden"}
         </button>
       </div>
       {loading ? (
-        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+        <p className="text-sm text-[#5B5F4D] italic">Loading…</p>
       ) : items.length === 0 ? (
         <p className="text-sm text-[#1F8F4E] italic inline-flex items-center gap-1.5">
           <Check className="w-3.5 h-3.5" /> No {filter === "all" ? "" : filter.replace("_", " ")} feedback right now.
@@ -744,7 +744,7 @@ function FeedbackInboxCard() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className={`text-xs font-bold uppercase tracking-[0.15em] ${c.fg}`}>{c.label}</span>
                       {statusBadge(it.status)}
-                      <span className="text-xs text-[#6B705C]">· {it.votes_count} vote{it.votes_count === 1 ? "" : "s"}</span>
+                      <span className="text-xs text-[#5B5F4D]">· {it.votes_count} vote{it.votes_count === 1 ? "" : "s"}</span>
                       {it.has_attachment && (() => {
                         // Pick a label + accent based on MIME family
                         // so admins can spot screenshots vs log dumps
@@ -788,7 +788,7 @@ function FeedbackInboxCard() {
                       })()}
                     </div>
                     <p className="font-medium text-[#2C2C2C] mt-1">{it.title}</p>
-                    <p className="text-xs text-[#6B705C] mt-0.5">
+                    <p className="text-xs text-[#5B5F4D] mt-0.5">
                       {it.submitter_name || it.submitter_email || "Anonymous"} · {fmtTime(it.created_at)}
                     </p>
                   </div>
@@ -805,7 +805,7 @@ function FeedbackInboxCard() {
                     {it.body ? (
                       <p className="text-sm text-[#2C2C2C] whitespace-pre-wrap mb-3">{it.body}</p>
                     ) : (
-                      <p className="text-sm text-[#6B705C] italic mb-3">No description.</p>
+                      <p className="text-sm text-[#5B5F4D] italic mb-3">No description.</p>
                     )}
                     {it.has_attachment && (
                       <div className="mb-3" data-testid={`feedback-attachment-${it.suggestion_id}`}>
@@ -820,7 +820,7 @@ function FeedbackInboxCard() {
                           <Paperclip className="w-3 h-3" />
                           <span className="truncate max-w-[22ch]">{it.attachment_name || "attachment"}</span>
                           {it.attachment_size ? (
-                            <span className="text-[10px] text-[#6B705C]">
+                            <span className="text-[10px] text-[#5B5F4D]">
                               {it.attachment_size < 1024 * 1024
                                 ? `${Math.round(it.attachment_size / 1024)} KB`
                                 : `${(it.attachment_size / 1024 / 1024).toFixed(1)} MB`}
@@ -901,14 +901,14 @@ function FeedbackInboxCard() {
                 <h3 id="feedback-ship-modal-title" className="font-serif text-lg text-[#2C2C2C] dark:text-zinc-100 flex items-center gap-2">
                   <Send className="w-4 h-4 text-[#6B46C1]" /> Mark suggestion shipped
                 </h3>
-                <p className="text-xs text-[#6B705C] mt-1 truncate max-w-[36ch]" title={shipItem.title}>
+                <p className="text-xs text-[#5B5F4D] mt-1 truncate max-w-[36ch]" title={shipItem.title}>
                   &ldquo;{shipItem.title}&rdquo;
                 </p>
               </div>
               <button
                 onClick={closeShipModal}
                 disabled={shipBusy}
-                className="text-[#6B705C] hover:text-[#2C2C2C] disabled:opacity-50 p-1 -m-1"
+                className="text-[#5B5F4D] hover:text-[#2C2C2C] disabled:opacity-50 p-1 -m-1"
                 aria-label="Close"
                 data-testid="feedback-ship-modal-close"
               >
@@ -917,7 +917,7 @@ function FeedbackInboxCard() {
             </div>
             <div className="p-5 space-y-4">
               <div>
-                <label htmlFor="feedback-ship-note" className="block text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C] mb-1.5">
+                <label htmlFor="feedback-ship-note" className="block text-xs font-bold uppercase tracking-[0.15em] text-[#5B5F4D] mb-1.5">
                   Public note (optional)
                 </label>
                 <textarea
@@ -930,7 +930,7 @@ function FeedbackInboxCard() {
                   className="w-full px-3 py-2 rounded-lg border border-[#E5DDC5] dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm text-[#2C2C2C] dark:text-zinc-100 placeholder-[#A5A29A] focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/40 resize-none"
                   data-testid="feedback-ship-note-input"
                 />
-                <p className="text-[11px] text-[#6B705C] mt-1">
+                <p className="text-[11px] text-[#5B5F4D] mt-1">
                   Shown publicly on the <span className="font-medium">/changelog</span> credit row.
                 </p>
               </div>
@@ -946,11 +946,11 @@ function FeedbackInboxCard() {
                 <span className="text-sm text-[#2C2C2C] dark:text-zinc-100">
                   Send celebration email to <span className="font-medium">{shipItem.submitter_name || shipItem.submitter_email || "submitter"}</span>
                   {shipItem.shipped_credit_sent_at ? (
-                    <span className="block text-[11px] text-[#6B705C] mt-0.5 italic">
+                    <span className="block text-[11px] text-[#5B5F4D] mt-0.5 italic">
                       Already sent — re-shipping won&rsquo;t notify again.
                     </span>
                   ) : (
-                    <span className="block text-[11px] text-[#6B705C] mt-0.5">
+                    <span className="block text-[11px] text-[#5B5F4D] mt-0.5">
                       Fires the &ldquo;Your idea shipped!&rdquo; email (once per suggestion).
                     </span>
                   )}
@@ -961,7 +961,7 @@ function FeedbackInboxCard() {
               <button
                 onClick={closeShipModal}
                 disabled={shipBusy}
-                className="px-4 py-1.5 rounded-full text-sm text-[#6B705C] hover:text-[#2C2C2C] disabled:opacity-50"
+                className="px-4 py-1.5 rounded-full text-sm text-[#5B5F4D] hover:text-[#2C2C2C] disabled:opacity-50"
                 data-testid="feedback-ship-modal-cancel"
               >
                 Cancel
@@ -1049,7 +1049,7 @@ function HelpFeedbackCard() {
             onClick={() => { setStatus(val); setPageFilter(""); setExpanded(null); }}
             data-testid={`help-feedback-status-${val}`}
             className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-[0.15em] transition-colors ${
-              status === val ? "bg-[#6B46C1] text-white" : "bg-[#F5F3EC] text-[#6B705C] hover:bg-[#E8E2D4]"
+              status === val ? "bg-[#6B46C1] text-white" : "bg-[#F5F3EC] text-[#5B5F4D] hover:bg-[#E8E2D4]"
             }`}
           >
             {lbl}
@@ -1080,7 +1080,7 @@ function HelpFeedbackCard() {
           className={`${pageFilter ? "" : "ml-auto"} px-3 py-1 rounded-full text-xs font-bold uppercase tracking-[0.15em] transition-colors ${
             includeTests
               ? "bg-[#FDF3E1] text-[#B87A00] border border-[#B87A00]/30"
-              : "bg-[#F5F3EC] text-[#6B705C] hover:bg-[#E8E2D4] border border-transparent"
+              : "bg-[#F5F3EC] text-[#5B5F4D] hover:bg-[#E8E2D4] border border-transparent"
           }`}
         >
           {includeTests ? "🧪 Tests: shown" : "🧪 Tests: hidden"}
@@ -1088,7 +1088,7 @@ function HelpFeedbackCard() {
       </div>
 
       {loading ? (
-        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+        <p className="text-sm text-[#5B5F4D] italic">Loading…</p>
       ) : (
         <>
           {/* Per-page aggregation widget */}
@@ -1098,7 +1098,7 @@ function HelpFeedbackCard() {
             </p>
           ) : (
             <div className="mb-5" data-testid="help-feedback-by-page">
-              <p className="text-xs uppercase tracking-[0.15em] text-[#6B705C] font-bold mb-2">By page</p>
+              <p className="text-xs uppercase tracking-[0.15em] text-[#5B5F4D] font-bold mb-2">By page</p>
               <ul className="grid gap-1.5">
                 {byPage.map((r) => {
                   const active = pageFilter === r.page;
@@ -1117,7 +1117,7 @@ function HelpFeedbackCard() {
                         <span className="truncate font-mono text-xs">{r.page || "(unknown)"}</span>
                         <span className="flex items-center gap-2 flex-shrink-0">
                           {r.with_photo > 0 && (
-                            <span className="inline-flex items-center gap-0.5 text-[10px] uppercase tracking-[0.15em] text-[#6B705C]">
+                            <span className="inline-flex items-center gap-0.5 text-[10px] uppercase tracking-[0.15em] text-[#5B5F4D]">
                               <ImageIconAlias /> {r.with_photo}
                             </span>
                           )}
@@ -1134,7 +1134,7 @@ function HelpFeedbackCard() {
           {/* Drill-down list */}
           {rows.length > 0 && (
             <div data-testid="help-feedback-list">
-              <p className="text-xs uppercase tracking-[0.15em] text-[#6B705C] font-bold mb-2">
+              <p className="text-xs uppercase tracking-[0.15em] text-[#5B5F4D] font-bold mb-2">
                 {pageFilter ? `Entries on ${pageFilter}` : "Latest entries"} · {rows.length}
               </p>
               <ul className="space-y-2">
@@ -1150,9 +1150,9 @@ function HelpFeedbackCard() {
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs text-[#6B705C] font-mono truncate">{r.page || "(unknown)"}</p>
+                          <p className="text-xs text-[#5B5F4D] font-mono truncate">{r.page || "(unknown)"}</p>
                           <p className="text-sm text-[#2C2C2C] mt-0.5 line-clamp-2">{text}</p>
-                          <p className="text-xs text-[#6B705C] mt-1">
+                          <p className="text-xs text-[#5B5F4D] mt-1">
                             {r.user_email || r.user_id || "anonymous"} · {fmtTime(r.ts)}
                             {r.photo_b64 && <span className="ml-2 text-[#6B46C1] font-bold">· photo</span>}
                           </p>
@@ -1266,7 +1266,7 @@ function SignupRulesCard() {
       testid="admin-signup-rules-card"
     >
       {loading || !cfg ? (
-        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+        <p className="text-sm text-[#5B5F4D] italic">Loading…</p>
       ) : (
         <div className="space-y-5">
           {/* Two toggles */}
@@ -1282,7 +1282,7 @@ function SignupRulesCard() {
                   : "bg-[#FBFAF6] dark:bg-zinc-800/60 border-[#E5DDC5] dark:border-zinc-700 hover:border-[#6B46C1] text-[#2C2C2C] dark:text-zinc-100"
               } disabled:opacity-60`}
             >
-              <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C] dark:text-zinc-400">
+              <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#5B5F4D] dark:text-zinc-400">
                 Approval gate
               </p>
               <p className="font-medium mt-1">
@@ -1306,7 +1306,7 @@ function SignupRulesCard() {
                   : "bg-[#FBFAF6] dark:bg-zinc-800/60 border-[#E5DDC5] dark:border-zinc-700 hover:border-[#6B46C1] text-[#2C2C2C] dark:text-zinc-100"
               } disabled:opacity-60`}
             >
-              <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C] dark:text-zinc-400">
+              <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#5B5F4D] dark:text-zinc-400">
                 Onboarding questions
               </p>
               <p className="font-medium mt-1">
@@ -1324,10 +1324,10 @@ function SignupRulesCard() {
           {cfg.questions_enabled && stats && (
             <div className="rounded-xl border border-[#E5DDC5] dark:border-zinc-700 bg-[#FBFAF6] dark:bg-zinc-800/60 p-4" data-testid="signup-onboarding-stats">
               <div className="flex items-baseline justify-between mb-3">
-                <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C] dark:text-zinc-400">
+                <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#5B5F4D] dark:text-zinc-400">
                   Onboarding answers
                 </p>
-                <p className="text-xs text-[#6B705C] dark:text-zinc-400">
+                <p className="text-xs text-[#5B5F4D] dark:text-zinc-400">
                   {stats.total_with_onboarding} user{stats.total_with_onboarding === 1 ? "" : "s"} answered
                 </p>
               </div>
@@ -1336,7 +1336,7 @@ function SignupRulesCard() {
                 <StatList title="Reader type"        rows={stats.reader_type} testid="signup-stats-reader-type" />
                 <StatList title="Top fandoms"        rows={stats.favorite_fandoms} testid="signup-stats-favorite-fandoms" />
                 <div data-testid="signup-stats-age">
-                  <p className="text-xs uppercase tracking-[0.15em] text-[#6B705C] dark:text-zinc-400 font-bold mb-1.5">Age</p>
+                  <p className="text-xs uppercase tracking-[0.15em] text-[#5B5F4D] dark:text-zinc-400 font-bold mb-1.5">Age</p>
                   <p className="text-sm text-[#2C2C2C] dark:text-zinc-100">
                     13+: <strong>{stats.age_13_plus}</strong> · Under 13: <strong>{stats.age_under_13}</strong>
                   </p>
@@ -1356,7 +1356,7 @@ function SignupRulesCard() {
           {/* Rules editor */}
           <div className="rounded-xl border border-[#E5DDC5] dark:border-zinc-700 bg-[#FBFAF6] dark:bg-zinc-800/60 p-4">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C]">
+              <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#5B5F4D]">
                 Community rules (markdown)
               </p>
               <a
@@ -1391,11 +1391,11 @@ function SignupRulesCard() {
                   <button
                     type="button"
                     onClick={() => { setEditingRules(false); setDraftRules(cfg.rules_md || ""); }}
-                    className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C] hover:text-[#2C2C2C]"
+                    className="text-xs font-bold uppercase tracking-[0.15em] text-[#5B5F4D] hover:text-[#2C2C2C]"
                   >
                     Cancel
                   </button>
-                  <span className="text-[10px] text-[#6B705C] ml-auto">{draftRules.length}/50000</span>
+                  <span className="text-[10px] text-[#5B5F4D] ml-auto">{draftRules.length}/50000</span>
                 </div>
               </>
             ) : (
@@ -1414,7 +1414,7 @@ function SignupRulesCard() {
               </>
             )}
             {cfg.updated_at && (
-              <p className="text-[10px] text-[#6B705C] mt-2">
+              <p className="text-[10px] text-[#5B5F4D] mt-2">
                 Last updated {fmtTime(cfg.updated_at)}
               </p>
             )}
@@ -1460,10 +1460,10 @@ function InviteLinksWidget() {
   return (
     <div className="rounded-xl border border-[#E5DDC5] dark:border-zinc-700 bg-[#FBFAF6] dark:bg-zinc-800/60 p-4" data-testid="signup-invite-links">
       <div className="flex items-center justify-between mb-2">
-        <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C] dark:text-zinc-400">
+        <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#5B5F4D] dark:text-zinc-400">
           Tracked invite links
         </p>
-        <span className="text-[10px] text-[#6B705C] dark:text-zinc-400">
+        <span className="text-[10px] text-[#5B5F4D] dark:text-zinc-400">
           new sign-ups tagged in onboarding-stats
         </span>
       </div>
@@ -1537,7 +1537,7 @@ function CampaignStatsWidget() {
   return (
     <div className="rounded-xl border border-[#E5DDC5] dark:border-zinc-700 bg-[#FBFAF6] dark:bg-zinc-800/60 p-4" data-testid="signup-campaign-stats">
       <div className="flex items-center justify-between mb-2">
-        <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C] dark:text-zinc-400">
+        <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#5B5F4D] dark:text-zinc-400">
           Campaign conversion
         </p>
         <button
@@ -1550,19 +1550,19 @@ function CampaignStatsWidget() {
           <RotateCcw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} /> refresh
         </button>
       </div>
-      <p className="text-[11px] text-[#6B705C] dark:text-zinc-400 mb-3">
+      <p className="text-[11px] text-[#5B5F4D] dark:text-zinc-400 mb-3">
         Funnel for each tracked invite channel — real users only.
       </p>
 
       {loading ? (
-        <p className="text-xs text-[#6B705C] italic">Loading…</p>
+        <p className="text-xs text-[#5B5F4D] italic">Loading…</p>
       ) : rows.length === 0 ? (
-        <p className="text-xs text-[#6B705C] italic">No campaign data yet. Share a tracked invite link to start measuring.</p>
+        <p className="text-xs text-[#5B5F4D] italic">No campaign data yet. Share a tracked invite link to start measuring.</p>
       ) : (
         <div className="overflow-x-auto -mx-1">
           <table className="w-full text-xs" data-testid="campaign-stats-table">
             <thead>
-              <tr className="text-[10px] uppercase tracking-wider text-[#6B705C] dark:text-zinc-400 border-b border-[#E5DDC5] dark:border-zinc-700">
+              <tr className="text-[10px] uppercase tracking-wider text-[#5B5F4D] dark:text-zinc-400 border-b border-[#E5DDC5] dark:border-zinc-700">
                 <th className="text-left py-2 px-1 font-semibold">Channel</th>
                 <th className="text-right py-2 px-1 font-semibold" title="Landing-page visits with this ?ref= tag (deduped by IP/30-min window)">Clicks</th>
                 <th className="text-right py-2 px-1 font-semibold">Signups</th>
@@ -1585,17 +1585,17 @@ function CampaignStatsWidget() {
                     data-testid={`campaign-row-${r.ref || "organic"}`}
                     className="border-b border-[#E5DDC5]/40 dark:border-zinc-700/40 last:border-0"
                   >
-                    <td className={`py-1.5 px-1 ${isOrganic ? "italic text-[#6B705C]" : "text-[#2C2C2C] dark:text-zinc-100 font-medium"}`}>
+                    <td className={`py-1.5 px-1 ${isOrganic ? "italic text-[#5B5F4D]" : "text-[#2C2C2C] dark:text-zinc-100 font-medium"}`}>
                       {channelLabel(r.ref)}
                     </td>
                     <td className="text-right py-1.5 px-1 font-mono text-[#2C2C2C] dark:text-zinc-100">
                       {isOrganic ? (
-                        <span className="text-[#6B705C] dark:text-zinc-400">—</span>
+                        <span className="text-[#5B5F4D] dark:text-zinc-400">—</span>
                       ) : (
                         <>
                           {r.clicks || 0}
                           {(r.clicks || 0) > 0 && (
-                            <span className="text-[#6B705C] dark:text-zinc-400 ml-1">
+                            <span className="text-[#5B5F4D] dark:text-zinc-400 ml-1">
                               ({pct(r.signups, r.clicks)}%)
                             </span>
                           )}
@@ -1615,20 +1615,20 @@ function CampaignStatsWidget() {
                           {r.pending} <ChevronRight className="w-3 h-3" />
                         </button>
                       ) : (
-                        <span className="text-[#6B705C] dark:text-zinc-400">{r.pending || 0}</span>
+                        <span className="text-[#5B5F4D] dark:text-zinc-400">{r.pending || 0}</span>
                       )}
                     </td>
                     <td className="text-right py-1.5 px-1 font-mono text-[#2C2C2C] dark:text-zinc-100">
                       {r.approved}
-                      <span className="text-[#6B705C] dark:text-zinc-400 ml-1">({pct(r.approved, r.signups)}%)</span>
+                      <span className="text-[#5B5F4D] dark:text-zinc-400 ml-1">({pct(r.approved, r.signups)}%)</span>
                     </td>
                     <td className="text-right py-1.5 px-1 font-mono text-[#2C2C2C] dark:text-zinc-100">
                       {r.uploaded}
-                      <span className="text-[#6B705C] dark:text-zinc-400 ml-1">({pct(r.uploaded, r.signups)}%)</span>
+                      <span className="text-[#5B5F4D] dark:text-zinc-400 ml-1">({pct(r.uploaded, r.signups)}%)</span>
                     </td>
                     <td className="text-right py-1.5 px-1 font-mono text-[#2C2C2C] dark:text-zinc-100">
                       {r.active_7d}
-                      <span className="text-[#6B705C] dark:text-zinc-400 ml-1">({pct(r.active_7d, r.signups)}%)</span>
+                      <span className="text-[#5B5F4D] dark:text-zinc-400 ml-1">({pct(r.active_7d, r.signups)}%)</span>
                     </td>
                   </tr>
                 );
@@ -1645,15 +1645,15 @@ function CampaignStatsWidget() {
 // Small two-column count list reused inside SignupRulesCard.
 function StatList({ title, rows, testid }) {  return (
     <div data-testid={testid}>
-      <p className="text-xs uppercase tracking-[0.15em] text-[#6B705C] dark:text-zinc-400 font-bold mb-1.5">{title}</p>
+      <p className="text-xs uppercase tracking-[0.15em] text-[#5B5F4D] dark:text-zinc-400 font-bold mb-1.5">{title}</p>
       {!rows || rows.length === 0 ? (
-        <p className="text-xs text-[#6B705C] dark:text-zinc-400 italic">No answers yet.</p>
+        <p className="text-xs text-[#5B5F4D] dark:text-zinc-400 italic">No answers yet.</p>
       ) : (
         <ul className="space-y-0.5">
           {rows.map((r) => (
             <li key={r.label} className="flex justify-between text-sm">
               <span className="text-[#2C2C2C] dark:text-zinc-100 capitalize">{r.label}</span>
-              <span className="text-[#6B705C] dark:text-zinc-400 font-mono">{r.count}</span>
+              <span className="text-[#5B5F4D] dark:text-zinc-400 font-mono">{r.count}</span>
             </li>
           ))}
         </ul>
@@ -1701,7 +1701,7 @@ function AntivirusCard() {
       testid="admin-antivirus-card"
     >
       {loading || !status ? (
-        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+        <p className="text-sm text-[#5B5F4D] italic">Loading…</p>
       ) : (
         <div className="space-y-5">
           {/* Scanner status banner */}
@@ -1713,7 +1713,7 @@ function AntivirusCard() {
             }`}
             data-testid="av-status-banner"
           >
-            <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C] dark:text-zinc-400 mb-1">
+            <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#5B5F4D] dark:text-zinc-400 mb-1">
               Scanner status
             </p>
             <p className="font-medium text-[#2C2C2C] dark:text-zinc-100">
@@ -1734,10 +1734,10 @@ function AntivirusCard() {
             )}
             {!status.available && status?.diagnostics && (
               <details className="mt-2" data-testid="av-diagnostic-details">
-                <summary className="text-xs text-[#6B705C] dark:text-zinc-400 cursor-pointer hover:text-[#2C2C2C] dark:hover:text-zinc-200">
+                <summary className="text-xs text-[#5B5F4D] dark:text-zinc-400 cursor-pointer hover:text-[#2C2C2C] dark:hover:text-zinc-200">
                   Show full diagnostics ↓
                 </summary>
-                <ul className="text-xs text-[#6B705C] dark:text-zinc-400 mt-2 space-y-0.5 font-mono">
+                <ul className="text-xs text-[#5B5F4D] dark:text-zinc-400 mt-2 space-y-0.5 font-mono">
                   <li>binary: <span className="text-[#2C2C2C] dark:text-zinc-200">{status.diagnostics.binary_path || "—"}</span></li>
                   <li>kind: <span className="text-[#2C2C2C] dark:text-zinc-200">{status.diagnostics.binary_kind || "—"}</span></li>
                   <li>sig dir: <span className="text-[#2C2C2C] dark:text-zinc-200">{status.diagnostics.signature_dir}</span></li>
@@ -1748,11 +1748,11 @@ function AntivirusCard() {
               </details>
             )}
             {status.available && status.signature && (
-              <p className="text-xs text-[#6B705C] dark:text-zinc-400 mt-1">
+              <p className="text-xs text-[#5B5F4D] dark:text-zinc-400 mt-1">
                 Liveness signature: <code className="font-mono">{status.signature}</code>
               </p>
             )}
-            <div className="flex gap-4 mt-2 text-xs text-[#6B705C] dark:text-zinc-400">
+            <div className="flex gap-4 mt-2 text-xs text-[#5B5F4D] dark:text-zinc-400">
               <span>
                 Total quarantined: <strong className="text-[#2C2C2C] dark:text-zinc-100">{status.quarantine_total}</strong>
               </span>
@@ -1778,7 +1778,7 @@ function AntivirusCard() {
                 className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-[0.15em] transition-colors ${
                   sourceFilter === val
                     ? "bg-[#B43F26] text-white"
-                    : "bg-[#F5F3EC] text-[#6B705C] hover:bg-[#E8E2D4]"
+                    : "bg-[#F5F3EC] text-[#5B5F4D] hover:bg-[#E8E2D4]"
                 }`}
               >
                 {lbl}
@@ -1808,7 +1808,7 @@ function AntivirusCard() {
                       <p className="text-xs text-[#B43F26] font-mono mt-0.5">
                         {r.signature || "(no signature)"}
                       </p>
-                      <p className="text-xs text-[#6B705C] mt-1">
+                      <p className="text-xs text-[#5B5F4D] mt-1">
                         {r.user_id} · {r.source} · {fmtTime(r.ts)}
                         {r.elapsed_ms > 0 && <> · {r.elapsed_ms} ms</>}
                       </p>
@@ -2088,7 +2088,7 @@ function R2MigrationProgressCard() {
           )}
           <div>
             <div className="flex items-baseline justify-between text-xs mb-1">
-              <span className="text-[#6B705C]">Sample-based estimate</span>
+              <span className="text-[#5B5F4D]">Sample-based estimate</span>
               <span className={`font-mono ${tint.text}`}>
                 {data.sample_hit} / {data.sampled} sampled · <span className="font-semibold">~{data.percent}%</span>
               </span>
@@ -2099,15 +2099,15 @@ function R2MigrationProgressCard() {
           </div>
           <div className="grid grid-cols-3 gap-2 text-xs">
             <div className="bg-[#FBFAF6] border border-[#E5DDC5] rounded p-2">
-              <p className="text-[#6B705C] text-[10px] uppercase tracking-wider">Total books</p>
+              <p className="text-[#5B5F4D] text-[10px] uppercase tracking-wider">Total books</p>
               <p className="font-mono text-[#2C2C2C] text-base">{data.total.toLocaleString()}</p>
             </div>
             <div className="bg-[#FBFAF6] border border-[#E5DDC5] rounded p-2">
-              <p className="text-[#6B705C] text-[10px] uppercase tracking-wider">Est. on R2</p>
+              <p className="text-[#5B5F4D] text-[10px] uppercase tracking-wider">Est. on R2</p>
               <p className="font-mono text-[#2C2C2C] text-base">{data.estimated_migrated.toLocaleString()}</p>
             </div>
             <div className="bg-[#FBFAF6] border border-[#E5DDC5] rounded p-2">
-              <p className="text-[#6B705C] text-[10px] uppercase tracking-wider">Est. remaining</p>
+              <p className="text-[#5B5F4D] text-[10px] uppercase tracking-wider">Est. remaining</p>
               <p className="font-mono text-[#2C2C2C] text-base">{Math.max(0, data.total - data.estimated_migrated).toLocaleString()}</p>
             </div>
           </div>
@@ -2138,13 +2138,13 @@ function R2MigrationProgressCard() {
             </button>
           </div>
           {lastBackfill && (
-            <p className="text-[11px] text-[#6B705C] italic" data-testid="r2-migration-last-result">
+            <p className="text-[11px] text-[#5B5F4D] italic" data-testid="r2-migration-last-result">
               Last batch: {lastBackfill.migrated} migrated · {lastBackfill.already_on_r2} already · {lastBackfill.failed} failed · {lastBackfill.emergent_missing} missing in Emergent
             </p>
           )}
         </div>
       ) : (
-        <p className="text-sm text-[#6B705C]">{loading ? "Sampling…" : "Click refresh"}</p>
+        <p className="text-sm text-[#5B5F4D]">{loading ? "Sampling…" : "Click refresh"}</p>
       )}
     </Card>
   );
@@ -2244,7 +2244,7 @@ function OrphanCleanupCard() {
             {loading ? "Auditing…" : data ? "Re-audit" : "Run audit"}
           </button>
           {data && (
-            <p className="text-xs text-[#6B705C]" data-testid="orphan-audit-summary">
+            <p className="text-xs text-[#5B5F4D]" data-testid="orphan-audit-summary">
               Scanned <span className="font-mono">{data.scanned}</span> · found
               {" "}
               <span className="font-mono font-semibold text-[#E07A5F]">{data.orphan_count}</span>
@@ -2289,7 +2289,7 @@ function OrphanCleanupCard() {
             </div>
             <div className="overflow-x-auto border border-[#E5DDC5] rounded">
               <table className="w-full text-xs">
-                <thead className="bg-[#FBFAF6] text-[#6B705C] uppercase tracking-[0.12em] text-[10px]">
+                <thead className="bg-[#FBFAF6] text-[#5B5F4D] uppercase tracking-[0.12em] text-[10px]">
                   <tr>
                     <th className="text-left p-2 w-8"></th>
                     <th className="text-left p-2">Title</th>
@@ -2316,7 +2316,7 @@ function OrphanCleanupCard() {
                       </td>
                       <td className="p-2 align-top">
                         <p className="text-[#2C2C2C] font-medium truncate max-w-[28ch]">{o.title}</p>
-                        {o.author && <p className="text-[10px] text-[#6B705C] truncate max-w-[28ch]">{o.author}</p>}
+                        {o.author && <p className="text-[10px] text-[#5B5F4D] truncate max-w-[28ch]">{o.author}</p>}
                       </td>
                       <td className="p-2 align-top">
                         <p className="text-[#2C2C2C] truncate max-w-[24ch]">{o.owner_email || o.user_id}</p>
@@ -2327,9 +2327,9 @@ function OrphanCleanupCard() {
                         )}
                       </td>
                       <td className="p-2 align-top">
-                        <span className="font-mono text-[10px] text-[#6B705C] break-all">{o.filename}</span>
+                        <span className="font-mono text-[10px] text-[#5B5F4D] break-all">{o.filename}</span>
                       </td>
-                      <td className="p-2 align-top text-right font-mono text-[10px] text-[#6B705C]">
+                      <td className="p-2 align-top text-right font-mono text-[10px] text-[#5B5F4D]">
                         {fmtBytes(o.size_bytes || 0)}
                       </td>
                     </tr>
@@ -2341,14 +2341,14 @@ function OrphanCleanupCard() {
         )}
 
         {lastResult && (
-          <p className="text-[11px] text-[#6B705C] italic" data-testid="orphan-audit-last-result">
+          <p className="text-[11px] text-[#5B5F4D] italic" data-testid="orphan-audit-last-result">
             Last run: removed {lastResult.deleted}
             {lastResult.recovered?.length ? ` · skipped ${lastResult.recovered.length} recovered` : ""}
             {lastResult.not_found?.length ? ` · ${lastResult.not_found.length} not found` : ""}
           </p>
         )}
         {!data && !loading && (
-          <p className="text-xs text-[#6B705C]">
+          <p className="text-xs text-[#5B5F4D]">
             Click <span className="font-semibold">Run audit</span> to HEAD-check every book against R2 and Emergent.
             Safe — read-only until you click delete.
           </p>
@@ -2399,15 +2399,15 @@ function StorageByUserCard() {
       testid="admin-storage-by-user-card"
     >
       {loading || !data ? (
-        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+        <p className="text-sm text-[#5B5F4D] italic">Loading…</p>
       ) : data.users.length === 0 ? (
-        <p className="text-sm text-[#6B705C] italic">No uploads with size_bytes yet.</p>
+        <p className="text-sm text-[#5B5F4D] italic">No uploads with size_bytes yet.</p>
       ) : (
         <>
-          <p className="text-xs text-[#6B705C] mb-3">
+          <p className="text-xs text-[#5B5F4D] mb-3">
             Grand total: <strong className="font-bold text-[#2C2C2C]">{fmtBytes(data.grand_total_bytes)}</strong> across{" "}
             <strong className="font-bold text-[#2C2C2C]">{data.grand_total_books_with_size.toLocaleString()}</strong> books.
-            <span className="block text-[#6B705C] italic mt-0.5">
+            <span className="block text-[#5B5F4D] italic mt-0.5">
               (Books without ``size_bytes`` recorded contribute 0; about 58% of historical rows are missing this — they were uploaded before the field existed.)
             </span>
           </p>
@@ -2428,31 +2428,31 @@ function StorageByUserCard() {
                     onClick={() => expand(u.user_id)}
                     className="w-full text-left p-3 flex items-center gap-3"
                   >
-                    <span className="text-sm font-bold text-[#6B705C] tabular-nums w-7 text-right">{i + 1}.</span>
+                    <span className="text-sm font-bold text-[#5B5F4D] tabular-nums w-7 text-right">{i + 1}.</span>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-baseline gap-2">
                         <span className="font-medium text-[#2C2C2C] truncate">{u.name}</span>
                         {u.username && <span className="text-xs text-[#6B46C1]">@{u.username}</span>}
                       </div>
-                      <p className="text-xs text-[#6B705C] truncate">{u.email}</p>
+                      <p className="text-xs text-[#5B5F4D] truncate">{u.email}</p>
                     </div>
                     <div className="text-right flex-shrink-0">
                       <p className="font-mono text-sm text-[#2C2C2C]">{fmtBytes(u.total_bytes)}</p>
-                      <p className="text-xs text-[#6B705C]">
+                      <p className="text-xs text-[#5B5F4D]">
                         {u.book_count.toLocaleString()} books · {pct.toFixed(1)}%
                       </p>
                     </div>
                     <ChevronRight
-                      className={`w-4 h-4 text-[#6B705C] flex-shrink-0 transition-transform ${open ? "rotate-90" : ""}`}
+                      className={`w-4 h-4 text-[#5B5F4D] flex-shrink-0 transition-transform ${open ? "rotate-90" : ""}`}
                     />
                   </button>
                   {open && (
                     <div className="px-3 pb-3 border-t border-[#E5DDC5]" data-testid={`storage-drill-${u.user_id}`}>
                       {drillLoading && !drilldown[u.user_id] ? (
-                        <p className="text-xs text-[#6B705C] italic py-2">Loading books…</p>
+                        <p className="text-xs text-[#5B5F4D] italic py-2">Loading books…</p>
                       ) : drilldown[u.user_id] ? (
                         <>
-                          <p className="text-xs text-[#6B705C] py-2">
+                          <p className="text-xs text-[#5B5F4D] py-2">
                             Showing {drilldown[u.user_id].showing} of {drilldown[u.user_id].total_books.toLocaleString()} books, biggest first.
                           </p>
                           <ul className="space-y-1 max-h-72 overflow-y-auto">
@@ -2465,7 +2465,7 @@ function StorageByUserCard() {
                                   <span className="text-[#2C2C2C] truncate inline-block max-w-full">{b.title}</span>
                                   {b.fandom && <span className="text-[#6B46C1] ml-2">· {b.fandom}</span>}
                                 </div>
-                                <span className="font-mono text-[#6B705C] flex-shrink-0">
+                                <span className="font-mono text-[#5B5F4D] flex-shrink-0">
                                   {b.size_bytes ? fmtBytes(b.size_bytes) : "—"}
                                 </span>
                               </li>
@@ -2538,7 +2538,7 @@ function StorageTrendCard() {
             onClick={() => setDays(d)}
             data-testid={`storage-trend-days-${d}`}
             className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-[0.15em] transition-colors ${
-              days === d ? "bg-[#6B46C1] text-white" : "bg-[#F5F3EC] text-[#6B705C] hover:bg-[#E8E2D4]"
+              days === d ? "bg-[#6B46C1] text-white" : "bg-[#F5F3EC] text-[#5B5F4D] hover:bg-[#E8E2D4]"
             }`}
           >
             {d}d
@@ -2546,20 +2546,20 @@ function StorageTrendCard() {
         ))}
       </div>
       {loading || !data ? (
-        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+        <p className="text-sm text-[#5B5F4D] italic">Loading…</p>
       ) : (
         <>
           <div className="flex items-baseline gap-4 mb-3">
             <div>
-              <p className="text-xs uppercase tracking-wider text-[#6B705C]">Now</p>
+              <p className="text-xs uppercase tracking-wider text-[#5B5F4D]">Now</p>
               <p className="font-mono text-lg text-[#2C2C2C]">{fmtBytes(data.latest?.total_bytes || 0)}</p>
             </div>
             <div>
-              <p className="text-xs uppercase tracking-wider text-[#6B705C]">Growth · {days}d</p>
+              <p className="text-xs uppercase tracking-wider text-[#5B5F4D]">Growth · {days}d</p>
               <p className="font-mono text-lg text-[#1F8F4E]">+{fmtBytes(data.growth_bytes || 0)}</p>
             </div>
             <div>
-              <p className="text-xs uppercase tracking-wider text-[#6B705C]">Books</p>
+              <p className="text-xs uppercase tracking-wider text-[#5B5F4D]">Books</p>
               <p className="font-mono text-lg text-[#2C2C2C]">{(data.latest?.book_count || 0).toLocaleString()}</p>
             </div>
           </div>
@@ -2580,11 +2580,11 @@ function StorageTrendCard() {
               <path d={linePath} fill="none" stroke="#6B46C1" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
             )}
           </svg>
-          <div className="flex items-center justify-between text-xs text-[#6B705C] mt-1">
+          <div className="flex items-center justify-between text-xs text-[#5B5F4D] mt-1">
             <span>{pts[0]?.date}</span>
             <span>{pts[pts.length - 1]?.date}</span>
           </div>
-          <p className="text-xs text-[#6B705C] italic mt-2">
+          <p className="text-xs text-[#5B5F4D] italic mt-2">
             Computed from books.created_at + size_bytes — no snapshot cron required.
             Each call writes a snapshot row so a future daily cron can pick up cheaply.
           </p>
@@ -2651,8 +2651,8 @@ function ViewConsentsCard() {
     granted: { bg: "bg-[#EEF3EC]", fg: "text-[#1F4D2A]", label: "Active" },
     denied: { bg: "bg-[#FBE9E5]", fg: "text-[#B43F26]", label: "Denied" },
     revoked: { bg: "bg-[#FBE9E5]", fg: "text-[#B43F26]", label: "Revoked" },
-    expired: { bg: "bg-[#F5F3EC]", fg: "text-[#6B705C]", label: "Expired" },
-  }[status] || { bg: "bg-[#F5F3EC]", fg: "text-[#6B705C]", label: status });
+    expired: { bg: "bg-[#F5F3EC]", fg: "text-[#5B5F4D]", label: "Expired" },
+  }[status] || { bg: "bg-[#F5F3EC]", fg: "text-[#5B5F4D]", label: status });
 
   const active = consents.filter((c) => c.status === "granted");
   const pending = consents.filter((c) => c.status === "pending");
@@ -2690,14 +2690,14 @@ function ViewConsentsCard() {
           >
             {submitting ? "Sending…" : "Send request"}
           </button>
-          <span className="text-xs text-[#6B705C] ml-auto">{reason.length}/500</span>
+          <span className="text-xs text-[#5B5F4D] ml-auto">{reason.length}/500</span>
         </div>
       </form>
 
       {loading ? (
-        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+        <p className="text-sm text-[#5B5F4D] italic">Loading…</p>
       ) : consents.length === 0 ? (
-        <p className="text-sm text-[#6B705C] italic">No view requests yet.</p>
+        <p className="text-sm text-[#5B5F4D] italic">No view requests yet.</p>
       ) : (
         <div className="space-y-3">
           {[
@@ -2706,7 +2706,7 @@ function ViewConsentsCard() {
             { label: "Past 30 days", rows: past },
           ].filter((g) => g.rows.length > 0).map((g) => (
             <div key={g.label}>
-              <p className="text-xs uppercase tracking-wider text-[#6B705C] mb-1.5">{g.label}</p>
+              <p className="text-xs uppercase tracking-wider text-[#5B5F4D] mb-1.5">{g.label}</p>
               <ul className="space-y-1.5" data-testid={`view-consent-group-${g.label.toLowerCase().replace(/\s+/g, "-")}`}>
                 {g.rows.map((c) => {
                   const t = tone(c.status);
@@ -2718,8 +2718,8 @@ function ViewConsentsCard() {
                     >
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-[#2C2C2C] truncate">{c.user_name || c.user_email}</p>
-                        <p className="text-xs text-[#6B705C] truncate">{c.user_email}</p>
-                        {c.reason && <p className="text-xs text-[#6B705C] italic mt-0.5">"{c.reason}"</p>}
+                        <p className="text-xs text-[#5B5F4D] truncate">{c.user_email}</p>
+                        {c.reason && <p className="text-xs text-[#5B5F4D] italic mt-0.5">"{c.reason}"</p>}
                       </div>
                       <span className={`px-2 py-0.5 rounded-full ${t.bg} ${t.fg} text-xs font-medium flex-shrink-0`}>
                         {t.label}
@@ -2734,7 +2734,7 @@ function ViewConsentsCard() {
                             View now
                           </Link>
                           {c.expires_at && (
-                            <span className="text-xs text-[#6B705C] flex-shrink-0">
+                            <span className="text-xs text-[#5B5F4D] flex-shrink-0">
                               expires {new Date(c.expires_at).toLocaleString(undefined, {dateStyle:"short",timeStyle:"short"})}
                             </span>
                           )}
@@ -2845,7 +2845,7 @@ function UsersCard() {
           {u.is_moderator && (
             <span
               data-testid={`admin-user-mod-badge-${u.user_id}`}
-              className="ml-2 inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.15em] text-[#3D8B79] font-bold bg-[#E0F0EA] px-1.5 py-0.5 rounded"
+              className="ml-2 inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.15em] text-[#2F6E60] font-bold bg-[#E0F0EA] px-1.5 py-0.5 rounded"
               title="Moderator — can approve sign-ups and lock bookclub rooms"
             >
               <ShieldCheck className="w-3 h-3" /> Mod
@@ -2853,7 +2853,7 @@ function UsersCard() {
           )}
           {isTestUser(u) && (
             <span
-              className="ml-2 inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.15em] text-[#6B705C] font-bold bg-[#F2EDDF] px-1.5 py-0.5 rounded"
+              className="ml-2 inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.15em] text-[#5B5F4D] font-bold bg-[#F2EDDF] px-1.5 py-0.5 rounded"
               title="Heuristic match — looks like a test/QA account (example.com domain, test+ alias, etc.)"
               data-testid={`admin-user-testbadge-${u.user_id}`}
             >
@@ -2861,7 +2861,7 @@ function UsersCard() {
             </span>
           )}
         </p>
-        <p className="text-xs text-[#6B705C] truncate">{u.email} · {u.book_count} book{u.book_count === 1 ? "" : "s"} · joined {fmtTime(u.created_at)}</p>
+        <p className="text-xs text-[#5B5F4D] truncate">{u.email} · {u.book_count} book{u.book_count === 1 ? "" : "s"} · joined {fmtTime(u.created_at)}</p>
       </div>
       <div className="flex items-center gap-1.5 flex-shrink-0">
         {/* Mod toggle — distinct from the admin toggle on its right. */}
@@ -2873,7 +2873,7 @@ function UsersCard() {
           className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-colors flex items-center gap-1 ${
             u.is_moderator
               ? "text-[#9B3531] hover:bg-[#FBE9E7]"
-              : "text-[#3D8B79] hover:bg-[#E0F0EA]"
+              : "text-[#2F6E60] hover:bg-[#E0F0EA]"
           }`}
           title={u.is_moderator ? "Remove the moderator flag" : "Make this user a moderator"}
         >
@@ -2900,13 +2900,13 @@ function UsersCard() {
   return (
     <Card icon={Users} title="Users & admins" subtitle="Promote or demote any account. The last admin cannot be demoted." testid="admin-users-card">
       {loading ? (
-        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+        <p className="text-sm text-[#5B5F4D] italic">Loading…</p>
       ) : (
         <>
           {/* Real users — always visible.  This is the list admins
               actually care about day-to-day. */}
           <div className="flex items-baseline justify-between mb-2">
-            <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C]">
+            <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#5B5F4D]">
               Real users
               <span className="ml-2 font-normal normal-case text-[#9B9B8C]">({realUsers.length})</span>
             </p>
@@ -2914,7 +2914,7 @@ function UsersCard() {
           <ul className="space-y-1.5" data-testid="admin-users-list">
             {realUsers.map(renderRow)}
             {realUsers.length === 0 && (
-              <li className="text-sm text-[#6B705C] italic px-3 py-2">No real users yet.</li>
+              <li className="text-sm text-[#5B5F4D] italic px-3 py-2">No real users yet.</li>
             )}
           </ul>
 
@@ -2923,7 +2923,7 @@ function UsersCard() {
               need to demote or audit them. */}
           {testUsers.length > 0 && (
             <details className="mt-4 group" data-testid="admin-users-test-collapse">
-              <summary className="cursor-pointer select-none flex items-baseline justify-between px-1 py-1.5 text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C] hover:text-[#2C2C2C]">
+              <summary className="cursor-pointer select-none flex items-baseline justify-between px-1 py-1.5 text-xs font-bold uppercase tracking-[0.15em] text-[#5B5F4D] hover:text-[#2C2C2C]">
                 <span>
                   Test / QA accounts
                   <span className="ml-2 font-normal normal-case text-[#9B9B8C]">({testUsers.length})</span>
@@ -3211,7 +3211,7 @@ function MaintenanceBannerCard() {
             data-testid="admin-banner-message"
             className="w-full px-3 py-2 rounded-lg border border-[#E5DDC5] bg-white text-sm text-[#2C2C2C] focus:outline-none focus:border-[#E07A5F]"
           />
-          <p className="text-xs text-[#6B705C] mt-1">{message.length}/240</p>
+          <p className="text-xs text-[#5B5F4D] mt-1">{message.length}/240</p>
         </div>
         <div>
           <label className="block text-xs font-bold uppercase tracking-[0.15em] text-[#6B46C1] mb-1">Severity</label>
@@ -3242,7 +3242,7 @@ function MaintenanceBannerCard() {
             NewVersionBanner component already auto-detects the new
             backend boot_id and prompts users to refresh per-tab. */}
         <div className="pt-2 border-t border-[#E5DDC5] flex flex-wrap gap-2">
-          <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#6B705C] w-full mb-1">
+          <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#5B5F4D] w-full mb-1">
             Deploy presets
           </span>
           <button
@@ -3514,7 +3514,7 @@ function StuckUploadsCard() {
       testid="admin-stuck-uploads-card"
     >
       <div className="flex items-center justify-between mb-3">
-        <p className="text-xs text-[#6B705C]" data-testid="admin-stuck-uploads-count">
+        <p className="text-xs text-[#5B5F4D]" data-testid="admin-stuck-uploads-count">
           {loading && !data
             ? "Loading…"
             : count === 0
@@ -3551,7 +3551,7 @@ function StuckUploadsCard() {
                   <span className="inline-block w-2 h-2 rounded-full shrink-0 bg-[#C5564B]" aria-hidden="true" />
                   <code className="font-semibold">{j.job_id}</code>
                   <span className="text-[11px] opacity-80">· {j.status} · {age} old · {j.total} file{j.total === 1 ? "" : "s"}</span>
-                  <span className="ml-auto text-[10px] text-[#A09A8B]">user {j.user_id}</span>
+                  <span className="ml-auto text-[10px] text-[#6E6E6E]">user {j.user_id}</span>
                 </div>
                 {j.error && (
                   <p className="text-[11px] italic opacity-90 pl-4">{j.error}</p>
@@ -3600,7 +3600,7 @@ function HealthCard() {
   if (loading || !health) {
     return (
       <Card icon={Activity} title="System health" testid="admin-health-card">
-        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+        <p className="text-sm text-[#5B5F4D] italic">Loading…</p>
       </Card>
     );
   }
@@ -3622,7 +3622,7 @@ function HealthCard() {
           auto_paused === true so it pops on a busy admin page. */}
       {Array.isArray(health.watchdogs) && health.watchdogs.length > 0 && (
         <div className="mb-4" data-testid="admin-health-watchdogs">
-          <div className="text-[10px] uppercase tracking-[0.15em] text-[#6B705C] mb-1.5 font-semibold">
+          <div className="text-[10px] uppercase tracking-[0.15em] text-[#5B5F4D] mb-1.5 font-semibold">
             Automated guardians
           </div>
           <div className="space-y-1.5">
@@ -3645,10 +3645,10 @@ function HealthCard() {
                 >
                   <span className={`inline-block w-2 h-2 rounded-full shrink-0 ${paused ? "bg-[#C5564B]" : "bg-[#5C8A5C]"}`} aria-hidden="true" />
                   <span className="font-semibold shrink-0">{w.name}</span>
-                  <span className="ml-auto text-[11px] text-[#6B705C] shrink-0">
+                  <span className="ml-auto text-[11px] text-[#5B5F4D] shrink-0">
                     {paused ? "🛑 auto-paused" : "✓ active"}
                   </span>
-                  <span className="text-[11px] text-[#A09A8B] shrink-0">· checked {last}</span>
+                  <span className="text-[11px] text-[#6E6E6E] shrink-0">· checked {last}</span>
                 </div>
               );
             })}
@@ -3664,12 +3664,12 @@ function HealthCard() {
       <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-4" data-testid="admin-health-collections">
         {Object.entries(health.collections || {}).map(([name, n]) => (
           <div key={name} className="text-xs bg-[#FBFAF6] border border-[#E5DDC5] rounded-lg px-3 py-2">
-            <p className="text-[#6B705C] truncate">{name}</p>
+            <p className="text-[#5B5F4D] truncate">{name}</p>
             <p className="font-semibold text-[#2C2C2C]">{n.toLocaleString()}</p>
           </div>
         ))}
       </div>
-      <div className="text-xs text-[#6B705C]" data-testid="admin-health-storage">
+      <div className="text-xs text-[#5B5F4D]" data-testid="admin-health-storage">
         Storage: <strong className="text-[#2C2C2C]">{fmtBytes(health.storage?.used_bytes)}</strong> used / {fmtBytes(health.storage?.total_bytes)} total
         ({fmtBytes(health.storage?.free_bytes)} free) on <code>{health.storage?.path}</code>
       </div>
@@ -3738,7 +3738,7 @@ function GlobalAliasesCard() {
           data-testid="admin-aliases-from"
           className="flex-1 px-3 py-2 rounded-lg border border-[#E5DDC5] bg-white text-sm focus:outline-none focus:border-[#E07A5F]"
         />
-        <span className="self-center text-[#6B705C] hidden md:inline">→</span>
+        <span className="self-center text-[#5B5F4D] hidden md:inline">→</span>
         <input
           type="text"
           value={to}
@@ -3758,7 +3758,7 @@ function GlobalAliasesCard() {
         </button>
       </div>
       {entries.length === 0 ? (
-        <p className="text-xs text-[#6B705C] italic" data-testid="admin-aliases-empty">No global aliases yet.</p>
+        <p className="text-xs text-[#5B5F4D] italic" data-testid="admin-aliases-empty">No global aliases yet.</p>
       ) : (
         <ul className="space-y-1" data-testid="admin-aliases-list">
           {entries.map(([k, v]) => (
@@ -3787,7 +3787,7 @@ function GlobalAliasesCard() {
 function StatTile({ label, value }) {
   return (
     <div className="bg-[#FBFAF6] border border-[#E5DDC5] rounded-lg p-3">
-      <p className="text-xs text-[#6B705C] uppercase tracking-[0.15em]">{label}</p>
+      <p className="text-xs text-[#5B5F4D] uppercase tracking-[0.15em]">{label}</p>
       <p className="text-2xl font-serif text-[#2C2C2C]">{value}</p>
     </div>
   );
@@ -3815,7 +3815,7 @@ function GlobalStatsCard() {
   if (loading || !stats) {
     return (
       <Card icon={BarChart3} title="Global stats" testid="admin-stats-card">
-        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+        <p className="text-sm text-[#5B5F4D] italic">Loading…</p>
       </Card>
     );
   }
@@ -3863,7 +3863,7 @@ function CondensedRankList({ title, items, showAll, onToggle, testid }) {
   return (
     <div>
       <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B46C1] mb-1.5 flex items-center justify-between">
-        <span>{title} <span className="text-[#6B705C] font-normal lowercase tracking-normal">({items.length})</span></span>
+        <span>{title} <span className="text-[#5B5F4D] font-normal lowercase tracking-normal">({items.length})</span></span>
         {overflow > 0 && (
           <button
             type="button"
@@ -3888,7 +3888,7 @@ function CondensedRankList({ title, items, showAll, onToggle, testid }) {
         ))}
         {!showAll && overflow > 0 && (
           <li
-            className="text-[11px] italic text-[#6B705C] text-center pt-1"
+            className="text-[11px] italic text-[#5B5F4D] text-center pt-1"
             data-testid={`${testid}-overflow-hint`}
           >
             + {overflow} more
@@ -3932,7 +3932,7 @@ function FeatureFlagsCard() {
   return (
     <Card icon={ToggleLeft} title="Feature flags" subtitle="Runtime kill switches for heavy / external dependencies. Defaults: all on." testid="admin-flags-card">
       {loading ? (
-        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+        <p className="text-sm text-[#5B5F4D] italic">Loading…</p>
       ) : (
         <ul className="space-y-1.5" data-testid="admin-flags-list">
           {Object.keys(known).map((key) => {
@@ -3941,7 +3941,7 @@ function FeatureFlagsCard() {
               <li key={key} className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-[#FBFAF6] border border-[#E5DDC5]" data-testid={`admin-flag-row-${key}`}>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold text-[#2C2C2C]"><code>{key}</code></p>
-                  <p className="text-xs text-[#6B705C]">{known[key]}</p>
+                  <p className="text-xs text-[#5B5F4D]">{known[key]}</p>
                 </div>
                 <button
                   type="button"
@@ -4021,19 +4021,19 @@ function AuditLogCard() {
   return (
     <Card icon={ClipboardList} title="Audit log" subtitle="Every admin write action across the app. Newest first, capped at the most recent 50 in this view; export pulls up to 500." testid="admin-audit-card">
       {loading ? (
-        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+        <p className="text-sm text-[#5B5F4D] italic">Loading…</p>
       ) : entries.length === 0 ? (
-        <p className="text-sm text-[#6B705C] italic" data-testid="admin-audit-empty">No audit entries yet.</p>
+        <p className="text-sm text-[#5B5F4D] italic" data-testid="admin-audit-empty">No audit entries yet.</p>
       ) : (
         <ul className="space-y-1" data-testid="admin-audit-list">
           {entries.map((e, i) => (
             <li key={e._id || `${e.actor_email}-${e.ts}-${i}`} className="text-xs px-2.5 py-1.5 rounded bg-[#FBFAF6] border border-[#E5DDC5]" data-testid={`admin-audit-row-${i}`}>
               <div className="flex items-center justify-between gap-2">
-                <span><strong>{e.action}</strong> by <span className="text-[#6B705C]">{e.actor_email}</span></span>
-                <span className="text-[#6B705C] flex-shrink-0">{fmtTime(e.ts)}</span>
+                <span><strong>{e.action}</strong> by <span className="text-[#5B5F4D]">{e.actor_email}</span></span>
+                <span className="text-[#5B5F4D] flex-shrink-0">{fmtTime(e.ts)}</span>
               </div>
               {(e.target || (e.metadata && Object.keys(e.metadata).length > 0)) && (
-                <p className="text-[#6B705C] mt-0.5 truncate">
+                <p className="text-[#5B5F4D] mt-0.5 truncate">
                   {e.target && <code className="mr-2">{e.target}</code>}
                   {e.metadata && Object.keys(e.metadata).length > 0 && JSON.stringify(e.metadata)}
                 </p>
@@ -4081,11 +4081,11 @@ function UnknownFandomRow({ r, isDismissed, busy, onRescan, onDismiss, onUndismi
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-[#2C2C2C] truncate">
           {r.fandom}
-          <span className="ml-2 text-xs text-[#6B705C] font-normal">{r.count} book{r.count === 1 ? "" : "s"}</span>
-          {isDismissed && <span className="ml-2 text-[10px] uppercase tracking-[0.15em] text-[#6B705C] font-bold">DISMISSED</span>}
+          <span className="ml-2 text-xs text-[#5B5F4D] font-normal">{r.count} book{r.count === 1 ? "" : "s"}</span>
+          {isDismissed && <span className="ml-2 text-[10px] uppercase tracking-[0.15em] text-[#5B5F4D] font-bold">DISMISSED</span>}
         </p>
         {r.sample_book_ids?.length > 0 && (
-          <p className="text-xs text-[#6B705C] truncate">
+          <p className="text-xs text-[#5B5F4D] truncate">
             Sample IDs: <code>{r.sample_book_ids.slice(0, 3).join(", ")}</code>
           </p>
         )}
@@ -4108,7 +4108,7 @@ function UnknownFandomRow({ r, isDismissed, busy, onRescan, onDismiss, onUndismi
             onClick={() => onUndismiss(r.fandom)}
             disabled={busy === `undismiss:${r.fandom}`}
             data-testid={`admin-unknown-fandom-undismiss-${r.fandom}`}
-            className="text-xs px-3 py-1.5 rounded-lg text-[#6B705C] hover:bg-[#F5F3EC] inline-flex items-center gap-1"
+            className="text-xs px-3 py-1.5 rounded-lg text-[#5B5F4D] hover:bg-[#F5F3EC] inline-flex items-center gap-1"
           >
             {busy === `undismiss:${r.fandom}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <ChevronRight className="w-3 h-3" />}
             Restore
@@ -4119,7 +4119,7 @@ function UnknownFandomRow({ r, isDismissed, busy, onRescan, onDismiss, onUndismi
             onClick={() => onDismiss(r.fandom)}
             disabled={busy === `dismiss:${r.fandom}`}
             data-testid={`admin-unknown-fandom-dismiss-${r.fandom}`}
-            className="text-xs px-3 py-1.5 rounded-lg text-[#6B705C] hover:bg-[#F5F3EC] inline-flex items-center gap-1"
+            className="text-xs px-3 py-1.5 rounded-lg text-[#5B5F4D] hover:bg-[#F5F3EC] inline-flex items-center gap-1"
           >
             {busy === `dismiss:${r.fandom}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <XIcon className="w-3 h-3" />}
             Dismiss
@@ -4186,7 +4186,7 @@ function UnknownFandomsCard() {
   return (
     <Card icon={AlertOctagon} title="Unknown fandoms" subtitle="Fandoms appearing in book records that aren't in the keyword classifier yet. Rescan re-runs the classifier on existing books (no AI, no re-parse). Dismiss to hide permanently." testid="admin-unknown-fandoms-card">
       {loading ? (
-        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+        <p className="text-sm text-[#5B5F4D] italic">Loading…</p>
       ) : (
         <>
           {rows.length === 0 ? (
@@ -4210,7 +4210,7 @@ function UnknownFandomsCard() {
           )}
           {dismissedRows.length > 0 && (
             <details className="mt-4" data-testid="admin-unknown-fandoms-dismissed-details">
-              <summary className="text-xs font-semibold text-[#6B705C] cursor-pointer hover:text-[#2C2C2C]">
+              <summary className="text-xs font-semibold text-[#5B5F4D] cursor-pointer hover:text-[#2C2C2C]">
                 Dismissed ({dismissedRows.length}) — still scannable
               </summary>
               <ul className="mt-2 space-y-1.5" data-testid="admin-unknown-fandoms-dismissed-list">
@@ -4328,7 +4328,7 @@ function CrossoverSuggestionsCard() {
             key={t.id}
             type="button"
             onClick={() => setStatus(t.id)}
-            className={`px-2.5 py-1 rounded-full border transition-colors ${status === t.id ? "bg-[#6B46C1] text-white border-[#6B46C1]" : "bg-white text-[#6B705C] border-[#E4D9C8] hover:bg-[#FDF3E1]"}`}
+            className={`px-2.5 py-1 rounded-full border transition-colors ${status === t.id ? "bg-[#6B46C1] text-white border-[#6B46C1]" : "bg-white text-[#5B5F4D] border-[#E4D9C8] hover:bg-[#FDF3E1]"}`}
             data-testid={`admin-crossover-suggestions-tab-${t.id}`}
           >
             {t.label}
@@ -4337,7 +4337,7 @@ function CrossoverSuggestionsCard() {
       </div>
 
       {loading ? (
-        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+        <p className="text-sm text-[#5B5F4D] italic">Loading…</p>
       ) : rows.length === 0 ? (
         <p className="text-sm text-[#6B46C1] inline-flex items-center gap-1.5" data-testid="admin-crossover-suggestions-empty">
           <Check className="w-4 h-4" /> No {status} suggestions.
@@ -4356,8 +4356,8 @@ function CrossoverSuggestionsCard() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="font-medium text-sm text-[#2C2C2C] truncate" title={r.title}>{r.title || "(no title)"}</div>
-                    <div className="text-xs text-[#6B705C] truncate" title={r.author}>by {r.author || "(no author)"}</div>
-                    <div className="mt-1.5 text-xs text-[#6B705C]">
+                    <div className="text-xs text-[#5B5F4D] truncate" title={r.author}>by {r.author || "(no author)"}</div>
+                    <div className="mt-1.5 text-xs text-[#5B5F4D]">
                       <span className="font-semibold">AI saw:</span> {(r.ai_fandoms || []).join(" / ") || "—"}{" · "}
                       <span className="font-semibold">Heuristic saw:</span> {(r.heuristic_fandoms || []).join(" / ") || "(none)"}{" · "}
                       <span className="font-semibold">Seen:</span> {r.sightings || 1}×
@@ -4378,7 +4378,7 @@ function CrossoverSuggestionsCard() {
                         type="button"
                         onClick={() => reject(r)}
                         disabled={busy === `reject:${dk}`}
-                        className="text-xs font-semibold px-3 py-1.5 rounded-full border border-[#E4D9C8] text-[#6B705C] hover:bg-[#FDF3E1] disabled:opacity-60"
+                        className="text-xs font-semibold px-3 py-1.5 rounded-full border border-[#E4D9C8] text-[#5B5F4D] hover:bg-[#FDF3E1] disabled:opacity-60"
                         data-testid={`admin-crossover-suggestions-reject-${dk}`}
                       >
                         Reject
@@ -4389,7 +4389,7 @@ function CrossoverSuggestionsCard() {
 
                 {isPending && (r.gap_fandoms || []).length > 0 && (
                   <div className="mt-3 space-y-2">
-                    <div className="text-xs text-[#6B705C]">
+                    <div className="text-xs text-[#5B5F4D]">
                       Add character names for the missed fandom(s) — comma-separated. They&apos;ll be lowercased + deduped automatically.
                     </div>
                     {(r.gap_fandoms || []).map((f) => (
@@ -4409,7 +4409,7 @@ function CrossoverSuggestionsCard() {
                 )}
 
                 {!isPending && r.accepted_keywords && Object.keys(r.accepted_keywords).length > 0 && (
-                  <div className="mt-2 text-xs text-[#6B705C]">
+                  <div className="mt-2 text-xs text-[#5B5F4D]">
                     <span className="font-semibold">Added:</span>{" "}
                     {Object.entries(r.accepted_keywords).map(([f, kws]) => `${f}: ${(kws || []).join(", ")}`).join(" · ")}
                   </div>
@@ -4417,8 +4417,8 @@ function CrossoverSuggestionsCard() {
 
                 {r.meta_snapshot?.description && (
                   <details className="mt-2">
-                    <summary className="text-[11px] text-[#6B705C] cursor-pointer hover:text-[#2C2C2C]">Show description / sample</summary>
-                    <div className="mt-1 text-[11px] text-[#6B705C] whitespace-pre-wrap leading-relaxed">
+                    <summary className="text-[11px] text-[#5B5F4D] cursor-pointer hover:text-[#2C2C2C]">Show description / sample</summary>
+                    <div className="mt-1 text-[11px] text-[#5B5F4D] whitespace-pre-wrap leading-relaxed">
                       {r.meta_snapshot.description}
                       {r.meta_snapshot.sample_text && (
                         <>{"\n\n— sample —\n"}{r.meta_snapshot.sample_text}</>
@@ -4491,7 +4491,7 @@ function CanaryCard() {
             key={d}
             type="button"
             onClick={() => setDays(d)}
-            className={`px-2.5 py-1 rounded-full border transition-colors ${days === d ? "bg-[#6B46C1] text-white border-[#6B46C1]" : "bg-white text-[#6B705C] border-[#E4D9C8] hover:bg-[#FDF3E1]"}`}
+            className={`px-2.5 py-1 rounded-full border transition-colors ${days === d ? "bg-[#6B46C1] text-white border-[#6B46C1]" : "bg-white text-[#5B5F4D] border-[#E4D9C8] hover:bg-[#FDF3E1]"}`}
             data-testid={`admin-canary-tab-${d}d`}
           >
             {d}d
@@ -4500,9 +4500,9 @@ function CanaryCard() {
       </div>
 
       {loading ? (
-        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+        <p className="text-sm text-[#5B5F4D] italic">Loading…</p>
       ) : !data?.configured && runs.length === 0 ? (
-        <div className="text-sm text-[#6B705C] space-y-2" data-testid="admin-canary-onboarding">
+        <div className="text-sm text-[#5B5F4D] space-y-2" data-testid="admin-canary-onboarding">
           <p className="font-semibold text-[#2C2C2C]">No canary runs reported yet.</p>
           <p>To activate the widget, add these two secrets to your GitHub repo:</p>
           <ul className="list-disc pl-5 space-y-0.5">
@@ -4512,7 +4512,7 @@ function CanaryCard() {
           <p>Next nightly run (03:00 UTC) will populate the chart.</p>
         </div>
       ) : runs.length === 0 ? (
-        <p className="text-sm text-[#6B705C]" data-testid="admin-canary-empty">
+        <p className="text-sm text-[#5B5F4D]" data-testid="admin-canary-empty">
           Configured, but no runs in the last {days} days yet. Trigger a manual run from the Actions tab to populate this.
         </p>
       ) : (
@@ -4523,24 +4523,24 @@ function CanaryCard() {
               <div className="text-2xl font-bold text-[#2C2C2C] tabular-nums">
                 {uptimePct == null ? "—" : `${uptimePct.toFixed(1)}%`}
               </div>
-              <div className="text-[10px] uppercase tracking-[0.15em] text-[#6B705C]">Uptime</div>
+              <div className="text-[10px] uppercase tracking-[0.15em] text-[#5B5F4D]">Uptime</div>
             </div>
             <div>
-              <div className="text-2xl font-bold text-[#3D8B79] tabular-nums">{data.pass_count}</div>
-              <div className="text-[10px] uppercase tracking-[0.15em] text-[#6B705C]">Passed</div>
+              <div className="text-2xl font-bold text-[#2F6E60] tabular-nums">{data.pass_count}</div>
+              <div className="text-[10px] uppercase tracking-[0.15em] text-[#5B5F4D]">Passed</div>
             </div>
             <div>
-              <div className={`text-2xl font-bold tabular-nums ${data.fail_count > 0 ? "text-[#C5564B]" : "text-[#6B705C]"}`}>
+              <div className={`text-2xl font-bold tabular-nums ${data.fail_count > 0 ? "text-[#C5564B]" : "text-[#5B5F4D]"}`}>
                 {data.fail_count}
               </div>
-              <div className="text-[10px] uppercase tracking-[0.15em] text-[#6B705C]">Failed</div>
+              <div className="text-[10px] uppercase tracking-[0.15em] text-[#5B5F4D]">Failed</div>
             </div>
             {lastRun && (
               <div className="ml-auto text-right" data-testid="admin-canary-last-run">
-                <div className={`text-sm font-semibold ${lastRun.status === "pass" ? "text-[#3D8B79]" : "text-[#C5564B]"}`}>
+                <div className={`text-sm font-semibold ${lastRun.status === "pass" ? "text-[#2F6E60]" : "text-[#C5564B]"}`}>
                   {lastRun.status === "pass" ? "✓ Last run passed" : "✗ Last run failed"}
                 </div>
-                <div className="text-[10px] text-[#6B705C]">{fmtTime(lastRun.finished_at)}</div>
+                <div className="text-[10px] text-[#5B5F4D]">{fmtTime(lastRun.finished_at)}</div>
                 {/* 2026-06-27 — Tiered cadence badge.  The retry
                     workflow (`prod-smoke-canary-retry.yml`) sets
                     retry=true on its report POST, so we can
@@ -4562,7 +4562,7 @@ function CanaryCard() {
                 )}
                 {lastRun.retry && lastRun.status === "pass" && (
                   <div
-                    className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#E4F4EE] text-[#3D8B79] border border-[#3D8B79]/30"
+                    className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#E4F4EE] text-[#2F6E60] border border-[#3D8B79]/30"
                     title="The primary canary failed but the 15-min auto-retry passed — prod recovered itself, no action needed."
                     data-testid="admin-canary-recovered-badge"
                   >
@@ -4587,7 +4587,7 @@ function CanaryCard() {
 
           {/* Last 5 runs table — text fallback for the colorblind */}
           <details className="text-xs" data-testid="admin-canary-recent-details">
-            <summary className="cursor-pointer text-[#6B705C] hover:text-[#2C2C2C] font-semibold">
+            <summary className="cursor-pointer text-[#5B5F4D] hover:text-[#2C2C2C] font-semibold">
               Last {Math.min(5, runs.length)} run{runs.length === 1 ? "" : "s"}
             </summary>
             <ul className="mt-2 space-y-1" data-testid="admin-canary-recent-list">
@@ -4608,9 +4608,9 @@ function CanaryCard() {
                       retry
                     </span>
                   )}
-                  <span className="text-[#6B705C]">{fmtTime(r.finished_at)}</span>
-                  <span className="text-[#6B705C] ml-auto tabular-nums">{r.passed}/{r.total}</span>
-                  {r.duration_s != null && <span className="text-[#6B705C] tabular-nums">{Math.round(r.duration_s)}s</span>}
+                  <span className="text-[#5B5F4D]">{fmtTime(r.finished_at)}</span>
+                  <span className="text-[#5B5F4D] ml-auto tabular-nums">{r.passed}/{r.total}</span>
+                  {r.duration_s != null && <span className="text-[#5B5F4D] tabular-nums">{Math.round(r.duration_s)}s</span>}
                 </li>
               ))}
             </ul>
@@ -4680,7 +4680,7 @@ function EmailDiagnosticCard() {
     >
       <div className="space-y-4">
         <fieldset className="space-y-2">
-          <legend className="text-xs font-semibold uppercase tracking-wider text-[#6B705C] mb-1">Recipient</legend>
+          <legend className="text-xs font-semibold uppercase tracking-wider text-[#5B5F4D] mb-1">Recipient</legend>
           <label className="flex items-center gap-2 text-sm text-[#2C2C2C]">
             <input
               type="radio"
@@ -4739,7 +4739,7 @@ function EmailDiagnosticCard() {
         </fieldset>
 
         <div>
-          <label className="text-xs font-semibold uppercase tracking-wider text-[#6B705C] mb-1 block">
+          <label className="text-xs font-semibold uppercase tracking-wider text-[#5B5F4D] mb-1 block">
             Optional note (shown in the email body)
           </label>
           <textarea
@@ -4750,7 +4750,7 @@ function EmailDiagnosticCard() {
             className="w-full text-sm rounded-lg border border-[#E8E6E1] bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/30"
             rows={2}
           />
-          <p className="text-xs text-[#6B705C] mt-1">{note.length}/200</p>
+          <p className="text-xs text-[#5B5F4D] mt-1">{note.length}/200</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3 pt-2">
@@ -4772,7 +4772,7 @@ function EmailDiagnosticCard() {
               <Check className="w-3.5 h-3.5" />
               Delivered to {lastResult.to}
               {lastResult.id && (
-                <code className="ml-1 text-[10px] text-[#6B705C] font-mono">#{lastResult.id.slice(0, 8)}</code>
+                <code className="ml-1 text-[10px] text-[#5B5F4D] font-mono">#{lastResult.id.slice(0, 8)}</code>
               )}
             </span>
           )}
@@ -4814,9 +4814,9 @@ function WatchingBookclubsCard() {
       subtitle="Every bookclub the platform owner is auto-added to as Admin (oversight). Includes any club you own outright."
     >
       {loading ? (
-        <p className="text-sm text-[#6B705C]">Loading…</p>
+        <p className="text-sm text-[#5B5F4D]">Loading…</p>
       ) : rooms.length === 0 ? (
-        <p className="text-sm text-[#6B705C]">
+        <p className="text-sm text-[#5B5F4D]">
           You aren&apos;t in any bookclubs yet. As soon as someone creates one,
           it&apos;ll appear here with an <em>Admin (oversight)</em> badge in
           the room&apos;s member list.
@@ -4840,11 +4840,11 @@ function WatchingBookclubsCard() {
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-[#6B705C] truncate mt-0.5">
+                <p className="text-xs text-[#5B5F4D] truncate mt-0.5">
                   <span className="italic">{r.book_title || "(no book)"}</span>
                   {r.book_author ? <span> · {r.book_author}</span> : null}
                 </p>
-                <p className="text-xs text-[#6B705C] mt-1">
+                <p className="text-xs text-[#5B5F4D] mt-1">
                   Owner: <strong>{r.owner_name || r.owner_email || "—"}</strong>
                   <span className="mx-1">·</span>
                   {r.member_count} member{r.member_count === 1 ? "" : "s"}
@@ -4957,11 +4957,11 @@ function ChatRoomsCard() {
       testid="admin-chat-rooms-card"
     >
       {loading ? (
-        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+        <p className="text-sm text-[#5B5F4D] italic">Loading…</p>
       ) : (
         <>
           {rooms.length === 0 ? (
-            <p className="text-sm text-[#6B705C] italic mb-4" data-testid="admin-chat-rooms-empty">
+            <p className="text-sm text-[#5B5F4D] italic mb-4" data-testid="admin-chat-rooms-empty">
               No rooms yet. Create one below.
             </p>
           ) : (
@@ -5018,11 +5018,11 @@ function ChatRoomsCard() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-semibold text-[#2C2C2C]">{r.name}</p>
-                          <p className="text-[11px] text-[#6B705C]">
+                          <p className="text-[11px] text-[#5B5F4D]">
                             {r.member_user_ids.length} member{r.member_user_ids.length === 1 ? "" : "s"}
                             {r.last_message_at ? ` · last active ${fmtTime(r.last_message_at)}` : " · no messages yet"}
                           </p>
-                          <p className="text-[10px] text-[#6B705C] truncate mt-0.5">
+                          <p className="text-[10px] text-[#5B5F4D] truncate mt-0.5">
                             {r.member_user_ids.slice(0, 5).map((uid) => {
                               const u = users.find((x) => x.user_id === uid);
                               return u ? u.email : uid;
@@ -5068,7 +5068,7 @@ function ChatRoomsCard() {
               data-testid="admin-chat-room-new-name"
               className="w-full text-sm px-3 py-1.5 rounded-lg border border-[#E5DDC5] bg-white mb-2"
             />
-            <p className="text-[10px] uppercase tracking-wider text-[#6B705C] mb-1">Members</p>
+            <p className="text-[10px] uppercase tracking-wider text-[#5B5F4D] mb-1">Members</p>
             <div className="grid grid-cols-2 gap-1 max-h-40 overflow-y-auto p-2 border border-[#E5DDC5] rounded-lg bg-white mb-3">
               {users.map((u) => (
                 <label key={u.user_id} className="flex items-center gap-1.5 text-xs cursor-pointer">
@@ -5145,7 +5145,7 @@ function CronJobRow({ job }) {
               {pillLabel}
             </span>
           </div>
-          <p className="text-xs text-[#6B705C] mt-1">
+          <p className="text-xs text-[#5B5F4D] mt-1">
             <Clock className="w-3 h-3 inline mr-1" />
             schedule: {job.schedule}
             {" · "}
@@ -5173,7 +5173,7 @@ function CronJobRow({ job }) {
       {expanded && (
         <div className="mt-3 pt-3 border-t border-[#E8E2D4]">
           {job.recent.length === 0 ? (
-            <p className="text-xs text-[#6B705C]">No runs recorded yet.</p>
+            <p className="text-xs text-[#5B5F4D]">No runs recorded yet.</p>
           ) : (
             <ul className="space-y-1 max-h-72 overflow-auto" data-testid={`cron-history-${job.id}`}>
               {job.recent.map((r, idx) => (
@@ -5181,8 +5181,8 @@ function CronJobRow({ job }) {
                   <span className={r.status === "ok" ? "text-[#6B46C1]" : "text-red-700"}>
                     {r.status === "ok" ? "✓" : "✗"}
                   </span>
-                  <span className="text-[#6B705C] flex-shrink-0">{fmtTime(r.started_at)}</span>
-                  <span className="text-[#6B705C] flex-shrink-0">{r.duration_ms ?? "?"}ms</span>
+                  <span className="text-[#5B5F4D] flex-shrink-0">{fmtTime(r.started_at)}</span>
+                  <span className="text-[#5B5F4D] flex-shrink-0">{r.duration_ms ?? "?"}ms</span>
                   {r.error && <span className="text-red-700 break-all">{r.error}</span>}
                 </li>
               ))}
@@ -5217,7 +5217,7 @@ function CronHealthCard() {
   return (
     <Card icon={Clock} title="Scheduled jobs" subtitle="Last-run telemetry for every cron — flags silent failures." testid="cron-health-card">
       <div className="flex items-center justify-between mb-3">
-        <p className="text-xs text-[#6B705C]">
+        <p className="text-xs text-[#5B5F4D]">
           {data?.checked_at ? `Snapshot taken ${fmtAgo(data.checked_at)}` : ""}
         </p>
         <button
@@ -5236,7 +5236,7 @@ function CronHealthCard() {
           {error}
         </div>
       )}
-      {loading && !data && <p className="text-sm text-[#6B705C]">Loading…</p>}
+      {loading && !data && <p className="text-sm text-[#5B5F4D]">Loading…</p>}
       {data?.jobs?.map((j) => <CronJobRow key={j.id} job={j} />)}
     </Card>
   );
@@ -5293,7 +5293,7 @@ function RouteCatalogueCard() {
     <Card icon={RouteIcon} title="Route catalogue" subtitle="Every /api/* endpoint, grouped by source file." testid="route-catalogue-card">
       <div className="flex flex-wrap items-center gap-3 mb-3">
         <div className="relative flex-1 min-w-[180px]">
-          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#6B705C]" />
+          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#5B5F4D]" />
           <input
             type="text"
             value={q}
@@ -5325,7 +5325,7 @@ function RouteCatalogueCard() {
           />
           d
         </label>
-        <p className="text-xs text-[#6B705C]">
+        <p className="text-xs text-[#5B5F4D]">
           {data ? `${data.total} routes / ${data.modules.length} modules` : ""}
           {data && data.stale_total > 0 && (
             <span className="ml-2 text-amber-700" data-testid="route-catalogue-stale-summary">
@@ -5345,7 +5345,7 @@ function RouteCatalogueCard() {
         </button>
       </div>
       {error && <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3 mb-3">{error}</div>}
-      {loading && !data && <p className="text-sm text-[#6B705C]">Loading…</p>}
+      {loading && !data && <p className="text-sm text-[#5B5F4D]">Loading…</p>}
       <div className="space-y-2" data-testid="route-catalogue-list">
         {filtered.map((g) => {
           const isOpen = openModules[g.module] ?? (!!ql || staleOnly);
@@ -5365,7 +5365,7 @@ function RouteCatalogueCard() {
                     </span>
                   )}
                 </span>
-                <span className="text-xs text-[#6B705C]">
+                <span className="text-xs text-[#5B5F4D]">
                   {g.routes.length} route{g.routes.length === 1 ? "" : "s"}
                   {g.last_modified && <span className="ml-2">· {fmtAgo(g.last_modified)}</span>}
                   <ChevronRight className={`w-3 h-3 inline ml-1 transition-transform ${isOpen ? "rotate-90" : ""}`} />
@@ -5387,7 +5387,7 @@ function RouteCatalogueCard() {
                         ))}
                       </span>
                       <span className="text-[#2C2C2C] break-all">{r.path}</span>
-                      {r.doc && <span className="text-[#6B705C] italic font-sans">— {r.doc}</span>}
+                      {r.doc && <span className="text-[#5B5F4D] italic font-sans">— {r.doc}</span>}
                     </li>
                   ))}
                 </ul>
@@ -5396,7 +5396,7 @@ function RouteCatalogueCard() {
           );
         })}
         {filtered.length === 0 && !loading && (
-          <p className="text-sm text-[#6B705C]" data-testid="route-catalogue-empty">
+          <p className="text-sm text-[#5B5F4D]" data-testid="route-catalogue-empty">
             {staleOnly ? `No modules stale (≥ ${staleDays} days).` : "No routes match your filter."}
           </p>
         )}
@@ -5431,7 +5431,7 @@ function QuotaGauges({ quota }) {
   return (
     <div className="mb-4 p-3 rounded-xl border border-[#E5DDC5] bg-[#FBFAF6]" data-testid="email-quota-gauges">
       <div className="flex items-baseline justify-between mb-2">
-        <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C]">Resend plan usage</p>
+        <p className="text-xs font-bold uppercase tracking-[0.15em] text-[#5B5F4D]">Resend plan usage</p>
         {showUpgrade && (
           <a
             href="https://resend.com/settings/billing"
@@ -5457,9 +5457,9 @@ function Gauge({ label, used, limit, pct, tint, testid }) {
   return (
     <div data-testid={testid}>
       <div className="flex items-baseline justify-between text-xs mb-1">
-        <span className="text-[#6B705C]">{label}</span>
+        <span className="text-[#5B5F4D]">{label}</span>
         <span className={`font-mono ${tint.text}`}>
-          {used.toLocaleString()} / {limit.toLocaleString()} <span className="text-[#6B705C]">({pct}%)</span>
+          {used.toLocaleString()} / {limit.toLocaleString()} <span className="text-[#5B5F4D]">({pct}%)</span>
         </span>
       </div>
       <div className={`h-1.5 w-full rounded-full overflow-hidden ${tint.rail}`}>
@@ -5547,7 +5547,7 @@ function AdminEmailModeCard() {
   return (
     <Card icon={Bell} title="Admin alert email frequency" subtitle="How often the platform pages you about cron failures and admin signals." testid="admin-email-mode-card">
       {mode === null ? (
-        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+        <p className="text-sm text-[#5B5F4D] italic">Loading…</p>
       ) : (
         <div className="space-y-3" data-testid="admin-email-mode-options">
           {options.map((o) => {
@@ -5571,14 +5571,14 @@ function AdminEmailModeCard() {
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-[#2C2C2C]">{o.title}</p>
-                    <p className="text-xs text-[#6B705C] mt-0.5">{o.sub}</p>
+                    <p className="text-xs text-[#5B5F4D] mt-0.5">{o.sub}</p>
                   </div>
                 </div>
               </button>
             );
           })}
           <div className="flex items-center justify-between pt-2 mt-2 border-t border-[#E5DDC5] gap-2 flex-wrap">
-            <div className="text-xs text-[#6B705C]">
+            <div className="text-xs text-[#5B5F4D]">
               {lastDigest ? (
                 <>Last digest: <span className="font-mono">{new Date(lastDigest.sent_at).toLocaleString()}</span> · {lastDigest.ok}/{(lastDigest.ok ?? 0) + (lastDigest.errors ?? 0)} delivered</>
               ) : (
@@ -5647,7 +5647,7 @@ function AdminPendingAlertsCard() {
   return (
     <Card icon={Bell} title="Admin bell · pending alerts" subtitle="In-app queue replacing per-failure emails. Drained by the weekly digest cron." testid="admin-pending-alerts-card">
       {rows === null ? (
-        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+        <p className="text-sm text-[#5B5F4D] italic">Loading…</p>
       ) : rows.length === 0 ? (
         <p className="text-sm text-[#1F8F4E] italic" data-testid="admin-pending-alerts-empty">
           <Check className="inline w-4 h-4 mr-1" />
@@ -5680,8 +5680,8 @@ function AdminPendingAlertsCard() {
               >
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold text-[#2C2C2C] truncate">{r.title}</p>
-                  <p className="text-xs text-[#6B705C] mt-0.5 line-clamp-2">{r.body}</p>
-                  <p className="text-[11px] text-[#9b9b9b] mt-1 font-mono">
+                  <p className="text-xs text-[#5B5F4D] mt-0.5 line-clamp-2">{r.body}</p>
+                  <p className="text-[11px] text-[#6E6E6E] mt-1 font-mono">
                     {r.kind} · {r.count > 1 ? `×${r.count} · ` : ""}{new Date(r.last_seen_at).toLocaleString()}
                   </p>
                 </div>
@@ -5693,7 +5693,7 @@ function AdminPendingAlertsCard() {
                   className="flex-shrink-0 p-1 rounded hover:bg-[#E5DDC5] disabled:opacity-50"
                   title="Dismiss"
                 >
-                  {busy === r.alert_id ? <Loader2 className="w-4 h-4 animate-spin" /> : <XIcon className="w-4 h-4 text-[#6B705C]" />}
+                  {busy === r.alert_id ? <Loader2 className="w-4 h-4 animate-spin" /> : <XIcon className="w-4 h-4 text-[#5B5F4D]" />}
                 </button>
               </li>
             ))}
@@ -5739,7 +5739,7 @@ function HiddenFeaturesCard() {
   if (data === null) {
     return (
       <Card icon={EyeOff} title="Hidden features" subtitle="Built-but-invisible work parked behind feature flags." testid="hidden-features-card">
-        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+        <p className="text-sm text-[#5B5F4D] italic">Loading…</p>
       </Card>
     );
   }
@@ -5759,7 +5759,7 @@ function HiddenFeaturesCard() {
 
   return (
     <Card icon={EyeOff} title="Hidden features" subtitle="Built-but-invisible work parked behind feature flags." testid="hidden-features-card">
-      <p className="text-xs text-[#6B705C] mb-3">
+      <p className="text-xs text-[#5B5F4D] mb-3">
         Code stays in place when a feature is hidden — flip both the client-side constant in <code>{data.client_file?.replace("/app/frontend/src", "src")}</code> <em>and</em> the backend flag to bring it back.
       </p>
       <div className="flex gap-3 mb-4 text-xs">
@@ -5792,20 +5792,20 @@ function HiddenFeaturesCard() {
                 </span>
                 <h4 className="text-sm font-semibold text-[#2C2C2C] flex-1">{f.name}</h4>
               </div>
-              <p className="text-xs text-[#6B705C] mb-2">{f.reason}</p>
+              <p className="text-xs text-[#5B5F4D] mb-2">{f.reason}</p>
 
-              <div className="text-[11px] font-mono text-[#6B705C] mb-2">
+              <div className="text-[11px] font-mono text-[#5B5F4D] mb-2">
                 <span className="mr-3">
-                  Client: <strong className={f.client_on ? "text-[#1F8F4E]" : "text-[#9b9b9b]"}>{f.client_flag}={String(f.client_on)}</strong>
+                  Client: <strong className={f.client_on ? "text-[#1F8F4E]" : "text-[#6E6E6E]"}>{f.client_flag}={String(f.client_on)}</strong>
                 </span>
                 {f.server_flag && (
                   <span>
-                    Server: <strong className={f.server_on ? "text-[#1F8F4E]" : "text-[#9b9b9b]"}>{f.server_flag}={String(f.server_on)}</strong>
+                    Server: <strong className={f.server_on ? "text-[#1F8F4E]" : "text-[#6E6E6E]"}>{f.server_flag}={String(f.server_on)}</strong>
                   </span>
                 )}
               </div>
 
-              <details className="text-xs text-[#6B705C]">
+              <details className="text-xs text-[#5B5F4D]">
                 <summary className="cursor-pointer hover:text-[#2C2C2C]">
                   {f.surfaces.length} hidden surface{f.surfaces.length === 1 ? "" : "s"} · how to bring it back
                 </summary>
@@ -5826,7 +5826,7 @@ function HiddenFeaturesCard() {
           );
         })}
         {(data.features || []).length === 0 && (
-          <li className="text-sm text-[#6B705C] italic">No hidden features registered.</li>
+          <li className="text-sm text-[#5B5F4D] italic">No hidden features registered.</li>
         )}
       </ul>
     </Card>
@@ -5859,7 +5859,7 @@ function ChangelogCard() {
   if (data === null) {
     return (
       <Card icon={History} title="Recent changelog" subtitle="Last 20 dated entries from CHANGELOG.md." testid="admin-changelog-card">
-        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+        <p className="text-sm text-[#5B5F4D] italic">Loading…</p>
       </Card>
     );
   }
@@ -5875,14 +5875,14 @@ function ChangelogCard() {
 
   return (
     <Card icon={History} title="Recent changelog" subtitle="Last 20 dated entries from CHANGELOG.md." testid="admin-changelog-card">
-      <p className="text-xs text-[#6B705C] mb-3">
+      <p className="text-xs text-[#5B5F4D] mb-3">
         Showing <strong data-testid="admin-changelog-returned">{data.returned}</strong> of{" "}
         <strong data-testid="admin-changelog-total">{data.total_in_file}</strong> total entries from{" "}
         <code className="text-[11px]">{(data.path || "").replace("/app/", "")}</code>.
       </p>
 
       {entries.length === 0 ? (
-        <p className="text-sm text-[#6B705C] italic">No entries yet.</p>
+        <p className="text-sm text-[#5B5F4D] italic">No entries yet.</p>
       ) : (
         <ul className="space-y-2" data-testid="admin-changelog-list">
           {entries.map((e, i) => (
@@ -5900,10 +5900,10 @@ function ChangelogCard() {
                     <div className="flex-1 min-w-0">
                       <h4 className="text-sm font-semibold text-[#2C2C2C] leading-snug">{e.title}</h4>
                       {e.slug && (
-                        <p className="text-[11px] font-mono text-[#6B705C] truncate">({e.slug}) · {e.lines} line{e.lines === 1 ? "" : "s"}</p>
+                        <p className="text-[11px] font-mono text-[#5B5F4D] truncate">({e.slug}) · {e.lines} line{e.lines === 1 ? "" : "s"}</p>
                       )}
                     </div>
-                    <ChevronDown className="w-4 h-4 text-[#9b9b9b] shrink-0 mt-1" />
+                    <ChevronDown className="w-4 h-4 text-[#6E6E6E] shrink-0 mt-1" />
                   </div>
                 </summary>
                 <pre className="mt-3 text-[11px] leading-relaxed text-[#2C2C2C] whitespace-pre-wrap font-sans bg-white border border-[#E5DDC5] rounded-lg p-3 max-h-80 overflow-auto">
@@ -5984,7 +5984,7 @@ function LlmKeyHealthCard() {
   if (data === null) {
     return (
       <Card icon={Sparkles} title="LLM key health" subtitle="Universal Key balance + 7-day burn rate + days of runway." testid="admin-llm-key-health-card">
-        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+        <p className="text-sm text-[#5B5F4D] italic">Loading…</p>
       </Card>
     );
   }
@@ -6011,12 +6011,12 @@ function LlmKeyHealthCard() {
     ok:       { txt: "OK",       cls: "bg-[#EEF7E9] text-[#1F8F4E] border-[#82C99E]" },
     warning:  { txt: "Top up",   cls: "bg-[#FDF3E1] text-[#B87A00] border-[#B87A00]" },
     critical: { txt: "Critical", cls: "bg-[#FBE9E9] text-[#D9534F] border-[#D9534F]" },
-    unknown:  { txt: "No data",  cls: "bg-[#F1F1F0] text-[#6B705C] border-[#9b9b9b]" },
+    unknown:  { txt: "No data",  cls: "bg-[#F1F1F0] text-[#5B5F4D] border-[#9b9b9b]" },
   }[runway.warning_level || "unknown"];
 
   return (
     <Card icon={Sparkles} title="LLM key health" subtitle="Universal Key balance + 7-day burn rate + days of runway." testid="admin-llm-key-health-card">
-      <p className="text-xs text-[#6B705C] mb-3">
+      <p className="text-xs text-[#5B5F4D] mb-3">
         Emergent doesn&rsquo;t expose a balance API, so type in what you see at{" "}
         <strong>Profile → Universal Key</strong> below. The card combines it with
         self-instrumented call logs + pre-existing book proxies (<code>classifier=&quot;ai&quot;</code>,{" "}
@@ -6047,17 +6047,17 @@ function LlmKeyHealthCard() {
         <div className="p-3 rounded-xl bg-[#EEE9FB] border border-[#6B46C1]/30" data-testid="llm-key-instr-7d">
           <p className="text-[10px] uppercase tracking-wider text-[#6B46C1] font-bold mb-1">Instrumented · 7d</p>
           <p className="font-mono text-lg text-[#2C2C2C]">{fmtUsd(instr7.cost_usd)}</p>
-          <p className="text-[10px] text-[#6B705C] mt-1">{instr7.calls || 0} calls · {instr7.errors || 0} errors</p>
+          <p className="text-[10px] text-[#5B5F4D] mt-1">{instr7.calls || 0} calls · {instr7.errors || 0} errors</p>
         </div>
         <div className="p-3 rounded-xl bg-[#FBF6E9] border border-[#B87A00]/30" data-testid="llm-key-proxy-7d">
           <p className="text-[10px] uppercase tracking-wider text-[#B87A00] font-bold mb-1">Proxy · 7d</p>
           <p className="font-mono text-lg text-[#2C2C2C]">{fmtUsd(proxy7.cost_usd_estimate)}</p>
-          <p className="text-[10px] text-[#6B705C] mt-1">{proxy7.classifies || 0} classifies · {proxy7.covers || 0} covers</p>
+          <p className="text-[10px] text-[#5B5F4D] mt-1">{proxy7.classifies || 0} classifies · {proxy7.covers || 0} covers</p>
         </div>
         <div className="p-3 rounded-xl bg-[#EEF7E9] border border-[#82C99E]" data-testid="llm-key-balance-display">
           <p className="text-[10px] uppercase tracking-wider text-[#1F8F4E] font-bold mb-1">Balance</p>
           <p className="font-mono text-lg text-[#2C2C2C]">{fmtUsdShort(balance.usd)}</p>
-          <p className="text-[10px] text-[#6B705C] mt-1">
+          <p className="text-[10px] text-[#5B5F4D] mt-1">
             {balance.set ? `Set ${fmtTime(balance.updated_at)}` : "Not set yet"}
           </p>
         </div>
@@ -6065,7 +6065,7 @@ function LlmKeyHealthCard() {
 
       {/* Balance setter */}
       <div className="p-3 mb-4 rounded-xl bg-[#FBFAF6] border border-[#E5DDC5]">
-        <label htmlFor="llm-key-balance-input" className="block text-[10px] uppercase tracking-wider font-bold text-[#6B705C] mb-1">
+        <label htmlFor="llm-key-balance-input" className="block text-[10px] uppercase tracking-wider font-bold text-[#5B5F4D] mb-1">
           Update current balance (USD)
         </label>
         <div className="flex gap-2">
@@ -6089,7 +6089,7 @@ function LlmKeyHealthCard() {
             {saving ? "Saving…" : "Save"}
           </button>
         </div>
-        <p className="text-[10px] text-[#9b9b9b] mt-1">
+        <p className="text-[10px] text-[#6E6E6E] mt-1">
           Copy this from Profile → Universal Key. You can also enable auto-recharge there.
         </p>
       </div>
@@ -6097,12 +6097,12 @@ function LlmKeyHealthCard() {
       {/* Per-kind table (instrumented only) */}
       {byKind.length > 0 ? (
         <div className="mb-3">
-          <p className="text-[10px] uppercase tracking-wider font-bold text-[#6B705C] mb-2">
+          <p className="text-[10px] uppercase tracking-wider font-bold text-[#5B5F4D] mb-2">
             Instrumented 7d · by kind
           </p>
           <table className="w-full text-xs" data-testid="llm-key-by-kind-table">
             <thead>
-              <tr className="text-left text-[#9b9b9b] border-b border-[#E5DDC5]">
+              <tr className="text-left text-[#6E6E6E] border-b border-[#E5DDC5]">
                 <th className="py-1">Kind</th>
                 <th className="py-1 text-right">Calls</th>
                 <th className="py-1 text-right">Errors</th>
@@ -6115,8 +6115,8 @@ function LlmKeyHealthCard() {
                 <tr key={k.kind} className="border-b border-[#F1F1F0]" data-testid={`llm-key-kind-${k.kind}`}>
                   <td className="py-1 text-[#2C2C2C]">{k.kind}</td>
                   <td className="py-1 text-right">{k.calls}</td>
-                  <td className={`py-1 text-right ${k.errors > 0 ? "text-[#D9534F]" : "text-[#9b9b9b]"}`}>{k.errors}</td>
-                  <td className="py-1 text-right text-[#6B705C]">{k.tokens_in}/{k.tokens_out}{k.images ? ` · ${k.images}img` : ""}</td>
+                  <td className={`py-1 text-right ${k.errors > 0 ? "text-[#D9534F]" : "text-[#6E6E6E]"}`}>{k.errors}</td>
+                  <td className="py-1 text-right text-[#5B5F4D]">{k.tokens_in}/{k.tokens_out}{k.images ? ` · ${k.images}img` : ""}</td>
                   <td className="py-1 text-right text-[#2C2C2C]">{fmtUsd(k.cost_usd)}</td>
                 </tr>
               ))}
@@ -6124,12 +6124,12 @@ function LlmKeyHealthCard() {
           </table>
         </div>
       ) : (
-        <p className="text-xs text-[#9b9b9b] italic mb-3">
+        <p className="text-xs text-[#6E6E6E] italic mb-3">
           No instrumented calls yet in the last 7 days — data fills in as Claude / Nano-Banana fire.
         </p>
       )}
 
-      <details className="text-[11px] text-[#6B705C]">
+      <details className="text-[11px] text-[#5B5F4D]">
         <summary className="cursor-pointer hover:text-[#2C2C2C]">Pricing constants &amp; 30-day rollup</summary>
         <div className="mt-2 space-y-1 font-mono">
           <p>Claude in: ${data.pricing_constants?.claude_in_per_million}/1M · out: ${data.pricing_constants?.claude_out_per_million}/1M</p>
@@ -6166,7 +6166,7 @@ function EmailVolumeForecastCard() {
   if (data === null) {
     return (
       <Card icon={TrendingUp} title="Email volume forecast" subtitle="Past sends + projected next 7/30 days vs the Resend daily cap." testid="email-volume-forecast-card">
-        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+        <p className="text-sm text-[#5B5F4D] italic">Loading…</p>
       </Card>
     );
   }
@@ -6182,7 +6182,7 @@ function EmailVolumeForecastCard() {
     critical: "text-[#9B3531] bg-[#FBE9E7] border-[#D9534F]",
     warning:  "text-[#B87A00] bg-[#FDF3E1] border-[#B87A00]",
     ok:       "text-[#1F8F4E] bg-[#EEF7E9] border-[#82C99E]",
-  }[data.warning_level] || "text-[#6B705C] bg-[#FBFAF6] border-[#E5DDC5]";
+  }[data.warning_level] || "text-[#5B5F4D] bg-[#FBFAF6] border-[#E5DDC5]";
 
   const warnLabel = {
     critical: "⚠️  Critical — forecast exceeds daily cap",
@@ -6211,24 +6211,24 @@ function EmailVolumeForecastCard() {
 
       <div className="grid sm:grid-cols-3 gap-3 mb-4">
         <div className="p-3 rounded-xl bg-[#FBFAF6] border border-[#E5DDC5]" data-testid="email-volume-past-7d">
-          <p className="text-xs uppercase tracking-wider text-[#6B705C] mb-1">Past 7 days</p>
+          <p className="text-xs uppercase tracking-wider text-[#5B5F4D] mb-1">Past 7 days</p>
           <p className="text-2xl font-serif text-[#2C2C2C]">{fmt(data.past_7d?.total)}</p>
         </div>
         <div className="p-3 rounded-xl bg-[#FBFAF6] border border-[#E5DDC5]" data-testid="email-volume-past-30d">
-          <p className="text-xs uppercase tracking-wider text-[#6B705C] mb-1">Past 30 days</p>
+          <p className="text-xs uppercase tracking-wider text-[#5B5F4D] mb-1">Past 30 days</p>
           <p className="text-2xl font-serif text-[#2C2C2C]">{fmt(data.past_30d?.total)}</p>
         </div>
         <div className="p-3 rounded-xl bg-[#EEE9FB] border border-[#6B46C1]/30" data-testid="email-volume-forecast-7d">
           <p className="text-xs uppercase tracking-wider text-[#6B46C1] mb-1">Projected · next 7d</p>
           <p className="text-2xl font-serif text-[#6B46C1]">{fmt(data.forecast_7d_total)}</p>
-          <p className="text-[11px] text-[#6B705C] mt-1">≈ {data.forecast_daily_avg}/day</p>
+          <p className="text-[11px] text-[#5B5F4D] mt-1">≈ {data.forecast_daily_avg}/day</p>
         </div>
       </div>
 
-      <h4 className="text-xs uppercase tracking-wider text-[#6B705C] mb-2">Past 7 days by kind</h4>
+      <h4 className="text-xs uppercase tracking-wider text-[#5B5F4D] mb-2">Past 7 days by kind</h4>
       <ul className="space-y-1 mb-4" data-testid="email-volume-past-by-kind">
         {pastKinds.length === 0 && (
-          <li className="text-xs text-[#9b9b9b] italic">No sends in the past 7 days.</li>
+          <li className="text-xs text-[#6E6E6E] italic">No sends in the past 7 days.</li>
         )}
         {pastKinds.map((k) => (
           <li key={k.kind} className="flex items-center gap-3 text-xs">
@@ -6239,7 +6239,7 @@ function EmailVolumeForecastCard() {
                 style={{ width: `${(k.total / maxPast * 100).toFixed(1)}%` }}
               />
             </div>
-            <span className="text-[#6B705C] tabular-nums w-12 text-right">{k.total}</span>
+            <span className="text-[#5B5F4D] tabular-nums w-12 text-right">{k.total}</span>
             {k.error > 0 && (
               <span className="text-[#D9534F] text-[10px]">·{k.error} err</span>
             )}
@@ -6247,7 +6247,7 @@ function EmailVolumeForecastCard() {
         ))}
       </ul>
 
-      <h4 className="text-xs uppercase tracking-wider text-[#6B705C] mb-2">Projected weekly · by channel</h4>
+      <h4 className="text-xs uppercase tracking-wider text-[#5B5F4D] mb-2">Projected weekly · by channel</h4>
       <ul className="space-y-1 mb-4" data-testid="email-volume-forecast-by-kind">
         {Object.entries(data.forecast_weekly || {})
           .filter(([k]) => k !== "total")
@@ -6255,22 +6255,22 @@ function EmailVolumeForecastCard() {
           .map(([k, v]) => (
             <li key={k} className="flex items-center justify-between text-xs px-2 py-1 rounded bg-[#FBFAF6] border border-[#E5DDC5]">
               <span className="font-mono text-[#2C2C2C]">{k}</span>
-              <span className="text-[#6B705C] tabular-nums">{v}/week</span>
+              <span className="text-[#5B5F4D] tabular-nums">{v}/week</span>
             </li>
           ))}
       </ul>
 
-      <h4 className="text-xs uppercase tracking-wider text-[#6B705C] mb-2">Opt-in counts (real users only)</h4>
+      <h4 className="text-xs uppercase tracking-wider text-[#5B5F4D] mb-2">Opt-in counts (real users only)</h4>
       <ul className="grid grid-cols-2 gap-1 text-xs" data-testid="email-volume-opt-in-counts">
         {Object.entries(data.opt_in_counts || {}).map(([k, v]) => (
           <li key={k} className="px-2 py-1 rounded bg-[#FBFAF6] border border-[#E5DDC5] flex justify-between">
             <span className="font-mono text-[#2C2C2C]">{k}</span>
-            <span className="text-[#6B705C] tabular-nums">{v}</span>
+            <span className="text-[#5B5F4D] tabular-nums">{v}</span>
           </li>
         ))}
       </ul>
 
-      <p className="text-[11px] text-[#9b9b9b] mt-3 italic">
+      <p className="text-[11px] text-[#6E6E6E] mt-3 italic">
         Generated {data.generated_at ? new Date(data.generated_at).toLocaleString() : ""}
       </p>
     </Card>
@@ -6335,7 +6335,7 @@ function EmailSystemCard() {
       testid="email-system-card"
     >
       {enabled === null ? (
-        <p className="text-sm text-[#6B705C] italic">Loading…</p>
+        <p className="text-sm text-[#5B5F4D] italic">Loading…</p>
       ) : (
         <div className="space-y-3">
           <div
@@ -6403,13 +6403,13 @@ function EmailStatsCard() {
 
   return (
     <Card icon={Inbox} title="Resend deliveries · this week" subtitle="Send volume, error rate, and recent failures." testid="email-stats-card">
-      {loading && !data && <p className="text-sm text-[#6B705C]">Loading…</p>}
+      {loading && !data && <p className="text-sm text-[#5B5F4D]">Loading…</p>}
       {error && <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3" data-testid="email-stats-error">{error}</div>}
       {data && (
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
             <div className="bg-white border border-[#E8E2D4] rounded-lg p-3" data-testid="email-stats-total">
-              <p className="text-xs text-[#6B705C]">Total (7d)</p>
+              <p className="text-xs text-[#5B5F4D]">Total (7d)</p>
               <p className="text-2xl font-medium text-[#2C2C2C]">{data.total_7d}</p>
             </div>
             <div className="bg-[#EEE9FB] border border-[#6B46C1]/30 rounded-lg p-3" data-testid="email-stats-ok">
@@ -6421,7 +6421,7 @@ function EmailStatsCard() {
               <p className={`text-2xl font-medium ${data.error_7d > 0 ? "text-red-700" : "text-[#2C2C2C]"}`}>{data.error_7d}</p>
             </div>
             <div className="bg-white border border-[#E8E2D4] rounded-lg p-3" data-testid="email-stats-rate">
-              <p className="text-xs text-[#6B705C]">Error rate</p>
+              <p className="text-xs text-[#5B5F4D]">Error rate</p>
               <p className="text-2xl font-medium text-[#2C2C2C]">{(data.error_rate_7d * 100).toFixed(1)}%</p>
             </div>
           </div>
@@ -6443,7 +6443,7 @@ function EmailStatsCard() {
                     <span className="flex-1">{k.kind}</span>
                     <span className="text-[#6B46C1]">{k.ok} ok</span>
                     {k.error > 0 && <span className="text-red-700">{k.error} err</span>}
-                    <span className="text-[#6B705C]">{k.total} total</span>
+                    <span className="text-[#5B5F4D]">{k.total} total</span>
                   </li>
                 ))}
               </ul>
@@ -6579,7 +6579,7 @@ function ReExtractLinksCard() {
             className="w-24 px-2 py-1 border border-[#E4D9C8] rounded text-xs"
             data-testid="admin-re-extract-limit"
           />
-          <span className="text-xs text-[#6B705C]">(books per click — re-run to walk the rest)</span>
+          <span className="text-xs text-[#5B5F4D]">(books per click — re-run to walk the rest)</span>
         </label>
         <button
           type="button"
@@ -6601,12 +6601,12 @@ function ReExtractLinksCard() {
                 <summary className="cursor-pointer text-[#6B46C1] font-semibold">First {result.samples.length} examples</summary>
                 <ul className="mt-1.5 space-y-1 pl-2">
                   {result.samples.map((s) => (
-                    <li key={s.book_id} className="text-[11px] text-[#6B705C]">
+                    <li key={s.book_id} className="text-[11px] text-[#5B5F4D]">
                       <span className="font-semibold text-[#2C2C2C]">{s.title || s.book_id}</span>
                       {s.result === "missing_file" ? (
                         <span className="ml-1 text-[#C5564B]">— file not in storage</span>
                       ) : s.new_source ? (
-                        <span className="ml-1">→ <span className="text-[#3D8B79] break-all">{s.new_source}</span></span>
+                        <span className="ml-1">→ <span className="text-[#2F6E60] break-all">{s.new_source}</span></span>
                       ) : (
                         <span className="ml-1">— links updated ({s.links_count})</span>
                       )}
@@ -6662,7 +6662,7 @@ function FulltextBackfillCard() {
           {busy ? "Indexing…" : "Run backfill (500)"}
         </button>
         {result && (
-          <div className="text-xs text-[#6B705C] font-mono" data-testid="admin-fulltext-result">
+          <div className="text-xs text-[#5B5F4D] font-mono" data-testid="admin-fulltext-result">
             scanned={result.scanned} · indexed={result.indexed} · missing_file={result.skipped_missing_file} · errors={result.errors}
           </div>
         )}
@@ -6824,7 +6824,7 @@ export default function AdminConsole() {
         <aside className="hidden lg:block sticky top-6 self-start" data-testid="admin-sidebar">
           {recentCards.length > 0 && (
             <>
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#6B705C] mb-3 px-2">Recent</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#5B5F4D] mb-3 px-2">Recent</p>
               <nav className="space-y-0.5 mb-4" aria-label="Recently viewed" data-testid="admin-sidebar-recent">
                 {recentCards.map((card) => (
                   <button
@@ -6841,7 +6841,7 @@ export default function AdminConsole() {
                     }}
                     title={card.subtitle}
                     data-testid={`admin-sidebar-recent-${card.testid}`}
-                    className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-[#6B705C] hover:bg-[#FDF3E1] hover:text-[#B87A00] transition-colors truncate"
+                    className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-[#5B5F4D] hover:bg-[#FDF3E1] hover:text-[#B87A00] transition-colors truncate"
                   >
                     <span className="text-[10px] mr-1.5 opacity-60">↻</span>{card.title}
                   </button>
@@ -6849,7 +6849,7 @@ export default function AdminConsole() {
               </nav>
             </>
           )}
-          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#6B705C] mb-3 px-2">Sections</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#5B5F4D] mb-3 px-2">Sections</p>
           <nav className="space-y-0.5" aria-label="Admin sections">
             {ADMIN_CATEGORIES.map((cat) => {
               const count = ADMIN_CARD_MANIFEST.filter((c) => c.category === cat.id).length;
@@ -6864,16 +6864,16 @@ export default function AdminConsole() {
                   className={`w-full text-left flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
                     active
                       ? "bg-[#6B46C1] text-white font-semibold"
-                      : "text-[#6B705C] hover:bg-[#EEE9FB] hover:text-[#6B46C1]"
+                      : "text-[#5B5F4D] hover:bg-[#EEE9FB] hover:text-[#6B46C1]"
                   }`}
                 >
                   <span>{cat.label}</span>
-                  <span className={`text-[10px] tabular-nums ${active ? "text-[#EEE9FB]" : "text-[#9b9b9b]"}`}>{count}</span>
+                  <span className={`text-[10px] tabular-nums ${active ? "text-[#EEE9FB]" : "text-[#6E6E6E]"}`}>{count}</span>
                 </button>
               );
             })}
           </nav>
-          <div className="mt-4 px-2 text-[10px] text-[#9b9b9b]">
+          <div className="mt-4 px-2 text-[10px] text-[#6E6E6E]">
             <kbd className="px-1.5 py-0.5 rounded bg-[#FBFAF6] border border-[#E5DDC5] font-mono">⌘K</kbd> · jump to a card
           </div>
         </aside>
@@ -6882,7 +6882,7 @@ export default function AdminConsole() {
         {/* Mobile category jump (lg:hidden — sidebar above replaces it on desktop).
             Sticky so it stays visible while scrolling long sections. */}
         <div className="lg:hidden mb-4 sticky top-2 z-10 bg-white/90 backdrop-blur-sm rounded-xl p-2 border border-[#E5DDC5]"> {/* dark-ok — bg-white/90 is remapped in index.css */}
-          <label htmlFor="admin-mobile-jump" className="text-[10px] uppercase tracking-wider text-[#6B705C] mb-1 block px-1">
+          <label htmlFor="admin-mobile-jump" className="text-[10px] uppercase tracking-wider text-[#5B5F4D] mb-1 block px-1">
             Jump to section
           </label>
           <select
@@ -6902,7 +6902,7 @@ export default function AdminConsole() {
         </div>
 
 
-        <Link to="/library" className="inline-flex items-center gap-1 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-4">
+        <Link to="/library" className="inline-flex items-center gap-1 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-4">
           <ArrowLeft className="w-4 h-4" /> back to library
         </Link>
         <header className="mb-6 flex items-start justify-between gap-4 flex-wrap">
@@ -6919,7 +6919,7 @@ export default function AdminConsole() {
             <Link
               to="/admin/help"
               data-testid="admin-help-link"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-[#E5DDC5] text-[#6B705C] text-xs font-bold uppercase tracking-[0.15em] hover:border-[#6B46C1] hover:text-[#6B46C1] transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-[#E5DDC5] text-[#5B5F4D] text-xs font-bold uppercase tracking-[0.15em] hover:border-[#6B46C1] hover:text-[#6B46C1] transition-colors"
               title="What does each card do?"
             >
               <HelpCircle className="w-3.5 h-3.5" /> Help
@@ -6946,7 +6946,7 @@ export default function AdminConsole() {
               data-testid="admin-remember-open-toggle"
               aria-pressed={remember}
               title={remember ? "Sections you leave open will stay open next time you visit. Click to turn off." : "Each visit starts with everything collapsed. Click to remember which sections you leave open."}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-[0.15em] transition-colors ${remember ? "bg-[#EEE9FB] text-[#6B46C1] border border-[#6B46C1]" : "bg-[#F4EFE4] text-[#6B705C] border border-[#E5DDC5] hover:bg-[#EEE9FB] hover:text-[#6B46C1] hover:border-[#6B46C1]"}`}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-[0.15em] transition-colors ${remember ? "bg-[#EEE9FB] text-[#6B46C1] border border-[#6B46C1]" : "bg-[#F4EFE4] text-[#5B5F4D] border border-[#E5DDC5] hover:bg-[#EEE9FB] hover:text-[#6B46C1] hover:border-[#6B46C1]"}`}
             >
               <span
                 className={`inline-block w-3 h-3 rounded-full ${remember ? "bg-[#6B46C1]" : "bg-[#C8C2A8]"}`}
@@ -6962,7 +6962,7 @@ export default function AdminConsole() {
         {/* Section search */}
         <div className="mb-4" data-testid="admin-section-search">
           <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#6B705C] pointer-events-none" aria-hidden="true" />
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#5B5F4D] pointer-events-none" aria-hidden="true" />
             <input
               type="text"
               value={rawQuery}
@@ -6977,13 +6977,13 @@ export default function AdminConsole() {
                 onClick={() => setRawQuery("")}
                 aria-label="Clear search"
                 data-testid="admin-section-search-clear"
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B705C] hover:text-[#2C2C2C]"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#5B5F4D] hover:text-[#2C2C2C]"
               >
                 <XIcon className="w-4 h-4" />
               </button>
             )}
           </div>
-          <div className="mt-2 flex items-center gap-2 flex-wrap text-xs text-[#6B705C]">
+          <div className="mt-2 flex items-center gap-2 flex-wrap text-xs text-[#5B5F4D]">
             <span className="italic">Try:</span>
             {SEARCH_SUGGESTIONS.map((s) => (
               <button
@@ -7007,7 +7007,7 @@ export default function AdminConsole() {
           </div>
         </div>
 
-        <p className="text-xs text-[#6B705C] italic mb-6" data-testid="admin-collapsed-hint">
+        <p className="text-xs text-[#5B5F4D] italic mb-6" data-testid="admin-collapsed-hint">
           Sections are collapsed by default — click a category to reveal its contents.
           {remember ? " Your open sections will be remembered on your next visit." : ""}
         </p>
@@ -7018,9 +7018,9 @@ export default function AdminConsole() {
               className="shelf-card p-8 text-center"
               data-testid="admin-section-search-empty"
             >
-              <Search className="w-8 h-8 text-[#6B705C] mx-auto mb-2" aria-hidden="true" />
+              <Search className="w-8 h-8 text-[#5B5F4D] mx-auto mb-2" aria-hidden="true" />
               <p className="font-serif text-xl text-[#2C2C2C] mb-1">No sections match "{rawQuery}"</p>
-              <p className="text-sm text-[#6B705C] mb-4">Try one of the suggestions above — or clear the search to see all {ADMIN_CARD_MANIFEST.length} sections.</p>
+              <p className="text-sm text-[#5B5F4D] mb-4">Try one of the suggestions above — or clear the search to see all {ADMIN_CARD_MANIFEST.length} sections.</p>
               <button
                 type="button"
                 onClick={() => setRawQuery("")}
@@ -7047,7 +7047,7 @@ export default function AdminConsole() {
                   className="mb-8 scroll-mt-24"
                 >
                   <h2 className="font-serif text-xl text-[#6B46C1] uppercase tracking-[0.18em] text-xs font-bold mb-3 pb-2 border-b border-[#E5DDC5]">
-                    {cat.label} <span className="ml-2 text-[10px] text-[#9b9b9b] font-normal">{cat.cards.length}</span>
+                    {cat.label} <span className="ml-2 text-[10px] text-[#6E6E6E] font-normal">{cat.cards.length}</span>
                   </h2>
                   {cat.cards.map((c) => {
                     switch (c.testid) {
@@ -7122,7 +7122,7 @@ export default function AdminConsole() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-4 py-3 border-b border-[#E5DDC5] flex items-center gap-2">
-              <Search className="w-4 h-4 text-[#9b9b9b]" />
+              <Search className="w-4 h-4 text-[#6E6E6E]" />
               <input
                 autoFocus
                 type="text"
@@ -7137,11 +7137,11 @@ export default function AdminConsole() {
                 data-testid="admin-command-palette-input"
                 className="flex-1 bg-transparent text-sm text-[#2C2C2C] placeholder:text-[#9A9580] focus:outline-none"
               />
-              <kbd className="text-[10px] text-[#9b9b9b] font-mono">ESC</kbd>
+              <kbd className="text-[10px] text-[#6E6E6E] font-mono">ESC</kbd>
             </div>
             <ul className="max-h-72 overflow-y-auto py-2" data-testid="admin-command-palette-results">
               {paletteResults.length === 0 && (
-                <li className="px-4 py-3 text-sm text-[#6B705C] italic">No matches.</li>
+                <li className="px-4 py-3 text-sm text-[#5B5F4D] italic">No matches.</li>
               )}
               {paletteResults.map((c, i) => {
                 const cat = ADMIN_CATEGORIES.find((x) => x.id === c.category);
@@ -7159,16 +7159,16 @@ export default function AdminConsole() {
                   >
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-[#2C2C2C] truncate">{c.title}</p>
-                      <p className="text-[11px] text-[#6B705C] truncate">{c.subtitle}</p>
+                      <p className="text-[11px] text-[#5B5F4D] truncate">{c.subtitle}</p>
                     </div>
-                    <span className="text-[10px] uppercase tracking-wider text-[#9b9b9b] flex-shrink-0">
+                    <span className="text-[10px] uppercase tracking-wider text-[#6E6E6E] flex-shrink-0">
                       {cat?.label}
                     </span>
                   </li>
                 );
               })}
             </ul>
-            <div className="px-4 py-2 text-[10px] text-[#9b9b9b] border-t border-[#E5DDC5] flex items-center justify-between">
+            <div className="px-4 py-2 text-[10px] text-[#6E6E6E] border-t border-[#E5DDC5] flex items-center justify-between">
               <span><kbd className="font-mono">↑↓</kbd> navigate · <kbd className="font-mono">↵</kbd> jump</span>
               <span>{paletteResults.length} of {ADMIN_CARD_MANIFEST.length}</span>
             </div>

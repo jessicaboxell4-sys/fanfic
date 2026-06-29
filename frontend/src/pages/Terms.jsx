@@ -25,12 +25,12 @@ export default function Terms() {
           <Link
             to="/"
             data-testid="terms-back-home"
-            className="inline-flex items-center gap-2 text-sm text-[#6B705C] hover:text-[#2C2C2C]"
+            className="inline-flex items-center gap-2 text-sm text-[#5B5F4D] hover:text-[#2C2C2C]"
           >
             <ArrowLeft className="w-4 h-4" />
             Back to Shelfsort
           </Link>
-          <span className="text-xs uppercase tracking-[0.18em] text-[#6B705C]">
+          <span className="text-xs uppercase tracking-[0.18em] text-[#5B5F4D]">
             Last updated: 22 June 2026
           </span>
         </div>
@@ -44,7 +44,7 @@ export default function Terms() {
         <h1 className="font-serif text-4xl sm:text-5xl text-[#2C2C2C] mb-3 leading-tight">
           Terms of Service
         </h1>
-        <p className="text-[#6B705C] mb-10">
+        <p className="text-[#5B5F4D] mb-10">
           These terms govern your use of Shelfsort
           (<a href="https://shelfsort.com" className="text-[#6B46C1] underline">shelfsort.com</a>).
           They&rsquo;re intentionally short. The most important section is
@@ -281,13 +281,13 @@ export default function Terms() {
               hello@shelfsort.com
             </a>
           </p>
-          <p className="mt-3 text-sm text-[#6B705C]">
+          <p className="mt-3 text-sm text-[#5B5F4D]">
             Reachable for questions about these Terms, accessibility, or
             anything else.
           </p>
         </Section>
 
-        <div className="mt-12 pt-6 border-t border-[#E5DDC5] text-sm text-[#6B705C]">
+        <div className="mt-12 pt-6 border-t border-[#E5DDC5] text-sm text-[#5B5F4D]">
           See also: <Link to="/privacy" className="text-[#6B46C1] underline">Privacy Policy</Link>
           {" · "}
           <Link to="/help" className="text-[#6B46C1] underline">Help &amp; FAQ</Link>

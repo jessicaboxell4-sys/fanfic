@@ -93,14 +93,14 @@ export default function DuplicateResolutionModal({ pending, onClose, onResolved 
             <h2 className="font-serif text-2xl text-[#2C2C2C] leading-tight">
               {pending.length === 1 ? "Looks like a duplicate" : `${pending.length} possible duplicates`}
             </h2>
-            <p className="text-sm text-[#6B705C] mt-1">
+            <p className="text-sm text-[#5B5F4D] mt-1">
               We spotted these uploads matching books already on your shelves. Pick what to do with each one.
             </p>
           </div>
           <button
             data-testid="duplicate-modal-close"
             onClick={onClose}
-            className="text-[#6B705C] hover:text-[#2C2C2C] p-1 rounded"
+            className="text-[#5B5F4D] hover:text-[#2C2C2C] p-1 rounded"
             aria-label="Close"
           >
             <X className="w-5 h-5" />
@@ -120,7 +120,7 @@ export default function DuplicateResolutionModal({ pending, onClose, onResolved 
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div>
                     <p className="font-serif text-lg text-[#2C2C2C]">{b.title || "Untitled"}</p>
-                    <p className="text-xs text-[#6B705C]">by {b.author || "Unknown"}</p>
+                    <p className="text-xs text-[#5B5F4D]">by {b.author || "Unknown"}</p>
                   </div>
                   {isDone && (
                     <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 px-2 py-1 rounded">
@@ -129,13 +129,13 @@ export default function DuplicateResolutionModal({ pending, onClose, onResolved 
                   )}
                 </div>
 
-                <p className="text-xs uppercase tracking-wide text-[#6B705C] mb-2">Matches on your shelves</p>
+                <p className="text-xs uppercase tracking-wide text-[#5B5F4D] mb-2">Matches on your shelves</p>
                 <ul className="space-y-1 mb-4">
                   {(b.duplicate_of || []).map((m) => (
                     <li key={m.book_id} className="text-sm text-[#2C2C2C]">
                       <span className="font-medium">{m.title || "Untitled"}</span>
-                      <span className="text-[#6B705C]"> — {m.author || "Unknown"}</span>
-                      <span className="ml-2 text-xs text-[#6B705C]">
+                      <span className="text-[#5B5F4D]"> — {m.author || "Unknown"}</span>
+                      <span className="ml-2 text-xs text-[#5B5F4D]">
                         ({(m.match_reasons || []).map((r) => REASON_LABEL[r] || r).join(", ")})
                       </span>
                     </li>
@@ -154,10 +154,10 @@ export default function DuplicateResolutionModal({ pending, onClose, onResolved 
                     } ${isDone ? "cursor-not-allowed" : ""}`}
                   >
                     <div className="flex items-center gap-2 mb-1">
-                      <Layers className="w-4 h-4 text-[#6B705C]" />
+                      <Layers className="w-4 h-4 text-[#5B5F4D]" />
                       <span className="font-medium text-sm">Keep both</span>
                     </div>
-                    <p className="text-xs text-[#6B705C]">Leave the new upload alongside the existing one.</p>
+                    <p className="text-xs text-[#5B5F4D]">Leave the new upload alongside the existing one.</p>
                   </button>
 
                   <button
@@ -174,7 +174,7 @@ export default function DuplicateResolutionModal({ pending, onClose, onResolved 
                       <Trash2 className="w-4 h-4 text-red-600" />
                       <span className="font-medium text-sm">Send to Trash</span>
                     </div>
-                    <p className="text-xs text-[#6B705C]">Soft-delete — restorable for 30 days.</p>
+                    <p className="text-xs text-[#5B5F4D]">Soft-delete — restorable for 30 days.</p>
                   </button>
 
                   <button
@@ -190,7 +190,7 @@ export default function DuplicateResolutionModal({ pending, onClose, onResolved 
                     <div className="flex items-center gap-2 mb-1">
                       <span className="font-medium text-sm">Replace as new version</span>
                     </div>
-                    <p className="text-xs text-[#6B705C]">Archive existing → put upload on a dated shelf.</p>
+                    <p className="text-xs text-[#5B5F4D]">Archive existing → put upload on a dated shelf.</p>
                   </button>
 
                   <button
@@ -209,13 +209,13 @@ export default function DuplicateResolutionModal({ pending, onClose, onResolved 
                         <span className="text-[10px] uppercase font-medium text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded">suggested</span>
                       )}
                     </div>
-                    <p className="text-xs text-[#6B705C]">Older snapshot → archive under the current copy.</p>
+                    <p className="text-xs text-[#5B5F4D]">Older snapshot → archive under the current copy.</p>
                   </button>
                 </div>
 
                 {(choice.action === "new_version_of" || choice.action === "link_as_old_version") && (b.duplicate_of || []).length > 1 && (
                   <div className="mt-3">
-                    <label className="text-xs text-[#6B705C] mb-1 block">
+                    <label className="text-xs text-[#5B5F4D] mb-1 block">
                       {choice.action === "link_as_old_version"
                         ? "Which existing book is the current copy?"
                         : "Which existing book does this replace?"}
@@ -245,7 +245,7 @@ export default function DuplicateResolutionModal({ pending, onClose, onResolved 
             data-testid="duplicate-modal-cancel"
             onClick={onClose}
             disabled={submitting}
-            className="px-4 py-2 rounded-lg text-sm text-[#6B705C] hover:text-[#2C2C2C]"
+            className="px-4 py-2 rounded-lg text-sm text-[#5B5F4D] hover:text-[#2C2C2C]"
           >
             Decide later
           </button>

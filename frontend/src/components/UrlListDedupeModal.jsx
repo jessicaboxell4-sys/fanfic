@@ -65,17 +65,17 @@ export default function UrlListDedupeModal({ reports, onClose }) {
             <h2 className="font-serif text-2xl text-[#2C2C2C] leading-tight">
               {reports.length === 1 ? "URL wishlist deduped" : `${reports.length} URL files deduped`}
             </h2>
-            <p className="text-sm text-[#6B705C] mt-1">
+            <p className="text-sm text-[#5B5F4D] mt-1">
               <strong>{totalUrls}</strong> URL{totalUrls === 1 ? "" : "s"} ·
               {" "}<span className="text-green-700">{totalOwned} already on your shelves</span> ·
               {" "}<span className="text-amber-700">{totalNew} new</span>
-              {totalUnrec > 0 && <> · <span className="text-[#6B705C]">{totalUnrec} unrecognized</span></>}
+              {totalUnrec > 0 && <> · <span className="text-[#5B5F4D]">{totalUnrec} unrecognized</span></>}
             </p>
           </div>
           <button
             data-testid="url-list-close"
             onClick={onClose}
-            className="text-[#6B705C] hover:text-[#2C2C2C] p-1 rounded"
+            className="text-[#5B5F4D] hover:text-[#2C2C2C] p-1 rounded"
             aria-label="Close"
           >
             <X className="w-5 h-5" />
@@ -86,13 +86,13 @@ export default function UrlListDedupeModal({ reports, onClose }) {
           {reports.map((r, i) => (
             <div key={r.filename || `report-${i}`}>
               {reports.length > 1 && (
-                <p className="text-xs uppercase tracking-wide text-[#6B705C] mb-3">
+                <p className="text-xs uppercase tracking-wide text-[#5B5F4D] mb-3">
                   From <span className="font-mono">{r.filename || "(unnamed)"}</span>
                 </p>
               )}
               {r.already_owned?.length > 0 && (
                 <div className="mb-4">
-                  <p className="text-xs uppercase tracking-wide text-[#6B705C] mb-2 flex items-center gap-1">
+                  <p className="text-xs uppercase tracking-wide text-[#5B5F4D] mb-2 flex items-center gap-1">
                     <CheckCircle2 className="w-3 h-3 text-green-700" />
                     Already in your library — removed from the export
                   </p>
@@ -100,8 +100,8 @@ export default function UrlListDedupeModal({ reports, onClose }) {
                     {r.already_owned.map((m, idx) => (
                       <div key={m.book_id || m.source_url || `${m.title}-${m.author}-${idx}`} className="text-sm text-[#2C2C2C] truncate">
                         <span className="font-medium">{m.title || "Untitled"}</span>
-                        <span className="text-[#6B705C]"> — {m.author || "Unknown"}</span>
-                        {m.fandom && <span className="text-[#6B705C]"> · {m.fandom}</span>}
+                        <span className="text-[#5B5F4D]"> — {m.author || "Unknown"}</span>
+                        {m.fandom && <span className="text-[#5B5F4D]"> · {m.fandom}</span>}
                       </div>
                     ))}
                   </div>
@@ -123,13 +123,13 @@ export default function UrlListDedupeModal({ reports, onClose }) {
               )}
               {r.unrecognized?.length > 0 && (
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-[#6B705C] mb-2 flex items-center gap-1">
+                  <p className="text-xs uppercase tracking-wide text-[#5B5F4D] mb-2 flex items-center gap-1">
                     <AlertCircle className="w-3 h-3" />
                     Unrecognized — not a supported fanfic source
                   </p>
                   <div className="space-y-1 max-h-32 overflow-y-auto bg-white rounded-lg border border-dashed border-[#6B705C]/30 p-3">
                     {r.unrecognized.map((u, idx) => (
-                      <div key={`${u}-${idx}`} className="text-xs text-[#6B705C] font-mono truncate">{u}</div>
+                      <div key={`${u}-${idx}`} className="text-xs text-[#5B5F4D] font-mono truncate">{u}</div>
                     ))}
                   </div>
                 </div>
@@ -142,7 +142,7 @@ export default function UrlListDedupeModal({ reports, onClose }) {
           <button
             data-testid="url-list-dismiss"
             onClick={onClose}
-            className="px-4 py-2 rounded-lg text-sm text-[#6B705C] hover:text-[#2C2C2C]"
+            className="px-4 py-2 rounded-lg text-sm text-[#5B5F4D] hover:text-[#2C2C2C]"
           >
             Close
           </button>

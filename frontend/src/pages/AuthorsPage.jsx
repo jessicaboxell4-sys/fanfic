@@ -37,7 +37,7 @@ export function AuthorsDirectory() {
         <button
           onClick={() => navigate("/library")}
           data-testid="authors-back"
-          className="flex items-center gap-2 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-6"
+          className="flex items-center gap-2 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-6"
         >
           <ArrowLeft className="w-4 h-4" /> Back to library
         </button>
@@ -47,7 +47,7 @@ export function AuthorsDirectory() {
           </div>
           <div>
             <h1 className="font-serif text-3xl text-[#2C2C2C]">Authors</h1>
-            <p className="text-sm text-[#6B705C] mt-1 max-w-2xl">
+            <p className="text-sm text-[#5B5F4D] mt-1 max-w-2xl">
               Every author in your library, sorted by how many books they&apos;ve written for you. Click any name to open their shelf.
             </p>
           </div>
@@ -57,13 +57,13 @@ export function AuthorsDirectory() {
           <div className="font-serif text-3xl text-[#2C2C2C]" data-testid="authors-count">
             {authors.length}
           </div>
-          <div className="text-xs text-[#6B705C] uppercase tracking-wide">
+          <div className="text-xs text-[#5B5F4D] uppercase tracking-wide">
             distinct author{authors.length === 1 ? "" : "s"}
           </div>
         </div>
 
         <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B705C]" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#5B5F4D]" />
           <input
             type="search"
             data-testid="authors-search"
@@ -75,9 +75,9 @@ export function AuthorsDirectory() {
         </div>
 
         {loading ? (
-          <p className="text-[#6B705C] italic text-sm">Loading…</p>
+          <p className="text-[#5B5F4D] italic text-sm">Loading…</p>
         ) : filtered.length === 0 ? (
-          <div className="shelf-card p-8 text-center text-[#6B705C]">
+          <div className="shelf-card p-8 text-center text-[#5B5F4D]">
             {authors.length === 0
               ? "No authors yet — upload some books to see them here."
               : <p className="text-sm italic">No authors match your filter.</p>}
@@ -147,7 +147,7 @@ export function AuthorShelf() {
         <button
           onClick={() => navigate("/library/authors")}
           data-testid="author-shelf-back"
-          className="flex items-center gap-2 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-6"
+          className="flex items-center gap-2 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-6"
         >
           <ArrowLeft className="w-4 h-4" /> All authors
         </button>
@@ -157,7 +157,7 @@ export function AuthorShelf() {
             <User className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-xs text-[#6B705C] uppercase tracking-wide">Author</p>
+            <p className="text-xs text-[#5B5F4D] uppercase tracking-wide">Author</p>
             <h1 className="font-serif text-3xl text-[#2C2C2C]" data-testid="author-shelf-name">{author}</h1>
           </div>
         </header>
@@ -165,7 +165,7 @@ export function AuthorShelf() {
         <div className="shelf-card p-5 mb-6 flex flex-wrap items-center gap-4" data-testid="author-shelf-summary">
           <div className="flex-shrink-0">
             <div className="font-serif text-3xl text-[#2C2C2C]" data-testid="author-shelf-count">{books.length}</div>
-            <div className="text-xs text-[#6B705C] uppercase tracking-wide">book{books.length === 1 ? "" : "s"}</div>
+            <div className="text-xs text-[#5B5F4D] uppercase tracking-wide">book{books.length === 1 ? "" : "s"}</div>
           </div>
           {Object.keys(byCategory).length > 0 && (
             <div className="flex flex-wrap gap-2 items-center">
@@ -197,9 +197,9 @@ export function AuthorShelf() {
         </div>
 
         {loading ? (
-          <p className="text-[#6B705C] italic text-sm">Loading…</p>
+          <p className="text-[#5B5F4D] italic text-sm">Loading…</p>
         ) : filtered.length === 0 ? (
-          <div className="shelf-card p-8 text-center text-[#6B705C] italic text-sm">No books match this filter.</div>
+          <div className="shelf-card p-8 text-center text-[#5B5F4D] italic text-sm">No books match this filter.</div>
         ) : (
           <ul className="space-y-2" data-testid="author-shelf-list">
             {filtered.map((b) => {
@@ -234,7 +234,7 @@ export function AuthorShelf() {
                         </span>
                       )}
                     </div>
-                    <div className="text-xs text-[#6B705C]">
+                    <div className="text-xs text-[#5B5F4D]">
                       {b.fandom ? <>{b.fandom}</> : null}
                       {b.fandom && b.category ? " · " : null}
                       {b.category}

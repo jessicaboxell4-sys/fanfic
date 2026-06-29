@@ -27,7 +27,7 @@ export default function UnreadLibraryPage() {
       <main className="max-w-7xl mx-auto px-6 py-10" data-testid="unread-library-page">
         <Link
           to="/"
-          className="inline-flex items-center gap-1 text-sm text-[#6B705C] hover:text-[#6B46C1] mb-4"
+          className="inline-flex items-center gap-1 text-sm text-[#5B5F4D] hover:text-[#6B46C1] mb-4"
           data-testid="unread-library-back"
         >
           <ArrowLeft className="w-4 h-4" /> Back to library
@@ -36,7 +36,7 @@ export default function UnreadLibraryPage() {
           <BookOpen className="w-6 h-6 text-[#6B46C1]" />
           <div>
             <h1 className="font-serif text-3xl text-[#2C2C2C]">Books I haven&apos;t read</h1>
-            <p className="text-sm text-[#6B705C]">
+            <p className="text-sm text-[#5B5F4D]">
               Every book in your library you haven&apos;t opened yet.
               {!loading && ` ${books.length} total.`}
             </p>
@@ -44,7 +44,7 @@ export default function UnreadLibraryPage() {
         </div>
 
         {loading && (
-          <div className="flex items-center gap-2 text-[#6B705C]">
+          <div className="flex items-center gap-2 text-[#5B5F4D]">
             <Loader2 className="w-4 h-4 animate-spin" /> Loading…
           </div>
         )}
@@ -54,7 +54,7 @@ export default function UnreadLibraryPage() {
           </div>
         )}
         {!loading && !error && books.length === 0 && (
-          <div className="text-center py-16 text-[#6B705C]" data-testid="unread-library-empty">
+          <div className="text-center py-16 text-[#5B5F4D]" data-testid="unread-library-empty">
             🎉 You&apos;ve opened every book in your library. Time to upload more!
           </div>
         )}

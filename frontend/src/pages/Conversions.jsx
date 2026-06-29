@@ -122,7 +122,7 @@ export default function Conversions() {
     <div className="min-h-screen bg-[#FAF6EE]">
       <Navbar />
       <main className="max-w-4xl mx-auto px-6 py-10">
-        <Link to="/library" className="inline-flex items-center gap-1 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-4">
+        <Link to="/library" className="inline-flex items-center gap-1 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-4">
           <ArrowLeft className="w-4 h-4" /> back to library
         </Link>
 
@@ -132,7 +132,7 @@ export default function Conversions() {
           </div>
           <div className="flex-1">
             <h1 className="font-serif text-4xl text-[#2C2C2C] leading-tight">Conversions</h1>
-            <p className="text-[#6B705C] mt-1">
+            <p className="text-[#5B5F4D] mt-1">
               Calibre-powered uploads from the last {data.visibility_hours} hours. Retry any that didn't make it through.
             </p>
             <div className="mt-2">
@@ -155,7 +155,7 @@ export default function Conversions() {
               <button
                 data-testid="dismiss-all-btn"
                 onClick={dismissAll}
-                className="px-3 py-1.5 rounded text-xs font-medium bg-white border border-[#6B705C]/30 text-[#6B705C] hover:bg-[#6B705C]/10 inline-flex items-center gap-1"
+                className="px-3 py-1.5 rounded text-xs font-medium bg-white border border-[#6B705C]/30 text-[#5B5F4D] hover:bg-[#6B705C]/10 inline-flex items-center gap-1"
               >
                 <X className="w-3 h-3" /> Clear history
               </button>
@@ -171,7 +171,7 @@ export default function Conversions() {
           <div data-testid="conversions-empty" className="shelf-card p-10 text-center">
             <Sparkles className="w-10 h-10 text-amber-300 mx-auto mb-4" />
             <p className="font-serif text-2xl text-[#2C2C2C]">Nothing to show</p>
-            <p className="text-sm text-[#6B705C] mt-2">Upload a PDF, MOBI, or DOCX and you'll see its conversion progress here.</p>
+            <p className="text-sm text-[#5B5F4D] mt-2">Upload a PDF, MOBI, or DOCX and you'll see its conversion progress here.</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -198,8 +198,8 @@ export default function Conversions() {
                         <badge.Icon className={`w-3 h-3 ${badge.spinning ? "animate-spin" : ""}`} />
                         {badge.label}
                       </span>
-                      <span className="font-mono text-xs uppercase text-[#6B705C]">.{j.original_format}</span>
-                      {elapsed && <span className="text-xs text-[#6B705C]">· {elapsed}</span>}
+                      <span className="font-mono text-xs uppercase text-[#5B5F4D]">.{j.original_format}</span>
+                      {elapsed && <span className="text-xs text-[#5B5F4D]">· {elapsed}</span>}
                     </div>
                     <p className="font-medium text-[#2C2C2C] truncate">
                       {j.status === "done" && j.book_id ? (
@@ -211,7 +211,7 @@ export default function Conversions() {
                     {j.error && (
                       <p className="text-xs text-red-700 mt-1 break-words">{j.error}</p>
                     )}
-                    <p className="text-xs text-[#6B705C] mt-1">
+                    <p className="text-xs text-[#5B5F4D] mt-1">
                       {j.finished_at ? `finished ${relativeAgo(j.finished_at)}` : `started ${relativeAgo(j.started_at)}`}
                     </p>
                   </div>

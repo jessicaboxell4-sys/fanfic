@@ -50,7 +50,7 @@ export default function LibraryReadingStatsCard() {
         <Link
           to="/account/appearance"
           data-testid="library-reading-stats-settings"
-          className="text-[10px] text-[#6B705C] hover:text-[#6B46C1] font-semibold uppercase tracking-wider"
+          className="text-[10px] text-[#5B5F4D] hover:text-[#6B46C1] font-semibold uppercase tracking-wider"
         >
           {data.wpm} wpm
         </Link>
@@ -88,7 +88,7 @@ export default function LibraryReadingStatsCard() {
           <AlertCircle className="w-3 h-3" />
           {missing} book{missing === 1 ? "" : "s"} without word counts —
           {" "}
-          <span className="text-[#6B705C]">re-upload or ask an admin to run the backfill.</span>
+          <span className="text-[#5B5F4D]">re-upload or ask an admin to run the backfill.</span>
         </p>
       )}
     </section>
@@ -98,9 +98,9 @@ export default function LibraryReadingStatsCard() {
 function Stat({ label, value, sub, accent, testid }) {
   return (
     <div className="bg-white border border-[#E8E6E1] rounded-xl p-3" data-testid={testid}>
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#6B705C] mb-0.5">{label}</p>
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#5B5F4D] mb-0.5">{label}</p>
       <p className={`font-serif text-xl ${accent}`}>{value}</p>
-      <p className="text-[11px] text-[#6B705C] mt-0.5">{sub}</p>
+      <p className="text-[11px] text-[#5B5F4D] mt-0.5">{sub}</p>
     </div>
   );
 }

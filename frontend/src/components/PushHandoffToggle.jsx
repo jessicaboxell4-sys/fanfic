@@ -50,7 +50,7 @@ export default function PushHandoffToggle() {
       <h2 className="font-serif text-xl text-[#2C2C2C] mb-2">
         Cross-device handoff
       </h2>
-      <p className="text-sm text-[#6B705C] mb-4">
+      <p className="text-sm text-[#5B5F4D] mb-4">
         Get a push notification on your other devices when you stop
         reading mid-book — tap it to resume on the spot.  Works on the
         same Google account / browser profile on every device.
@@ -71,7 +71,7 @@ export default function PushHandoffToggle() {
           {state.subscribed ? <BellOff className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
           {busy ? "…" : (state.subscribed ? "Disable" : "Enable on this device")}
         </button>
-        <span className="text-xs text-[#6B705C]">
+        <span className="text-xs text-[#5B5F4D]">
           Status: {state.subscribed ? "subscribed" : (state.permission === "denied" ? "blocked by browser" : "not enabled")}
         </span>
       </div>

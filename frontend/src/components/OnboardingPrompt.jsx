@@ -72,7 +72,7 @@ export default function OnboardingPrompt() {
         disabled={working}
         aria-label="Dismiss"
         data-testid="onboarding-template-dismiss"
-        className="absolute top-3 right-3 text-[#6B705C] hover:text-[#2C2C2C] disabled:opacity-50"
+        className="absolute top-3 right-3 text-[#5B5F4D] hover:text-[#2C2C2C] disabled:opacity-50"
       >
         <X className="h-4 w-4" />
       </button>
@@ -84,7 +84,7 @@ export default function OnboardingPrompt() {
           <p className="font-serif text-lg text-[#2C2C2C] mb-1">
             Polish your library?
           </p>
-          <p className="text-sm text-[#6B705C]">
+          <p className="text-sm text-[#5B5F4D]">
             We can give every one of your {bookCount} book{bookCount === 1 ? "" : "s"} a clean
             intro page (title, author, source link) and rename them to a tidy{" "}
             <span className="font-mono text-xs">Title_by_Author.epub</span> pattern.
@@ -98,7 +98,7 @@ export default function OnboardingPrompt() {
           onClick={() => dismiss(false)}
           disabled={working}
           data-testid="onboarding-template-decline"
-          className="px-4 py-2 rounded-xl border border-[#B87A00]/30 bg-white text-sm text-[#6B705C] hover:bg-[#FBF7EE] disabled:opacity-60"
+          className="px-4 py-2 rounded-xl border border-[#B87A00]/30 bg-white text-sm text-[#5B5F4D] hover:bg-[#FBF7EE] disabled:opacity-60"
         >
           Not now
         </button>

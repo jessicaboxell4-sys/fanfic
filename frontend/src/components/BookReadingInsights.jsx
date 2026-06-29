@@ -77,7 +77,7 @@ export default function BookReadingInsights({ bookId }) {
           className={`inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider px-3 py-1.5 rounded-full border ${
             pace.relative >= 1.15 ? "bg-[#E6F2E8] text-[#2E7D45] border-[#C7E0CB]" :
             pace.relative <= 0.85 ? "bg-[#FBEAE7] text-[#B0411E] border-[#F0C8C0]" :
-            "bg-[#F5F2EE] text-[#6B705C] border-[#E8E6E1]"
+            "bg-[#F5F2EE] text-[#5B5F4D] border-[#E8E6E1]"
           }`}
         >
           <Zap className="w-3 h-3" />

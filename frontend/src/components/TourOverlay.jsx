@@ -61,7 +61,7 @@ export default function TourOverlay({ open, onClose }) {
           <button
             data-testid="tour-skip"
             onClick={close}
-            className="p-1 hover:bg-[#F5F3EC] rounded text-[#6B705C]"
+            className="p-1 hover:bg-[#F5F3EC] rounded text-[#5B5F4D]"
             title="Skip"
           >
             <XIcon className="w-4 h-4" />

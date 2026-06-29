@@ -179,14 +179,14 @@ function GoalDialog({ initial, onClose, onSaved }) {
         <div className="flex items-center justify-between">
           <h3 className="font-serif text-xl text-[#2C2C2C]">{isEdit ? "Edit goal" : "New reading goal"}</h3>
           <button onClick={onClose} className="p-1 hover:bg-[#F5F3EC] rounded" data-testid="goal-dialog-close">
-            <XIcon className="w-4 h-4 text-[#6B705C]" />
+            <XIcon className="w-4 h-4 text-[#5B5F4D]" />
           </button>
         </div>
 
         {!isEdit && (
           <>
             <div>
-              <label className="text-xs font-semibold text-[#6B705C] uppercase tracking-wider">Metric</label>
+              <label className="text-xs font-semibold text-[#5B5F4D] uppercase tracking-wider">Metric</label>
               <select
                 data-testid="goal-metric-select"
                 value={metric}
@@ -199,7 +199,7 @@ function GoalDialog({ initial, onClose, onSaved }) {
               </select>
             </div>
             <div>
-              <label className="text-xs font-semibold text-[#6B705C] uppercase tracking-wider">Cadence</label>
+              <label className="text-xs font-semibold text-[#5B5F4D] uppercase tracking-wider">Cadence</label>
               <select
                 data-testid="goal-period-type-select"
                 value={periodType}
@@ -212,7 +212,7 @@ function GoalDialog({ initial, onClose, onSaved }) {
               </select>
             </div>
             <div>
-              <label className="text-xs font-semibold text-[#6B705C] uppercase tracking-wider">
+              <label className="text-xs font-semibold text-[#5B5F4D] uppercase tracking-wider">
                 {periodType === "year" ? "Year (YYYY)" : "Month (YYYY-MM)"}
               </label>
               <input
@@ -227,7 +227,7 @@ function GoalDialog({ initial, onClose, onSaved }) {
         )}
 
         <div>
-          <label className="text-xs font-semibold text-[#6B705C] uppercase tracking-wider">
+          <label className="text-xs font-semibold text-[#5B5F4D] uppercase tracking-wider">
             Target {metric === "books" ? "books" : metric === "pages" ? "pages" : "words"}
           </label>
           <input
@@ -267,7 +267,7 @@ function GoalCard({ goal, onEdit, onDelete }) {
         <ProgressRing fraction={goal.fraction || 0} hit={hit} />
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
           <p className={`font-serif text-2xl leading-none ${hit ? "text-[#1F8F4E]" : "text-[#2C2C2C]"}`}>{pctText}</p>
-          <p className="text-[10px] uppercase tracking-wider text-[#6B705C] mt-1">{hit ? "Hit!" : "of goal"}</p>
+          <p className="text-[10px] uppercase tracking-wider text-[#5B5F4D] mt-1">{hit ? "Hit!" : "of goal"}</p>
         </div>
       </div>
       <div className="min-w-0 flex-1">
@@ -278,7 +278,7 @@ function GoalCard({ goal, onEdit, onDelete }) {
         <h3 className="font-serif text-2xl text-[#2C2C2C] truncate" data-testid={`goal-target-${goal.goal_id}`}>
           {formatNumber(goal.target)} {metricUnit(goal.metric, goal.target)}
         </h3>
-        <p className="text-sm text-[#6B705C] mt-1" data-testid={`goal-progress-${goal.goal_id}`}>
+        <p className="text-sm text-[#5B5F4D] mt-1" data-testid={`goal-progress-${goal.goal_id}`}>
           <span className="font-semibold text-[#2C2C2C]">{formatNumber(goal.current)}</span> {metricUnit(goal.metric, goal.current)} so far
           {hit ? " — you did it." : ` · ${formatNumber(Math.max(0, goal.target - goal.current))} to go`}
         </p>
@@ -293,7 +293,7 @@ function GoalCard({ goal, onEdit, onDelete }) {
           <button
             data-testid={`goal-delete-${goal.goal_id}`}
             onClick={() => onDelete(goal)}
-            className="text-xs text-[#6B705C] hover:text-[#B43F26] inline-flex items-center gap-1 px-2 py-1"
+            className="text-xs text-[#5B5F4D] hover:text-[#B43F26] inline-flex items-center gap-1 px-2 py-1"
           >
             <Trash2 className="w-3 h-3" /> Delete
           </button>
@@ -380,7 +380,7 @@ export default function GoalsPage() {
       <Navbar />
       <Confetti active={confettiActive} />
       <main className="max-w-5xl mx-auto px-6 md:px-8 py-8" data-testid="goals-page">
-        <Link to="/library" className="inline-flex items-center gap-1 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-4">
+        <Link to="/library" className="inline-flex items-center gap-1 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-4">
           <ArrowLeft className="w-4 h-4" /> back to library
         </Link>
 
@@ -391,7 +391,7 @@ export default function GoalsPage() {
             </div>
             <div>
               <h1 className="font-serif text-3xl sm:text-4xl text-[#2C2C2C]">Reading goals</h1>
-              <p className="text-sm text-[#6B705C]">
+              <p className="text-sm text-[#5B5F4D]">
                 Set yearly or monthly targets — books, pages, or word count. Progress counts any book you finished (clicked &quot;Mark read&quot; or hit 100%) within the period.
               </p>
             </div>
@@ -415,7 +415,7 @@ export default function GoalsPage() {
               className={`text-sm px-3 py-1 rounded-full border transition ${
                 y === activeYearTab
                   ? "bg-[#6B46C1] text-white border-[#6B46C1]"
-                  : "bg-white text-[#6B705C] border-[#E5DDC5] hover:border-[#6B46C1]"
+                  : "bg-white text-[#5B5F4D] border-[#E5DDC5] hover:border-[#6B46C1]"
               }`}
             >
               {y}
@@ -424,12 +424,12 @@ export default function GoalsPage() {
         </div>
 
         {loading ? (
-          <div className="text-[#6B705C] text-sm flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" /> Loading goals…</div>
+          <div className="text-[#5B5F4D] text-sm flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" /> Loading goals…</div>
         ) : tabGoals.length === 0 ? (
           <section className="shelf-card p-10 text-center" data-testid="goals-empty-state">
             <BookOpen className="w-12 h-12 text-[#E5DDC5] mx-auto mb-2" />
             <p className="font-serif text-xl text-[#2C2C2C] mb-1">No goals for {activeYearTab} yet</p>
-            <p className="text-sm text-[#6B705C] mb-4">
+            <p className="text-sm text-[#5B5F4D] mb-4">
               Pick a target you can casually hit, or a stretch one — past years are fair game for backfill bragging rights.
             </p>
             <button

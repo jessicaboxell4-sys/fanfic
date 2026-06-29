@@ -103,7 +103,7 @@ export default function PublicYearInBooks() {
         </header>
         <main className="max-w-2xl mx-auto px-6 py-20 text-center">
           <h1 className="font-serif text-4xl text-[#2C2C2C] mb-4">This recap isn&apos;t available</h1>
-          <p className="text-[#6B705C] mb-8">
+          <p className="text-[#5B5F4D] mb-8">
             The share link may have been revoked or never existed. Check the URL or ask the sender for a fresh link.
           </p>
           <Link to="/" className="btn-primary text-sm inline-block">Visit Shelfsort</Link>

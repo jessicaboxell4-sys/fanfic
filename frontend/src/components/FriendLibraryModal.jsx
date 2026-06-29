@@ -53,20 +53,20 @@ export default function FriendLibraryModal({ friend, onClose }) {
       >
         <header className="px-5 py-3 border-b border-[#E8E6E1] flex items-center justify-between">
           <div className="min-w-0">
-            <p className="text-[10px] uppercase tracking-wider text-[#6B705C] font-semibold">Shared library</p>
+            <p className="text-[10px] uppercase tracking-wider text-[#5B5F4D] font-semibold">Shared library</p>
             <p className="font-serif text-lg text-[#2C2C2C] truncate">{friend.name || friend.email}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
             data-testid="friend-library-close-btn"
-            className="p-1 text-[#6B705C] hover:text-[#2C2C2C]"
+            className="p-1 text-[#5B5F4D] hover:text-[#2C2C2C]"
           >
             <XIcon className="w-5 h-5" />
           </button>
         </header>
         <div className="p-3 border-b border-[#E8E6E1] flex items-center gap-2">
-          <Search className="w-4 h-4 text-[#6B705C]" />
+          <Search className="w-4 h-4 text-[#5B5F4D]" />
           <input
             type="text"
             value={q}
@@ -78,11 +78,11 @@ export default function FriendLibraryModal({ friend, onClose }) {
         </div>
         <div className="overflow-y-auto flex-1">
           {loading ? (
-            <p className="p-5 text-xs text-[#6B705C]"><Loader2 className="inline w-3 h-3 animate-spin mr-1" /> Loading…</p>
+            <p className="p-5 text-xs text-[#5B5F4D]"><Loader2 className="inline w-3 h-3 animate-spin mr-1" /> Loading…</p>
           ) : error ? (
             <p className="p-5 text-sm text-[#B43F26]" data-testid="friend-library-error">{error}</p>
           ) : books.length === 0 ? (
-            <p className="p-5 text-sm text-[#6B705C] italic">No books match.</p>
+            <p className="p-5 text-sm text-[#5B5F4D] italic">No books match.</p>
           ) : (
             <ul className="divide-y divide-[#E8E6E1]">
               {books.map((b) => (
@@ -91,10 +91,10 @@ export default function FriendLibraryModal({ friend, onClose }) {
                   data-testid={`friend-library-row-${b.book_id}`}
                   className="px-4 py-2 flex items-center gap-3"
                 >
-                  <BookOpen className="w-4 h-4 text-[#6B705C] flex-shrink-0" />
+                  <BookOpen className="w-4 h-4 text-[#5B5F4D] flex-shrink-0" />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-[#2C2C2C] truncate">{b.title}</p>
-                    <p className="text-xs text-[#6B705C] truncate">
+                    <p className="text-xs text-[#5B5F4D] truncate">
                       {b.author || "Unknown author"}
                       {b.fandom && <span className="ml-2 text-[10px] bg-[#FBFAF6] px-1.5 py-0.5 rounded">{b.fandom}</span>}
                     </p>
@@ -124,7 +124,7 @@ export default function FriendLibraryModal({ friend, onClose }) {
             </ul>
           )}
         </div>
-        <footer className="px-4 py-2 border-t border-[#E8E6E1] text-[10px] text-[#6B705C]">
+        <footer className="px-4 py-2 border-t border-[#E8E6E1] text-[10px] text-[#5B5F4D]">
           Clicking <strong>Want this</strong> sends a polite DM to {friend.name || friend.email}. They decide whether to share the file or source URL.
         </footer>
       </div>

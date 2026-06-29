@@ -82,7 +82,7 @@ export default function TagShelfPage() {
         <button
           onClick={() => navigate("/library/tags")}
           data-testid="back-to-tags"
-          className="flex items-center gap-2 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-6"
+          className="flex items-center gap-2 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-6"
         >
           <ArrowLeft className="w-4 h-4" /> All tags
         </button>
@@ -99,14 +99,14 @@ export default function TagShelfPage() {
               <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl text-[#2C2C2C]" data-testid="tag-shelf-title">
                 #{tag}
               </h1>
-              <p className="text-[#6B705C] mt-3">
+              <p className="text-[#5B5F4D] mt-3">
                 {loading
                   ? "Loading…"
                   : books.length === 0
                     ? "No books carry this tag."
                     : `${books._count ?? books.length} book${(books._count ?? books.length) === 1 ? "" : "s"} tagged`}
                 {!loading && books._count && books._count > books.length && (
-                  <span className="text-[#6B705C] text-xs ml-2">
+                  <span className="text-[#5B5F4D] text-xs ml-2">
                     (showing first {books.length})
                   </span>
                 )}
@@ -137,12 +137,12 @@ export default function TagShelfPage() {
         </div>
 
         {loading ? (
-          <p className="text-[#6B705C] py-12 text-center">Loading…</p>
+          <p className="text-[#5B5F4D] py-12 text-center">Loading…</p>
         ) : books.length === 0 ? (
           <div className="shelf-card p-12 text-center">
             <TagIcon className="w-10 h-10 text-[#E07A5F] mx-auto mb-4 opacity-70" />
             <h2 className="font-serif text-2xl text-[#2C2C2C] mb-2">No books with this tag</h2>
-            <p className="text-[#6B705C] mb-6">
+            <p className="text-[#5B5F4D] mb-6">
               Open any book and add <strong>{tag}</strong> to its tags, then come back.
             </p>
             <Link to="/library/tags" className="btn-primary text-sm inline-block">

@@ -81,7 +81,7 @@ export default function UrlPasteCard() {
           <h2 className="font-serif text-2xl sm:text-3xl text-[#2C2C2C] leading-tight">
             Have a list of fanfic URLs?
           </h2>
-          <p className="text-sm text-[#6B705C] mt-1.5">
+          <p className="text-sm text-[#5B5F4D] mt-1.5">
             Paste them below — we’ll <strong>filter out the ones you already own</strong>, flag duplicates inside your list, and hand you back a clean Excel + .txt of just the new ones to fetch.
           </p>
         </div>
@@ -93,12 +93,12 @@ export default function UrlPasteCard() {
         onChange={(e) => setText(e.target.value)}
         rows={5}
         placeholder={"https://archiveofourown.org/works/12345\nhttps://www.fanfiction.net/s/67890/\nhttps://www.royalroad.com/fiction/111\n…"}
-        className="w-full px-4 py-3 rounded-xl border border-[#E8E6E1] bg-white/80 backdrop-blur-sm text-sm text-[#2C2C2C] font-mono leading-relaxed placeholder:text-[#6B705C]/60 placeholder:font-mono focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/30 focus:border-[#6B46C1] resize-y min-h-[120px]"  /* dark-ok — bg-white/80 is remapped in index.css */
+        className="w-full px-4 py-3 rounded-xl border border-[#E8E6E1] bg-white/80 backdrop-blur-sm text-sm text-[#2C2C2C] font-mono leading-relaxed placeholder:text-[#5B5F4D]/60 placeholder:font-mono focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/30 focus:border-[#6B46C1] resize-y min-h-[120px]"  /* dark-ok — bg-white/80 is remapped in index.css */
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3 mt-4">
         <p
-          className="text-xs text-[#6B705C]"
+          className="text-xs text-[#5B5F4D]"
           data-testid="url-paste-card-detected"
         >
           {detected === 0

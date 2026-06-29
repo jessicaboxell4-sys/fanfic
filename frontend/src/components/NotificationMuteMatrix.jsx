@@ -67,7 +67,7 @@ export default function NotificationMuteMatrix() {
   if (loading) {
     return (
       <section className="shelf-card p-5 mb-5">
-        <div className="text-sm text-[#6B705C] flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" /> Loading notification preferences…</div>
+        <div className="text-sm text-[#5B5F4D] flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" /> Loading notification preferences…</div>
       </section>
     );
   }
@@ -80,7 +80,7 @@ export default function NotificationMuteMatrix() {
             <Bell className="w-4 h-4 text-[#6B46C1]" />
             In-app notifications
           </h3>
-          <p className="text-xs text-[#6B705C] mt-0.5">
+          <p className="text-xs text-[#5B5F4D] mt-0.5">
             All notifications fire by default. Mute any kind you don&apos;t want pinging the bell. Email preferences live above.
           </p>
         </div>
@@ -98,7 +98,7 @@ export default function NotificationMuteMatrix() {
       <div className="space-y-4">
         {groups.map(([groupName, rows]) => (
           <div key={groupName} data-testid={`mute-group-${groupName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`}>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-[#6B705C] mb-1.5">{groupName}</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-[#5B5F4D] mb-1.5">{groupName}</p>
             <ul className="space-y-1">
               {rows.map((row) => {
                 const isMuted = muted.has(row.kind);
@@ -112,10 +112,10 @@ export default function NotificationMuteMatrix() {
                     }`}
                   >
                     <div className="min-w-0 flex-1">
-                      <p className={`text-sm font-medium ${disabled ? "text-[#6B705C]" : "text-[#2C2C2C]"}`}>
+                      <p className={`text-sm font-medium ${disabled ? "text-[#5B5F4D]" : "text-[#2C2C2C]"}`}>
                         {row.label}
                       </p>
-                      <p className="text-[11px] text-[#6B705C]">{row.description}</p>
+                      <p className="text-[11px] text-[#5B5F4D]">{row.description}</p>
                       {disabled && (
                         <p className="text-[10px] text-[#B87A00] mt-0.5 flex items-center gap-1">
                           <Info className="w-3 h-3" />
@@ -149,7 +149,7 @@ export default function NotificationMuteMatrix() {
       </div>
 
       {saving && (
-        <p className="text-[10px] text-[#6B705C] mt-2 flex items-center gap-1">
+        <p className="text-[10px] text-[#5B5F4D] mt-2 flex items-center gap-1">
           <Loader2 className="w-3 h-3 animate-spin" /> Saving…
         </p>
       )}

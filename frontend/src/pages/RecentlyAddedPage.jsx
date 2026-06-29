@@ -55,7 +55,7 @@ export default function RecentlyAddedPage() {
     <div className="min-h-screen bg-paper">
       <Navbar />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 md:py-12 fade-in" data-testid="recently-added-page">
-        <Link to="/library" className="inline-flex items-center gap-1 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-6">
+        <Link to="/library" className="inline-flex items-center gap-1 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-6">
           <ArrowLeft className="w-4 h-4" /> Library
         </Link>
 
@@ -67,7 +67,7 @@ export default function RecentlyAddedPage() {
             <h1 className="font-serif text-4xl sm:text-5xl text-[#2C2C2C] leading-[1.05] tracking-tight">
               Books that just landed.
             </h1>
-            <p className="text-[#6B705C] mt-3 text-base sm:text-lg">
+            <p className="text-[#5B5F4D] mt-3 text-base sm:text-lg">
               Added in the last {days} {days === 1 ? "day" : "days"}, newest first.
             </p>
           </div>
@@ -81,7 +81,7 @@ export default function RecentlyAddedPage() {
                 className={`px-3 py-1.5 rounded-full text-xs font-semibold ${
                   days === d
                     ? "bg-[#6B46C1] text-white"
-                    : "border border-[#E5DDC5] text-[#6B705C] hover:bg-white"
+                    : "border border-[#E5DDC5] text-[#5B5F4D] hover:bg-white"
                 }`}
               >
                 {d}d
@@ -91,12 +91,12 @@ export default function RecentlyAddedPage() {
         </header>
 
         {loading ? (
-          <div className="text-center py-16 text-[#6B705C]" data-testid="recently-added-loading">
+          <div className="text-center py-16 text-[#5B5F4D]" data-testid="recently-added-loading">
             <Loader2 className="w-6 h-6 animate-spin mx-auto mb-3" />
             Pulling your latest arrivals…
           </div>
         ) : books.length === 0 ? (
-          <div className="shelf-card p-10 text-center text-[#6B705C]" data-testid="recently-added-empty">
+          <div className="shelf-card p-10 text-center text-[#5B5F4D]" data-testid="recently-added-empty">
             <Sparkles className="w-8 h-8 mx-auto mb-3 opacity-60" />
             Nothing new in this window. Try a longer one above, or{" "}
             <Link to="/library" className="text-[#6B46C1] underline font-semibold">

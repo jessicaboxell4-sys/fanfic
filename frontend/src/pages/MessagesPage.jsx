@@ -36,7 +36,7 @@ function MemberPills({ members, currentUserId }) {
         </span>
       ))}
       {others.length === 0 && (
-        <span className="text-[11px] text-[#6B705C] italic">just you (waiting for company)</span>
+        <span className="text-[11px] text-[#5B5F4D] italic">just you (waiting for company)</span>
       )}
     </div>
   );
@@ -49,7 +49,7 @@ function MessageRow({ msg, isMine, currentUserId, onApplyPalette }) {
       className={`flex flex-col ${isMine ? "items-end" : "items-start"}`}
     >
       {!isMine && (
-        <p className="text-[10px] uppercase tracking-wider text-[#6B705C] font-semibold mb-0.5 px-2">
+        <p className="text-[10px] uppercase tracking-wider text-[#5B5F4D] font-semibold mb-0.5 px-2">
           {msg.sender_name}
         </p>
       )}
@@ -76,7 +76,7 @@ function MessageRow({ msg, isMine, currentUserId, onApplyPalette }) {
                 {msg.attachment.book_title || "Open book"}
               </p>
               {msg.attachment.book_author && (
-                <p className={`text-[10px] truncate ${isMine ? "text-white/80" : "text-[#6B705C]"}`}>
+                <p className={`text-[10px] truncate ${isMine ? "text-white/80" : "text-[#5B5F4D]"}`}>
                   {msg.attachment.book_author}
                 </p>
               )}
@@ -96,7 +96,7 @@ function MessageRow({ msg, isMine, currentUserId, onApplyPalette }) {
               <p className={`text-xs font-semibold truncate ${isMine ? "text-white" : "text-[#2C2C2C]"}`}>
                 Palette: {msg.attachment.palette_name || "shared palette"}
               </p>
-              <code className={`text-[9px] font-mono truncate block ${isMine ? "text-white/70" : "text-[#6B705C]"}`}>{/* fontsize-ok — palette token preview, intentionally tiny mono */}
+              <code className={`text-[9px] font-mono truncate block ${isMine ? "text-white/70" : "text-[#5B5F4D]"}`}>{/* fontsize-ok — palette token preview, intentionally tiny mono */}
                 {msg.attachment.palette_token.slice(0, 36)}{msg.attachment.palette_token.length > 36 ? "…" : ""}
               </code>
             </div>
@@ -112,7 +112,7 @@ function MessageRow({ msg, isMine, currentUserId, onApplyPalette }) {
           </div>
         )}
       </div>
-      <p className="text-[10px] text-[#6B705C] mt-0.5 px-2">{fmtTime(msg.created_at)}</p>
+      <p className="text-[10px] text-[#5B5F4D] mt-0.5 px-2">{fmtTime(msg.created_at)}</p>
     </div>
   );
 }
@@ -138,8 +138,8 @@ function AttachBookPopover({ open, onClose, onPick }) {
       className="absolute bottom-full mb-2 left-0 w-80 rounded-xl border border-[#E8E6E1] bg-white shadow-lg z-30 overflow-hidden"
     >
       <div className="p-3 border-b border-[#E8E6E1] flex items-center justify-between">
-        <p className="text-xs font-bold uppercase tracking-wider text-[#6B705C]">Attach a book</p>
-        <button type="button" onClick={onClose} className="text-[#6B705C] hover:text-[#2C2C2C]">
+        <p className="text-xs font-bold uppercase tracking-wider text-[#5B5F4D]">Attach a book</p>
+        <button type="button" onClick={onClose} className="text-[#5B5F4D] hover:text-[#2C2C2C]">
           <XIcon className="w-4 h-4" />
         </button>
       </div>
@@ -155,10 +155,10 @@ function AttachBookPopover({ open, onClose, onPick }) {
       </div>
       <ul className="max-h-64 overflow-y-auto">
         {loading && (
-          <li className="px-3 py-2 text-xs text-[#6B705C]">Loading…</li>
+          <li className="px-3 py-2 text-xs text-[#5B5F4D]">Loading…</li>
         )}
         {!loading && books.length === 0 && (
-          <li className="px-3 py-2 text-xs text-[#6B705C] italic">No books found</li>
+          <li className="px-3 py-2 text-xs text-[#5B5F4D] italic">No books found</li>
         )}
         {books.map((b) => (
           <li key={b.book_id}>
@@ -169,7 +169,7 @@ function AttachBookPopover({ open, onClose, onPick }) {
               className="w-full text-left px-3 py-2 hover:bg-[#FBFAF6] text-xs"
             >
               <p className="font-semibold text-[#2C2C2C] truncate">{b.title}</p>
-              <p className="text-[10px] text-[#6B705C] truncate">{b.author || "Unknown author"}</p>
+              <p className="text-[10px] text-[#5B5F4D] truncate">{b.author || "Unknown author"}</p>
             </button>
           </li>
         ))}
@@ -238,7 +238,7 @@ function Composer({ roomId, onSent }) {
         >
           <BookOpen className="w-3.5 h-3.5 text-[var(--primary)]" />
           <span className="truncate max-w-[200px]">{pendingBook.title}</span>
-          <button type="button" onClick={() => setPendingBook(null)} className="text-[#6B705C] hover:text-[#2C2C2C]">
+          <button type="button" onClick={() => setPendingBook(null)} className="text-[#5B5F4D] hover:text-[#2C2C2C]">
             <XIcon className="w-3 h-3" />
           </button>
         </div>
@@ -250,7 +250,7 @@ function Composer({ roomId, onSent }) {
         >
           <Palette className="w-3.5 h-3.5 text-[var(--primary)]" />
           <span>Palette: {pendingPalette.name}</span>
-          <button type="button" onClick={() => setPendingPalette(null)} className="text-[#6B705C] hover:text-[#2C2C2C]">
+          <button type="button" onClick={() => setPendingPalette(null)} className="text-[#5B5F4D] hover:text-[#2C2C2C]">
             <XIcon className="w-3 h-3" />
           </button>
         </div>
@@ -263,7 +263,7 @@ function Composer({ roomId, onSent }) {
             onClick={() => setShowBookPicker((v) => !v)}
             data-testid="chat-attach-book-btn"
             disabled={!!pendingBook || !!pendingPalette}
-            className="p-2 rounded-lg hover:bg-[#FBFAF6] text-[#6B705C] disabled:opacity-40"
+            className="p-2 rounded-lg hover:bg-[#FBFAF6] text-[#5B5F4D] disabled:opacity-40"
             title="Attach a book"
           >
             <BookOpen className="w-5 h-5" />
@@ -279,7 +279,7 @@ function Composer({ roomId, onSent }) {
           onClick={attachCurrentPalette}
           data-testid="chat-attach-palette-btn"
           disabled={!!pendingBook || !!pendingPalette}
-          className="p-2 rounded-lg hover:bg-[#FBFAF6] text-[#6B705C] disabled:opacity-40 flex-shrink-0"
+          className="p-2 rounded-lg hover:bg-[#FBFAF6] text-[#5B5F4D] disabled:opacity-40 flex-shrink-0"
           title="Share your current palette"
         >
           <Palette className="w-5 h-5" />
@@ -391,7 +391,7 @@ export default function MessagesPage() {
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6" data-testid="messages-page">
         <Link
           to="/library"
-          className="inline-flex items-center gap-1 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-4"
+          className="inline-flex items-center gap-1 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-4"
         >
           <ArrowLeft className="w-4 h-4" /> back to library
         </Link>
@@ -402,7 +402,7 @@ export default function MessagesPage() {
           </div>
           <div>
             <h1 className="font-serif text-3xl sm:text-4xl text-[#2C2C2C] leading-tight">Messages</h1>
-            <p className="text-sm text-[#6B705C]">
+            <p className="text-sm text-[#5B5F4D]">
               Private chat with people sharing your rooms. Rooms are admin-curated for now.
             </p>
           </div>
@@ -412,7 +412,7 @@ export default function MessagesPage() {
           {/* Sidebar */}
           <aside className="border-r border-[#E8E6E1] bg-white md:max-h-[70vh] md:overflow-y-auto" data-testid="chat-room-list">
             <div className="p-3 border-b border-[#E8E6E1] flex items-center justify-between gap-2">
-              <p className="text-xs font-bold uppercase tracking-wider text-[#6B705C]">Your rooms</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-[#5B5F4D]">Your rooms</p>
               <Link
                 to="/friends"
                 data-testid="chat-new-dm-link"
@@ -423,11 +423,11 @@ export default function MessagesPage() {
               </Link>
             </div>
             {loadingRooms ? (
-              <p className="p-4 text-xs text-[#6B705C]">Loading…</p>
+              <p className="p-4 text-xs text-[#5B5F4D]">Loading…</p>
             ) : rooms.length === 0 ? (
               <div className="p-4">
-                <p className="text-sm text-[#6B705C] italic mb-2">No rooms yet.</p>
-                <p className="text-xs text-[#6B705C]">Ask an admin to add you to one, or create one yourself if you have admin access.</p>
+                <p className="text-sm text-[#5B5F4D] italic mb-2">No rooms yet.</p>
+                <p className="text-xs text-[#5B5F4D]">Ask an admin to add you to one, or create one yourself if you have admin access.</p>
               </div>
             ) : (
               <ul>
@@ -473,17 +473,17 @@ export default function MessagesPage() {
                   <button
                     type="button"
                     onClick={() => setActiveRoom(null)}
-                    className="md:hidden p-1 text-[#6B705C] hover:text-[#2C2C2C]"
+                    className="md:hidden p-1 text-[#5B5F4D] hover:text-[#2C2C2C]"
                     title="Back to room list"
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
-                  <UsersIcon className="w-4 h-4 text-[#6B705C]" />
+                  <UsersIcon className="w-4 h-4 text-[#5B5F4D]" />
                   <div className="min-w-0">
                     <p className="font-semibold text-sm text-[#2C2C2C] truncate" data-testid="chat-active-room-name">
                       {activeRoom.name}
                     </p>
-                    <p className="text-[10px] text-[#6B705C] truncate">
+                    <p className="text-[10px] text-[#5B5F4D] truncate">
                       {(activeRoom.members || []).filter((m) => m.user_id !== user?.user_id).map((m) => m.name || m.email).join(", ") || "just you"}
                     </p>
                   </div>
@@ -495,9 +495,9 @@ export default function MessagesPage() {
                   data-testid="chat-message-list"
                 >
                   {loadingMsgs && messages.length === 0 ? (
-                    <p className="text-xs text-[#6B705C] text-center">Loading…</p>
+                    <p className="text-xs text-[#5B5F4D] text-center">Loading…</p>
                   ) : messages.length === 0 ? (
-                    <p className="text-xs text-[#6B705C] text-center italic mt-8">
+                    <p className="text-xs text-[#5B5F4D] text-center italic mt-8">
                       No messages yet. Be the first to say hello.
                     </p>
                   ) : (
@@ -516,7 +516,7 @@ export default function MessagesPage() {
                 <Composer roomId={activeRoom.room_id} onSent={() => loadMessages(activeRoom.room_id)} />
               </>
             ) : (
-              <div className="flex-1 flex items-center justify-center text-sm text-[#6B705C] italic p-8 text-center">
+              <div className="flex-1 flex items-center justify-center text-sm text-[#5B5F4D] italic p-8 text-center">
                 {rooms.length === 0
                   ? "You're not in any rooms yet."
                   : "Pick a room from the sidebar to start chatting."}

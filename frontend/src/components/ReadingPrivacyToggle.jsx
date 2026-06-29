@@ -45,7 +45,7 @@ export default function ReadingPrivacyToggle() {
       <h2 className="font-serif text-xl text-[#2C2C2C] mb-2">
         Reading-data sharing
       </h2>
-      <p className="text-sm text-[#6B705C] mb-4">
+      <p className="text-sm text-[#5B5F4D] mb-4">
         While reading, Shelfsort can roll up your anonymous chapter
         progress into a heatmap on the book detail page (only visible
         when 10+ readers have contributed).  Toggle this off if you
@@ -60,7 +60,7 @@ export default function ReadingPrivacyToggle() {
           "tap-min inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-colors disabled:opacity-50 " +
           (shared
             ? "bg-[#6B46C1] text-white hover:bg-[#553397]"
-            : "bg-white text-[#6B705C] border border-[#E8E6E1] hover:border-[#6B46C1]")
+            : "bg-white text-[#5B5F4D] border border-[#E8E6E1] hover:border-[#6B46C1]")
         }
       >
         {shared ? <Shield className="w-4 h-4" /> : <ShieldOff className="w-4 h-4" />}

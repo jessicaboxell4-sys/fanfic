@@ -28,7 +28,7 @@ export default function AdminAnalyticsCard() {
   if (loading) {
     return (
       <section className="shelf-card p-6 mb-6" data-testid="admin-analytics-card">
-        <p className="text-[#6B705C]">Loading analytics…</p>
+        <p className="text-[#5B5F4D]">Loading analytics…</p>
       </section>
     );
   }
@@ -87,7 +87,7 @@ export default function AdminAnalyticsCard() {
             <Trophy className="w-3 h-3" /> Top covers
           </p>
           {(data.top_covers || []).length === 0 ? (
-            <p className="text-xs text-[#6B705C] italic">No cover views in this window.</p>
+            <p className="text-xs text-[#5B5F4D] italic">No cover views in this window.</p>
           ) : (
             <ul className="space-y-1.5" data-testid="analytics-top-covers">
               {data.top_covers.slice(0, 6).map((c) => (
@@ -98,7 +98,7 @@ export default function AdminAnalyticsCard() {
                   <span className="truncate flex-1 text-[#2C2C2C]">
                     {c.title || c.cover_id}
                   </span>
-                  <span className="ml-3 text-xs text-[#6B705C] font-mono">{c.views}</span>
+                  <span className="ml-3 text-xs text-[#5B5F4D] font-mono">{c.views}</span>
                 </li>
               ))}
             </ul>
@@ -115,7 +115,7 @@ export default function AdminAnalyticsCard() {
               {(data.by_ref || []).slice(0, 5).map((r) => (
                 <li key={r.ref_bucket} className="flex justify-between text-sm">
                   <span className="text-[#2C2C2C] capitalize">{r.ref_bucket}</span>
-                  <span className="text-xs text-[#6B705C] font-mono">{r.views}</span>
+                  <span className="text-xs text-[#5B5F4D] font-mono">{r.views}</span>
                 </li>
               ))}
             </ul>
@@ -128,7 +128,7 @@ export default function AdminAnalyticsCard() {
               {(data.by_country || []).slice(0, 5).map((c) => (
                 <li key={c.country} className="flex justify-between text-sm">
                   <span className="text-[#2C2C2C] font-mono">{c.country}</span>
-                  <span className="text-xs text-[#6B705C] font-mono">{c.views}</span>
+                  <span className="text-xs text-[#5B5F4D] font-mono">{c.views}</span>
                 </li>
               ))}
             </ul>
@@ -142,7 +142,7 @@ export default function AdminAnalyticsCard() {
 function FunnelCell({ label, value, icon, ratio }) {
   return (
     <div className="p-3 rounded-lg bg-[#FDFBF7] border border-[#E8E6E1]">
-      <div className="text-xs text-[#6B705C] inline-flex items-center gap-1">
+      <div className="text-xs text-[#5B5F4D] inline-flex items-center gap-1">
         {icon} {label}
       </div>
       <div className="font-serif text-2xl text-[#2C2C2C] mt-1">{value.toLocaleString()}</div>

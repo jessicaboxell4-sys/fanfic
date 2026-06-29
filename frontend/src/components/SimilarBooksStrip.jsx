@@ -62,7 +62,7 @@ export default function SimilarBooksStrip({ book }) {
           <h3 className="font-serif text-2xl text-[#2C2C2C] mt-1">
             Want a similar one?
           </h3>
-          <p className="text-xs text-[#6B705C] mt-0.5">
+          <p className="text-xs text-[#5B5F4D] mt-0.5">
             From your library — same fandom or author, mostly ones you haven&apos;t finished yet.
           </p>
         </div>
@@ -95,7 +95,7 @@ export default function SimilarBooksStrip({ book }) {
                 {r.title}
               </p>
               {r.author && (
-                <p className="text-[10px] text-[#6B705C] mt-1 line-clamp-1">{r.author}</p>
+                <p className="text-[10px] text-[#5B5F4D] mt-1 line-clamp-1">{r.author}</p>
               )}
               <p
                 className="text-[9px] text-[#E07A5F] mt-1 uppercase tracking-wider line-clamp-1"

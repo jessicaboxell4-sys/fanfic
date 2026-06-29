@@ -239,7 +239,7 @@ export default function BookCard({ book, selectMode, selected, onToggleSelect, o
             className={`absolute bottom-2 right-12 w-9 h-9 rounded-full flex items-center justify-center transition-all
               ${inQueue
                 ? "bg-white text-[#6B46C1] border border-[#6B46C1]/30 opacity-100"
-                : "bg-white text-[#6B705C] border border-[#E8E6E1] opacity-0 group-hover:opacity-100 hover:text-[#6B46C1]"
+                : "bg-white text-[#5B5F4D] border border-[#E8E6E1] opacity-0 group-hover:opacity-100 hover:text-[#6B46C1]"
               }
               ${queueing ? "animate-pulse" : ""} shadow-md hover:shadow-lg`}
           >
@@ -258,7 +258,7 @@ export default function BookCard({ book, selectMode, selected, onToggleSelect, o
             className={`absolute bottom-2 right-2 w-9 h-9 rounded-full flex items-center justify-center transition-all
               ${isRead
                 ? "bg-white text-[#6B46C1] border border-[#6B46C1]/30 opacity-0 group-hover:opacity-100"
-                : "bg-white text-[#6B705C] border border-[#E8E6E1] opacity-0 group-hover:opacity-100 hover:text-[#6B46C1]"
+                : "bg-white text-[#5B5F4D] border border-[#E8E6E1] opacity-0 group-hover:opacity-100 hover:text-[#6B46C1]"
               }
               ${marking ? "animate-pulse" : ""} shadow-md hover:shadow-lg`}
           >
@@ -302,7 +302,7 @@ export default function BookCard({ book, selectMode, selected, onToggleSelect, o
               className={`ml-auto inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full transition-colors ${
                 isPending
                   ? "bg-[#6B46C1] text-white hover:bg-[#5a3aab]"
-                  : "bg-transparent text-[#6B705C] hover:bg-[#EEE9FB] hover:text-[#6B46C1] opacity-0 group-hover:opacity-100 focus:opacity-100"
+                  : "bg-transparent text-[#5B5F4D] hover:bg-[#EEE9FB] hover:text-[#6B46C1] opacity-0 group-hover:opacity-100 focus:opacity-100"
               } disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               {polishing ? (
@@ -317,7 +317,7 @@ export default function BookCard({ book, selectMode, selected, onToggleSelect, o
         <h3 className="font-serif text-lg mt-2 text-[#2C2C2C] line-clamp-2 leading-tight">
           {book.title}
         </h3>
-        <p className="text-xs text-[#6B705C] mt-1 line-clamp-1">{book.author}</p>
+        <p className="text-xs text-[#5B5F4D] mt-1 line-clamp-1">{book.author}</p>
         {(book.tags || []).length > 0 && (
           <div className="flex flex-wrap gap-1 mt-2 max-h-7 overflow-hidden" data-testid={`book-tags-${book.book_id}`}>
             {(book.tags || []).slice(0, 3).map((t) => (
@@ -329,7 +329,7 @@ export default function BookCard({ book, selectMode, selected, onToggleSelect, o
               </span>
             ))}
             {(book.tags || []).length > 3 && (
-              <span className="text-[10px] text-[#6B705C]">+{book.tags.length - 3}</span>
+              <span className="text-[10px] text-[#5B5F4D]">+{book.tags.length - 3}</span>
             )}
           </div>
         )}

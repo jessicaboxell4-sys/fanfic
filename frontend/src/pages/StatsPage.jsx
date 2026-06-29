@@ -12,7 +12,7 @@ function BarRow({ label, value, max, to, accent }) {
     <>
       <div className="flex items-center justify-between text-sm mb-1">
         <span className="text-[#2C2C2C] truncate pr-3">{label}</span>
-        <span className="text-[#6B705C] tabular-nums font-semibold">{value}</span>
+        <span className="text-[#5B5F4D] tabular-nums font-semibold">{value}</span>
       </div>
       <div className="h-2 rounded-full bg-[#F5F3EC] overflow-hidden">
         <div
@@ -78,7 +78,7 @@ export default function StatsPage() {
     return (
       <div className="min-h-screen bg-paper">
         <Navbar />
-        <p className="text-[#6B705C] py-20 text-center">Loading your reading story…</p>
+        <p className="text-[#5B5F4D] py-20 text-center">Loading your reading story…</p>
       </div>
     );
   }
@@ -99,7 +99,7 @@ export default function StatsPage() {
         <button
           onClick={() => navigate("/library")}
           data-testid="back-to-library"
-          className="flex items-center gap-2 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-6"
+          className="flex items-center gap-2 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-6"
         >
           <ArrowLeft className="w-4 h-4" /> Back to library
         </button>
@@ -112,7 +112,7 @@ export default function StatsPage() {
             <h1 className="font-serif text-4xl sm:text-5xl text-[#2C2C2C]" data-testid="stats-page-title">
               Your reading, by the numbers.
             </h1>
-            <p className="text-[#6B705C] mt-3">
+            <p className="text-[#5B5F4D] mt-3">
               {isEmpty
                 ? "Once you start reading, the patterns will appear here."
                 : "What you've been picking up, how often, and from where."}
@@ -148,7 +148,7 @@ export default function StatsPage() {
                 <h2 className="font-serif text-2xl sm:text-3xl text-[#2C2C2C]">
                   Your {new Date().getFullYear()}, told in books.
                 </h2>
-                <p className="text-sm text-[#6B705C] mt-1">
+                <p className="text-sm text-[#5B5F4D] mt-1">
                   A keepsake recap of the year so far — top fandoms, bookends, achievements.
                 </p>
               </div>
@@ -163,7 +163,7 @@ export default function StatsPage() {
           <div className="shelf-card p-12 text-center">
             <BookCheck className="w-12 h-12 text-[#6B46C1] mx-auto mb-4 opacity-70" />
             <h2 className="font-serif text-2xl text-[#2C2C2C] mb-2">No reading history yet</h2>
-            <p className="text-[#6B705C] mb-6">Open a few books to start building your stats.</p>
+            <p className="text-[#5B5F4D] mb-6">Open a few books to start building your stats.</p>
             <Link to="/library" className="btn-primary text-sm inline-block">Go to library</Link>
           </div>
         ) : (
@@ -175,7 +175,7 @@ export default function StatsPage() {
                   <Calendar className="w-4 h-4 text-[#6B46C1]" />
                   <h2 className="font-serif text-2xl text-[#2C2C2C]">Last 30 days</h2>
                 </div>
-                <p className="text-sm text-[#6B705C]">
+                <p className="text-sm text-[#5B5F4D]">
                   {activeDays30}/30 active days · {totalDailyOpens} book opens
                 </p>
               </div>
@@ -211,7 +211,7 @@ export default function StatsPage() {
                   <h2 className="font-serif text-2xl text-[#2C2C2C]">Top fandoms</h2>
                 </div>
                 {(detail.top_fandoms || []).length === 0 ? (
-                  <p className="text-sm text-[#6B705C]">No fanfiction catalogued yet.</p>
+                  <p className="text-sm text-[#5B5F4D]">No fanfiction catalogued yet.</p>
                 ) : (
                   <div className="space-y-3">
                     {detail.top_fandoms.map((f) => (
@@ -235,7 +235,7 @@ export default function StatsPage() {
                   <h2 className="font-serif text-2xl text-[#2C2C2C]">Most read authors</h2>
                 </div>
                 {(detail.top_authors || []).length === 0 ? (
-                  <p className="text-sm text-[#6B705C]">No authors on file yet.</p>
+                  <p className="text-sm text-[#5B5F4D]">No authors on file yet.</p>
                 ) : (
                   <div className="space-y-3">
                     {detail.top_authors.map((a) => (
@@ -264,7 +264,7 @@ export default function StatsPage() {
                   const pct = (m.finished / maxMonthly) * 100;
                   return (
                     <div key={m.month} className="flex-1 flex flex-col items-center justify-end" title={`${m.label}: ${m.finished}`}>
-                      <span className="text-[10px] text-[#6B705C] mb-1 tabular-nums">{m.finished || ""}</span>
+                      <span className="text-[10px] text-[#5B5F4D] mb-1 tabular-nums">{m.finished || ""}</span>
                       <div
                         className="w-full rounded-t-md transition-all"
                         style={{
@@ -273,7 +273,7 @@ export default function StatsPage() {
                           minHeight: "4px",
                         }}
                       />
-                      <span className="text-[10px] text-[#6B705C] mt-1 truncate w-full text-center">
+                      <span className="text-[10px] text-[#5B5F4D] mt-1 truncate w-full text-center">
                         {m.label.split(" ")[0]}
                       </span>
                     </div>
@@ -295,7 +295,7 @@ export default function StatsPage() {
                     accent={
                       c.name === "Fanfiction" ? "#E07A5F" :
                       c.name === "Original Fiction" ? "#6B46C1" :
-                      c.name === "Non-fiction" ? "#B87A00" : "#6B705C"
+                      c.name === "Non-fiction" ? "#B87A00" : "#5B5F4D"
                     }
                   />
                 ))}

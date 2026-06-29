@@ -172,7 +172,7 @@ export default function ActiveRoomPanel({ roomId, onRoomChanged, onRoomGone }) {
 
   if (loading || !room) {
     return (
-      <div className="flex-1 flex items-center justify-center text-sm text-[#6B705C]">
+      <div className="flex-1 flex items-center justify-center text-sm text-[#5B5F4D]">
         <Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading room…
       </div>
     );
@@ -193,11 +193,11 @@ export default function ActiveRoomPanel({ roomId, onRoomChanged, onRoomGone }) {
       <div className="bg-[#FDFBF7] border-b border-[#E8E6E1] px-4 md:px-6 py-3 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 data-testid="room-title" className="font-serif text-xl text-[#2C2C2C] truncate">{room.name}</h2>
-          <p className="text-xs text-[#6B705C] mt-0.5 flex items-center gap-1 truncate">
+          <p className="text-xs text-[#5B5F4D] mt-0.5 flex items-center gap-1 truncate">
             <BookOpen className="w-3 h-3 flex-shrink-0" />
             <Link to={`/book/${room.book_id}`} className="hover:underline truncate">{room.book_title}</Link>
             {room.book_author && <span className="truncate">· {room.book_author}</span>}
-            {room.schedule && <span className="text-[#6B705C]"> · <Clock className="w-3 h-3 inline" /> {room.schedule}</span>}
+            {room.schedule && <span className="text-[#5B5F4D]"> · <Clock className="w-3 h-3 inline" /> {room.schedule}</span>}
           </p>
         </div>
         <div className="flex flex-wrap gap-1 flex-shrink-0">
@@ -209,15 +209,15 @@ export default function ActiveRoomPanel({ roomId, onRoomChanged, onRoomGone }) {
               title={isLocked ? "Unlock room (mod / admin)" : "Lock room — freeze writes (mod / admin)"}
             >
               {isLocked
-                ? <Unlock className="w-4 h-4 text-[#3D8B79]" />
-                : <Lock className="w-4 h-4 text-[#6B705C]" />}
+                ? <Unlock className="w-4 h-4 text-[#2F6E60]" />
+                : <Lock className="w-4 h-4 text-[#5B5F4D]" />}
             </button>
           )}
-          {isStaff && (<button data-testid="edit-room-btn" onClick={() => setEditing(true)} className="p-1.5 hover:bg-[#F5F3EC] rounded" title="Edit"><Settings className="w-4 h-4 text-[#6B705C]" /></button>)}
-          {!isOwner && (<button data-testid="leave-room-btn" onClick={leaveRoom} className="p-1.5 hover:bg-[#F5F3EC] rounded" title="Leave"><LogOut className="w-4 h-4 text-[#6B705C]" /></button>)}
+          {isStaff && (<button data-testid="edit-room-btn" onClick={() => setEditing(true)} className="p-1.5 hover:bg-[#F5F3EC] rounded" title="Edit"><Settings className="w-4 h-4 text-[#5B5F4D]" /></button>)}
+          {!isOwner && (<button data-testid="leave-room-btn" onClick={leaveRoom} className="p-1.5 hover:bg-[#F5F3EC] rounded" title="Leave"><LogOut className="w-4 h-4 text-[#5B5F4D]" /></button>)}
           {isOwner && (<button data-testid="delete-room-btn" onClick={deleteRoom} className="p-1.5 hover:bg-[#FBE9E5] rounded" title="Delete"><Trash2 className="w-4 h-4 text-[#B43F26]" /></button>)}
           <button data-testid="toggle-right-rail" onClick={() => setRightOpen((v) => !v)} className="p-1.5 hover:bg-[#F5F3EC] rounded" title="Members / progress">
-            <Users className="w-4 h-4 text-[#6B705C]" />
+            <Users className="w-4 h-4 text-[#5B5F4D]" />
           </button>
         </div>
       </div>
@@ -236,7 +236,7 @@ export default function ActiveRoomPanel({ roomId, onRoomChanged, onRoomGone }) {
               <Lock className="w-4 h-4 mt-0.5 flex-shrink-0" />
               <div className="min-w-0">
                 <p className="font-medium">This room is locked.</p>
-                <p className="text-xs text-[#6B705C]">
+                <p className="text-xs text-[#5B5F4D]">
                   {room.locked_by_name ? `Frozen by ${room.locked_by_name}. ` : ""}
                   Reading remains open, but new messages are paused
                   {canLock ? " — unlock from the header when you're ready to resume." : "."}
@@ -249,7 +249,7 @@ export default function ActiveRoomPanel({ roomId, onRoomChanged, onRoomGone }) {
             {chapters.map((c) => (
               <button key={c} data-testid={`chapter-tab-${c}`} onClick={() => setActiveChapter(c)}
                 className={`text-xs px-2.5 py-1 rounded-full border whitespace-nowrap transition ${
-                  activeChapter === c ? "bg-[#6B46C1] text-white border-[#6B46C1]" : "bg-white text-[#6B705C] border-[#E5DDC5] hover:border-[#6B46C1]"
+                  activeChapter === c ? "bg-[#6B46C1] text-white border-[#6B46C1]" : "bg-white text-[#5B5F4D] border-[#E5DDC5] hover:border-[#6B46C1]"
                 }`}>
                 {c === 0 ? "Lobby" : `Ch. ${c}`}
               </button>
@@ -259,7 +259,7 @@ export default function ActiveRoomPanel({ roomId, onRoomChanged, onRoomGone }) {
           {/* Messages */}
           <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4 space-y-3" data-testid="messages-list">
             {messages.length === 0 ? (
-              <div className="text-center py-12 text-[#6B705C] text-sm">
+              <div className="text-center py-12 text-[#5B5F4D] text-sm">
                 <MessageSquare className="w-8 h-8 mx-auto text-[#E5DDC5] mb-2" />
                 <p>No messages in {activeChapter === 0 ? "the lobby" : `chapter ${activeChapter}`} yet.</p>
                 <p className="text-xs mt-1">Be the first to start the conversation.</p>
@@ -270,7 +270,7 @@ export default function ActiveRoomPanel({ roomId, onRoomChanged, onRoomGone }) {
                 return (
                   <div key={m.message_id} data-testid={`message-${m.message_id}`} className={`flex flex-col ${mine ? "items-end" : "items-start"}`}>
                     <div className={`max-w-[80%] rounded-2xl px-4 py-2 ${mine ? "bg-[#6B46C1] text-white" : "bg-[#F5F3EC] text-[#2C2C2C]"}`}>
-                      <p className={`text-[10px] uppercase tracking-wider mb-0.5 ${mine ? "text-white/80" : "text-[#6B705C]"}`}>
+                      <p className={`text-[10px] uppercase tracking-wider mb-0.5 ${mine ? "text-white/80" : "text-[#5B5F4D]"}`}>
                         <DisplayName user={{ username: m.user_username, previous_username: m.user_previous_username, name: m.user_name }} />
                         {" · "}{fmtRelative(m.created_at)}
                       </p>
@@ -294,7 +294,7 @@ export default function ActiveRoomPanel({ roomId, onRoomChanged, onRoomGone }) {
                 {posting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />} Send
               </button>
             </div>
-            <p className="text-[10px] text-[#6B705C] mt-1">⌘/Ctrl + Enter to send</p>
+            <p className="text-[10px] text-[#5B5F4D] mt-1">⌘/Ctrl + Enter to send</p>
           </div>
         </div>
 
@@ -303,8 +303,8 @@ export default function ActiveRoomPanel({ roomId, onRoomChanged, onRoomGone }) {
           <aside className="hidden lg:block w-72 border-l border-[#E8E6E1] bg-[#FBFAF6] overflow-y-auto p-4 space-y-4" data-testid="right-rail">
             {total > 0 && (
               <div data-testid="my-progress-card">
-                <p className="text-xs font-semibold uppercase tracking-wider text-[#6B705C] mb-1">My progress</p>
-                <p className="text-xl font-serif text-[#2C2C2C]">Ch. {room.my_current_chapter} <span className="text-sm text-[#6B705C]">of {total}</span></p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-[#5B5F4D] mb-1">My progress</p>
+                <p className="text-xl font-serif text-[#2C2C2C]">Ch. {room.my_current_chapter} <span className="text-sm text-[#5B5F4D]">of {total}</span></p>
                 <input data-testid="progress-slider" type="range" min={0} max={total} value={room.my_current_chapter}
                   onChange={(e) => updateProgress(parseInt(e.target.value, 10))} disabled={savingProgress}
                   className="mt-2 w-full accent-[#6B46C1]" />
@@ -312,7 +312,7 @@ export default function ActiveRoomPanel({ roomId, onRoomChanged, onRoomGone }) {
             )}
 
             <div data-testid="members-card">
-              <p className="text-xs font-semibold uppercase tracking-wider text-[#6B705C] mb-2 flex items-center gap-1">
+              <p className="text-xs font-semibold uppercase tracking-wider text-[#5B5F4D] mb-2 flex items-center gap-1">
                 <Users className="w-3 h-3" /> Members · {realActiveCount}
               </p>
               <ul className="space-y-1">
@@ -335,7 +335,7 @@ export default function ActiveRoomPanel({ roomId, onRoomChanged, onRoomGone }) {
                               Admin
                             </span>
                           ) : m.is_moderator && (
-                            <span data-testid={`platform-mod-badge-${m.user_id}`} className="text-[9px] font-bold uppercase tracking-wider text-[#3D8B79] bg-[#E0F0EA] px-1.5 py-0.5 rounded" title="Platform moderator">
+                            <span data-testid={`platform-mod-badge-${m.user_id}`} className="text-[9px] font-bold uppercase tracking-wider text-[#2F6E60] bg-[#E0F0EA] px-1.5 py-0.5 rounded" title="Platform moderator">
                               Mod
                             </span>
                           )}
@@ -344,16 +344,16 @@ export default function ActiveRoomPanel({ roomId, onRoomChanged, onRoomGone }) {
                               <Eye className="w-3 h-3" /> Admin (oversight)
                             </span>
                           )}
-                          {isMe && <span className="text-[10px] text-[#6B705C]">(you)</span>}
+                          {isMe && <span className="text-[10px] text-[#5B5F4D]">(you)</span>}
                         </p>
-                        {total > 0 && !isOversight && (<p className="text-[10px] text-[#6B705C]">ch. {m.current_chapter} / {total}</p>)}
+                        {total > 0 && !isOversight && (<p className="text-[10px] text-[#5B5F4D]">ch. {m.current_chapter} / {total}</p>)}
                       </div>
                       {isOwner && !isMe && m.role !== "owner" && !isOversight && (
                         <div className="flex items-center gap-0.5 flex-shrink-0">
                           {m.role === "member" ? (
                             <button data-testid={`promote-${m.user_id}`} title="Promote" onClick={() => setRole(m.user_id, "moderator")} className="p-1 hover:bg-[#EEF3EC] rounded"><ShieldCheck className="w-3 h-3 text-[#6B46C1]" /></button>
                           ) : (
-                            <button data-testid={`demote-${m.user_id}`} title="Demote" onClick={() => setRole(m.user_id, "member")} className="p-1 hover:bg-white rounded"><ShieldOff className="w-3 h-3 text-[#6B705C]" /></button>
+                            <button data-testid={`demote-${m.user_id}`} title="Demote" onClick={() => setRole(m.user_id, "member")} className="p-1 hover:bg-white rounded"><ShieldOff className="w-3 h-3 text-[#5B5F4D]" /></button>
                           )}
                           <button data-testid={`transfer-${m.user_id}`} title="Transfer ownership" onClick={() => transferTo(m.user_id, m.name || m.email)} className="p-1 hover:bg-[#FDF3E1] rounded"><Crown className="w-3 h-3 text-[#B87A00]" /></button>
                           <button data-testid={`remove-${m.user_id}`} title="Remove" onClick={() => removeMember(m.user_id, m.name || m.email)} className="p-1 hover:bg-[#FBE9E5] rounded"><XIcon className="w-3 h-3 text-[#B43F26]" /></button>
@@ -368,10 +368,10 @@ export default function ActiveRoomPanel({ roomId, onRoomChanged, onRoomGone }) {
               </ul>
               {invitedMembers.length > 0 && (
                 <>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[#6B705C] mt-3 mb-1">Pending invites</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[#5B5F4D] mt-3 mb-1">Pending invites</p>
                   <ul className="space-y-1">
                     {invitedMembers.map((m) => (
-                      <li key={m.user_id} className="text-xs text-[#6B705C] flex items-center gap-1 px-2 py-1"><Check className="w-3 h-3" /> {m.name || m.email}</li>
+                      <li key={m.user_id} className="text-xs text-[#5B5F4D] flex items-center gap-1 px-2 py-1"><Check className="w-3 h-3" /> {m.name || m.email}</li>
                     ))}
                   </ul>
                 </>
@@ -380,7 +380,7 @@ export default function ActiveRoomPanel({ roomId, onRoomChanged, onRoomGone }) {
 
             {isStaff && (
               <div data-testid="invite-card">
-                <p className="text-xs font-semibold uppercase tracking-wider text-[#6B705C] mb-2 flex items-center gap-1">
+                <p className="text-xs font-semibold uppercase tracking-wider text-[#5B5F4D] mb-2 flex items-center gap-1">
                   <UserPlus className="w-3 h-3" /> Invite friends
                 </p>
                 <InviteFriendsBlock roomId={roomId} currentMemberIds={memberIdsSet} onInvited={loadRoom} />

@@ -71,7 +71,7 @@ export default function CommunityPage() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Link
           to="/dashboard"
-          className="inline-flex items-center gap-1.5 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-6"
+          className="inline-flex items-center gap-1.5 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-6"
           data-testid="community-back-link"
         >
           <ArrowLeft className="w-4 h-4" /> Back to library
@@ -84,7 +84,7 @@ export default function CommunityPage() {
               Community Recommendations
             </h1>
           </div>
-          <p className="text-base text-[#6B705C] max-w-2xl">
+          <p className="text-base text-[#5B5F4D] max-w-2xl">
             Books that other Shelfsort readers have picked out of their
             own libraries for you to discover.  Heart what catches your
             eye, then click through to the recommender&apos;s shelves
@@ -107,7 +107,7 @@ export default function CommunityPage() {
               className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-colors ${
                 sort === tab.value
                   ? "bg-[#6B46C1] text-white"
-                  : "bg-white text-[#6B705C] border border-[#E5E0D5] hover:text-[#2C2C2C]"
+                  : "bg-white text-[#5B5F4D] border border-[#E5E0D5] hover:text-[#2C2C2C]"
               }`}
             >
               {tab.label}
@@ -128,7 +128,7 @@ export default function CommunityPage() {
 
         {/* Empty / loading / list */}
         {loading ? (
-          <div className="flex items-center justify-center py-16 text-[#6B705C]" data-testid="community-loading">
+          <div className="flex items-center justify-center py-16 text-[#5B5F4D]" data-testid="community-loading">
             <Loader2 className="w-5 h-5 animate-spin" />
           </div>
         ) : items.length === 0 ? (
@@ -140,7 +140,7 @@ export default function CommunityPage() {
             <h3 className="font-serif text-xl text-[#2C2C2C] mb-2">
               No recommendations yet
             </h3>
-            <p className="text-sm text-[#6B705C] mb-5 max-w-md mx-auto">
+            <p className="text-sm text-[#5B5F4D] mb-5 max-w-md mx-auto">
               Be the first reader to pick a book out of your library and
               share why it&apos;s worth a stranger&apos;s time.
             </p>
@@ -172,14 +172,14 @@ export default function CommunityPage() {
                     />
                   ) : (
                     <div className="w-16 h-24 rounded-md bg-[#F0EBE0] border border-[#E5E0D5] flex items-center justify-center flex-shrink-0">
-                      <span className="text-[10px] text-[#A09A8B]">No cover</span>
+                      <span className="text-[10px] text-[#6E6E6E]">No cover</span>
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
                     <h3 className="font-semibold text-[#2C2C2C] truncate" title={rec.book.title}>
                       {rec.book.title || "Untitled"}
                     </h3>
-                    <p className="text-sm text-[#6B705C] truncate">{rec.book.author || "—"}</p>
+                    <p className="text-sm text-[#5B5F4D] truncate">{rec.book.author || "—"}</p>
                     {rec.book.fandom && (
                       <span className="inline-block mt-1 text-[11px] text-[#6B46C1] bg-[#F0EBFB] px-2 py-0.5 rounded-full">
                         {rec.book.fandom}
@@ -236,14 +236,14 @@ export default function CommunityPage() {
         )}
 
         {hasMore && (
-          <p className="text-center text-xs text-[#A09A8B] mt-6" data-testid="community-pagination-hint">
+          <p className="text-center text-xs text-[#6E6E6E] mt-6" data-testid="community-pagination-hint">
             Showing the first 50 — pagination coming soon.
           </p>
         )}
 
         {/* Footer info */}
         <div className="mt-10 p-4 rounded-xl bg-[#FFF8E1] border border-[#E8D89A]">
-          <p className="text-xs text-[#6B705C] flex items-start gap-2">
+          <p className="text-xs text-[#5B5F4D] flex items-start gap-2">
             <MessageSquare className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-[#B7791F]" />
             <span>
               <strong className="text-[#2C2C2C]">How it works:</strong>{" "}

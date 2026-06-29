@@ -84,7 +84,7 @@ export default function FriendRecsCard() {
                 {busyKey === rec.rec_key ? <Loader2 className="w-3 h-3 animate-spin" /> : <XIcon className="w-3 h-3 text-[#B43F26]" />}
               </button>
               <p className="font-serif text-sm text-[#2C2C2C] truncate pr-5">{rec.title}</p>
-              <p className="text-[11px] text-[#6B705C] truncate">{rec.author}{rec.fandom ? ` · ${rec.fandom}` : ""}</p>
+              <p className="text-[11px] text-[#5B5F4D] truncate">{rec.author}{rec.fandom ? ` · ${rec.fandom}` : ""}</p>
               <p className="text-[10px] text-[#6B46C1] mt-2 flex items-center gap-1">
                 <Users className="w-3 h-3" /> {byline}
                 {rec.finished_count > 0 && <span className="text-[#1F4D2A] ml-1">· {rec.finished_count} finished</span>}

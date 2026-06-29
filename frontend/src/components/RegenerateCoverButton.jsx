@@ -226,7 +226,7 @@ export default function RegenerateCoverButton({ book, onCoverChanged }) {
                 disabled={loading || applying}
                 data-testid="regen-cover-close"
                 aria-label="Close"
-                className="text-[#6B705C] hover:text-[#2C2C2C] tap-min flex-shrink-0"
+                className="text-[#5B5F4D] hover:text-[#2C2C2C] tap-min flex-shrink-0"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -240,7 +240,7 @@ export default function RegenerateCoverButton({ book, onCoverChanged }) {
                 data-testid="regen-cover-preview"
               >
                 {loading ? (
-                  <div className="text-center text-[#6B705C] text-sm">
+                  <div className="text-center text-[#5B5F4D] text-sm">
                     <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
                     Designing your cover…
                   </div>
@@ -251,7 +251,7 @@ export default function RegenerateCoverButton({ book, onCoverChanged }) {
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <div className="text-center text-[#6B705C] text-sm">
+                  <div className="text-center text-[#5B5F4D] text-sm">
                     No preview yet
                   </div>
                 )}
@@ -260,7 +260,7 @@ export default function RegenerateCoverButton({ book, onCoverChanged }) {
               {/* Style picker — built-in + custom. Empty string is
                   the default Shelfsort house style. */}
               <div>
-                <label htmlFor="cover-style" className="text-xs uppercase tracking-wider font-bold text-[#6B705C] block mb-1">
+                <label htmlFor="cover-style" className="text-xs uppercase tracking-wider font-bold text-[#5B5F4D] block mb-1">
                   Style
                 </label>
                 <select
@@ -281,14 +281,14 @@ export default function RegenerateCoverButton({ book, onCoverChanged }) {
                 {styleId && (() => {
                   const s = styles.find(x => x.id === styleId);
                   return s ? (
-                    <p className="text-[11px] text-[#6B705C] mt-1 italic">{s.description}</p>
+                    <p className="text-[11px] text-[#5B5F4D] mt-1 italic">{s.description}</p>
                   ) : null;
                 })()}
               </div>
 
               {/* Free-text nudge — sent on the next regenerate. */}
               <div>
-                <label htmlFor="cover-nudge" className="text-xs uppercase tracking-wider font-bold text-[#6B705C] block mb-1">
+                <label htmlFor="cover-nudge" className="text-xs uppercase tracking-wider font-bold text-[#5B5F4D] block mb-1">
                   Optional direction
                 </label>
                 <input
@@ -311,7 +311,7 @@ export default function RegenerateCoverButton({ book, onCoverChanged }) {
                   onClick={generate}
                   disabled={loading || applying}
                   data-testid="regen-cover-retry"
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm bg-white border border-[#E5DDC5] text-[#6B705C] hover:border-[#6B46C1] hover:text-[#6B46C1] disabled:opacity-60"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm bg-white border border-[#E5DDC5] text-[#5B5F4D] hover:border-[#6B46C1] hover:text-[#6B46C1] disabled:opacity-60"
                 >
                   {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCw className="w-4 h-4" />}
                   {imageDataUrl ? "Try again" : "Generate"}
@@ -328,7 +328,7 @@ export default function RegenerateCoverButton({ book, onCoverChanged }) {
                 </button>
               </div>
 
-              <p className="text-[11px] text-[#6B705C] italic">
+              <p className="text-[11px] text-[#5B5F4D] italic">
                 Original EPUB file is never touched — only the displayed cover changes.
               </p>
 
@@ -338,7 +338,7 @@ export default function RegenerateCoverButton({ book, onCoverChanged }) {
                   inactive ones can be activated or deleted. */}
               {variantsLoaded && variants.length > 0 && (
                 <div data-testid="cover-variants-drawer" className="pt-3 mt-2 border-t border-[#E5DDC5]">
-                  <p className="text-xs font-bold uppercase tracking-wider text-[#6B705C] mb-2">
+                  <p className="text-xs font-bold uppercase tracking-wider text-[#5B5F4D] mb-2">
                     Previous covers ({variants.length})
                   </p>
                   <div className="flex gap-2 overflow-x-auto pb-1">
@@ -363,7 +363,7 @@ export default function RegenerateCoverButton({ book, onCoverChanged }) {
                             onClick={() => deleteVariant(v.variant_id)}
                             data-testid={`cover-variant-delete-${v.variant_id}`}
                             title="Remove this variant"
-                            className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-white/90 border border-[#E5DDC5] flex items-center justify-center text-[#6B705C] hover:text-[#C04A3F]"
+                            className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-white/90 border border-[#E5DDC5] flex items-center justify-center text-[#5B5F4D] hover:text-[#C04A3F]"
                           >
                             <X className="w-3 h-3" />
                           </button>
@@ -380,7 +380,7 @@ export default function RegenerateCoverButton({ book, onCoverChanged }) {
                       </div>
                     ))}
                   </div>
-                  <p className="text-[10px] text-[#6B705C] mt-1 italic">
+                  <p className="text-[10px] text-[#5B5F4D] mt-1 italic">
                     Click a thumbnail to switch.  Up to 20 variants stored per book.
                   </p>
                 </div>
@@ -395,18 +395,18 @@ export default function RegenerateCoverButton({ book, onCoverChanged }) {
                     type="button"
                     onClick={loadCommunity}
                     data-testid="community-covers-browse"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-white border border-[#E5DDC5] text-[#6B705C] hover:border-[#6B46C1] hover:text-[#6B46C1]"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-white border border-[#E5DDC5] text-[#5B5F4D] hover:border-[#6B46C1] hover:text-[#6B46C1]"
                   >
                     <Users className="w-3.5 h-3.5" /> Browse community covers
                   </button>
                 ) : (
                   <>
-                    <p className="text-xs font-bold uppercase tracking-wider text-[#6B705C] mb-2 flex items-center gap-1.5">
+                    <p className="text-xs font-bold uppercase tracking-wider text-[#5B5F4D] mb-2 flex items-center gap-1.5">
                       <Users className="w-3 h-3" /> Community covers
                       {communityLoading && <Loader2 className="w-3 h-3 animate-spin" />}
                     </p>
                     {!communityLoading && community.length === 0 ? (
-                      <p className="text-[11px] text-[#6B705C] italic">
+                      <p className="text-[11px] text-[#5B5F4D] italic">
                         No community covers yet for this book.  Be the first — share
                         any of your variants with the Share button above.
                       </p>
@@ -431,7 +431,7 @@ export default function RegenerateCoverButton({ book, onCoverChanged }) {
                             >
                               <Download className="w-3 h-3" /> Use this
                             </button>
-                            <p className="absolute top-0.5 left-0.5 text-[9px] bg-white/85 text-[#6B705C] px-1.5 py-0.5 rounded">{/* fontsize-ok — corner attribution overlay on a 100px cover thumbnail */}
+                            <p className="absolute top-0.5 left-0.5 text-[9px] bg-white/85 text-[#5B5F4D] px-1.5 py-0.5 rounded">{/* fontsize-ok — corner attribution overlay on a 100px cover thumbnail */}
                               @{c.shared_by} · {c.import_count}×
                             </p>
                             <button
@@ -442,9 +442,9 @@ export default function RegenerateCoverButton({ book, onCoverChanged }) {
                               title={c.voted_by_me ? "Remove your heart" : "Heart this cover"}
                             >
                               <Heart
-                                className={`w-3 h-3 ${c.voted_by_me ? "fill-[#C04A3F] text-[#C04A3F]" : "text-[#6B705C]"}`}
+                                className={`w-3 h-3 ${c.voted_by_me ? "fill-[#C04A3F] text-[#C04A3F]" : "text-[#5B5F4D]"}`}
                               />
-                              <span className={c.voted_by_me ? "text-[#C04A3F] font-semibold" : "text-[#6B705C]"}>
+                              <span className={c.voted_by_me ? "text-[#C04A3F] font-semibold" : "text-[#5B5F4D]"}>
                                 {c.votes || 0}
                               </span>
                             </button>

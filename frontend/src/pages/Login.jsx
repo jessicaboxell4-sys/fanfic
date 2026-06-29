@@ -223,12 +223,12 @@ export default function Login() {
                 Almost there
               </p>
               <h1 className="font-serif text-4xl text-[#2C2C2C] mb-3">Pending admin approval.</h1>
-              <p className="text-[#6B705C] mb-6">
+              <p className="text-[#5B5F4D] mb-6">
                 Shelfsort is invite-only right now. We&apos;ve queued your sign-up{pendingNotice.email ? ` for ${pendingNotice.email}` : ""} for an admin to review.
                 You&apos;ll get an email at that address once it&apos;s approved — usually within a day.
               </p>
               <div className="rounded-2xl border border-[#E5DDC5] bg-[#FBFAF6] p-4 mb-6">
-                <p className="text-xs uppercase tracking-wider text-[#6B705C] mb-1">What happens next</p>
+                <p className="text-xs uppercase tracking-wider text-[#5B5F4D] mb-1">What happens next</p>
                 <ol className="text-sm text-[#2C2C2C] space-y-1.5 list-decimal list-inside">
                   <li>An admin reviews your sign-up.</li>
                   <li>You get an email with the result.</li>
@@ -250,7 +250,7 @@ export default function Login() {
                 Not approved
               </p>
               <h1 className="font-serif text-4xl text-[#2C2C2C] mb-3">Sign-up declined.</h1>
-              <p className="text-[#6B705C] mb-4">
+              <p className="text-[#5B5F4D] mb-4">
                 The admin team reviewed{rejectedNotice.email ? ` ${rejectedNotice.email}` : " your sign-up"} and decided not to approve the account.
               </p>
               {rejectedNotice.reason ? (
@@ -259,9 +259,9 @@ export default function Login() {
                   <p className="text-sm text-[#7A2417]">{rejectedNotice.reason}</p>
                 </div>
               ) : (
-                <p className="text-sm text-[#6B705C] italic mb-6">No reason was provided.</p>
+                <p className="text-sm text-[#5B5F4D] italic mb-6">No reason was provided.</p>
               )}
-              <p className="text-sm text-[#6B705C] mb-6">
+              <p className="text-sm text-[#5B5F4D] mb-6">
                 If you think this was a mistake, you can{" "}
                 <button
                   type="button"
@@ -275,7 +275,7 @@ export default function Login() {
               <button
                 type="button"
                 onClick={() => { setRejectedNotice(null); setMode("login"); }}
-                className="text-sm font-semibold text-[#6B705C] hover:text-[#2C2C2C]"
+                className="text-sm font-semibold text-[#5B5F4D] hover:text-[#2C2C2C]"
               >
                 ← Back to sign in
               </button>
@@ -296,7 +296,7 @@ export default function Login() {
               ? (registerStep === 2 ? "Tell us about you." : "Start your library.")
               : "We'll send a link."}
           </h1>
-          <p className="text-[#6B705C] mb-8">
+          <p className="text-[#5B5F4D] mb-8">
             {mode === "login"
               ? "Sign in to save your sorted shelves across devices."
               : mode === "register"
@@ -315,7 +315,7 @@ export default function Login() {
               data-testid="onboarding-form"
             >
               <div>
-                <label className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C] mb-2 block">
+                <label className="text-xs font-bold uppercase tracking-[0.15em] text-[#5B5F4D] mb-2 block">
                   How did you find Shelfsort?
                 </label>
                 <div className="grid grid-cols-2 gap-2" data-testid="onboarding-referral">
@@ -346,7 +346,7 @@ export default function Login() {
               </div>
 
               <div>
-                <label className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C] mb-2 block">
+                <label className="text-xs font-bold uppercase tracking-[0.15em] text-[#5B5F4D] mb-2 block">
                   Favorite fanfic fandom (optional)
                 </label>
                 <input
@@ -360,7 +360,7 @@ export default function Login() {
               </div>
 
               <div>
-                <label className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C] mb-2 block">
+                <label className="text-xs font-bold uppercase tracking-[0.15em] text-[#5B5F4D] mb-2 block">
                   What kind of reader are you?
                 </label>
                 <div className="grid grid-cols-2 gap-2" data-testid="onboarding-reader-type">
@@ -388,7 +388,7 @@ export default function Login() {
               </div>
 
               <div>
-                <label className="text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C] mb-2 block">
+                <label className="text-xs font-bold uppercase tracking-[0.15em] text-[#5B5F4D] mb-2 block">
                   Are you 13 or older?
                 </label>
                 <div className="flex gap-2" data-testid="onboarding-age">
@@ -445,7 +445,7 @@ export default function Login() {
                   type="button"
                   onClick={() => setRegisterStep(1)}
                   data-testid="onboarding-back-btn"
-                  className="text-sm font-semibold text-[#6B705C] hover:text-[#2C2C2C]"
+                  className="text-sm font-semibold text-[#5B5F4D] hover:text-[#2C2C2C]"
                 >
                   ← Back
                 </button>
@@ -476,7 +476,7 @@ export default function Login() {
             Continue with Google
           </button>
 
-          <div className="flex items-center gap-3 text-xs text-[#6B705C] mb-5">
+          <div className="flex items-center gap-3 text-xs text-[#5B5F4D] mb-5">
             <span className="flex-1 h-px bg-[#E8E6E1]" />
             <span>or with email</span>
             <span className="flex-1 h-px bg-[#E8E6E1]" />
@@ -485,7 +485,7 @@ export default function Login() {
           <form onSubmit={submit} className="space-y-3">
             {mode === "register" && (
               <div className="relative">
-                <UserIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#6B705C]" />
+                <UserIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#5B5F4D]" />
                 <input
                   data-testid="auth-name-input"
                   type="text"
@@ -498,7 +498,7 @@ export default function Login() {
             )}
             {mode === "register" && (
               <div className="relative">
-                <AtSign className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#6B705C]" />
+                <AtSign className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#5B5F4D]" />
                 <input
                   data-testid="auth-username-input"
                   type="text"
@@ -512,7 +512,7 @@ export default function Login() {
               </div>
             )}
             <div className="relative">
-              <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#6B705C]" />
+              <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#5B5F4D]" />
               <input
                 data-testid="auth-email-input"
                 type="email"
@@ -525,7 +525,7 @@ export default function Login() {
               />
             </div>
             <div className="relative">
-              <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#6B705C]" />
+              <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#5B5F4D]" />
               <input
                 data-testid="auth-password-input"
                 type="password"
@@ -544,7 +544,7 @@ export default function Login() {
                   type="button"
                   data-testid="forgot-password-btn"
                   onClick={() => setMode("forgot")}
-                  className="text-xs text-[#6B705C] hover:text-[#E07A5F]"
+                  className="text-xs text-[#5B5F4D] hover:text-[#E07A5F]"
                 >
                   Forgot password?
                 </button>
@@ -570,7 +570,7 @@ export default function Login() {
                 the link and the 13+ age confirmation. */}
             {mode === "register" && referral && signupCfg.questions_enabled && (
               <p
-                className="text-[11px] text-[#6B705C] mt-2 text-center leading-relaxed"
+                className="text-[11px] text-[#5B5F4D] mt-2 text-center leading-relaxed"
                 data-testid="invite-fast-track-consent"
               >
                 Welcome from your invite link! By creating an account you agree to the{" "}
@@ -582,7 +582,7 @@ export default function Login() {
           </>
           )}
 
-          <p className="text-xs text-[#6B705C] mt-6 text-center">
+          <p className="text-xs text-[#5B5F4D] mt-6 text-center">
             {mode === "login" ? (
               <>
                 Don't have an account?{" "}

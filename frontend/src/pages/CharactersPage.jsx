@@ -42,7 +42,7 @@ export function CharactersDirectory() {
         <button
           onClick={() => navigate("/library")}
           data-testid="characters-back"
-          className="flex items-center gap-2 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-6"
+          className="flex items-center gap-2 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-6"
         >
           <ArrowLeft className="w-4 h-4" /> Back to library
         </button>
@@ -59,7 +59,7 @@ export function CharactersDirectory() {
           </div>
           <div>
             <h1 className="font-serif text-3xl text-[#2C2C2C]">Characters</h1>
-            <p className="text-sm text-[#6B705C] mt-1 max-w-2xl">
+            <p className="text-sm text-[#5B5F4D] mt-1 max-w-2xl">
               Every character Shelfsort can pull from your library's pairings, sorted by how many books feature them. Click any character to see the books.
             </p>
           </div>
@@ -69,13 +69,13 @@ export function CharactersDirectory() {
           <div className="font-serif text-3xl text-[#2C2C2C]" data-testid="characters-count">
             {characters.length}
           </div>
-          <div className="text-xs text-[#6B705C] uppercase tracking-wide">
+          <div className="text-xs text-[#5B5F4D] uppercase tracking-wide">
             distinct character{characters.length === 1 ? "" : "s"}
           </div>
         </div>
 
         <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B705C]" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#5B5F4D]" />
           <input
             type="search"
             data-testid="characters-search"
@@ -87,9 +87,9 @@ export function CharactersDirectory() {
         </div>
 
         {loading ? (
-          <p className="text-[#6B705C] italic text-sm">Loading…</p>
+          <p className="text-[#5B5F4D] italic text-sm">Loading…</p>
         ) : filtered.length === 0 ? (
-          <div className="shelf-card p-8 text-center text-[#6B705C]">
+          <div className="shelf-card p-8 text-center text-[#5B5F4D]">
             {characters.length === 0
               ? "No characters detected yet — upload fanfic EPUBs with relationships tagged and Shelfsort will derive characters automatically."
               : <p className="text-sm italic">No characters match your filter.</p>}
@@ -113,7 +113,7 @@ export function CharactersDirectory() {
                     </span>
                   </div>
                   {((c.fandoms || []).length > 0 || (c.sample_titles || []).length > 0) && (
-                    <div className="text-xs text-[#6B705C] italic truncate">
+                    <div className="text-xs text-[#5B5F4D] italic truncate">
                       {(c.fandoms || []).slice(0, 2).join(" · ")}
                       {(c.fandoms || []).length > 0 && (c.sample_titles || []).length > 0 ? " — " : ""}
                       {(c.sample_titles || []).slice(0, 2).map((t) => `"${t}"`).join(", ")}
@@ -158,7 +158,7 @@ export function CharacterShelf() {
         <button
           onClick={() => navigate("/library/characters")}
           data-testid="character-shelf-back"
-          className="flex items-center gap-2 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-6"
+          className="flex items-center gap-2 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-6"
         >
           <ArrowLeft className="w-4 h-4" /> All characters
         </button>
@@ -176,20 +176,20 @@ export function CharacterShelf() {
             <Users className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-xs text-[#6B705C] uppercase tracking-wide">Character</p>
+            <p className="text-xs text-[#5B5F4D] uppercase tracking-wide">Character</p>
             <h1 className="font-serif text-3xl text-[#2C2C2C]" data-testid="character-shelf-name">{character}</h1>
           </div>
         </header>
 
         <div className="shelf-card p-5 mb-6 flex items-center gap-4">
           <div className="font-serif text-3xl text-[#2C2C2C]" data-testid="character-shelf-count">{books.length}</div>
-          <div className="text-xs text-[#6B705C] uppercase tracking-wide">book{books.length === 1 ? "" : "s"}</div>
+          <div className="text-xs text-[#5B5F4D] uppercase tracking-wide">book{books.length === 1 ? "" : "s"}</div>
         </div>
 
         {loading ? (
-          <p className="text-[#6B705C] italic text-sm">Loading…</p>
+          <p className="text-[#5B5F4D] italic text-sm">Loading…</p>
         ) : books.length === 0 ? (
-          <div className="shelf-card p-8 text-center text-[#6B705C] italic text-sm">
+          <div className="shelf-card p-8 text-center text-[#5B5F4D] italic text-sm">
             No books for this character.
           </div>
         ) : (
@@ -220,7 +220,7 @@ export function CharacterShelf() {
                           : <><CheckCircle2 className="w-3 h-3" /> Finished</>}
                       </span>
                     </div>
-                    <div className="text-xs text-[#6B705C]">
+                    <div className="text-xs text-[#5B5F4D]">
                       {b.author || "Unknown"}
                       {b.fandom ? <> · {b.fandom}</> : null}
                       {b.category ? <> · {b.category}</> : null}

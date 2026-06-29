@@ -399,7 +399,7 @@ export default function BackgroundJobsBell() {
           aria-expanded={open}
           aria-label="Background uploads"
         >
-          <UploadCloud className={`w-4 h-4 ${dragOverBell ? "text-[#E07A5F]" : "text-[#6B705C]"}`} />
+          <UploadCloud className={`w-4 h-4 ${dragOverBell ? "text-[#E07A5F]" : "text-[#5B5F4D]"}`} />
         </button>
         {showHint && !open && <BellHint onDismiss={dismissHint} />}
         {open && (
@@ -417,7 +417,7 @@ export default function BackgroundJobsBell() {
               <p className="font-serif text-sm text-[#2C2C2C] mb-1">
                 Nothing in the works
               </p>
-              <p className="text-xs text-[#6B705C] leading-relaxed mb-4">
+              <p className="text-xs text-[#5B5F4D] leading-relaxed mb-4">
                 Drop a book on the upload zone and we&rsquo;ll
                 <br />
                 line it up here for you.
@@ -479,7 +479,7 @@ export default function BackgroundJobsBell() {
                 }}
               />
             </div>
-            <div className="px-4 py-2 text-[11px] text-[#6B705C] border-t border-[#E8E6E1] text-center">
+            <div className="px-4 py-2 text-[11px] text-[#5B5F4D] border-t border-[#E8E6E1] text-center">
               We&rsquo;ll keep this bell tucked in your navbar.
             </div>
           </div>
@@ -525,7 +525,7 @@ export default function BackgroundJobsBell() {
         aria-expanded={open}
         aria-label={`${jobs.length} books arriving`}
       >
-        <UploadCloud className={`w-4 h-4 ${dragOverBell ? "text-[#E07A5F]" : "text-[#6B705C]"}`} />
+        <UploadCloud className={`w-4 h-4 ${dragOverBell ? "text-[#E07A5F]" : "text-[#5B5F4D]"}`} />
         {activeCount > 0 && (
           <span
             data-testid="navbar-bgjobs-badge"
@@ -567,7 +567,7 @@ export default function BackgroundJobsBell() {
               <span className="font-serif text-sm font-medium text-[#2C2C2C]">
                 Books arriving
               </span>
-              <span className="text-[10px] uppercase tracking-[0.18em] text-[#6B705C]">
+              <span className="text-[10px] uppercase tracking-[0.18em] text-[#5B5F4D]">
                 {jobs.length} {jobs.length === 1 ? "book" : "books"}
               </span>
             </div>
@@ -605,7 +605,7 @@ export default function BackgroundJobsBell() {
                           e.stopPropagation();
                           untrackPendingJob(j.jobId);
                         }}
-                        className="shrink-0 p-1 rounded hover:bg-[#F0EDE5] text-[#6B705C]"
+                        className="shrink-0 p-1 rounded hover:bg-[#F0EDE5] text-[#5B5F4D]"
                         aria-label="Dismiss"
                         title="Dismiss"
                       >
@@ -660,7 +660,7 @@ export default function BackgroundJobsBell() {
               </Link>
             )}
 
-            <div className="px-4 py-2 text-[11px] text-[#6B705C] border-t border-[#E8E6E1]">
+            <div className="px-4 py-2 text-[11px] text-[#5B5F4D] border-t border-[#E8E6E1]">
               Tucked in — feel free to close the tab, we&rsquo;ll keep tidying.
             </div>
           </div>
@@ -680,9 +680,9 @@ function FlyoutCard({ job, status, error, book }) {
           <XCircle className="w-4 h-4 text-red-500" />
           <h4 className="font-serif text-sm text-[#2C2C2C]">Couldn&rsquo;t sort this one</h4>
         </div>
-        <p className="text-sm text-[#6B705C] mb-1 truncate" title={job.filename}>{job.filename}</p>
+        <p className="text-sm text-[#5B5F4D] mb-1 truncate" title={job.filename}>{job.filename}</p>
         {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
-        <p className="text-xs text-[#6B705C] mt-3">
+        <p className="text-xs text-[#5B5F4D] mt-3">
           You can dismiss it from the list and try uploading again.
         </p>
       </div>
@@ -696,8 +696,8 @@ function FlyoutCard({ job, status, error, book }) {
           <Loader2 className="w-4 h-4 text-[#E07A5F] animate-spin" />
           <h4 className="font-serif text-sm text-[#2C2C2C]">Finding a shelf…</h4>
         </div>
-        <p className="text-sm text-[#6B705C] truncate" title={job.filename}>{job.filename}</p>
-        <p className="text-xs text-[#6B705C] mt-3 italic">
+        <p className="text-sm text-[#5B5F4D] truncate" title={job.filename}>{job.filename}</p>
+        <p className="text-xs text-[#5B5F4D] mt-3 italic">
           {status === "queued" && "Lining up — your turn next."}
           {status === "processing" && "Sorting metadata and finding the right shelf."}
           {(!status || status === "unknown") && "Checking on it…"}
@@ -723,7 +723,7 @@ function FlyoutCard({ job, status, error, book }) {
             onError={(e) => { e.currentTarget.style.display = "none"; }}
           />
         ) : (
-          <div className="shrink-0 w-20 h-28 rounded-md bg-[#E8E6E1] flex items-center justify-center text-[#6B705C] text-2xl shadow-md">
+          <div className="shrink-0 w-20 h-28 rounded-md bg-[#E8E6E1] flex items-center justify-center text-[#5B5F4D] text-2xl shadow-md">
             📕
           </div>
         )}
@@ -735,7 +735,7 @@ function FlyoutCard({ job, status, error, book }) {
             {book.title || job.filename}
           </h4>
           {book.author && (
-            <p className="text-xs text-[#6B705C] mt-1 truncate" title={book.author}>
+            <p className="text-xs text-[#5B5F4D] mt-1 truncate" title={book.author}>
               {book.author}
             </p>
           )}
@@ -756,7 +756,7 @@ function FlyoutCard({ job, status, error, book }) {
             </span>
           )}
         </div>
-        <p className="text-xs text-[#6B705C] italic">
+        <p className="text-xs text-[#5B5F4D] italic">
           ✨ Found its spot — settled onto your shelf.
         </p>
       </div>
@@ -793,7 +793,7 @@ function BellHint({ onDismiss }) {
           <p className="text-xs text-[#8C5C00] font-medium leading-snug">
             You can drop books here too
           </p>
-          <p className="text-[11px] text-[#6B705C] mt-0.5 leading-snug">
+          <p className="text-[11px] text-[#5B5F4D] mt-0.5 leading-snug">
             Drag files or folders onto this icon from anywhere.
           </p>
         </div>
@@ -802,7 +802,7 @@ function BellHint({ onDismiss }) {
           onClick={(e) => { e.stopPropagation(); onDismiss(); }}
           aria-label="Dismiss hint"
           data-testid="navbar-bgjobs-hint-dismiss"
-          className="shrink-0 p-0.5 rounded text-[#6B705C] hover:bg-[#FBE8C8]"
+          className="shrink-0 p-0.5 rounded text-[#5B5F4D] hover:bg-[#FBE8C8]"
         >
           <X className="w-3 h-3" />
         </button>

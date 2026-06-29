@@ -23,12 +23,12 @@ export default function Privacy() {
           <Link
             to="/"
             data-testid="privacy-back-home"
-            className="inline-flex items-center gap-2 text-sm text-[#6B705C] hover:text-[#2C2C2C]"
+            className="inline-flex items-center gap-2 text-sm text-[#5B5F4D] hover:text-[#2C2C2C]"
           >
             <ArrowLeft className="w-4 h-4" />
             Back to Shelfsort
           </Link>
-          <span className="text-xs uppercase tracking-[0.18em] text-[#6B705C]">
+          <span className="text-xs uppercase tracking-[0.18em] text-[#5B5F4D]">
             Last updated: 22 June 2026
           </span>
         </div>
@@ -42,7 +42,7 @@ export default function Privacy() {
         <h1 className="font-serif text-4xl sm:text-5xl text-[#2C2C2C] mb-3 leading-tight">
           Privacy Policy
         </h1>
-        <p className="text-[#6B705C] mb-10">
+        <p className="text-[#5B5F4D] mb-10">
           Shelfsort is a small project. This page is the actual policy — no
           dark-pattern footnotes, no surprise data brokers. If something on
           this page is unclear or you want a specific piece of your data
@@ -340,12 +340,12 @@ export default function Privacy() {
               hello@shelfsort.com
             </a>
           </p>
-          <p className="mt-3 text-sm text-[#6B705C]">
+          <p className="mt-3 text-sm text-[#5B5F4D]">
             A real human reads every reply. Usually within 48 hours.
           </p>
         </Section>
 
-        <div className="mt-12 pt-6 border-t border-[#E5DDC5] text-sm text-[#6B705C]">
+        <div className="mt-12 pt-6 border-t border-[#E5DDC5] text-sm text-[#5B5F4D]">
           See also: <Link to="/terms" className="text-[#6B46C1] underline">Terms of Service</Link>
           {" · "}
           <Link to="/help" className="text-[#6B46C1] underline">Help &amp; FAQ</Link>

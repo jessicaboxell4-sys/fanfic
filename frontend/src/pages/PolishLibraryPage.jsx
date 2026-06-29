@@ -176,7 +176,7 @@ export default function PolishLibraryPage() {
     <div className="min-h-screen bg-[#FDFBF7]">
       <Navbar />
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
-        <Link to="/library" className="text-sm text-[#6B705C] hover:text-[#2C2C2C] inline-flex items-center gap-1 mb-4">
+        <Link to="/library" className="text-sm text-[#5B5F4D] hover:text-[#2C2C2C] inline-flex items-center gap-1 mb-4">
           <ArrowLeft className="w-3.5 h-3.5" /> back to library
         </Link>
         <div className="flex items-start gap-3 mb-2">
@@ -186,14 +186,14 @@ export default function PolishLibraryPage() {
           <div className="min-w-0 flex-1">
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1]">Bulk cleanup</p>
             <h1 className="font-serif text-3xl text-[#2C2C2C]">Polish my library</h1>
-            <p className="text-sm text-[#6B705C] mt-2 max-w-2xl">
+            <p className="text-sm text-[#5B5F4D] mt-2 max-w-2xl">
               We scanned your library for books whose <strong>title</strong> still looks like a
               filename (<code>book_abc123</code>, <code>fic_12345.epub</code>) and whose{" "}
               <strong>author</strong> is <em>Unknown</em>, blank, or anonymous. Where we can guess a
               cleaner value (from the file or the source URL), we&apos;ve queued it below. You stay
               in control — uncheck anything that looks wrong before applying.
             </p>
-            <p className="text-xs text-[#6B705C] mt-3">
+            <p className="text-xs text-[#5B5F4D] mt-3">
               Looking to fix missing cover art instead?{" "}
               <Link
                 to="/library/polish-covers"
@@ -240,7 +240,7 @@ export default function PolishLibraryPage() {
           >
             <RotateCcw className="w-3.5 h-3.5" /> Rescan
           </button>
-          <span className="text-xs text-[#6B705C] ml-auto">
+          <span className="text-xs text-[#5B5F4D] ml-auto">
             {stats.returned} suggestion{stats.returned === 1 ? "" : "s"} · {stats.candidates_scanned} candidate{stats.candidates_scanned === 1 ? "" : "s"} scanned
           </span>
         </div>
@@ -347,12 +347,12 @@ export default function PolishLibraryPage() {
         )}
 
         {loading ? (
-          <p className="text-sm text-[#6B705C]">Scanning…</p>
+          <p className="text-sm text-[#5B5F4D]">Scanning…</p>
         ) : suggestions.length === 0 ? (
           <div className="bg-white border border-[#E8E6E1] rounded-xl p-8 text-center">
             <Sparkles className="w-8 h-8 text-[#6B46C1] mx-auto mb-2" />
             <p className="font-serif text-xl text-[#2C2C2C] mb-1">Your library looks great!</p>
-            <p className="text-sm text-[#6B705C]">
+            <p className="text-sm text-[#5B5F4D]">
               Every title and author in your library is either already clean or we couldn&apos;t
               find a reliable cleaner version. You can run this again any time.
             </p>
@@ -377,10 +377,10 @@ export default function PolishLibraryPage() {
                         className="mt-1.5 accent-[#6B46C1]"
                       />
                       <div className="flex-1 min-w-0">
-                        <p className="text-[10px] uppercase font-bold tracking-wider text-[#6B705C] mb-0.5">Title</p>
+                        <p className="text-[10px] uppercase font-bold tracking-wider text-[#5B5F4D] mb-0.5">Title</p>
                         <p className="text-sm">
                           <span className="text-[#B43F26] line-through font-mono break-all">{s.current_title || "(blank)"}</span>
-                          <span className="text-[#6B705C] mx-2">→</span>
+                          <span className="text-[#5B5F4D] mx-2">→</span>
                           <span className="text-[#2C2C2C] font-semibold">{s.suggested_title}</span>
                         </p>
                       </div>
@@ -396,18 +396,18 @@ export default function PolishLibraryPage() {
                         className="mt-1.5 accent-[#6B46C1]"
                       />
                       <div className="flex-1 min-w-0">
-                        <p className="text-[10px] uppercase font-bold tracking-wider text-[#6B705C] mb-0.5">
-                          Author <span className="text-[#6B705C] normal-case font-normal">(inferred from source URL)</span>
+                        <p className="text-[10px] uppercase font-bold tracking-wider text-[#5B5F4D] mb-0.5">
+                          Author <span className="text-[#5B5F4D] normal-case font-normal">(inferred from source URL)</span>
                         </p>
                         <p className="text-sm">
                           <span className="text-[#B43F26] line-through font-mono">{s.current_author || "(blank)"}</span>
-                          <span className="text-[#6B705C] mx-2">→</span>
+                          <span className="text-[#5B5F4D] mx-2">→</span>
                           <span className="text-[#2C2C2C] font-semibold">{s.suggested_author}</span>
                         </p>
                       </div>
                     </label>
                   )}
-                  <div className="mt-2 text-[11px] text-[#6B705C] flex items-center gap-3">
+                  <div className="mt-2 text-[11px] text-[#5B5F4D] flex items-center gap-3">
                     <Link to={`/book/${s.book_id}`} className="hover:underline">View book</Link>
                     {s.fandom && <span className="opacity-70">· {s.fandom}</span>}
                   </div>

@@ -247,7 +247,7 @@ export default function FilterUrlList() {
     <div className="min-h-screen bg-[#FAF6EE]">
       <Navbar />
       <main className="max-w-3xl mx-auto px-6 py-10">
-        <Link to="/library" className="inline-flex items-center gap-1 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-4">
+        <Link to="/library" className="inline-flex items-center gap-1 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-4">
           <ArrowLeft className="w-4 h-4" /> back to library
         </Link>
         <div className="flex items-start gap-3 mb-6">
@@ -256,7 +256,7 @@ export default function FilterUrlList() {
           </div>
           <div>
             <h1 className="font-serif text-4xl text-[#2C2C2C] leading-tight">Filter a URL list</h1>
-            <p className="text-[#6B705C] mt-1">
+            <p className="text-[#5B5F4D] mt-1">
               Paste fanfic URLs (one per line). We&apos;ll split them into &quot;already in your library&quot; vs &quot;new&quot;, and the Excel export bundles both lists in one workbook. AO3 link variants (collections, chapter URLs, mobile <code>m.</code> host, <code>www.</code>, query strings) all dedupe to the same work.
             </p>
             <div className="mt-2">
@@ -282,7 +282,7 @@ export default function FilterUrlList() {
             className="hidden"
             data-testid="url-list-file-input"
           />
-          <div className="flex flex-col items-center gap-1 text-[#6B705C]">
+          <div className="flex flex-col items-center gap-1 text-[#5B5F4D]">
             <Upload className="w-6 h-6 text-[#E07A5F]" />
             <p className="text-sm">
               <span className="font-medium text-[#2C2C2C]">Drop a .txt file</span> with URLs (one per line) or click to browse
@@ -325,7 +325,7 @@ export default function FilterUrlList() {
                   ? "Looks like a fanfic URL — want an EPUB version of it?"
                   : `Looks like ${inlineFics.length} fanfic URLs — want EPUB versions?`}
               </p>
-              <p className="text-xs text-[#6B705C] mt-0.5">
+              <p className="text-xs text-[#5B5F4D] mt-0.5">
                 We&apos;ll fetch {inlineFics.length === 1 ? "it" : "them one at a time"} via FanFicFare
                 {" "}(falling back to FicHub if you&apos;ve enabled that in Account) and drop the resulting EPUB
                 {inlineFics.length === 1 ? "" : "s"} straight onto your shelves.
@@ -345,7 +345,7 @@ export default function FilterUrlList() {
                 data-testid="single-url-just-check"
                 onClick={run}
                 disabled={running}
-                className="px-4 py-2 rounded-lg text-sm font-medium bg-white text-[#6B705C] border border-[#E5DDC5] hover:bg-[#F5F3EC] disabled:opacity-60"
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-white text-[#5B5F4D] border border-[#E5DDC5] hover:bg-[#F5F3EC] disabled:opacity-60"
               >
                 Just check status
               </button>
@@ -373,7 +373,7 @@ export default function FilterUrlList() {
             </div>
             <div>
               <h2 className="font-serif text-2xl text-[#2C2C2C] leading-tight">Have the EPUBs already? Drop them in.</h2>
-              <p className="text-sm text-[#6B705C] mt-1">
+              <p className="text-sm text-[#5B5F4D] mt-1">
                 Skip the URL-by-URL check — drag whole folders of <code>.epub</code> files here and Shelfsort sorts them by fandom / category automatically. Other formats (PDF / Mobi / Word) are accepted too and land on the Originals shelf for conversion.
               </p>
             </div>
@@ -406,13 +406,13 @@ export default function FilterUrlList() {
 
         {report && (
           <div className="mt-8 shelf-card p-6" data-testid="url-list-result">
-            <p className="text-sm text-[#6B705C] mb-4">
+            <p className="text-sm text-[#5B5F4D] mb-4">
               <strong className="text-[#2C2C2C]">{report.total}</strong> URLs found ·
               {" "}<span className="text-green-700">{report.already_owned.length} already in your library</span> ·
               {" "}<span className="text-amber-700">{report.new_urls.length} new</span>
-              {report.duplicate_in_list?.length > 0 && <> · <span className="text-[#6B705C]">{report.duplicate_in_list.length} duplicate paste{report.duplicate_in_list.length === 1 ? "" : "s"}</span></>}
-              {report.ao3_non_work?.length > 0 && <> · <span className="text-[#6B705C]">{report.ao3_non_work.length} AO3 non-story link{report.ao3_non_work.length === 1 ? "" : "s"}</span></>}
-              {report.unrecognized.length > 0 && <> · <span className="text-[#6B705C]">{report.unrecognized.length} unrecognized</span></>}
+              {report.duplicate_in_list?.length > 0 && <> · <span className="text-[#5B5F4D]">{report.duplicate_in_list.length} duplicate paste{report.duplicate_in_list.length === 1 ? "" : "s"}</span></>}
+              {report.ao3_non_work?.length > 0 && <> · <span className="text-[#5B5F4D]">{report.ao3_non_work.length} AO3 non-story link{report.ao3_non_work.length === 1 ? "" : "s"}</span></>}
+              {report.unrecognized.length > 0 && <> · <span className="text-[#5B5F4D]">{report.unrecognized.length} unrecognized</span></>}
             </p>
 
             {report.by_source && Object.keys(report.by_source).length > 0 && (
@@ -451,15 +451,15 @@ export default function FilterUrlList() {
 
             {report.already_owned.length > 0 && (
               <div className="mb-4">
-                <p className="text-xs uppercase tracking-wide text-[#6B705C] mb-2 flex items-center gap-1">
+                <p className="text-xs uppercase tracking-wide text-[#5B5F4D] mb-2 flex items-center gap-1">
                   <CheckCircle2 className="w-3 h-3 text-green-700" /> Already on your shelves (removed from the export)
                 </p>
                 <div className="space-y-1 max-h-48 overflow-y-auto bg-white rounded-lg border border-[#E5DDC5] p-3">
                   {report.already_owned.map((m, idx) => (
                     <div key={m.book_id || m.source_url || `${m.title}-${m.author}-${idx}`} className="text-sm truncate">
                       <span className="font-medium">{m.title || "Untitled"}</span>
-                      <span className="text-[#6B705C]"> — {m.author || "Unknown"}</span>
-                      {m.fandom && <span className="text-[#6B705C]"> · {m.fandom}</span>}
+                      <span className="text-[#5B5F4D]"> — {m.author || "Unknown"}</span>
+                      {m.fandom && <span className="text-[#5B5F4D]"> · {m.fandom}</span>}
                     </div>
                   ))}
                 </div>
@@ -479,7 +479,7 @@ export default function FilterUrlList() {
 
             {report.ao3_non_work?.length > 0 && (
               <div className="mb-4" data-testid="ao3-non-work-block">
-                <p className="text-xs uppercase tracking-wide text-[#6B705C] mb-2 flex items-center gap-1">
+                <p className="text-xs uppercase tracking-wide text-[#5B5F4D] mb-2 flex items-center gap-1">
                   <AlertCircle className="w-3 h-3" /> AO3 links that aren&apos;t individual stories
                 </p>
                 <div className="space-y-1 max-h-32 overflow-y-auto bg-white rounded-lg border border-dashed border-[#6B705C]/30 p-3">
@@ -488,22 +488,22 @@ export default function FilterUrlList() {
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#E5DDC5]/60 text-[#2C2C2C] uppercase tracking-wide">
                         {item.kind === "ao3_series" ? "series" : item.kind === "ao3_collection" ? "collection" : "user"}
                       </span>
-                      <span className="text-[#6B705C] font-mono truncate">{item.url}</span>
+                      <span className="text-[#5B5F4D] font-mono truncate">{item.url}</span>
                     </div>
                   ))}
                 </div>
-                <p className="text-xs text-[#6B705C] mt-1">These point to a series index, collection, or author page — open them in your browser and grab the individual work URLs to dedupe properly.</p>
+                <p className="text-xs text-[#5B5F4D] mt-1">These point to a series index, collection, or author page — open them in your browser and grab the individual work URLs to dedupe properly.</p>
               </div>
             )}
 
             {report.unrecognized.length > 0 && (
               <div className="mb-4">
-                <p className="text-xs uppercase tracking-wide text-[#6B705C] mb-2 flex items-center gap-1">
+                <p className="text-xs uppercase tracking-wide text-[#5B5F4D] mb-2 flex items-center gap-1">
                   <AlertCircle className="w-3 h-3" /> Unrecognized
                 </p>
                 <div className="space-y-1 max-h-32 overflow-y-auto bg-white rounded-lg border border-dashed border-[#6B705C]/30 p-3">
                   {report.unrecognized.map((u, idx) => (
-                    <div key={`${u}-${idx}`} className="text-xs text-[#6B705C] font-mono truncate">{u}</div>
+                    <div key={`${u}-${idx}`} className="text-xs text-[#5B5F4D] font-mono truncate">{u}</div>
                   ))}
                 </div>
               </div>
@@ -543,7 +543,7 @@ export default function FilterUrlList() {
                   <div className="text-xs space-y-0.5 max-h-32 overflow-y-auto">
                     {pullReport.added.map((b, idx) => (
                       <div key={b.book_id || b.canonical || `added-${idx}`} className="text-[#2C2C2C] truncate">
-                        ✓ <span className="font-medium">{b.title}</span>{b.fandom ? <span className="text-[#6B705C]"> · {b.fandom}</span> : null}
+                        ✓ <span className="font-medium">{b.title}</span>{b.fandom ? <span className="text-[#5B5F4D]"> · {b.fandom}</span> : null}
                       </div>
                     ))}
                   </div>

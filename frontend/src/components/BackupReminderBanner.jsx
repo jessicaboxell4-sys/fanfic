@@ -76,7 +76,7 @@ export default function BackupReminderBanner() {
       <Shield className="w-5 h-5 text-[#6B46C1] flex-shrink-0 mt-0.5" />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-[#2C2C2C]">{headline}</p>
-        <p className="text-xs text-[#6B705C] mt-0.5">
+        <p className="text-xs text-[#5B5F4D] mt-0.5">
           One click downloads every EPUB plus a manifest of your tags, smart shelves, and prefs as a single ZIP — your insurance against accidents.
         </p>
       </div>
@@ -95,7 +95,7 @@ export default function BackupReminderBanner() {
           data-testid="backup-reminder-dismiss"
           aria-label="Dismiss reminder"
           title="Quiet this reminder for 14 days"
-          className="p-1.5 rounded-full text-[#6B705C] hover:bg-[#F5F3EC] transition-colors"
+          className="p-1.5 rounded-full text-[#5B5F4D] hover:bg-[#F5F3EC] transition-colors"
         >
           <X className="w-4 h-4" />
         </button>

@@ -90,7 +90,7 @@ export default function Rules() {
         <div className="max-w-3xl mx-auto px-6 py-4 flex items-center gap-3">
           <Link
             to="/"
-            className="text-[#6B705C] hover:text-[#E07A5F] inline-flex items-center gap-1.5 text-sm font-semibold"
+            className="text-[#5B5F4D] hover:text-[#E07A5F] inline-flex items-center gap-1.5 text-sm font-semibold"
             data-testid="rules-back-home"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -106,7 +106,7 @@ export default function Rules() {
       <main className="max-w-3xl mx-auto px-6 py-10">
         {loading ? (
           <p
-            className="text-sm text-[#6B705C] inline-flex items-center gap-2"
+            className="text-sm text-[#5B5F4D] inline-flex items-center gap-2"
             data-testid="rules-loading"
           >
             <Loader2 className="w-4 h-4 animate-spin" />
@@ -115,7 +115,7 @@ export default function Rules() {
         ) : md ? (
           <article data-testid="rules-content">{renderMarkdown(md)}</article>
         ) : (
-          <p className="text-sm text-[#6B705C] italic" data-testid="rules-empty">
+          <p className="text-sm text-[#5B5F4D] italic" data-testid="rules-empty">
             Couldn&apos;t load the community rules right now. Please try again later.
           </p>
         )}

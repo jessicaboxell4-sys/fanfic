@@ -146,7 +146,7 @@ export default function ReaderThemePanel({ open, onClose, themeId, fontId, onThe
         <button
           type="button"
           onClick={onClose}
-          className="text-[#6B705C] hover:text-[#2C2C2C]"
+          className="text-[#5B5F4D] hover:text-[#2C2C2C]"
           data-testid="reader-theme-panel-close"
           aria-label="Close appearance panel"
         >
@@ -157,7 +157,7 @@ export default function ReaderThemePanel({ open, onClose, themeId, fontId, onThe
       <div className="p-4 space-y-6">
         {/* Day side */}
         <section>
-          <p className="text-xs uppercase tracking-wider text-[#6B705C] font-semibold mb-2">Light</p>
+          <p className="text-xs uppercase tracking-wider text-[#5B5F4D] font-semibold mb-2">Light</p>
           <div className="grid grid-cols-3 gap-2">
             {themes.filter(([, t]) => t.side === "day").map(([id, t]) => (
               <ThemeSwatch key={id} id={id} theme={t} active={themeId === id} onClick={() => onThemeChange(id)} />
@@ -167,7 +167,7 @@ export default function ReaderThemePanel({ open, onClose, themeId, fontId, onThe
 
         {/* Night side */}
         <section>
-          <p className="text-xs uppercase tracking-wider text-[#6B705C] font-semibold mb-2">Dark</p>
+          <p className="text-xs uppercase tracking-wider text-[#5B5F4D] font-semibold mb-2">Dark</p>
           <div className="grid grid-cols-3 gap-2">
             {themes.filter(([, t]) => t.side === "night").map(([id, t]) => (
               <ThemeSwatch key={id} id={id} theme={t} active={themeId === id} onClick={() => onThemeChange(id)} />
@@ -177,7 +177,7 @@ export default function ReaderThemePanel({ open, onClose, themeId, fontId, onThe
 
         {/* Font picker */}
         <section>
-          <p className="text-xs uppercase tracking-wider text-[#6B705C] font-semibold mb-2">Font</p>
+          <p className="text-xs uppercase tracking-wider text-[#5B5F4D] font-semibold mb-2">Font</p>
           <div className="grid grid-cols-2 gap-2">
             {fonts.map(([id, f]) => (
               <button
@@ -194,7 +194,7 @@ export default function ReaderThemePanel({ open, onClose, themeId, fontId, onThe
                 <span style={{ fontFamily: f.family }} className="text-2xl text-[#2C2C2C] leading-none mb-1">
                   {f.sample}
                 </span>
-                <span className="text-[11px] text-[#6B705C]">{f.label}</span>
+                <span className="text-[11px] text-[#5B5F4D]">{f.label}</span>
               </button>
             ))}
           </div>

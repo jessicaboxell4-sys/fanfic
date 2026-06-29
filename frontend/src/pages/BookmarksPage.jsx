@@ -36,22 +36,22 @@ export default function BookmarksPage() {
     <div className="min-h-screen bg-paper">
       <Navbar />
       <main className="max-w-5xl mx-auto px-6 py-10" data-testid="bookmarks-page">
-        <Link to="/" className="inline-flex items-center gap-1 text-sm text-[#6B705C] hover:text-[#6B46C1] mb-4">
+        <Link to="/" className="inline-flex items-center gap-1 text-sm text-[#5B5F4D] hover:text-[#6B46C1] mb-4">
           <ArrowLeft className="w-4 h-4" /> Back to library
         </Link>
         <div className="flex items-center gap-3 mb-6">
           <Bookmark className="w-6 h-6 text-[#6B46C1]" />
           <div>
             <h1 className="font-serif text-3xl text-[#2C2C2C]">All bookmarks</h1>
-            <p className="text-sm text-[#6B705C]">
+            <p className="text-sm text-[#5B5F4D]">
               {loading ? "Loading…" : `${items.length} saved spot${items.length === 1 ? "" : "s"} across your library.`}
             </p>
           </div>
         </div>
 
-        {loading && <Loader2 className="w-5 h-5 animate-spin text-[#6B705C]" />}
+        {loading && <Loader2 className="w-5 h-5 animate-spin text-[#5B5F4D]" />}
         {!loading && items.length === 0 && (
-          <div className="text-center py-16 text-[#6B705C]" data-testid="bookmarks-empty">
+          <div className="text-center py-16 text-[#5B5F4D]" data-testid="bookmarks-empty">
             No bookmarks yet. Open any book in the reader and tap <strong>Bookmark</strong> to save your spot.
           </div>
         )}
@@ -70,7 +70,7 @@ export default function BookmarksPage() {
               >
                 <p className="font-medium text-[#2C2C2C]">
                   {bm.book?.title || "Unknown book"}
-                  {bm.book?.author && <span className="text-[#6B705C] text-sm font-normal"> — {bm.book.author}</span>}
+                  {bm.book?.author && <span className="text-[#5B5F4D] text-sm font-normal"> — {bm.book.author}</span>}
                 </p>
                 {bm.chapter_label && (
                   <p className="text-sm text-[#6B46C1] mt-1">{bm.chapter_label}</p>

@@ -46,30 +46,30 @@ export function CreateRoomForm({ onCreated, onClose }) {
       <div className="bg-[#FDFBF7] rounded-2xl max-w-md w-full p-6 space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="font-serif text-xl text-[#2C2C2C]">Start a reading room</h3>
-          <button onClick={onClose} className="p-1 hover:bg-[#F5F3EC] rounded"><XIcon className="w-4 h-4 text-[#6B705C]" /></button>
+          <button onClick={onClose} className="p-1 hover:bg-[#F5F3EC] rounded"><XIcon className="w-4 h-4 text-[#5B5F4D]" /></button>
         </div>
         <div>
-          <label className="text-xs font-semibold text-[#6B705C] uppercase tracking-wider">Room name</label>
+          <label className="text-xs font-semibold text-[#5B5F4D] uppercase tracking-wider">Room name</label>
           <input data-testid="new-room-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. HP Re-read 2026" maxLength={80} className="mt-1 w-full px-3 py-2 bg-white border border-[#E5DDC5] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6B46C1]" />
         </div>
         <div>
-          <label className="text-xs font-semibold text-[#6B705C] uppercase tracking-wider">Book</label>
+          <label className="text-xs font-semibold text-[#5B5F4D] uppercase tracking-wider">Book</label>
           {loadingBooks ? (
-            <div className="mt-1 text-sm text-[#6B705C] flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" /> Loading your library…</div>
+            <div className="mt-1 text-sm text-[#5B5F4D] flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" /> Loading your library…</div>
           ) : (
             <select data-testid="new-room-book" value={bookId} onChange={(e) => setBookId(e.target.value)} className="mt-1 w-full px-3 py-2 bg-white border border-[#E5DDC5] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6B46C1]">
               <option value="">— pick a book —</option>
               {books.map((b) => (<option key={b.book_id} value={b.book_id}>{b.title}{b.author ? ` — ${b.author}` : ""}</option>))}
             </select>
           )}
-          <p className="mt-1 text-[11px] text-[#6B705C]">Friends don&apos;t need to own a copy themselves.</p>
+          <p className="mt-1 text-[11px] text-[#5B5F4D]">Friends don&apos;t need to own a copy themselves.</p>
         </div>
         <div>
-          <label className="text-xs font-semibold text-[#6B705C] uppercase tracking-wider">Schedule (optional)</label>
+          <label className="text-xs font-semibold text-[#5B5F4D] uppercase tracking-wider">Schedule (optional)</label>
           <input data-testid="new-room-schedule" value={schedule} onChange={(e) => setSchedule(e.target.value)} placeholder="e.g. 2 chapters / week" maxLength={200} className="mt-1 w-full px-3 py-2 bg-white border border-[#E5DDC5] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6B46C1]" />
         </div>
         <div>
-          <label className="text-xs font-semibold text-[#6B705C] uppercase tracking-wider">Description (optional)</label>
+          <label className="text-xs font-semibold text-[#5B5F4D] uppercase tracking-wider">Description (optional)</label>
           <textarea data-testid="new-room-description" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} maxLength={2000} className="mt-1 w-full px-3 py-2 bg-white border border-[#E5DDC5] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6B46C1]" />
         </div>
         <div className="flex justify-end gap-2 pt-1">
@@ -110,13 +110,13 @@ export function EditRoomDialog({ room, onSaved, onClose }) {
           <h3 className="font-serif text-xl">Edit room</h3>
           <button onClick={onClose} className="p-1 hover:bg-[#F5F3EC] rounded"><XIcon className="w-4 h-4" /></button>
         </div>
-        <div><label className="text-xs font-semibold uppercase tracking-wider text-[#6B705C]">Name</label>
+        <div><label className="text-xs font-semibold uppercase tracking-wider text-[#5B5F4D]">Name</label>
           <input data-testid="edit-room-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} className="mt-1 w-full px-3 py-2 bg-white border border-[#E5DDC5] rounded-lg text-sm" />
         </div>
-        <div><label className="text-xs font-semibold uppercase tracking-wider text-[#6B705C]">Schedule</label>
+        <div><label className="text-xs font-semibold uppercase tracking-wider text-[#5B5F4D]">Schedule</label>
           <input data-testid="edit-room-schedule" value={schedule} onChange={(e) => setSchedule(e.target.value)} maxLength={200} className="mt-1 w-full px-3 py-2 bg-white border border-[#E5DDC5] rounded-lg text-sm" />
         </div>
-        <div><label className="text-xs font-semibold uppercase tracking-wider text-[#6B705C]">Description</label>
+        <div><label className="text-xs font-semibold uppercase tracking-wider text-[#5B5F4D]">Description</label>
           <textarea data-testid="edit-room-description" value={description} onChange={(e) => setDescription(e.target.value)} rows={4} maxLength={2000} className="mt-1 w-full px-3 py-2 bg-white border border-[#E5DDC5] rounded-lg text-sm" />
         </div>
         <div className="flex justify-end gap-2">
@@ -216,7 +216,7 @@ export function InviteFriendsBlock({ roomId, currentMemberIds, onInvited }) {
                 >
                   {u.picture
                     ? <img src={u.picture} alt={u.username} className="w-5 h-5 rounded-full" />
-                    : <div className="w-5 h-5 rounded-full bg-[#E5DDC5] flex items-center justify-center text-[10px] font-mono text-[#6B705C]">@</div>}
+                    : <div className="w-5 h-5 rounded-full bg-[#E5DDC5] flex items-center justify-center text-[10px] font-mono text-[#5B5F4D]">@</div>}
                   <span className="text-xs font-mono truncate">@{u.username}</span>
                   {busyId === u.user_id && <Loader2 className="w-3 h-3 animate-spin text-[#6B46C1] ml-auto" />}
                 </button>
@@ -228,11 +228,11 @@ export function InviteFriendsBlock({ roomId, currentMemberIds, onInvited }) {
 
       {/* Existing friends list */}
       {loading ? (
-        <div className="text-xs text-[#6B705C] flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Loading friends…</div>
+        <div className="text-xs text-[#5B5F4D] flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Loading friends…</div>
       ) : friends.length === 0 ? (
-        <p className="text-xs text-[#6B705C]">No friends yet — invite by <code className="font-mono">@handle</code> above or add some from <Link to="/friends" className="text-[#6B46C1] underline">Friends</Link>.</p>
+        <p className="text-xs text-[#5B5F4D]">No friends yet — invite by <code className="font-mono">@handle</code> above or add some from <Link to="/friends" className="text-[#6B46C1] underline">Friends</Link>.</p>
       ) : inviteable.length === 0 ? (
-        <p className="text-xs text-[#6B705C]">All your friends are already in this room — use <code className="font-mono">@handle</code> above to invite anyone else.</p>
+        <p className="text-xs text-[#5B5F4D]">All your friends are already in this room — use <code className="font-mono">@handle</code> above to invite anyone else.</p>
       ) : (
         <ul className="space-y-1" data-testid="invite-friends-list">
           {inviteable.map((f) => (

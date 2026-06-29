@@ -90,7 +90,7 @@ export default function AdminViewAs() {
                   {data.user.name || data.user.email}{" "}
                   {data.user.username && <span className="text-base text-[#6B46C1]">@{data.user.username}</span>}
                 </h1>
-                <p className="text-xs text-[#6B705C]">
+                <p className="text-xs text-[#5B5F4D]">
                   {data.user.email}
                   {data.consent.expires_at && (
                     <> · consent expires {new Date(data.consent.expires_at).toLocaleString(undefined, {dateStyle:"short", timeStyle:"short"})}</>
@@ -108,7 +108,7 @@ export default function AdminViewAs() {
 
               {data.library.fandoms.length > 0 && (
                 <div className="mb-5">
-                  <p className="text-xs uppercase tracking-wider text-[#6B705C] mb-2">Top fandoms</p>
+                  <p className="text-xs uppercase tracking-wider text-[#5B5F4D] mb-2">Top fandoms</p>
                   <ul className="flex flex-wrap gap-1.5" data-testid="view-as-fandoms">
                     {data.library.fandoms.slice(0, 20).map((f) => (
                       <li key={f.name} className="px-2 py-0.5 rounded-full bg-[#EEE9FB] text-[#6B46C1] text-xs">
@@ -119,7 +119,7 @@ export default function AdminViewAs() {
                 </div>
               )}
 
-              <p className="text-xs uppercase tracking-wider text-[#6B705C] mb-2">Recent uploads</p>
+              <p className="text-xs uppercase tracking-wider text-[#5B5F4D] mb-2">Recent uploads</p>
               <ul className="space-y-1" data-testid="view-as-recent-books">
                 {data.library.recent_books.slice(0, 30).map((b) => (
                   <li key={b.book_id} className="text-sm flex items-baseline justify-between gap-2 py-1 border-b border-[#F5F3EC] last:border-0">
@@ -127,7 +127,7 @@ export default function AdminViewAs() {
                       <span className="text-[#2C2C2C]">{b.title}</span>
                       {b.fandom && <span className="text-[#6B46C1] ml-2">· {b.fandom}</span>}
                     </div>
-                    <span className="text-xs text-[#6B705C] flex-shrink-0">
+                    <span className="text-xs text-[#5B5F4D] flex-shrink-0">
                       {b.created_at ? new Date(b.created_at).toLocaleDateString() : ""}
                     </span>
                   </li>
@@ -145,7 +145,7 @@ export default function AdminViewAs() {
                 <ul className="space-y-1.5">
                   {timeline.events.slice(0, 50).map((ev, i) => (
                     <li key={i} className="text-sm flex items-baseline gap-3 py-1 border-b border-[#F5F3EC] last:border-0">
-                      <span className="text-xs uppercase tracking-wider text-[#6B705C] w-24 flex-shrink-0">
+                      <span className="text-xs uppercase tracking-wider text-[#5B5F4D] w-24 flex-shrink-0">
                         {ev.at ? new Date(ev.at).toLocaleDateString() : ""}
                       </span>
                       <span className="text-xs font-bold uppercase tracking-[0.1em] text-[#6B46C1] w-28 flex-shrink-0">
@@ -154,7 +154,7 @@ export default function AdminViewAs() {
                       <span className="flex-1 min-w-0 text-[#2C2C2C]">
                         {ev.title || ev.action || JSON.stringify(ev).slice(0, 100)}
                         {ev.fandom && <span className="text-[#6B46C1] ml-2">· {ev.fandom}</span>}
-                        {ev.actor && <span className="text-[#6B705C] ml-2">· by {ev.actor}</span>}
+                        {ev.actor && <span className="text-[#5B5F4D] ml-2">· by {ev.actor}</span>}
                       </span>
                     </li>
                   ))}

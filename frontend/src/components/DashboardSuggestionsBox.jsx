@@ -84,7 +84,7 @@ export default function DashboardSuggestionsBox() {
           <h2 className="font-serif text-2xl sm:text-3xl text-[#2C2C2C] leading-tight">
             Got an idea?
           </h2>
-          <p className="text-sm text-[#6B705C] mt-1">
+          <p className="text-sm text-[#5B5F4D] mt-1">
             Drop a feature request, polish suggestion, or bug. Anyone on the suggestions board can upvote — popular ones jump the queue.
           </p>
         </div>
@@ -123,7 +123,7 @@ export default function DashboardSuggestionsBox() {
                 className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
                   active
                     ? "bg-[#6B46C1] text-white border-[#6B46C1]"
-                    : "bg-white text-[#6B705C] border-[#E8E6E1] hover:border-[#6B46C1] hover:text-[#6B46C1]"
+                    : "bg-white text-[#5B5F4D] border-[#E8E6E1] hover:border-[#6B46C1] hover:text-[#6B46C1]"
                 }`}
               >
                 <Icon className="w-3 h-3" />
@@ -135,7 +135,7 @@ export default function DashboardSuggestionsBox() {
         {/* Attachment row — optional screenshot / PDF / log up to 10 MB. */}
         <div className="flex flex-wrap items-center gap-2" data-testid="dashboard-suggestion-attachment-row">
           <label
-            className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[#6B705C] hover:text-[#6B46C1] cursor-pointer"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[#5B5F4D] hover:text-[#6B46C1] cursor-pointer"
             data-testid="dashboard-suggestion-attachment-label"
           >
             <Paperclip className="w-3.5 h-3.5" />
@@ -172,19 +172,19 @@ export default function DashboardSuggestionsBox() {
                 onClick={() => setAttachment(null)}
                 aria-label="Remove attachment"
                 data-testid="dashboard-suggestion-attachment-remove"
-                className="w-5 h-5 rounded-full hover:bg-[#FBFAF6] flex items-center justify-center text-[#6B705C] hover:text-[#6B46C1]"
+                className="w-5 h-5 rounded-full hover:bg-[#FBFAF6] flex items-center justify-center text-[#5B5F4D] hover:text-[#6B46C1]"
               >
                 <X className="w-3 h-3" />
               </button>
             </span>
           )}
-          <span className="text-[10px] text-[#6B705C] ml-auto">Pictures only · max 10 MB</span>
+          <span className="text-[10px] text-[#5B5F4D] ml-auto">Pictures only · max 10 MB</span>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
           <Link
             to="/suggestions"
             data-testid="dashboard-suggestion-view-board"
-            className="text-xs text-[#6B705C] hover:text-[#6B46C1] inline-flex items-center gap-1"
+            className="text-xs text-[#5B5F4D] hover:text-[#6B46C1] inline-flex items-center gap-1"
           >
             View &amp; upvote the board <ArrowRight className="w-3 h-3" />
           </Link>
@@ -202,7 +202,7 @@ export default function DashboardSuggestionsBox() {
 
       {lastSent && (
         <p
-          className="text-xs text-[#6B705C] mt-3 italic"
+          className="text-xs text-[#5B5F4D] mt-3 italic"
           data-testid="dashboard-suggestion-last-sent"
         >
           Sent: “{lastSent.title}”.{" "}

@@ -108,23 +108,23 @@ export default function ReaderDnaCard() {
       <div className="grid md:grid-cols-2 gap-6">
         {/* Reader DNA block */}
         <div data-testid="reader-dna-summary">
-          <p className="text-xs uppercase tracking-[0.18em] text-[#6B705C] mb-2">
+          <p className="text-xs uppercase tracking-[0.18em] text-[#5B5F4D] mb-2">
             Your reading make-up
           </p>
           <ul className="space-y-2 mb-4" data-testid="reader-dna-fandoms">
             {(data.top_fandoms || []).map((f, idx) => (
               <li key={f.fandom} className="flex items-center justify-between text-sm">
                 <span className="text-[#2C2C2C] truncate pr-3">
-                  <span className="inline-block w-5 text-[#6B705C] tabular-nums">{idx + 1}.</span>
+                  <span className="inline-block w-5 text-[#5B5F4D] tabular-nums">{idx + 1}.</span>
                   {f.fandom}
                 </span>
-                <span className="text-[#6B705C] tabular-nums">{f.count}</span>
+                <span className="text-[#5B5F4D] tabular-nums">{f.count}</span>
               </li>
             ))}
           </ul>
 
           <div className="mb-3">
-            <p className="text-[11px] text-[#6B705C] mb-1.5 flex items-baseline justify-between">
+            <p className="text-[11px] text-[#5B5F4D] mb-1.5 flex items-baseline justify-between">
               <span>Fanfic vs original</span>
               <span className="tabular-nums">
                 {fanficPct}% / {originalPct}%
@@ -147,7 +147,7 @@ export default function ReaderDnaCard() {
             </div>
           </div>
 
-          <p className="text-xs text-[#6B705C]" data-testid="reader-dna-avg-words">
+          <p className="text-xs text-[#5B5F4D]" data-testid="reader-dna-avg-words">
             Average book length:{" "}
             <span className="font-mono text-[#2C2C2C]">
               {Number(data.avg_words || 0).toLocaleString()}
@@ -158,12 +158,12 @@ export default function ReaderDnaCard() {
 
         {/* Trending re-reads block */}
         <div data-testid="trending-rereads">
-          <p className="text-xs uppercase tracking-[0.18em] text-[#6B705C] mb-2 flex items-center gap-1.5">
+          <p className="text-xs uppercase tracking-[0.18em] text-[#5B5F4D] mb-2 flex items-center gap-1.5">
             <Repeat className="w-3 h-3" aria-hidden="true" />
             Comfort reads · last 30 days
           </p>
           {(data.trending_rereads || []).length === 0 ? (
-            <p className="text-sm text-[#6B705C] italic">
+            <p className="text-sm text-[#5B5F4D] italic">
               You haven&apos;t revisited any finished books yet. They&apos;ll show up here when you do.
             </p>
           ) : (
@@ -175,13 +175,13 @@ export default function ReaderDnaCard() {
                     data-testid={`trending-reread-${r.book_id}`}
                     className="flex items-center gap-2 group hover:bg-[#FBFAF6] -mx-2 px-2 py-1.5 rounded transition-colors"
                   >
-                    <BookOpen className="w-3 h-3 text-[#6B705C] flex-shrink-0" aria-hidden="true" />
+                    <BookOpen className="w-3 h-3 text-[#5B5F4D] flex-shrink-0" aria-hidden="true" />
                     <span className="flex-1 min-w-0">
                       <span className="block text-sm text-[#2C2C2C] truncate group-hover:text-[#6B46C1]">
                         {r.title}
                       </span>
                       {r.fandom && (
-                        <span className="block text-[10px] text-[#6B705C] truncate uppercase tracking-wider">
+                        <span className="block text-[10px] text-[#5B5F4D] truncate uppercase tracking-wider">
                           {r.fandom}
                         </span>
                       )}

@@ -101,7 +101,7 @@ export default function RecommendToCommunityButton({ bookId, bookTitle }) {
   if (!user) return null;
   if (eligible === null) {
     return (
-      <div className="inline-flex items-center gap-2 text-xs text-[#A09A8B]" data-testid="recommend-loading">
+      <div className="inline-flex items-center gap-2 text-xs text-[#6E6E6E]" data-testid="recommend-loading">
         <Loader2 className="w-3.5 h-3.5 animate-spin" /> Checking…
       </div>
     );

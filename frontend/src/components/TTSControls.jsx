@@ -346,7 +346,7 @@ export default function TTSControls({ rendition }) {
           >
             <Square className="w-3 h-3" />
           </button>
-          <span className="text-[10px] text-[#6B705C] uppercase tracking-wider px-1">
+          <span className="text-[10px] text-[#5B5F4D] uppercase tracking-wider px-1">
             {paused ? "Paused" : "Reading"}
           </span>
         </div>
@@ -358,7 +358,7 @@ export default function TTSControls({ rendition }) {
         type="button"
         data-testid="tts-settings-btn"
         onClick={() => setOpen((v) => !v)}
-        className="ml-1 inline-flex w-7 h-7 rounded-full hover:bg-[#F5F3EC] items-center justify-center text-[#6B705C]"
+        className="ml-1 inline-flex w-7 h-7 rounded-full hover:bg-[#F5F3EC] items-center justify-center text-[#5B5F4D]"
         title="Voice and speed"
         aria-pressed={open}
       >
@@ -380,13 +380,13 @@ export default function TTSControls({ rendition }) {
               type="button"
               data-testid="tts-popover-close"
               onClick={() => setOpen(false)}
-              className="text-[#6B705C] hover:text-[#2C2C2C]"
+              className="text-[#5B5F4D] hover:text-[#2C2C2C]"
             >
               <XIcon className="w-3.5 h-3.5" />
             </button>
           </div>
 
-          <label className="block text-[10px] uppercase tracking-wider text-[#6B705C] font-semibold mb-1">
+          <label className="block text-[10px] uppercase tracking-wider text-[#5B5F4D] font-semibold mb-1">
             Voice
           </label>
           <select
@@ -410,7 +410,7 @@ export default function TTSControls({ rendition }) {
             ))}
           </select>
 
-          <label className="block text-[10px] uppercase tracking-wider text-[#6B705C] font-semibold mb-1">
+          <label className="block text-[10px] uppercase tracking-wider text-[#5B5F4D] font-semibold mb-1">
             Speed: <span className="text-[#2C2C2C] font-bold">{rate.toFixed(2)}×</span>
           </label>
           <input
@@ -423,11 +423,11 @@ export default function TTSControls({ rendition }) {
             onChange={(e) => setRate(parseFloat(e.target.value))}
             className="w-full accent-[#6B46C1]"
           />
-          <div className="flex justify-between text-[10px] text-[#6B705C] mt-0.5">
+          <div className="flex justify-between text-[10px] text-[#5B5F4D] mt-0.5">
             <span>0.5×</span><span>1×</span><span>2×</span>
           </div>
 
-          <p className="mt-3 text-[11px] text-[#6B705C] leading-snug">
+          <p className="mt-3 text-[11px] text-[#5B5F4D] leading-snug">
             Voices come from your browser/OS. Free, private, no extra accounts.
             On phones, some Bluetooth headsets pause the speech if the screen
             sleeps — keep the tab visible for the smoothest experience.

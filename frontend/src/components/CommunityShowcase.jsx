@@ -51,7 +51,7 @@ export default function CommunityShowcase() {
             <h2 className="font-serif text-3xl sm:text-4xl text-[#2C2C2C] leading-tight">
               The community pool, this week.
             </h2>
-            <p className="text-base text-[#6B705C] mt-2 max-w-2xl">
+            <p className="text-base text-[#5B5F4D] mt-2 max-w-2xl">
               AI-generated covers readers shared with each other — heart
               your favourites, remix them into your own library.
             </p>
@@ -66,7 +66,7 @@ export default function CommunityShowcase() {
         </div>
         {stats && stats.total_users > 0 && (
           <p
-            className="text-xs text-[#6B705C] mb-5 -mt-2"
+            className="text-xs text-[#5B5F4D] mb-5 -mt-2"
             data-testid="landing-public-counter"
           >
             <strong className="text-[#2C2C2C]">{stats.total_users.toLocaleString()}</strong>{" "}
@@ -96,7 +96,7 @@ export default function CommunityShowcase() {
                 <p className="font-serif text-sm text-[#2C2C2C] leading-tight line-clamp-2">
                   {c.title || "Untitled"}
                 </p>
-                <p className="text-[11px] text-[#6B705C] mt-1 inline-flex items-center gap-1">
+                <p className="text-[11px] text-[#5B5F4D] mt-1 inline-flex items-center gap-1">
                   <Heart className="w-3 h-3" /> {c.votes || 0}
                 </p>
               </div>

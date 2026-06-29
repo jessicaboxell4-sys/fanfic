@@ -123,7 +123,7 @@ export default function TagInput({
           placeholder={value.length ? "" : placeholder}
           className="flex-1 min-w-[120px] bg-transparent text-sm outline-none px-2 py-1"
         />
-        {busy && <Loader2 className="w-4 h-4 animate-spin text-[#6B705C] mr-1" />}
+        {busy && <Loader2 className="w-4 h-4 animate-spin text-[#5B5F4D] mr-1" />}
       </div>
 
       {focused && filteredSuggestions.length > 0 && (

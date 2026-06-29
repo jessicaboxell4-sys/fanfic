@@ -11,7 +11,7 @@ export default function PoweredByFanFicFare({ className = "" }) {
       href="https://github.com/JimmXinu/FanFicFare"
       target="_blank"
       rel="noopener noreferrer"
-      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FBFAF6] border border-[#E8E6E1] text-xs text-[#6B705C] hover:border-[#6B46C1]/40 hover:text-[#6B46C1] transition-colors ${className}`}
+      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FBFAF6] border border-[#E8E6E1] text-xs text-[#5B5F4D] hover:border-[#6B46C1]/40 hover:text-[#6B46C1] transition-colors ${className}`}
       data-testid="powered-by-fanficfare"
       title="Fanfic downloads are powered by FanFicFare — the proven library trusted by Calibre users."
     >

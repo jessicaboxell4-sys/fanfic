@@ -65,7 +65,7 @@ export default function AccountSafety() {
         <div className="max-w-3xl mx-auto px-6 py-4 flex items-center gap-3">
           <Link
             to="/account"
-            className="text-[#6B705C] hover:text-[#E07A5F] inline-flex items-center gap-1.5 text-sm font-semibold"
+            className="text-[#5B5F4D] hover:text-[#E07A5F] inline-flex items-center gap-1.5 text-sm font-semibold"
             data-testid="safety-back-account"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -81,7 +81,7 @@ export default function AccountSafety() {
         <h1 className="font-serif text-4xl text-[#2C2C2C] mb-3">
           Your library, scanned.
         </h1>
-        <p className="text-[#6B705C] mb-10 max-w-prose">
+        <p className="text-[#5B5F4D] mb-10 max-w-prose">
           Every file you upload to Shelfsort is scanned by ClamAV before it
           lands in your library, and rescanned automatically when you download
           it.  This page shows you the result for your own books — no other
@@ -90,7 +90,7 @@ export default function AccountSafety() {
 
         {loading || !report ? (
           <p
-            className="text-sm text-[#6B705C] inline-flex items-center gap-2"
+            className="text-sm text-[#5B5F4D] inline-flex items-center gap-2"
             data-testid="safety-loading"
           >
             <Loader2 className="w-4 h-4 animate-spin" />
@@ -137,7 +137,7 @@ export default function AccountSafety() {
                   <p className="font-medium text-[#2C2C2C]">
                     Antivirus is temporarily unavailable.
                   </p>
-                  <p className="text-sm text-[#6B705C] mt-1">
+                  <p className="text-sm text-[#5B5F4D] mt-1">
                     New uploads still work but are queued for scanning.  Check
                     back in a few minutes.
                   </p>
@@ -148,7 +148,7 @@ export default function AccountSafety() {
             {/* Recent flags */}
             {report.recent_infected && report.recent_infected.length > 0 && (
               <div className="mb-8" data-testid="safety-recent-infected">
-                <p className="text-xs uppercase tracking-[0.15em] text-[#6B705C] font-bold mb-2">
+                <p className="text-xs uppercase tracking-[0.15em] text-[#5B5F4D] font-bold mb-2">
                   Recent flags
                 </p>
                 <ul className="space-y-2">
@@ -164,7 +164,7 @@ export default function AccountSafety() {
                       <p className="text-xs text-[#B43F26] font-mono mt-0.5">
                         {r.signature || "(no signature)"}
                       </p>
-                      <p className="text-xs text-[#6B705C] mt-1">
+                      <p className="text-xs text-[#5B5F4D] mt-1">
                         Scanned {fmtTime(r.ts)} · source: {r.source}
                       </p>
                     </li>
@@ -176,7 +176,7 @@ export default function AccountSafety() {
             {/* Rescan CTA */}
             <div className="rounded-xl border border-[#E5DDC5] bg-[#FBFAF6] p-5">
               <p className="font-medium text-[#2C2C2C] mb-1">Rescan my library</p>
-              <p className="text-sm text-[#6B705C] mb-4">
+              <p className="text-sm text-[#5B5F4D] mb-4">
                 Re-run ClamAV across every file in your library with today&apos;s
                 latest signatures.  Useful if a new threat was published or
                 you just want fresh peace of mind.  Limited to your 500 most
@@ -198,7 +198,7 @@ export default function AccountSafety() {
                   {rescanning ? "Scanning…" : "Rescan now"}
                 </button>
                 {report.last_rescan_at && (
-                  <span className="text-xs text-[#6B705C]" data-testid="safety-last-rescan">
+                  <span className="text-xs text-[#5B5F4D]" data-testid="safety-last-rescan">
                     Last rescan {fmtTime(report.last_rescan_at)}
                     {report.last_rescan_summary && (
                       <>
@@ -221,8 +221,8 @@ function SafetyStat({ icon: Icon, label, value, total, color, testid }) {
   const palette = {
     green: { bg: "#E8F3EC", border: "#2C7A3E", text: "#2C7A3E", muted: "#3F4034" },
     red:   { bg: "#FDECE6", border: "#B43F26", text: "#B43F26", muted: "#3F4034" },
-    grey:  { bg: "#FBFAF6", border: "#E5DDC5", text: "#6B705C", muted: "#3F4034" },
-  }[color] || { bg: "#FBFAF6", border: "#E5DDC5", text: "#6B705C", muted: "#3F4034" };
+    grey:  { bg: "#FBFAF6", border: "#E5DDC5", text: "#5B5F4D", muted: "#3F4034" },
+  }[color] || { bg: "#FBFAF6", border: "#E5DDC5", text: "#5B5F4D", muted: "#3F4034" };
   const pct = total > 0 ? Math.round((value / total) * 100) : 0;
   return (
     <div

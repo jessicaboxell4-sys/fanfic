@@ -102,13 +102,13 @@ export default function ProfileCompletenessCard() {
               {isComplete ? "Profile complete" : "Boost your discoverability"}
             </h2>
             <span
-              className="text-sm font-mono text-[#6B705C]"
+              className="text-sm font-mono text-[#5B5F4D]"
               data-testid="profile-completeness-score"
             >
               {score} / 3
             </span>
           </div>
-          <p className="text-sm text-[#6B705C] mt-1">
+          <p className="text-sm text-[#5B5F4D] mt-1">
             {isComplete
               ? "You've got the works — handle, bio, and a public library. Other readers will find you."
               : "Three quick steps make your profile feel real to other readers."}

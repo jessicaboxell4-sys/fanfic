@@ -150,7 +150,7 @@ export default function DevicePicker({
   return (
     <div data-testid={`${testidPrefix}-wrap`} className="mb-2">
       <label
-        className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-[#6B705C] mb-1"
+        className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-[#5B5F4D] mb-1"
         htmlFor={`${testidPrefix}-select`}
       >
         <Smartphone className="w-3 h-3" />
@@ -186,7 +186,7 @@ export default function DevicePicker({
             className="text-sm px-3 py-2 rounded-lg border border-[#E5DDC5] bg-white focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/30 flex-1 min-w-0"
           />
         )}
-        {loading && <Loader2 className="w-3.5 h-3.5 animate-spin text-[#6B705C]" />}
+        {loading && <Loader2 className="w-3.5 h-3.5 animate-spin text-[#5B5F4D]" />}
       </div>
       {error ? (
         <p className="text-xs text-rose-600 mt-1" data-testid={`${testidPrefix}-error`}>
@@ -194,7 +194,7 @@ export default function DevicePicker({
         </p>
       ) : null}
       {otherMode ? (
-        <p className="text-[10px] text-[#6B705C] mt-1">
+        <p className="text-[10px] text-[#5B5F4D] mt-1">
           Your device will be added to the picker so other people can choose it too.
         </p>
       ) : null}

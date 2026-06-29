@@ -69,12 +69,12 @@ export default function KindleImport() {
           <Link
             to="/"
             data-testid="kindle-import-back-home"
-            className="inline-flex items-center gap-2 text-sm text-[#6B705C] hover:text-[#2C2C2C]"
+            className="inline-flex items-center gap-2 text-sm text-[#5B5F4D] hover:text-[#2C2C2C]"
           >
             <ArrowLeft className="w-4 h-4" />
             Back to Shelfsort
           </Link>
-          <span className="text-xs uppercase tracking-[0.18em] text-[#6B705C]">
+          <span className="text-xs uppercase tracking-[0.18em] text-[#5B5F4D]">
             Import guide
           </span>
         </div>
@@ -88,7 +88,7 @@ export default function KindleImport() {
         <h1 className="font-serif text-4xl sm:text-5xl text-[#2C2C2C] mb-3 leading-tight">
           Bringing your Kindle library to Shelfsort
         </h1>
-        <p className="text-[#6B705C] mb-10 text-lg">
+        <p className="text-[#5B5F4D] mb-10 text-lg">
           The honest answer: Amazon doesn&rsquo;t let any third-party app sync
           directly with your Kindle account. But there&rsquo;s a workaround
           that takes about five minutes and lands every supported book in your
@@ -170,7 +170,7 @@ export default function KindleImport() {
               upload zone, and confirm when it asks &ldquo;Convert these to
               EPUB?&rdquo; (yes — that&rsquo;s the magic step).
             </p>
-            <p className="flex items-center gap-2 text-[#6B705C] text-sm">
+            <p className="flex items-center gap-2 text-[#5B5F4D] text-sm">
               <FolderUp className="w-4 h-4 text-[#E07A5F]" />
               You can drop a whole folder at once — Shelfsort walks the tree
               and grabs every supported file.
@@ -188,7 +188,7 @@ export default function KindleImport() {
               book into a fandom or shelf, and they all show up in your
               library.
             </p>
-            <p className="flex items-center gap-2 text-[#6B705C] text-sm">
+            <p className="flex items-center gap-2 text-[#5B5F4D] text-sm">
               <CheckCircle2 className="w-4 h-4 text-[#22A06B]" />
               You&rsquo;re done. Your Kindle library now lives in Shelfsort
               alongside everything else, fully searchable and re-categorizable.
@@ -231,7 +231,7 @@ export default function KindleImport() {
           </p>
         </Section>
 
-        <div className="mt-12 pt-6 border-t border-[#E5DDC5] text-sm text-[#6B705C]">
+        <div className="mt-12 pt-6 border-t border-[#E5DDC5] text-sm text-[#5B5F4D]">
           See also:{" "}
           <Link to="/privacy" className="text-[#6B46C1] underline">
             Privacy

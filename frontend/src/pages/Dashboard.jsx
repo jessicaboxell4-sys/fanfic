@@ -100,11 +100,11 @@ export default function Dashboard() {
           </p>
           <h1 className="font-serif text-5xl sm:text-6xl text-[#2C2C2C] leading-[1.05] tracking-tight">
             {stats.total > 0
-              ? <>{stats.total.toLocaleString()} <span className="text-[#6B705C]">{stats.total > 1 ? "books" : "book"} on the shelves.</span></>
+              ? <>{stats.total.toLocaleString()} <span className="text-[#5B5F4D]">{stats.total > 1 ? "books" : "book"} on the shelves.</span></>
               : "Let’s build your shelves."}
           </h1>
           {stats.fandoms?.length > 0 && (
-            <p className="text-[#6B705C] mt-3 text-lg" data-testid="dashboard-top-fandoms">
+            <p className="text-[#5B5F4D] mt-3 text-lg" data-testid="dashboard-top-fandoms">
               {stats.fandoms.slice(0, 4).map(f => `${f.name} (${f.count})`).join(" · ")}
             </p>
           )}
@@ -203,7 +203,7 @@ export default function Dashboard() {
         )}
 
         {/* Quick-action footer chips */}
-        <div className="flex flex-wrap items-center gap-2 text-xs text-[#6B705C] pt-6 border-t border-[#E8E6E1]" data-testid="dashboard-quick-actions">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-[#5B5F4D] pt-6 border-t border-[#E8E6E1]" data-testid="dashboard-quick-actions">
           <Link to="/library/stats" className="inline-flex items-center gap-1 hover:text-[#6B46C1]"><BarChart3 className="w-3 h-3" /> Stats</Link>
           <span>·</span>
           <Link to="/library/smart-shelves" className="hover:text-[#6B46C1]">Smart shelves</Link>

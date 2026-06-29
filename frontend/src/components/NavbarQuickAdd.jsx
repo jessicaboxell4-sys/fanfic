@@ -95,7 +95,7 @@ export default function NavbarQuickAdd() {
       data-testid="navbar-quick-add"
     >
       <Sparkles
-        className={`w-3.5 h-3.5 flex-shrink-0 ${valid ? "text-[#6B46C1]" : "text-[#6B705C]"}`}
+        className={`w-3.5 h-3.5 flex-shrink-0 ${valid ? "text-[#6B46C1]" : "text-[#5B5F4D]"}`}
       />
       <input
         ref={inputRef}
@@ -106,7 +106,7 @@ export default function NavbarQuickAdd() {
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={onKey}
         disabled={pulling}
-        className="bg-transparent outline-none text-sm w-48 lg:w-64 placeholder:text-[#6B705C]/70 text-[#2C2C2C]"
+        className="bg-transparent outline-none text-sm w-48 lg:w-64 placeholder:text-[#5B5F4D]/70 text-[#2C2C2C]"
         aria-label="Quick-add fanfic URL"
       />
       <button

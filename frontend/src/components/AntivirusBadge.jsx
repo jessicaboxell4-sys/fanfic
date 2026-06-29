@@ -54,7 +54,7 @@ export default function AntivirusBadge({ av_status, av_scanned_at, av_signature,
   // Detail-page row: lives inside the Meta grid.
   return (
     <div data-testid={`av-badge-row-${av_status}`}>
-      <p className="text-xs uppercase tracking-wider text-[#6B705C] font-semibold mb-1">
+      <p className="text-xs uppercase tracking-wider text-[#5B5F4D] font-semibold mb-1">
         Antivirus
       </p>
       <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium ${

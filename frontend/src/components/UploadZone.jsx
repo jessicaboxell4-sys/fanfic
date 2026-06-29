@@ -1074,14 +1074,14 @@ export default function UploadZone({ onUploaded, compact = false }) {
           <p className={`font-serif ${compact ? "text-lg" : "text-2xl"} text-[#2C2C2C]`}>
             {progress.airdrop ? "Airdropping your library…" : "Sorting your books…"}
           </p>
-          <p className="text-sm text-[#6B705C] mt-1" data-testid="upload-progress-text">
+          <p className="text-sm text-[#5B5F4D] mt-1" data-testid="upload-progress-text">
             {progress.batches > 1
               ? `Batch ${progress.batch} of ${progress.batches} · ${progress.done} of ${progress.total} ${progress.airdrop ? "queued" : "processed"}`
               : `${progress.done} of ${progress.total} ${progress.airdrop ? "queued" : "processed"}`}
           </p>
           {progress.airdrop && (
             <p
-              className="text-xs text-[#6B705C] mt-1 italic max-w-md text-center"
+              className="text-xs text-[#5B5F4D] mt-1 italic max-w-md text-center"
               data-testid="upload-progress-airdrop-note"
             >
               Bytes are landing fast — sorting, covers and AI classification will fill in on the library page as each book finishes processing.
@@ -1089,7 +1089,7 @@ export default function UploadZone({ onUploaded, compact = false }) {
           )}
           {(progress.inFlight > 0 || progress.startedAt > 0) && !progress.airdrop && (
             <p
-              className="text-xs text-[#6B705C] mt-1 italic"
+              className="text-xs text-[#5B5F4D] mt-1 italic"
               data-testid="upload-progress-flight"
             >
               {progress.inFlight > 0
@@ -1108,7 +1108,7 @@ export default function UploadZone({ onUploaded, compact = false }) {
             queueSummary.polish_failed > 0
           ) && (
             <div
-              className="mt-3 inline-flex items-center gap-2 flex-wrap justify-center text-[11px] text-[#6B705C]"
+              className="mt-3 inline-flex items-center gap-2 flex-wrap justify-center text-[11px] text-[#5B5F4D]"
               data-testid="upload-queue-summary-strip"
             >
               {queueSummary.jobs_done_recent > 0 && (
@@ -1142,7 +1142,7 @@ export default function UploadZone({ onUploaded, compact = false }) {
               )}
               {queueSummary.jobs_queued > 0 && (
                 <span
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#F0EBE2] text-[#6B705C] border border-[#E4D9C8] font-semibold"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#F0EBE2] text-[#5B5F4D] border border-[#E4D9C8] font-semibold"
                   data-testid="qs-queued"
                   title="Async upload jobs waiting for the worker to pick them up."
                 >
@@ -1172,7 +1172,7 @@ export default function UploadZone({ onUploaded, compact = false }) {
             <UploadCloud className="w-7 h-7 text-[#E07A5F] shrink-0" />
             <div>
               <p className="font-serif text-lg text-[#2C2C2C] leading-tight">Drop files or folders here</p>
-              <p className="text-xs text-[#6B705C]">EPUB · PDF · Kindle · DOCX · auto-sorted</p>
+              <p className="text-xs text-[#5B5F4D]">EPUB · PDF · Kindle · DOCX · auto-sorted</p>
             </div>
           </div>
           <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
@@ -1198,11 +1198,11 @@ export default function UploadZone({ onUploaded, compact = false }) {
         <>
           <UploadCloud className="w-10 h-10 text-[#E07A5F] mb-4" />
           <p className="font-serif text-2xl text-[#2C2C2C] mb-1">Drop files or folders here</p>
-          <p className="text-sm text-[#6B705C] mb-2">
+          <p className="text-sm text-[#5B5F4D] mb-2">
             EPUB · PDF · Kindle (.azw/.mobi) · DOCX · auto-converted to EPUB and sorted
           </p>
-          <p className="text-xs text-[#A09A8B] italic mb-4 max-w-md text-center">
-            Tip: Shelfsort processes <strong className="text-[#6B705C] not-italic font-semibold">200 stories at a time</strong> — drop a bigger library and we&apos;ll auto-queue it in sequential batches for you.
+          <p className="text-xs text-[#6E6E6E] italic mb-4 max-w-md text-center">
+            Tip: Shelfsort processes <strong className="text-[#5B5F4D] not-italic font-semibold">200 stories at a time</strong> — drop a bigger library and we&apos;ll auto-queue it in sequential batches for you.
           </p>
           <div className="flex gap-3" onClick={(e) => e.stopPropagation()}>
             <button
@@ -1239,7 +1239,7 @@ export default function UploadZone({ onUploaded, compact = false }) {
             <h3 className="font-serif text-2xl text-[#2C2C2C]">
               Books that couldn&apos;t classify
             </h3>
-            <p className="text-sm text-[#6B705C] mt-1">
+            <p className="text-sm text-[#5B5F4D] mt-1">
               The classifier gave up on these — usually a transient Claude/network blip.
               Hit <strong>Retry all</strong> to send them back through the pipeline.
             </p>
@@ -1247,12 +1247,12 @@ export default function UploadZone({ onUploaded, compact = false }) {
 
           <div className="flex-1 overflow-y-auto px-6 py-4" data-testid="retry-inbox-list">
             {retryInboxLoading && (
-              <p className="text-sm text-[#6B705C] py-6 text-center">
+              <p className="text-sm text-[#5B5F4D] py-6 text-center">
                 <Loader2 className="w-4 h-4 inline-block animate-spin mr-2" /> Loading…
               </p>
             )}
             {!retryInboxLoading && retryInboxBooks.length === 0 && (
-              <p className="text-sm text-[#6B705C] py-6 text-center" data-testid="retry-inbox-empty">
+              <p className="text-sm text-[#5B5F4D] py-6 text-center" data-testid="retry-inbox-empty">
                 No stuck books right now — everything classified successfully.
               </p>
             )}
@@ -1265,7 +1265,7 @@ export default function UploadZone({ onUploaded, compact = false }) {
                 <p className="font-serif text-base text-[#2C2C2C] truncate">
                   {b.title || b.filename || "Untitled"}
                 </p>
-                <p className="text-xs text-[#6B705C] truncate">
+                <p className="text-xs text-[#5B5F4D] truncate">
                   {b.author || "Unknown author"}
                 </p>
                 {b.polish_last_error && (
@@ -1278,7 +1278,7 @@ export default function UploadZone({ onUploaded, compact = false }) {
                   </p>
                 )}
                 {b.polish_attempts > 1 && (
-                  <p className="text-[10px] text-[#A09A8B] uppercase tracking-[0.12em] mt-1">
+                  <p className="text-[10px] text-[#6E6E6E] uppercase tracking-[0.12em] mt-1">
                     {b.polish_attempts} attempts
                   </p>
                 )}
@@ -1287,7 +1287,7 @@ export default function UploadZone({ onUploaded, compact = false }) {
           </div>
 
           <div className="px-6 py-4 border-t border-[#EDE6D5] flex items-center justify-between gap-3">
-            <p className="text-xs text-[#6B705C]">
+            <p className="text-xs text-[#5B5F4D]">
               {retryInboxBooks.length > 0
                 ? `${retryInboxBooks.length} book${retryInboxBooks.length === 1 ? "" : "s"} ready to retry.`
                 : ""}
@@ -1298,7 +1298,7 @@ export default function UploadZone({ onUploaded, compact = false }) {
                 onClick={() => setRetryInboxOpen(false)}
                 disabled={retryInboxBusy}
                 data-testid="retry-inbox-close-btn"
-                className="px-3 py-1.5 rounded-lg text-sm font-medium bg-white border border-[#EDE6D5] text-[#6B705C] hover:bg-[#FDFBF7] disabled:opacity-50"
+                className="px-3 py-1.5 rounded-lg text-sm font-medium bg-white border border-[#EDE6D5] text-[#5B5F4D] hover:bg-[#FDFBF7] disabled:opacity-50"
               >
                 Close
               </button>

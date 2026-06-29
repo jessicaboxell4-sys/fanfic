@@ -17,7 +17,7 @@ function ExploreRail({ rows, eyebrow, icon: Icon, accent, testid }) {
         >
           <Icon className="w-3 h-3" /> {eyebrow}
         </p>
-        <span className="text-xs text-[#6B705C]">{rows.length}</span>
+        <span className="text-xs text-[#5B5F4D]">{rows.length}</span>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
         {rows.map((c) => {
@@ -70,7 +70,7 @@ function ExploreRail({ rows, eyebrow, icon: Icon, accent, testid }) {
                 <p className="font-serif text-sm text-[#2C2C2C] leading-tight line-clamp-2 break-words">
                   {c.title || "Untitled"}
                 </p>
-                <div className="flex items-center justify-between mt-2 text-[11px] text-[#6B705C]">
+                <div className="flex items-center justify-between mt-2 text-[11px] text-[#5B5F4D]">
                   <span className="inline-flex items-center gap-1">
                     <Heart className="w-3 h-3" /> {c.votes || 0}
                   </span>
@@ -122,7 +122,7 @@ export default function ExploreCoversPage() {
             <h1 className="font-serif text-4xl sm:text-5xl text-[#2C2C2C] leading-tight tracking-tight">
               AI-made book covers, voted by readers.
             </h1>
-            <p className="text-lg text-[#6B705C] mt-3 max-w-2xl">
+            <p className="text-lg text-[#5B5F4D] mt-3 max-w-2xl">
               Browse the latest covers people have generated for their
               fanfiction and book libraries on Shelfsort — heart your
               favourites and remix them into your own shelves.
@@ -138,7 +138,7 @@ export default function ExploreCoversPage() {
         </header>
 
         {loading ? (
-          <p className="text-[#6B705C]" data-testid="explore-loading">Loading…</p>
+          <p className="text-[#5B5F4D]" data-testid="explore-loading">Loading…</p>
         ) : (
           <>
             <ExploreRail
@@ -165,7 +165,7 @@ export default function ExploreCoversPage() {
           </>
         )}
 
-        <footer className="text-xs text-[#6B705C] pt-6 border-t border-[#E8E6E1] mt-10">
+        <footer className="text-xs text-[#5B5F4D] pt-6 border-t border-[#E8E6E1] mt-10">
           <Link to="/cover-archive" className="hover:text-[#6B46C1]">
             Cover-of-the-week archive →
           </Link>

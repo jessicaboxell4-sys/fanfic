@@ -27,7 +27,7 @@ export default function SiteFooter() {
           {/* Brand */}
           <div className="col-span-2 md:col-span-1">
             <p className="font-serif text-xl text-[#2C2C2C]">Shelfsort</p>
-            <p className="mt-2 text-[12px] text-[#6B705C] leading-relaxed">
+            <p className="mt-2 text-[12px] text-[#5B5F4D] leading-relaxed">
               A quieter way to organize ebooks. AI-categorized, ad-free,
               made for the AO3 → re-read pile.
             </p>
@@ -35,7 +35,7 @@ export default function SiteFooter() {
 
           {/* About */}
           <div>
-            <p className="text-[10px] uppercase tracking-[0.18em] text-[#6B705C] font-semibold mb-3">
+            <p className="text-[10px] uppercase tracking-[0.18em] text-[#5B5F4D] font-semibold mb-3">
               About
             </p>
             <ul className="space-y-2 text-sm">
@@ -98,7 +98,7 @@ export default function SiteFooter() {
 
           {/* Legal */}
           <div>
-            <p className="text-[10px] uppercase tracking-[0.18em] text-[#6B705C] font-semibold mb-3">
+            <p className="text-[10px] uppercase tracking-[0.18em] text-[#5B5F4D] font-semibold mb-3">
               Legal
             </p>
             <ul className="space-y-2 text-sm">
@@ -134,7 +134,7 @@ export default function SiteFooter() {
 
           {/* Contact */}
           <div>
-            <p className="text-[10px] uppercase tracking-[0.18em] text-[#6B705C] font-semibold mb-3">
+            <p className="text-[10px] uppercase tracking-[0.18em] text-[#5B5F4D] font-semibold mb-3">
               Contact
             </p>
             <ul className="space-y-2 text-sm">
@@ -147,14 +147,14 @@ export default function SiteFooter() {
                   hello@shelfsort.com
                 </a>
               </li>
-              <li className="text-[12px] text-[#6B705C]">
+              <li className="text-[12px] text-[#5B5F4D]">
                 A real human reads every reply.
               </li>
             </ul>
           </div>
         </div>
 
-        <div className="mt-10 pt-6 border-t border-[#E5DDC5] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-[12px] text-[#6B705C]">
+        <div className="mt-10 pt-6 border-t border-[#E5DDC5] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-[12px] text-[#5B5F4D]">
           <p>&copy; {year} Shelfsort. Made with <Heart className="w-3 h-3 inline-block text-[#6B46C1]" /> for readers.</p>
           <p className="font-mono">v.{(process.env.REACT_APP_VERSION || "dev").slice(0, 7)}</p>
         </div>

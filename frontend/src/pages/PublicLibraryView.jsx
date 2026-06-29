@@ -125,7 +125,7 @@ export default function PublicLibraryView() {
       <div className="min-h-screen bg-paper">
         <Navbar />
         <main className="max-w-4xl mx-auto px-4 sm:px-6 py-12">
-          <div className="text-center text-[#6B705C]" data-testid="public-library-loading">
+          <div className="text-center text-[#5B5F4D]" data-testid="public-library-loading">
             <Library className="w-8 h-8 mx-auto mb-3 opacity-50 animate-pulse" />
             Loading library…
           </div>
@@ -164,7 +164,7 @@ export default function PublicLibraryView() {
                       {(pv.username || "?").slice(0, 1).toUpperCase()}
                     </div>
                   )}
-                  <p className="text-sm text-[#6B705C]">
+                  <p className="text-sm text-[#5B5F4D]">
                     <span className="font-semibold text-[#2C2C2C]">@{pv.username}</span>{" "}
                     has
                     <span className="font-semibold text-[#2C2C2C]" data-testid="public-library-gate-book-count"> {pv.total_books} </span>
@@ -178,7 +178,7 @@ export default function PublicLibraryView() {
                     .
                   </p>
                   {pv.bio ? (
-                    <p className="text-xs text-[#6B705C] italic max-w-sm" data-testid="public-library-gate-bio">
+                    <p className="text-xs text-[#5B5F4D] italic max-w-sm" data-testid="public-library-gate-bio">
                       &ldquo;{pv.bio}&rdquo;
                     </p>
                   ) : null}
@@ -186,7 +186,7 @@ export default function PublicLibraryView() {
                 <h1 className="font-serif text-2xl text-[#2C2C2C] mb-2">
                   Sign in to see what they&rsquo;re reading
                 </h1>
-                <p className="text-sm text-[#6B705C] mb-6">
+                <p className="text-sm text-[#5B5F4D] mb-6">
                   Free account, 30 seconds — and you get your own
                   Shelfsort library out of the deal.
                 </p>
@@ -197,7 +197,7 @@ export default function PublicLibraryView() {
                 <h1 className="font-serif text-2xl text-[#2C2C2C] mb-2">
                   Sign in to read libraries
                 </h1>
-                <p className="text-sm text-[#6B705C] mb-6">
+                <p className="text-sm text-[#5B5F4D] mb-6">
                   Shelfsort libraries are for members only. Sign in or create a
                   free account to browse @{username}&rsquo;s shelves and see books
                   you have in common.
@@ -235,11 +235,11 @@ export default function PublicLibraryView() {
             className="shelf-card p-10 text-center"
             data-testid="public-library-not-found"
           >
-            <Library className="w-10 h-10 mx-auto mb-4 text-[#6B705C] opacity-60" />
+            <Library className="w-10 h-10 mx-auto mb-4 text-[#5B5F4D] opacity-60" />
             <h1 className="font-serif text-2xl text-[#2C2C2C] mb-2">
               This library isn&rsquo;t public
             </h1>
-            <p className="text-sm text-[#6B705C] mb-6">
+            <p className="text-sm text-[#5B5F4D] mb-6">
               The reader either hasn&rsquo;t shared their library publicly,
               or the @handle doesn&rsquo;t exist. If you&rsquo;re looking for
               someone you know, try the reader directory.
@@ -264,7 +264,7 @@ export default function PublicLibraryView() {
     <div className="min-h-screen bg-paper">
       <Navbar />
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8 md:py-12 fade-in" data-testid="public-library-page">
-        <Link to="/users" className="inline-flex items-center gap-1 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-6">
+        <Link to="/users" className="inline-flex items-center gap-1 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-6">
           <ArrowLeft className="w-4 h-4" /> Reader directory
         </Link>
 
@@ -297,13 +297,13 @@ export default function PublicLibraryView() {
           )}
           {owner.bio && (
             <p
-              className="text-sm text-[#6B705C] italic mt-2 max-w-xl"
+              className="text-sm text-[#5B5F4D] italic mt-2 max-w-xl"
               data-testid="public-library-owner-bio"
             >
               &ldquo;{owner.bio}&rdquo;
             </p>
           )}
-          <p className="text-[#6B705C] mt-3 text-base sm:text-lg flex items-center flex-wrap gap-x-3 gap-y-1">
+          <p className="text-[#5B5F4D] mt-3 text-base sm:text-lg flex items-center flex-wrap gap-x-3 gap-y-1">
             <span>
               <span className="font-semibold text-[#2C2C2C]" data-testid="public-library-total-books">
                 {totalBooks}
@@ -384,20 +384,20 @@ export default function PublicLibraryView() {
         )}
 
         <div className="shelf-card p-3 mb-5 flex items-center gap-2">
-          <Search className="w-4 h-4 text-[#6B705C] ml-1.5" />
+          <Search className="w-4 h-4 text-[#5B5F4D] ml-1.5" />
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Filter this library by title or author…"
             data-testid="public-library-search"
-            className="flex-1 bg-transparent outline-none text-sm placeholder:text-[#A09A8B]"
+            className="flex-1 bg-transparent outline-none text-sm placeholder:text-[#6E6E6E]"
           />
           {q && (
             <button
               type="button"
               onClick={() => setQ("")}
               data-testid="public-library-search-clear"
-              className="text-xs text-[#6B705C] hover:text-[#2C2C2C] px-2 py-1"
+              className="text-xs text-[#5B5F4D] hover:text-[#2C2C2C] px-2 py-1"
             >
               clear
             </button>
@@ -405,7 +405,7 @@ export default function PublicLibraryView() {
         </div>
 
         {visibleBooks.length === 0 ? (
-          <div className="shelf-card p-10 text-center text-[#6B705C]" data-testid="public-library-empty">
+          <div className="shelf-card p-10 text-center text-[#5B5F4D]" data-testid="public-library-empty">
             <BookOpen className="w-8 h-8 mx-auto mb-3 opacity-60" />
             {totalBooks === 0
               ? "This reader hasn't added any books yet."
@@ -429,7 +429,7 @@ export default function PublicLibraryView() {
                   <p className="text-sm font-semibold text-[#2C2C2C] truncate">
                     {b.title || "Untitled"}
                   </p>
-                  <p className="text-xs text-[#6B705C] truncate">
+                  <p className="text-xs text-[#5B5F4D] truncate">
                     {b.author || "Unknown author"}
                   </p>
                   <div className="mt-1 flex flex-wrap gap-1.5">
@@ -439,7 +439,7 @@ export default function PublicLibraryView() {
                       </span>
                     ) : null}
                     {b.category ? (
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#F5F3EC] text-[#6B705C]">
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#F5F3EC] text-[#5B5F4D]">
                         {b.category}
                       </span>
                     ) : null}
@@ -474,7 +474,7 @@ export default function PublicLibraryView() {
                       "flex-shrink-0 p-2 rounded-full transition-colors " +
                       (hearts[b.book_id]
                         ? "bg-[#FDE2E4] text-[#C53030] hover:bg-[#FBC4C8]"
-                        : "bg-transparent text-[#6B705C] hover:bg-[#F5F3EC] hover:text-[#C53030]")
+                        : "bg-transparent text-[#5B5F4D] hover:bg-[#F5F3EC] hover:text-[#C53030]")
                     }
                   >
                     <Heart
@@ -489,7 +489,7 @@ export default function PublicLibraryView() {
         )}
 
         <p
-          className="mt-8 p-4 rounded-lg border border-[#E5DDC5] bg-[#FBFAF6] text-xs text-[#6B705C] flex items-start gap-2"
+          className="mt-8 p-4 rounded-lg border border-[#E5DDC5] bg-[#FBFAF6] text-xs text-[#5B5F4D] flex items-start gap-2"
           data-testid="public-library-privacy-note"
         >
           <Sparkles className="w-4 h-4 mt-0.5 flex-shrink-0 text-[#6B46C1]" />

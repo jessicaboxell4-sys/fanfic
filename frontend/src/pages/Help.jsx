@@ -461,7 +461,7 @@ export default function Help() {
                       <a
                         href={`#${s.id}`}
                         onClick={() => { try { api.post("/help/track", { section: s.id }); } catch { /* fire-and-forget */ } }}
-                        className="text-[#6B705C] hover:text-[#E07A5F] flex-1"
+                        className="text-[#5B5F4D] hover:text-[#E07A5F] flex-1"
                       >
                         {s.label}
                       </a>
@@ -478,7 +478,7 @@ export default function Help() {
                   );
                 })}
                 {SECTIONS.length > 0 && matchingSectionIds.length === 0 && (
-                  <li className="text-[10px] italic text-[#6B705C]">no matches — clear search to see all</li>
+                  <li className="text-[10px] italic text-[#5B5F4D]">no matches — clear search to see all</li>
                 )}
               </ul>
             </details>
@@ -488,14 +488,14 @@ export default function Help() {
               Capped at max-w-3xl so paragraphs stay easy to read on large
               screens (matches the Wikipedia content column). */}
           <div className="flex-1 min-w-0 lg:max-w-3xl">
-            <Link to="/library" className="inline-flex items-center gap-1 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-4">
+            <Link to="/library" className="inline-flex items-center gap-1 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-4">
               <ArrowLeft className="w-4 h-4" /> back to library
             </Link>
 
         <header className="mb-8">
           <h1 className="font-serif text-5xl md:text-6xl text-[#2C2C2C] leading-tight">Help</h1>
-          <p className="text-[#6B705C] mt-2">How to do everything in Shelfsort. Last updated 2026-06-24.</p>
-          <p className="text-sm text-[#6B705C] mt-3">
+          <p className="text-[#5B5F4D] mt-2">How to do everything in Shelfsort. Last updated 2026-06-24.</p>
+          <p className="text-sm text-[#5B5F4D] mt-3">
             Don&rsquo;t see what you&rsquo;re looking for? <Link to="/suggestions" className="text-[var(--primary)] font-semibold underline">Drop a suggestion →</Link> — bugs, tweaks, brand new ideas all welcome.
           </p>
 
@@ -503,7 +503,7 @@ export default function Help() {
               library rails so newcomers can read a chip's "type" at a glance. */}
           <div
             data-testid="help-chip-legend"
-            className="mt-5 inline-flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-2 rounded-2xl border border-[#E5DDC5] bg-white text-xs text-[#6B705C]"
+            className="mt-5 inline-flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-2 rounded-2xl border border-[#E5DDC5] bg-white text-xs text-[#5B5F4D]"
           >
             <span className="font-bold uppercase tracking-[0.15em] text-[#6B46C1]">Chip key</span>
             <span className="inline-flex items-center gap-1.5">
@@ -529,7 +529,7 @@ export default function Help() {
           </div>
 
           <div className="mt-5 relative max-w-md" data-testid="help-search-wrapper">
-            <Search className="w-4 h-4 text-[#6B705C] absolute top-1/2 -translate-y-1/2 left-3 pointer-events-none" />
+            <Search className="w-4 h-4 text-[#5B5F4D] absolute top-1/2 -translate-y-1/2 left-3 pointer-events-none" />
             <input
               type="search"
               value={query}
@@ -543,7 +543,7 @@ export default function Help() {
                 type="button"
                 onClick={() => setQuery("")}
                 data-testid="help-search-clear"
-                className="absolute top-1/2 -translate-y-1/2 right-2 p-1 rounded-full text-[#6B705C] hover:bg-[#FBFAF6]"
+                className="absolute top-1/2 -translate-y-1/2 right-2 p-1 rounded-full text-[#5B5F4D] hover:bg-[#FBFAF6]"
                 aria-label="Clear search"
               >
                 <X className="w-3.5 h-3.5" />
@@ -553,7 +553,7 @@ export default function Help() {
           {query.trim() && (
             <p
               data-testid="help-search-summary"
-              className={`text-xs mt-2 ${matchingSectionIds.length === 0 ? "text-[#B43F26]" : "text-[#6B705C]"}`}
+              className={`text-xs mt-2 ${matchingSectionIds.length === 0 ? "text-[#B43F26]" : "text-[#5B5F4D]"}`}
             >
               {matchingSectionIds.length === 0
                 ? `No sections match "${query}". Try a broader term.`
@@ -562,14 +562,14 @@ export default function Help() {
           )}
           {!query.trim() && (
             <div className="flex flex-wrap items-center gap-1.5 mt-3" data-testid="help-search-chips">
-              <span className="text-[10px] uppercase tracking-wider text-[#6B705C] font-semibold mr-1">Try:</span>
+              <span className="text-[10px] uppercase tracking-wider text-[#5B5F4D] font-semibold mr-1">Try:</span>
               {["palette", "goals", "@handle", "friends", "EPUB", "shelves", "backup"].map((chip) => (
                 <button
                   key={chip}
                   type="button"
                   onClick={() => setQuery(chip)}
                   data-testid={`help-search-chip-${chip.replace(/\s+/g, "-")}`}
-                  className="text-[11px] px-2.5 py-1 rounded-full border border-[#E5DDC5] bg-white text-[#6B705C] hover:border-[var(--primary)] hover:text-[var(--primary)] transition-colors"
+                  className="text-[11px] px-2.5 py-1 rounded-full border border-[#E5DDC5] bg-white text-[#5B5F4D] hover:border-[var(--primary)] hover:text-[var(--primary)] transition-colors"
                 >
                   {chip}
                 </button>
@@ -588,7 +588,7 @@ export default function Help() {
             onClick={dismissWhatsNew}
             data-testid="help-whats-new-dismiss"
             aria-label="Dismiss what's new"
-            className="absolute top-3 right-3 p-1.5 rounded-full text-[#6B705C] hover:text-[#2C2C2C] hover:bg-white/60 transition-colors"
+            className="absolute top-3 right-3 p-1.5 rounded-full text-[#5B5F4D] hover:text-[#2C2C2C] hover:bg-white/60 transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -729,7 +729,7 @@ export default function Help() {
               <p><strong>Background uploads bell.</strong> The cloud-icon in the navbar (top-right) is your <em>command center</em> for in-flight uploads. Always visible. Drop files or folders directly onto the icon from anywhere in the app, or click it for Choose-files / Pick-a-folder buttons. Hover any row in its panel to see a flyout card with the book&rsquo;s cover, fandom chip, and an <em>Open it</em> CTA. The library grid pulses a coral ring on freshly-arrived cards. Close the tab any time — uploads keep running and the bell re-attaches when you come back.</p>
               <p><strong>What happens during upload:</strong> metadata is extracted, the book is classified onto a category (Fanfiction / Original Fiction / Non-fiction / etc.), the fandom is detected from <strong>{knownFandoms.length || "285+"}</strong> canonical fandoms, relationships/pairings are extracted, completion status is detected (see &ldquo;Detection &amp; overrides&rdquo;), and any embedded source URLs are saved for future dedupe + the Linkless filter.</p>
               <p><strong>Duplicates</strong> are caught three ways: (1) by exact source-URL or shared canonical fanfic URL (so all AO3 / FFN / RoyalRoad mirrors of the same work collapse together), (2) by <strong>title + author</strong> match (case-insensitive, dots stripped from author so &lsquo;J. K. Rowling&rsquo; and &lsquo;JK Rowling&rsquo; still pair), and (3) by title alone <em>only when one side has no author on file</em>. Two books with the same generic title (e.g. &ldquo;Crossroads&rdquo;) but different authors and different URLs are correctly kept as separate books. When a dupe is flagged you choose: keep both / replace older / skip. Cross-format duplicates (same book uploaded as PDF after the EPUB) are filed under <Link to="/library/originals">Originals</Link>.</p>
-              <p className="text-xs text-[#6B705C]">Importing from Kindle? See the step-by-step guide at <Link to="/help/kindle-import">/help/kindle-import</Link>.</p>
+              <p className="text-xs text-[#5B5F4D]">Importing from Kindle? See the step-by-step guide at <Link to="/help/kindle-import">/help/kindle-import</Link>.</p>
             </Section>
 
             <Section id="quick-search" icon={Search} title="Navbar quick-search">
@@ -740,7 +740,7 @@ export default function Help() {
                 <li><strong>Keyboard-first</strong> — arrow keys move through suggestions, <kbd>Esc</kbd> closes the dropdown, <kbd>Enter</kbd> navigates.</li>
                 <li><strong>No match?</strong> The dropdown collapses quietly — your full-text search (inside an open EPUB) is still the place to find a passage by phrase.</li>
               </ul>
-              <p className="text-xs text-[#6B705C]">Tip: pair this with <strong>Surprise me</strong> on the dashboard when you can&rsquo;t decide what to read.</p>
+              <p className="text-xs text-[#5B5F4D]">Tip: pair this with <strong>Surprise me</strong> on the dashboard when you can&rsquo;t decide what to read.</p>
             </Section>
 
             <Section id="shelves" icon={Layers} title="Shelves & filters">
@@ -847,7 +847,7 @@ export default function Help() {
                   to your own mode — great for finding readers with similar taste.
                 </li>
               </ul>
-              <p className="text-xs text-[#6B705C]">
+              <p className="text-xs text-[#5B5F4D]">
                 Tip: legacy accounts (created before this preference shipped) default
                 to <strong>Mixed</strong> and remain fully visible in the directory.
                 Nothing breaks if you never touch the setting.
@@ -914,7 +914,7 @@ export default function Help() {
                   library narrows to exactly that.
                 </li>
               </ul>
-              <p className="text-xs text-[#6B705C]">
+              <p className="text-xs text-[#5B5F4D]">
                 Marks are <strong>private to you</strong>.  Your friends can&rsquo;t
                 see which books you marked &ldquo;Never again&rdquo;.  Verdicts
                 power your own organisation and the new chip filters, not the
@@ -991,7 +991,7 @@ export default function Help() {
                 <li><strong>History</strong>: closed-out periods stay listed below the active card with a tiny &ldquo;✓ hit&rdquo; or &ldquo;X / Y&rdquo; summary so you can see how this month compared to last.</li>
                 <li><strong>Edit or retire</strong>: bump the target up or down at any time. If you exceed the new target, the hit-state flips on retroactively.</li>
               </ul>
-              <p className="text-xs text-[#6B705C]">Goals are personal — no one else sees them. They&rsquo;re a self-pacing tool, not a leaderboard.</p>
+              <p className="text-xs text-[#5B5F4D]">Goals are personal — no one else sees them. They&rsquo;re a self-pacing tool, not a leaderboard.</p>
             </Section>
 
             <Section id="filter-urls" icon={Globe} title="Filter URLs you already own">
@@ -1018,20 +1018,20 @@ export default function Help() {
                   <span>
                     <strong className="text-[#6B46C1]">Show the full fandom list</strong>
                     {fandomGroups.length > 0 && (
-                      <span className="text-[#6B705C] ml-2">
+                      <span className="text-[#5B5F4D] ml-2">
                         ({fandomGroups.length} group{fandomGroups.length === 1 ? "" : "s"}, {knownFandoms.length} fandom{knownFandoms.length === 1 ? "" : "s"})
                       </span>
                     )}
                   </span>
-                  <span className="text-xs font-semibold text-[#6B705C] group-open:hidden">expand ▾</span>
-                  <span className="text-xs font-semibold text-[#6B705C] hidden group-open:inline">collapse ▴</span>
+                  <span className="text-xs font-semibold text-[#5B5F4D] group-open:hidden">expand ▾</span>
+                  <span className="text-xs font-semibold text-[#5B5F4D] hidden group-open:inline">collapse ▴</span>
                 </summary>
                 <div
                   className="columns-1 sm:columns-2 lg:columns-3 gap-x-6 text-sm p-4 border-t border-[#E8E6E1] text-[#2C2C2C]"
                   data-testid="help-fandoms-list"
                 >
                   {fandomGroups.length === 0 ? (
-                    <span className="text-[#6B705C] italic">Loading the list…</span>
+                    <span className="text-[#5B5F4D] italic">Loading the list…</span>
                   ) : fandomGroups.map((g) => (
                     <div key={g.name} className="break-inside-avoid mb-4" data-testid={`fandom-group-${g.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`}>
                       <div className="flex items-baseline justify-between gap-2 mb-1">
@@ -1047,7 +1047,7 @@ export default function Help() {
                           <li key={f.name} className="flex items-center gap-2">
                             <span className="truncate">{f.name}</span>
                             {f.count > 0 && (
-                              <span className="ml-auto text-[10px] text-[#6B705C] tabular-nums shrink-0">{f.count}</span>
+                              <span className="ml-auto text-[10px] text-[#5B5F4D] tabular-nums shrink-0">{f.count}</span>
                             )}
                           </li>
                         ))}
@@ -1115,7 +1115,7 @@ export default function Help() {
                 <li><strong>Visible reassurance signal</strong> — once your library has been backed up in the last 24 h, a tiny green <strong>✓ Shield-Check</strong> badge appears on your avatar in the top navbar. Click it for a popover showing the timestamp, file count, and a one-tap &ldquo;Back up again →&rdquo; button.</li>
                 <li><strong>Transparent restore</strong> — if a file goes missing from the server (post-redeploy, never re-uploaded), the next time anyone opens it the bytes are pulled back from cloud storage automatically. First open is slightly slower (10–60 s for a big book); every subsequent open is instant.</li>
               </ul>
-              <p className="text-xs text-[#6B705C]">Your bytes are stored by Emergent&apos;s managed object storage; Shelfsort never reads them except to serve them back to you. The manual ZIP backup above is the right tool when you want a portable copy you control entirely — the cloud mirror is the safety net that keeps things working even if you forget to make a ZIP.</p>
+              <p className="text-xs text-[#5B5F4D]">Your bytes are stored by Emergent&apos;s managed object storage; Shelfsort never reads them except to serve them back to you. The manual ZIP backup above is the right tool when you want a portable copy you control entirely — the cloud mirror is the safety net that keeps things working even if you forget to make a ZIP.</p>
             </Section>
 
             <Section id="antivirus" icon={Shield} title="Antivirus &amp; library safety">
@@ -1129,7 +1129,7 @@ export default function Help() {
                 <li><strong>If a flagged file is found</strong> — it stays in your library but is marked infected with the signature name. The download endpoint blocks infected files, and Send-to-Kindle refuses to email them. We don&apos;t auto-delete (you might have a legitimate but heuristic-flagged backup), but we make it obvious and easy to remove from <Link to="/account/safety">Account → Safety</Link>.</li>
                 <li><strong>What we never do</strong> — ClamAV only sees the file bytes; the result is &ldquo;clean&rdquo; or &ldquo;<em>signature name</em> FOUND&rdquo;. We don&apos;t share files with third-party AV services, we don&apos;t store hashes in any external registry, and your scan results are visible only to you (the admin antivirus dashboard sees aggregate quarantine entries, not your library contents).</li>
               </ul>
-              <p className="text-xs text-[#6B705C]">If the AV scanner is temporarily unavailable (signatures still downloading, daemon restarting), uploads still complete and the books stay flagged as <em>unscanned</em> until the daemon is back — your next polish or manual rescan will sweep them.</p>
+              <p className="text-xs text-[#5B5F4D]">If the AV scanner is temporarily unavailable (signatures still downloading, daemon restarting), uploads still complete and the books stay flagged as <em>unscanned</em> until the daemon is back — your next polish or manual rescan will sweep them.</p>
             </Section>
 
             <Section id="rules" icon={Shield} title="Community rules">
@@ -1167,7 +1167,7 @@ export default function Help() {
                 <li><strong>Realtime updates</strong> — every device&apos;s position is published via Shelfsort&apos;s unified SSE channel, so when you save progress on the laptop, your phone&apos;s Reader pill updates within ~1 second (no polling).</li>
                 <li><strong>&ldquo;Finished on your iPhone — want a similar one?&rdquo; strip</strong> — when you&apos;re near the end of a book (≥ 90 %) on a different device than the one you&apos;re currently on, the BookDetail page surfaces a tiny 3-card rail right under the cross-device hint, pulling related books from your library by fandom/author. Hides silently when no matches exist or you dismiss it. Captures the moment of completion as a moment of discovery without nagging.</li>
               </ul>
-              <p className="text-xs text-[#6B705C]">Privacy: position data is per-user only. Friends never see where you are in a fic — that data isn&apos;t shared even when you&apos;re a member of a Book Club room reading the same book.</p>
+              <p className="text-xs text-[#5B5F4D]">Privacy: position data is per-user only. Friends never see where you are in a fic — that data isn&apos;t shared even when you&apos;re a member of a Book Club room reading the same book.</p>
             </Section>
 
             <Section id="reading-insights" icon={LineChart} title="Reading insights (Re-read · Pace · Cohort)">
@@ -1178,7 +1178,7 @@ export default function Help() {
                 <li><strong>⌖ Cohort progress bar</strong> — the Progress field now renders as a slim bar with your current percent in coral plus a purple tick mark at the community average. Cohort-gated (≥5 opted-in readers of the same canonical title+author) so no individual can be inferred. Surfaces as &ldquo;You: 45 % · Community: 62 %&rdquo;.</li>
                 <li><strong>Books most likely to be finished</strong> — admins also see a leaderboard (`/api/books/most-finished-leaderboard`) of canonical titles sorted by community completion rate. Useful for picking the next book-club read.</li>
               </ul>
-              <p className="text-xs text-[#6B705C]">Cohort insights respect your <em>Share reading data</em> setting under <Link to="/account#privacy">Account → Privacy</Link>. Switching it off both stops contributing to the cohort and stops receiving the cohort pill on your own books.</p>
+              <p className="text-xs text-[#5B5F4D]">Cohort insights respect your <em>Share reading data</em> setting under <Link to="/account#privacy">Account → Privacy</Link>. Switching it off both stops contributing to the cohort and stops receiving the cohort pill on your own books.</p>
             </Section>
 
             <Section id="similar-books" icon={Sparkles} title="Finished a book? Want a similar one">
@@ -1198,7 +1198,7 @@ export default function Help() {
                 <li><strong>Average book length</strong> in words, computed from each book&apos;s indexed word count (or a rough size-based estimate when missing).</li>
                 <li><strong>Comfort reads · last 30 days</strong> — books you&apos;ve finished AND re-opened a session for in the last month. The titles you keep coming back to without thinking about it.</li>
               </ul>
-              <p className="text-xs text-[#6B705C]">One API round-trip (<code>/api/insights/reader-dna</code>). Silently hidden when your library is empty.</p>
+              <p className="text-xs text-[#5B5F4D]">One API round-trip (<code>/api/insights/reader-dna</code>). Silently hidden when your library is empty.</p>
             </Section>
 
             <Section id="year-in-books" icon={Sparkles} title="Year in Books (Wrapped recap)">
@@ -1220,7 +1220,7 @@ export default function Help() {
               <p>
                 <strong>Share publicly</strong> with the <em>Share my year</em> button — Shelfsort generates a token-protected public URL. Anyone with the link sees the same Wrapped experience (with your display name on the cover) — no Shelfsort account required. The public view never exposes your email or internal book IDs. The link is engineered to <strong>unfurl as a rich preview</strong> when pasted into Twitter, iMessage, Slack, Discord, or LinkedIn: a server-side 1200×630 card with your year, books, streak, and top fandom shows up as the link preview, with full Open Graph + Twitter Card meta tags. Manage the link any time: copy it, open it in a new tab, or <em>Revoke</em> to kill it instantly. View counts and the last-seen date show up in the same dialog so you can see how many friends actually clicked.
               </p>
-              <p className="text-xs text-[#6B705C] italic">
+              <p className="text-xs text-[#5B5F4D] italic">
                 Stat source-of-truth: a book counts as &quot;opened&quot; if it appears in your <code>reading_activity</code> for that year, and as &quot;finished&quot; if its progress is ≥99% and the last-opened date falls inside the year. Pages are estimated from word count (250 wpm × ~250 words per page). Fanfics with no word-count yet contribute zero pages until backfill runs.
               </p>
             </Section>
@@ -1235,7 +1235,7 @@ export default function Help() {
                 <li><strong>Find-by-handle</strong> from <Link to="/friends">/friends</Link>: type a full or partial handle into the invite box, pick the suggestion, hit send. If you already have an email-style invite open, the same field still accepts <code>name@domain</code>.</li>
                 <li><strong>Privacy still applies</strong>: toggling <em>Hide me from user search</em> on the Account page removes you from <code>@</code> autocomplete results too — your existing friends can still DM you.</li>
               </ul>
-              <p className="text-xs text-[#6B705C]">Heads up: usernames are public. Don&rsquo;t pick something you wouldn&rsquo;t want stamped onto a friend&rsquo;s screenshot.</p>
+              <p className="text-xs text-[#5B5F4D]">Heads up: usernames are public. Don&rsquo;t pick something you wouldn&rsquo;t want stamped onto a friend&rsquo;s screenshot.</p>
             </Section>
 
             <Section id="messages" icon={MessageSquare} title="Messages & friends">
@@ -1268,7 +1268,7 @@ export default function Help() {
               <p>
                 <strong>Notifications</strong>: the chat-bubble icon in the Navbar shows one combined badge — unread messages + pending friend requests added together. Hover for the breakdown. Inside <Link to="/friends">/friends</Link>, each friend&apos;s row gets a red unread-message dot that <strong>auto-refreshes every 20 seconds</strong> (and instantly when you tab back to Shelfsort) — no manual reload needed to see new DMs.
               </p>
-              <p className="text-xs text-[#6B705C] italic">
+              <p className="text-xs text-[#5B5F4D] italic">
                 Phase 1c (one-click &ldquo;switch to open&rdquo; banner) and websockets for instant delivery are parked. Current 15-second poll is plenty for casual chat.
               </p>
             </Section>
@@ -1317,7 +1317,7 @@ export default function Help() {
                 <li><strong>Lineage &amp; profiles</strong>: each cover tracks who shared it, who&apos;s adopted it, and which variants remixed from it. Click any sharer&apos;s @handle to see their <Link to="/library">public profile</Link> with their shared covers gallery.</li>
                 <li><strong>SEO &amp; discovery</strong>: the cover pool ships an RSS feed (<code>/feed/covers.xml</code>) and sitemap so search engines + RSS clients can index new community covers. The <em>Explore page</em> exposes browse-by-aesthetic + browse-by-fandom rails.</li>
               </ul>
-              <p className="text-xs text-[#6B705C]">Privacy: sharing is opt-in per variant. Your library never auto-shares; only covers you explicitly toggle <em>Share to community</em> on become public. Revoke from the same toggle at any time and the public URL 404s within minutes.</p>
+              <p className="text-xs text-[#5B5F4D]">Privacy: sharing is opt-in per variant. Your library never auto-shares; only covers you explicitly toggle <em>Share to community</em> on become public. Revoke from the same toggle at any time and the public URL 404s within minutes.</p>
             </Section>
 
             <Section id="recommendations" icon={Sparkles} title="Friend recommendations">
@@ -1392,7 +1392,7 @@ export default function Help() {
                 </li>
               </ul>
 
-              <p className="text-xs text-[#6B705C] mt-3">
+              <p className="text-xs text-[#5B5F4D] mt-3">
                 <strong>Privacy:</strong> Send-to-Kindle uses Shelfsort&apos;s normal outbound email provider (Resend) → Amazon&apos;s email gateway. No third party stores the book; the attachment lives in flight for at most a few seconds before Amazon ingests it.
               </p>
             </Section>
@@ -1417,7 +1417,7 @@ export default function Help() {
                 <li><strong>What triggers a push</strong>: closing a book on one device sends a soft handoff prompt to your other devices (&ldquo;Continue <em>Title</em> on iPhone?&rdquo;). Tapping the push opens the Reader at the same CFI. Nothing else uses push (no marketing pings, no chat alerts — those stay in-app + email).</li>
                 <li><strong>Unsubscribe</strong>: revoke any device from the same panel, or just block notifications in the browser. Server-side subscriptions are deleted on revoke.</li>
               </ul>
-              <p className="text-xs text-[#6B705C]">Technical: VAPID keys are auto-rotated server-side; the public key ships down with the subscribe call so you never need to copy/paste anything. iOS Safari requires the site to be added to Home Screen as a Web App before push works — Shelfsort prompts you to do this on first enable from iOS.</p>
+              <p className="text-xs text-[#5B5F4D]">Technical: VAPID keys are auto-rotated server-side; the public key ships down with the subscribe call so you never need to copy/paste anything. iOS Safari requires the site to be added to Home Screen as a Web App before push works — Shelfsort prompts you to do this on first enable from iOS.</p>
             </Section>
 
             <Section id="auto-theme" icon={Sparkles} title="Scheduled auto-theme">
@@ -1433,7 +1433,7 @@ export default function Help() {
                   </ul>
                 </li>
               </ul>
-              <p className="text-xs text-[#6B705C]">Stored to localStorage only (per-browser).</p>
+              <p className="text-xs text-[#5B5F4D]">Stored to localStorage only (per-browser).</p>
             </Section>
 
             <Section id="keyboard-shortcuts" icon={Command} title="Keyboard shortcuts">
@@ -1443,7 +1443,7 @@ export default function Help() {
                 <li><kbd>/</kbd> — focus the navbar quick-search. See <a href="#quick-search">Navbar quick-search</a> for what it searches.</li>
                 <li><kbd>Esc</kbd> — close any open modal, popover, or the Welcome tour overlay.</li>
               </ul>
-              <p className="text-xs text-[#6B705C]">More shortcuts coming. Have a request? <Link to="#feedback">Send us feedback</Link>.</p>
+              <p className="text-xs text-[#5B5F4D]">More shortcuts coming. Have a request? <Link to="#feedback">Send us feedback</Link>.</p>
             </Section>
 
             <Section id="word-count" icon={BookOpen} title="Word count & reading time">
@@ -1588,7 +1588,7 @@ function SharePrompt() {
       data-testid="help-share-prompt"
       className="mt-4 pt-3 border-t border-[#E5DDC5]/60 flex flex-wrap items-center justify-between gap-2"
     >
-      <p className="text-xs text-[#6B705C] italic">
+      <p className="text-xs text-[#5B5F4D] italic">
         Enjoying Shelfsort? Know a friend who reads fanfic?
       </p>
       <button

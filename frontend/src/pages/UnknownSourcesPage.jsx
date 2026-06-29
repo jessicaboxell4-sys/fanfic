@@ -137,7 +137,7 @@ export default function UnknownSourcesPage() {
         <button
           onClick={() => navigate("/library")}
           data-testid="unknown-back"
-          className="flex items-center gap-2 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-6"
+          className="flex items-center gap-2 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-6"
         >
           <ArrowLeft className="w-4 h-4" /> Back to library
         </button>
@@ -148,7 +148,7 @@ export default function UnknownSourcesPage() {
           </div>
           <div>
             <h1 className="font-serif text-3xl text-[#2C2C2C]">Unknown sources</h1>
-            <p className="text-sm text-[#6B705C] mt-1 max-w-2xl">
+            <p className="text-sm text-[#5B5F4D] mt-1 max-w-2xl">
               URLs Shelfsort spotted in uploads or pastes that look like fanfic story links but live on hosts we don&apos;t recognize yet. Mark a host to have it added to the accepted-sources list next session, or dismiss it if it&apos;s not actually a fic archive.
             </p>
           </div>
@@ -157,7 +157,7 @@ export default function UnknownSourcesPage() {
         <div className="shelf-card p-5 mb-6 flex flex-wrap items-center gap-4" data-testid="unknown-summary">
           <div className="flex-shrink-0">
             <div className="font-serif text-3xl text-[#2C2C2C]" data-testid="unknown-count">{hosts.length}</div>
-            <div className="text-xs text-[#6B705C] uppercase tracking-wide">host{hosts.length === 1 ? "" : "s"} pending</div>
+            <div className="text-xs text-[#5B5F4D] uppercase tracking-wide">host{hosts.length === 1 ? "" : "s"} pending</div>
           </div>
           {hosts.length > 0 && (
             <div className="flex flex-wrap gap-2 items-center">
@@ -216,7 +216,7 @@ export default function UnknownSourcesPage() {
         </form>
 
         <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B705C]" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#5B5F4D]" />
           <input
             type="search"
             data-testid="unknown-search"
@@ -228,9 +228,9 @@ export default function UnknownSourcesPage() {
         </div>
 
         {loading ? (
-          <p className="text-[#6B705C] italic text-sm">Loading…</p>
+          <p className="text-[#5B5F4D] italic text-sm">Loading…</p>
         ) : filtered.length === 0 ? (
-          <div className="shelf-card p-8 text-center text-[#6B705C]">
+          <div className="shelf-card p-8 text-center text-[#5B5F4D]">
             {hosts.length === 0 ? (
               <>
                 <Globe className="w-10 h-10 mx-auto mb-3 text-[#6B46C1]" />
@@ -266,12 +266,12 @@ export default function UnknownSourcesPage() {
                         {h.hit_count} hit{h.hit_count === 1 ? "" : "s"}
                       </span>
                       {Object.entries(h.contexts || {}).map(([ctx, n]) => (
-                        <span key={ctx} className="text-[10px] px-2 py-0.5 rounded-full bg-white border border-[#E5DDC5] text-[#6B705C]">
+                        <span key={ctx} className="text-[10px] px-2 py-0.5 rounded-full bg-white border border-[#E5DDC5] text-[#5B5F4D]">
                           {ctx} · {n}
                         </span>
                       ))}
                     </div>
-                    <div className="text-xs text-[#6B705C] mb-2">
+                    <div className="text-xs text-[#5B5F4D] mb-2">
                       First seen {formatTime(h.first_seen)} · last seen {formatTime(h.last_seen)}
                       {h.last_book_title ? (
                         <> · from <em>&ldquo;{h.last_book_title}&rdquo;</em>{h.last_book_author ? ` by ${h.last_book_author}` : ""}</>
@@ -289,7 +289,7 @@ export default function UnknownSourcesPage() {
                                 href={u}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-[#6B705C] hover:text-[#6B46C1] inline-flex items-center gap-1"
+                                className="text-[#5B5F4D] hover:text-[#6B46C1] inline-flex items-center gap-1"
                               >
                                 <ExternalLink className="w-3 h-3 flex-shrink-0" />
                                 {u}
@@ -319,7 +319,7 @@ export default function UnknownSourcesPage() {
                       onClick={() => dismiss(h)}
                       disabled={busyHost === h.host}
                       data-testid={`unknown-dismiss-${h.host}`}
-                      className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border border-[#6B705C]/40 bg-white text-[#6B705C] hover:bg-[#6B705C] hover:text-white transition-colors disabled:opacity-50"
+                      className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border border-[#6B705C]/40 bg-white text-[#5B5F4D] hover:bg-[#6B705C] hover:text-white transition-colors disabled:opacity-50"
                       title="Not a fic archive — drop from the queue"
                     >
                       <X className="w-3.5 h-3.5" /> Dismiss

@@ -107,7 +107,7 @@ export default function VerdictBadges({
           type="button"
           onClick={(e) => { e.stopPropagation(); e.preventDefault(); setOpen((v) => !v); }}
           data-testid={`verdict-add-${book.book_id}`}
-          className="text-[10px] px-2 py-0.5 rounded-full bg-[#F5F3EC] text-[#6B705C] hover:bg-[#E8E2D4] font-semibold transition-colors"
+          className="text-[10px] px-2 py-0.5 rounded-full bg-[#F5F3EC] text-[#5B5F4D] hover:bg-[#E8E2D4] font-semibold transition-colors"
           title="Mark this book (favorite, need to read, etc.)"
         >
           + Mark
@@ -136,7 +136,7 @@ export default function VerdictBadges({
           ))}
           {overflow > 0 && (
             <span
-              className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#F5F3EC] text-[#6B705C] font-semibold"
+              className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#F5F3EC] text-[#5B5F4D] font-semibold"
               data-testid={`verdict-overflow-${book.book_id}`}
               title={chips.slice(1).map((c) => `${c.emoji} ${c.label}`).join(", ")}
             >
@@ -153,7 +153,7 @@ export default function VerdictBadges({
           className="absolute z-50 top-full left-0 mt-1.5 w-64 bg-white border border-[#E5DDC5] rounded-xl shadow-[0_12px_40px_rgba(0,0,0,0.18)] p-3 text-[#2C2C2C]"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="text-[10px] uppercase tracking-wider font-bold text-[#6B705C] mb-1.5">
+          <div className="text-[10px] uppercase tracking-wider font-bold text-[#5B5F4D] mb-1.5">
             Reading state
           </div>
           <div className="flex flex-wrap gap-1.5 mb-3">
@@ -180,7 +180,7 @@ export default function VerdictBadges({
             })}
           </div>
 
-          <div className="text-[10px] uppercase tracking-wider font-bold text-[#6B705C] mb-1.5">
+          <div className="text-[10px] uppercase tracking-wider font-bold text-[#5B5F4D] mb-1.5">
             Verdicts
           </div>
           <div className="flex flex-wrap gap-1.5">

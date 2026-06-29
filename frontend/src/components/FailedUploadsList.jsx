@@ -209,7 +209,7 @@ export default function FailedUploadsList({
             <h3 className={compact ? "font-serif text-lg text-[#2C2C2C]" : "font-serif text-2xl text-[#2C2C2C] mb-0.5"}>
               {visibleCount} upload{visibleCount === 1 ? "" : "s"} didn&rsquo;t go through
             </h3>
-            <p className="text-sm text-[#6B705C]">
+            <p className="text-sm text-[#5B5F4D]">
               Re-drop them when you have a moment — we kept the list so you don&rsquo;t lose track.
             </p>
           </div>
@@ -218,7 +218,7 @@ export default function FailedUploadsList({
           <button
             type="button"
             onClick={() => setCollapsed((c) => !c)}
-            className="text-xs text-[#6B705C] hover:text-[#2C2C2C] inline-flex items-center gap-1"
+            className="text-xs text-[#5B5F4D] hover:text-[#2C2C2C] inline-flex items-center gap-1"
             data-testid="failed-uploads-toggle"
           >
             {collapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
@@ -243,7 +243,7 @@ export default function FailedUploadsList({
                     <div className="text-sm font-medium text-[#2C2C2C] truncate" title={r.filename}>
                       {r.filename}
                     </div>
-                    <div className="text-xs text-[#6B705C] mt-0.5">
+                    <div className="text-xs text-[#5B5F4D] mt-0.5">
                       <span className="font-semibold text-[#A03D33]">{label}</span>
                       <span className="opacity-70"> · {relativeTime(r.created_at)}</span>
                       {r.error && (
@@ -255,7 +255,7 @@ export default function FailedUploadsList({
                     type="button"
                     onClick={() => dismissOne(r.failure_id)}
                     disabled={busy}
-                    className="shrink-0 text-[#6B705C] hover:text-[#A03D33] disabled:opacity-50 p-1 -m-1"
+                    className="shrink-0 text-[#5B5F4D] hover:text-[#A03D33] disabled:opacity-50 p-1 -m-1"
                     title="Dismiss this notice"
                     data-testid={`failed-upload-dismiss-${r.failure_id}`}
                   >
@@ -265,7 +265,7 @@ export default function FailedUploadsList({
               );
             })}
             {hidden > 0 && (
-              <p className="text-xs text-[#6B705C] italic pl-1">
+              <p className="text-xs text-[#5B5F4D] italic pl-1">
                 …and {hidden} more — see the full list on{" "}
                 <a href="/account#failed-uploads" className="underline">/account</a>.
               </p>
@@ -286,7 +286,7 @@ export default function FailedUploadsList({
               type="button"
               onClick={dismissAll}
               disabled={busy || rows.length === 0}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#FAF6EE] hover:bg-[#F2EEE5] disabled:opacity-50 text-[#6B705C] text-sm border border-[#E07A5F]/30 transition-colors"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#FAF6EE] hover:bg-[#F2EEE5] disabled:opacity-50 text-[#5B5F4D] text-sm border border-[#E07A5F]/30 transition-colors"
               data-testid="failed-uploads-dismiss-all"
             >
               {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}

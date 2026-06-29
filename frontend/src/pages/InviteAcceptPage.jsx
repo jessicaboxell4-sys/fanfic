@@ -42,26 +42,26 @@ export default function InviteAcceptPage() {
         {error ? (
           <>
             <h1 className="font-serif text-2xl text-[#2C2C2C] mb-2">Invite unavailable</h1>
-            <p className="text-sm text-[#6B705C]">{error}</p>
+            <p className="text-sm text-[#5B5F4D]">{error}</p>
             <Link to="/" className="inline-block mt-6 text-sm text-[var(--primary)] underline">
               Go to Shelfsort
             </Link>
           </>
         ) : !info ? (
-          <p className="text-sm text-[#6B705C]"><Loader2 className="inline w-4 h-4 animate-spin mr-1" /> Loading…</p>
+          <p className="text-sm text-[#5B5F4D]"><Loader2 className="inline w-4 h-4 animate-spin mr-1" /> Loading…</p>
         ) : info.status !== "pending" ? (
           <>
             <h1 className="font-serif text-2xl text-[#2C2C2C] mb-2">This invite is {info.status}</h1>
-            <p className="text-sm text-[#6B705C]">Ask {info.inviter_name} to send a fresh one.</p>
+            <p className="text-sm text-[#5B5F4D]">Ask {info.inviter_name} to send a fresh one.</p>
             <Link to="/" className="inline-block mt-6 text-sm text-[var(--primary)] underline">Go to Shelfsort</Link>
           </>
         ) : (
           <>
-            <p className="text-xs uppercase tracking-[0.2em] text-[#6B705C] font-semibold mb-2">Shelfsort invite</p>
+            <p className="text-xs uppercase tracking-[0.2em] text-[#5B5F4D] font-semibold mb-2">Shelfsort invite</p>
             <h1 className="font-serif text-2xl text-[#2C2C2C] mb-3">
               <strong>{info.inviter_name}</strong> invited you to be friends.
             </h1>
-            <p className="text-sm text-[#6B705C] mb-2">
+            <p className="text-sm text-[#5B5F4D] mb-2">
               Sent to <code className="text-xs bg-[#FBFAF6] px-1.5 py-0.5 rounded">{info.target_email}</code>
             </p>
             {info.note && (
@@ -70,7 +70,7 @@ export default function InviteAcceptPage() {
               </p>
             )}
             {authLoading ? (
-              <p className="text-xs text-[#6B705C] mt-4">Checking your session…</p>
+              <p className="text-xs text-[#5B5F4D] mt-4">Checking your session…</p>
             ) : user ? (
               <button
                 type="button"

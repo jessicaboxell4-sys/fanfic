@@ -129,7 +129,7 @@ export default function FandomShelf() {
         <button
           onClick={() => navigate("/library")}
           data-testid="back-to-library"
-          className="flex items-center gap-2 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-6"
+          className="flex items-center gap-2 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-6"
         >
           <ArrowLeft className="w-4 h-4" /> Back to library
         </button>
@@ -174,7 +174,7 @@ export default function FandomShelf() {
                 </div>
               );
             })()}
-            <p className="text-[#6B705C] mt-3" data-testid="fandom-books-count">
+            <p className="text-[#5B5F4D] mt-3" data-testid="fandom-books-count">
               {loading
                 ? "Loading shelf…"
                 : character
@@ -203,7 +203,7 @@ export default function FandomShelf() {
         </div>
 
         <div className="relative mb-8 max-w-md">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#6B705C]" />
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#5B5F4D]" />
           <input
             data-testid="fandom-search"
             type="text"
@@ -260,7 +260,7 @@ export default function FandomShelf() {
               <Link
                 to="/library/characters"
                 data-testid="fandom-top-characters-see-all"
-                className="px-3 py-1.5 rounded-full text-xs font-semibold border bg-transparent text-[#6B705C] border-[#E5DDC5] hover:bg-[#F5F3EC] hover:text-[#2C2C2C] transition-colors inline-flex items-center gap-1"
+                className="px-3 py-1.5 rounded-full text-xs font-semibold border bg-transparent text-[#5B5F4D] border-[#E5DDC5] hover:bg-[#F5F3EC] hover:text-[#2C2C2C] transition-colors inline-flex items-center gap-1"
                 title="Browse every character across your whole library"
               >
                 See all →
@@ -268,7 +268,7 @@ export default function FandomShelf() {
             </div>
             {character && (
               <p
-                className="text-xs text-[#6B705C] italic mt-2"
+                className="text-xs text-[#5B5F4D] italic mt-2"
                 data-testid="fandom-character-filter-status"
               >
                 Filtered to books featuring <span className="font-semibold text-[#2C2C2C]">{character}</span>
@@ -291,14 +291,14 @@ export default function FandomShelf() {
         )}
 
         {loading ? (
-          <p className="text-[#6B705C] py-12 text-center">Loading…</p>
+          <p className="text-[#5B5F4D] py-12 text-center">Loading…</p>
         ) : books.length === 0 ? (
           <div className="text-center py-16 shelf-card">
             <BookOpen className="w-12 h-12 text-[#E07A5F] mx-auto mb-4 opacity-70" />
             <h2 className="font-serif text-2xl text-[#2C2C2C] mb-2">
               No {fandom} books yet
             </h2>
-            <p className="text-[#6B705C] mb-6">
+            <p className="text-[#5B5F4D] mb-6">
               Upload an EPUB and we&apos;ll route any {fandom} fanfic onto this shelf automatically.
             </p>
             <Link to="/library" className="btn-primary text-sm inline-block">

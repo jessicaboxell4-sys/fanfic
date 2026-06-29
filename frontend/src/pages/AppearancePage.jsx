@@ -99,7 +99,7 @@ export default function AppearancePage() {
     // correctly when shared standalone.
     const bg = theme === "dark" ? "#1B1B1E" : "#FAF6EE";
     const ink = theme === "dark" ? "#E8E4D8" : "#2C2C2C";
-    const muted = theme === "dark" ? "#A8A6A0" : "#6B705C";
+    const muted = theme === "dark" ? "#A8A6A0" : "#5B5F4D";
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, W, H);
     // Title
@@ -191,7 +191,7 @@ export default function AppearancePage() {
             <h1 className="font-serif text-3xl sm:text-4xl text-[#2C2C2C] leading-tight">
               Appearance
             </h1>
-            <p className="text-sm text-[#6B705C]">
+            <p className="text-sm text-[#5B5F4D]">
               Theme, accent colour, and how Shelfsort looks on this browser.
             </p>
           </div>
@@ -205,7 +205,7 @@ export default function AppearancePage() {
             </div>
             <div>
               <h2 className="font-serif text-2xl text-[#2C2C2C]">Theme</h2>
-              <p className="text-sm text-[#6B705C] mt-0.5">
+              <p className="text-sm text-[#5B5F4D] mt-0.5">
                 Light is warm AO3 paper, dark is the same layout with a deep slate background. Saved to this browser.
               </p>
             </div>
@@ -226,7 +226,7 @@ export default function AppearancePage() {
                 <Sun className="w-5 h-5 text-[#B87A00]" />
                 <p className="font-semibold text-[#2C2C2C]">Light</p>
               </div>
-              <p className="text-xs text-[#6B705C]">Warm paper background, slate ink type.</p>
+              <p className="text-xs text-[#5B5F4D]">Warm paper background, slate ink type.</p>
             </button>
             <button
               type="button"
@@ -243,7 +243,7 @@ export default function AppearancePage() {
                 <Moon className="w-5 h-5 text-[#6B46C1]" />
                 <p className="font-semibold text-[#2C2C2C]">Dark</p>
               </div>
-              <p className="text-xs text-[#6B705C]">Deep slate, paper-bright type, accent-coloured highlights.</p>
+              <p className="text-xs text-[#5B5F4D]">Deep slate, paper-bright type, accent-coloured highlights.</p>
             </button>
             <button
               type="button"
@@ -261,13 +261,13 @@ export default function AppearancePage() {
                 <Moon className="w-5 h-5 text-[#6B46C1] -ml-1.5" />
                 <p className="font-semibold text-[#2C2C2C]">Auto</p>
               </div>
-              <p className="text-xs text-[#6B705C]">Switch at your chosen hours or follow the system theme.</p>
+              <p className="text-xs text-[#5B5F4D]">Switch at your chosen hours or follow the system theme.</p>
             </button>
           </div>
 
           {mode === "auto" && (
             <div className="mt-4 p-4 rounded-xl bg-[#FBFAF6] border border-[#E5DDC5] space-y-3" data-testid="appearance-auto-config">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[#6B705C]">Auto strategy</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-[#5B5F4D]">Auto strategy</p>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -281,7 +281,7 @@ export default function AppearancePage() {
                   }`}
                 >
                   <p className="font-semibold text-[#2C2C2C]">Time of day</p>
-                  <p className="text-xs text-[#6B705C]">Dark from a custom hour each evening.</p>
+                  <p className="text-xs text-[#5B5F4D]">Dark from a custom hour each evening.</p>
                 </button>
                 <button
                   type="button"
@@ -295,13 +295,13 @@ export default function AppearancePage() {
                   }`}
                 >
                   <p className="font-semibold text-[#2C2C2C]">Follow system</p>
-                  <p className="text-xs text-[#6B705C]">Use your OS / browser appearance.</p>
+                  <p className="text-xs text-[#5B5F4D]">Use your OS / browser appearance.</p>
                 </button>
               </div>
 
               {autoConfig.kind === "time" && (
                 <div className="grid grid-cols-2 gap-3" data-testid="appearance-auto-time-config">
-                  <label className="block text-xs text-[#6B705C]">
+                  <label className="block text-xs text-[#5B5F4D]">
                     Dark from
                     <input
                       type="time"
@@ -311,7 +311,7 @@ export default function AppearancePage() {
                       className="mt-1 w-full px-3 py-2 bg-white border border-[#E5DDC5] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#6B46C1]"
                     />
                   </label>
-                  <label className="block text-xs text-[#6B705C]">
+                  <label className="block text-xs text-[#5B5F4D]">
                     Back to light at
                     <input
                       type="time"
@@ -323,7 +323,7 @@ export default function AppearancePage() {
                   </label>
                 </div>
               )}
-              <p className="text-[11px] text-[#6B705C]" data-testid="appearance-auto-effective">
+              <p className="text-[11px] text-[#5B5F4D]" data-testid="appearance-auto-effective">
                 Currently rendering: <strong className="text-[#2C2C2C]">{theme}</strong>
                 {autoConfig.kind === "time" && (
                   <> · dark window <code className="bg-white px-1 rounded">{autoConfig.dark_start}</code> – <code className="bg-white px-1 rounded">{autoConfig.dark_end}</code> (local time)</>
@@ -342,7 +342,7 @@ export default function AppearancePage() {
         {/* Live preview */}
         <section className="shelf-card p-6 mb-6" data-testid="appearance-preview-card">
           <h2 className="font-serif text-2xl text-[#2C2C2C] mb-1">Live preview</h2>
-          <p className="text-sm text-[#6B705C] mb-4">
+          <p className="text-sm text-[#5B5F4D] mb-4">
             Sample components rendered with your current theme + palette.
           </p>
           <div className="space-y-4">
@@ -374,7 +374,7 @@ export default function AppearancePage() {
             </div>
             <div>
               <h2 className="font-serif text-2xl text-[#2C2C2C]">Curated palettes</h2>
-              <p className="text-sm text-[#6B705C] mt-0.5">
+              <p className="text-sm text-[#5B5F4D] mt-0.5">
                 Hand-picked palettes beyond the six presets. One click applies; tweak from there in the Custom hex picker above.
               </p>
             </div>
@@ -395,7 +395,7 @@ export default function AppearancePage() {
                 />
                 <div className="p-3">
                   <p className="font-semibold text-sm text-[#2C2C2C] mb-0.5">{g.name}</p>
-                  <p className="text-xs text-[#6B705C] leading-snug">{g.description}</p>
+                  <p className="text-xs text-[#5B5F4D] leading-snug">{g.description}</p>
                 </div>
               </button>
             ))}
@@ -410,7 +410,7 @@ export default function AppearancePage() {
             </div>
             <div>
               <h2 className="font-serif text-2xl text-[#2C2C2C]">Share palette</h2>
-              <p className="text-sm text-[#6B705C] mt-0.5">
+              <p className="text-sm text-[#5B5F4D] mt-0.5">
                 Copy your current palette as a short token, or paste one from a friend to apply theirs instantly.
               </p>
             </div>
@@ -419,8 +419,8 @@ export default function AppearancePage() {
           <div className="space-y-4">
             {/* Export current */}
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wider text-[#6B705C] mb-1 block">
-                Your current palette <span className="font-normal text-[#6B705C]/70">({palette.name})</span>
+              <label className="text-xs font-semibold uppercase tracking-wider text-[#5B5F4D] mb-1 block">
+                Your current palette <span className="font-normal text-[#5B5F4D]/70">({palette.name})</span>
               </label>
               <div className="flex gap-2">
                 <code
@@ -464,7 +464,7 @@ export default function AppearancePage() {
 
             {/* Import */}
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wider text-[#6B705C] mb-1 block">
+              <label className="text-xs font-semibold uppercase tracking-wider text-[#5B5F4D] mb-1 block">
                 Paste a palette token
               </label>
               <div className="flex gap-2">
@@ -488,14 +488,14 @@ export default function AppearancePage() {
                   Apply
                 </button>
               </div>
-              <p className="text-xs text-[#6B705C] mt-1.5">
+              <p className="text-xs text-[#5B5F4D] mt-1.5">
                 Presets export as a short string (e.g. <code className="bg-[#FBFAF6] px-1.5 py-0.5 rounded text-[10px]">ss-p-forest</code>). Custom palettes pack the four hexes into a longer token.
               </p>
             </div>
           </div>
         </section>
 
-        <p className="text-xs text-[#6B705C] text-center">
+        <p className="text-xs text-[#5B5F4D] text-center">
           Both settings are stored in this browser only. Sign in on another device to set them there too.
         </p>
 
@@ -507,7 +507,7 @@ export default function AppearancePage() {
             className={`inline-flex items-center gap-1.5 text-xs font-semibold transition-colors ${
               confirmReset
                 ? "text-[#B43F26]"
-                : "text-[#6B705C] hover:text-[#2C2C2C]"
+                : "text-[#5B5F4D] hover:text-[#2C2C2C]"
             }`}
           >
             <RotateCcw className="w-3 h-3" />
@@ -518,13 +518,13 @@ export default function AppearancePage() {
               type="button"
               onClick={() => setConfirmReset(false)}
               data-testid="appearance-reset-cancel-btn"
-              className="text-xs text-[#6B705C] hover:text-[#2C2C2C]"
+              className="text-xs text-[#5B5F4D] hover:text-[#2C2C2C]"
             >
               cancel
             </button>
           )}
           {!confirmReset && isAtDefaults && (
-            <span className="text-[10px] text-[#6B705C] italic">
+            <span className="text-[10px] text-[#5B5F4D] italic">
               (currently at defaults)
             </span>
           )}

@@ -103,7 +103,7 @@ function PostHandleNudge({ user, navigate }) {
         <p className="text-sm font-semibold text-[#2C2C2C]">
           Boost your discoverability
         </p>
-        <p className="text-xs text-[#6B705C] mt-1">{body}</p>
+        <p className="text-xs text-[#5B5F4D] mt-1">{body}</p>
         <div className="mt-2.5 flex flex-wrap gap-2">
           {!hasBio && (
             <button
@@ -132,7 +132,7 @@ function PostHandleNudge({ user, navigate }) {
         onClick={dismiss}
         data-testid="directory-completeness-dismiss"
         aria-label="Dismiss"
-        className="text-[#A09A8B] hover:text-[#2C2C2C] p-1 flex-shrink-0"
+        className="text-[#6E6E6E] hover:text-[#2C2C2C] p-1 flex-shrink-0"
       >
         <X className="w-4 h-4" />
       </button>
@@ -298,7 +298,7 @@ export default function UsersDirectory() {
     <div className="min-h-screen bg-paper">
       <Navbar />
       <main className="max-w-3xl mx-auto px-4 sm:px-6 py-8 md:py-12 fade-in" data-testid="users-directory-page">
-        <Link to="/friends" className="inline-flex items-center gap-1 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-6">
+        <Link to="/friends" className="inline-flex items-center gap-1 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-6">
           <ArrowLeft className="w-4 h-4" /> Friends
         </Link>
 
@@ -309,7 +309,7 @@ export default function UsersDirectory() {
           <h1 className="font-serif text-4xl sm:text-5xl text-[#2C2C2C] leading-[1.05] tracking-tight">
             Find readers you know.
           </h1>
-          <p className="text-[#6B705C] mt-3 text-base sm:text-lg">
+          <p className="text-[#5B5F4D] mt-3 text-base sm:text-lg">
             Just usernames — no names, emails, or library peeking.
             Send a friend request and we&apos;ll do the rest.
           </p>
@@ -333,7 +333,7 @@ export default function UsersDirectory() {
               <p className="text-sm font-semibold text-[#2C2C2C]">
                 You&rsquo;re not in this directory yet.
               </p>
-              <p className="text-xs text-[#6B705C] mt-1">
+              <p className="text-xs text-[#5B5F4D] mt-1">
                 Friends can&rsquo;t find you here until you claim a @handle.
                 Takes about ten seconds.
               </p>
@@ -358,20 +358,20 @@ export default function UsersDirectory() {
         <PostHandleNudge user={user} navigate={navigate} />
 
         <div className="shelf-card p-3 mb-5 flex items-center gap-2">
-          <Search className="w-4 h-4 text-[#6B705C] ml-1.5" />
+          <Search className="w-4 h-4 text-[#5B5F4D] ml-1.5" />
           <input
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             placeholder="Filter this page by handle…"
             data-testid="directory-filter-input"
-            className="flex-1 bg-transparent outline-none text-sm placeholder:text-[#A09A8B]"
+            className="flex-1 bg-transparent outline-none text-sm placeholder:text-[#6E6E6E]"
           />
           {filter && (
             <button
               type="button"
               onClick={() => setFilter("")}
               data-testid="directory-filter-clear"
-              className="text-xs text-[#6B705C] hover:text-[#2C2C2C] px-2 py-1"
+              className="text-xs text-[#5B5F4D] hover:text-[#2C2C2C] px-2 py-1"
             >
               clear
             </button>
@@ -389,7 +389,7 @@ export default function UsersDirectory() {
           className="mb-5 flex flex-wrap items-center gap-2"
           data-testid="directory-mode-chips"
         >
-          <span className="text-xs uppercase tracking-wider text-[#6B705C] font-semibold mr-1">
+          <span className="text-xs uppercase tracking-wider text-[#5B5F4D] font-semibold mr-1">
             Reader type:
           </span>
           {[
@@ -428,12 +428,12 @@ export default function UsersDirectory() {
         </div>
 
         {loading ? (
-          <div className="text-center py-16 text-[#6B705C]" data-testid="directory-loading">
+          <div className="text-center py-16 text-[#5B5F4D]" data-testid="directory-loading">
             <Loader2 className="w-6 h-6 animate-spin mx-auto mb-3" />
             Loading the directory…
           </div>
         ) : visible.length === 0 ? (
-          <div className="shelf-card p-10 text-center text-[#6B705C]" data-testid="directory-empty">
+          <div className="shelf-card p-10 text-center text-[#5B5F4D]" data-testid="directory-empty">
             <UsersIcon className="w-8 h-8 mx-auto mb-3 opacity-60" />
             {rows.length === 0
               ? "Nobody to show here yet — be the first to claim a handle in Account → Profile."
@@ -468,7 +468,7 @@ export default function UsersDirectory() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-[#2C2C2C] flex items-center gap-1 truncate">
-                      <AtSign className="w-3.5 h-3.5 text-[#6B705C] flex-shrink-0" />
+                      <AtSign className="w-3.5 h-3.5 text-[#5B5F4D] flex-shrink-0" />
                       <span className="truncate">{row.username || "(no handle)"}</span>
                       {/* ★ stamp (iter 58) — the user has hit the
                           featured-eligibility floor (bio + public
@@ -515,13 +515,13 @@ export default function UsersDirectory() {
                     <span
                       data-testid={`directory-mode-${row.username}`}
                       title={row.library_mode === "fanfic" ? "Fanfic reader" : "Original-fic reader"}
-                      className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#F5F3EC] text-[#6B705C] flex-shrink-0"
+                      className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#F5F3EC] text-[#5B5F4D] flex-shrink-0"
                     >
                       {row.library_mode === "fanfic" ? "💜 fic" : "📖 og"}
                     </span>
                   )}
                   {sent ? (
-                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#3D8B79] px-2 py-1" data-testid={`directory-sent-${row.username}`}>
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#2F6E60] px-2 py-1" data-testid={`directory-sent-${row.username}`}>
                       <Check className="w-3.5 h-3.5" /> Sent
                     </span>
                   ) : (
@@ -535,7 +535,7 @@ export default function UsersDirectory() {
 
         {!loading && total > 0 && (
           <div
-            className="flex items-center justify-between mt-5 text-xs text-[#6B705C]"
+            className="flex items-center justify-between mt-5 text-xs text-[#5B5F4D]"
             data-testid="directory-pager"
           >
             <span>
@@ -566,7 +566,7 @@ export default function UsersDirectory() {
         )}
 
         <p
-          className="mt-8 p-4 rounded-lg border border-[#E5DDC5] bg-[#FBFAF6] text-xs text-[#6B705C] flex items-start gap-2"
+          className="mt-8 p-4 rounded-lg border border-[#E5DDC5] bg-[#FBFAF6] text-xs text-[#5B5F4D] flex items-start gap-2"
           data-testid="directory-privacy-note"
         >
           <ShieldOff className="w-4 h-4 mt-0.5 flex-shrink-0 text-[#6B46C1]" />

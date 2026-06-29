@@ -78,7 +78,7 @@ function GroupCard({ group, onResolved }) {
     >
       <div className="flex items-start justify-between gap-3 mb-4">
         <div>
-          <p className="text-xs uppercase tracking-wide text-[#6B705C] mb-1">
+          <p className="text-xs uppercase tracking-wide text-[#5B5F4D] mb-1">
             {group.books.length} books match · {group.match_reasons.map((r) => REASON_LABEL[r] || r).join(" + ")}
           </p>
           <p className="font-serif text-xl text-[#2C2C2C] leading-tight">
@@ -122,7 +122,7 @@ function GroupCard({ group, onResolved }) {
                       </span>
                     )}
                   </p>
-                  <p className="text-xs text-[#6B705C] mt-0.5">
+                  <p className="text-xs text-[#5B5F4D] mt-0.5">
                     by {b.author || "Unknown"}
                     {b.fandom ? ` · ${b.fandom}` : ""}
                     {b.category ? ` · ${b.category}` : ""}
@@ -155,7 +155,7 @@ function GroupCard({ group, onResolved }) {
                       }`}
                     >
                       <div className="font-medium">{opt.label}</div>
-                      <div className="text-xs text-[#6B705C]">{opt.desc}</div>
+                      <div className="text-xs text-[#5B5F4D]">{opt.desc}</div>
                     </button>
                   ))}
                 </div>
@@ -203,7 +203,7 @@ export default function FindDuplicates() {
     <div className="min-h-screen bg-[#FAF6EE]">
       <Navbar />
       <main className="max-w-4xl mx-auto px-6 py-10">
-        <Link to="/account" className="inline-flex items-center gap-1 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-4">
+        <Link to="/account" className="inline-flex items-center gap-1 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-4">
           <ArrowLeft className="w-4 h-4" /> back to account
         </Link>
 
@@ -213,7 +213,7 @@ export default function FindDuplicates() {
           </div>
           <div>
             <h1 className="font-serif text-4xl text-[#2C2C2C] leading-tight">Find duplicates</h1>
-            <p className="text-[#6B705C] mt-1">
+            <p className="text-[#5B5F4D] mt-1">
               Books on your shelves that share a title, source URL, or fanfic permalink.
             </p>
           </div>
@@ -222,7 +222,7 @@ export default function FindDuplicates() {
         {loading ? (
           <div className="text-center py-20">
             <Loader2 className="w-8 h-8 text-[#E07A5F] animate-spin mx-auto" />
-            <p className="text-sm text-[#6B705C] mt-3">Scanning your library…</p>
+            <p className="text-sm text-[#5B5F4D] mt-3">Scanning your library…</p>
           </div>
         ) : data.total_groups === 0 ? (
           <div data-testid="dupe-empty" className="shelf-card p-10 text-center">
@@ -230,7 +230,7 @@ export default function FindDuplicates() {
               <CheckCircle2 className="w-7 h-7" />
             </div>
             <p className="font-serif text-2xl text-[#2C2C2C]">No duplicates found</p>
-            <p className="text-sm text-[#6B705C] mt-2">
+            <p className="text-sm text-[#5B5F4D] mt-2">
               Every book on your shelves is unique. {data.backfilled > 0 && `(Backfilled URLs on ${data.backfilled} legacy book${data.backfilled === 1 ? "" : "s"} during this scan.)`}
             </p>
           </div>

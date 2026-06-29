@@ -135,7 +135,7 @@ function ReadingQueueWidget() {
   if (loading) return null;
   if (queue.length === 0) {
     return (
-      <div className="text-xs text-[#6B705C] italic" data-testid="queue-empty">
+      <div className="text-xs text-[#5B5F4D] italic" data-testid="queue-empty">
         Up next: nothing queued. Hit &ldquo;Add to queue&rdquo; on any book to start your stack.
       </div>
     );
@@ -163,12 +163,12 @@ function ReadingQueueWidget() {
               onClick={() => navigate(`/read/${b.book_id}`)}
               className="flex-1 text-left truncate text-[#2C2C2C] hover:text-[#6B46C1]"
             >
-              {b.title} <span className="text-[#6B705C] text-xs">— {b.author || "Unknown"}</span>
+              {b.title} <span className="text-[#5B5F4D] text-xs">— {b.author || "Unknown"}</span>
             </button>
             <button
               type="button"
               onClick={() => remove(b.book_id)}
-              className="opacity-0 group-hover:opacity-100 text-[#6B705C] hover:text-red-600"
+              className="opacity-0 group-hover:opacity-100 text-[#5B5F4D] hover:text-red-600"
               title="Remove from queue"
               data-testid={`queue-remove-${b.book_id}`}
             >
@@ -178,7 +178,7 @@ function ReadingQueueWidget() {
         ))}
       </ul>
       {queue.length > 5 && (
-        <p className="text-xs text-[#6B705C] mt-2">+ {queue.length - 5} more</p>
+        <p className="text-xs text-[#5B5F4D] mt-2">+ {queue.length - 5} more</p>
       )}
     </div>
   );
@@ -214,7 +214,7 @@ function FriendsRecentCarousel() {
             data-testid={`friends-recent-card-${i}`}
           >
             <p className="font-medium text-[#2C2C2C] truncate">{n.title}</p>
-            {n.body && <p className="text-[#6B705C] truncate mt-0.5">{n.body}</p>}
+            {n.body && <p className="text-[#5B5F4D] truncate mt-0.5">{n.body}</p>}
             <p className="text-[#9B9B8C] mt-1">{fmtAgo(n.created_at)} <ChevronRight className="w-3 h-3 inline" /></p>
           </a>
         ))}

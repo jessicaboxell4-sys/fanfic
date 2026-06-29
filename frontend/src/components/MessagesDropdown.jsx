@@ -68,7 +68,7 @@ export default function MessagesDropdown() {
         aria-expanded={open}
         className="relative p-2 hover:bg-[#F5F3EC] rounded-lg"
       >
-        <MessageSquare className="w-4 h-4 text-[#6B705C]" />
+        <MessageSquare className="w-4 h-4 text-[#5B5F4D]" />
         {total > 0 && (
           <span
             data-testid="navbar-messages-badge"
@@ -89,7 +89,7 @@ export default function MessagesDropdown() {
             onClick={() => setOpen(false)}
             className="flex items-center gap-2.5 px-3 py-2 text-sm text-[#2C2C2C] hover:bg-[#F5F3EC]"
           >
-            <MessageSquare className="w-4 h-4 text-[#6B705C]" />
+            <MessageSquare className="w-4 h-4 text-[#5B5F4D]" />
             <span className="flex-1">Messages</span>
             {unread > 0 && (
               <span className="text-[10px] font-semibold px-1.5 rounded-full bg-[var(--primary)] text-white">
@@ -103,7 +103,7 @@ export default function MessagesDropdown() {
             onClick={() => setOpen(false)}
             className="flex items-center gap-2.5 px-3 py-2 text-sm text-[#2C2C2C] hover:bg-[#F5F3EC]"
           >
-            <Users className="w-4 h-4 text-[#6B705C]" />
+            <Users className="w-4 h-4 text-[#5B5F4D]" />
             <span className="flex-1">Friends</span>
             {pending > 0 && (
               <span className="text-[10px] font-semibold px-1.5 rounded-full bg-[#E07A5F] text-white" title={`${pending} pending request${pending === 1 ? "" : "s"}`}>
@@ -117,7 +117,7 @@ export default function MessagesDropdown() {
             onClick={() => setOpen(false)}
             className="flex items-center gap-2.5 px-3 py-2 text-sm text-[#2C2C2C] hover:bg-[#F5F3EC]"
           >
-            <BookOpen className="w-4 h-4 text-[#6B705C]" />
+            <BookOpen className="w-4 h-4 text-[#5B5F4D]" />
             <span className="flex-1">Reading rooms</span>
           </Link>
         </div>

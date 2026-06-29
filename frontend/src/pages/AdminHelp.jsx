@@ -64,7 +64,7 @@ export default function AdminHelp() {
           <Link
             to="/admin"
             data-testid="admin-help-back"
-            className="inline-flex items-center gap-1.5 text-sm text-[#6B705C] hover:text-[#2C2C2C]"
+            className="inline-flex items-center gap-1.5 text-sm text-[#5B5F4D] hover:text-[#2C2C2C]"
           >
             <ArrowLeft className="w-4 h-4" />
             Admin console
@@ -79,7 +79,7 @@ export default function AdminHelp() {
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 grid md:grid-cols-[220px_1fr] gap-8">
         <aside className="md:sticky md:top-6 md:self-start" data-testid="admin-help-toc">
-          <p className="text-[10px] uppercase tracking-[0.2em] text-[#6B705C] font-bold mb-2">
+          <p className="text-[10px] uppercase tracking-[0.2em] text-[#5B5F4D] font-bold mb-2">
             On this page
           </p>
           <nav className="text-sm space-y-1.5">
@@ -87,7 +87,7 @@ export default function AdminHelp() {
               <a
                 key={s.id}
                 href={`#${s.id}`}
-                className="block text-[#6B705C] hover:text-[#6B46C1] py-0.5"
+                className="block text-[#5B5F4D] hover:text-[#6B46C1] py-0.5"
                 data-testid={`admin-help-toc-${s.id}`}
               >
                 {s.label}
@@ -100,7 +100,7 @@ export default function AdminHelp() {
           <h1 className="font-serif text-4xl text-[#2C2C2C] mb-2">
             Admin console — what does what
           </h1>
-          <p className="text-[#6B705C] mb-6">
+          <p className="text-[#5B5F4D] mb-6">
             Every card on <Link to="/admin" className="text-[#6B46C1] underline">/admin</Link> documented in one place. Use the table of contents on the left to jump around.
           </p>
 
@@ -477,7 +477,7 @@ export default function AdminHelp() {
             </p>
           </Section>
 
-          <p className="text-xs text-[#6B705C] mt-8 mb-4 italic">
+          <p className="text-xs text-[#5B5F4D] mt-8 mb-4 italic">
             Missing something? Drop a note via the <Link to="/suggestions" className="text-[#6B46C1] underline">Suggestions</Link> board — it&apos;ll show up in your own Feedback inbox.
           </p>
         </div>

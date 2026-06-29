@@ -76,17 +76,17 @@ export default function Trash() {
     <div className="min-h-screen bg-[#FAF6EE]">
       <Navbar />
       <main className="max-w-4xl mx-auto px-6 py-10">
-        <Link to="/library" className="inline-flex items-center gap-1 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-4">
+        <Link to="/library" className="inline-flex items-center gap-1 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-4">
           <ArrowLeft className="w-4 h-4" /> back to library
         </Link>
 
         <div className="flex items-start gap-3 mb-8">
-          <div className="w-12 h-12 rounded-xl bg-[#6B705C]/15 text-[#6B705C] flex items-center justify-center flex-shrink-0">
+          <div className="w-12 h-12 rounded-xl bg-[#6B705C]/15 text-[#5B5F4D] flex items-center justify-center flex-shrink-0">
             <Trash2 className="w-6 h-6" />
           </div>
           <div className="flex-1">
             <h1 className="font-serif text-4xl text-[#2C2C2C] leading-tight">Trash</h1>
-            <p className="text-[#6B705C] mt-1">
+            <p className="text-[#5B5F4D] mt-1">
               Auto-discarded duplicates land here. Books are permanently deleted after {data.grace_days} days.
             </p>
           </div>
@@ -118,9 +118,9 @@ export default function Trash() {
           </div>
         ) : data.count === 0 ? (
           <div data-testid="trash-empty" className="shelf-card p-10 text-center">
-            <Trash2 className="w-10 h-10 text-[#6B705C]/40 mx-auto mb-4" />
+            <Trash2 className="w-10 h-10 text-[#5B5F4D]/40 mx-auto mb-4" />
             <p className="font-serif text-2xl text-[#2C2C2C]">Trash is empty</p>
-            <p className="text-sm text-[#6B705C] mt-2">When you discard duplicates, they'll wait here for {data.grace_days} days.</p>
+            <p className="text-sm text-[#5B5F4D] mt-2">When you discard duplicates, they'll wait here for {data.grace_days} days.</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -138,7 +138,7 @@ export default function Trash() {
               >
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-[#2C2C2C] truncate">{b.title || "Untitled"}</p>
-                  <p className="text-xs text-[#6B705C] truncate">
+                  <p className="text-xs text-[#5B5F4D] truncate">
                     by {b.author || "Unknown"} · <span className="text-amber-700 font-medium">{formatExpiry(b.trash_expires_at)}</span>
                   </p>
                 </div>

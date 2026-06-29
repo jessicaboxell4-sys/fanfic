@@ -86,19 +86,19 @@ function BulkMetadataDialog({ ids, customCats, onClose, onDone }) {
           <button
             onClick={onClose}
             data-testid="bulk-metadata-close"
-            className="w-9 h-9 rounded-full hover:bg-[#F5F3EC] flex items-center justify-center text-[#6B705C]"
+            className="w-9 h-9 rounded-full hover:bg-[#F5F3EC] flex items-center justify-center text-[#5B5F4D]"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <form onSubmit={submit} className="p-6 space-y-5">
-          <p className="text-xs text-[#6B705C]">
+          <p className="text-xs text-[#5B5F4D]">
             Only fields you fill in will be changed. Leave the rest blank.
           </p>
 
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wider text-[#6B705C] mb-1 block">
+            <label className="text-xs font-semibold uppercase tracking-wider text-[#5B5F4D] mb-1 block">
               Author
             </label>
             <input
@@ -112,7 +112,7 @@ function BulkMetadataDialog({ ids, customCats, onClose, onDone }) {
           </div>
 
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wider text-[#6B705C] mb-1 block">
+            <label className="text-xs font-semibold uppercase tracking-wider text-[#5B5F4D] mb-1 block">
               Category
             </label>
             <select
@@ -129,7 +129,7 @@ function BulkMetadataDialog({ ids, customCats, onClose, onDone }) {
           </div>
 
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wider text-[#6B705C] mb-1 block">
+            <label className="text-xs font-semibold uppercase tracking-wider text-[#5B5F4D] mb-1 block">
               Fandom
             </label>
             <input
@@ -139,9 +139,9 @@ function BulkMetadataDialog({ ids, customCats, onClose, onDone }) {
               disabled={clearFandom}
               onChange={(e) => setFandom(e.target.value)}
               placeholder="e.g. Harry Potter"
-              className="w-full bg-white border border-[#E8E6E1] rounded-lg px-3 py-2 text-sm disabled:bg-[#F5F3EC] disabled:text-[#6B705C] focus:outline-none focus:border-[#E07A5F] focus:ring-2 focus:ring-[#E07A5F]/20"
+              className="w-full bg-white border border-[#E8E6E1] rounded-lg px-3 py-2 text-sm disabled:bg-[#F5F3EC] disabled:text-[#5B5F4D] focus:outline-none focus:border-[#E07A5F] focus:ring-2 focus:ring-[#E07A5F]/20"
             />
-            <label className="flex items-center gap-2 text-xs text-[#6B705C] mt-1.5">
+            <label className="flex items-center gap-2 text-xs text-[#5B5F4D] mt-1.5">
               <input
                 type="checkbox"
                 data-testid="bulk-meta-clear-fandom"
@@ -153,7 +153,7 @@ function BulkMetadataDialog({ ids, customCats, onClose, onDone }) {
           </div>
 
           <div className="border-t border-[#E8E6E1] pt-5">
-            <p className="text-xs font-semibold uppercase tracking-wider text-[#6B705C] mb-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-[#5B5F4D] mb-2">
               Series
             </p>
             <input
@@ -163,7 +163,7 @@ function BulkMetadataDialog({ ids, customCats, onClose, onDone }) {
               disabled={clearSeries}
               onChange={(e) => setSeriesName(e.target.value)}
               placeholder="Series name"
-              className="w-full bg-white border border-[#E8E6E1] rounded-lg px-3 py-2 text-sm mb-2 disabled:bg-[#F5F3EC] disabled:text-[#6B705C] focus:outline-none focus:border-[#E07A5F] focus:ring-2 focus:ring-[#E07A5F]/20"
+              className="w-full bg-white border border-[#E8E6E1] rounded-lg px-3 py-2 text-sm mb-2 disabled:bg-[#F5F3EC] disabled:text-[#5B5F4D] focus:outline-none focus:border-[#E07A5F] focus:ring-2 focus:ring-[#E07A5F]/20"
             />
             <input
               data-testid="bulk-meta-series-start"
@@ -173,9 +173,9 @@ function BulkMetadataDialog({ ids, customCats, onClose, onDone }) {
               disabled={clearSeries || !seriesName.trim()}
               onChange={(e) => setSeriesStart(e.target.value)}
               placeholder="Start numbering at (e.g. 1) — assigns in selection order"
-              className="w-full bg-white border border-[#E8E6E1] rounded-lg px-3 py-2 text-sm disabled:bg-[#F5F3EC] disabled:text-[#6B705C] focus:outline-none focus:border-[#E07A5F] focus:ring-2 focus:ring-[#E07A5F]/20"
+              className="w-full bg-white border border-[#E8E6E1] rounded-lg px-3 py-2 text-sm disabled:bg-[#F5F3EC] disabled:text-[#5B5F4D] focus:outline-none focus:border-[#E07A5F] focus:ring-2 focus:ring-[#E07A5F]/20"
             />
-            <label className="flex items-center gap-2 text-xs text-[#6B705C] mt-2">
+            <label className="flex items-center gap-2 text-xs text-[#5B5F4D] mt-2">
               <input
                 type="checkbox"
                 data-testid="bulk-meta-clear-series"
@@ -187,7 +187,7 @@ function BulkMetadataDialog({ ids, customCats, onClose, onDone }) {
           </div>
 
           <div className="border-t border-[#E8E6E1] pt-5">
-            <label className="text-xs font-semibold uppercase tracking-wider text-[#6B705C] mb-1 block">
+            <label className="text-xs font-semibold uppercase tracking-wider text-[#5B5F4D] mb-1 block">
               Strip title prefix
             </label>
             <input
@@ -201,8 +201,8 @@ function BulkMetadataDialog({ ids, customCats, onClose, onDone }) {
           </div>
 
           <div className="border-t border-[#E8E6E1] pt-5">
-            <p className="text-xs font-semibold uppercase tracking-wider text-[#6B705C] mb-2">Tags</p>
-            <label className="text-xs text-[#6B705C] mb-1 block">Add tags to all</label>
+            <p className="text-xs font-semibold uppercase tracking-wider text-[#5B5F4D] mb-2">Tags</p>
+            <label className="text-xs text-[#5B5F4D] mb-1 block">Add tags to all</label>
             <TagInput
               value={addTags}
               onChange={setAddTags}
@@ -210,7 +210,7 @@ function BulkMetadataDialog({ ids, customCats, onClose, onDone }) {
               placeholder="add tags…"
               testIdPrefix="bulk-add-tags"
             />
-            <label className="text-xs text-[#6B705C] mt-3 mb-1 block">Remove tags from all</label>
+            <label className="text-xs text-[#5B5F4D] mt-3 mb-1 block">Remove tags from all</label>
             <TagInput
               value={removeTags}
               onChange={setRemoveTags}
@@ -381,7 +381,7 @@ export default function SelectionBar({ selectedIds, customCats, onDone, onCancel
                 className="absolute bottom-full mb-2 right-0 bg-white text-[#2C2C2C] rounded-xl shadow-2xl border border-[#E8E6E1] min-w-[260px] py-1 max-h-96 overflow-y-auto"
                 data-testid="bulk-verdict-menu"
               >
-                <div className="text-[10px] uppercase tracking-wider font-bold text-[#A09A8B] px-4 pt-2 pb-1">
+                <div className="text-[10px] uppercase tracking-wider font-bold text-[#6E6E6E] px-4 pt-2 pb-1">
                   Reading state
                 </div>
                 {(verdictTax?.reading_states || []).map((s) => (
@@ -394,7 +394,7 @@ export default function SelectionBar({ selectedIds, customCats, onDone, onCancel
                     {s.emoji} {s.label}
                   </button>
                 ))}
-                <div className="text-[10px] uppercase tracking-wider font-bold text-[#A09A8B] px-4 pt-2 pb-1 border-t border-[#F0EDE5] mt-1">
+                <div className="text-[10px] uppercase tracking-wider font-bold text-[#6E6E6E] px-4 pt-2 pb-1 border-t border-[#F0EDE5] mt-1">
                   Add verdict
                 </div>
                 {[...(verdictTax?.builtin_verdicts || []), ...(verdictTax?.custom_verdicts || [])].map((v) => (
@@ -407,7 +407,7 @@ export default function SelectionBar({ selectedIds, customCats, onDone, onCancel
                     {v.emoji} {v.label}
                   </button>
                 ))}
-                <div className="text-[10px] uppercase tracking-wider font-bold text-[#A09A8B] px-4 pt-2 pb-1 border-t border-[#F0EDE5] mt-1">
+                <div className="text-[10px] uppercase tracking-wider font-bold text-[#6E6E6E] px-4 pt-2 pb-1 border-t border-[#F0EDE5] mt-1">
                   Clear
                 </div>
                 <button

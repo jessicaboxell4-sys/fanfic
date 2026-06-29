@@ -51,7 +51,7 @@ function StatusShelf({ target, icon: Icon, accent, title, blurb, emptyMsg, dataT
         <button
           onClick={() => navigate("/library")}
           data-testid={`${dataTestPrefix}-back`}
-          className="flex items-center gap-2 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-6"
+          className="flex items-center gap-2 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-6"
         >
           <ArrowLeft className="w-4 h-4" /> Back to library
         </button>
@@ -62,14 +62,14 @@ function StatusShelf({ target, icon: Icon, accent, title, blurb, emptyMsg, dataT
           </div>
           <div>
             <h1 className="font-serif text-3xl text-[#2C2C2C]">{title}</h1>
-            <p className="text-sm text-[#6B705C] mt-1 max-w-2xl">{blurb}</p>
+            <p className="text-sm text-[#5B5F4D] mt-1 max-w-2xl">{blurb}</p>
           </div>
         </header>
 
         <div className="shelf-card p-5 mb-6 flex flex-wrap items-center gap-4" data-testid={`${dataTestPrefix}-summary`}>
           <div className="flex-shrink-0">
             <div className="font-serif text-3xl text-[#2C2C2C]" data-testid={`${dataTestPrefix}-count`}>{books.length}</div>
-            <div className="text-xs text-[#6B705C] uppercase tracking-wide">book{books.length === 1 ? "" : "s"}</div>
+            <div className="text-xs text-[#5B5F4D] uppercase tracking-wide">book{books.length === 1 ? "" : "s"}</div>
           </div>
           {Object.keys(byCategory).length > 0 && (
             <div className="flex flex-wrap gap-2 items-center" data-testid={`${dataTestPrefix}-categories`}>
@@ -101,7 +101,7 @@ function StatusShelf({ target, icon: Icon, accent, title, blurb, emptyMsg, dataT
         </div>
 
         <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B705C]" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#5B5F4D]" />
           <input
             type="search"
             data-testid={`${dataTestPrefix}-search`}
@@ -113,9 +113,9 @@ function StatusShelf({ target, icon: Icon, accent, title, blurb, emptyMsg, dataT
         </div>
 
         {loading ? (
-          <p className="text-[#6B705C] italic text-sm">Loading…</p>
+          <p className="text-[#5B5F4D] italic text-sm">Loading…</p>
         ) : filtered.length === 0 ? (
-          <div className="shelf-card p-8 text-center text-[#6B705C]">
+          <div className="shelf-card p-8 text-center text-[#5B5F4D]">
             {books.length === 0 ? (
               <>
                 <Icon className={`w-10 h-10 mx-auto mb-3 ${accent.text}`} />
@@ -142,7 +142,7 @@ function StatusShelf({ target, icon: Icon, accent, title, blurb, emptyMsg, dataT
                     {b.is_manual_status && (
                       <span
                         data-testid={`${dataTestPrefix}-manual-${b.book_id}`}
-                        className="text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wide bg-[#E5DDC5]/60 text-[#6B705C]"
+                        className="text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wide bg-[#E5DDC5]/60 text-[#5B5F4D]"
                         title="Status set manually by you (overrides auto-detection)"
                       >
                         manually set
@@ -154,7 +154,7 @@ function StatusShelf({ target, icon: Icon, accent, title, blurb, emptyMsg, dataT
                       </span>
                     )}
                   </div>
-                  <div className="text-xs text-[#6B705C]">
+                  <div className="text-xs text-[#5B5F4D]">
                     {b.author || "Unknown"}
                     {b.fandom ? <> · {b.fandom}</> : null}
                     {b.category ? <> · {b.category}</> : null}

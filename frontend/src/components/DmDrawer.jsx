@@ -50,18 +50,18 @@ export default function DmDrawer({ roomId, friendName, onClose }) {
       <div className="w-full max-w-md bg-[#FDFBF7] border-l border-[#E8E6E1] flex flex-col h-full shadow-xl">
         <div className="flex items-center justify-between border-b border-[#E8E6E1] px-4 py-3">
           <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-[#6B705C]">Direct message</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-[#5B5F4D]">Direct message</p>
             <p className="font-serif text-lg text-[#2C2C2C] truncate" data-testid="dm-drawer-title">{friendName}</p>
           </div>
           <button onClick={onClose} data-testid="dm-drawer-close" className="p-1.5 hover:bg-[#F5F3EC] rounded">
-            <XIcon className="w-4 h-4 text-[#6B705C]" />
+            <XIcon className="w-4 h-4 text-[#5B5F4D]" />
           </button>
         </div>
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3" data-testid="dm-drawer-messages">
           {loading ? (
-            <div className="text-sm text-[#6B705C] flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" /> Loading…</div>
+            <div className="text-sm text-[#5B5F4D] flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" /> Loading…</div>
           ) : messages.length === 0 ? (
-            <p className="text-sm text-[#6B705C] text-center py-12">No messages yet — say hi!</p>
+            <p className="text-sm text-[#5B5F4D] text-center py-12">No messages yet — say hi!</p>
           ) : (
             messages.map((m) => {
               const mine = m.user_id === user?.user_id;

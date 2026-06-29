@@ -326,7 +326,7 @@ export default function ReadOriginal() {
     return (
       <div className="min-h-screen bg-[#FAF6EE]">
         <Navbar />
-        <main className="max-w-4xl mx-auto px-6 py-16 text-center text-[#6B705C]">
+        <main className="max-w-4xl mx-auto px-6 py-16 text-center text-[#5B5F4D]">
           <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
           Loading…
         </main>
@@ -338,7 +338,7 @@ export default function ReadOriginal() {
     return (
       <div className="min-h-screen bg-[#FAF6EE]">
         <Navbar />
-        <main className="max-w-4xl mx-auto px-6 py-16 text-center text-[#6B705C]">
+        <main className="max-w-4xl mx-auto px-6 py-16 text-center text-[#5B5F4D]">
           <AlertTriangle className="w-6 h-6 mx-auto mb-2 text-[#B43F26]" />
           {error}
           <div className="mt-4">
@@ -360,7 +360,7 @@ export default function ReadOriginal() {
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="inline-flex items-center gap-1 text-sm text-[#6B705C] hover:text-[#2C2C2C]"
+            className="inline-flex items-center gap-1 text-sm text-[#5B5F4D] hover:text-[#2C2C2C]"
             data-testid="read-original-back"
           >
             <ArrowLeft className="w-4 h-4" /> back
@@ -369,7 +369,7 @@ export default function ReadOriginal() {
             <h1 className="font-serif text-xl md:text-2xl text-[#2C2C2C] truncate" data-testid="read-original-title">
               {book?.title || "Untitled"}
             </h1>
-            <p className="text-xs text-[#6B705C] truncate">
+            <p className="text-xs text-[#5B5F4D] truncate">
               {book?.author || "Unknown"} ·{" "}
               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#6B46C1]/10 text-[#6B46C1] font-mono text-[10px] font-semibold">
                 {formatLabel}
@@ -381,7 +381,7 @@ export default function ReadOriginal() {
             target="_blank"
             rel="noopener noreferrer"
             data-testid="open-original-tab"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-[#E5DDC5] text-[#6B705C] hover:border-[var(--primary)] hover:text-[var(--primary)]"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-[#E5DDC5] text-[#5B5F4D] hover:border-[var(--primary)] hover:text-[var(--primary)]"
             title="Open the raw file in a new browser tab"
           >
             <ExternalLink className="w-3.5 h-3.5" /> Open in new tab
@@ -392,7 +392,7 @@ export default function ReadOriginal() {
             data-testid="readoriginal-cheatsheet-open"
             title="Keyboard shortcuts (?)"
             aria-label="Show keyboard shortcuts"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-[#E5DDC5] text-[#6B705C] hover:border-[var(--primary)] hover:text-[var(--primary)]"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-[#E5DDC5] text-[#5B5F4D] hover:border-[var(--primary)] hover:text-[var(--primary)]"
           >
             <Keyboard className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Shortcuts</span>
@@ -405,7 +405,7 @@ export default function ReadOriginal() {
                 title={isPdf
                   ? "Bookmark a page (Cmd/Ctrl+B) — we'll ask which page number to save"
                   : "Bookmark this scroll position (Cmd/Ctrl+B)"}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-[#E5DDC5] text-[#6B705C] hover:border-[var(--primary)] hover:text-[var(--primary)]"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-[#E5DDC5] text-[#5B5F4D] hover:border-[var(--primary)] hover:text-[var(--primary)]"
               >
                 <BookmarkPlus className="w-3.5 h-3.5" /> Bookmark
               </button>
@@ -413,7 +413,7 @@ export default function ReadOriginal() {
                 onClick={() => setShowBookmarkPanel((v) => !v)}
                 data-testid="readoriginal-bookmark-toggle"
                 title="Show / hide saved bookmarks"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-[#E5DDC5] text-[#6B705C] hover:border-[var(--primary)] hover:text-[var(--primary)]"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-[#E5DDC5] text-[#5B5F4D] hover:border-[var(--primary)] hover:text-[var(--primary)]"
               >
                 <Bookmark className="w-3.5 h-3.5" /> {bookmarks.length}
               </button>
@@ -546,19 +546,19 @@ export default function ReadOriginal() {
               <h3 className="text-sm font-semibold text-[#2C2C2C]">
                 Bookmarks
                 {bookmarks.length > 0 && (
-                  <span className="ml-2 text-xs font-normal text-[#6B705C]">({bookmarks.length})</span>
+                  <span className="ml-2 text-xs font-normal text-[#5B5F4D]">({bookmarks.length})</span>
                 )}
               </h3>
               <button
                 onClick={() => setShowBookmarkPanel(false)}
-                className="text-xs text-[#6B705C] hover:text-[#2C2C2C]"
+                className="text-xs text-[#5B5F4D] hover:text-[#2C2C2C]"
                 data-testid="readoriginal-bookmark-panel-close"
               >
                 Hide
               </button>
             </div>
             {bookmarks.length === 0 ? (
-              <p className="text-sm text-[#6B705C] italic">
+              <p className="text-sm text-[#5B5F4D] italic">
                 No bookmarks yet. {isPdf
                   ? "Click Bookmark, type the page you want to save, and we'll remember it."
                   : "Scroll to a spot you want to keep and click Bookmark."}
@@ -643,7 +643,7 @@ export default function ReadOriginal() {
                   onClick={() => setShowCheatsheet(false)}
                   data-testid="readoriginal-cheatsheet-close"
                   aria-label="Close shortcuts"
-                  className="text-[#6B705C] hover:text-[#2C2C2C]"
+                  className="text-[#5B5F4D] hover:text-[#2C2C2C]"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -664,7 +664,7 @@ export default function ReadOriginal() {
                 <Shortcut keys={["Esc"]} label="Close the cheatsheet" />
               </ul>
               {!isScrollViewer && !isPdf && (
-                <p className="mt-4 text-xs text-[#6B705C] italic">
+                <p className="mt-4 text-xs text-[#5B5F4D] italic">
                   This file format doesn&apos;t support paging or bookmarks —
                   the viewer hands rendering off to your browser or to Calibre.
                 </p>
@@ -697,7 +697,7 @@ const Shortcut = ({ keys, label }) => (
 );
 
 const LoadingBlock = ({ label }) => (
-  <div className="py-20 text-center text-[#6B705C]">
+  <div className="py-20 text-center text-[#5B5F4D]">
     <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
     {label}
   </div>
@@ -720,7 +720,7 @@ const FallbackConvertBlock = ({ book, ext, onConvert, converting, msg }) => (
     <h2 className="font-serif text-2xl text-[#2C2C2C] mb-2">
       No native viewer for .{(ext || "?").toUpperCase()}
     </h2>
-    <p className="text-sm text-[#6B705C] mb-6">
+    <p className="text-sm text-[#5B5F4D] mb-6">
       {msg
         ? msg
         : `Browsers can't render this format directly. We can run Calibre once to convert "${book?.title || "this book"}" into an EPUB — then it opens instantly in the normal reader, where text size, fonts, bookmarks, and progress tracking all work.`}
@@ -736,7 +736,7 @@ const FallbackConvertBlock = ({ book, ext, onConvert, converting, msg }) => (
         : <RefreshCw className="w-4 h-4" />}
       {converting ? "Converting…" : "Convert to EPUB and read"}
     </button>
-    <p className="text-[11px] text-[#6B705C] mt-4">
+    <p className="text-[11px] text-[#5B5F4D] mt-4">
       Or use the <strong>Open in new tab</strong> button at the top to download the raw file and read it in another app.
     </p>
   </div>

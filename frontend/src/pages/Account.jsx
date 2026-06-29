@@ -94,7 +94,7 @@ function AdminAccessCard() {
   return (
     <section className="shelf-card p-6 mb-6" id="admin-access" data-testid="admin-access-card">
       <h2 className="font-serif text-2xl text-[#2C2C2C] mb-1">Admin access</h2>
-      <p className="text-sm text-[#6B705C] mb-4">
+      <p className="text-sm text-[#5B5F4D] mb-4">
         An admin has asked to <strong>look at your library, read-only</strong>, to help diagnose something. They will never log in as you or make changes; reads are audit-logged.
       </p>
 
@@ -146,7 +146,7 @@ function AdminAccessCard() {
                       </button>
                       <button
                         onClick={() => setGrantingId(null)}
-                        className="px-3 py-1.5 rounded-full text-[#6B705C] text-xs font-medium hover:text-[#2C2C2C]"
+                        className="px-3 py-1.5 rounded-full text-[#5B5F4D] text-xs font-medium hover:text-[#2C2C2C]"
                       >
                         Cancel
                       </button>
@@ -296,7 +296,7 @@ function LibraryModeCard() {
       data-testid="library-mode-card"
     >
       <h2 className="font-serif text-2xl text-[#2C2C2C] mb-1">Library mode</h2>
-      <p className="text-sm text-[#6B705C] mb-4">
+      <p className="text-sm text-[#5B5F4D] mb-4">
         How should Shelfsort lay out your library?  This is a personal
         preference — pick what fits the books you actually read.  You
         can change it any time.
@@ -324,7 +324,7 @@ function LibraryModeCard() {
                   {opt.label}
                   {active && <span className="ml-2 text-xs font-normal text-[#6B46C1]">· current</span>}
                 </span>
-                <span className="block text-xs text-[#6B705C] mt-0.5">{opt.blurb}</span>
+                <span className="block text-xs text-[#5B5F4D] mt-0.5">{opt.blurb}</span>
               </span>
             </button>
           );
@@ -474,7 +474,7 @@ function PrivacyMessagingCard({ navigate }) {
         </div>
         <div>
           <h2 className="font-serif text-2xl text-[#2C2C2C]">Privacy & messaging</h2>
-          <p className="text-sm text-[#6B705C] mt-0.5">
+          <p className="text-sm text-[#5B5F4D] mt-0.5">
             Control who can DM you and whether you show up in the public reader directory.
           </p>
         </div>
@@ -484,7 +484,7 @@ function PrivacyMessagingCard({ navigate }) {
         <div className="flex items-start justify-between gap-3 p-3 rounded-lg border border-[#E5DDC5] bg-[#FBFAF6]">
           <div className="min-w-0">
             <p className="text-sm font-semibold text-[#2C2C2C]">Who can send me DMs</p>
-            <p className="text-xs text-[#6B705C]">
+            <p className="text-xs text-[#5B5F4D]">
               {privacy.message_privacy === "friends_only"
                 ? "Only accepted friends can DM you. Strangers must send a friend request first."
                 : "Anyone signed in can DM you directly, no friend request needed."}
@@ -499,7 +499,7 @@ function PrivacyMessagingCard({ navigate }) {
               className={`text-xs px-3 py-1.5 rounded ${
                 privacy.message_privacy === "friends_only"
                   ? "bg-[#6B46C1] text-white font-semibold"
-                  : "border border-[#E5DDC5] text-[#6B705C] hover:bg-white"
+                  : "border border-[#E5DDC5] text-[#5B5F4D] hover:bg-white"
               }`}
             >Friends only</button>
             <button
@@ -510,7 +510,7 @@ function PrivacyMessagingCard({ navigate }) {
               className={`text-xs px-3 py-1.5 rounded ${
                 privacy.message_privacy === "anyone"
                   ? "bg-[#6B46C1] text-white font-semibold"
-                  : "border border-[#E5DDC5] text-[#6B705C] hover:bg-white"
+                  : "border border-[#E5DDC5] text-[#5B5F4D] hover:bg-white"
               }`}
             >Anyone</button>
           </div>
@@ -519,7 +519,7 @@ function PrivacyMessagingCard({ navigate }) {
         <div className="flex items-start justify-between gap-3 p-3 rounded-lg border border-[#E5DDC5] bg-[#FBFAF6]">
           <div className="min-w-0">
             <p className="text-sm font-semibold text-[#2C2C2C]">Hide me from the reader directory</p>
-            <p className="text-xs text-[#6B705C]">
+            <p className="text-xs text-[#5B5F4D]">
               When on, you won&apos;t appear in user search or on the <Link to="/users" className="underline">public reader directory</Link>. Existing friends still see you.
             </p>
           </div>
@@ -539,7 +539,7 @@ function PrivacyMessagingCard({ navigate }) {
         <div className="flex items-start justify-between gap-3 p-3 rounded-lg border border-[#E5DDC5] bg-[#FBFAF6]">
           <div className="min-w-0">
             <p className="text-sm font-semibold text-[#2C2C2C]">Share my library with friends</p>
-            <p className="text-xs text-[#6B705C]">
+            <p className="text-xs text-[#5B5F4D]">
               When on, accepted friends can browse a read-only list of your books and click "Want this" to politely DM you about ones they don&apos;t have. Files are never auto-shared — you decide what to send.
             </p>
           </div>
@@ -564,7 +564,7 @@ function PrivacyMessagingCard({ navigate }) {
         <div className="flex items-start justify-between gap-3 p-3 rounded-lg border border-[#E5DDC5] bg-[#FBFAF6]">
           <div className="min-w-0">
             <p className="text-sm font-semibold text-[#2C2C2C]">Make my library public on the web</p>
-            <p className="text-xs text-[#6B705C]">
+            <p className="text-xs text-[#5B5F4D]">
               When on, anyone with the link to <span className="font-mono">/u/your-handle/library</span> can browse a read-only list of your books (title, author, fandom).
               Files are never shared; AV-flagged books stay hidden.
             </p>
@@ -591,7 +591,7 @@ function PrivacyMessagingCard({ navigate }) {
                   className="mt-3 p-3 rounded-lg bg-[#FBFAF6] border border-[#E5DDC5] space-y-2"
                   data-testid="privacy-rss-panel"
                 >
-                  <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#6B705C]">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#5B5F4D]">
                     RSS subscription URL
                   </p>
                   <code
@@ -614,12 +614,12 @@ function PrivacyMessagingCard({ navigate }) {
                       onClick={regenerateRss}
                       disabled={regeneratingRss}
                       data-testid="privacy-rss-regen-btn"
-                      className="text-xs px-2.5 py-1 rounded-full bg-[#F5F3EC] text-[#6B705C] hover:bg-[#E8E2D4] disabled:opacity-60"
+                      className="text-xs px-2.5 py-1 rounded-full bg-[#F5F3EC] text-[#5B5F4D] hover:bg-[#E8E2D4] disabled:opacity-60"
                     >
                       {regeneratingRss ? "Regenerating…" : "Regenerate (invalidate old)"}
                     </button>
                   </div>
-                  <p className="text-[10px] text-[#6B705C]">
+                  <p className="text-[10px] text-[#5B5F4D]">
                     Anyone with this URL can subscribe — keep it private if you don&apos;t want it indexed.
                   </p>
                 </div>
@@ -666,7 +666,7 @@ function PrivacyMessagingCard({ navigate }) {
             <UsersIcon className="w-4 h-4 text-[#6B46C1]" />
             Find readers (public directory)
           </span>
-          <span className="text-[10px] text-[#6B705C]">browse usernames</span>
+          <span className="text-[10px] text-[#5B5F4D]">browse usernames</span>
         </button>
 
         <button
@@ -679,7 +679,7 @@ function PrivacyMessagingCard({ navigate }) {
             <UsersIcon className="w-4 h-4 text-[#6B46C1]" />
             Reading rooms
           </span>
-          <span className="text-[10px] text-[#6B705C]">read a book with friends</span>
+          <span className="text-[10px] text-[#5B5F4D]">read a book with friends</span>
         </button>
       </div>
 
@@ -719,7 +719,7 @@ function PrivacyMessagingCard({ navigate }) {
                 <h3 id="first-share-modal-title" className="font-serif text-xl text-[#2C2C2C] mb-1">
                   🎉 Your library is public!
                 </h3>
-                <p className="text-sm text-[#6B705C]">
+                <p className="text-sm text-[#5B5F4D]">
                   Anyone with the link below can sign in and browse your shelves.
                   Want to tell people?
                 </p>
@@ -762,7 +762,7 @@ function PrivacyMessagingCard({ navigate }) {
                     type="button"
                     onClick={closeModal}
                     data-testid="first-share-modal-close-btn"
-                    className="text-xs text-[#6B705C] hover:text-[#2C2C2C] px-3 py-1.5"
+                    className="text-xs text-[#5B5F4D] hover:text-[#2C2C2C] px-3 py-1.5"
                   >
                     Maybe later
                   </button>
@@ -847,7 +847,7 @@ function FandomAliasesCard() {
         </div>
         <div className="flex-1">
           <h2 className="font-serif text-2xl text-[#2C2C2C]">Fandom aliases</h2>
-          <p className="text-sm text-[#6B705C] mt-1">
+          <p className="text-sm text-[#5B5F4D] mt-1">
             Map abbreviations / nicknames to canonical fandom names. Applied automatically
             during uploads — and clickable below to apply retroactively to your library.
           </p>
@@ -863,7 +863,7 @@ function FandomAliasesCard() {
           data-testid="alias-from"
           className="flex-1 min-w-[140px] p-2 rounded-lg border border-[#E5DDC5] bg-white text-sm focus:outline-none focus:border-[#E07A5F]"
         />
-        <span className="self-center text-[#6B705C] text-sm">→</span>
+        <span className="self-center text-[#5B5F4D] text-sm">→</span>
         <input
           type="text"
           value={to}
@@ -883,7 +883,7 @@ function FandomAliasesCard() {
       </div>
 
       {rows.length === 0 ? (
-        <p className="text-xs text-[#6B705C] italic">No aliases yet. Add one above.</p>
+        <p className="text-xs text-[#5B5F4D] italic">No aliases yet. Add one above.</p>
       ) : (
         <ul className="space-y-1" data-testid="alias-list">
           {rows.map(([k, v]) => (
@@ -892,14 +892,14 @@ function FandomAliasesCard() {
               className="flex items-center justify-between gap-3 p-2 rounded-lg bg-white border border-[#E5DDC5] text-sm"
             >
               <span className="font-mono">
-                <span className="text-[#6B705C]">{k}</span>
-                <span className="mx-2 text-[#6B705C]">→</span>
+                <span className="text-[#5B5F4D]">{k}</span>
+                <span className="mx-2 text-[#5B5F4D]">→</span>
                 <span className="text-[#2C2C2C] font-semibold">{v}</span>
               </span>
               <button
                 onClick={() => removeAlias(k)}
                 data-testid={`alias-remove-${k.replace(/\s+/g, "-").toLowerCase()}`}
-                className="text-[#6B705C] hover:text-[#6B46C1] p-1"
+                className="text-[#5B5F4D] hover:text-[#6B46C1] p-1"
                 aria-label={`Remove alias ${k}`}
               >
                 <XIcon className="w-4 h-4" />
@@ -994,7 +994,7 @@ function BackupCard() {
       <h2 className="font-serif text-2xl text-[#2C2C2C] mb-1 flex items-center gap-2">
         <Download className="w-5 h-5 text-[#6B46C1]" /> Library backup
       </h2>
-      <p className="text-sm text-[#6B705C] mb-5">
+      <p className="text-sm text-[#5B5F4D] mb-5">
         Download every EPUB plus a manifest of your books, tags, smart shelves, and preferences as a single ZIP. The filename is dated so you can keep multiple backups. Restore is manual for now — keep the ZIP somewhere safe.
       </p>
       <button
@@ -1028,9 +1028,9 @@ function BackupCard() {
           Backup history
         </p>
         {historyLoading ? (
-          <p className="text-xs text-[#6B705C] italic">Loading…</p>
+          <p className="text-xs text-[#5B5F4D] italic">Loading…</p>
         ) : history.length === 0 ? (
-          <p className="text-xs text-[#6B705C] italic" data-testid="backup-history-empty">
+          <p className="text-xs text-[#5B5F4D] italic" data-testid="backup-history-empty">
             No backups yet — your first download will show up here.
           </p>
         ) : (
@@ -1046,9 +1046,9 @@ function BackupCard() {
                     year: "numeric", month: "short", day: "numeric",
                     hour: "2-digit", minute: "2-digit",
                   })}
-                  <span className="text-[#6B705C]"> · {formatTime(h.started_at)}</span>
+                  <span className="text-[#5B5F4D]"> · {formatTime(h.started_at)}</span>
                 </span>
-                <span className="text-[#6B705C]">
+                <span className="text-[#5B5F4D]">
                   {h.book_count} book{h.book_count === 1 ? "" : "s"}
                   {h.smart_shelf_count ? <> · {h.smart_shelf_count} smart shelves</> : null}
                 </span>
@@ -1137,12 +1137,12 @@ function CloudBackupCard() {
           to="/help#cloud-backup"
           title="About cloud library mirror"
           data-testid="help-anchor-cloud-backup"
-          className="inline-flex items-center justify-center w-5 h-5 rounded-full text-[#6B705C] hover:text-[#6B46C1] transition-colors"
+          className="inline-flex items-center justify-center w-5 h-5 rounded-full text-[#5B5F4D] hover:text-[#6B46C1] transition-colors"
         >
           <HelpCircle className="w-4 h-4" />
         </Link>
       </h2>
-      <p className="text-sm text-[#6B705C] mb-5">
+      <p className="text-sm text-[#5B5F4D] mb-5">
         Your EPUBs and covers are continuously mirrored to durable cloud storage so a server redeploy can&apos;t wipe them. Click below to trigger an immediate mirror — usually it runs in the background every 10 minutes.
       </p>
       <button
@@ -1154,7 +1154,7 @@ function CloudBackupCard() {
         {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
         {busy ? "Backing up…" : "Back up my library now"}
       </button>
-      <div className="mt-4 text-xs text-[#6B705C]" data-testid="cloud-backup-status">
+      <div className="mt-4 text-xs text-[#5B5F4D]" data-testid="cloud-backup-status">
         Last backup: <span className="font-semibold text-[#2C2C2C]" data-testid="cloud-backup-last">{fmt(state.last_run_at)}</span>
         {summary && <span> · {summary}</span>}
       </div>
@@ -1241,7 +1241,7 @@ function AnnouncementsCard() {
         </div>
         <div>
           <h2 className="font-serif text-2xl text-[#2C2C2C]">Release notes</h2>
-          <p className="text-sm text-[#6B705C] mt-0.5">
+          <p className="text-sm text-[#5B5F4D] mt-0.5">
             Publish the &quot;What&apos;s new&quot; card shown at the top of the Help page. Bump the version on every push — users see the card again until they dismiss this version.
           </p>
         </div>
@@ -1251,16 +1251,16 @@ function AnnouncementsCard() {
       <div className="mt-4 mb-5 p-3 rounded-lg bg-[#FBFAF6] border border-[#E5DDC5]" data-testid="announcements-current">
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-1.5">Currently live</p>
         {loading ? (
-          <p className="text-xs text-[#6B705C] italic">Loading…</p>
+          <p className="text-xs text-[#5B5F4D] italic">Loading…</p>
         ) : !latest ? (
-          <p className="text-xs text-[#6B705C] italic" data-testid="announcements-current-empty">
+          <p className="text-xs text-[#5B5F4D] italic" data-testid="announcements-current-empty">
             No server-side announcement yet — users see the bundled fallback card.
           </p>
         ) : (
           <div className="flex items-start justify-between gap-3">
             <div className="text-xs text-[#2C2C2C] flex-1 min-w-0">
               <p className="font-semibold truncate">{latest.title}</p>
-              <p className="text-[#6B705C]">v{latest.version} · {latest.items?.length || 0} item{(latest.items?.length || 0) === 1 ? "" : "s"}</p>
+              <p className="text-[#5B5F4D]">v{latest.version} · {latest.items?.length || 0} item{(latest.items?.length || 0) === 1 ? "" : "s"}</p>
             </div>
             <button
               type="button"
@@ -1456,14 +1456,14 @@ function SendToKindleCard() {
         </div>
         <div className="min-w-0">
           <h2 className="font-serif text-2xl text-[#2C2C2C]">Send to Kindle</h2>
-          <p className="text-sm text-[#6B705C] mt-0.5">
+          <p className="text-sm text-[#5B5F4D] mt-0.5">
             Beam any EPUB straight to your Amazon Kindle. One-tap from the book page.
           </p>
         </div>
       </div>
 
       {loading ? (
-        <p className="text-sm text-[#6B705C] italic mt-4">Loading…</p>
+        <p className="text-sm text-[#5B5F4D] italic mt-4">Loading…</p>
       ) : (
         <>
           {/* Step 1 — capture the user's @kindle.com address */}
@@ -1471,7 +1471,7 @@ function SendToKindleCard() {
             <label className="block text-sm font-semibold text-[#2C2C2C] mb-1">
               Your Kindle email
             </label>
-            <p className="text-xs text-[#6B705C] mb-2">
+            <p className="text-xs text-[#5B5F4D] mb-2">
               Find this in the Amazon app under <em>More → Settings → Personal Documents</em>.
               It looks like <code className="text-[#6B46C1]">yourname@kindle.com</code>.
             </p>
@@ -1507,7 +1507,7 @@ function SendToKindleCard() {
               <p className="text-sm font-semibold text-[#2C2C2C] mb-1">
                 One-time setup on Amazon
               </p>
-              <p className="text-xs text-[#6B705C] mb-2">
+              <p className="text-xs text-[#5B5F4D] mb-2">
                 Amazon will drop your books unless this sender is on your
                 <em> Approved Personal Document E-mail List</em>:
               </p>
@@ -1538,17 +1538,17 @@ function SendToKindleCard() {
 
           {/* Last-sent line, if any */}
           {lastSentAt && (
-            <p className="text-xs text-[#6B705C] mt-3 italic" data-testid="kindle-last-sent">
+            <p className="text-xs text-[#5B5F4D] mt-3 italic" data-testid="kindle-last-sent">
               Last successful send: {new Date(lastSentAt).toLocaleString()}
             </p>
           )}
 
           {/* How it works */}
           <details className="mt-4">
-            <summary className="text-xs text-[#6B705C] cursor-pointer hover:text-[#2C2C2C]">
+            <summary className="text-xs text-[#5B5F4D] cursor-pointer hover:text-[#2C2C2C]">
               How does this work?
             </summary>
-            <ul className="text-xs text-[#6B705C] mt-2 ml-4 list-disc space-y-1">
+            <ul className="text-xs text-[#5B5F4D] mt-2 ml-4 list-disc space-y-1">
               <li>You hit <strong>Send to Kindle</strong> on any book in your library.</li>
               <li>Shelfsort emails the EPUB to your <code>@kindle.com</code> address.</li>
               <li>Amazon converts it and pushes it to every Kindle on your account within ~5 min.</li>
@@ -1935,7 +1935,7 @@ export default function Account() {
     return (
       <div className="min-h-screen bg-paper">
         <Navbar />
-        <div className="text-center py-20 text-[#6B705C]">Loading…</div>
+        <div className="text-center py-20 text-[#5B5F4D]">Loading…</div>
       </div>
     );
   }
@@ -1946,7 +1946,7 @@ export default function Account() {
       <main className="max-w-2xl mx-auto px-6 md:px-8 py-8 md:py-12 fade-in">
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-2">Account</p>
         <h1 className="font-serif text-4xl sm:text-5xl text-[#2C2C2C] mb-3" data-testid="account-title">Your shelf, your settings.</h1>
-        <p className="text-[#6B705C] mb-10">Signed in as <strong className="text-[#2C2C2C]">{profile.email}</strong></p>
+        <p className="text-[#5B5F4D] mb-10">Signed in as <strong className="text-[#2C2C2C]">{profile.email}</strong></p>
 
         {/* Profile-completeness meter (iter 57) — top of page so a
             user landing here from the post-handle nudge or first
@@ -1986,19 +1986,19 @@ export default function Account() {
         {/* Profile info */}
         <section className="shelf-card p-6 mb-6">
           <h2 className="font-serif text-2xl text-[#2C2C2C] mb-1">Profile</h2>
-          <p className="text-sm text-[#6B705C] mb-5">Change how your name shows up around Shelfsort.</p>
+          <p className="text-sm text-[#5B5F4D] mb-5">Change how your name shows up around Shelfsort.</p>
           <form onSubmit={saveName} className="space-y-3">
             <div className="relative">
-              <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#6B705C]" />
+              <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#5B5F4D]" />
               <input
                 type="email"
                 value={profile.email}
                 disabled
-                className="w-full bg-[#F5F3EC] border border-[#E8E6E1] rounded-xl pl-10 pr-3 py-2.5 text-sm text-[#6B705C]"
+                className="w-full bg-[#F5F3EC] border border-[#E8E6E1] rounded-xl pl-10 pr-3 py-2.5 text-sm text-[#5B5F4D]"
               />
             </div>
             <div className="relative">
-              <UserIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#6B705C]" />
+              <UserIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#5B5F4D]" />
               <input
                 data-testid="profile-name-input"
                 type="text"
@@ -2024,7 +2024,7 @@ export default function Account() {
               /u/<handle>/library, and the sign-in gate.  Capped at 280
               chars to keep it scannable. */}
           <form onSubmit={saveBio} className="space-y-2 mt-5 pt-5 border-t border-[#E8E6E1]">
-            <label htmlFor="profile-bio-input" className="block text-xs font-bold uppercase tracking-[0.15em] text-[#6B705C]">
+            <label htmlFor="profile-bio-input" className="block text-xs font-bold uppercase tracking-[0.15em] text-[#5B5F4D]">
               Bio
             </label>
             <textarea
@@ -2038,7 +2038,7 @@ export default function Account() {
               className="w-full bg-white border border-[#E8E6E1] rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#E07A5F] focus:ring-2 focus:ring-[#E07A5F]/20 resize-none"
             />
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[11px] text-[#6B705C]">
+              <span className="text-[11px] text-[#5B5F4D]">
                 {bio.length}/280 — shown publicly on your library + cover profile.
               </span>
               <button
@@ -2057,14 +2057,14 @@ export default function Account() {
         {/* Username (public handle) */}
         <section className="shelf-card p-6 mb-6" data-testid="username-card">
           <h2 className="font-serif text-2xl text-[#2C2C2C] mb-1">Public handle</h2>
-          <p className="text-sm text-[#6B705C] mb-4">
+          <p className="text-sm text-[#5B5F4D] mb-4">
             Your <code className="bg-[#F5F3EC] px-1 py-0.5 rounded text-[12px]">@username</code> is how friends find you and how you show up across the app. Lowercase letters, numbers, and underscores — 3 to 20 characters.
           </p>
           {profile.username ? (
             <p className="text-sm text-[#2C2C2C] mb-4">
               Current: <strong className="font-mono" data-testid="current-username">@{profile.username}</strong>
               {profile.previous_username && (
-                <span className="text-[#6B705C]">
+                <span className="text-[#5B5F4D]">
                   {" "}(was <code className="font-mono" data-testid="previous-username">@{profile.previous_username}</code>
                   {" "}—{" "}
                   <button
@@ -2088,7 +2088,7 @@ export default function Account() {
           )}
           <form onSubmit={saveUsername} className="space-y-2">
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#6B705C] text-sm">@</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5B5F4D] text-sm">@</span>
               <input
                 data-testid="username-input"
                 type="text"
@@ -2135,7 +2135,7 @@ export default function Account() {
               </div>
               <div className="min-w-0">
                 <h2 className="font-serif text-xl sm:text-2xl text-[#2C2C2C]">Email preferences</h2>
-                <p className="text-sm text-[#6B705C] mt-0.5">
+                <p className="text-sm text-[#5B5F4D] mt-0.5">
                   Manage your weekly digest, fic-update alerts, and yearly recap — all in one place.
                 </p>
               </div>
@@ -2177,7 +2177,7 @@ export default function Account() {
             </div>
             <div>
               <h2 className="font-serif text-2xl text-[#2C2C2C]">Fanfic download options</h2>
-              <p className="text-sm text-[#6B705C] mt-0.5">
+              <p className="text-sm text-[#5B5F4D] mt-0.5">
                 Tweak how Shelfsort builds EPUBs from AO3, FFN, SpaceBattles and the
                 other 100+ supported sites. Applies to every refresh from now on —
                 existing copies stay untouched.
@@ -2186,7 +2186,7 @@ export default function Account() {
           </div>
 
           {fff === null ? (
-            <p className="text-sm text-[#6B705C] mt-4">Loading…</p>
+            <p className="text-sm text-[#5B5F4D] mt-4">Loading…</p>
           ) : (
             <div className="mt-5 space-y-3">
               {[
@@ -2222,7 +2222,7 @@ export default function Account() {
                 >
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-[#2C2C2C]">{opt.title}</p>
-                    <p className="text-xs text-[#6B705C] mt-0.5">{opt.blurb}</p>
+                    <p className="text-xs text-[#5B5F4D] mt-0.5">{opt.blurb}</p>
                   </div>
                   <button
                     type="button"
@@ -2263,7 +2263,7 @@ export default function Account() {
                   )}
                   {applyingTpl ? "Working…" : "Apply template to all my books"}
                 </button>
-                <p className="text-xs text-[#6B705C]">
+                <p className="text-xs text-[#5B5F4D]">
                   Retroactively adds the intro page + house stylesheet to every existing EPUB. Idempotent.
                 </p>
               </div>
@@ -2282,7 +2282,7 @@ export default function Account() {
                   )}
                   {tidyingNames ? "Working…" : "Tidy filenames"}
                 </button>
-                <p className="text-xs text-[#6B705C]">
+                <p className="text-xs text-[#5B5F4D]">
                   Renames display filenames to <span className="font-mono text-[10px]">Title_by_Author-id.epub</span>.
                 </p>
               </div>
@@ -2296,12 +2296,12 @@ export default function Account() {
           <h2 className="font-serif text-2xl text-[#2C2C2C] mb-1">Password</h2>
           {profile.has_password ? (
             <>
-              <p className="text-sm text-[#6B705C] mb-5">
+              <p className="text-sm text-[#5B5F4D] mb-5">
                 Change the password you use to sign in.
               </p>
               <form onSubmit={changePw} className="space-y-3">
                 <div className="relative">
-                  <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#6B705C]" />
+                  <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#5B5F4D]" />
                   <input
                     data-testid="current-pw-input"
                     type="password"
@@ -2314,7 +2314,7 @@ export default function Account() {
                   />
                 </div>
                 <div className="relative">
-                  <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#6B705C]" />
+                  <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#5B5F4D]" />
                   <input
                     data-testid="new-pw-input"
                     type="password"
@@ -2328,7 +2328,7 @@ export default function Account() {
                   />
                 </div>
                 <div className="relative">
-                  <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#6B705C]" />
+                  <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#5B5F4D]" />
                   <input
                     data-testid="confirm-pw-input"
                     type="password"
@@ -2353,7 +2353,7 @@ export default function Account() {
               </form>
             </>
           ) : (
-            <p className="text-sm text-[#6B705C]">
+            <p className="text-sm text-[#5B5F4D]">
               This account uses Google sign-in. Use{" "}
               <button
                 type="button"
@@ -2375,7 +2375,7 @@ export default function Account() {
             </div>
             <div className="flex-1">
               <h2 className="font-serif text-2xl text-[#2C2C2C]">Duplicate handling</h2>
-              <p className="text-sm text-[#6B705C] mt-1">
+              <p className="text-sm text-[#5B5F4D] mt-1">
                 When an upload matches a book already on your shelves, what should happen by default?
               </p>
             </div>
@@ -2414,7 +2414,7 @@ export default function Account() {
                 } ${savingDupePolicy ? "opacity-60" : ""}`}
               >
                 <div className="font-medium text-sm text-[#2C2C2C]">{opt.label}</div>
-                <p className="text-xs text-[#6B705C] mt-0.5">{opt.desc}</p>
+                <p className="text-xs text-[#5B5F4D] mt-0.5">{opt.desc}</p>
               </button>
             ))}
           </div>
@@ -2430,7 +2430,7 @@ export default function Account() {
             </div>
             <div className="flex-1">
               <h2 className="font-serif text-2xl text-[#2C2C2C]">Non-EPUB upload preferences</h2>
-              <p className="text-sm text-[#6B705C] mt-1">
+              <p className="text-sm text-[#5B5F4D] mt-1">
                 EPUBs always upload silently. For everything else, Shelfsort
                 <strong className="font-medium"> never auto-converts</strong> — every
                 non-EPUB upload prompts you per format group (Convert to EPUB · Keep
@@ -2457,7 +2457,7 @@ export default function Account() {
                 >
                   <div className="min-w-[140px]">
                     <div className="text-sm font-medium text-[#2C2C2C]">{grp.label}</div>
-                    <div className="text-xs text-[#6B705C] font-mono">{grp.exts}</div>
+                    <div className="text-xs text-[#5B5F4D] font-mono">{grp.exts}</div>
                   </div>
                   <div className="flex gap-1.5" role="radiogroup" aria-label={`${grp.label} preference`}>
                     {[
@@ -2486,7 +2486,7 @@ export default function Account() {
                         className={`px-3 py-1 rounded-full text-xs font-medium transition ${
                           cur === opt.val
                             ? "bg-[#E07A5F] text-white"
-                            : "bg-[#FDF3E1] text-[#6B705C] hover:bg-[#E07A5F]/10 hover:text-[#E07A5F]"
+                            : "bg-[#FDF3E1] text-[#5B5F4D] hover:bg-[#E07A5F]/10 hover:text-[#E07A5F]"
                         } ${savingFormatPrefs ? "opacity-60" : ""}`}
                       >
                         {opt.label}
@@ -2507,7 +2507,7 @@ export default function Account() {
             </div>
             <div className="flex-1">
               <h2 className="font-serif text-2xl text-[#2C2C2C]">Polish my library</h2>
-              <p className="text-sm text-[#6B705C] mt-1">
+              <p className="text-sm text-[#5B5F4D] mt-1">
                 Scan for books whose title still looks like a filename or whose author is&nbsp;
                 <em>Unknown</em>, and suggest cleaner values inferred from the file or source URL.
                 You preview every change before applying — corrections are written into the EPUB
@@ -2540,11 +2540,11 @@ export default function Account() {
                   {dupeCount.total_groups} possible duplicate group{dupeCount.total_groups === 1 ? "" : "s"} found across {dupeCount.total_dupe_books} books.
                 </p>
               ) : dupeCount && dupeCount.total_groups === 0 ? (
-                <p data-testid="find-duplicates-count" className="text-sm text-[#6B705C] mt-1">
+                <p data-testid="find-duplicates-count" className="text-sm text-[#5B5F4D] mt-1">
                   No duplicates spotted right now.
                 </p>
               ) : (
-                <p className="text-sm text-[#6B705C] mt-1">
+                <p className="text-sm text-[#5B5F4D] mt-1">
                   Scan your library for books that share a title, source URL, or fanfic permalink — pick a keeper, archive or delete the rest.
                 </p>
               )}
@@ -2569,7 +2569,7 @@ export default function Account() {
             </div>
             <div className="flex-1">
               <h2 className="font-serif text-2xl text-[#2C2C2C]">Merge crossover fandoms</h2>
-              <p className="text-sm text-[#6B705C] mt-1">
+              <p className="text-sm text-[#5B5F4D] mt-1">
                 Books tagged &ldquo;Harry Potter &amp; Twilight&rdquo; and &ldquo;Twilight/Harry Potter&rdquo; will be unified
                 into the same canonical shelf (&ldquo;Harry Potter / Twilight&rdquo;). New uploads do this
                 automatically — this is for cleaning up older imports.
@@ -2620,7 +2620,7 @@ export default function Account() {
             </div>
             <div>
               <h2 className="font-serif text-2xl text-[#2C2C2C]">Reset library state</h2>
-              <p className="text-sm text-[#6B705C] mt-0.5">
+              <p className="text-sm text-[#5B5F4D] mt-0.5">
                 Wipe selected metadata while keeping every book + EPUB intact.
                 Useful when sharing/cloning a library without your private reading habits.
               </p>
@@ -2646,7 +2646,7 @@ export default function Account() {
                 />
                 <div>
                   <p className="text-sm font-semibold text-[#2C2C2C]">{opt.label}</p>
-                  <p className="text-xs text-[#6B705C]">{opt.blurb}</p>
+                  <p className="text-xs text-[#5B5F4D]">{opt.blurb}</p>
                 </div>
               </label>
             ))}
@@ -2674,7 +2674,7 @@ export default function Account() {
             </div>
             <div>
               <h2 className="font-serif text-2xl text-[#2C2C2C]">Danger zone</h2>
-              <p className="text-sm text-[#6B705C] mt-0.5">
+              <p className="text-sm text-[#5B5F4D] mt-0.5">
                 Permanently delete every book in your library. EPUBs, covers,
                 reading history, smart shelves, and custom categories all go.
                 Your account stays — only the books are wiped. <strong>This cannot be undone.</strong>
@@ -2706,7 +2706,7 @@ export default function Account() {
             </div>
             <div>
               <h2 className="font-serif text-2xl text-[#2C2C2C]">Delete account permanently</h2>
-              <p className="text-sm text-[#6B705C] mt-0.5">
+              <p className="text-sm text-[#5B5F4D] mt-0.5">
                 Schedules your account for deletion in <strong>30 days</strong>. You&apos;ll be signed out immediately, but books and files are kept untouched during the grace window — sign back in any time during those 30 days to cancel. After day 30, everything is purged: login credentials, profile, library, files, reading history, smart shelves, custom categories, sessions. <strong>No undo after day 30.</strong>
               </p>
             </div>

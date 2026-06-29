@@ -63,7 +63,7 @@ export default function TagCloudPage() {
         <button
           onClick={() => navigate("/library")}
           data-testid="back-to-library"
-          className="flex items-center gap-2 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-6"
+          className="flex items-center gap-2 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-6"
         >
           <ArrowLeft className="w-4 h-4" /> Back to library
         </button>
@@ -76,7 +76,7 @@ export default function TagCloudPage() {
             <h1 className="font-serif text-4xl sm:text-5xl text-[#2C2C2C]" data-testid="tag-cloud-title">
               Your library, by the tag.
             </h1>
-            <p className="text-[#6B705C] mt-3">
+            <p className="text-[#5B5F4D] mt-3">
               {loading
                 ? "Counting…"
                 : tags.length === 0
@@ -96,7 +96,7 @@ export default function TagCloudPage() {
         {tags.length > 0 && (
           <div className="flex items-center gap-3 mb-8 flex-wrap">
             <div className="relative flex-1 min-w-[220px] max-w-md">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#6B705C]" />
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#5B5F4D]" />
               <input
                 type="text"
                 data-testid="tag-search"
@@ -107,7 +107,7 @@ export default function TagCloudPage() {
               />
             </div>
             <div className="flex items-center gap-2 text-sm">
-              <span className="text-xs uppercase tracking-wider text-[#6B705C] font-semibold">Sort</span>
+              <span className="text-xs uppercase tracking-wider text-[#5B5F4D] font-semibold">Sort</span>
               <select
                 data-testid="tag-sort"
                 value={sort}
@@ -122,14 +122,14 @@ export default function TagCloudPage() {
         )}
 
         {loading ? (
-          <p className="text-[#6B705C] py-12 text-center">Loading…</p>
+          <p className="text-[#5B5F4D] py-12 text-center">Loading…</p>
         ) : filtered.length === 0 ? (
           <div className="shelf-card p-12 text-center">
             <TagIcon className="w-10 h-10 text-[#E07A5F] mx-auto mb-4 opacity-70" />
             <h2 className="font-serif text-2xl text-[#2C2C2C] mb-2">
               {search ? "No tags match your search" : "No tags yet"}
             </h2>
-            <p className="text-[#6B705C] mb-6 max-w-md mx-auto">
+            <p className="text-[#5B5F4D] mb-6 max-w-md mx-auto">
               {search
                 ? "Try a different search term."
                 : "Open any book and add a few tags — or let the AI classifier suggest them on upload."}

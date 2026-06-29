@@ -105,7 +105,7 @@ function EntryCard({ entry, expanded, onToggle, onCopyLink }) {
       className="shelf-card p-4 scroll-mt-20"
     >
       <header className="flex items-start gap-3 mb-2">
-        <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.18em] text-[#6B705C] font-semibold">
+        <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.18em] text-[#5B5F4D] font-semibold">
           <Calendar className="w-3 h-3" />
           {formatDate(entry.date, entry.suffix)}
         </div>
@@ -113,7 +113,7 @@ function EntryCard({ entry, expanded, onToggle, onCopyLink }) {
         <button
           type="button"
           onClick={() => onCopyLink(entry.slug)}
-          className="inline-flex items-center gap-1 text-[11px] text-[#6B705C] hover:text-[#6B46C1] px-1.5 py-0.5 rounded hover:bg-[#FBFAF6]"
+          className="inline-flex items-center gap-1 text-[11px] text-[#5B5F4D] hover:text-[#6B46C1] px-1.5 py-0.5 rounded hover:bg-[#FBFAF6]"
           title="Copy link to this entry"
           data-testid={`whats-new-copy-${entry.slug}`}
         >
@@ -208,7 +208,7 @@ export default function WhatsNewFeed() {
       <header className="flex items-center gap-2 mb-3">
         <Sparkles className="w-4 h-4 text-[#6B46C1]" aria-hidden="true" />
         <h2 className="font-serif text-xl text-[#2C2C2C]">What&apos;s new in Shelfsort</h2>
-        <span className="text-[11px] text-[#6B705C] ml-1">
+        <span className="text-[11px] text-[#5B5F4D] ml-1">
           {data?.total ? `(${data.total} total)` : ""}
         </span>
         <div className="flex-1" />
@@ -216,7 +216,7 @@ export default function WhatsNewFeed() {
           type="button"
           onClick={() => load(limit)}
           disabled={loading}
-          className="inline-flex items-center gap-1 text-[11px] text-[#6B705C] hover:text-[#6B46C1] px-2 py-1 rounded hover:bg-white disabled:opacity-50"
+          className="inline-flex items-center gap-1 text-[11px] text-[#5B5F4D] hover:text-[#6B46C1] px-2 py-1 rounded hover:bg-white disabled:opacity-50"
           data-testid="whats-new-refresh"
           title="Re-parse CHANGELOG.md (cache TTL 5 min)"
         >
@@ -235,13 +235,13 @@ export default function WhatsNewFeed() {
       ) : null}
 
       {loading && !data ? (
-        <p data-testid="whats-new-loading" className="text-sm text-[#6B705C] py-4">
+        <p data-testid="whats-new-loading" className="text-sm text-[#5B5F4D] py-4">
           Loading changelog…
         </p>
       ) : null}
 
       {data?.entries?.length === 0 ? (
-        <p className="text-sm text-[#6B705C] py-4">
+        <p className="text-sm text-[#5B5F4D] py-4">
           No entries parsed from CHANGELOG.md — check the file format.
         </p>
       ) : null}
@@ -264,7 +264,7 @@ export default function WhatsNewFeed() {
             type="button"
             onClick={() => setLimit(20)}
             disabled={limit >= 20}
-            className="text-[12px] text-[#6B46C1] hover:underline disabled:text-[#6B705C] disabled:no-underline disabled:cursor-default"
+            className="text-[12px] text-[#6B46C1] hover:underline disabled:text-[#5B5F4D] disabled:no-underline disabled:cursor-default"
             data-testid="whats-new-load-more"
           >
             {limit >= 20

@@ -33,12 +33,12 @@ function formatRelative(iso) {
 function Stat({ icon, label, value, sub, testid }) {
   return (
     <div className="flex flex-col" data-testid={testid}>
-      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-[#6B705C] mb-1">
+      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-[#5B5F4D] mb-1">
         {icon}
         {label}
       </div>
       <span className="font-serif text-2xl text-[#2C2C2C] leading-tight">{value}</span>
-      {sub && <span className="text-xs text-[#6B705C] mt-0.5">{sub}</span>}
+      {sub && <span className="text-xs text-[#5B5F4D] mt-0.5">{sub}</span>}
     </div>
   );
 }
@@ -82,9 +82,9 @@ export default function ReadingStatsCard({ bookId }) {
         >
           <Clock className="h-4 w-4 text-[#B87A00] mt-0.5 flex-shrink-0" />
           <p className="text-sm text-[#2C2C2C] leading-snug">
-            <span className="italic text-[#6B705C]">At your current pace,</span>{" "}
+            <span className="italic text-[#5B5F4D]">At your current pace,</span>{" "}
             <span className="font-semibold">about {formatDuration(stats.estimated_minutes_left)} left</span>{" "}
-            <span className="text-[#6B705C]">
+            <span className="text-[#5B5F4D]">
               to finish ({Math.round(stats.progress_fraction * 100)}% done).
             </span>
           </p>
@@ -122,11 +122,11 @@ export default function ReadingStatsCard({ bookId }) {
           rows from before per-book tracking) fall back to a small green stub. */}
       <div data-testid="reading-stats-sparkline">
         <div className="flex items-center justify-between mb-2">
-          <p className="text-[10px] uppercase tracking-widest text-[#6B705C]">
+          <p className="text-[10px] uppercase tracking-widest text-[#5B5F4D]">
             Last 30 days
           </p>
           {stats.sparkline_max_minutes > 0 && (
-            <p className="text-[10px] text-[#6B705C]">
+            <p className="text-[10px] text-[#5B5F4D]">
               busiest day: <span className="font-semibold text-[#6B46C1]">{formatDuration(stats.sparkline_max_minutes)}</span>
             </p>
           )}

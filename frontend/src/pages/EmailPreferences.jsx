@@ -92,7 +92,7 @@ function ChannelCard({
         </div>
         <div className="flex-1 min-w-0">
           <h2 className="font-serif text-2xl text-[#2C2C2C]">{title}</h2>
-          <p className="text-sm text-[#6B705C] mt-0.5">{subtitle}</p>
+          <p className="text-sm text-[#5B5F4D] mt-0.5">{subtitle}</p>
         </div>
       </div>
 
@@ -103,7 +103,7 @@ function ChannelCard({
               {enabled ? "On" : "Off"}
             </p>
             {lastSent && (
-              <p className="text-xs text-[#6B705C]">
+              <p className="text-xs text-[#5B5F4D]">
                 Last sent {new Date(lastSent).toLocaleString()}
               </p>
             )}
@@ -497,11 +497,11 @@ export default function EmailPreferences() {
           data-testid="emails-sender-info"
         >
           <div className="flex-1">
-            <p className="text-xs uppercase tracking-widest text-[#6B705C] mb-1">
+            <p className="text-xs uppercase tracking-widest text-[#5B5F4D] mb-1">
               Your inbox
             </p>
             <p className="text-sm text-[#2C2C2C] font-semibold">{email}</p>
-            <p className="text-xs text-[#6B705C] mt-1">
+            <p className="text-xs text-[#5B5F4D] mt-1">
               Sent from <span className="font-mono">{sender_email}</span>
             </p>
           </div>
@@ -571,7 +571,7 @@ export default function EmailPreferences() {
                 )}
                 Send a sample
               </button>
-              <p className="text-xs text-[#6B705C]">
+              <p className="text-xs text-[#5B5F4D]">
                 Preview the layout without waiting for Friday.
               </p>
             </>
@@ -582,7 +582,7 @@ export default function EmailPreferences() {
               ✓ Consolidated mode is on. The kind-specific email toggles below are paused — only the Friday summary will go out.
             </div>
           ) : (
-            <p className="text-xs text-[#6B705C] italic">
+            <p className="text-xs text-[#5B5F4D] italic">
               Off — you&rsquo;ll receive each kind-specific email below independently.
             </p>
           )}
@@ -616,7 +616,7 @@ export default function EmailPreferences() {
                 )}
                 Send a sample
               </button>
-              <p className="text-xs text-[#6B705C]">
+              <p className="text-xs text-[#5B5F4D]">
                 Preview the layout without waiting for Sunday.
               </p>
             </>
@@ -628,7 +628,7 @@ export default function EmailPreferences() {
             }`}
           >
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wider text-[#6B705C] mb-1 block flex items-center gap-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wider text-[#5B5F4D] mb-1 block flex items-center gap-1.5">
                 <Calendar className="w-3 h-3" /> Day of week
               </label>
               <Select
@@ -650,7 +650,7 @@ export default function EmailPreferences() {
               </Select>
             </div>
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wider text-[#6B705C] mb-1 block">
+              <label className="text-xs font-semibold uppercase tracking-wider text-[#5B5F4D] mb-1 block">
                 Time (UTC)
               </label>
               <Select
@@ -703,7 +703,7 @@ export default function EmailPreferences() {
                 )}
                 Send a sample
               </button>
-              <p className="text-xs text-[#6B705C]">
+              <p className="text-xs text-[#5B5F4D]">
                 {fic_updates.refreshed_book_count > 0
                   ? `Uses your ${Math.min(fic_updates.refreshed_book_count, 10)} most-recently refreshed fic${fic_updates.refreshed_book_count === 1 ? "" : "s"}.`
                   : "Refresh a fanfic first to enable the sample preview."}
@@ -736,7 +736,7 @@ export default function EmailPreferences() {
                 {sendingDigestPreview ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                 Send sample (in-app + email)
               </button>
-              <p className="text-xs text-[#6B705C]">{from_friends?.note}</p>
+              <p className="text-xs text-[#5B5F4D]">{from_friends?.note}</p>
             </>
           }
         />
@@ -765,7 +765,7 @@ export default function EmailPreferences() {
                 {sendingDigestPreview ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                 Send sample email
               </button>
-              <p className="text-xs text-[#6B705C]">{bookclub_digest?.note}</p>
+              <p className="text-xs text-[#5B5F4D]">{bookclub_digest?.note}</p>
             </>
           }
         >
@@ -775,7 +775,7 @@ export default function EmailPreferences() {
               backend/routes/bookclubs.py :: _user_recently_engaged. */}
           <div
             data-testid="bookclub-digest-engagement-hint"
-            className="flex items-start gap-2 text-xs text-[#6B705C] bg-[#FBFAF6] border border-[#E8E6E1] rounded-lg p-3"
+            className="flex items-start gap-2 text-xs text-[#5B5F4D] bg-[#FBFAF6] border border-[#E8E6E1] rounded-lg p-3"
             title="The weekly digest pauses automatically after 28 days of silence. Post a message or update your progress to resume."
           >
             <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-[#6B46C1]" />
@@ -796,13 +796,13 @@ export default function EmailPreferences() {
           subtitle="A once-a-year wrap-up of your reading, automatically emailed every January 1st."
           testidPrefix="year-recap"
         >
-          <div className="p-4 rounded-xl bg-[#FBFAF6] border border-[#E8E6E1] text-sm text-[#6B705C]">
+          <div className="p-4 rounded-xl bg-[#FBFAF6] border border-[#E8E6E1] text-sm text-[#5B5F4D]">
             <p className="text-[#2C2C2C] mb-2 font-semibold">
               {year_recap.enabled ? "On — tied to your weekly digest" : "Off — turn on the weekly digest to enable"}
             </p>
             <p>{year_recap.note}</p>
             {year_recap.last_year_sent && (
-              <p className="mt-2 text-xs text-[#6B705C]">
+              <p className="mt-2 text-xs text-[#5B5F4D]">
                 Last recap sent for year {year_recap.last_year_sent}.
               </p>
             )}
@@ -839,7 +839,7 @@ export default function EmailPreferences() {
                   {sendingOperatorPreview ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                   Send sample email
                 </button>
-                <p className="text-xs text-[#6B705C]">Reuses the data behind your Admin Console analytics widget.</p>
+                <p className="text-xs text-[#5B5F4D]">Reuses the data behind your Admin Console analytics widget.</p>
               </>
             }
           />
@@ -872,12 +872,12 @@ export default function EmailPreferences() {
             <span className="w-1.5 h-1.5 rounded-full bg-[#6B46C1]" />
             New &middot; choose which emails you actually want
           </div>
-          <p className="text-sm text-[#6B705C] mb-4">
+          <p className="text-sm text-[#5B5F4D] mb-4">
             Choose which kinds of one-off emails you want. Turning any off swaps that email
             for an in-app notification so you still see it next time you open Shelfsort.
           </p>
           {!emailKindPrefs ? (
-            <p className="text-sm text-[#6B705C]" data-testid="account-updates-loading">
+            <p className="text-sm text-[#5B5F4D]" data-testid="account-updates-loading">
               Loading your preferences…
             </p>
           ) : (
@@ -897,7 +897,7 @@ export default function EmailPreferences() {
                   <li key={kind} className="py-3 flex items-start gap-3" data-testid={`account-updates-row-${kind}`}>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-[#2C2C2C]">{label}</p>
-                      <p className="text-xs text-[#6B705C] mt-0.5">{sub}</p>
+                      <p className="text-xs text-[#5B5F4D] mt-0.5">{sub}</p>
                     </div>
                     <ToggleSwitch
                       checked={on}

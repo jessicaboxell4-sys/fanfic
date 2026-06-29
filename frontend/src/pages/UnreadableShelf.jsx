@@ -96,7 +96,7 @@ export default function UnreadableShelf() {
         <button
           onClick={() => navigate("/library")}
           data-testid="unreadable-back"
-          className="flex items-center gap-2 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-6"
+          className="flex items-center gap-2 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-6"
         >
           <ArrowLeft className="w-4 h-4" /> Back to library
         </button>
@@ -107,7 +107,7 @@ export default function UnreadableShelf() {
           </div>
           <div>
             <h1 className="font-serif text-3xl text-[#2C2C2C]">Unreadable files</h1>
-            <p className="text-sm text-[#6B705C] mt-1 max-w-2xl">
+            <p className="text-sm text-[#5B5F4D] mt-1 max-w-2xl">
               Books we couldn&apos;t parse at upload time. The original bytes are still on disk — download a copy to inspect it locally, or delete it if you don&apos;t want to keep it.
             </p>
           </div>
@@ -117,7 +117,7 @@ export default function UnreadableShelf() {
         <div className="shelf-card p-5 mb-6 flex flex-wrap items-center gap-4" data-testid="unreadable-summary">
           <div className="flex-shrink-0">
             <div className="font-serif text-3xl text-[#2C2C2C]" data-testid="unreadable-count">{books.length}</div>
-            <div className="text-xs text-[#6B705C] uppercase tracking-wide">unreadable file{books.length === 1 ? "" : "s"}</div>
+            <div className="text-xs text-[#5B5F4D] uppercase tracking-wide">unreadable file{books.length === 1 ? "" : "s"}</div>
           </div>
           {books.length > 0 && (
             <div className="flex flex-wrap gap-2 items-center" data-testid="unreadable-by-reason">
@@ -150,7 +150,7 @@ export default function UnreadableShelf() {
         </div>
 
         <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B705C]" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#5B5F4D]" />
           <input
             type="search"
             data-testid="unreadable-search"
@@ -162,9 +162,9 @@ export default function UnreadableShelf() {
         </div>
 
         {loading ? (
-          <p className="text-[#6B705C] italic text-sm">Loading…</p>
+          <p className="text-[#5B5F4D] italic text-sm">Loading…</p>
         ) : filtered.length === 0 ? (
-          <div className="shelf-card p-8 text-center text-[#6B705C]">
+          <div className="shelf-card p-8 text-center text-[#5B5F4D]">
             {books.length === 0 ? (
               <>
                 <FileWarning className="w-10 h-10 mx-auto mb-3 text-[#6B46C1]" />
@@ -205,7 +205,7 @@ export default function UnreadableShelf() {
                         </span>
                       )}
                     </div>
-                    <div className="text-xs text-[#6B705C] truncate">
+                    <div className="text-xs text-[#5B5F4D] truncate">
                       {b.author || "Unknown"} · {b.filename}
                       {b.size_bytes ? <> · {formatBytes(b.size_bytes)}</> : null}
                     </div>

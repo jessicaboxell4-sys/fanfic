@@ -41,7 +41,7 @@ export default function FandomDiscoveryPage() {
     return (
       <div className="min-h-screen bg-paper">
         <Navbar />
-        <main className="max-w-3xl mx-auto px-4 sm:px-6 py-12 text-center text-[#6B705C]">
+        <main className="max-w-3xl mx-auto px-4 sm:px-6 py-12 text-center text-[#5B5F4D]">
           <Loader2 className="w-8 h-8 mx-auto mb-3 opacity-50 animate-spin" />
           Loading…
         </main>
@@ -55,11 +55,11 @@ export default function FandomDiscoveryPage() {
         <Navbar />
         <main className="max-w-2xl mx-auto px-4 sm:px-6 py-12">
           <div className="shelf-card p-10 text-center" data-testid="fandom-discovery-not-found">
-            <Library className="w-10 h-10 mx-auto mb-4 text-[#6B705C] opacity-60" />
+            <Library className="w-10 h-10 mx-auto mb-4 text-[#5B5F4D] opacity-60" />
             <h1 className="font-serif text-2xl text-[#2C2C2C] mb-2">
               Fandom not found
             </h1>
-            <p className="text-sm text-[#6B705C] mb-6">
+            <p className="text-sm text-[#5B5F4D] mb-6">
               No public libraries match this fandom yet.
             </p>
             <Link
@@ -81,7 +81,7 @@ export default function FandomDiscoveryPage() {
         className="max-w-3xl mx-auto px-4 sm:px-6 py-8 md:py-12 fade-in"
         data-testid="fandom-discovery-page"
       >
-        <Link to="/users" className="inline-flex items-center gap-1 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-6">
+        <Link to="/users" className="inline-flex items-center gap-1 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-6">
           <ArrowLeft className="w-4 h-4" /> Reader directory
         </Link>
 
@@ -95,7 +95,7 @@ export default function FandomDiscoveryPage() {
           >
             {data.fandom}
           </h1>
-          <p className="text-[#6B705C] mt-3 text-base sm:text-lg">
+          <p className="text-[#5B5F4D] mt-3 text-base sm:text-lg">
             <span className="font-semibold text-[#2C2C2C]" data-testid="fandom-discovery-count">
               {data.total}
             </span>{" "}
@@ -104,7 +104,7 @@ export default function FandomDiscoveryPage() {
         </header>
 
         {data.users.length === 0 ? (
-          <div className="shelf-card p-10 text-center text-[#6B705C]" data-testid="fandom-discovery-empty">
+          <div className="shelf-card p-10 text-center text-[#5B5F4D]" data-testid="fandom-discovery-empty">
             <Library className="w-8 h-8 mx-auto mb-3 opacity-60" />
             Nobody has shared a public library with this fandom yet.
           </div>
@@ -128,11 +128,11 @@ export default function FandomDiscoveryPage() {
                 )}
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold text-[#2C2C2C] truncate">@{u.username}</p>
-                  <p className="text-xs text-[#6B705C]">
+                  <p className="text-xs text-[#5B5F4D]">
                     <span className="font-semibold text-[#2C2C2C]">{u.books_in_fandom}</span>{" "}
                     {u.books_in_fandom === 1 ? "book" : "books"} in {data.fandom}
                   </p>
-                  {u.bio ? <p className="text-xs text-[#6B705C] italic mt-1 line-clamp-1">&ldquo;{u.bio}&rdquo;</p> : null}
+                  {u.bio ? <p className="text-xs text-[#5B5F4D] italic mt-1 line-clamp-1">&ldquo;{u.bio}&rdquo;</p> : null}
                 </div>
                 <Link
                   to={`/u/${u.username}/library`}

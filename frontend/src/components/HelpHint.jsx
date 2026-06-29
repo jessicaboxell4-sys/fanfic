@@ -15,7 +15,7 @@ export default function HelpHint({ section, label = "Help", testId = "help-hint"
       to={to}
       data-testid={testId}
       title={`Open Shelfsort help${section ? ` · ${section}` : ""}`}
-      className="inline-flex items-center gap-1 text-xs text-[#6B705C] hover:text-[#E07A5F] underline-offset-2 hover:underline"
+      className="inline-flex items-center gap-1 text-xs text-[#5B5F4D] hover:text-[#E07A5F] underline-offset-2 hover:underline"
     >
       <HelpCircle className="w-3.5 h-3.5" />
       <span>{label}</span>

@@ -42,14 +42,14 @@ function SaveAsShelfModal({ open, name, setName, pinned, setPinned, onCancel, on
           </div>
           <div className="flex-1">
             <h2 className="font-serif text-xl text-[#2C2C2C] leading-tight">Save as Smart Shelf</h2>
-            <p className="text-xs text-[#6B705C] mt-1">Filter rules from the active AO3 chips will become this shelf&apos;s query.</p>
+            <p className="text-xs text-[#5B5F4D] mt-1">Filter rules from the active AO3 chips will become this shelf&apos;s query.</p>
           </div>
           <button
             type="button"
             onClick={onCancel}
             disabled={saving}
             data-testid="ao3-save-shelf-close"
-            className="text-[#6B705C] hover:text-[#2C2C2C] p-1 rounded disabled:opacity-50"
+            className="text-[#5B5F4D] hover:text-[#2C2C2C] p-1 rounded disabled:opacity-50"
             aria-label="Close"
           >
             <XIcon className="w-4 h-4" />
@@ -67,7 +67,7 @@ function SaveAsShelfModal({ open, name, setName, pinned, setPinned, onCancel, on
               data-testid="ao3-save-shelf-name-input"
               className="mt-1 w-full px-3 py-2 rounded-lg border border-[#E8E6E1] bg-white text-sm text-[#2C2C2C] focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/40 focus:border-[#6B46C1]"
             />
-            <span className="text-[10px] text-[#6B705C] mt-1 block">{name.length}/64</span>
+            <span className="text-[10px] text-[#5B5F4D] mt-1 block">{name.length}/64</span>
           </label>
           <label className="flex items-start gap-2.5 cursor-pointer select-none">
             <input
@@ -79,7 +79,7 @@ function SaveAsShelfModal({ open, name, setName, pinned, setPinned, onCancel, on
             />
             <span className="text-sm text-[#2C2C2C]">
               <span className="inline-flex items-center gap-1 font-medium"><Pin className="w-3 h-3" /> Pin to dashboard sidebar</span>
-              <span className="block text-xs text-[#6B705C] mt-0.5">Surfaces this shelf in the &ldquo;Shelves&rdquo; rail on your dashboard for one-click filtering.</span>
+              <span className="block text-xs text-[#5B5F4D] mt-0.5">Surfaces this shelf in the &ldquo;Shelves&rdquo; rail on your dashboard for one-click filtering.</span>
             </span>
           </label>
         </div>
@@ -89,7 +89,7 @@ function SaveAsShelfModal({ open, name, setName, pinned, setPinned, onCancel, on
             onClick={onCancel}
             disabled={saving}
             data-testid="ao3-save-shelf-cancel"
-            className="px-3 py-1.5 text-sm rounded-lg text-[#6B705C] hover:bg-[#EDE7FB] disabled:opacity-50"
+            className="px-3 py-1.5 text-sm rounded-lg text-[#5B5F4D] hover:bg-[#EDE7FB] disabled:opacity-50"
           >
             Cancel
           </button>
@@ -201,7 +201,7 @@ export default function Ao3FilterChips({ value, onChange, onShelfSaved }) {
           {/* Rating */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-medium text-[#6B705C]">Rating</span>
+              <span className="text-xs font-medium text-[#5B5F4D]">Rating</span>
               {v.rating && <button type="button" onClick={() => clear("rating")} className="text-xs text-[#6B46C1] hover:underline">clear</button>}
             </div>
             <div className="flex flex-wrap gap-1.5">
@@ -227,7 +227,7 @@ export default function Ao3FilterChips({ value, onChange, onShelfSaved }) {
           {/* Category */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-medium text-[#6B705C]">Category</span>
+              <span className="text-xs font-medium text-[#5B5F4D]">Category</span>
               {v.ao3_category && <button type="button" onClick={() => clear("ao3_category")} className="text-xs text-[#6B46C1] hover:underline">clear</button>}
             </div>
             <div className="flex flex-wrap gap-1.5">
@@ -252,7 +252,7 @@ export default function Ao3FilterChips({ value, onChange, onShelfSaved }) {
           {/* Warning - show only */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-medium text-[#6B705C]">Show only books warned for</span>
+              <span className="text-xs font-medium text-[#5B5F4D]">Show only books warned for</span>
               {v.warning && <button type="button" onClick={() => clear("warning")} className="text-xs text-[#6B46C1] hover:underline">clear</button>}
             </div>
             <div className="flex flex-wrap gap-1.5">
@@ -318,7 +318,7 @@ export default function Ao3FilterChips({ value, onChange, onShelfSaved }) {
               <button
                 type="button"
                 onClick={clearAll}
-                className="text-xs text-[#6B705C] hover:text-[#6B46C1] underline inline-flex items-center gap-1"
+                className="text-xs text-[#5B5F4D] hover:text-[#6B46C1] underline inline-flex items-center gap-1"
                 data-testid="ao3-filter-clear-all"
               >
                 <XIcon className="w-3 h-3" /> clear all AO3 filters

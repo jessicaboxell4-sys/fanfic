@@ -77,7 +77,7 @@ export default function CoverOfTheWeekStrip() {
           <Sparkles className="w-3 h-3" />
           Covers of the week
         </p>
-        <span className="text-xs text-[#6B705C]">
+        <span className="text-xs text-[#5B5F4D]">
           Top-voted by readers · last 7 days
         </span>
       </div>
@@ -133,7 +133,7 @@ export default function CoverOfTheWeekStrip() {
                 {c.title || "Untitled"}
               </p>
               {c.author && (
-                <p className="text-[11px] text-[#6B705C] mt-0.5 truncate" title={c.author}>
+                <p className="text-[11px] text-[#5B5F4D] mt-0.5 truncate" title={c.author}>
                   {c.author}
                 </p>
               )}
@@ -147,7 +147,7 @@ export default function CoverOfTheWeekStrip() {
                     "tap-min inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold border transition-colors " +
                     (c.voted_by_me
                       ? "bg-[#B91C1C] text-white border-[#B91C1C]"
-                      : "bg-white text-[#6B705C] border-[#E8E6E1] hover:border-[#B91C1C] hover:text-[#B91C1C]")
+                      : "bg-white text-[#5B5F4D] border-[#E8E6E1] hover:border-[#B91C1C] hover:text-[#B91C1C]")
                   }
                 >
                   <Heart
@@ -157,7 +157,7 @@ export default function CoverOfTheWeekStrip() {
                 </button>
                 <Link
                   to={`/u/${c.shared_by}`}
-                  className="text-[10px] text-[#6B705C] hover:text-[#6B46C1] truncate ml-2"
+                  className="text-[10px] text-[#5B5F4D] hover:text-[#6B46C1] truncate ml-2"
                   title={`See @${c.shared_by}'s covers`}
                   data-testid={`cover-of-week-handle-${c.cover_id}`}
                 >

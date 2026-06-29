@@ -56,7 +56,7 @@ export default function ResetPassword() {
         <div className="max-w-md">
           <BookOpen className="w-12 h-12 text-[#E07A5F] mx-auto mb-4 opacity-70" />
           <h1 className="font-serif text-3xl text-[#2C2C2C] mb-3">Reset link missing</h1>
-          <p className="text-[#6B705C] mb-6">
+          <p className="text-[#5B5F4D] mb-6">
             The reset link you used doesn't include a token. Try requesting a new email.
           </p>
           <Link to="/login" className="btn-primary text-sm">Back to sign-in</Link>
@@ -79,7 +79,7 @@ export default function ResetPassword() {
               <CheckCircle2 className="w-7 h-7" />
             </div>
             <h1 className="font-serif text-3xl text-[#2C2C2C] mb-3">Password updated</h1>
-            <p className="text-[#6B705C]">Taking you to your library…</p>
+            <p className="text-[#5B5F4D]">Taking you to your library…</p>
           </div>
         ) : (
           <>
@@ -87,11 +87,11 @@ export default function ResetPassword() {
               Almost there
             </p>
             <h1 className="font-serif text-4xl text-[#2C2C2C] mb-3">Choose a new password.</h1>
-            <p className="text-[#6B705C] mb-8">At least 8 characters. You'll be signed in once it's saved.</p>
+            <p className="text-[#5B5F4D] mb-8">At least 8 characters. You'll be signed in once it's saved.</p>
 
             <form onSubmit={submit} className="space-y-3">
               <div className="relative">
-                <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#6B705C]" />
+                <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#5B5F4D]" />
                 <input
                   data-testid="reset-password-input"
                   type="password"
@@ -105,7 +105,7 @@ export default function ResetPassword() {
                 />
               </div>
               <div className="relative">
-                <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#6B705C]" />
+                <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#5B5F4D]" />
                 <input
                   data-testid="reset-confirm-input"
                   type="password"

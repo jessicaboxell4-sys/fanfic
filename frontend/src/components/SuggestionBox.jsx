@@ -84,7 +84,7 @@ export default function SuggestionBox({ source = "help-page" }) {
         <Lightbulb className="w-4 h-4 text-[#E07A5F]" />
         <span className="font-semibold">Tell us what would make Shelfsort better</span>
       </p>
-      <p className="text-xs text-[#6B705C] mb-3">
+      <p className="text-xs text-[#5B5F4D] mb-3">
         Bug, feature wish, confusion — anything goes. You can attach a screenshot.
       </p>
       <textarea
@@ -99,7 +99,7 @@ export default function SuggestionBox({ source = "help-page" }) {
       <div className="mt-3 flex items-start justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <label
-            className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[#6B705C] hover:text-[#E07A5F] cursor-pointer"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[#5B5F4D] hover:text-[#E07A5F] cursor-pointer"
             data-testid="help-suggestion-photo-label"
           >
             <Paperclip className="w-3.5 h-3.5" />
@@ -120,7 +120,7 @@ export default function SuggestionBox({ source = "help-page" }) {
                 type="button"
                 onClick={clearPhoto}
                 aria-label="Remove image"
-                className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-white border border-[#E8E6E1] rounded-full flex items-center justify-center text-[#6B705C] hover:text-[#E07A5F]"
+                className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-white border border-[#E8E6E1] rounded-full flex items-center justify-center text-[#5B5F4D] hover:text-[#E07A5F]"
               >
                 <X className="w-3 h-3" />
               </button>
@@ -128,7 +128,7 @@ export default function SuggestionBox({ source = "help-page" }) {
           )}
         </div>
         <div className="flex items-center gap-3 ml-auto">
-          <span className="text-[10px] text-[#6B705C]">{text.length}/2000</span>
+          <span className="text-[10px] text-[#5B5F4D]">{text.length}/2000</span>
           <button
             type="button"
             onClick={submit}

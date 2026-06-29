@@ -29,7 +29,7 @@ export default function BookCohortProgress({ bookId, yourPercent }) {
 
   return (
     <div className="w-full" data-testid={`cohort-progress-${bookId}`}>
-      <div className="flex items-center justify-between text-xs text-[#6B705C] mb-1">
+      <div className="flex items-center justify-between text-xs text-[#5B5F4D] mb-1">
         <span>You: <span className="font-semibold text-[#2C2C2C]">{youPct}%</span></span>
         {cohort !== null && (
           <span

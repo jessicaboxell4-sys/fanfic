@@ -79,7 +79,7 @@ export default function AvRescanNudgeBanner() {
         <ShieldCheck className="w-4 h-4 text-emerald-700 dark:text-emerald-400 flex-shrink-0" aria-hidden="true" />
         <p className="text-xs text-[#2C2C2C] dark:text-zinc-200 flex-1 min-w-0">
           <span className="font-medium">{headline}.</span>{" "}
-          <span className="text-[#6B705C] dark:text-zinc-400">A fresh scan keeps your library reports honest.</span>
+          <span className="text-[#5B5F4D] dark:text-zinc-400">A fresh scan keeps your library reports honest.</span>
         </p>
         <Link
           to="/account/safety"
@@ -93,7 +93,7 @@ export default function AvRescanNudgeBanner() {
           onClick={dismiss}
           data-testid="av-rescan-nudge-dismiss"
           aria-label="Dismiss antivirus nudge"
-          className="p-1 rounded text-[#6B705C] hover:text-[#2C2C2C] hover:bg-[#F0EBDE] dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800 flex-shrink-0"
+          className="p-1 rounded text-[#5B5F4D] hover:text-[#2C2C2C] hover:bg-[#F0EBDE] dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-800 flex-shrink-0"
         >
           <X className="w-3.5 h-3.5" />
         </button>

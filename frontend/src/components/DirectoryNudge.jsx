@@ -39,7 +39,7 @@ export default function DirectoryNudge({ totalBooks }) {
         <p className="text-sm font-semibold text-[#2C2C2C]">
           Find readers you know on Shelfsort.
         </p>
-        <p className="text-xs text-[#6B705C] mt-0.5">
+        <p className="text-xs text-[#5B5F4D] mt-0.5">
           Browse the public reader directory — just usernames, no library peeking.
           Send a friend request and you can swap recommendations and (with their permission) borrow files.
         </p>
@@ -56,7 +56,7 @@ export default function DirectoryNudge({ totalBooks }) {
             type="button"
             onClick={dismiss}
             data-testid="directory-nudge-dismiss-btn"
-            className="text-xs text-[#6B705C] hover:text-[#2C2C2C] font-semibold px-2 py-1"
+            className="text-xs text-[#5B5F4D] hover:text-[#2C2C2C] font-semibold px-2 py-1"
           >
             Not now
           </button>
@@ -67,7 +67,7 @@ export default function DirectoryNudge({ totalBooks }) {
         onClick={dismiss}
         data-testid="directory-nudge-close-btn"
         aria-label="Dismiss"
-        className="text-[#6B705C] hover:text-[#2C2C2C] p-1 flex-shrink-0"
+        className="text-[#5B5F4D] hover:text-[#2C2C2C] p-1 flex-shrink-0"
       >
         <X className="w-4 h-4" />
       </button>

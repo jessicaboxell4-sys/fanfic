@@ -159,20 +159,20 @@ export default function CantFindOnline() {
         <button
           onClick={() => navigate("/library")}
           data-testid="back-to-library"
-          className="flex items-center gap-2 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-6"
+          className="flex items-center gap-2 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-6"
         >
           <ArrowLeft className="w-4 h-4" /> Back to library
         </button>
 
         <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B705C] mb-2">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#5B5F4D] mb-2">
               🔎 Lost &amp; found
             </p>
             <h1 className="font-serif text-4xl sm:text-5xl text-[#2C2C2C] leading-[1.05]" data-testid="page-title">
               Lost & found
             </h1>
-            <p className="text-[#6B705C] mt-3 max-w-xl">
+            <p className="text-[#5B5F4D] mt-3 max-w-xl">
               We couldn't find these online. Try a same-site search to see if the work moved,
               then paste the new URL to bring it back into your refresh queue.
             </p>
@@ -223,7 +223,7 @@ export default function CantFindOnline() {
               <p className="text-sm font-semibold">
                 {status.ok ? "Source fetcher is responding normally" : "Source fetcher is having trouble right now"}
               </p>
-              <p className="text-xs text-[#6B705C] mt-0.5" data-testid="fanfic-status-detail">
+              <p className="text-xs text-[#5B5F4D] mt-0.5" data-testid="fanfic-status-detail">
                 {status.detail}
                 {status.checked_at && (
                   <span className="ml-1">
@@ -233,7 +233,7 @@ export default function CantFindOnline() {
                 )}
               </p>
               {!status.ok && (
-                <p className="text-xs text-[#6B705C] mt-1.5">
+                <p className="text-xs text-[#5B5F4D] mt-1.5">
                   Your library is safe — books are flagged so we don't keep retrying. Once the source fetcher is back, "Retry all" will sweep them back into sync.
                 </p>
               )}
@@ -243,7 +243,7 @@ export default function CantFindOnline() {
               onClick={() => probeStatus(true)}
               disabled={statusLoading}
               data-testid="recheck-status-btn"
-              className="text-xs text-[#6B705C] hover:text-[#2C2C2C] inline-flex items-center gap-1 font-semibold disabled:opacity-60"
+              className="text-xs text-[#5B5F4D] hover:text-[#2C2C2C] inline-flex items-center gap-1 font-semibold disabled:opacity-60"
             >
               {statusLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
               Re-check
@@ -252,12 +252,12 @@ export default function CantFindOnline() {
         )}
 
         {loading ? (
-          <p className="text-[#6B705C] py-12 text-center">Loading…</p>
+          <p className="text-[#5B5F4D] py-12 text-center">Loading…</p>
         ) : books.length === 0 ? (
           <div className="text-center py-16 shelf-card">
             <Book className="w-12 h-12 text-[#6B46C1] mx-auto mb-4 opacity-70" />
             <h2 className="font-serif text-2xl text-[#2C2C2C] mb-2">Nothing's lost</h2>
-            <p className="text-[#6B705C]">Every refreshable book in your library is reachable online.</p>
+            <p className="text-[#5B5F4D]">Every refreshable book in your library is reachable online.</p>
           </div>
         ) : (
           <ul className="space-y-4" data-testid="lost-list">
@@ -284,7 +284,7 @@ export default function CantFindOnline() {
                     <Link to={`/book/${b.book_id}`} className="font-serif text-xl text-[#2C2C2C] hover:text-[#E07A5F] line-clamp-2 leading-tight">
                       {b.title}
                     </Link>
-                    <p className="text-sm text-[#6B705C] mt-0.5">{b.author}</p>
+                    <p className="text-sm text-[#5B5F4D] mt-0.5">{b.author}</p>
                     {b.source_url && (
                       <a
                         href={b.source_url}
@@ -330,7 +330,7 @@ export default function CantFindOnline() {
                         <button
                           type="button"
                           onClick={() => { setEditingId(null); setEditUrl(""); }}
-                          className="text-[#6B705C] hover:text-[#2C2C2C] text-sm px-2"
+                          className="text-[#5B5F4D] hover:text-[#2C2C2C] text-sm px-2"
                         >
                           Cancel
                         </button>

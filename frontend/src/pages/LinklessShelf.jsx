@@ -50,7 +50,7 @@ export default function LinklessShelf() {
         <button
           onClick={() => navigate("/library")}
           data-testid="linkless-back"
-          className="flex items-center gap-2 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-6"
+          className="flex items-center gap-2 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-6"
         >
           <ArrowLeft className="w-4 h-4" /> Back to library
         </button>
@@ -61,7 +61,7 @@ export default function LinklessShelf() {
           </div>
           <div>
             <h1 className="font-serif text-3xl text-[#2C2C2C]">Linkless library</h1>
-            <p className="text-sm text-[#6B705C] mt-1 max-w-2xl">
+            <p className="text-sm text-[#5B5F4D] mt-1 max-w-2xl">
               Books with no embedded source URL — typically hand-curated EPUBs, scanned originals, or imports from sources Shelfsort doesn&apos;t recognize. These never dedupe against a pasted URL list, so it&apos;s worth keeping an eye on them.
             </p>
           </div>
@@ -71,7 +71,7 @@ export default function LinklessShelf() {
         <div className="shelf-card p-5 mb-6 flex flex-wrap items-center gap-4" data-testid="linkless-summary">
           <div className="flex-shrink-0">
             <div className="font-serif text-3xl text-[#2C2C2C]" data-testid="linkless-count">{books.length}</div>
-            <div className="text-xs text-[#6B705C] uppercase tracking-wide">linkless book{books.length === 1 ? "" : "s"}</div>
+            <div className="text-xs text-[#5B5F4D] uppercase tracking-wide">linkless book{books.length === 1 ? "" : "s"}</div>
           </div>
           {Object.keys(byCategory).length > 0 && (
             <div className="flex flex-wrap gap-2 items-center" data-testid="linkless-by-category">
@@ -96,7 +96,7 @@ export default function LinklessShelf() {
         </div>
 
         <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B705C]" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#5B5F4D]" />
           <input
             type="search"
             data-testid="linkless-search"
@@ -108,9 +108,9 @@ export default function LinklessShelf() {
         </div>
 
         {loading ? (
-          <p className="text-[#6B705C] italic text-sm">Loading…</p>
+          <p className="text-[#5B5F4D] italic text-sm">Loading…</p>
         ) : filtered.length === 0 ? (
-          <div className="shelf-card p-8 text-center text-[#6B705C]">
+          <div className="shelf-card p-8 text-center text-[#5B5F4D]">
             {books.length === 0 ? (
               <>
                 <FileText className="w-10 h-10 mx-auto mb-3 text-[#6B46C1]" />
@@ -133,7 +133,7 @@ export default function LinklessShelf() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="font-medium text-[#2C2C2C] truncate">{b.title || "Untitled"}</div>
-                    <div className="text-xs text-[#6B705C] truncate">
+                    <div className="text-xs text-[#5B5F4D] truncate">
                       {b.author || "Unknown author"}
                       {b.fandom && <> · {b.fandom}</>}
                     </div>

@@ -41,7 +41,7 @@ export default function AuthCallback() {
     <div className="min-h-screen flex items-center justify-center bg-paper">
       <div className="text-center">
         <div className="inline-block h-8 w-8 border-2 border-[#E07A5F] border-t-transparent rounded-full animate-spin" />
-        <p className="mt-4 text-[#6B705C] font-serif text-xl">Opening your library…</p>
+        <p className="mt-4 text-[#5B5F4D] font-serif text-xl">Opening your library…</p>
       </div>
     </div>
   );

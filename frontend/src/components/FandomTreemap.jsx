@@ -71,12 +71,12 @@ function ChartTooltip({ active, payload }) {
   return (
     <div className="bg-white border border-[#E5DDC5] rounded-lg px-3 py-2 shadow-md text-sm">
       <div className="font-medium text-[#2C2C2C]">{item.name || "Unsorted"}</div>
-      <div className="text-[#6B705C]">
+      <div className="text-[#5B5F4D]">
         {item.count != null && <>{item.count} book{item.count === 1 ? "" : "s"} · </>}
         {item.pct != null ? item.pct.toFixed(1) + "%" : ""}
       </div>
       {item.children && (
-        <div className="text-xs text-[#6B705C] mt-1">{item.children.length} sub-fandom{item.children.length === 1 ? "" : "s"}</div>
+        <div className="text-xs text-[#5B5F4D] mt-1">{item.children.length} sub-fandom{item.children.length === 1 ? "" : "s"}</div>
       )}
     </div>
   );
@@ -151,7 +151,7 @@ export default function FandomTreemap() {
           </div>
           <div>
             <h2 className="font-serif text-2xl text-[#2C2C2C] leading-tight">Library at a glance</h2>
-            <p className="text-sm text-[#6B705C]">
+            <p className="text-sm text-[#5B5F4D]">
               {total > 0
                 ? <>Your library spans <strong>{flat.length}</strong> fandom{flat.length === 1 ? "" : "s"} across <strong>{total}</strong> book{total === 1 ? "" : "s"}{grouped && franchiseCount > 0 ? <>, grouped into <strong>{franchiseCount}</strong> franchise{franchiseCount === 1 ? "" : "s"}</> : null}.</>
                 : "Upload a few books and your fandom distribution will appear here."}
@@ -165,7 +165,7 @@ export default function FandomTreemap() {
                 onClick={() => setGrouped(true)}
                 data-testid="treemap-mode-grouped"
                 aria-pressed={grouped}
-                className={`px-3 py-1.5 inline-flex items-center gap-1.5 ${grouped ? "bg-[#E07A5F] text-white" : "bg-white text-[#6B705C] hover:bg-[#F5F3EC]"}`}
+                className={`px-3 py-1.5 inline-flex items-center gap-1.5 ${grouped ? "bg-[#E07A5F] text-white" : "bg-white text-[#5B5F4D] hover:bg-[#F5F3EC]"}`}
                 title="Roll up sub-fandoms by franchise"
               >
                 <Layers className="w-3.5 h-3.5" /> Franchises
@@ -174,7 +174,7 @@ export default function FandomTreemap() {
                 onClick={() => setGrouped(false)}
                 data-testid="treemap-mode-flat"
                 aria-pressed={!grouped}
-                className={`px-3 py-1.5 inline-flex items-center gap-1.5 ${!grouped ? "bg-[#E07A5F] text-white" : "bg-white text-[#6B705C] hover:bg-[#F5F3EC]"}`}
+                className={`px-3 py-1.5 inline-flex items-center gap-1.5 ${!grouped ? "bg-[#E07A5F] text-white" : "bg-white text-[#5B5F4D] hover:bg-[#F5F3EC]"}`}
                 title="Show every fandom separately"
               >
                 <ListIcon className="w-3.5 h-3.5" /> All fandoms
@@ -194,11 +194,11 @@ export default function FandomTreemap() {
       </div>
 
       {loading ? (
-        <div className="h-72 flex items-center justify-center text-[#6B705C]">
+        <div className="h-72 flex items-center justify-center text-[#5B5F4D]">
           <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading…
         </div>
       ) : activeRows.length === 0 ? (
-        <div className="h-72 flex items-center justify-center text-[#6B705C] italic text-sm">
+        <div className="h-72 flex items-center justify-center text-[#5B5F4D] italic text-sm">
           No fandom data yet — the treemap fills in as you upload books with detected fandoms.
         </div>
       ) : (
@@ -217,7 +217,7 @@ export default function FandomTreemap() {
             </ResponsiveContainer>
           </div>
           {!grouped && flatRows.otherCount > 0 && (
-            <p className="text-xs text-[#6B705C] mt-2 italic">
+            <p className="text-xs text-[#5B5F4D] mt-2 italic">
               {flatRows.otherCount} smaller fandom{flatRows.otherCount === 1 ? "" : "s"} rolled into &quot;Other&quot; — see Stats for the full breakdown.
             </p>
           )}

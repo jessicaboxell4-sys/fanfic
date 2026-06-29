@@ -41,7 +41,7 @@ export default function TrendingBooksStrip({ limit = 8, days = 7 }) {
 
   if (loading) {
     return (
-      <div className="py-6 text-center text-[#6B705C]" data-testid="trending-books-loading">
+      <div className="py-6 text-center text-[#5B5F4D]" data-testid="trending-books-loading">
         <Loader2 className="w-5 h-5 animate-spin mx-auto opacity-60" />
       </div>
     );
@@ -82,7 +82,7 @@ export default function TrendingBooksStrip({ limit = 8, days = 7 }) {
                   <p className="text-sm font-semibold text-[#2C2C2C] truncate">
                     {b.title}
                   </p>
-                  <p className="text-[11px] text-[#6B705C] truncate">
+                  <p className="text-[11px] text-[#5B5F4D] truncate">
                     {b.author || "Unknown author"}
                   </p>
                   {b.fandom ? (
@@ -100,7 +100,7 @@ export default function TrendingBooksStrip({ limit = 8, days = 7 }) {
             </Link>
           ))}
         </div>
-        <p className="mt-5 text-xs text-[#6B705C] flex items-center gap-1.5">
+        <p className="mt-5 text-xs text-[#5B5F4D] flex items-center gap-1.5">
           <Sparkles className="w-3.5 h-3.5 text-[#6B46C1]" />
           Aggregated from hearts across opted-in public libraries.
           <Link to="/users" className="text-[#6B46C1] font-semibold hover:underline">

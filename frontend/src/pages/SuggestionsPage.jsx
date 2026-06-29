@@ -25,7 +25,7 @@ const STATUSES = [
 
 function StatusPill({ status }) {
   const map = {
-    open: { label: "Open", bg: "#FBFAF6", color: "#6B705C" },
+    open: { label: "Open", bg: "#FBFAF6", color: "#5B5F4D" },
     under_review: { label: "Under review", bg: "#FDF3E1", color: "#B87A00" },
     planned: { label: "Planned", bg: "#EEF3EC", color: "#6B46C1" },
     // "Shipped" reads better than "Done" on a public board and
@@ -117,13 +117,13 @@ function SuggestionAttachmentChip({ sid, name, mime, size }) {
         type="button"
         onClick={toggle}
         data-testid={`suggestion-attachment-toggle-${sid}`}
-        className="inline-flex items-center gap-1.5 text-[11px] text-[#6B705C] bg-[#FBFAF6] border border-[#E5DDC5] rounded-full px-2.5 py-1 hover:border-[var(--primary)] hover:text-[var(--primary)] transition-colors"
+        className="inline-flex items-center gap-1.5 text-[11px] text-[#5B5F4D] bg-[#FBFAF6] border border-[#E5DDC5] rounded-full px-2.5 py-1 hover:border-[var(--primary)] hover:text-[var(--primary)] transition-colors"
         title={`${name || "attachment"} · click to ${open ? "hide" : "preview"}`}
       >
         <Paperclip className="w-3 h-3" />
         <span className="truncate max-w-[24ch]">{name || "attachment"}</span>
         {size ? (
-          <span className="text-[10px] text-[#6B705C]">
+          <span className="text-[10px] text-[#5B5F4D]">
             {size < 1024 * 1024
               ? `${Math.round(size / 1024)} KB`
               : `${(size / 1024 / 1024).toFixed(1)} MB`}
@@ -301,7 +301,7 @@ export default function SuggestionsPage() {
     <div className="min-h-screen bg-[#FBF7EE]">
       <Navbar />
       <main className="max-w-3xl mx-auto px-4 sm:px-6 py-8" data-testid="suggestions-page">
-        <Link to="/library" className="inline-flex items-center gap-1 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-4">
+        <Link to="/library" className="inline-flex items-center gap-1 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-4">
           <ArrowLeft className="w-4 h-4" /> back to library
         </Link>
         <div className="flex items-center gap-3 mb-6">
@@ -310,7 +310,7 @@ export default function SuggestionsPage() {
           </div>
           <div>
             <h1 className="font-serif text-3xl sm:text-4xl text-[#2C2C2C]">Suggestions</h1>
-            <p className="text-sm text-[#6B705C]">
+            <p className="text-sm text-[#5B5F4D]">
               Spot a bug, want a feature, or have a tweak in mind? Drop it here. Vote on others&apos; suggestions to push them up the queue.
             </p>
           </div>
@@ -318,7 +318,7 @@ export default function SuggestionsPage() {
 
         {/* Submit form */}
         <section className="shelf-card p-5 mb-5" data-testid="suggestions-form-card">
-          <p className="text-xs font-bold uppercase tracking-wider text-[#6B705C] mb-2">Submit a new suggestion</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-[#5B5F4D] mb-2">Submit a new suggestion</p>
           <input
             type="text"
             value={title}
@@ -347,7 +347,7 @@ export default function SuggestionsPage() {
               works too. */}
           <div className="flex items-center gap-3 mb-2" data-testid="suggestions-attachment-row">
             <label
-              className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[#6B705C] hover:text-[var(--primary)] cursor-pointer"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[#5B5F4D] hover:text-[var(--primary)] cursor-pointer"
               data-testid="suggestions-attachment-label"
             >
               <Paperclip className="w-3.5 h-3.5" />
@@ -379,7 +379,7 @@ export default function SuggestionsPage() {
                 title={attachment.name}
               >
                 <span className="truncate max-w-[18ch]">{attachment.name}</span>
-                <span className="text-[10px] text-[#6B705C]">
+                <span className="text-[10px] text-[#5B5F4D]">
                   {(attachment.size / 1024).toFixed(0)} KB
                 </span>
                 <button
@@ -387,13 +387,13 @@ export default function SuggestionsPage() {
                   onClick={() => setAttachment(null)}
                   aria-label="Remove attachment"
                   data-testid="suggestions-attachment-remove"
-                  className="w-5 h-5 rounded-full hover:bg-white flex items-center justify-center text-[#6B705C] hover:text-[var(--primary)]"
+                  className="w-5 h-5 rounded-full hover:bg-white flex items-center justify-center text-[#5B5F4D] hover:text-[var(--primary)]"
                 >
                   <X className="w-3 h-3" />
                 </button>
               </span>
             )}
-            <span className="text-[10px] text-[#6B705C] ml-auto">
+            <span className="text-[10px] text-[#5B5F4D] ml-auto">
               Pictures only · max 10 MB
             </span>
           </div>
@@ -409,7 +409,7 @@ export default function SuggestionsPage() {
                     onClick={() => setCategory(c.id)}
                     data-testid={`suggestions-category-${c.id}`}
                     className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border ${
-                      active ? "border-[var(--primary)] bg-[#FBFAF6] text-[var(--primary)] font-semibold" : "border-[#E5DDC5] text-[#6B705C]"
+                      active ? "border-[var(--primary)] bg-[#FBFAF6] text-[var(--primary)] font-semibold" : "border-[#E5DDC5] text-[#5B5F4D]"
                     }`}
                   >
                     <Icon className="w-3 h-3" /> {c.label}
@@ -432,7 +432,7 @@ export default function SuggestionsPage() {
 
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-2 mb-3 text-xs">
-          <span className="font-semibold uppercase tracking-wider text-[#6B705C]">Filters:</span>
+          <span className="font-semibold uppercase tracking-wider text-[#5B5F4D]">Filters:</span>
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} data-testid="suggestions-filter-status" className="px-2 py-1 rounded border border-[#E5DDC5] bg-white">
             <option value="">All statuses</option>
             {STATUSES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
@@ -449,9 +449,9 @@ export default function SuggestionsPage() {
 
         {/* List */}
         {loading ? (
-          <p className="text-sm text-[#6B705C]"><Loader2 className="inline w-4 h-4 animate-spin mr-1" /> Loading…</p>
+          <p className="text-sm text-[#5B5F4D]"><Loader2 className="inline w-4 h-4 animate-spin mr-1" /> Loading…</p>
         ) : items.length === 0 ? (
-          <p className="text-sm text-[#6B705C] italic">No suggestions match. Be the first!</p>
+          <p className="text-sm text-[#5B5F4D] italic">No suggestions match. Be the first!</p>
         ) : (
           <ul className="space-y-2" data-testid="suggestions-list">
             {items.map((s) => (
@@ -465,7 +465,7 @@ export default function SuggestionsPage() {
                   onClick={() => vote(s.suggestion_id)}
                   data-testid={`suggestion-vote-btn-${s.suggestion_id}`}
                   className={`flex flex-col items-center justify-center w-12 py-1.5 rounded-lg flex-shrink-0 transition-colors ${
-                    s.i_voted ? "bg-[var(--primary)] text-white" : "bg-[#FBFAF6] border border-[#E5DDC5] text-[#6B705C] hover:border-[var(--primary)]"
+                    s.i_voted ? "bg-[var(--primary)] text-white" : "bg-[#FBFAF6] border border-[#E5DDC5] text-[#5B5F4D] hover:border-[var(--primary)]"
                   }`}
                   title={s.i_voted ? "Click to remove your vote" : "Upvote this suggestion"}
                 >
@@ -495,7 +495,7 @@ export default function SuggestionsPage() {
                   {s.status === "done" && (
                     <ShippedCredit submitterName={s.submitter_name} isMine={s.is_mine} />
                   )}
-                  <p className="text-[10px] text-[#6B705C] mt-1 inline-flex items-center gap-1.5 flex-wrap">
+                  <p className="text-[10px] text-[#5B5F4D] mt-1 inline-flex items-center gap-1.5 flex-wrap">
                     <span>by {s.submitter_name} · {new Date(s.created_at).toLocaleDateString()}</span>
                     {s.device && s.device !== "Unknown" && (
                       <span
@@ -526,7 +526,7 @@ export default function SuggestionsPage() {
                           const note = window.prompt("Admin note (visible to all):", s.admin_note || "");
                           if (note !== null) adminUpdate(s.suggestion_id, { admin_note: note });
                         }}
-                        className="text-[10px] px-2 py-0.5 rounded border border-[#E5DDC5] text-[#6B705C]"
+                        className="text-[10px] px-2 py-0.5 rounded border border-[#E5DDC5] text-[#5B5F4D]"
                       >
                         Note
                       </button>
@@ -546,7 +546,7 @@ export default function SuggestionsPage() {
                     type="button"
                     onClick={() => remove(s.suggestion_id)}
                     data-testid={`suggestion-self-delete-${s.suggestion_id}`}
-                    className="text-[#6B705C] hover:text-[#B43F26] flex-shrink-0"
+                    className="text-[#5B5F4D] hover:text-[#B43F26] flex-shrink-0"
                     title="Delete your suggestion"
                   >
                     <Trash2 className="w-3 h-3" />

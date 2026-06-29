@@ -32,7 +32,7 @@ export default function DashboardHelpCard() {
           <h2 className="font-serif text-2xl sm:text-3xl text-[#2C2C2C] leading-tight">
             Need a hand?
           </h2>
-          <p className="text-sm text-[#6B705C] mt-1">
+          <p className="text-sm text-[#5B5F4D] mt-1">
             Every feature is documented — uploads, fanfic refresh, smart shelves, AO3 filters, backups, the lot. Start anywhere or open the full guide.
           </p>
         </div>

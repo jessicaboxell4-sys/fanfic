@@ -24,14 +24,14 @@ function RecRow({ rec, onDismiss, busyKey }) {
       </div>
       <div className="min-w-0 flex-1">
         <h3 className="font-serif text-lg text-[#2C2C2C]">{rec.title}</h3>
-        <p className="text-sm text-[#6B705C]">{rec.author}{rec.fandom ? ` · ${rec.fandom}` : ""}</p>
+        <p className="text-sm text-[#5B5F4D]">{rec.author}{rec.fandom ? ` · ${rec.fandom}` : ""}</p>
         {rec.description && (
-          <p className="text-xs text-[#6B705C] mt-2 line-clamp-3">{rec.description}</p>
+          <p className="text-xs text-[#5B5F4D] mt-2 line-clamp-3">{rec.description}</p>
         )}
         <p className="text-xs text-[#6B46C1] mt-2 flex items-center gap-1.5">
           <Users className="w-3 h-3" /> {byline}
         </p>
-        <div className="text-[11px] text-[#6B705C] mt-1 flex flex-wrap gap-3">
+        <div className="text-[11px] text-[#5B5F4D] mt-1 flex flex-wrap gap-3">
           {rec.finished_count > 0 && <span className="text-[#1F4D2A]">{rec.finished_count} finished</span>}
           {rec.total_minutes > 0 && <span>{Math.round(rec.total_minutes)} min combined reading time</span>}
         </div>
@@ -179,13 +179,13 @@ export default function RecommendationsPage() {
       <main className="max-w-4xl mx-auto px-6 md:px-8 py-8 space-y-6" data-testid="recommendations-page">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <Link to="/library" className="text-xs text-[#6B705C] hover:text-[#2C2C2C] flex items-center gap-1">
+            <Link to="/library" className="text-xs text-[#5B5F4D] hover:text-[#2C2C2C] flex items-center gap-1">
               <ArrowLeft className="w-3 h-3" /> Back to library
             </Link>
             <h1 className="font-serif text-4xl text-[#2C2C2C] flex items-center gap-3 mt-1">
               <Sparkles className="w-7 h-7 text-[#6B46C1]" /> From your friends
             </h1>
-            <p className="text-sm text-[#6B705C] mt-1 max-w-xl">
+            <p className="text-sm text-[#5B5F4D] mt-1 max-w-xl">
               Books your friends have read &amp; loved — ranked by finishers + reading time. Already-owned books are filtered out.
             </p>
           </div>
@@ -199,7 +199,7 @@ export default function RecommendationsPage() {
         </div>
 
         {/* Meta strip */}
-        <div className="text-xs text-[#6B705C] flex flex-wrap gap-3">
+        <div className="text-xs text-[#5B5F4D] flex flex-wrap gap-3">
           <span>You have <strong className="text-[#2C2C2C]">{meta.friend_count}</strong> friend{meta.friend_count === 1 ? "" : "s"}</span>
           <span>·</span>
           <span><strong className="text-[#2C2C2C]">{meta.shared_friend_count}</strong> share their libraries</span>
@@ -219,7 +219,7 @@ export default function RecommendationsPage() {
                   <Sparkles className="w-3 h-3" /> More from authors &amp; fandoms you read
                 </p>
                 {affinity.top_fandoms?.length > 0 && (
-                  <p className="text-xs text-[#6B705C] mt-1">
+                  <p className="text-xs text-[#5B5F4D] mt-1">
                     Based on:{" "}
                     {[...(affinity.top_fandoms || []), ...(affinity.top_authors || [])]
                       .slice(0, 5).join(" · ")}
@@ -247,7 +247,7 @@ export default function RecommendationsPage() {
                     <p className="font-serif text-sm text-[#2C2C2C] leading-tight line-clamp-2">
                       {c.title}
                     </p>
-                    <p className="text-[10px] text-[#6B705C] mt-1 truncate" title={c.match_reason}>
+                    <p className="text-[10px] text-[#5B5F4D] mt-1 truncate" title={c.match_reason}>
                       {c.match_reason}
                     </p>
                   </div>
@@ -264,7 +264,7 @@ export default function RecommendationsPage() {
         >
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-[#2C2C2C]">Weekly &quot;From friends&quot; digest</p>
-            <p className="text-xs text-[#6B705C] mt-0.5">
+            <p className="text-xs text-[#5B5F4D] mt-0.5">
               Every Sunday at 18:00 UTC, we drop an in-app notification listing the books your sharing friends finished that week. The notification always fires — toggle below to also receive an email copy.
             </p>
           </div>
@@ -287,7 +287,7 @@ export default function RecommendationsPage() {
             {digestBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
             Sample email
           </button>
-          <label className="flex items-center gap-2 text-xs text-[#6B705C]">
+          <label className="flex items-center gap-2 text-xs text-[#5B5F4D]">
             <span>Email me too</span>
             <button
               type="button"
@@ -308,11 +308,11 @@ export default function RecommendationsPage() {
 
         {/* Recs */}
         {loading ? (
-          <div className="text-sm text-[#6B705C] flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading recommendations…</div>
+          <div className="text-sm text-[#5B5F4D] flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading recommendations…</div>
         ) : recs.length === 0 ? (
           <div className="bg-[#FBFAF6] border border-dashed border-[#E5DDC5] rounded-2xl p-10 text-center" data-testid="recs-empty">
             <Sparkles className="w-10 h-10 text-[#E5DDC5] mx-auto mb-2" />
-            <p className="text-sm text-[#6B705C]">
+            <p className="text-sm text-[#5B5F4D]">
               No recommendations yet.
               {meta.friend_count === 0 && <> Add some <Link to="/friends" className="text-[#6B46C1] underline">friends</Link> first.</>}
               {meta.friend_count > 0 && meta.shared_friend_count === 0 && <> None of your friends have shared their library yet.</>}
@@ -332,17 +332,17 @@ export default function RecommendationsPage() {
           <button
             data-testid="toggle-dismissed"
             onClick={() => setShowDismissed((v) => !v)}
-            className="text-xs text-[#6B705C] hover:text-[#6B46C1] inline-flex items-center gap-1"
+            className="text-xs text-[#5B5F4D] hover:text-[#6B46C1] inline-flex items-center gap-1"
           >
             <RotateCcw className="w-3 h-3" /> {showDismissed ? "Hide" : "Show"} dismissed ({dismissed.length})
           </button>
           {showDismissed && (
             <ul className="mt-3 space-y-1" data-testid="dismissed-list">
               {dismissed.length === 0 ? (
-                <li className="text-xs text-[#6B705C] italic">Nothing dismissed yet.</li>
+                <li className="text-xs text-[#5B5F4D] italic">Nothing dismissed yet.</li>
               ) : dismissed.map((d) => (
                 <li key={d.rec_key} className="flex items-center gap-2 text-xs bg-[#FBFAF6] border border-[#E5DDC5] rounded-lg px-3 py-2">
-                  <span className="flex-1 truncate text-[#2C2C2C]">{d.title || d.rec_key} {d.author && <span className="text-[#6B705C]">— {d.author}</span>}</span>
+                  <span className="flex-1 truncate text-[#2C2C2C]">{d.title || d.rec_key} {d.author && <span className="text-[#5B5F4D]">— {d.author}</span>}</span>
                   <button
                     data-testid={`restore-${d.rec_key}`}
                     onClick={() => undismiss(d)}

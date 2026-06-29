@@ -261,8 +261,8 @@ export default function PdfViewer({
             onLoadError={onDocError}
             loading={
               <div className="p-16 flex flex-col items-center justify-center gap-3">
-                <Loader2 className={`w-6 h-6 animate-spin ${isDark ? "text-zinc-400" : "text-[#6B705C]"}`} />
-                <p className={`text-sm ${isDark ? "text-zinc-400" : "text-[#6B705C]"}`}>Opening PDF…</p>
+                <Loader2 className={`w-6 h-6 animate-spin ${isDark ? "text-zinc-400" : "text-[#5B5F4D]"}`} />
+                <p className={`text-sm ${isDark ? "text-zinc-400" : "text-[#5B5F4D]"}`}>Opening PDF…</p>
               </div>
             }
             error={
@@ -290,7 +290,7 @@ export default function PdfViewer({
                         style={{ width: pageWidth * scale, height: (pageWidth * scale) * 1.41 }}
                         className={`flex items-center justify-center ${isDark ? "bg-zinc-800" : "bg-white"}`}
                       >
-                        <Loader2 className={`w-5 h-5 animate-spin ${isDark ? "text-zinc-500" : "text-[#6B705C]"}`} />
+                        <Loader2 className={`w-5 h-5 animate-spin ${isDark ? "text-zinc-500" : "text-[#5B5F4D]"}`} />
                       </div>
                     }
                   />

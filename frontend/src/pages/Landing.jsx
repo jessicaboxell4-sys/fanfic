@@ -172,7 +172,7 @@ export default function Landing() {
               "fandom"
             )}</span>.
           </h1>
-          <p className="text-base sm:text-lg text-[#6B705C] leading-relaxed mb-6 max-w-lg">
+          <p className="text-base sm:text-lg text-[#5B5F4D] leading-relaxed mb-6 max-w-lg">
             Got a Downloads folder full of nameless EPUBs? Shelfsort reads the
             metadata and uses AI to file them by Harry Potter, Twilight, Marvel,
             original fiction, and anything else hiding in there. Then it gives
@@ -199,7 +199,7 @@ export default function Landing() {
               Each item is icon + ~3 words; the whole row is one line on
               desktop, wraps on mobile.  No claims we can't back up. */}
           <ul
-            className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-6 text-xs text-[#6B705C]"
+            className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-6 text-xs text-[#5B5F4D]"
             data-testid="hero-trust-strip"
           >
             <li className="inline-flex items-center gap-1.5">
@@ -263,7 +263,7 @@ export default function Landing() {
         <h2 className="font-serif text-3xl sm:text-4xl text-[#2C2C2C] mb-3">
           A whole little world for your <span className="italic text-[#E07A5F]">reading life</span>.
         </h2>
-        <p className="text-base text-[#6B705C] max-w-2xl mb-10">
+        <p className="text-base text-[#5B5F4D] max-w-2xl mb-10">
           Shelfsort is built for people who read the way you do — bouncing between
           a 200k-word AO3 fic, a non-fic on the nightstand, and three half-read
           novels. Here&apos;s what you get the second you sign in.
@@ -325,7 +325,7 @@ export default function Landing() {
           <h2 className="font-serif text-3xl sm:text-4xl text-[#2C2C2C] mb-3">
             Three messy folders in. <span className="italic text-[#E07A5F]">Three tidy shelves out.</span>
           </h2>
-          <p className="text-base text-[#6B705C] max-w-2xl mb-12">
+          <p className="text-base text-[#5B5F4D] max-w-2xl mb-12">
             Here&apos;s the same library a friend tested with on day one — 11 EPUBs dropped in as a
             single zip, organized in under a minute. No tagging, no renaming, no Calibre wrestling.
           </p>
@@ -334,7 +334,7 @@ export default function Landing() {
               <ShelfPreview key={shelf.name} shelf={shelf} />
             ))}
           </div>
-          <div className="mt-12 flex items-center gap-3 text-xs font-medium text-[#6B705C]">
+          <div className="mt-12 flex items-center gap-3 text-xs font-medium text-[#5B5F4D]">
             <Wand2 className="w-4 h-4 text-[#6B46C1]" />
             Sample shelves shown — your own library uses real covers, real metadata, real chapters.
           </div>
@@ -349,7 +349,7 @@ export default function Landing() {
         <h2 className="font-serif text-3xl sm:text-4xl text-[#2C2C2C] mb-4">
           Ready to see your library, sorted?
         </h2>
-        <p className="text-base text-[#6B705C] mb-8 max-w-xl mx-auto">
+        <p className="text-base text-[#5B5F4D] mb-8 max-w-xl mx-auto">
           Free to try with up to 50 books. AI sorting, in-app reader, Year in Books recap,
           reading goals, friends, and book clubs — all included from day one.
         </p>
@@ -390,7 +390,7 @@ function ShelfPreview({ shelf }) {
             />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-[#2C2C2C] truncate">{b.title}</p>
-              <p className="text-[11px] text-[#6B705C] truncate">{b.author}</p>
+              <p className="text-[11px] text-[#5B5F4D] truncate">{b.author}</p>
             </div>
           </li>
         ))}
@@ -406,7 +406,7 @@ function Feature({ icon, title, body }) {
         {icon}
       </div>
       <h3 className="font-serif text-xl text-[#2C2C2C] mb-2">{title}</h3>
-      <p className="text-sm text-[#6B705C] leading-relaxed">{body}</p>
+      <p className="text-sm text-[#5B5F4D] leading-relaxed">{body}</p>
     </div>
   );
 }
@@ -421,7 +421,7 @@ function InsideCard({ icon, accent, tint, title, body }) {
         {icon}
       </div>
       <h3 className="font-serif text-xl text-[#2C2C2C] mb-2 leading-snug">{title}</h3>
-      <p className="text-sm text-[#6B705C] leading-relaxed">{body}</p>
+      <p className="text-sm text-[#5B5F4D] leading-relaxed">{body}</p>
     </div>
   );
 }
@@ -566,7 +566,7 @@ function SocialProofStrip() {
             <p className="font-serif text-2xl sm:text-3xl text-[#2C2C2C] tabular-nums">
               {Number(c.value).toLocaleString()}
             </p>
-            <p className="text-[10px] sm:text-xs uppercase tracking-[0.18em] text-[#6B705C] mt-0.5">
+            <p className="text-[10px] sm:text-xs uppercase tracking-[0.18em] text-[#5B5F4D] mt-0.5">
               {c.label}
             </p>
           </div>

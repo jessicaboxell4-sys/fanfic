@@ -39,7 +39,7 @@ export default function DisplayName({ user, atSign = true, className = "", testi
   return (
     <span className={className} data-testid={testid}>
       {primary}
-      {suffix && <span className="text-[#6B705C] text-[0.85em]" data-testid={testid ? `${testid}-prev` : undefined}>{suffix}</span>}
+      {suffix && <span className="text-[#5B5F4D] text-[0.85em]" data-testid={testid ? `${testid}-prev` : undefined}>{suffix}</span>}
     </span>
   );
 }

@@ -71,7 +71,7 @@ export default function CatalogSyncCard() {
   if (loading) {
     return (
       <section className="shelf-card p-5 mb-5">
-        <div className="text-sm text-[#6B705C] flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" /> Loading e-reader sync…</div>
+        <div className="text-sm text-[#5B5F4D] flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" /> Loading e-reader sync…</div>
       </section>
     );
   }
@@ -101,7 +101,7 @@ export default function CatalogSyncCard() {
         )}
       </div>
 
-      <p className="text-xs text-[#6B705C] mb-3">
+      <p className="text-xs text-[#5B5F4D] mb-3">
         Read your library on KOReader, Moon+ Reader, Marvin or any other OPDS-compatible e-reader app — plus Kindle via email or USB. No React UI needed.
       </p>
 
@@ -119,7 +119,7 @@ export default function CatalogSyncCard() {
         <>
           {/* Catalog URL */}
           <div className="mb-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-[#6B705C] mb-1">Catalog URL</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-[#5B5F4D] mb-1">Catalog URL</p>
             <div className="flex items-center gap-1">
               <code data-testid="opds-url" className="flex-1 text-xs bg-[#FBFAF6] border border-[#E5DDC5] rounded px-2 py-1.5 break-all">{catalogUrl}</code>
               <button
@@ -128,7 +128,7 @@ export default function CatalogSyncCard() {
                 className="p-1.5 hover:bg-[#F5F3EC] rounded"
                 title="Copy URL"
               >
-                {copiedField === "url" ? <Check className="w-3 h-3 text-[#1F4D2A]" /> : <Copy className="w-3 h-3 text-[#6B705C]" />}
+                {copiedField === "url" ? <Check className="w-3 h-3 text-[#1F4D2A]" /> : <Copy className="w-3 h-3 text-[#5B5F4D]" />}
               </button>
             </div>
           </div>
@@ -142,19 +142,19 @@ export default function CatalogSyncCard() {
               <div className="space-y-1.5">
                 <div className="flex items-center gap-1">
                   <code className="flex-1 text-xs bg-white border border-[#E5DDC5] rounded px-2 py-1.5 break-all">
-                    <span className="text-[#6B705C]">user:</span> {shownEmail}
+                    <span className="text-[#5B5F4D]">user:</span> {shownEmail}
                   </code>
                   <button
                     onClick={() => copy(shownEmail, "user")}
                     className="p-1.5 hover:bg-white rounded"
                     title="Copy username"
                   >
-                    {copiedField === "user" ? <Check className="w-3 h-3 text-[#1F4D2A]" /> : <Copy className="w-3 h-3 text-[#6B705C]" />}
+                    {copiedField === "user" ? <Check className="w-3 h-3 text-[#1F4D2A]" /> : <Copy className="w-3 h-3 text-[#5B5F4D]" />}
                   </button>
                 </div>
                 <div className="flex items-center gap-1">
                   <code data-testid="opds-password" className="flex-1 text-xs bg-white border border-[#E5DDC5] rounded px-2 py-1.5 break-all">
-                    <span className="text-[#6B705C]">pass:</span> {shownPassword}
+                    <span className="text-[#5B5F4D]">pass:</span> {shownPassword}
                   </code>
                   <button
                     data-testid="opds-copy-password"
@@ -162,7 +162,7 @@ export default function CatalogSyncCard() {
                     className="p-1.5 hover:bg-white rounded"
                     title="Copy password"
                   >
-                    {copiedField === "pass" ? <Check className="w-3 h-3 text-[#1F4D2A]" /> : <Copy className="w-3 h-3 text-[#6B705C]" />}
+                    {copiedField === "pass" ? <Check className="w-3 h-3 text-[#1F4D2A]" /> : <Copy className="w-3 h-3 text-[#5B5F4D]" />}
                   </button>
                 </div>
               </div>
@@ -190,14 +190,14 @@ export default function CatalogSyncCard() {
           </div>
 
           {showHelp && (
-            <div className="mt-3 text-xs text-[#6B705C] space-y-2 bg-[#FBFAF6] border border-[#E5DDC5] rounded-lg p-3" data-testid="opds-help">
+            <div className="mt-3 text-xs text-[#5B5F4D] space-y-2 bg-[#FBFAF6] border border-[#E5DDC5] rounded-lg p-3" data-testid="opds-help">
               <p><strong className="text-[#2C2C2C]">KOReader</strong>: Top menu → Search → Browse OPDS catalog → New catalog → paste URL + username (email) + password.</p>
               <p><strong className="text-[#2C2C2C]">Moon+ Reader</strong>: Net Library → New net library → OPDS Catalog → paste URL + Basic credentials.</p>
               <p><strong className="text-[#2C2C2C]">Marvin / Foliate / Librera</strong>: Add OPDS / Calibre catalog → use the same URL, username, password.</p>
               <p>
                 <strong className="text-[#2C2C2C]">Kindle (stock)</strong>: Kindle doesn&apos;t speak OPDS natively, but you have three options:
               </p>
-              <ul className="list-disc pl-5 text-[#6B705C] space-y-0.5">
+              <ul className="list-disc pl-5 text-[#5B5F4D] space-y-0.5">
                 <li><strong className="text-[#2C2C2C]">Send-to-Kindle email</strong>: download the EPUB from your library, email it to <code className="text-[#6B46C1]">your-name@kindle.com</code> (Amazon&apos;s built-in service). Book appears within ~5 min.</li>
                 <li><strong className="text-[#2C2C2C]">Jailbroken Kindle + KOReader</strong>: install KOReader on the Kindle, then follow the KOReader steps above.</li>
                 <li><strong className="text-[#2C2C2C]">Calibre + USB</strong>: download EPUB → Calibre → plug Kindle in via USB → send.</li>
@@ -205,7 +205,7 @@ export default function CatalogSyncCard() {
               <p>
                 <strong className="text-[#2C2C2C]">Amazon Fire (Kindle Fire, HD, Tablet)</strong>: install <em>Moon+ Reader</em> or <em>Librera</em> from the Amazon Appstore (or sideload), then follow the steps above for that reader.
               </p>
-              <p className="text-[#6B705C] italic">If your reader fails to connect, double-check the password was copied without trailing spaces, and that the toggle above is on.</p>
+              <p className="text-[#5B5F4D] italic">If your reader fails to connect, double-check the password was copied without trailing spaces, and that the toggle above is on.</p>
             </div>
           )}
         </>

@@ -8,12 +8,12 @@ import { toast } from "sonner";
 // with this component.  If the backend ever adds a new slug, the table
 // will fall back to the raw slug + log a console warning.
 const ACTION_LABELS = {
-  "user.approve":     { verb: "Approved sign-up",  tint: "text-[#3D8B79] bg-[#E0F0EA]" },
+  "user.approve":     { verb: "Approved sign-up",  tint: "text-[#2F6E60] bg-[#E0F0EA]" },
   "user.reject":      { verb: "Rejected sign-up",  tint: "text-[#C04A3F] bg-[#FBE9E5]" },
   "bookclub.lock":    { verb: "Locked room",       tint: "text-[#B87A00] bg-[#FDF3E1]" },
-  "bookclub.unlock":  { verb: "Unlocked room",     tint: "text-[#3D8B79] bg-[#E0F0EA]" },
+  "bookclub.unlock":  { verb: "Unlocked room",     tint: "text-[#2F6E60] bg-[#E0F0EA]" },
   "user.promote_mod": { verb: "Promoted to mod",   tint: "text-[#6B46C1] bg-[#EDE7FB]" },
-  "user.demote_mod":  { verb: "Removed mod role",  tint: "text-[#6B705C] bg-[#F2EDDF]" },
+  "user.demote_mod":  { verb: "Removed mod role",  tint: "text-[#5B5F4D] bg-[#F2EDDF]" },
 };
 const ACTION_ORDER = [
   "user.approve",
@@ -109,12 +109,12 @@ export default function ModerationLogCard({ pageSize = 25, actorId = null, showF
   return (
     <div data-testid="moderation-log-card" className="space-y-3">
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <p className="text-xs text-[#6B705C]">
+        <p className="text-xs text-[#5B5F4D]">
           {loading ? "Loading…" : `${total.toLocaleString()} total ${total === 1 ? "action" : "actions"} on record.`}
         </p>
         {showFilter && (
           <div className="flex items-center gap-1.5 flex-wrap" data-testid="moderation-log-filters">
-            <Filter className="w-3 h-3 text-[#6B705C]" />
+            <Filter className="w-3 h-3 text-[#5B5F4D]" />
             <button
               type="button"
               onClick={() => applyFilter("")}
@@ -122,7 +122,7 @@ export default function ModerationLogCard({ pageSize = 25, actorId = null, showF
               className={`text-[10px] uppercase tracking-wider font-bold px-2 py-1 rounded ${
                 actionFilter === ""
                   ? "bg-[#2C2C2C] text-white"
-                  : "text-[#6B705C] hover:bg-[#F5F3EC]"
+                  : "text-[#5B5F4D] hover:bg-[#F5F3EC]"
               }`}
             >
               All
@@ -137,7 +137,7 @@ export default function ModerationLogCard({ pageSize = 25, actorId = null, showF
                   onClick={() => applyFilter(slug)}
                   data-testid={`moderation-log-filter-${slug}`}
                   className={`text-[10px] uppercase tracking-wider font-bold px-2 py-1 rounded ${
-                    active ? label.tint : "text-[#6B705C] hover:bg-[#F5F3EC]"
+                    active ? label.tint : "text-[#5B5F4D] hover:bg-[#F5F3EC]"
                   }`}
                 >
                   {label.verb}
@@ -149,15 +149,15 @@ export default function ModerationLogCard({ pageSize = 25, actorId = null, showF
       </div>
 
       {loading ? (
-        <p className="text-sm text-[#6B705C] italic inline-flex items-center gap-1.5">
+        <p className="text-sm text-[#5B5F4D] italic inline-flex items-center gap-1.5">
           <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading…
         </p>
       ) : entries.length === 0 ? (
-        <p className="text-sm text-[#6B705C] italic" data-testid="moderation-log-empty">{emptyCopy}</p>
+        <p className="text-sm text-[#5B5F4D] italic" data-testid="moderation-log-empty">{emptyCopy}</p>
       ) : (
         <ul className="space-y-1.5" data-testid="moderation-log-list">
           {entries.map((e, i) => {
-            const label = ACTION_LABELS[e.action] || { verb: e.action, tint: "text-[#6B705C] bg-[#F2EDDF]" };
+            const label = ACTION_LABELS[e.action] || { verb: e.action, tint: "text-[#5B5F4D] bg-[#F2EDDF]" };
             return (
               <li
                 key={`${e.ts}-${i}`}
@@ -176,14 +176,14 @@ export default function ModerationLogCard({ pageSize = 25, actorId = null, showF
                     {e.target_display ? (
                       <span className="font-medium">{e.target_display}</span>
                     ) : (
-                      <span className="italic text-[#6B705C]">(no target)</span>
+                      <span className="italic text-[#5B5F4D]">(no target)</span>
                     )}
                     {/* Surface the reject reason so admins can audit why */}
                     {e.action === "user.reject" && e.metadata?.reason && (
-                      <span className="text-[#6B705C]"> — “{e.metadata.reason}”</span>
+                      <span className="text-[#5B5F4D]"> — “{e.metadata.reason}”</span>
                     )}
                   </p>
-                  <p className="text-xs text-[#6B705C]">
+                  <p className="text-xs text-[#5B5F4D]">
                     by <span className="font-medium">{e.actor_email}</span> · {fmtTime(e.ts)}
                   </p>
                 </div>
@@ -196,7 +196,7 @@ export default function ModerationLogCard({ pageSize = 25, actorId = null, showF
       {/* Pagination — only renders when more than one page exists. */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between gap-2" data-testid="moderation-log-pager">
-          <p className="text-xs text-[#6B705C]">
+          <p className="text-xs text-[#5B5F4D]">
             Page {page} of {totalPages}
           </p>
           <div className="flex items-center gap-1">
@@ -205,7 +205,7 @@ export default function ModerationLogCard({ pageSize = 25, actorId = null, showF
               onClick={() => setOffset(Math.max(0, offset - limit))}
               disabled={!canPrev || loading}
               data-testid="moderation-log-prev"
-              className="tap-min inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg bg-white border border-[#E5DDC5] text-[#6B705C] hover:border-[#6B46C1] disabled:opacity-50"
+              className="tap-min inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg bg-white border border-[#E5DDC5] text-[#5B5F4D] hover:border-[#6B46C1] disabled:opacity-50"
             >
               <ChevronLeft className="w-3 h-3" /> Prev
             </button>
@@ -214,7 +214,7 @@ export default function ModerationLogCard({ pageSize = 25, actorId = null, showF
               onClick={() => setOffset(offset + limit)}
               disabled={!canNext || loading}
               data-testid="moderation-log-next"
-              className="tap-min inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg bg-white border border-[#E5DDC5] text-[#6B705C] hover:border-[#6B46C1] disabled:opacity-50"
+              className="tap-min inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg bg-white border border-[#E5DDC5] text-[#5B5F4D] hover:border-[#6B46C1] disabled:opacity-50"
             >
               Next <ChevronRight className="w-3 h-3" />
             </button>

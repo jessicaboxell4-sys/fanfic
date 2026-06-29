@@ -58,8 +58,8 @@ export default function AppearancePopover() {
         aria-expanded={open}
       >
         {theme === "dark"
-          ? <Sun className="w-4 h-4 text-[#6B705C]" />
-          : <Moon className="w-4 h-4 text-[#6B705C]" />}
+          ? <Sun className="w-4 h-4 text-[#5B5F4D]" />
+          : <Moon className="w-4 h-4 text-[#5B5F4D]" />}
       </button>
 
       {open && (
@@ -71,7 +71,7 @@ export default function AppearancePopover() {
         >
           {/* Theme row */}
           <div className="p-3 border-b border-[#E8E6E1]">
-            <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#6B705C] mb-2 px-1">
+            <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#5B5F4D] mb-2 px-1">
               Theme
             </p>
             <button
@@ -82,11 +82,11 @@ export default function AppearancePopover() {
             >
               <span className="flex items-center gap-2 text-sm text-[#2C2C2C]">
                 {theme === "dark"
-                  ? <Moon className="w-4 h-4 text-[#6B705C]" />
-                  : <Sun className="w-4 h-4 text-[#6B705C]" />}
+                  ? <Moon className="w-4 h-4 text-[#5B5F4D]" />
+                  : <Sun className="w-4 h-4 text-[#5B5F4D]" />}
                 {theme === "dark" ? "Dark mode" : "Light mode"}
               </span>
-              <span className="text-xs text-[#6B705C] font-semibold">
+              <span className="text-xs text-[#5B5F4D] font-semibold">
                 Switch to {theme === "dark" ? "Light" : "Dark"} →
               </span>
             </button>
@@ -94,7 +94,7 @@ export default function AppearancePopover() {
 
           {/* Palette grid */}
           <div className="p-3 border-b border-[#E8E6E1]">
-            <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#6B705C] mb-2 px-1 flex items-center gap-1.5">
+            <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#5B5F4D] mb-2 px-1 flex items-center gap-1.5">
               <Palette className="w-3 h-3" /> Accent colour
             </p>
             <div className="grid grid-cols-4 gap-2" data-testid="appearance-popover-palette-grid">
@@ -151,12 +151,12 @@ export default function AppearancePopover() {
                     : undefined
                 }
               >
-                <Sliders className={`w-3.5 h-3.5 ${isCustom ? "text-white drop-shadow" : "text-[#6B705C]"}`} />
+                <Sliders className={`w-3.5 h-3.5 ${isCustom ? "text-white drop-shadow" : "text-[#5B5F4D]"}`} />
               </button>
             </div>
             <p
               data-testid="appearance-popover-palette-caption"
-              className="text-[10px] text-[#6B705C] mt-2 px-1 min-h-[14px]"
+              className="text-[10px] text-[#5B5F4D] mt-2 px-1 min-h-[14px]"
             >
               {hoverName ? (
                 <>Preview: <strong className="text-[#2C2C2C]">{hoverName}</strong></>

@@ -66,16 +66,16 @@ export default function StuckBooksPage() {
           <h1 className="font-serif text-4xl sm:text-5xl text-[#2C2C2C] leading-tight tracking-tight">
             Stuck books.
           </h1>
-          <p className="text-lg text-[#6B705C] mt-3 max-w-2xl">
+          <p className="text-lg text-[#5B5F4D] mt-3 max-w-2xl">
             You started these more than 30 days ago and read less than 30%.
             Pick one back up or mark it DNF so it stops haunting your shelf.
           </p>
         </header>
 
         {loading ? (
-          <p className="text-[#6B705C]">Loading…</p>
+          <p className="text-[#5B5F4D]">Loading…</p>
         ) : books.length === 0 ? (
-          <p className="text-[#6B705C] italic" data-testid="no-stuck-books">
+          <p className="text-[#5B5F4D] italic" data-testid="no-stuck-books">
             Clean slate — no books are stuck. Nice pace.
           </p>
         ) : (
@@ -95,13 +95,13 @@ export default function StuckBooksPage() {
                         alt=""
                         className="w-full h-full object-cover"
                       />
-                    ) : <BookOpen className="w-5 h-5 text-[#6B705C]" />}
+                    ) : <BookOpen className="w-5 h-5 text-[#5B5F4D]" />}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="font-serif text-lg text-[#2C2C2C] truncate" title={b.title}>
                       {b.title}
                     </p>
-                    <p className="text-sm text-[#6B705C] truncate">
+                    <p className="text-sm text-[#5B5F4D] truncate">
                       {b.author || "Unknown author"} · {pct}% in
                     </p>
                   </div>
@@ -116,7 +116,7 @@ export default function StuckBooksPage() {
                     <button
                       type="button"
                       onClick={() => markDnf(b)}
-                      className="tap-min inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold bg-white text-[#6B705C] border border-[#E8E6E1] hover:border-[#B91C1C] hover:text-[#B91C1C]"
+                      className="tap-min inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold bg-white text-[#5B5F4D] border border-[#E8E6E1] hover:border-[#B91C1C] hover:text-[#B91C1C]"
                       data-testid={`stuck-dnf-${b.book_id}`}
                     >
                       <BookmarkX className="w-3 h-3" /> DNF

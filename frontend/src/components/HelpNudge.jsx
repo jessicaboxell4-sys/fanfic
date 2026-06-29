@@ -37,7 +37,7 @@ export default function HelpNudge() {
         </div>
         <p className="text-sm text-[#2C2C2C]">
           <span className="font-medium">New:</span> a full Shelfsort guide lives at{" "}
-          <code className="text-[#6B705C]">/help</code> — uploads, smart shelves, refresh,
+          <code className="text-[#5B5F4D]">/help</code> — uploads, smart shelves, refresh,
           version diffs, exports, everything.
         </p>
       </div>
@@ -53,7 +53,7 @@ export default function HelpNudge() {
         <button
           data-testid="help-nudge-dismiss"
           onClick={dismiss}
-          className="p-2 text-[#6B705C] hover:text-[#2C2C2C] rounded-lg hover:bg-white/60"
+          className="p-2 text-[#5B5F4D] hover:text-[#2C2C2C] rounded-lg hover:bg-white/60"
           aria-label="Dismiss"
         >
           <X className="w-4 h-4" />

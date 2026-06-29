@@ -98,7 +98,7 @@ export default function CrossDeviceFinishStrip({ book }) {
         <button
           type="button"
           onClick={() => setSkip(true)}
-          className="text-[10px] text-[#6B705C] hover:text-[#2C2C2C] underline self-start"
+          className="text-[10px] text-[#5B5F4D] hover:text-[#2C2C2C] underline self-start"
           data-testid="cross-device-finish-strip-dismiss"
           title="Hide this suggestion until the page is reopened"
         >
@@ -133,7 +133,7 @@ export default function CrossDeviceFinishStrip({ book }) {
                 {r.title}
               </p>
               {r.author && (
-                <p className="text-[10px] text-[#6B705C] mt-0.5 line-clamp-1">{r.author}</p>
+                <p className="text-[10px] text-[#5B5F4D] mt-0.5 line-clamp-1">{r.author}</p>
               )}
               <p
                 className="text-[9px] text-[#6B46C1] mt-1 uppercase tracking-wider line-clamp-1"

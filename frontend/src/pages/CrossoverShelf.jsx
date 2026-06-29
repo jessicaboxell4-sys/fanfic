@@ -53,7 +53,7 @@ export default function CrossoverShelf() {
         <button
           onClick={() => navigate("/library")}
           data-testid="crossover-back"
-          className="flex items-center gap-2 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-6"
+          className="flex items-center gap-2 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-6"
         >
           <ArrowLeft className="w-4 h-4" /> Back to library
         </button>
@@ -65,7 +65,7 @@ export default function CrossoverShelf() {
           <h1 className="font-serif text-4xl sm:text-5xl text-[#2C2C2C] leading-[1.05]" data-testid="crossover-title">
             All crossovers
           </h1>
-          <p className="text-[#6B705C] mt-2">
+          <p className="text-[#5B5F4D] mt-2">
             {loading
               ? "Loading…"
               : `${filtered.length} crossover${filtered.length === 1 ? "" : "s"} · ${totalBooks} book${totalBooks === 1 ? "" : "s"}`}
@@ -74,7 +74,7 @@ export default function CrossoverShelf() {
 
         <div className="flex flex-wrap items-center gap-3 mb-6">
           <div className="relative flex-1 min-w-[260px]">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#6B705C]" />
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#5B5F4D]" />
             <input
               type="text"
               value={filter}
@@ -85,7 +85,7 @@ export default function CrossoverShelf() {
             />
           </div>
           <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-[#6B705C]" />
+            <Filter className="w-4 h-4 text-[#5B5F4D]" />
             <select
               value={memberFilter}
               onChange={(e) => setMemberFilter(e.target.value)}
@@ -101,7 +101,7 @@ export default function CrossoverShelf() {
         </div>
 
         {!loading && filtered.length === 0 && (
-          <div className="shelf-card p-8 text-center text-[#6B705C]">
+          <div className="shelf-card p-8 text-center text-[#5B5F4D]">
             {fandoms.length === 0
               ? "No crossovers in your library yet — add a fanfic tagged with multiple fandoms (e.g. \"Harry Potter & Twilight\") to start one."
               : "No crossovers match those filters."}
@@ -121,7 +121,7 @@ export default function CrossoverShelf() {
                   <ArrowLeftRight className="w-3 h-3" aria-hidden="true" />
                   {(f.parts || []).length}
                 </span>
-                <span className="text-xs text-[#6B705C] flex-shrink-0">{f.count} book{f.count === 1 ? "" : "s"}</span>
+                <span className="text-xs text-[#5B5F4D] flex-shrink-0">{f.count} book{f.count === 1 ? "" : "s"}</span>
               </div>
               <div className="text-sm font-semibold text-[#2C2C2C] mb-2 truncate">{f.name}</div>
               <div className="flex flex-wrap gap-1.5">

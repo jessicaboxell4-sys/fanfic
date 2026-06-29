@@ -107,7 +107,7 @@ export default function PendingPolishBanner({ onPolished }) {
             <span className="font-semibold" data-testid="pending-polish-banner-arriving">
               {stats.arriving} book{stats.arriving === 1 ? "" : "s"} arriving
             </span>
-            <span className="text-[#6B705C] dark:text-[#A99878]">
+            <span className="text-[#5B5F4D] dark:text-[#A99878]">
               {" — "}
               Extracting metadata, converting formats, and saving covers. They&rsquo;ll appear on this page as each one finishes.
             </span>
@@ -138,10 +138,10 @@ export default function PendingPolishBanner({ onPolished }) {
               ? `${stats.pending} book${stats.pending === 1 ? "" : "s"} sorting in the background`
               : `${stats.failed} book${stats.failed === 1 ? "" : "s"} failed to sort`}
             {stats.arriving > 0 && (
-              <span className="font-normal text-[#6B705C] dark:text-[#A99878]"> · {stats.arriving} still arriving</span>
+              <span className="font-normal text-[#5B5F4D] dark:text-[#A99878]"> · {stats.arriving} still arriving</span>
             )}
           </span>
-          <span className="text-[#6B705C] dark:text-[#A99878]">
+          <span className="text-[#5B5F4D] dark:text-[#A99878]">
             {" — "}
             {stats.in_progress
               ? "Claude is reading each one. You can close this tab — they'll keep going."

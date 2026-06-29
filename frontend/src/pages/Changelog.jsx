@@ -104,7 +104,7 @@ export default function Changelog() {
           <h1 className="font-serif text-4xl md:text-5xl text-[#2C2C2C] leading-tight">
             Shelfsort Changelog
           </h1>
-          <p className="text-[#6B705C] mt-3 max-w-xl">
+          <p className="text-[#5B5F4D] mt-3 max-w-xl">
             A running log of recent improvements to Shelfsort — uploads, the
             reader, sorting, sync, friends. Pulled live from the same
             announcements we show inside the app, so it&rsquo;s always current.
@@ -138,10 +138,10 @@ export default function Changelog() {
         </header>
 
         {entries === null && (
-          <p className="text-sm text-[#6B705C]" data-testid="changelog-loading">Loading…</p>
+          <p className="text-sm text-[#5B5F4D]" data-testid="changelog-loading">Loading…</p>
         )}
         {entries !== null && entries.length === 0 && (
-          <p className="text-sm text-[#6B705C]" data-testid="changelog-empty">
+          <p className="text-sm text-[#5B5F4D]" data-testid="changelog-empty">
             No release notes have been published yet. Check back soon.
           </p>
         )}
@@ -167,7 +167,7 @@ export default function Changelog() {
             <h2 className="font-serif text-2xl md:text-3xl text-[#2C2C2C] leading-tight mb-2">
               Built from your ideas
             </h2>
-            <p className="text-[#6B705C] mb-5 max-w-xl">
+            <p className="text-[#5B5F4D] mb-5 max-w-xl">
               Every entry below started as a user suggestion. If you have one too,{" "}
               <Link to="/suggestions" className="text-[#E07A5F] hover:underline font-medium">drop it in the box</Link>.
             </p>
@@ -181,7 +181,7 @@ export default function Changelog() {
                   <span className="text-[#6B46C1] text-lg shrink-0" aria-hidden="true">🎉</span>
                   <div className="min-w-0 flex-1">
                     <div className="font-medium text-[#2C2C2C] text-sm">{s.title}</div>
-                    <div className="text-xs text-[#6B705C] mt-0.5">
+                    <div className="text-xs text-[#5B5F4D] mt-0.5">
                       {s.handle ? (
                         <>
                           Suggested by{" "}
@@ -200,7 +200,7 @@ export default function Changelog() {
                       )}
                     </div>
                     {s.admin_note && (
-                      <p className="text-xs text-[#6B705C] mt-1.5 italic">{s.admin_note}</p>
+                      <p className="text-xs text-[#5B5F4D] mt-1.5 italic">{s.admin_note}</p>
                     )}
                   </div>
                 </li>
@@ -209,7 +209,7 @@ export default function Changelog() {
           </section>
         )}
 
-        <div className="mt-12 pt-6 border-t border-[#E5DDC5] text-sm text-[#6B705C] space-y-3">
+        <div className="mt-12 pt-6 border-t border-[#E5DDC5] text-sm text-[#5B5F4D] space-y-3">
           <p>
             Looking for the user guide? Try the{" "}
             <Link to="/help" className="text-[#E07A5F] hover:underline">
@@ -365,7 +365,7 @@ function CanaryUptimePill() {
       )}
       {incidentChip && (
         <span
-          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#F0EBE2] text-[#6B705C] border border-[#E4D9C8]"
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#F0EBE2] text-[#5B5F4D] border border-[#E4D9C8]"
           title={incidentChip.title}
           data-testid="changelog-canary-incident-counter"
         >
@@ -479,11 +479,11 @@ function CanaryCaption() {
   // yet (graceful degrade for live deploys mid-rollout).
   const state = info.effective_state || (info.conclusion === "success" ? "healthy" : "failing");
   const STATE_LABELS = {
-    healthy:   { word: "healthy",                dot: "bg-[#5C8A5C]", text: "text-[#5C8A5C]" },
-    recovered: { word: "recovered after blip",   dot: "bg-[#5C8A5C]", text: "text-[#5C8A5C]" },
+    healthy:   { word: "healthy",                dot: "bg-[#5C8A5C]", text: "text-[#3D6B3D]" },
+    recovered: { word: "recovered after blip",   dot: "bg-[#5C8A5C]", text: "text-[#3D6B3D]" },
     retrying:  { word: "retrying after blip",    dot: "bg-[#D49A33]", text: "text-[#D49A33]" },
     failing:   { word: "needs attention",        dot: "bg-[#C75450]", text: "text-[#C75450]" },
-    unknown:   { word: "status pending",         dot: "bg-[#A09A8B]", text: "text-[#6B705C]" },
+    unknown:   { word: "status pending",         dot: "bg-[#A09A8B]", text: "text-[#5B5F4D]" },
   };
   const cfg = STATE_LABELS[state] || STATE_LABELS.unknown;
 
@@ -493,7 +493,7 @@ function CanaryCaption() {
 
   return (
     <p
-      className="text-xs text-[#6B705C] mt-1.5 flex items-center gap-1.5 flex-wrap"
+      className="text-xs text-[#5B5F4D] mt-1.5 flex items-center gap-1.5 flex-wrap"
       data-testid="changelog-canary-caption"
     >
       <span
@@ -520,7 +520,7 @@ function CanaryCaption() {
             href={info.retry.html_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="font-medium text-[#5C8A5C] underline decoration-dotted hover:opacity-80"
+            className="font-medium text-[#3D6B3D] underline decoration-dotted hover:opacity-80"
             data-testid="changelog-canary-retry-link"
           >
             recovered via 15-min retry
@@ -553,14 +553,14 @@ function ChangelogEntry({ entry }) {
         </h2>
         <a
           href={`#${entry.version}`}
-          className="text-[10px] uppercase tracking-[0.18em] text-[#6B705C] hover:text-[#E07A5F]"
+          className="text-[10px] uppercase tracking-[0.18em] text-[#5B5F4D] hover:text-[#E07A5F]"
           title="Direct link to this entry"
         >
           #
         </a>
       </div>
       {date && (
-        <p className="text-xs uppercase tracking-[0.15em] text-[#6B705C] mb-3">
+        <p className="text-xs uppercase tracking-[0.15em] text-[#5B5F4D] mb-3">
           {date}
         </p>
       )}

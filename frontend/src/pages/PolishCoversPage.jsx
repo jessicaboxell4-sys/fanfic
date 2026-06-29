@@ -142,7 +142,7 @@ export default function PolishCoversPage() {
     <div className="min-h-screen bg-paper">
       <Navbar />
       <main className="max-w-5xl mx-auto px-4 py-8" data-testid="polish-covers-page">
-        <Link to="/library" className="inline-flex items-center gap-1.5 text-sm text-[#6B705C] hover:text-[var(--primary)] mb-4">
+        <Link to="/library" className="inline-flex items-center gap-1.5 text-sm text-[#5B5F4D] hover:text-[var(--primary)] mb-4">
           <ArrowLeft className="w-3.5 h-3.5" /> Back to library
         </Link>
 
@@ -152,7 +152,7 @@ export default function PolishCoversPage() {
           </div>
           <div className="min-w-0 flex-1">
             <h1 className="font-serif text-3xl text-[#2C2C2C]">Polish my covers</h1>
-            <p className="text-sm text-[#6B705C] mt-1">
+            <p className="text-sm text-[#5B5F4D] mt-1">
               Generate AI covers for every book that ships without one.  Each call goes through Gemini
               Nano Banana with the Shelfsort house style — sage palette, no faces, serif typography.
               Preview → keep → apply.  Originals are never touched.
@@ -168,7 +168,7 @@ export default function PolishCoversPage() {
             <Stat label="Applied this session" value={appliedCount} testid="polish-covers-applied" />
           </div>
           <div className="flex items-center gap-2 flex-wrap" data-testid="polish-covers-actions">
-            <label htmlFor="cover-style-pick" className="text-xs text-[#6B705C]">Style</label>
+            <label htmlFor="cover-style-pick" className="text-xs text-[#5B5F4D]">Style</label>
             <select
               id="cover-style-pick"
               value={styleId}
@@ -183,7 +183,7 @@ export default function PolishCoversPage() {
                 </option>
               ))}
             </select>
-            <label htmlFor="batch-size" className="text-xs text-[#6B705C]">Batch</label>
+            <label htmlFor="batch-size" className="text-xs text-[#5B5F4D]">Batch</label>
             <select
               id="batch-size"
               value={batchSize}
@@ -217,7 +217,7 @@ export default function PolishCoversPage() {
         </div>
 
         {loading ? (
-          <p className="text-sm text-[#6B705C] italic inline-flex items-center gap-2">
+          <p className="text-sm text-[#5B5F4D] italic inline-flex items-center gap-2">
             <Loader2 className="w-4 h-4 animate-spin" /> Loading your library…
           </p>
         ) : books.length === 0 ? (
@@ -225,9 +225,9 @@ export default function PolishCoversPage() {
             data-testid="polish-covers-empty"
             className="bg-white border border-[#E5DDC5] rounded-2xl p-8 text-center"
           >
-            <ImageIcon className="w-10 h-10 mx-auto mb-3 text-[#3D8B79]" />
+            <ImageIcon className="w-10 h-10 mx-auto mb-3 text-[#2F6E60]" />
             <h2 className="font-serif text-2xl text-[#2C2C2C]">Every book has a cover</h2>
-            <p className="text-sm text-[#6B705C] mt-2">
+            <p className="text-sm text-[#5B5F4D] mt-2">
               Nothing to polish here.  Upload more books or go enjoy what you&apos;ve got.
             </p>
             <button
@@ -266,7 +266,7 @@ export default function PolishCoversPage() {
 const Stat = ({ label, value, testid }) => (
   <div data-testid={testid}>
     <div className="text-2xl font-serif text-[#2C2C2C] leading-none">{value}</div>
-    <div className="text-[10px] uppercase tracking-wider text-[#6B705C] mt-1">{label}</div>
+    <div className="text-[10px] uppercase tracking-wider text-[#5B5F4D] mt-1">{label}</div>
   </div>
 );
 
@@ -299,7 +299,7 @@ function CoverTile({ book, state, onGenerate, onApply, onSkip }) {
         <p className="text-xs font-medium text-[#2C2C2C] line-clamp-2 leading-tight" title={book.title}>
           {book.title}
         </p>
-        <p className="text-[10px] text-[#6B705C] truncate" title={book.author}>{book.author || "—"}</p>
+        <p className="text-[10px] text-[#5B5F4D] truncate" title={book.author}>{book.author || "—"}</p>
         {/* Per-tile actions */}
         <div className="flex items-center gap-1 mt-1.5">
           {status === "idle" || status === "error" ? (
@@ -326,7 +326,7 @@ function CoverTile({ book, state, onGenerate, onApply, onSkip }) {
                 onClick={onGenerate}
                 title="Try again"
                 data-testid={`polish-covers-retry-${book.book_id}`}
-                className="inline-flex items-center justify-center px-2 py-1 rounded text-[11px] bg-white border border-[#E5DDC5] text-[#6B705C] hover:border-[#6B46C1]"
+                className="inline-flex items-center justify-center px-2 py-1 rounded text-[11px] bg-white border border-[#E5DDC5] text-[#5B5F4D] hover:border-[#6B46C1]"
               >
                 <RotateCw className="w-3 h-3" />
               </button>
@@ -335,21 +335,21 @@ function CoverTile({ book, state, onGenerate, onApply, onSkip }) {
                 onClick={onSkip}
                 title="Skip"
                 data-testid={`polish-covers-skip-${book.book_id}`}
-                className="inline-flex items-center justify-center px-2 py-1 rounded text-[11px] bg-white border border-[#E5DDC5] text-[#6B705C] hover:border-[#C04A3F]"
+                className="inline-flex items-center justify-center px-2 py-1 rounded text-[11px] bg-white border border-[#E5DDC5] text-[#5B5F4D] hover:border-[#C04A3F]"
               >
                 <XIcon className="w-3 h-3" />
               </button>
             </>
           ) : status === "applying" ? (
-            <span className="text-[11px] text-[#6B705C] italic inline-flex items-center gap-1 px-2 py-1">
+            <span className="text-[11px] text-[#5B5F4D] italic inline-flex items-center gap-1 px-2 py-1">
               <Loader2 className="w-3 h-3 animate-spin" /> Saving…
             </span>
           ) : status === "applied" ? (
-            <span className="text-[11px] text-[#3D8B79] font-medium inline-flex items-center gap-1 px-2 py-1">
+            <span className="text-[11px] text-[#2F6E60] font-medium inline-flex items-center gap-1 px-2 py-1">
               <Check className="w-3 h-3" /> Saved
             </span>
           ) : (
-            <span className="text-[11px] text-[#6B705C] italic px-2 py-1">…</span>
+            <span className="text-[11px] text-[#5B5F4D] italic px-2 py-1">…</span>
           )}
         </div>
       </div>

@@ -685,7 +685,7 @@ export default function AllBooksPage() {
         <Link
           to="/library"
           data-testid="back-to-dashboard"
-          className="inline-flex items-center gap-2 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-6"
+          className="inline-flex items-center gap-2 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-6"
         >
           <ArrowRight className="w-4 h-4 rotate-180" /> Back to your library
         </Link>
@@ -717,7 +717,7 @@ export default function AllBooksPage() {
             {stats.total > 0 ? `Browse your ${stats.total} book${stats.total > 1 ? "s" : ""}` : "No books yet — add some on the dashboard."}
           </h1>
           {stats.fandoms.length > 0 && (
-            <p className="text-[#6B705C] mt-2">
+            <p className="text-[#5B5F4D] mt-2">
               {stats.fandoms.slice(0, 4).map(f => `${f.name} (${f.count})`).join(" · ")}
             </p>
           )}
@@ -731,7 +731,7 @@ export default function AllBooksPage() {
               className="inline-flex items-center gap-1 mt-3 p-1 rounded-full border border-[#E8E6E1] bg-white text-xs"
               data-testid="library-mode-pills"
             >
-              <span className="px-2 text-[10px] uppercase tracking-wider text-[#A09A8B] font-semibold">Mode:</span>
+              <span className="px-2 text-[10px] uppercase tracking-wider text-[#6E6E6E] font-semibold">Mode:</span>
               {[
                 { value: "mixed",    label: "📚 Mixed"     },
                 { value: "fanfic",   label: "💜 Fanfic"    },
@@ -757,7 +757,7 @@ export default function AllBooksPage() {
                     className={`px-3 py-1 rounded-full font-medium transition-colors ${
                       active
                         ? "bg-[#6B46C1] text-white"
-                        : "text-[#6B705C] hover:bg-[#F5F3EC]"
+                        : "text-[#5B5F4D] hover:bg-[#F5F3EC]"
                     }`}
                     title={
                       opt.value === "fanfic"   ? "Fandom-first navigation, AO3 chrome visible" :
@@ -775,7 +775,7 @@ export default function AllBooksPage() {
             <Link
               to="/library/trash"
               data-testid="trash-chip"
-              className="inline-flex items-center gap-1.5 mt-3 px-3 py-1 rounded-full text-xs font-medium border border-[#6B705C]/30 bg-white text-[#6B705C] hover:bg-[#6B705C]/10 transition-colors"
+              className="inline-flex items-center gap-1.5 mt-3 px-3 py-1 rounded-full text-xs font-medium border border-[#6B705C]/30 bg-white text-[#5B5F4D] hover:bg-[#6B705C]/10 transition-colors"
             >
               <Trash2 className="w-3 h-3" /> Trash · {trashCount}
             </Link>
@@ -864,7 +864,7 @@ export default function AllBooksPage() {
                 const section = (() => {
                   if (!hasContent) {
                     return (
-                      <div className="text-xs text-[#6B705C] italic px-3 py-2 rounded border border-dashed border-[#B87A00]/30 bg-white/40">
+                      <div className="text-xs text-[#5B5F4D] italic px-3 py-2 rounded border border-dashed border-[#B87A00]/30 bg-white/40">
                         {LABEL[key]} — nothing here yet
                       </div>
                     );
@@ -999,7 +999,7 @@ export default function AllBooksPage() {
               <button
                 data-testid="undo-dismiss-btn"
                 onClick={() => setUndoActions([])}
-                className="px-2 py-1.5 rounded text-sm text-[#6B705C] hover:text-[#2C2C2C]"
+                className="px-2 py-1.5 rounded text-sm text-[#5B5F4D] hover:text-[#2C2C2C]"
                 aria-label="Dismiss"
               >
                 <X className="w-4 h-4" />
@@ -1036,7 +1036,7 @@ export default function AllBooksPage() {
                 <p className="font-serif text-xl text-[#2C2C2C] leading-tight">
                   {unclassifiedCount} book{unclassifiedCount === 1 ? "" : "s"} still need{unclassifiedCount === 1 ? "s" : ""} a shelf
                 </p>
-                <p className="text-sm text-[#6B705C] mt-1">
+                <p className="text-sm text-[#5B5F4D] mt-1">
                   Let Claude read the metadata and file each one for you.
                 </p>
               </div>
@@ -1075,7 +1075,7 @@ export default function AllBooksPage() {
                 <p className="font-serif text-xl text-[#2C2C2C] leading-tight">
                   {refreshStatus.refreshable} book{refreshStatus.refreshable === 1 ? "" : "s"} can be updated from FanFicFare
                 </p>
-                <p className="text-sm text-[#6B705C] mt-1">
+                <p className="text-sm text-[#5B5F4D] mt-1">
                   Pull the newest chapters straight from AO3, FFnet, Royal Road and friends —
                   we&apos;ll replace each EPUB with the latest version.
                 </p>
@@ -1110,7 +1110,7 @@ export default function AllBooksPage() {
               className="w-48 h-48 object-cover rounded-2xl mx-auto mb-6 opacity-80"
             />
             <h2 className="font-serif text-2xl text-[#2C2C2C] mb-2">No books just yet</h2>
-            <p className="text-[#6B705C]">Drop a few EPUBs above to start sorting your library.</p>
+            <p className="text-[#5B5F4D]">Drop a few EPUBs above to start sorting your library.</p>
             <div className="mt-6 flex justify-center">
               {FETCHING_UI_ENABLED && <PoweredByFanFicFare />}
             </div>
@@ -1118,7 +1118,7 @@ export default function AllBooksPage() {
                 time users land here with an empty shelf; nudge them
                 toward the inbound flywheel right at the moment they
                 might wish Shelfsort did one more thing. */}
-            <p className="mt-6 text-sm text-[#6B705C]">
+            <p className="mt-6 text-sm text-[#5B5F4D]">
               Wish Shelfsort did something it doesn&rsquo;t yet?{" "}
               <Link
                 to="/help#suggestions"
@@ -1165,7 +1165,7 @@ export default function AllBooksPage() {
                   className="flex items-center gap-2 text-left -mx-1 px-1 py-0.5 rounded hover:bg-[#F0EAD9] transition-colors"
                   data-testid="library-chip-toggle"
                 >
-                  <span className="text-xs font-semibold text-[#6B705C]">🎛️ Filters</span>
+                  <span className="text-xs font-semibold text-[#5B5F4D]">🎛️ Filters</span>
                   {chipFiltersActive ? (
                     <span
                       className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#6B46C1] text-white"
@@ -1179,10 +1179,10 @@ export default function AllBooksPage() {
                       ].filter(Boolean).length} active
                     </span>
                   ) : (
-                    <span className="text-[10px] text-[#A09A8B]">None active</span>
+                    <span className="text-[10px] text-[#6E6E6E]">None active</span>
                   )}
                   <span
-                    className={`ml-auto text-[#6B705C] text-xs transition-transform ${chipsExpanded ? "rotate-180" : ""}`}
+                    className={`ml-auto text-[#5B5F4D] text-xs transition-transform ${chipsExpanded ? "rotate-180" : ""}`}
                     aria-hidden="true"
                   >▼</span>
                 </button>
@@ -1278,7 +1278,7 @@ export default function AllBooksPage() {
                   },
                 ].map((row) => (
                   <div key={row.dim} className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-semibold text-[#6B705C] w-20 shrink-0">{row.label}</span>
+                    <span className="text-xs font-semibold text-[#5B5F4D] w-20 shrink-0">{row.label}</span>
                     {row.options.map((opt) => {
                       const active = chipFilters[row.dim] === opt.value;
                       return (
@@ -1291,7 +1291,7 @@ export default function AllBooksPage() {
                           className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
                             active
                               ? "bg-[#6B46C1] text-white border-[#6B46C1]"
-                              : "bg-white text-[#6B705C] border-[#E8E6E1] hover:bg-[#F5F3EC]"
+                              : "bg-white text-[#5B5F4D] border-[#E8E6E1] hover:bg-[#F5F3EC]"
                           }`}
                         >
                           {opt.label}
@@ -1304,7 +1304,7 @@ export default function AllBooksPage() {
                 )}
                 {chipFiltersActive && (
                   <div className="flex items-center justify-between pt-1 gap-3 flex-wrap">
-                    <span className="text-xs text-[#A09A8B]" data-testid="library-chip-filter-count">
+                    <span className="text-xs text-[#6E6E6E]" data-testid="library-chip-filter-count">
                       {visibleBooks.length} of {books.length} books match
                     </span>
                     <div className="flex items-center gap-2">
@@ -1489,7 +1489,7 @@ export default function AllBooksPage() {
                   className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-colors flex items-center gap-1.5 ${
                     smart === "unavailable"
                       ? "bg-[#6B705C] text-white border-[#6B705C]"
-                      : "bg-white border-[#6B705C]/30 text-[#6B705C] hover:bg-[#6B705C]/10"
+                      : "bg-white border-[#6B705C]/30 text-[#5B5F4D] hover:bg-[#6B705C]/10"
                   }`}
                   title="We couldn't find these online — skipped on bulk update"
                 >
@@ -1587,7 +1587,7 @@ export default function AllBooksPage() {
                   <button
                     type="button"
                     onClick={() => { setAddingCat(false); setNewCat(""); }}
-                    className="text-[#6B705C] hover:text-[#2C2C2C] text-sm"
+                    className="text-[#5B5F4D] hover:text-[#2C2C2C] text-sm"
                   >
                     Cancel
                   </button>
@@ -1610,7 +1610,7 @@ export default function AllBooksPage() {
                   <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] flex items-center gap-2">
                     <Library className="w-3 h-3" /> Series detected
                   </p>
-                  <p className="text-xs text-[#6B705C] hidden sm:block">
+                  <p className="text-xs text-[#5B5F4D] hidden sm:block">
                     Click to open a series shelf in reading order
                   </p>
                 </div>
@@ -1708,9 +1708,9 @@ export default function AllBooksPage() {
               <div className="mb-8">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1]">
-                    Fandom shelves <span className="text-[#6B705C] font-normal lowercase tracking-normal ml-1">({stats.fandoms.length})</span>
+                    Fandom shelves <span className="text-[#5B5F4D] font-normal lowercase tracking-normal ml-1">({stats.fandoms.length})</span>
                   </p>
-                  <p className="text-xs text-[#6B705C] hidden sm:block">
+                  <p className="text-xs text-[#5B5F4D] hidden sm:block">
                     Click any fandom to open its dedicated shelf
                   </p>
                 </div>
@@ -1763,7 +1763,7 @@ export default function AllBooksPage() {
                         className="rounded-xl border border-dashed border-[#E5DDC5] bg-[#FBFAF6] p-6 text-center"
                         data-testid="fandom-finder-empty"
                       >
-                        <Search className="w-6 h-6 text-[#6B705C] mx-auto mb-1.5" aria-hidden="true" />
+                        <Search className="w-6 h-6 text-[#5B5F4D] mx-auto mb-1.5" aria-hidden="true" />
                         <p className="text-sm text-[#2C2C2C] mb-2">
                           No fandom matches "{fandomQuery}" in your library.
                         </p>
@@ -1824,7 +1824,7 @@ export default function AllBooksPage() {
                   <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1]">
                     Relationships
                   </p>
-                  <p className="text-xs text-[#6B705C] hidden sm:block">
+                  <p className="text-xs text-[#5B5F4D] hidden sm:block">
                     Click a pairing to filter the library
                   </p>
                 </div>
@@ -1903,7 +1903,7 @@ export default function AllBooksPage() {
                 reach when they're actually looking at books. */}
             <div className="flex flex-wrap items-center gap-3 mb-6" data-testid="library-toolbar">
               <div className="relative flex-1 min-w-[220px]">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#6B705C]" />
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#5B5F4D]" />
                 <input
                   data-testid="search-input"
                   type="text"
@@ -2001,7 +2001,7 @@ export default function AllBooksPage() {
             {fulltextMode && (
               <div className="mb-6" data-testid="fulltext-results-panel">
                 {fulltextLoading && (
-                  <p className="text-[#6B705C] py-4 text-center text-sm">Searching inside books…</p>
+                  <p className="text-[#5B5F4D] py-4 text-center text-sm">Searching inside books…</p>
                 )}
                 {!fulltextLoading && fulltextResults && search.trim().length >= 2 && (
                   <>
@@ -2009,7 +2009,7 @@ export default function AllBooksPage() {
                       Inside-book matches ({fulltextResults.count})
                     </p>
                     {fulltextResults.results.length === 0 ? (
-                      <p className="text-sm text-[#6B705C] py-6 text-center" data-testid="fulltext-empty">
+                      <p className="text-sm text-[#5B5F4D] py-6 text-center" data-testid="fulltext-empty">
                         No book bodies contain "{search.trim()}". Books are indexed at upload time — older books may need an admin to run the Full-text backfill.
                       </p>
                     ) : (
@@ -2024,13 +2024,13 @@ export default function AllBooksPage() {
                               to={`/book/${r.book_id}`}
                               className="font-medium text-[#2C2C2C] hover:text-[#6B46C1] flex items-center justify-between gap-2"
                             >
-                              <span className="truncate">{r.title || "Untitled"} <span className="text-[#6B705C] font-normal">— {r.author || "Unknown"}</span></span>
+                              <span className="truncate">{r.title || "Untitled"} <span className="text-[#5B5F4D] font-normal">— {r.author || "Unknown"}</span></span>
                               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#EEE9FB] text-[#6B46C1] flex-shrink-0">
                                 score {r.score}
                               </span>
                             </Link>
                             {r.snippet && (
-                              <p className="mt-1.5 text-xs text-[#6B705C] italic leading-relaxed">
+                              <p className="mt-1.5 text-xs text-[#5B5F4D] italic leading-relaxed">
                                 {r.snippet}
                               </p>
                             )}
@@ -2041,16 +2041,16 @@ export default function AllBooksPage() {
                   </>
                 )}
                 {!fulltextLoading && (!fulltextResults || search.trim().length < 2) && (
-                  <p className="text-sm text-[#6B705C] py-4 text-center" data-testid="fulltext-empty-prompt">
+                  <p className="text-sm text-[#5B5F4D] py-4 text-center" data-testid="fulltext-empty-prompt">
                     Type at least 2 characters to search inside your books.
                   </p>
                 )}
               </div>
             )}
             {loading ? (
-              <p className="text-[#6B705C] py-12 text-center">Loading…</p>
+              <p className="text-[#5B5F4D] py-12 text-center">Loading…</p>
             ) : books.length === 0 ? (
-              <p className="text-[#6B705C] py-12 text-center">No books match these filters.</p>
+              <p className="text-[#5B5F4D] py-12 text-center">No books match these filters.</p>
             ) : viewMode === "list" ? (
               // List view (enhanced iter 60) — table-style rows with
               // full metadata.  Responsive columns: pairings/wordcount/
@@ -2061,7 +2061,7 @@ export default function AllBooksPage() {
                     densities via card sizes).  Compact for dense
                     scanning, Comfortable as default, Cozy for users
                     who want more breathing room per row. */}
-                <div className="flex items-center justify-end gap-1 px-3 py-1.5 bg-[#FAF6EE] border-b border-[#E8E6E1] text-[10px] uppercase tracking-wider text-[#A09A8B]" data-testid="list-density-toggle">
+                <div className="flex items-center justify-end gap-1 px-3 py-1.5 bg-[#FAF6EE] border-b border-[#E8E6E1] text-[10px] uppercase tracking-wider text-[#6E6E6E]" data-testid="list-density-toggle">
                   <span className="mr-1">Density:</span>
                   {[
                     { value: "compact",     label: "Compact" },
@@ -2079,7 +2079,7 @@ export default function AllBooksPage() {
                         className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider transition-colors ${
                           active
                             ? "bg-[#6B46C1] text-white"
-                            : "text-[#6B705C] hover:bg-white"
+                            : "text-[#5B5F4D] hover:bg-white"
                         }`}
                       >
                         {opt.label}
@@ -2090,7 +2090,7 @@ export default function AllBooksPage() {
                 {/* Sticky-ish header row.  Sortability deliberately
                     deferred — the existing top-bar sort dropdown
                     already drives this list. */}
-                <div className="hidden md:flex items-center gap-3 px-4 py-2 bg-[#FAF6EE] border-b border-[#E8E6E1] text-[10px] uppercase tracking-wider font-semibold text-[#A09A8B]">
+                <div className="hidden md:flex items-center gap-3 px-4 py-2 bg-[#FAF6EE] border-b border-[#E8E6E1] text-[10px] uppercase tracking-wider font-semibold text-[#6E6E6E]">
                   <span className="w-8 shrink-0" aria-hidden />
                   <span className="flex-1 min-w-0">Title / Author</span>
                   <span className="w-32 shrink-0 truncate">Fandom</span>
@@ -2115,10 +2115,10 @@ export default function AllBooksPage() {
                             className="flex items-center gap-2 w-full text-left"
                           >
                             <span className="font-serif text-base text-[#2C2C2C]">{sec.label}</span>
-                            <span className="text-xs text-[#A09A8B]">· {sec.books.length}</span>
+                            <span className="text-xs text-[#6E6E6E]">· {sec.books.length}</span>
                             <span
                               aria-hidden="true"
-                              className={`ml-auto text-[#6B705C] text-xs transition-transform ${collapsedSections[sec.key] ? "" : "rotate-180"}`}
+                              className={`ml-auto text-[#5B5F4D] text-xs transition-transform ${collapsedSections[sec.key] ? "" : "rotate-180"}`}
                             >▼</span>
                           </button>
                         </li>
@@ -2184,25 +2184,25 @@ export default function AllBooksPage() {
                           <p className="text-sm font-medium text-[#2C2C2C] truncate" title={b.title}>
                             {b.title || "Untitled"}
                             {b.series && (
-                              <span className="ml-1.5 text-[10px] text-[#6B705C] font-normal">· {b.series}{b.series_index ? ` #${b.series_index}` : ""}</span>
+                              <span className="ml-1.5 text-[10px] text-[#5B5F4D] font-normal">· {b.series}{b.series_index ? ` #${b.series_index}` : ""}</span>
                             )}
                           </p>
-                          <p className="text-xs text-[#6B705C] truncate">
+                          <p className="text-xs text-[#5B5F4D] truncate">
                             {b.author || "Unknown"}
                           </p>
                         </div>
                         <span className="w-32 shrink-0 text-xs text-[#6B46C1] truncate hidden md:inline" title={b.fandom || ""}>
                           {b.fandom || "—"}
-                          {b.category && <span className="ml-1 text-[#A09A8B]">· {b.category}</span>}
+                          {b.category && <span className="ml-1 text-[#6E6E6E]">· {b.category}</span>}
                         </span>
-                        <span className="w-28 shrink-0 text-xs text-[#6B705C] truncate hidden lg:inline" title={pairings}>
+                        <span className="w-28 shrink-0 text-xs text-[#5B5F4D] truncate hidden lg:inline" title={pairings}>
                           {pairings || "—"}
                         </span>
-                        <span className="w-20 shrink-0 text-xs font-mono text-[#6B705C] text-right tabular-nums hidden lg:inline" title={`${wordsK} words · ~${timeLabel} read at 270 wpm`}>
+                        <span className="w-20 shrink-0 text-xs font-mono text-[#5B5F4D] text-right tabular-nums hidden lg:inline" title={`${wordsK} words · ~${timeLabel} read at 270 wpm`}>
                           {b.word_count ? (
                             <>
                               <span className="block leading-tight">{timeLabel}</span>
-                              <span className="block text-[10px] text-[#A09A8B] leading-tight">{wordsK}</span>
+                              <span className="block text-[10px] text-[#6E6E6E] leading-tight">{wordsK}</span>
                             </>
                           ) : "—"}
                         </span>
@@ -2210,16 +2210,16 @@ export default function AllBooksPage() {
                           {b.progress_fraction >= 0.99 ? (
                             <span className="text-[10px] font-bold uppercase tracking-wider text-[#81B29A]">Read</span>
                           ) : (b.progress_fraction != null && b.progress_fraction > 0) ? (
-                            <span className="text-[10px] font-mono text-[#6B705C] tabular-nums">{Math.round(b.progress_fraction * 100)}%</span>
+                            <span className="text-[10px] font-mono text-[#5B5F4D] tabular-nums">{Math.round(b.progress_fraction * 100)}%</span>
                           ) : b.av_status === "infected" ? (
                             <ShieldAlert className="w-3.5 h-3.5 text-[#D9534F]" aria-label="Infected" />
                           ) : b.av_status === "scanning" ? (
                             <Clock className="w-3.5 h-3.5 text-[#B7791F]" aria-label="Scanning" />
                           ) : (
-                            <ShieldCheck className="w-3.5 h-3.5 text-[#A09A8B]" aria-label="Clean" />
+                            <ShieldCheck className="w-3.5 h-3.5 text-[#6E6E6E]" aria-label="Clean" />
                           )}
                         </span>
-                        <span className="w-16 shrink-0 text-xs text-[#A09A8B] text-right tabular-nums hidden xl:inline">
+                        <span className="w-16 shrink-0 text-xs text-[#6E6E6E] text-right tabular-nums hidden xl:inline">
                           {addedRel}
                         </span>
                       </li>
@@ -2293,7 +2293,7 @@ export default function AllBooksPage() {
                     <p className="mt-1.5 text-[11px] font-medium text-[#2C2C2C] line-clamp-2 leading-tight w-full" title={b.title}>
                       {b.title || "Untitled"}
                     </p>
-                    <p className="text-[10px] text-[#6B705C] truncate w-full">
+                    <p className="text-[10px] text-[#5B5F4D] truncate w-full">
                       {b.author || "—"}
                     </p>
                   </button>
@@ -2307,7 +2307,7 @@ export default function AllBooksPage() {
                     columns (easier to read titles).  Only renders
                     in Grid mode; Compact has its own high-density
                     grid that doesn't need user control. */}
-                <div className="flex items-center justify-end gap-1 mb-3 text-[10px] uppercase tracking-wider text-[#A09A8B]" data-testid="grid-size-toggle">
+                <div className="flex items-center justify-end gap-1 mb-3 text-[10px] uppercase tracking-wider text-[#6E6E6E]" data-testid="grid-size-toggle">
                   <span className="mr-1">Size:</span>
                   {[
                     { value: "s", label: "S" },
@@ -2325,7 +2325,7 @@ export default function AllBooksPage() {
                         className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider transition-colors ${
                           active
                             ? "bg-[#6B46C1] text-white"
-                            : "text-[#6B705C] hover:bg-[#F5F3EC] border border-transparent hover:border-[#E8E6E1]"
+                            : "text-[#5B5F4D] hover:bg-[#F5F3EC] border border-transparent hover:border-[#E8E6E1]"
                         }`}
                         title={
                           opt.value === "s" ? "Small — see ~50% more covers per screen" :
@@ -2350,10 +2350,10 @@ export default function AllBooksPage() {
                           className="col-span-full flex items-center gap-2 px-2 py-2 mt-2 first:mt-0 border-b border-[#E8E6E1] text-left hover:bg-[#F5F3EC] transition-colors"
                         >
                           <span className="font-serif text-xl text-[#2C2C2C]">{sec.label}</span>
-                          <span className="text-xs text-[#A09A8B]">· {sec.books.length}</span>
+                          <span className="text-xs text-[#6E6E6E]">· {sec.books.length}</span>
                           <span
                             aria-hidden="true"
-                            className={`ml-auto text-[#6B705C] transition-transform ${collapsedSections[sec.key] ? "" : "rotate-180"}`}
+                            className={`ml-auto text-[#5B5F4D] transition-transform ${collapsedSections[sec.key] ? "" : "rotate-180"}`}
                           >▼</span>
                         </button>
                       )}

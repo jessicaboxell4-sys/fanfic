@@ -33,7 +33,7 @@ export default function PalettePickerCard() {
         </div>
         <div>
           <h2 className="font-serif text-2xl text-[#2C2C2C]">Theme palette</h2>
-          <p className="text-sm text-[#6B705C] mt-0.5">
+          <p className="text-sm text-[#5B5F4D] mt-0.5">
             Pick the accent colour that runs through every button, link, and badge. Saved to this browser. Both light and dark modes update together.
           </p>
         </div>
@@ -73,7 +73,7 @@ export default function PalettePickerCard() {
                 />
                 <p className="font-semibold text-sm text-[#2C2C2C]">{p.name}</p>
               </div>
-              <p className="text-xs text-[#6B705C] leading-snug pr-6">{p.description}</p>
+              <p className="text-xs text-[#5B5F4D] leading-snug pr-6">{p.description}</p>
             </button>
           );
         })}
@@ -111,7 +111,7 @@ export default function PalettePickerCard() {
               <Sliders className="w-3.5 h-3.5" /> Custom
             </p>
           </div>
-          <p className="text-xs text-[#6B705C] leading-snug pr-6">Your own palette. Click below to pick each colour — dark-mode variants are auto-derived.</p>
+          <p className="text-xs text-[#5B5F4D] leading-snug pr-6">Your own palette. Click below to pick each colour — dark-mode variants are auto-derived.</p>
         </button>
       </div>
 
@@ -136,16 +136,16 @@ export default function PalettePickerCard() {
                 />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold text-[#2C2C2C]">{meta.name}</p>
-                  <p className="text-xs text-[#6B705C] truncate">{meta.hint}</p>
+                  <p className="text-xs text-[#5B5F4D] truncate">{meta.hint}</p>
                 </div>
-                <code className="text-[10px] text-[#6B705C] tabular-nums">{customLight[slot].toUpperCase()}</code>
+                <code className="text-[10px] text-[#5B5F4D] tabular-nums">{customLight[slot].toUpperCase()}</code>
               </label>
             ))}
           </div>
         </div>
       )}
 
-      <p className="text-xs text-[#6B705C] mt-4">
+      <p className="text-xs text-[#5B5F4D] mt-4">
         Currently using <strong className="text-[#2C2C2C]">{palette.name}</strong>.
         To add or tweak presets, edit{" "}
         <code className="bg-[#FBFAF6] border border-[#E5DDC5] px-1.5 py-0.5 rounded text-[10px]">

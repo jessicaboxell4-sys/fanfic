@@ -75,7 +75,7 @@ export function PairingsDirectory() {
         <button
           onClick={() => navigate("/library")}
           data-testid="pairings-back"
-          className="flex items-center gap-2 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-6"
+          className="flex items-center gap-2 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-6"
         >
           <ArrowLeft className="w-4 h-4" /> Back to library
         </button>
@@ -95,7 +95,7 @@ export function PairingsDirectory() {
           </div>
           <div>
             <h1 className="font-serif text-3xl text-[#2C2C2C]">Pairings</h1>
-            <p className="text-sm text-[#6B705C] mt-1 max-w-2xl">
+            <p className="text-sm text-[#5B5F4D] mt-1 max-w-2xl">
               Every relationship Shelfsort extracted from your library, sorted by how many books feature each ship. Click any pairing to see the books.
             </p>
           </div>
@@ -136,7 +136,7 @@ export function PairingsDirectory() {
               <Link
                 to="/library/characters"
                 data-testid="pairings-characters-see-all"
-                className="px-3 py-1.5 rounded-full text-xs font-semibold border bg-transparent text-[#6B705C] border-[#E5DDC5] hover:bg-[#F5F3EC] hover:text-[#2C2C2C] transition-colors inline-flex items-center gap-1"
+                className="px-3 py-1.5 rounded-full text-xs font-semibold border bg-transparent text-[#5B5F4D] border-[#E5DDC5] hover:bg-[#F5F3EC] hover:text-[#2C2C2C] transition-colors inline-flex items-center gap-1"
                 title="Browse every character"
               >
                 See all →
@@ -144,7 +144,7 @@ export function PairingsDirectory() {
             </div>
             {character && (
               <p
-                className="text-xs text-[#6B705C] italic mt-2"
+                className="text-xs text-[#5B5F4D] italic mt-2"
                 data-testid="pairings-character-filter-status"
               >
                 Filtered to ships involving <span className="font-semibold text-[#2C2C2C]">{character}</span>
@@ -166,7 +166,7 @@ export function PairingsDirectory() {
           <div className="font-serif text-3xl text-[#2C2C2C]" data-testid="pairings-count">
             {pairings.length}
           </div>
-          <div className="text-xs text-[#6B705C] uppercase tracking-wide">
+          <div className="text-xs text-[#5B5F4D] uppercase tracking-wide">
             {character
               ? <>{character} ship{pairings.length === 1 ? "" : "s"}</>
               : <>distinct pairing{pairings.length === 1 ? "" : "s"}</>}
@@ -174,7 +174,7 @@ export function PairingsDirectory() {
         </div>
 
         <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B705C]" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#5B5F4D]" />
           <input
             type="search"
             data-testid="pairings-search"
@@ -186,9 +186,9 @@ export function PairingsDirectory() {
         </div>
 
         {loading ? (
-          <p className="text-[#6B705C] italic text-sm">Loading…</p>
+          <p className="text-[#5B5F4D] italic text-sm">Loading…</p>
         ) : filtered.length === 0 ? (
-          <div className="shelf-card p-8 text-center text-[#6B705C]">
+          <div className="shelf-card p-8 text-center text-[#5B5F4D]">
             {pairings.length === 0
               ? "No pairings detected yet — upload fanfic EPUBs and Shelfsort will extract their relationships automatically."
               : <p className="text-sm italic">No pairings match your filter.</p>}
@@ -212,7 +212,7 @@ export function PairingsDirectory() {
                     </span>
                   </div>
                   {(p.sample_titles || []).length > 0 && (
-                    <div className="text-xs text-[#6B705C] italic truncate">
+                    <div className="text-xs text-[#5B5F4D] italic truncate">
                       e.g. {p.sample_titles.slice(0, 3).map((t) => `"${t}"`).join(", ")}
                     </div>
                   )}
@@ -255,7 +255,7 @@ export function PairingShelf() {
         <button
           onClick={() => navigate("/library/pairings")}
           data-testid="pairing-shelf-back"
-          className="flex items-center gap-2 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-6"
+          className="flex items-center gap-2 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-6"
         >
           <ArrowLeft className="w-4 h-4" /> All pairings
         </button>
@@ -273,20 +273,20 @@ export function PairingShelf() {
             <Heart className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-xs text-[#6B705C] uppercase tracking-wide">Pairing</p>
+            <p className="text-xs text-[#5B5F4D] uppercase tracking-wide">Pairing</p>
             <h1 className="font-serif text-3xl text-[#2C2C2C] font-mono" data-testid="pairing-shelf-name">{pairing}</h1>
           </div>
         </header>
 
         <div className="shelf-card p-5 mb-6 flex items-center gap-4">
           <div className="font-serif text-3xl text-[#2C2C2C]" data-testid="pairing-shelf-count">{books.length}</div>
-          <div className="text-xs text-[#6B705C] uppercase tracking-wide">book{books.length === 1 ? "" : "s"}</div>
+          <div className="text-xs text-[#5B5F4D] uppercase tracking-wide">book{books.length === 1 ? "" : "s"}</div>
         </div>
 
         {loading ? (
-          <p className="text-[#6B705C] italic text-sm">Loading…</p>
+          <p className="text-[#5B5F4D] italic text-sm">Loading…</p>
         ) : books.length === 0 ? (
-          <div className="shelf-card p-8 text-center text-[#6B705C] italic text-sm">
+          <div className="shelf-card p-8 text-center text-[#5B5F4D] italic text-sm">
             No books for this pairing.
           </div>
         ) : (
@@ -317,7 +317,7 @@ export function PairingShelf() {
                           : <><CheckCircle2 className="w-3 h-3" /> Finished</>}
                       </span>
                     </div>
-                    <div className="text-xs text-[#6B705C]">
+                    <div className="text-xs text-[#5B5F4D]">
                       {b.author || "Unknown"}
                       {b.fandom ? <> · {b.fandom}</> : null}
                       {b.category ? <> · {b.category}</> : null}

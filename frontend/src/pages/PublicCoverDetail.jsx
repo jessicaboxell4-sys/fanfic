@@ -101,7 +101,7 @@ export default function PublicCoverDetail() {
   if (loading) {
     return (
       <main className="max-w-3xl mx-auto px-6 py-14" data-testid="cover-loading">
-        <p className="text-[#6B705C]">Loading…</p>
+        <p className="text-[#5B5F4D]">Loading…</p>
       </main>
     );
   }
@@ -109,7 +109,7 @@ export default function PublicCoverDetail() {
     return (
       <main className="max-w-3xl mx-auto px-6 py-14 text-center" data-testid="cover-not-found">
         <h1 className="font-serif text-4xl text-[#2C2C2C] mb-3">Cover not found</h1>
-        <p className="text-[#6B705C] mb-6">This cover was either removed or never shared.</p>
+        <p className="text-[#5B5F4D] mb-6">This cover was either removed or never shared.</p>
         <Link
           to="/explore/covers"
           className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold bg-[#6B46C1] text-white hover:bg-[#553397]"
@@ -158,9 +158,9 @@ export default function PublicCoverDetail() {
               {cover.title || "Untitled"}
             </h1>
             {cover.author && (
-              <p className="text-lg text-[#6B705C] mt-1">{cover.author}</p>
+              <p className="text-lg text-[#5B5F4D] mt-1">{cover.author}</p>
             )}
-            <p className="text-sm text-[#6B705C] mt-3">
+            <p className="text-sm text-[#5B5F4D] mt-3">
               Shared by{" "}
               <Link
                 to={`/u/${cover.shared_by}`}
@@ -188,7 +188,7 @@ export default function PublicCoverDetail() {
                 <Heart className={"w-4 h-4 " + (cover.voted_by_me ? "fill-current" : "")} />
                 {cover.votes || 0}
               </button>
-              <span className="inline-flex items-center gap-1 text-sm text-[#6B705C]">
+              <span className="inline-flex items-center gap-1 text-sm text-[#5B5F4D]">
                 <Download className="w-4 h-4" /> {cover.import_count || 0} imports
               </span>
             </div>
@@ -218,7 +218,7 @@ export default function PublicCoverDetail() {
                   </p>
                 )}
                 {lineage.remix_count > 0 && (
-                  <p className="text-[#6B705C] mt-1">
+                  <p className="text-[#5B5F4D] mt-1">
                     {lineage.remix_count}{" "}
                     {lineage.remix_count === 1 ? "remix" : "remixes"} downstream.
                   </p>
@@ -234,7 +234,7 @@ export default function PublicCoverDetail() {
                 <p className="font-semibold text-[#2C2C2C] mb-1">
                   Like what you see?
                 </p>
-                <p className="text-[#6B705C] mb-3">
+                <p className="text-[#5B5F4D] mb-3">
                   Shelfsort uses AI to generate covers for your fanfic + book
                   library, sorted by fandom, with a community pool just like
                   this one.

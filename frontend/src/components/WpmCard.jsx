@@ -69,7 +69,7 @@ export default function WpmCard() {
   if (loading) {
     return (
       <section className="shelf-card p-6 mb-6">
-        <p className="text-sm text-[#6B705C] flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" /> Loading reading-speed setting…</p>
+        <p className="text-sm text-[#5B5F4D] flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" /> Loading reading-speed setting…</p>
       </section>
     );
   }
@@ -86,7 +86,7 @@ export default function WpmCard() {
         </div>
         <div>
           <h2 className="font-serif text-2xl text-[#2C2C2C]">Reading speed</h2>
-          <p className="text-sm text-[#6B705C] mt-0.5">
+          <p className="text-sm text-[#5B5F4D] mt-0.5">
             Used for every &quot;minutes remaining&quot; estimate. Default is {defaultWpm} words per minute.
           </p>
         </div>
@@ -119,7 +119,7 @@ export default function WpmCard() {
           data-testid="wpm-input"
           className="w-20 px-2 py-1.5 bg-white border border-[#E5DDC5] rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-[#6B46C1]"
         />
-        <span className="text-xs text-[#6B705C]">wpm</span>
+        <span className="text-xs text-[#5B5F4D]">wpm</span>
       </div>
 
       <div className="flex flex-wrap gap-2" data-testid="wpm-presets">
@@ -132,14 +132,14 @@ export default function WpmCard() {
             className={`px-3 py-1 rounded-full text-xs border transition ${
               wpm === p.wpm
                 ? "bg-[#6B46C1] text-white border-[#6B46C1]"
-                : "bg-white text-[#6B705C] border-[#E5DDC5] hover:border-[#6B46C1]"
+                : "bg-white text-[#5B5F4D] border-[#E5DDC5] hover:border-[#6B46C1]"
             }`}
           >
             {p.label} · {p.wpm}
           </button>
         ))}
       </div>
-      {saving && <p className="text-[10px] text-[#6B705C] mt-2 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Saving…</p>}
+      {saving && <p className="text-[10px] text-[#5B5F4D] mt-2 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Saving…</p>}
     </section>
   );
 }

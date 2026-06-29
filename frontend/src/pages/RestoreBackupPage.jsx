@@ -107,7 +107,7 @@ export default function RestoreBackupPage() {
         <button
           onClick={() => navigate("/account")}
           data-testid="restore-back"
-          className="flex items-center gap-2 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-6"
+          className="flex items-center gap-2 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-6"
         >
           <ArrowLeft className="w-4 h-4" /> Back to account
         </button>
@@ -118,7 +118,7 @@ export default function RestoreBackupPage() {
           </div>
           <div>
             <h1 className="font-serif text-3xl text-[#2C2C2C]">Restore from backup</h1>
-            <p className="text-sm text-[#6B705C] mt-1 max-w-2xl">
+            <p className="text-sm text-[#5B5F4D] mt-1 max-w-2xl">
               Upload a `shelfsort-backup-*.zip`, pick what to bring back, then apply. Books with IDs already in your library are flagged as collisions and default to OFF — you can tick them on if you want to overwrite.
             </p>
           </div>
@@ -135,7 +135,7 @@ export default function RestoreBackupPage() {
               data-testid="restore-file-input"
               className="block mx-auto text-sm"
             />
-            {busy && <p className="mt-3 text-xs text-[#6B705C] italic">Reading manifest…</p>}
+            {busy && <p className="mt-3 text-xs text-[#5B5F4D] italic">Reading manifest…</p>}
           </div>
         )}
 
@@ -153,7 +153,7 @@ export default function RestoreBackupPage() {
                   <span> · <strong>{preview.stats.smart_shelf_count}</strong> smart shelves</span>
                 )}
               </p>
-              <p className="text-xs text-[#6B705C] mt-1">
+              <p className="text-xs text-[#5B5F4D] mt-1">
                 Backup generated {preview.generated_at ? new Date(preview.generated_at).toLocaleString() : "unknown"}
               </p>
             </div>
@@ -175,7 +175,7 @@ export default function RestoreBackupPage() {
               <button onClick={selectAll} data-testid="restore-select-all" className="px-3 py-1.5 rounded-full bg-white border border-[#E5DDC5] hover:bg-[#F5F3EC]">Select all</button>
               <button onClick={selectNone} data-testid="restore-select-none" className="px-3 py-1.5 rounded-full bg-white border border-[#E5DDC5] hover:bg-[#F5F3EC]">Select none</button>
               <button onClick={selectOnlyNew} data-testid="restore-select-new" className="px-3 py-1.5 rounded-full bg-white border border-[#E5DDC5] hover:bg-[#F5F3EC]">Only new books</button>
-              <span className="ml-2 px-3 py-1.5 text-[#6B705C]">
+              <span className="ml-2 px-3 py-1.5 text-[#5B5F4D]">
                 {selectedBooks.size} / {preview.books.length} books selected
               </span>
             </div>
@@ -195,7 +195,7 @@ export default function RestoreBackupPage() {
                   />
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-medium text-[#2C2C2C] truncate">{b.title}</div>
-                    <div className="text-xs text-[#6B705C] truncate">
+                    <div className="text-xs text-[#5B5F4D] truncate">
                       {b.author}{b.fandom ? ` · ${b.fandom}` : ""}{b.category ? ` · ${b.category}` : ""}
                     </div>
                   </div>
@@ -261,7 +261,7 @@ export default function RestoreBackupPage() {
               <CheckCircle2 className="w-6 h-6 text-[#6B46C1] flex-shrink-0 mt-0.5" />
               <div>
                 <p className="font-serif text-xl text-[#2C2C2C]">Restore complete.</p>
-                <ul className="text-sm text-[#6B705C] mt-2 space-y-1">
+                <ul className="text-sm text-[#5B5F4D] mt-2 space-y-1">
                   <li>{result.restored_books} new book{result.restored_books === 1 ? "" : "s"} added</li>
                   {result.overwritten_books > 0 && <li>{result.overwritten_books} book{result.overwritten_books === 1 ? "" : "s"} overwritten</li>}
                   {result.skipped_books > 0 && <li>{result.skipped_books} skipped (collision, overwrite OFF)</li>}

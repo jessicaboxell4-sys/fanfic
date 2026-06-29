@@ -134,7 +134,7 @@ export default function ReadingQueuePage() {
         <Link
           to="/library"
           data-testid="back-to-dashboard"
-          className="inline-flex items-center gap-2 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-6"
+          className="inline-flex items-center gap-2 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-6"
         >
           <ArrowLeft className="w-4 h-4" /> Back to your library
         </Link>
@@ -149,19 +149,19 @@ export default function ReadingQueuePage() {
               : `${queue.length} book${queue.length === 1 ? "" : "s"} queued up.`}
           </h1>
           {queue.length > 0 && (
-            <p className="text-[#6B705C] mt-3">
+            <p className="text-[#5B5F4D] mt-3">
               Drag the <GripVertical className="inline w-4 h-4 -mt-0.5" /> handle to reorder, use the arrows for one-step nudges, the × to remove, or tap a card to start reading.
             </p>
           )}
         </header>
 
         {loading ? (
-          <p className="text-[#6B705C] py-10 text-center">Loading…</p>
+          <p className="text-[#5B5F4D] py-10 text-center">Loading…</p>
         ) : queue.length === 0 ? (
           <div className="shelf-card p-10 text-center" data-testid="queue-empty-state">
             <BookOpen className="w-12 h-12 text-[#6B46C1] mx-auto mb-4 opacity-60" />
             <h2 className="font-serif text-2xl text-[#2C2C2C] mb-2">Nothing queued yet</h2>
-            <p className="text-[#6B705C] mb-6 max-w-md mx-auto">
+            <p className="text-[#5B5F4D] mb-6 max-w-md mx-auto">
               Hover any book card and click the <ListChecks className="inline w-4 h-4 -mt-0.5" /> icon to drop it on your stack.
               Books on your queue surface on the dashboard&apos;s &ldquo;Up next&rdquo; row.
             </p>
@@ -188,12 +188,12 @@ export default function ReadingQueuePage() {
                 <span
                   data-testid={`queue-grip-${book.book_id}`}
                   title="Drag to reorder"
-                  className="text-[#6B705C] cursor-grab active:cursor-grabbing select-none"
+                  className="text-[#5B5F4D] cursor-grab active:cursor-grabbing select-none"
                   aria-hidden
                 >
                   <GripVertical className="w-4 h-4" />
                 </span>
-                <span className="font-mono text-xs text-[#6B705C] w-6 text-right tabular-nums">{i + 1}.</span>
+                <span className="font-mono text-xs text-[#5B5F4D] w-6 text-right tabular-nums">{i + 1}.</span>
                 <div className="w-12 flex-shrink-0">
                   <div className="aspect-[2/3] rounded overflow-hidden bg-[#EDE7FB]">
                     {book.has_cover && (
@@ -211,7 +211,7 @@ export default function ReadingQueuePage() {
                   className="flex-1 min-w-0 text-left hover:opacity-80"
                 >
                   <p className="font-serif text-lg text-[#2C2C2C] truncate">{book.title || "Untitled"}</p>
-                  <p className="text-xs text-[#6B705C] truncate">
+                  <p className="text-xs text-[#5B5F4D] truncate">
                     {book.author || "Unknown"}
                     {book.fandom && ` · ${book.fandom}`}
                   </p>
@@ -223,7 +223,7 @@ export default function ReadingQueuePage() {
                     disabled={i === 0 || savingOrder}
                     data-testid={`queue-up-${book.book_id}`}
                     title="Move up"
-                    className="w-8 h-8 rounded flex items-center justify-center text-[#6B705C] hover:text-[#6B46C1] hover:bg-[#EDE7FB] disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="w-8 h-8 rounded flex items-center justify-center text-[#5B5F4D] hover:text-[#6B46C1] hover:bg-[#EDE7FB] disabled:opacity-30 disabled:cursor-not-allowed"
                   >
                     <ChevronUp className="w-4 h-4" />
                   </button>
@@ -233,7 +233,7 @@ export default function ReadingQueuePage() {
                     disabled={i === queue.length - 1 || savingOrder}
                     data-testid={`queue-down-${book.book_id}`}
                     title="Move down"
-                    className="w-8 h-8 rounded flex items-center justify-center text-[#6B705C] hover:text-[#6B46C1] hover:bg-[#EDE7FB] disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="w-8 h-8 rounded flex items-center justify-center text-[#5B5F4D] hover:text-[#6B46C1] hover:bg-[#EDE7FB] disabled:opacity-30 disabled:cursor-not-allowed"
                   >
                     <ChevronDown className="w-4 h-4" />
                   </button>
@@ -242,7 +242,7 @@ export default function ReadingQueuePage() {
                     onClick={() => removeAt(book.book_id, book.title)}
                     data-testid={`queue-remove-${book.book_id}`}
                     title="Remove from queue"
-                    className="w-8 h-8 rounded flex items-center justify-center text-[#6B705C] hover:text-red-600 hover:bg-red-50"
+                    className="w-8 h-8 rounded flex items-center justify-center text-[#5B5F4D] hover:text-red-600 hover:bg-red-50"
                   >
                     <X className="w-4 h-4" />
                   </button>

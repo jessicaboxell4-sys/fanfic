@@ -59,7 +59,7 @@ export default function SmartShelfPage() {
     return (
       <div className="min-h-screen bg-paper">
         <Navbar />
-        <p className="text-[#6B705C] py-20 text-center">Loading shelf…</p>
+        <p className="text-[#5B5F4D] py-20 text-center">Loading shelf…</p>
       </div>
     );
   }
@@ -70,7 +70,7 @@ export default function SmartShelfPage() {
         <Navbar />
         <main className="max-w-2xl mx-auto px-6 py-20 text-center">
           <h1 className="font-serif text-3xl text-[#2C2C2C] mb-4">Shelf not found</h1>
-          <p className="text-[#6B705C] mb-6">It may have been deleted.</p>
+          <p className="text-[#5B5F4D] mb-6">It may have been deleted.</p>
           <Link to="/library/smart-shelves" className="btn-primary text-sm">All smart shelves</Link>
         </main>
       </div>
@@ -87,7 +87,7 @@ export default function SmartShelfPage() {
         <button
           onClick={() => navigate("/library/smart-shelves")}
           data-testid="back-to-smart-shelves"
-          className="flex items-center gap-2 text-sm text-[#6B705C] hover:text-[#2C2C2C] mb-6"
+          className="flex items-center gap-2 text-sm text-[#5B5F4D] hover:text-[#2C2C2C] mb-6"
         >
           <ArrowLeft className="w-4 h-4" /> All smart shelves
         </button>
@@ -100,10 +100,10 @@ export default function SmartShelfPage() {
             <h1 className="font-serif text-4xl sm:text-5xl text-[#2C2C2C]" data-testid="smart-shelf-page-title">
               {shelf.name}
             </h1>
-            <p className="text-[#6B705C] mt-3">{count} book{count === 1 ? "" : "s"}</p>
+            <p className="text-[#5B5F4D] mt-3">{count} book{count === 1 ? "" : "s"}</p>
             {rules.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mt-3">
-                <span className="text-xs text-[#6B705C] uppercase tracking-wider font-semibold mr-1">
+                <span className="text-xs text-[#5B5F4D] uppercase tracking-wider font-semibold mr-1">
                   {shelf.query?.combinator || "AND"}:
                 </span>
                 {rules.map((r, i) => (
@@ -127,7 +127,7 @@ export default function SmartShelfPage() {
           <div className="shelf-card p-12 text-center">
             <Filter className="w-10 h-10 text-[#E07A5F] mx-auto mb-4 opacity-70" />
             <h2 className="font-serif text-2xl text-[#2C2C2C] mb-2">No books match these rules</h2>
-            <p className="text-[#6B705C] mb-6">Edit the shelf to widen the query, or add tags to your books.</p>
+            <p className="text-[#5B5F4D] mb-6">Edit the shelf to widen the query, or add tags to your books.</p>
             <button onClick={() => setEditing(true)} className="btn-primary text-sm">
               Edit rules
             </button>

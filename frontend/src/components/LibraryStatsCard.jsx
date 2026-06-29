@@ -73,7 +73,7 @@ export default function LibraryStatsCard() {
         </div>
         <div className="flex-1 min-w-0">
           <h2 className="font-serif text-xl sm:text-2xl text-[#2C2C2C]">Library by the numbers</h2>
-          <p className="text-sm text-[#6B705C] mt-1">
+          <p className="text-sm text-[#5B5F4D] mt-1">
             What Shelfsort is currently sorting for you.
           </p>
         </div>
@@ -86,7 +86,7 @@ export default function LibraryStatsCard() {
               className={`px-2.5 py-1 rounded-full text-xs font-medium transition ${
                 windowDays === w.d
                   ? "bg-[#6B46C1] text-white"
-                  : "bg-[#FDF3E1] text-[#6B705C] hover:bg-[#6B46C1]/10 hover:text-[#6B46C1]"
+                  : "bg-[#FDF3E1] text-[#5B5F4D] hover:bg-[#6B46C1]/10 hover:text-[#6B46C1]"
               }`}
             >
               {w.label}
@@ -101,13 +101,13 @@ export default function LibraryStatsCard() {
             data-testid={testId}
             className="rounded-lg border border-[#E5DDC5] bg-white p-2.5 sm:p-3 flex items-start gap-2 sm:gap-3"
           >
-            <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-[#6B705C] flex-shrink-0 mt-0.5" />
+            <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-[#5B5F4D] flex-shrink-0 mt-0.5" />
             <div className="min-w-0 flex-1">
               <div className="text-xl sm:text-2xl font-serif text-[#2C2C2C] leading-none">{value}</div>
-              <div className="text-[10px] sm:text-xs uppercase tracking-wide text-[#6B705C] mt-1 leading-tight">{label}</div>
+              <div className="text-[10px] sm:text-xs uppercase tracking-wide text-[#5B5F4D] mt-1 leading-tight">{label}</div>
               {trend != null && (
                 <div
-                  className={`text-[10px] mt-1 ${trend > 0 ? "text-[#6B46C1] font-semibold" : "text-[#6B705C]/70"}`}
+                  className={`text-[10px] mt-1 ${trend > 0 ? "text-[#6B46C1] font-semibold" : "text-[#5B5F4D]/70"}`}
                   data-testid={`${testId}-trend`}
                 >
                   <span className="sm:hidden">{delta(trend)}</span>

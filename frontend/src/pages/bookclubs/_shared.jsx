@@ -20,7 +20,7 @@ export function RoleBadge({ role }) {
   const map = {
     owner:     { label: "Owner",     bg: "#FDF3E1", color: "#B87A00" },
     moderator: { label: "Mod",       bg: "#EEF3EC", color: "#6B46C1" },
-    member:    { label: "Member",    bg: "#FBFAF6", color: "#6B705C" },
+    member:    { label: "Member",    bg: "#FBFAF6", color: "#5B5F4D" },
   };
   const s = map[role] || map.member;
   return (
