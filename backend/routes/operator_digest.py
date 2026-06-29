@@ -150,10 +150,94 @@ async def _gather_upload_failures(days: int = 7) -> Dict[str, Any]:
     }
 
 
+# Path to the forensic audit log that scripts/audit_gitignore_regression.py
+# writes to.  Lives in the repo so it's visible to git tooling but isn't
+# auto-committed (it's referenced from .gitignore — keep it out of git).
+from pathlib import Path  # noqa: E402  (local import keeps the module surface lean)
+_AUDIT_LOG_PATH = Path(__file__).resolve().parents[2] / "memory" / "gitignore_regression_audit.log"
+_AUDIT_HEADER_RE = None  # built lazily on first parse
+
+
+def _gather_gitignore_audit(since_iso: Optional[str]) -> List[Dict[str, Any]]:
+    """Parse new records from gitignore_regression_audit.log since the
+    last digest.  Returns at most 5 records, newest first.
+
+    The audit log is a sequence of ``═══...═══`` separated blocks
+    written by ``scripts/audit_gitignore_regression.py``.  Each block
+    begins with ``GITIGNORE REGRESSION DETECTED — <iso8601>`` on its
+    own line and contains several labeled sections.  We return a tiny
+    summary per record (timestamp + first 2 hit lines + first 1 line
+    of the process tree) — enough to spot a smoking gun in an email,
+    without dumping the full forensic payload.
+
+    Best-effort: any IO / parse error returns an empty list so a
+    missing log can't ever block the digest.
+    """
+    global _AUDIT_HEADER_RE
+    if _AUDIT_HEADER_RE is None:
+        import re as _re
+        _AUDIT_HEADER_RE = _re.compile(r"GITIGNORE REGRESSION DETECTED\s*—\s*(\S+)")
+
+    if not _AUDIT_LOG_PATH.exists():
+        return []
+    try:
+        text = _AUDIT_LOG_PATH.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return []
+
+    # Each record begins with the literal "GITIGNORE REGRESSION
+    # DETECTED — <iso>" line.  Slice the text between consecutive
+    # header positions so each block is a whole record (sections
+    # included).  Splitting on the ═══ divider would chop each
+    # record into 3 fragments — header, body, trailer — and lose
+    # the section body, which is why an earlier version returned
+    # empty hit_lines.
+    import re as _re
+    matches = list(_AUDIT_HEADER_RE.finditer(text))
+    if not matches:
+        return []
+    results: List[Dict[str, Any]] = []
+    for i, m in enumerate(matches):
+        ts = m.group(1).strip()
+        if since_iso and ts <= since_iso:
+            continue
+        start = m.end()
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        body = text[start:end]
+        hit_lines: List[str] = []
+        proc_top: str = ""
+        section: Optional[str] = None
+        for ln in body.splitlines():
+            stripped = ln.strip()
+            if stripped.startswith("Hit lines"):
+                section = "hits"
+                continue
+            if stripped.startswith("Process tree"):
+                section = "proc"
+                continue
+            if stripped.startswith(("git author", "git status", "git log", "git diff",
+                                    "Interactive-commit", "Curated env")):
+                section = None
+                continue
+            if section == "hits" and stripped.startswith("line ") and len(hit_lines) < 2:
+                hit_lines.append(stripped)
+            elif section == "proc" and stripped and not proc_top:
+                proc_top = stripped[:140]
+        results.append({
+            "ts":        ts,
+            "hit_lines": hit_lines,
+            "proc_top":  proc_top,
+        })
+
+    results.sort(key=lambda r: r["ts"], reverse=True)
+    return results[:5]
+
+
 async def _build_operator_payload(user_doc: Dict[str, Any]) -> Dict[str, Any]:
     name = (user_doc.get("name") or user_doc.get("email", "").split("@")[0] or "Operator").split(" ")[0]
     data = await _gather_funnel(days=7)
-    uploads = await _gather_upload_failures(days=7)
+    last_sent_at = (user_doc.get("operator_digest") or {}).get("last_sent_at")
+    audit_records = _gather_gitignore_audit(since_iso=last_sent_at)
     funnel = data["funnel"]
     base = (FRONTEND_URL or os.environ.get("REACT_APP_BACKEND_URL", "") or "").rstrip("/")
     admin_url = f"{base}/admin"
@@ -190,6 +274,33 @@ async def _build_operator_payload(user_doc: Dict[str, Any]) -> Dict[str, Any]:
             f'</td></tr>'
         )
 
+    # ── Gitignore regression forensic trail ──
+    # Renders the new audit records since last_sent_at.  Section is
+    # only emitted when there's at least one hit — quiet weeks stay
+    # quiet so the digest doesn't become a noise email.
+    audit_html = ""
+    if audit_records:
+        audit_rows = ""
+        for rec in audit_records:
+            hits_summary = " · ".join(rec["hit_lines"]) or "—"
+            proc = rec["proc_top"] or "<unknown actor>"
+            audit_rows += (
+                f'<tr><td style="padding:10px 0;border-top:1px solid #E8E6E1;font-size:12px;color:#2C2C2C;font-family:Helvetica,Arial,sans-serif;">'
+                f'<span style="color:#C75450;font-weight:600;">{rec["ts"]}</span><br>'
+                f'<span style="color:#6B705C;">{hits_summary}</span><br>'
+                f'<span style="color:#6B705C;font-family:Courier,monospace;font-size:11px;">↳ {proc}</span>'
+                f'</td></tr>'
+            )
+        audit_html = (
+            '<h2 style="margin:24px 0 8px 0;color:#7C2D2A;font-size:16px;font-family:Helvetica,Arial,sans-serif;">'
+            f'⚠ .gitignore regression detected ({len(audit_records)} this week)'
+            '</h2>'
+            '<p style="margin:0 0 8px 0;color:#6B705C;font-size:12px;font-family:Helvetica,Arial,sans-serif;">'
+            "Pre-commit forensic capture — full records in <code>memory/gitignore_regression_audit.log</code>."
+            '</p>'
+            f'<table width="100%" cellpadding="0" cellspacing="0">{audit_rows}</table>'
+        )
+
     html = f"""
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#FDFBF7;padding:32px 0;font-family:Georgia,serif;">
       <tr><td align="center">
@@ -220,6 +331,7 @@ async def _build_operator_payload(user_doc: Dict[str, Any]) -> Dict[str, Any]:
             <table width="100%" cellpadding="0" cellspacing="0">{top_covers_html}</table>
             <h2 style="margin:24px 0 8px 0;color:#2C2C2C;font-size:16px;font-family:Helvetica,Arial,sans-serif;">Referrers</h2>
             <table width="100%" cellpadding="0" cellspacing="0">{ref_rows_html}</table>
+            {audit_html}
             <p style="margin:32px 0 0 0;text-align:center;font-family:Helvetica,Arial,sans-serif;">
               <a href="{admin_url}" style="display:inline-block;background:#6B46C1;color:#ffffff;text-decoration:none;padding:13px 22px;border-radius:10px;font-weight:600;font-size:14px;">Open Admin Console</a>
             </p>
