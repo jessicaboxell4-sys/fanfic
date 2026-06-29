@@ -722,6 +722,12 @@ export default function UploadZone({ onUploaded, compact = false }) {
           detail = "Server took too long to accept this file. Try again in a few minutes.";
         } else if (status === 502 || status === 503) {
           detail = "Server is temporarily unavailable. Try again in a moment.";
+        } else if (status === 500) {
+          // 2026-06-29 — Raw axios "Request failed with status code 500"
+          // was leaking into the failed-uploads banner.  Humanize it so
+          // the row reads consistently with the other transient cases
+          // and doesn't look scarier than the rest.
+          detail = "Server hit an unexpected error processing this file. Re-drop it in a moment.";
         } else if (status === 413) {
           detail = "File too large for this upload.";
         }

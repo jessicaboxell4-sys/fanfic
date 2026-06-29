@@ -34,7 +34,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { toast } from "sonner";
-import { AlertTriangle, RefreshCw, X, ChevronDown, ChevronUp, Loader2, FileX2 } from "lucide-react";
+import { AlertTriangle, RefreshCw, X, ChevronDown, ChevronUp, Loader2, FileX2, Download } from "lucide-react";
 
 const RELATIVE_FORMATTER = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
 function relativeTime(iso) {
@@ -281,6 +281,17 @@ export default function FailedUploadsList({
             >
               <RefreshCw className="w-4 h-4" />
               Re-drop {rows.length} file{rows.length === 1 ? "" : "s"}
+            </button>
+            <button
+              type="button"
+              onClick={downloadCsv}
+              disabled={busy || rows.length === 0}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#FAF6EE] hover:bg-[#F2EEE5] disabled:opacity-50 text-[#5B5F4D] text-sm border border-[#E07A5F]/30 transition-colors"
+              data-testid="failed-uploads-download-csv"
+              title={`Download all ${rows.length} failed-upload row${rows.length === 1 ? "" : "s"} as CSV (opens in Excel / Numbers / Sheets).`}
+            >
+              <Download className="w-4 h-4" />
+              Download list (.csv)
             </button>
             <button
               type="button"
