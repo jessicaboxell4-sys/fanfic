@@ -184,6 +184,43 @@ async def on_startup():
     except Exception as e:
         logger.warning(f"Could not schedule initial storage backfill: {e}")
 
+    # 2026-06-30 — Boot-time `.gitignore` sanitizer.  Background:
+    # the Emergent platform's `emergent-agent-e1` auto-commit step
+    # periodically re-adds env-blocking lines (`.env`, `.env.*`,
+    # `*.env`) to `.gitignore`, which silently breaks `MANAGE_SECRETS`
+    # at deploy time (see `/app/memory/EMERGENT_SUPPORT_EMAIL_DRAFT.md`
+    # for the full ticket).  Recurrence count: 7+ in 4 days.
+    #
+    # Running `scripts/fix_gitignore.sh` on every backend boot keeps
+    # the source-of-truth file clean continuously, so even if the
+    # operator forgets to run `pre_deploy.sh` manually, the next
+    # natural restart (file change reload, deploy, ops) sanitizes
+    # the repo state.  Best-effort: never let a script blip break
+    # backend startup.
+    try:
+        import subprocess as _subprocess_gi
+        from pathlib import Path as _Path_gi
+        _gi_script = _Path_gi(__file__).resolve().parent.parent / "scripts" / "fix_gitignore.sh"
+        if _gi_script.is_file():
+            _gi_result = _subprocess_gi.run(
+                ["bash", str(_gi_script)],
+                capture_output=True, text=True, timeout=10,
+            )
+            # Only log when the script actually removed lines — silent
+            # success is the common case and doesn't need a log line.
+            if "Removed" in _gi_result.stdout:
+                logger.warning(
+                    "boot-time gitignore sanitizer stripped env-blocking lines: %s",
+                    _gi_result.stdout.strip().splitlines()[-2] if _gi_result.stdout.strip().splitlines() else "(no detail)",
+                )
+            elif _gi_result.returncode != 0:
+                logger.info(
+                    "boot-time gitignore sanitizer non-zero exit (%d) — output: %s",
+                    _gi_result.returncode, _gi_result.stdout[:200],
+                )
+    except Exception as _gi_exc:  # noqa: BLE001
+        logger.info("Boot-time gitignore sanitizer skipped: %s", _gi_exc)
+
     # 2026-06-27 — Upload-job recovery on startup.  If the pod crashed
     # mid-upload (e.g. during a deploy), books that were buffered to
     # staging but not yet processed will have their upload_jobs row

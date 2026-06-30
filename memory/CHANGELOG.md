@@ -7,6 +7,39 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-30 — `.gitignore` regression: boot-time auto-sanitizer + ready-to-send platform-support email draft
+
+The platform-side auto-commit regression (`emergent-agent-e1` re-adds `.env` / `.env.*` / `*.env` to `.gitignore` on a 12-24h cadence) has hit 7+ times in 4 days. Two-pronged response this session:
+
+### Shipped
+
+#### Backend boot-time sanitizer
+- **`backend/server.py`** — added a startup hook that runs `scripts/fix_gitignore.sh` on every backend boot. Best-effort (10s timeout, swallows all exceptions so a script blip can't break startup). Logs a WARNING line only when it actually strips lines; silent on the clean-state common case.
+- This means the source repo stays clean continuously: every hot-reload, supervisor restart, or deploy automatically re-sanitizes `.gitignore`. Operator no longer has to remember to run `pre_deploy.sh` for *this specific check* (though it remains the gold standard for the full 5/5 sweep).
+
+#### Live regression test
+- Injected the 3 forbidden lines into `.gitignore`, restarted backend, verified:
+  - Lint failed before restart (correct).
+  - Sanitizer fired on boot, log line: `"boot-time gitignore sanitizer stripped env-blocking lines: ✓ .gitignore is deploy-safe. Ready to redeploy."`
+  - Lint passed after restart.
+
+#### Platform-support email draft
+- **`/app/memory/EMERGENT_SUPPORT_EMAIL_DRAFT.md`** — ready-to-send email for `support@emergent.sh`. Includes:
+  - Project + preview URL + placeholder for the Job ID
+  - Full forensic excerpt from `/app/memory/gitignore_regression_audit.log` (sample regression entry showing the platform-side commit author `emergent-agent-e1 <github@emergent.sh>` and the 10-deep history of `auto-commit for <uuid>` / `Auto-generated changes`)
+  - Two options for platform-side fix: (a) stop appending the lines, (b) make `MANAGE_SECRETS` resilient
+  - Inventory of the 5 local mitigations already in place
+- User just needs to grab the Job ID via the "i" button and send.
+
+### Why this doesn't fix the root cause
+The Emergent platform auto-commit bypasses local pre-commit hooks (runs on Emergent infrastructure). Every defense we add is mitigation — a real fix requires platform-team action via the support email above.
+
+### Verification
+- `bash scripts/pre_deploy.sh` → 5/5 lints + 25 backend tests green in 15s.
+- Live preview health: `{"status":"ok"}`.
+
+---
+
 ## 2026-06-30 — User feedback round: tour crash, cover regen on touch, generic 500s
 
 Three concrete reports from the admin Feedback inbox + Help-page inbox, fixed in priority order.
