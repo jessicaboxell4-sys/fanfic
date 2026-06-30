@@ -2861,7 +2861,17 @@ function UsersCard() {
             </span>
           )}
         </p>
-        <p className="text-xs text-[#5B5F4D] truncate">{u.email} · {u.book_count} book{u.book_count === 1 ? "" : "s"} · joined {fmtTime(u.created_at)}</p>
+        <p className="text-xs text-[#5B5F4D] truncate">
+          {u.email} · {u.book_count} book{u.book_count === 1 ? "" : "s"} · joined {fmtTime(u.created_at)}
+          {" · "}
+          <span
+            data-testid={`admin-user-last-login-${u.user_id}`}
+            className={u.last_login_at ? "" : "italic text-[#9B9B8C]"}
+            title={u.last_login_at ? `Last login: ${new Date(u.last_login_at).toLocaleString()}` : "This user has never logged in."}
+          >
+            last on {fmtAgo(u.last_login_at)}
+          </span>
+        </p>
       </div>
       <div className="flex items-center gap-1.5 flex-shrink-0">
         {/* Mod toggle — distinct from the admin toggle on its right. */}

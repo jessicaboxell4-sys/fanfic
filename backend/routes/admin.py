@@ -49,7 +49,7 @@ async def list_users(user: User = Depends(require_admin)):
     """
     rows = await db.users.find(
         {"$nor": mongo_test_account_filter()["$or"]},
-        {"_id": 0, "user_id": 1, "email": 1, "name": 1, "is_admin": 1, "is_moderator": 1, "created_at": 1},
+        {"_id": 0, "user_id": 1, "email": 1, "name": 1, "is_admin": 1, "is_moderator": 1, "created_at": 1, "last_login_at": 1},
     ).sort("created_at", 1).to_list(length=2000)
     # Annotate with book counts (single aggregation, not per-row).
     counts_cursor = db.books.aggregate([
@@ -65,6 +65,14 @@ async def list_users(user: User = Depends(require_admin)):
         ts = r.get("created_at")
         if isinstance(ts, datetime):
             r["created_at"] = ts.isoformat()
+        # last_login_at is written as ISO string by auth.py, but
+        # defensive-coerce in case any legacy doc still holds a
+        # datetime instance.  Field stays absent on users who haven't
+        # logged in since the field was introduced — the frontend
+        # renders that case as "never".
+        lts = r.get("last_login_at")
+        if isinstance(lts, datetime):
+            r["last_login_at"] = lts.isoformat()
     return {"users": rows, "count": len(rows)}
 
 
