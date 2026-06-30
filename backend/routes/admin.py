@@ -744,6 +744,102 @@ async def get_today_pulse(user: User = Depends(require_admin)):
 # own performance tweaks. NEVER returns file contents — only metadata
 # already visible in global stats (title, author, fandom, size_bytes).
 
+@api_router.get("/admin/classifier/reliability")
+async def classifier_reliability(
+    days: int = 7,
+    user: User = Depends(require_admin),
+):
+    """Operator-side health of the polish/classifier worker.
+
+    Surfaces the data we started tracking 2026-06-28 (polish_attempts,
+    polish_last_error, polish_failed_at) as actionable aggregate
+    metrics.  No PII per book — just counts and error fingerprints.
+
+    Sections:
+      * ``totals`` — recent failures in the window, currently stuck count
+      * ``top_errors`` — the 5 most-common error fingerprints (first
+        80 chars of polish_last_error, lower-cased + trimmed).  Helps
+        spot patterns like "12% of failures are 'invalid JSON from
+        Claude'" so the classifier prompt can be tuned.
+      * ``by_attempt`` — distribution of polish_attempts across the
+        currently-failed books.  Once-then-passed books aren't in
+        polish-failed, so this only captures the "permanently stuck"
+        cohort.  Useful for spotting whether retries actually help.
+    """
+    days = max(1, min(int(days or 7), 90))
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+
+    # 1. Totals — recent failures + currently-stuck count.
+    recent_failures = await db.books.count_documents({
+        "classifier": "polish-failed",
+        "polish_failed_at": {"$gte": cutoff},
+    })
+    currently_stuck = await db.books.count_documents({
+        "classifier": "polish-failed",
+    })
+    permanently_stuck = await db.books.count_documents({
+        "classifier": "polish-failed",
+        "polish_attempts": {"$gte": 3},
+    })
+
+    # 2. Top errors — group by the first 80 chars of polish_last_error.
+    # Lower-cased + trimmed so "Mongo blip..." and "mongo blip..." merge.
+    top_errors_pipeline = [
+        {"$match": {
+            "classifier": "polish-failed",
+            "polish_failed_at": {"$gte": cutoff},
+            "polish_last_error": {"$exists": True, "$ne": ""},
+        }},
+        {"$project": {
+            "fingerprint": {
+                "$toLower": {
+                    "$trim": {"input": {"$substrCP": ["$polish_last_error", 0, 80]}}
+                }
+            }
+        }},
+        {"$group": {"_id": "$fingerprint", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+        {"$limit": 5},
+    ]
+    top_errors = []
+    async for row in db.books.aggregate(top_errors_pipeline):
+        top_errors.append({
+            "fingerprint": row["_id"] or "(empty)",
+            "count":       row["count"],
+        })
+
+    # 3. By-attempt distribution.  Bucket > 5 attempts as "5+".
+    by_attempt_pipeline = [
+        {"$match": {"classifier": "polish-failed"}},
+        {"$project": {
+            "bucket": {
+                "$cond": [
+                    {"$gte": [{"$ifNull": ["$polish_attempts", 1]}, 5]},
+                    "5+",
+                    {"$toString": {"$ifNull": ["$polish_attempts", 1]}}
+                ]
+            }
+        }},
+        {"$group": {"_id": "$bucket", "count": {"$sum": 1}}},
+        {"$sort": {"_id": 1}},
+    ]
+    by_attempt = []
+    async for row in db.books.aggregate(by_attempt_pipeline):
+        by_attempt.append({"attempts": row["_id"], "count": row["count"]})
+
+    return {
+        "window_days":       days,
+        "totals": {
+            "recent_failures":  recent_failures,
+            "currently_stuck":  currently_stuck,
+            "permanently_stuck": permanently_stuck,
+        },
+        "top_errors":        top_errors,
+        "by_attempt":        by_attempt,
+        "generated_at":      datetime.now(timezone.utc).isoformat(),
+    }
+
+
 @api_router.get("/admin/storage-by-user")
 async def storage_by_user(
     limit: int = 20,

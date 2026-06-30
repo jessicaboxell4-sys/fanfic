@@ -76,6 +76,7 @@ const ADMIN_CARD_MANIFEST = [
   { testid: "admin-banner-card", category: "system", title: "Maintenance banner", subtitle: "Site-wide announcement banner.", keywords: "maintenance banner outage announcement downtime planned heads-up" },
   { testid: "admin-health-card", category: "system", title: "System health", subtitle: "External dependencies + storage snapshot.", keywords: "health system mongo storage disk dependencies status" },
   { testid: "admin-stuck-uploads-card", category: "system", title: "Stuck uploads", subtitle: "Upload jobs sitting queued/processing for >10 min — leading indicator of Atlas instability or staging-disk loss.", keywords: "stuck uploads upload jobs queued processing mongo atlas failover recovery cron stranded airdrop" },
+  { testid: "admin-classifier-reliability-card", category: "system", title: "Classifier reliability", subtitle: "Polish-worker error fingerprints, retry distribution, permanently-stuck count — last 7 days.", keywords: "classifier reliability polish failed errors fingerprint claude llm ai timeout retry attempts stuck pending sort book" },
   { testid: "cron-health-card", category: "system", title: "Scheduled jobs", subtitle: "Last-run telemetry for crons.", keywords: "cron jobs scheduled task background failure last-run" },
   { testid: "route-catalogue-card", category: "system", title: "Route catalogue", subtitle: "Every /api/* endpoint.", keywords: "route catalogue endpoint api list routes urls" },
   { testid: "admin-flags-card", category: "system", title: "Feature flags", subtitle: "Runtime kill switches.", keywords: "feature flags toggles kill switch runtime config" },
@@ -3608,6 +3609,164 @@ function StuckUploadsCard() {
               {recovering ? "Re-kicking…" : "Re-kick now"}
             </button>
           </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// ClassifierReliabilityCard (2026-06-29)
+// ---------------------------------------------------------------------------
+// Operator-side aggregate health of the polish/classifier worker.  Reads
+// from GET /api/admin/classifier/reliability?days=7 — which groups books
+// stuck as `classifier:"polish-failed"` by error fingerprint and by
+// polish_attempts.
+//
+// Three rows:
+//   1. Headline totals — recent failures, currently stuck, "permanently"
+//      stuck (≥3 attempts).  Single glance "is everything fine?".
+//   2. Top error fingerprints — first 80 chars of polish_last_error,
+//      lower-cased.  Shows where to start when tuning the classifier
+//      prompt.  Pinpoints stuff like "12% of failures are 'invalid JSON
+//      from Claude'" so you can fix the prompt vs. retrying.
+//   3. By-attempt distribution — how many failed books are sitting at
+//      1, 2, 3, 4, 5+ attempts.  Tells you whether retries actually help
+//      (a flat or growing distribution at attempts ≥ 3 means the failure
+//      mode is permanent — needs a code/prompt change, not more retries).
+//
+// All counts; no titles or PII.  Refreshes every 60s when the tab is
+// visible (cheap aggregate, but no reason to thrash Mongo when the
+// operator isn't looking).
+// ---------------------------------------------------------------------------
+function ClassifierReliabilityCard() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data } = await api.get("/admin/classifier/reliability?days=7");
+      setData(data);
+    } catch (e) {
+      setError(e?.response?.data?.detail || e.message || "Failed to load classifier reliability");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+    const id = setInterval(() => {
+      if (document.visibilityState === "visible") load();
+    }, 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const t = data?.totals || {};
+  const topErrors = Array.isArray(data?.top_errors) ? data.top_errors : [];
+  const byAttempt = Array.isArray(data?.by_attempt) ? data.by_attempt : [];
+
+  return (
+    <Card
+      icon={AlertTriangle}
+      title="Classifier reliability"
+      subtitle="Polish-worker fingerprints — last 7 days. Empty = healthy."
+      testid="admin-classifier-reliability-card"
+    >
+      {loading && !data && (
+        <p className="text-xs text-[#5B5F4D] py-3">Loading…</p>
+      )}
+      {error && (
+        <p className="text-xs text-[#7C2D2A] py-3" data-testid="admin-classifier-reliability-error">
+          ✗ {error}
+        </p>
+      )}
+      {data && (
+        <div className="space-y-4">
+          {/* 1. Headline totals */}
+          <div className="grid grid-cols-3 gap-2 text-center" data-testid="admin-classifier-reliability-totals">
+            <div className="rounded-lg bg-[#FBFAF6] border border-[#E5DDC5] py-2 px-1">
+              <p className="font-serif text-2xl text-[#2C2C2C]" data-testid="admin-classifier-recent-failures">
+                {t.recent_failures ?? 0}
+              </p>
+              <p className="text-[10px] uppercase tracking-[0.12em] text-[#5B5F4D] mt-0.5">
+                last 7 days
+              </p>
+            </div>
+            <div className="rounded-lg bg-[#FBFAF6] border border-[#E5DDC5] py-2 px-1">
+              <p className="font-serif text-2xl text-[#2C2C2C]" data-testid="admin-classifier-currently-stuck">
+                {t.currently_stuck ?? 0}
+              </p>
+              <p className="text-[10px] uppercase tracking-[0.12em] text-[#5B5F4D] mt-0.5">
+                currently stuck
+              </p>
+            </div>
+            <div className={`rounded-lg py-2 px-1 border ${(t.permanently_stuck || 0) > 0 ? "bg-[#FBE2E0] border-[#E8B5B0]" : "bg-[#FBFAF6] border-[#E5DDC5]"}`}>
+              <p className={`font-serif text-2xl ${(t.permanently_stuck || 0) > 0 ? "text-[#7C2D2A]" : "text-[#2C2C2C]"}`} data-testid="admin-classifier-permanently-stuck">
+                {t.permanently_stuck ?? 0}
+              </p>
+              <p className="text-[10px] uppercase tracking-[0.12em] text-[#5B5F4D] mt-0.5">
+                ≥3 attempts
+              </p>
+            </div>
+          </div>
+
+          {/* 2. Top errors */}
+          {topErrors.length > 0 && (
+            <div data-testid="admin-classifier-top-errors">
+              <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#5B5F4D] mb-2">
+                Top error fingerprints
+              </p>
+              <ul className="space-y-1.5">
+                {topErrors.map((e, i) => (
+                  <li
+                    key={i}
+                    className="flex items-baseline justify-between gap-2 text-xs"
+                    data-testid={`admin-classifier-error-${i}`}
+                  >
+                    <code className="font-mono text-[#7C2D2A] truncate" title={e.fingerprint}>
+                      {e.fingerprint}
+                    </code>
+                    <span className="font-semibold text-[#2C2C2C] shrink-0">×{e.count}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* 3. By-attempt distribution */}
+          {byAttempt.length > 0 && (
+            <div data-testid="admin-classifier-by-attempt">
+              <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#5B5F4D] mb-2">
+                By attempt # (currently stuck)
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {byAttempt.map((b) => (
+                  <span
+                    key={b.attempts}
+                    className="inline-flex items-baseline gap-1 px-2 py-0.5 rounded-full bg-[#F0EBE2] border border-[#E5DDC5] text-xs"
+                    data-testid={`admin-classifier-attempt-${b.attempts}`}
+                  >
+                    <span className="font-mono text-[#5B5F4D]">#{b.attempts}</span>
+                    <span className="font-semibold text-[#2C2C2C]">{b.count}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {(t.recent_failures === 0 && t.currently_stuck === 0) && (
+            <p
+              className="text-xs italic text-[#3D6B3D] pt-1"
+              data-testid="admin-classifier-all-clear"
+            >
+              ✓ No polish failures in the last 7 days. Worker healthy.
+            </p>
+          )}
         </div>
       )}
     </Card>
