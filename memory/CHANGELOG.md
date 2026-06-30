@@ -7,6 +7,21 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-30 — Rejected files banner moved to Dashboard between dropzone and URL paste card
+
+User asked: *"Under the Drop files or folders here, and above the Have a list of fanfic URLs, put a place for the rejected files."*
+
+### Shipped
+1. **`frontend/src/pages/Dashboard.jsx`** — imported `FailedUploadsList` and rendered it in a new `data-testid="dashboard-failed-uploads"` section sitting between the `UploadZone` and `UrlPasteCard` sections. Uses the same compact/7-day banner config and `shelfsort:upload-files` re-drop event already used on `/library/all`. Auto-hides when there are no failures.
+2. **`frontend/src/components/FailedUploadsList.jsx` — bugfix** — restored the missing `downloadCsv` helper that the "Download list (.csv)" button references. The function had gone missing in an earlier edit, which produced an `Uncaught ReferenceError: downloadCsv is not defined` runtime crash the moment the banner mounted anywhere with non-empty failure rows. Rebuilt the CSV builder client-side from the loaded `rows` (filename, stage, error, size, created_at) and surfaced as a same-tab Blob download with an ISO-date filename.
+
+### Verification
+- Seeded 3 fake upload failures on a fresh test account, screenshot of `/library` confirmed the order: dropzone → 3-row rejected-files banner → "Have a list of fanfic URLs?" card.
+- DOM-position check: `failed_after_upload: true`, `failed_before_fanfic: true`.
+- `bash scripts/pre_deploy.sh` ran green (5/5 lints + 25 backend tests passed).
+
+---
+
 ## 2026-06-28 — Cluster 🟢 finalized: CI lint workflow + white-overlay lint + post-deploy auth canary + operator weekly digest
 
 Closed out the 4-item additive reliability cluster.

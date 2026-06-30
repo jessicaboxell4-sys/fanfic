@@ -142,6 +142,40 @@ export default function FailedUploadsList({
     fileInputRef.current?.click();
   };
 
+  // Download the current failed-uploads list as a CSV so the user can
+  // archive / share / cross-check the set of files that didn't make
+  // it through.  All work is client-side — no extra backend round
+  // trip — using the rows already loaded from /uploads/failures.
+  const downloadCsv = () => {
+    if (!rows.length) return;
+    const csvCell = (v) => {
+      const s = v === null || v === undefined ? "" : String(v);
+      // Quote when the value contains comma, quote, or newline.
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const header = ["filename", "stage", "error", "size_bytes", "created_at"];
+    const lines = [header.join(",")];
+    for (const r of rows) {
+      lines.push([
+        csvCell(r.filename),
+        csvCell(STAGE_LABELS[r.failure_stage] || r.failure_stage || ""),
+        csvCell(r.error || ""),
+        csvCell(r.size_bytes || 0),
+        csvCell(r.created_at || ""),
+      ].join(","));
+    }
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const stamp = new Date().toISOString().slice(0, 10);
+    a.download = `shelfsort-failed-uploads-${stamp}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
   const onFilesPicked = (e) => {
     const files = Array.from(e.target.files || []);
     e.target.value = "";  // reset so picking the same file again re-fires.

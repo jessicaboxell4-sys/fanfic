@@ -9,6 +9,7 @@ import BackupReminderBanner from "../components/BackupReminderBanner";
 import LibraryActivityWidgets from "../components/LibraryActivityWidgets";
 import ResumeReadingCard from "../components/ResumeReadingCard";
 import UrlPasteCard from "../components/UrlPasteCard";
+import FailedUploadsList from "../components/FailedUploadsList";
 import DashboardHelpCard from "../components/DashboardHelpCard";
 import DashboardSuggestionsBox from "../components/DashboardSuggestionsBox";
 import DirectoryNudge from "../components/DirectoryNudge";
@@ -144,6 +145,24 @@ export default function Dashboard() {
               if (dupes && dupes.length > 0) setPendingDupes(dupes);
               if (urlLists && urlLists.length > 0) setPendingUrlLists(urlLists);
               load();
+            }}
+          />
+        </section>
+
+        {/* Rejected files (recent failed uploads) — sits between the
+            dropzone and the URL paste card so users see what didn't
+            make it in immediately after dropping a batch.  Same
+            compact 7-day banner used on /library/all; auto-hides
+            when there are no failures. */}
+        <section className="mb-8" data-testid="dashboard-failed-uploads">
+          <FailedUploadsList
+            compact
+            days={7}
+            onReupload={(files) => {
+              // Hand the re-dropped files back to the on-page
+              // UploadZone via the same global event AllBooksPage
+              // uses — keeps the upload pipeline single-sourced.
+              window.dispatchEvent(new CustomEvent("shelfsort:upload-files", { detail: files }));
             }}
           />
         </section>
