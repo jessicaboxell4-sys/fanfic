@@ -49,7 +49,7 @@ async def list_users(user: User = Depends(require_admin)):
     """
     rows = await db.users.find(
         {"$nor": mongo_test_account_filter()["$or"]},
-        {"_id": 0, "user_id": 1, "email": 1, "name": 1, "is_admin": 1, "is_moderator": 1, "created_at": 1, "last_login_at": 1},
+        {"_id": 0, "user_id": 1, "email": 1, "name": 1, "is_admin": 1, "is_moderator": 1, "created_at": 1, "last_login_at": 1, "last_seen_at": 1},
     ).sort("created_at", 1).to_list(length=2000)
     # Annotate with book counts (single aggregation, not per-row).
     counts_cursor = db.books.aggregate([
@@ -73,6 +73,13 @@ async def list_users(user: User = Depends(require_admin)):
         lts = r.get("last_login_at")
         if isinstance(lts, datetime):
             r["last_login_at"] = lts.isoformat()
+        # Same coercion for the presence stamp.  Field absent for any
+        # user who hasn't hit a protected endpoint since 2026-06-29
+        # (when the touch was added) — the frontend renders that case
+        # the same as the "never" branch of last_login.
+        sts = r.get("last_seen_at")
+        if isinstance(sts, datetime):
+            r["last_seen_at"] = sts.isoformat()
     return {"users": rows, "count": len(rows)}
 
 

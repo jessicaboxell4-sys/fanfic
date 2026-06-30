@@ -2835,7 +2835,29 @@ function UsersCard() {
   const renderRow = (u) => (
     <li key={u.user_id} className="flex items-center justify-between gap-3 text-sm px-3 py-2 rounded-lg bg-[#FBFAF6] border border-[#E5DDC5]" data-testid={`admin-user-row-${u.user_id}`}>
       <div className="min-w-0 flex-1">
-        <p className="font-semibold text-[#2C2C2C] truncate">
+        <p className="font-semibold text-[#2C2C2C] truncate flex items-center gap-1.5">
+          {/* Presence dot — green if last_seen_at within 5 min, grey
+              otherwise.  The touch endpoint runs from get_current_user
+              throttled to ≤1 write/min per user.  See auth_dep.py. */}
+          {(() => {
+            const seenIso = u.last_seen_at;
+            const onlineMs = 5 * 60 * 1000;
+            const isOnline = seenIso && (Date.now() - new Date(seenIso).getTime() < onlineMs);
+            return (
+              <span
+                data-testid={`admin-user-presence-${u.user_id}`}
+                data-online={isOnline ? "true" : "false"}
+                className={`inline-block w-2 h-2 rounded-full shrink-0 ${isOnline ? "bg-[#3D6B3D] ring-2 ring-[#3D6B3D]/20" : "bg-[#9B9B8C]/60"}`}
+                title={
+                  seenIso
+                    ? (isOnline
+                        ? `Online — last activity ${new Date(seenIso).toLocaleString()}`
+                        : `Offline — last activity ${new Date(seenIso).toLocaleString()}`)
+                    : "Offline — no activity since presence tracking was introduced"
+                }
+              />
+            );
+          })()}
           {u.name || u.email}
           {u.is_admin && (
             <span className="ml-2 inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.15em] text-[#6B46C1] font-bold">
