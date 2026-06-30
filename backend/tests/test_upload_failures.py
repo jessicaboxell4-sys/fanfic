@@ -268,8 +268,26 @@ def test_run_upload_job_records_per_file_failures_on_real_bug(shared_event_loop)
                 assert r["user_id"] == user_id
                 assert r["failure_stage"] == "process"
                 assert "list index" in r["error"]
-                assert r["bytes_available"] is False
+                # 2026-06-30: bytes are now quarantined under
+                # _retry_staging/<failure_id>/ before the finally
+                # sweep, so the row advertises them as available
+                # for server-side retry.
+                assert r["bytes_available"] is True
+                assert r["retry_staging_path"] is not None
+                from pathlib import Path as _P
+                q_dir = _P(r["retry_staging_path"])
+                assert q_dir.exists() and q_dir.is_dir()
+                # The single quarantined file should be readable.
+                files = list(q_dir.iterdir())
+                assert len(files) == 1
+                assert files[0].read_bytes() == b"PK\x03\x04"
         finally:
+            # Cleanup quarantine dirs we created.
+            from deps import STORAGE_DIR
+            user_retry_root = STORAGE_DIR / user_id / "_retry_staging"
+            if user_retry_root.exists():
+                import shutil as _sh
+                _sh.rmtree(user_retry_root, ignore_errors=True)
             await db.upload_failures.delete_many({"job_id": job_id})
             await db.upload_jobs.delete_many({"job_id": job_id})
             await db.users.delete_many({"user_id": user_id})

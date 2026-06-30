@@ -7,6 +7,56 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-30 — #23 Retry from server (bulk re-run of failed uploads, no re-pick)
+
+The single biggest pain in the failed-uploads flow has been that *every* recovery required the user to find the original files on disk again. This is hostile when the failure was the backend's fault (Calibre crash, AV timeout, transient classifier blow-up) — the bytes are *already* on the server, but the `finally` sweep of the staging dir tore them up before the user could see the failure banner.
+
+### Shipped
+
+#### Backend
+1. **`routes/upload_jobs.py`** — added `_retry_quarantine_dir(user_id, failure_id)` → `STORAGE_DIR/<user_id>/_retry_staging/<failure_id>/`.
+2. **`_run_upload_job` exception path** — before the `finally` sweep runs, each staged file is `shutil.move(...)`'d into a per-failure quarantine dir.  The corresponding `upload_failures` row is then written with `bytes_available=True` and `retry_staging_path=<dir>`.  Move failures are tolerated — if quarantine fails, the row falls back to `bytes_available=False` (same as a network failure) and the user gets the re-drop path.  Pre-generates the `failure_id` so the on-disk path and the Mongo row reference each other unambiguously.
+3. **`routes/upload_failures.py`**:
+   - `record_upload_failure(..., retry_staging_path)` — schema-level support.
+   - **`POST /api/uploads/failures/retry-server`** (new) — takes `{ failure_ids?: [...] }`, moves quarantined files into a fresh `_pending_uploads/<job_id>/` staging dir, inserts a new `upload_jobs` row, fires `_run_upload_job` via `asyncio.create_task`, then `$inc retry_count` + soft-dismisses the retried rows.  The new job row carries `retry_of_failure_ids` for operator telemetry (so the upcoming admin dashboard can split "fresh user uploads" vs "server retries").
+   - **`cleanup_retry_staging()`** — sweeps quarantine dirs older than 7 days (`_RETRY_STAGING_MAX_AGE_DAYS`) and flips the matching `upload_failures` rows' `bytes_available=False` + `retry_staging_path=None` so the UI stops offering Retry for GC'd bytes.
+4. **`server.py`** — wired the cleanup as a daily APScheduler cron at 03:30 UTC (logs *"Retry-staging cleanup scheduled (daily 03:30 UTC)."*).
+
+#### Frontend
+5. **`components/FailedUploadsList.jsx`** — added a `retry-server` button (purple `#6B46C1`) that surfaces *only* when at least one row has `bytes_available === true`.  Posts the visible `failure_id`s, optimistically drops them from the list on success, surfaces a green toast (`"Retrying N file(s) on the server."`).  Failures fall through to the existing Re-drop picker path.
+
+### Tests
+- **`tests/test_upload_retry_server.py`** (new, 3 tests):
+  - Happy path: quarantined row → new `upload_jobs` row + `retry_of_failure_ids` linkage + `retry_count++` + soft-dismiss.
+  - Skip path: rows with `bytes_available=False` (network failures, GC'd quarantine) are excluded; `retried=0`.
+  - Cleanup cron: backdates one quarantine dir past the 7d cutoff, asserts it's swept *and* the Mongo row's `bytes_available` flips to False, while a fresh dir survives.
+- **`tests/test_upload_failures.py::test_run_upload_job_records_per_file_failures_on_real_bug`** updated — now asserts `bytes_available=True`, quarantine dir exists, and the quarantined bytes match the original staged content.
+- All 25 backend tests pinned in `pre_deploy.sh` pass; full 5/5 lint sweep green.
+
+### Live preview verification
+- Seeded one failure with a quarantined file → dashboard banner showed both "Retry 1 on server" (purple) and "Re-drop 1 file" (salmon) buttons.
+- Clicked "Retry 1 on server" → toast `"Retrying 1 file on the server."` appeared, row vanished, new `upload_jobs` row reached `status=done` with `processed=1` and `retry_of_failure_ids` pointing to the original.
+
+---
+
+## 2026-06-30 — Navbar rejected-files badge (jump-to-banner shortcut)
+
+Follow-up to the dashboard rejected-files placement: users away from `/library` had no in-app cue that uploads were waiting to be re-dropped. Added a tiny navbar pill that surfaces the count and scrolls them to the banner on click.
+
+### Shipped
+1. **`frontend/src/components/RejectedFilesBadge.jsx`** (new) — Navbar badge that polls `GET /uploads/failures?days=7` every 30s (plus on tab focus). Auto-hides when count is 0. Click handler:
+   - Same-page (`/library`): scrolls `[data-testid="dashboard-failed-uploads"]` into view immediately.
+   - Other pages: `navigate('/library')` then retries `scrollIntoView` up to 20× at 100ms intervals until the section mounts.
+   - Styled as an `AlertTriangle` pill in the warm salmon palette (`bg-[#FBE7E4] text-[#A03D33] border-[#E07A5F]/40`) matching the dashboard banner.
+2. **`frontend/src/components/Navbar.jsx`** — imported the badge and rendered it between `NotificationsBell` and `BackgroundJobsBell` on the right-side controls cluster (visible on all viewport sizes since it's a status surface, not a destination link).
+
+### Verification
+- Seeded 4 fake failures on a fresh account → navbar badge rendered with count `4`.
+- Clicked the badge from `/account` → routed to `/library` and smooth-scrolled the rejected-files section to `top: 155, bottom: 591` (well inside the 1080px viewport).
+- `bash scripts/pre_deploy.sh` ran green (5/5 lints + 25 backend tests).
+
+---
+
 ## 2026-06-30 — Rejected files banner moved to Dashboard between dropzone and URL paste card
 
 User asked: *"Under the Drop files or folders here, and above the Have a list of fanfic URLs, put a place for the rejected files."*

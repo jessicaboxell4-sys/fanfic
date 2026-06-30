@@ -67,6 +67,20 @@ def _user_job_dir(user_id: str, job_id: str) -> Path:
     """Per-user staging directory for an in-flight upload job."""
     return STORAGE_DIR / user_id / _PENDING_SUBDIR / job_id
 
+
+def _retry_quarantine_dir(user_id: str, failure_id: str) -> Path:
+    """Per-user quarantine directory for a single failed upload.
+
+    Bytes that the upload pipeline gave up on (av/classify/extract
+    failures, Calibre crash, etc.) get *moved* here BEFORE the
+    ``finally`` sweep in ``_run_upload_job`` so the user-facing
+    "Retry on server" button has something to re-feed.  Each
+    failure gets its own ``<failure_id>/`` so concurrent
+    quarantines never collide and the cleanup cron can sweep
+    on a per-failure age.
+    """
+    return STORAGE_DIR / user_id / "_retry_staging" / failure_id
+
 # Cap the size of a single async batch.  Mirrors the operational
 # parallel-4-chunks default on the frontend (4 × ~25 = 100), with
 # headroom for power users uploading folders of small fanfics.
@@ -232,9 +246,15 @@ async def _run_upload_job(job_id: str, user_id: str) -> None:
         # When the whole job dies (Calibre crash, unhandled exception
         # in the handler) every staged file is effectively a failure;
         # we emit one row per file so the UI can show their actual
-        # names instead of an opaque job id.  Bytes_available=False
-        # because the staging dir is about to be swept by the
-        # `finally` block.
+        # names instead of an opaque job id.
+        #
+        # 2026-06-30 — Before recording the failures, MOVE the staged
+        # bytes into a per-failure quarantine dir under
+        # ``_retry_staging/<failure_id>/``.  This is what powers the
+        # "Retry on server" button on the failed-uploads banner —
+        # the user no longer has to re-drop the files from disk.
+        # The ``finally`` block's sweep is intentionally tolerant of
+        # the now-empty original staging dir.
         try:
             from routes.upload_failures import record_upload_failure
             friendly = (
@@ -243,15 +263,48 @@ async def _run_upload_job(job_id: str, user_id: str) -> None:
                 or "Upload pipeline failed."
             )
             for sf in staged_files:
-                await record_upload_failure(
-                    user_id=user_id,
-                    filename=sf.get("original_name") or "(unknown)",
-                    error=friendly,
-                    failure_stage="process",
-                    size_bytes=int(sf.get("size") or 0),
-                    bytes_available=False,
-                    job_id=job_id,
-                )
+                src = Path(sf.get("path") or "")
+                # Per-failure quarantine dir.  We need the failure_id
+                # before we have it — generate locally via the same
+                # uuid scheme record_upload_failure uses and pass it
+                # in explicitly to keep the path ↔ row link tight.
+                failure_id = uuid.uuid4().hex
+                quarantine_path: str | None = None
+                try:
+                    if src.is_file():
+                        q_dir = _retry_quarantine_dir(user_id, failure_id)
+                        q_dir.mkdir(parents=True, exist_ok=True)
+                        q_target = q_dir / src.name
+                        shutil.move(str(src), str(q_target))
+                        quarantine_path = str(q_dir)
+                except Exception:  # noqa: BLE001
+                    logger.exception(
+                        "upload job %s: failed to quarantine %s — bytes lost",
+                        job_id, src,
+                    )
+                    quarantine_path = None
+
+                # Insert directly with the pre-generated failure_id so
+                # the on-disk path and the Mongo row reference each
+                # other unambiguously.
+                from datetime import datetime as _dt, timezone as _tz
+                await db.upload_failures.insert_one({
+                    "failure_id": failure_id,
+                    "user_id": user_id,
+                    "filename": (sf.get("original_name") or "(unknown)")[:280],
+                    "size_bytes": int(sf.get("size") or 0),
+                    "error": friendly[:500],
+                    "failure_stage": "process",
+                    "bytes_available": quarantine_path is not None,
+                    "job_id": job_id,
+                    "book_id": None,
+                    "original_format": None,
+                    "retry_staging_path": quarantine_path,
+                    "retry_count": 0,
+                    "last_retried_at": None,
+                    "dismissed_at": None,
+                    "created_at": _dt.now(_tz.utc).isoformat(),
+                })
         except Exception:  # noqa: BLE001 — telemetry must never re-raise.
             logger.exception("upload job %s: failed to persist upload_failures rows", job_id)
     finally:

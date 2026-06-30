@@ -187,6 +187,41 @@ export default function FailedUploadsList({
     onReupload?.(files);
   };
 
+  // 2026-06-30 — Server-side retry for failures where the backend
+  // quarantined the bytes into ``_retry_staging/`` before the
+  // pipeline's `finally` sweep.  Re-runs the async upload pipeline
+  // without the user having to re-pick anything from disk.  Rows
+  // with ``bytes_available === false`` (network failures, GC'd
+  // quarantine) keep falling back to the native picker path above.
+  const retryableRows = rows.filter((r) => r.bytes_available === true);
+  const retryOnServer = async () => {
+    if (!retryableRows.length) return;
+    setBusy(true);
+    try {
+      const ids = retryableRows.map((r) => r.failure_id);
+      const { data } = await api.post("/uploads/failures/retry-server", { failure_ids: ids });
+      const retried = data?.retried || 0;
+      const skipped = data?.skipped || 0;
+      if (retried > 0) {
+        toast.success(
+          `Retrying ${retried} file${retried === 1 ? "" : "s"} on the server${skipped ? ` · ${skipped} couldn't be reused` : ""}.`,
+          { duration: 8000 },
+        );
+        // Optimistically drop the retried rows; the backend already
+        // soft-dismissed them.  A failed retry will surface as a
+        // fresh row on the next list poll.
+        const retriedSet = new Set(ids);
+        setRows((rs) => rs.filter((r) => !retriedSet.has(r.failure_id)));
+      } else {
+        toast.error("Couldn't re-run those uploads — bytes may have been swept. Try Re-drop instead.");
+      }
+    } catch (e) {
+      toast.error("Retry-on-server failed. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const visibleCount = rows.length;
   const previewRows = compact ? rows.slice(0, 3) : rows;
   const hidden = compact ? Math.max(0, rows.length - 3) : 0;
@@ -306,6 +341,19 @@ export default function FailedUploadsList({
             )}
           </div>
           <div className="flex flex-wrap gap-2">
+            {retryableRows.length > 0 && (
+              <button
+                type="button"
+                onClick={retryOnServer}
+                disabled={busy}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#6B46C1] hover:bg-[#553397] disabled:opacity-50 text-white text-sm font-semibold transition-colors"
+                data-testid="failed-uploads-retry-server"
+                title={`Re-run ${retryableRows.length} file${retryableRows.length === 1 ? "" : "s"} on the server — bytes are still on disk, no re-upload needed.`}
+              >
+                {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                Retry {retryableRows.length} on server
+              </button>
+            )}
             <button
               type="button"
               onClick={triggerReupload}

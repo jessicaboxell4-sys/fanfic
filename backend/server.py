@@ -463,6 +463,25 @@ async def on_startup():
             except Exception as e:
                 logger.warning("Upload-job recovery failed to schedule: %s", e)
 
+            # Quarantine sweep — drops _retry_staging/<failure_id>/
+            # dirs older than 7 days.  Pairs with the
+            # `POST /api/uploads/failures/retry-server` flow so
+            # operator disk doesn't accumulate dead bytes from
+            # failures the user never came back to.
+            try:
+                from routes.upload_failures import cleanup_retry_staging
+                digest._scheduler.add_job(
+                    wrap_cron_job(cleanup_retry_staging, "retry_staging_cleanup"),
+                    "cron",
+                    hour=3,
+                    minute=30,
+                    id="retry_staging_cleanup",
+                    replace_existing=True,
+                )
+                logger.info("Retry-staging cleanup scheduled (daily 03:30 UTC).")
+            except Exception as e:
+                logger.warning("Retry-staging cleanup failed to schedule: %s", e)
+
             # Weekly admin digest — Sundays 09:00 UTC.  Drains the
             # admin_pending_alerts queue (populated by cron-failure
             # alerts + other admin signals) into one consolidated

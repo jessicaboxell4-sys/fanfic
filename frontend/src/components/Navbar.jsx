@@ -15,6 +15,7 @@ import AppearancePopover from "./AppearancePopover";
 import MessagesDropdown from "./MessagesDropdown";
 import NotificationsBell from "./NotificationsBell";
 import BackgroundJobsBell from "./BackgroundJobsBell";
+import RejectedFilesBadge from "./RejectedFilesBadge";
 import AccountDropdown from "./AccountDropdown";
 import DisplayName from "./DisplayName";
 import BookQuickSearch from "./BookQuickSearch";
@@ -290,6 +291,7 @@ export default function Navbar() {
             {user && FETCHING_UI_ENABLED && <UpdatesBell />}
           </div>
           {user && <NotificationsBell />}
+          {user && <RejectedFilesBadge />}
           {user && <BackgroundJobsBell />}
 
           {/* Unauthenticated visitor (footer link from /privacy, /terms,
