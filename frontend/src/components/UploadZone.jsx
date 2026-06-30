@@ -10,6 +10,7 @@ import {
 } from "../lib/uploadJobs";
 import AirdropInfoTip from "./AirdropInfoTip";
 import StagedUploadTray from "./StagedUploadTray";
+import StagedDraftRestoreBanner from "./StagedDraftRestoreBanner";
 
 // Every format the backend accepts — .epub goes through the EPUB pipeline,
 // the rest land on the "Needs conversion" shelf with a Calibre nudge.
@@ -48,10 +49,23 @@ function isAccepted(name) {
 }
 
 // Recursively walk a webkit FileSystemEntry tree, yielding File objects.
+// 2026-06-30 — Also stamps ``__relativePath`` on each File so the
+// staging tray can show the user *where* the files came from
+// ("Books/Fantasy/Tolkien") when restoring a saved draft.  The
+// ``fullPath`` from the FileSystem API looks like
+// ``"/MyBooks/Fantasy/lotr.epub"`` — we strip the leading slash so
+// it matches the format ``File.webkitRelativePath`` uses on
+// folder-picker uploads.
 async function readEntry(entry) {
   const out = [];
   if (entry.isFile) {
     const file = await new Promise((res, rej) => entry.file(res, rej));
+    try {
+      const fp = entry.fullPath || "";
+      file.__relativePath = fp.startsWith("/") ? fp.slice(1) : fp;
+    } catch {
+      // Setting on a real File is allowed; defend against edge browsers.
+    }
     out.push(file);
   } else if (entry.isDirectory) {
     const reader = entry.createReader();
@@ -120,6 +134,14 @@ export default function UploadZone({ onUploaded, compact = false }) {
   // Explicit retry events (`shelfsort:upload-files` from the failed-
   // uploads banner, the retry-server flow) bypass staging — those
   // are deliberate "go now" actions.
+  //
+  // 2026-07-06 — Draft persistence (filenames + folder hints, NOT
+  // bytes).  When the tray has files we POST a debounced upsert to
+  // `/api/uploads/staged-drafts` so a refresh/close-laptop can
+  // surface a "you had N files staged from `<folder>`" restore
+  // banner.  The bytes themselves still have to be re-picked by the
+  // user — there's no IndexedDB BLOB persistence — but knowing
+  // *which folder* they came from is the friction-killer.
   const STAGED_CAP = 2000;
   const STAGED_PREF_KEY = "shelfsort_stage_before_upload";
   const [stagingEnabled, setStagingEnabled] = useState(() => {
@@ -130,6 +152,8 @@ export default function UploadZone({ onUploaded, compact = false }) {
     }
   });
   const [stagedFiles, setStagedFiles] = useState([]);
+  const [stagedDraft, setStagedDraft] = useState(null);  // { files, source_hints, updated_at, total_bytes }
+  const draftSaveTimer = useRef(null);
   const toggleStaging = (v) => {
     setStagingEnabled(v);
     try {
@@ -1138,7 +1162,98 @@ export default function UploadZone({ onUploaded, compact = false }) {
     if (stagedFiles.length === 0 || uploading) return;
     const batch = stagedFiles;
     setStagedFiles([]);
+    // The draft has done its job — clear it so the restore banner
+    // doesn't fire next time the user comes back.
+    api.delete("/uploads/staged-drafts").catch(() => {});
+    setStagedDraft(null);
     handleFiles(batch);
+  };
+
+  // 2026-07-06 — Debounced draft autosave.  Fires ~1s after the last
+  // change to stagedFiles so a rapid sequence of folder picks
+  // doesn't slam the API.  Empty queue → server-side delete.
+  useEffect(() => {
+    if (!stagingEnabled) return undefined;
+    if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
+    draftSaveTimer.current = setTimeout(async () => {
+      try {
+        if (stagedFiles.length === 0) {
+          // Only call delete if we previously had a draft on the
+          // server — saves a useless DELETE on every page load.
+          if (stagedDraft) {
+            await api.delete("/uploads/staged-drafts").catch(() => {});
+            setStagedDraft(null);
+          }
+          return;
+        }
+        const payload = {
+          files: stagedFiles.map((f) => ({
+            name: f.name,
+            size: f.size,
+            rel_path: f.webkitRelativePath || f.__relativePath || "",
+          })),
+        };
+        const { data } = await api.put("/uploads/staged-drafts", payload);
+        // Stash the source hints the server derived so the tray
+        // can show "from <folder>" without re-deriving them client-side.
+        setStagedDraft({
+          files: payload.files,
+          source_hints: data?.source_hints || [],
+          total_bytes: data?.total_bytes || 0,
+          updated_at: new Date().toISOString(),
+        });
+      } catch {
+        // Best-effort persistence — silently fail.
+      }
+    }, 1000);
+    return () => {
+      if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
+    };
+  }, [stagedFiles, stagingEnabled]);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 2026-07-06 — On mount: fetch the user's last saved draft so the
+  // restore banner can render below the dropzone.  Only when staging
+  // is on and the tray is currently empty.
+  useEffect(() => {
+    if (!stagingEnabled) return;
+    if (stagedFiles.length > 0) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get("/uploads/staged-drafts");
+        if (cancelled) return;
+        if (data?.draft && Array.isArray(data.draft.files) && data.draft.files.length > 0) {
+          setStagedDraft(data.draft);
+        }
+      } catch {
+        // No-op — restore is best-effort.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [stagingEnabled]);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  const dismissStagedDraft = async () => {
+    try {
+      await api.delete("/uploads/staged-drafts");
+    } catch {
+      // ignore
+    }
+    setStagedDraft(null);
+  };
+
+  const restoreFromDraft = () => {
+    // Browser security forbids us from accessing the user's files
+    // without a fresh user gesture, so the best we can do is pop
+    // open the folder picker.  The user re-picks the same folder,
+    // the dedupe-by-name-size in addToStagedQueue means re-picking
+    // is idempotent if they accidentally restore twice.
+    if (folderInputRef.current) {
+      folderInputRef.current.click();
+    } else {
+      inputRef.current?.click();
+    }
   };
 
   // Routes a fresh drop / file-pick.  Goes to the tray when staging
@@ -1419,6 +1534,17 @@ export default function UploadZone({ onUploaded, compact = false }) {
         onStart={startStagedUpload}
         busy={uploading}
         capacity={STAGED_CAP}
+      />
+    )}
+    {/* 2026-07-06 — Restore banner: only render when staging is on,
+        the tray is currently empty, AND there's a saved draft from a
+        previous session.  Disappears the moment the user drops a
+        fresh file (which would shadow the saved intent anyway). */}
+    {!uploading && stagingEnabled && stagedFiles.length === 0 && stagedDraft && (
+      <StagedDraftRestoreBanner
+        draft={stagedDraft}
+        onRestore={restoreFromDraft}
+        onDismiss={dismissStagedDraft}
       />
     )}
     {retryInboxOpen && (

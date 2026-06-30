@@ -7,6 +7,54 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-30 — Stage-before-upload draft persistence + "Where it came from" restore banner
+
+Follow-up to the staging tray: refresh the tab and the queue evaporates. We now persist the *intent* — filenames, sizes, and the picked folder roots — so on return the user sees a friendly nudge like:
+
+> **You had 47 files staged 12 minutes ago · 142 MB**
+> From folders: `Books/Kindle/Fantasy` · `Downloads/AO3`
+> [Re-pick that folder] [×]
+
+Browser security forbids us from restoring file bytes without a fresh user gesture, but knowing *which folder* the user picked last time kills the entire friction around recovery.
+
+### Shipped
+
+#### Backend
+1. **`routes/staged_drafts.py`** (new, ~150 LOC) — three endpoints:
+   - `PUT /api/uploads/staged-drafts` — upserts `{user_id, files:[{name,size,rel_path}], source_hints[], total_bytes, created_at, updated_at}`. Empty `files` array → server-side delete (keeps the row count clean). Derives `source_hints` by trimming the filename off `rel_path` and taking up to 3 leading dir segments; dedupes hints, caps at 25. Hard caps: 5 000 files/draft, 1 024 chars/`rel_path`, 280 chars/`name`.
+   - `GET /api/uploads/staged-drafts` — returns `{draft: <row> | null}`.
+   - `DELETE /api/uploads/staged-drafts` — clears the row.
+2. **`server.py`** — registered the new module in the shared `api_router`.
+
+#### Frontend
+3. **`components/StagedDraftRestoreBanner.jsx`** (new, ~85 LOC) — warm cream/gold callout that surfaces under the dropzone when:
+   - Staging is on, AND
+   - The tray is currently empty, AND
+   - A non-empty draft exists for this user.
+   Shows count + relative time + total bytes + the `source_hints` as inline `<code>` pills. "Re-pick that folder" button fires the folder picker (and, since `addToStagedQueue` dedupes by `name::size`, accidentally re-picking the same folder twice is idempotent). Dismiss X clears the draft server-side.
+4. **`components/UploadZone.jsx`** integration:
+   - **Captures folder paths**: `readEntry()` now stamps `__relativePath` (from `FileSystemEntry.fullPath`, slash-stripped) onto every File during drag-drop. Folder-picker uploads already populate `webkitRelativePath` natively, so the autosave payload uses `f.webkitRelativePath || f.__relativePath || ""`.
+   - **Debounced autosave** (1 s) via `useEffect` on `stagedFiles`. Empty tray → DELETE (only when a draft was previously known to exist, saving a useless DELETE per page load).
+   - **On-mount fetch**: pulls the saved draft when staging is on and the tray is empty.
+   - **Start clears the draft** (and the in-memory `stagedDraft` so the banner won't flicker back during the upload).
+   - **Dismiss banner** → DELETE + clear local state.
+
+### Verification (live preview)
+- Picked a folder containing `MyBooks/Fantasy/{lotr,hobbit}.epub` and `MyBooks/SciFi/dune.epub` → tray showed 3 rows → 1s later backend draft existed with `source_hints: ['MyBooks/Fantasy', 'MyBooks/SciFi']` (verified via direct `fetch('/api/uploads/staged-drafts')`).
+- Page reload → tray empty, banner rendered:
+  *"You had 3 files staged 2s ago · 21 B · From folders: `MyBooks/Fantasy` · `MyBooks/SciFi`."*
+- Toast/buttons all readable, layout integrates between dropzone and the rejected-files banner.
+
+### Tests
+- **`tests/test_staged_drafts.py`** (new, 4 tests):
+  - `put_get_delete_round_trip` — full CRUD + derived `source_hints` + total bytes.
+  - `empty_files_clears_existing_draft` — empty payload → DELETE behavior.
+  - `source_hints_skip_bare_filenames_and_dedupe` — bare names contribute no hint; same root dedupes.
+  - `hard_caps_protect_against_runaway_payloads` — file count capped at 5 000, `rel_path` truncated to `_MAX_REL_PATH_LEN`.
+- `bash scripts/pre_deploy.sh` → **5/5 lints + 25 backend tests green** (13s).
+
+---
+
 ## 2026-06-30 — Stage before upload (review-then-start queue)
 
 A common power-user gripe: drops fire upload immediately, so people who want to assemble a batch across multiple folder picks get punished ("Already uploading — please wait for the current batch"). Added an opt-in **"Stage before upload"** toggle that turns the dropzone into an accumulator with a Start button.
