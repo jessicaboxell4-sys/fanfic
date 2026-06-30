@@ -7,6 +7,42 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-30 — Admin crash-pulse widget (closes the loop on AppErrorBoundary)
+
+Earlier today we shipped a global `AppErrorBoundary` that captures every uncaught React render error and POSTs to `/api/analytics/client-errors`. That data was landing in Mongo but nothing surfaced it. Today's widget closes that loop so the operator can spot a regression hours before users start filing Help feedback.
+
+### Shipped
+
+#### Backend
+- **`GET /api/admin/client-errors/recent?hours=24&limit=20`** (new, in `routes/analytics.py`) — admin-only. Aggregates the `client_errors` collection by `(message, href)` so a recurring crash on `/account/appearance` shows as one row with `count: N` instead of N separate rows. Each group includes `last_seen`, `first_seen`, `unique_users` count, and a representative `sample_stack` / `sample_component_stack` / `sample_user_agent`. Separate single-pass aggregate computes `totals.events` and `totals.unique_users` window-wide (so the header counts the full picture, not just what we show). Anonymous rows count toward events but not `unique_users`. Window: 1–168 hours, limit 1–100.
+- Caught (and fixed) a pre-existing wiring gap: the `ClassifierReliabilityCard` was in the admin manifest but missing from the switch statement, so it had been silently inert. Wired it in alongside the new crash-pulse case.
+
+#### Frontend
+- **`pages/AdminConsole.jsx` → `ClientErrorPulseCard`** (new, ~155 LOC). Lives in the `system` category alongside Classifier reliability. Polls every 60 s when the tab is visible. Window selector (24h / 3d / 7d). Three-cell totals strip ("crashes / users hit / pages"). Expandable per-group rows with a salmon `Nx` counter pill, the error message in monospace, the page path (`new URL().pathname`), unique-user count, and last-seen relative time. Clicking a row reveals the captured component stack + a sample stack trace + UA.
+- Manifest entry added (`category: "system"`, searchable keywords `"crash pulse client error render boundary uncaught react js javascript page tour appearance regression incident telemetry"`).
+
+### Verification (live preview)
+- Seeded 6 fake client-error rows (3 distinct messages on `/account/appearance` × 2 users each) via direct Mongo insert.
+- AdminConsole rendered:
+  - Totals strip: **8 crashes · 4 users hit · 5 pages**
+  - 5 grouped rows with correct counts (2× / 2× / 2× / 1× / 1×) and correct page paths
+  - Window selector toggled correctly (24h purple-active, 3d / 7d available)
+  - Per-row "Details" expansion showed the component stack + stack trace + UA
+- Network trace confirmed the React app made the `/api/admin/client-errors/recent?hours=24&limit=20` call and received a 200 response.
+
+### Tests
+- **`tests/test_client_errors.py::test_admin_recent_groups_and_counts_unique_pages`** (new) — pins:
+  - Repeated `(message, href)` pairs collapse into a single group with the correct `count`.
+  - `unique_users` counts distinct named users and drops anonymous rows from the user count (but they still count toward events).
+  - Both pages are returned with their own group rows; counts and last-seen survive.
+- All 3 client-errors tests pass (1.18 s).
+- `bash scripts/pre_deploy.sh` → **5/5 lints + 25 backend tests green in 14s**.
+
+### Side fix
+- Fixed a text-contrast lint flag: the row-separator bullet was using `text-[#C5BDA6]` (1.81:1 ratio on the cream paper bg). Bumped to `#7A7461` so the standing contrast lint stays green.
+
+---
+
 ## 2026-06-30 — `.gitignore` regression: boot-time auto-sanitizer + ready-to-send platform-support email draft
 
 The platform-side auto-commit regression (`emergent-agent-e1` re-adds `.env` / `.env.*` / `*.env` to `.gitignore` on a 12-24h cadence) has hit 7+ times in 4 days. Two-pronged response this session:

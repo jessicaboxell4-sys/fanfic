@@ -91,3 +91,84 @@ def test_client_error_records_user_id_when_authenticated(shared_event_loop):
             cli.close()
 
     shared_event_loop.run_until_complete(_run())
+
+
+def test_admin_recent_groups_and_counts_unique_pages(shared_event_loop):
+    """The admin crash-pulse endpoint groups by (message, href), counts
+    occurrences, and reports unique users + unique pages in totals.
+
+    This is the read surface AdminConsole's ``ClientErrorPulseCard``
+    consumes.  Pins:
+      * Repeated (message, href) pairs collapse into a single group
+        with ``count: N``.
+      * ``unique_users`` counts distinct ``user_id``s (and ignores
+        anonymous rows).
+      * ``totals.unique_pages`` reflects distinct hrefs across all
+        groups in the window.
+    """
+    from routes.analytics import admin_recent_client_errors
+    from models import User
+    from datetime import datetime, timezone
+
+    async def _run():
+        cli = AsyncIOMotorClient(os.environ["MONGO_URL"])
+        db = cli[os.environ["DB_NAME"]]
+        marker = uuid.uuid4().hex
+        admin = User(
+            user_id=f"admin_{uuid.uuid4().hex[:10]}",
+            email="a@example.com",
+            name="Admin",
+            is_admin=True,
+        )
+        try:
+            now = datetime.now(timezone.utc).isoformat()
+            # 3 events on page A (2 distinct users) + 1 event on page B (1 user)
+            # + 1 anonymous event on page A
+            rows = [
+                {"message": "Boom", "stack": "", "component_stack": "",
+                 "href": f"/a?m={marker}", "user_agent": "Test/1",
+                 "captured_at": now, "received_at": now,
+                 "user_id": f"u1_{marker}"},
+                {"message": "Boom", "stack": "", "component_stack": "",
+                 "href": f"/a?m={marker}", "user_agent": "Test/1",
+                 "captured_at": now, "received_at": now,
+                 "user_id": f"u1_{marker}"},
+                {"message": "Boom", "stack": "", "component_stack": "",
+                 "href": f"/a?m={marker}", "user_agent": "Test/2",
+                 "captured_at": now, "received_at": now,
+                 "user_id": f"u2_{marker}"},
+                {"message": "Boom", "stack": "", "component_stack": "",
+                 "href": f"/a?m={marker}", "user_agent": "Test/anon",
+                 "captured_at": now, "received_at": now,
+                 "user_id": None},
+                {"message": "Whoops", "stack": "", "component_stack": "",
+                 "href": f"/b?m={marker}", "user_agent": "Test/3",
+                 "captured_at": now, "received_at": now,
+                 "user_id": f"u3_{marker}"},
+            ]
+            await db.client_errors.insert_many(rows)
+
+            res = await admin_recent_client_errors(hours=1, limit=10, _admin=admin)
+
+            # We can have unrelated rows from prior tests still in the
+            # collection; filter to ours.
+            ours = [g for g in res["groups"] if marker in g["href"]]
+            assert len(ours) == 2  # (Boom, /a) and (Whoops, /b)
+            page_a = next(g for g in ours if "/a?" in g["href"])
+            page_b = next(g for g in ours if "/b?" in g["href"])
+            assert page_a["count"] == 4  # 3 named users + 1 anon
+            assert page_a["unique_users"] == 2  # u1, u2 (anon dropped)
+            assert page_b["count"] == 1
+            assert page_b["unique_users"] == 1
+
+            # Last-seen / first-seen filled.
+            assert page_a["last_seen"]
+            assert page_a["first_seen"]
+            # Sample fields are present (even when empty string).
+            assert "sample_stack" in page_a
+            assert "sample_component_stack" in page_a
+        finally:
+            await db.client_errors.delete_many({"href": {"$regex": marker}})
+            cli.close()
+
+    shared_event_loop.run_until_complete(_run())

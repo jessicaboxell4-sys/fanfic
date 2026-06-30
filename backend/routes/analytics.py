@@ -205,6 +205,87 @@ async def post_client_error(
 
 
 # ---------------------------------------------------------------------
+# Admin crash-pulse (2026-06-30)
+# ---------------------------------------------------------------------
+# Pairs with ``POST /api/analytics/client-errors`` (the boundary
+# write surface).  Read surface for the AdminConsole "Crash pulse"
+# widget — groups recent client-side render errors by
+# ``(message, href)`` so a recurring crash on one route is a single
+# row with a counter instead of a flood.
+
+
+@api_router.get("/admin/client-errors/recent")
+async def admin_recent_client_errors(
+    hours: int = 24,
+    limit: int = 20,
+    _admin: User = Depends(require_admin),
+):
+    """Return recent client-side render errors, grouped by message
+    + page so a repeat crash on `/account/appearance` shows as a
+    single row "12 hits in last 24h" instead of 12 separate rows.
+
+    Query params:
+      hours: lookback window in hours (default 24, max 168)
+      limit: max groups to return (default 20, max 100)
+    """
+    hours = max(1, min(168, int(hours)))
+    limit = max(1, min(100, int(limit)))
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
+    pipeline = [
+        {"$match": {"received_at": {"$gte": cutoff}}},
+        {"$group": {
+            "_id": {"message": "$message", "href": "$href"},
+            "count": {"$sum": 1},
+            "last_seen": {"$max": "$received_at"},
+            "first_seen": {"$min": "$received_at"},
+            "users": {"$addToSet": "$user_id"},
+            # Keep one representative sample for the expand view.
+            "sample_stack": {"$first": "$stack"},
+            "sample_component_stack": {"$first": "$component_stack"},
+            "sample_user_agent": {"$first": "$user_agent"},
+        }},
+        {"$sort": {"last_seen": -1}},
+        {"$limit": limit},
+    ]
+    groups = []
+    async for g in db.client_errors.aggregate(pipeline):
+        users = [u for u in (g.get("users") or []) if u]
+        groups.append({
+            "message": g["_id"]["message"],
+            "href": g["_id"]["href"],
+            "count": g["count"],
+            "last_seen": g["last_seen"],
+            "first_seen": g["first_seen"],
+            "unique_users": len(users),
+            "sample_stack": g.get("sample_stack", "")[:1500],
+            "sample_component_stack": g.get("sample_component_stack", "")[:1500],
+            "sample_user_agent": g.get("sample_user_agent", "")[:200],
+        })
+    # Totals so the widget header can show "N crashes from M users".
+    # Use a single aggregate so the total event count and unique user
+    # count are window-wide, not just "what we showed in groups[]".
+    totals_cur = db.client_errors.aggregate([
+        {"$match": {"received_at": {"$gte": cutoff}}},
+        {"$group": {"_id": None, "count": {"$sum": 1}, "users": {"$addToSet": "$user_id"}}},
+    ])
+    raw_total_count = 0
+    raw_total_users = 0
+    async for t in totals_cur:
+        raw_total_count = t.get("count", 0)
+        raw_total_users = len([u for u in (t.get("users") or []) if u])
+    return {
+        "window_hours": hours,
+        "groups": groups,
+        "totals": {
+            "events": raw_total_count,
+            "unique_users": raw_total_users,
+            "unique_pages": len({g["href"] for g in groups}),
+        },
+        "shown_count": sum(g["count"] for g in groups),
+    }
+
+
+# ---------------------------------------------------------------------
 # Public stats (landing page social-proof counter)
 # ---------------------------------------------------------------------
 

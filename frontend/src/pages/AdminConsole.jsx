@@ -77,6 +77,7 @@ const ADMIN_CARD_MANIFEST = [
   { testid: "admin-health-card", category: "system", title: "System health", subtitle: "External dependencies + storage snapshot.", keywords: "health system mongo storage disk dependencies status" },
   { testid: "admin-stuck-uploads-card", category: "system", title: "Stuck uploads", subtitle: "Upload jobs sitting queued/processing for >10 min — leading indicator of Atlas instability or staging-disk loss.", keywords: "stuck uploads upload jobs queued processing mongo atlas failover recovery cron stranded airdrop" },
   { testid: "admin-classifier-reliability-card", category: "system", title: "Classifier reliability", subtitle: "Polish-worker error fingerprints, retry distribution, permanently-stuck count — last 7 days.", keywords: "classifier reliability polish failed errors fingerprint claude llm ai timeout retry attempts stuck pending sort book" },
+  { testid: "admin-crash-pulse-card", category: "system", title: "Crash pulse", subtitle: "Client-side render errors grouped by message + page. Empty = good.", keywords: "crash pulse client error render boundary uncaught react js javascript page tour appearance regression incident telemetry" },
   { testid: "cron-health-card", category: "system", title: "Scheduled jobs", subtitle: "Last-run telemetry for crons.", keywords: "cron jobs scheduled task background failure last-run" },
   { testid: "route-catalogue-card", category: "system", title: "Route catalogue", subtitle: "Every /api/* endpoint.", keywords: "route catalogue endpoint api list routes urls" },
   { testid: "admin-flags-card", category: "system", title: "Feature flags", subtitle: "Runtime kill switches.", keywords: "feature flags toggles kill switch runtime config" },
@@ -3773,6 +3774,215 @@ function ClassifierReliabilityCard() {
   );
 }
 
+// ---------------------------------------------------------------------------
+// ClientErrorPulseCard (2026-06-30)
+// ---------------------------------------------------------------------------
+// Surfaces the AppErrorBoundary client-side crash log on the AdminConsole.
+// Every uncaught React render error POSTs to /api/analytics/client-errors
+// (collected silently from every page).  This widget groups those rows by
+// (message, href) and renders the top recent crashes so the operator can
+// catch a regression before users start filing Help feedback.
+//
+// Reads from GET /api/admin/client-errors/recent?hours=24.  Refreshes every
+// 60s when the tab is visible.  Empty state means "no crashes in the
+// window" — which is the goal.
+// ---------------------------------------------------------------------------
+function ClientErrorPulseCard() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [expandedKey, setExpandedKey] = useState(null);
+  const [windowHours, setWindowHours] = useState(24);
+
+  const load = async (hours = windowHours) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data } = await api.get(`/admin/client-errors/recent?hours=${hours}&limit=20`);
+      setData(data);
+    } catch (e) {
+      setError(e?.response?.data?.detail || e.message || "Failed to load crash pulse");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load(windowHours);
+    const id = setInterval(() => {
+      if (document.visibilityState === "visible") load(windowHours);
+    }, 60_000);
+    return () => clearInterval(id);
+  }, [windowHours]);
+
+  const totals = data?.totals || {};
+  const groups = Array.isArray(data?.groups) ? data.groups : [];
+  const empty = !loading && !error && groups.length === 0;
+
+  return (
+    <Card
+      icon={AlertTriangle}
+      title="Crash pulse"
+      subtitle="Client-side render errors captured by AppErrorBoundary. Empty = good."
+      testid="admin-crash-pulse-card"
+    >
+      {/* Window selector */}
+      <div className="flex items-center gap-1 mb-3" data-testid="crash-pulse-window-selector">
+        {[24, 72, 168].map((h) => (
+          <button
+            key={h}
+            type="button"
+            onClick={() => setWindowHours(h)}
+            className={`text-[11px] px-2 py-1 rounded-md border transition-colors ${
+              windowHours === h
+                ? "bg-[#6B46C1] text-white border-[#6B46C1]"
+                : "bg-white text-[#2C2C2C] border-[#E4D9C8] hover:bg-[#FDFBF7]"
+            }`}
+            data-testid={`crash-pulse-window-${h}h`}
+          >
+            {h === 24 ? "24h" : h === 72 ? "3d" : "7d"}
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={() => load(windowHours)}
+          className="ml-auto text-[11px] px-2 py-1 rounded-md border border-[#E4D9C8] bg-white hover:bg-[#FDFBF7]"
+          disabled={loading}
+          data-testid="crash-pulse-refresh"
+        >
+          {loading ? "…" : "Refresh"}
+        </button>
+      </div>
+
+      {error && (
+        <p className="text-xs text-[#7C2D2A] py-3" data-testid="crash-pulse-error">
+          ✗ {error}
+        </p>
+      )}
+
+      {empty && (
+        <p className="text-xs text-[#5B5F4D] py-6 text-center" data-testid="crash-pulse-empty">
+          No client-side crashes in the last {windowHours === 24 ? "24 hours" : windowHours === 72 ? "3 days" : "7 days"}. Quiet skies.
+        </p>
+      )}
+
+      {data && groups.length > 0 && (
+        <div className="space-y-3">
+          {/* Headline totals */}
+          <div className="grid grid-cols-3 gap-2 text-center" data-testid="crash-pulse-totals">
+            <div className="rounded-lg bg-[#FBFAF6] border border-[#E5DDC5] py-2 px-1">
+              <p className="font-serif text-2xl text-[#2C2C2C]" data-testid="crash-pulse-total-events">
+                {totals.events ?? 0}
+              </p>
+              <p className="text-[10px] uppercase tracking-[0.12em] text-[#5B5F4D] mt-0.5">
+                crashes
+              </p>
+            </div>
+            <div className="rounded-lg bg-[#FBFAF6] border border-[#E5DDC5] py-2 px-1">
+              <p className="font-serif text-2xl text-[#2C2C2C]" data-testid="crash-pulse-unique-users">
+                {totals.unique_users ?? 0}
+              </p>
+              <p className="text-[10px] uppercase tracking-[0.12em] text-[#5B5F4D] mt-0.5">
+                users hit
+              </p>
+            </div>
+            <div className="rounded-lg bg-[#FBFAF6] border border-[#E5DDC5] py-2 px-1">
+              <p className="font-serif text-2xl text-[#2C2C2C]" data-testid="crash-pulse-unique-pages">
+                {totals.unique_pages ?? 0}
+              </p>
+              <p className="text-[10px] uppercase tracking-[0.12em] text-[#5B5F4D] mt-0.5">
+                pages
+              </p>
+            </div>
+          </div>
+
+          {/* Per-group rows */}
+          <ul className="space-y-1.5" data-testid="crash-pulse-groups">
+            {groups.map((g, i) => {
+              const key = `${g.message}::${g.href}`;
+              const isOpen = expandedKey === key;
+              const pagePath = (() => {
+                try {
+                  return new URL(g.href).pathname || g.href;
+                } catch {
+                  return g.href || "(unknown)";
+                }
+              })();
+              return (
+                <li
+                  key={key}
+                  className="rounded-lg bg-white border border-[#E5DDC5] overflow-hidden"
+                  data-testid={`crash-pulse-row-${i}`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setExpandedKey(isOpen ? null : key)}
+                    className="w-full text-left px-3 py-2 flex items-center gap-3 hover:bg-[#FDFBF7] transition-colors"
+                  >
+                    <span
+                      className="shrink-0 inline-flex items-center justify-center min-w-[2rem] h-6 px-1.5 rounded-full bg-[#FBE7E4] text-[#A03D33] text-xs font-bold"
+                      data-testid={`crash-pulse-row-count-${i}`}
+                    >
+                      {g.count}×
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className="text-xs text-[#2C2C2C] font-mono truncate"
+                        title={g.message}
+                        data-testid={`crash-pulse-row-message-${i}`}
+                      >
+                        {g.message || "(no message)"}
+                      </p>
+                      <p className="text-[11px] text-[#5B5F4D] truncate">
+                        <code className="font-mono">{pagePath}</code>
+                        <span className="mx-1 text-[#7A7461]">·</span>
+                        {g.unique_users} user{g.unique_users === 1 ? "" : "s"}
+                        <span className="mx-1 text-[#7A7461]">·</span>
+                        last seen {fmtTime(g.last_seen)}
+                      </p>
+                    </div>
+                    <span className="text-[11px] text-[#6B46C1] shrink-0">{isOpen ? "Hide" : "Details"}</span>
+                  </button>
+                  {isOpen && (
+                    <div className="px-3 py-2 bg-[#FBF7EE] border-t border-[#E5DDC5] text-[11px] text-[#3A3A3A] space-y-2" data-testid={`crash-pulse-row-details-${i}`}>
+                      {g.sample_component_stack && (
+                        <div>
+                          <p className="font-semibold text-[#5B5F4D] mb-1">Component stack:</p>
+                          <pre className="whitespace-pre-wrap font-mono text-[10px] bg-white border border-[#E5DDC5] rounded p-2 max-h-32 overflow-auto">
+                            {g.sample_component_stack}
+                          </pre>
+                        </div>
+                      )}
+                      {g.sample_stack && (
+                        <div>
+                          <p className="font-semibold text-[#5B5F4D] mb-1">Stack trace (one sample):</p>
+                          <pre className="whitespace-pre-wrap font-mono text-[10px] bg-white border border-[#E5DDC5] rounded p-2 max-h-32 overflow-auto">
+                            {g.sample_stack}
+                          </pre>
+                        </div>
+                      )}
+                      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-[#5B5F4D] pt-1">
+                        <span>first seen {fmtTime(g.first_seen)}</span>
+                        {g.sample_user_agent && (
+                          <span className="truncate max-w-[16rem]" title={g.sample_user_agent}>
+                            UA: {g.sample_user_agent}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+
+
 
 function HealthCard() {
   const [health, setHealth] = useState(null);
@@ -7273,6 +7483,8 @@ export default function AdminConsole() {
                       case "admin-banner-card":                 return <MaintenanceBannerCard key={c.testid} />;
                       case "admin-health-card":                 return <HealthCard key={c.testid} />;
                       case "admin-stuck-uploads-card":          return <StuckUploadsCard key={c.testid} />;
+                      case "admin-classifier-reliability-card": return <ClassifierReliabilityCard key={c.testid} />;
+                      case "admin-crash-pulse-card":            return <ClientErrorPulseCard key={c.testid} />;
                       case "cron-health-card":                  return <CronHealthCard key={c.testid} />;
                       case "route-catalogue-card":              return <RouteCatalogueCard key={c.testid} />;
                       case "admin-flags-card":                  return <FeatureFlagsCard key={c.testid} />;
