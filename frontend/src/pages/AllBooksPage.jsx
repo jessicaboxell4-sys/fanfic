@@ -9,6 +9,7 @@ import ContinueReadingRail from "../components/ContinueReadingRail";
 import StatsCard from "../components/StatsCard";
 import PoweredByFanFicFare from "../components/PoweredByFanFicFare";
 import OnboardingPrompt from "../components/OnboardingPrompt";
+import SuggestionChip from "../components/SuggestionChip";
 import HelpNudge from "../components/HelpNudge";
 import DuplicateResolutionModal from "../components/DuplicateResolutionModal";
 import UrlListDedupeModal from "../components/UrlListDedupeModal";
@@ -1112,22 +1113,18 @@ export default function AllBooksPage() {
             <h2 className="font-serif text-2xl text-[#2C2C2C] mb-2">No books just yet</h2>
             <p className="text-[#5B5F4D]">Drop a few EPUBs above to start sorting your library.</p>
             <div className="mt-6 flex justify-center">
-              {FETCHING_UI_ENABLED && <PoweredByFanFicFare />}
+            {FETCHING_UI_ENABLED && <PoweredByFanFicFare />}
             </div>
             {/* Suggestion-box discoverability chip (Task 8) — first-
                 time users land here with an empty shelf; nudge them
                 toward the inbound flywheel right at the moment they
-                might wish Shelfsort did one more thing. */}
-            <p className="mt-6 text-sm text-[#5B5F4D]">
-              Wish Shelfsort did something it doesn&rsquo;t yet?{" "}
-              <Link
-                to="/help#suggestions"
-                data-testid="empty-library-suggest-feature-link"
-                className="text-[#6B46C1] font-semibold hover:underline inline-flex items-center gap-1"
-              >
-                💡 Suggest a feature →
-              </Link>
-            </p>
+                might wish Shelfsort did one more thing.
+                2026-06-29: upgraded from static link to the
+                SuggestionChip modal so the user never leaves the
+                empty-state to capture an idea. */}
+            <div className="mt-6">
+              <SuggestionChip testid="empty-library-suggest-chip" />
+            </div>
           </div>
         ) : (
           <>

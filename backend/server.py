@@ -507,6 +507,28 @@ async def on_startup():
                 logger.info("Canary throwaway-account sweep scheduled (hourly at :05).")
             except Exception as e:
                 logger.warning("Canary account sweep failed to schedule: %s", e)
+
+            # Re-engagement nudge — weekly, Tuesday 17:00 UTC.  Sends
+            # a one-shot email to dormant users with incomplete
+            # profiles (created >7d ago, no login in 14d, completeness
+            # < 3, no prior nudge sent).  Capped at 30 sends/tick to
+            # protect the Resend quota; backlog drains over weeks
+            # naturally.  See utils/re_engagement_email.py.
+            try:
+                from utils.re_engagement_email import re_engagement_tick
+
+                digest._scheduler.add_job(
+                    wrap_cron_job(re_engagement_tick, "re_engagement_tick"),
+                    "cron",
+                    day_of_week="tue",
+                    hour=17,
+                    minute=0,
+                    id="re_engagement_tick",
+                    replace_existing=True,
+                )
+                logger.info("Re-engagement nudge scheduled (Tuesdays 17:00 UTC).")
+            except Exception as e:
+                logger.warning("Re-engagement nudge failed to schedule: %s", e)
     except Exception as e:
         logger.warning("Fixture auto-purge job failed to schedule: %s", e)
 

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { User as UserIcon, LogOut, Settings, ShieldCheck, Loader2, ArrowRight, HelpCircle } from "lucide-react";
 import DisplayName from "./DisplayName";
+import SuggestionChip from "./SuggestionChip";
 import { toast } from "sonner";
 import { api } from "../lib/api";
 
@@ -207,6 +208,15 @@ export default function AccountDropdown({ user, onLogout }) {
             <Settings className="w-4 h-4 text-[#5B5F4D]" />
             Account settings
           </Link>
+          {/* Suggestion-box menu item (Task 8, 2026-06-29) — gives
+              a persistent "💡 Suggest a feature" entry-point from
+              every authenticated page via the user menu.  Variant
+              ``menu`` renders as a single-line dropdown item; the
+              modal is rendered by the chip itself, so we don't
+              need to plumb it through Navbar state. */}
+          <div className="border-t border-[#E8E6E1]">
+            <SuggestionChip variant="menu" testid="account-menu-suggest" />
+          </div>
           <button
             type="button"
             data-testid="account-menu-logout"
