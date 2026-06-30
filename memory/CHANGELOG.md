@@ -7,6 +7,64 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-30 — User feedback round: tour crash, cover regen on touch, generic 500s
+
+Three concrete reports from the admin Feedback inbox + Help-page inbox, fixed in priority order.
+
+### #1 — Intro tour blanks out on step 6/9, refresh resets to 0
+> *"Hi just trying to get setup but your intro tour keeps crashing out on page of 6/9. The screen just goes blank and a refresh starts back at the beginning."*
+
+**Root cause**: two separate bugs compounding.
+1. The app had no global ErrorBoundary, so any unhandled render error on any route blanked the entire document.
+2. Tour `idx` lived in component state — a refresh reset it to 0.
+
+**Shipped**:
+- **`frontend/src/components/AppErrorBoundary.jsx`** (new, ~115 LOC) — class component wrapping the `<AppRouter />` subtree. On `componentDidCatch` it POSTs the error message + stack + component stack + href + user agent to `/api/analytics/client-errors` and renders a soft "Something went sideways" recovery panel with Reload / Take me home buttons. Both buttons clear `shelfsort_tour_step` first so the next mount can't immediately re-trigger the crashing step.
+- **`frontend/src/App.js`** — wrapped `<AppRouter />` inside `<AppErrorBoundary>` (still under the providers so palette/theme tokens are available to the fallback UI).
+- **`frontend/src/components/TourOverlay.jsx`** — added `STEP_STORAGE_KEY = "shelfsort_tour_step"`, `loadSavedStep()`, `saveStep()`. Initial `idx` seeds from `loadSavedStep()` (clamped to `TOUR_STEPS.length - 1` so a deployment removing a step can't crash with `undefined`). A `useEffect` writes every step change back to localStorage. `markTourSeen()` clears both keys on completion / dismiss.
+- **`backend/routes/analytics.py`** — new `POST /api/analytics/client-errors` (auth-optional) accepting `{message, stack, component_stack, href, user_agent, captured_at}`. Server caps each field at 500–4000 chars. Application-side LRU trims `client_errors` to the last 10 000 rows so a runaway crash loop can't fill the database.
+
+**Verified live**: tour advanced to step 6/9 "Light, dark, and your favourite colour" → localStorage `tour_step = 5` → page reload → tour reopened at **step 6/9** on `/account/appearance` with the saved step intact. 2 new backend tests (`test_client_errors.py`) pin the size caps and user_id stamping.
+
+### #2 — Cover regen "glitchy" on iPad / Surface, opens the book instead
+> *"When attempting on Ipad or Microsoft laptop to regenerate a cover, the view becomes very glitchy and will often fault out or open the book, than defeating the only available action to update the cover."*
+
+**Root cause**: the regen button (`RegenerateCoverButton.jsx`) used `opacity-0 group-hover:opacity-100` to fade in on hover. On touch devices (`hover: none`), the button stayed invisible — and since the entire `BookCard` is wrapped in a `<Link>`, taps that *should* have landed on the button missed and opened the book reader.
+
+**Shipped**:
+- **`frontend/src/components/RegenerateCoverButton.jsx`** — added the arbitrary Tailwind variant `[@media(hover:none)]:opacity-100` so touch devices always render the button at full opacity. Also added `onTouchStart` + `onPointerDown` `stopPropagation` shims so even if the event bubbles up before the synthetic click fires, the parent `<Link>` doesn't navigate. Bumped background opacity `bg-white/90` → `bg-white/95` so the always-visible state reads cleanly against varied covers, and added `z-10` so the button paints above any cover-image stacking quirks.
+
+**Verified**: compiled stylesheet contains `@media (hover: none) { .\[\@media\(hover\:none\)\]\:opacity-100 { opacity: 1 } }` — Playwright confirmed the rule is in the live CSS.
+
+### #3 — "Error code 500" with no actionable info (WinterDev's "Clarify")
+> *"I keep getting error code 500. But I don't know what that is, and I can't see anything that give ideas on how to fix it"*
+
+**Root cause**: no global axios response interceptor → opaque 5xx surfaces fell through the 147 `e?.response?.data?.detail || "..."` patterns in components, leaking axios's literal `"Request failed with status code 500"` into toasts.
+
+**Shipped**:
+- **`frontend/src/lib/api.js`** — added a response interceptor that, on 5xx with an opaque `detail` (or none), rewrites `err.response.data.detail` + `err.message` to:
+  - `500` → *"Something went wrong on our end. Please try again in a moment — and if it keeps happening, drop us a note via Help → Feedback."*
+  - `502` → *"We couldn't reach our servers just now — they may be restarting. Try again in 30 seconds."*
+  - `503` → *"Shelfsort is temporarily busy. Please try again in a moment."*
+  - `504` → *"The request took too long. We're working on speeding it up — please try again."*
+  - Other 5xx → generic fallback with the status code.
+- Backend-supplied custom messages (e.g. `"Calibre crashed on this EPUB"`) are detected by an OPAQUE_DETAIL regex and **left untouched**, so meaningful errors still flow through.
+- Network failures (no response at all) now read *"Couldn't reach Shelfsort — check your connection and try again."* instead of bare `"Network Error"`.
+
+**Verified live**: in-browser unit test of the same interceptor logic on a faked 500 → both `.detail` and `.message` now read the friendly text instead of `"Request failed with status code 500"`.
+
+### Tests / lints
+- **40 backend tests pass** (`test_upload_queue_summary`, `test_polish_retry_inbox`, `test_client_errors`, `test_staged_drafts`, `test_upload_failures`, `test_upload_retry_server`).
+- `bash scripts/pre_deploy.sh` → **5/5 standing lints green + 25 backend tests in 14s**.
+
+### Admin handoff
+The 3 feedback rows in the admin Feedback / Help-page Inbox can now be flipped:
+- "Clarify" (WinterDev — error code 500) → **done**
+- "When attempting on Ipad..." → **done**
+- "Hi just trying to get setup..." (intro tour crash) → **done**
+
+---
+
 ## 2026-06-30 — Stage-before-upload draft persistence + "Where it came from" restore banner
 
 Follow-up to the staging tray: refresh the tab and the queue evaporates. We now persist the *intent* — filenames, sizes, and the picked folder roots — so on return the user sees a friendly nudge like:

@@ -192,10 +192,27 @@ export default function RegenerateCoverButton({ book, onCoverChanged }) {
       <button
         type="button"
         onClick={openAndGenerate}
+        // 2026-06-30 — Also stop touch events from propagating to the
+        // BookCard's open-reader handler.  Without this the button
+        // worked on desktop hover (where pointer events resolve on
+        // the button) but on touch devices (iPad, Surface) the
+        // opacity-0 made the button non-targetable, so taps passed
+        // through to the card and opened the book reader instead of
+        // the regen modal.  User report 2026-06-29:
+        //   "the view becomes very glitchy and will often fault out
+        //    or open the book, than defeating the only available
+        //    action to update the cover."
+        onTouchStart={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
         data-testid={`regen-cover-btn-${book.book_id}`}
         title="Regenerate cover with AI"
         aria-label="Regenerate cover with AI"
-        className="absolute top-2 left-2 w-9 h-9 rounded-full flex items-center justify-center bg-white/90 border border-[#E8E6E1] text-[#6B46C1] opacity-0 group-hover:opacity-100 transition-opacity shadow-md hover:shadow-lg tap-min"
+        // hover-only opacity is fine on pointer-fine devices, but on
+        // pointer-coarse / no-hover devices (touch) we keep the
+        // button visible by default so a tap actually lands on it.
+        // The Tailwind utility doesn't include a hover-none variant,
+        // so an inline media query covers it without a config change.
+        className="absolute top-2 left-2 z-10 w-9 h-9 rounded-full flex items-center justify-center bg-white/95 border border-[#E8E6E1] text-[#6B46C1] opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity shadow-md hover:shadow-lg tap-min"
       >
         <Sparkles className="w-4 h-4" />
       </button>

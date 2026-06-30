@@ -4,17 +4,45 @@ import { X as XIcon, ArrowLeft, ArrowRight, Check } from "lucide-react";
 import TOUR_STEPS from "../lib/tourSteps";
 
 const STORAGE_KEY = "shelfsort_tour_seen";
+const STEP_STORAGE_KEY = "shelfsort_tour_step";
 
 export function hasSeenTour() {
   try { return window.localStorage.getItem(STORAGE_KEY) === "1"; }
   catch (e) { return false; }
 }
 export function markTourSeen() {
-  try { window.localStorage.setItem(STORAGE_KEY, "1"); }
+  try {
+    window.localStorage.setItem(STORAGE_KEY, "1");
+    window.localStorage.removeItem(STEP_STORAGE_KEY);
+  }
   catch (e) { /* ignore */ }
 }
 export function clearTourSeen() {
-  try { window.localStorage.removeItem(STORAGE_KEY); }
+  try {
+    window.localStorage.removeItem(STORAGE_KEY);
+    window.localStorage.removeItem(STEP_STORAGE_KEY);
+  }
+  catch (e) { /* ignore */ }
+}
+
+// 2026-06-30 — Tour progress persistence.  In response to user
+// report: "intro tour keeps crashing out on page of 6/9 ... refresh
+// starts back at the beginning."  The crash itself is now handled
+// by AppErrorBoundary; this hook stops a refresh / accidental nav
+// from resetting the user's progress.  Stored as a small integer
+// in localStorage; cleared when the tour completes or is dismissed.
+function loadSavedStep() {
+  try {
+    const raw = window.localStorage.getItem(STEP_STORAGE_KEY);
+    if (!raw) return 0;
+    const n = parseInt(raw, 10);
+    if (Number.isNaN(n) || n < 0) return 0;
+    // Clamp to a sane upper bound — the tour file is the source of truth.
+    return n;
+  } catch (e) { return 0; }
+}
+function saveStep(n) {
+  try { window.localStorage.setItem(STEP_STORAGE_KEY, String(n)); }
   catch (e) { /* ignore */ }
 }
 
@@ -27,9 +55,19 @@ export function clearTourSeen() {
 export default function TourOverlay({ open, onClose }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const [idx, setIdx] = useState(0);
+  // Seed from the saved step so a refresh mid-tour resumes where the
+  // user was, instead of resetting to step 0.  Clamp against the
+  // current TOUR_STEPS length in case a deployment removed a step
+  // (otherwise we'd render undefined and crash).
+  const [idx, setIdx] = useState(() => {
+    const saved = loadSavedStep();
+    return Math.min(saved, TOUR_STEPS.length - 1);
+  });
   const step = TOUR_STEPS[idx];
   const isLast = idx === TOUR_STEPS.length - 1;
+
+  // Persist every step change so a refresh resumes mid-tour.
+  useEffect(() => { saveStep(idx); }, [idx]);
 
   // Navigate to the step's path if it differs from where the user is.
   useEffect(() => {

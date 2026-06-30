@@ -146,6 +146,65 @@ async def stamp_view_from_spa(
 
 
 # ---------------------------------------------------------------------
+# Client-side render errors (2026-06-30)
+# ---------------------------------------------------------------------
+# Powers AppErrorBoundary's "we've logged the details" promise.  Each
+# uncaught render error from any route gets POSTed here so the admin
+# telemetry can pinpoint repeat crashes (which step of the tour,
+# which book's cover regen, etc.).  Auth-optional — anonymous
+# crashes during the landing page still get captured.
+
+
+class ClientErrorBody(BaseModel):
+    message: str = Field("", max_length=500)
+    stack: str = Field("", max_length=4000)
+    component_stack: str = Field("", max_length=4000)
+    href: str = Field("", max_length=500)
+    user_agent: str = Field("", max_length=500)
+    captured_at: str = Field("", max_length=64)
+
+
+@api_router.post("/analytics/client-errors")
+async def post_client_error(
+    body: ClientErrorBody,
+    request: Request,
+    user: Optional[User] = Depends(get_current_user_or_none),
+):
+    """Append a client-side render error to ``client_errors``.
+
+    Capped collection-style behaviour is enforced application-side
+    (last 10 000 rows kept) so a runaway crash loop can't fill the
+    DB.  The admin dashboard reads this collection sorted by recency
+    + grouped by ``href`` to spot recurring crashes.
+    """
+    now = datetime.now(timezone.utc)
+    doc = {
+        "message": body.message.strip()[:500],
+        "stack": body.stack.strip()[:4000],
+        "component_stack": body.component_stack.strip()[:4000],
+        "href": body.href.strip()[:500],
+        "user_agent": body.user_agent.strip()[:500],
+        "captured_at": body.captured_at.strip()[:64] or now.isoformat(),
+        "received_at": now.isoformat(),
+        "user_id": user.user_id if user else None,
+    }
+    await db.client_errors.insert_one(doc)
+    # Trim if we're over the cap.  Cheap fixed-window LRU.
+    try:
+        count = await db.client_errors.estimated_document_count()
+        if count > 10_000:
+            # Drop the oldest 100 rows in one shot to amortize cost.
+            cursor = db.client_errors.find({}, projection={"_id": 1}) \
+                .sort("received_at", 1).limit(100)
+            old_ids = [d["_id"] async for d in cursor]
+            if old_ids:
+                await db.client_errors.delete_many({"_id": {"$in": old_ids}})
+    except Exception:  # noqa: BLE001 — telemetry must not re-raise.
+        pass
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------
 # Public stats (landing page social-proof counter)
 # ---------------------------------------------------------------------
 

@@ -5,6 +5,7 @@ import { Toaster } from "sonner";
 
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import TourOverlay, { hasSeenTour } from "@/components/TourOverlay";
+import AppErrorBoundary from "@/components/AppErrorBoundary";
 import GlobalConfettiHost from "@/components/GlobalConfettiHost";
 import { ThemeProvider, useTheme } from "@/context/ThemeContext";
 import { PaletteProvider } from "@/context/PaletteContext";
@@ -325,12 +326,21 @@ function App() {
         <ThemeProvider>
           <PaletteProvider>
             <AuthProvider>
+              {/* 2026-06-30 — AppErrorBoundary wraps the routed
+                  subtree so an unhandled render error on any route
+                  surfaces a friendly recovery screen instead of a
+                  blank document.  Sits INSIDE the providers (so the
+                  fallback UI still gets palette/theme tokens) but
+                  OUTSIDE the route component so navigating to a
+                  different page after a crash works. */}
               <PendingDeletionBanner />
               <MaintenanceBanner />
               <NewVersionBanner />
               <AvRescanNudgeBanner />
               {FETCHING_UI_ENABLED && <UrlPasteDetector />}
-              <AppRouter />
+              <AppErrorBoundary>
+                <AppRouter />
+              </AppErrorBoundary>
               <GlobalConfettiHost />
               <Toaster position="top-center" richColors />
             </AuthProvider>
