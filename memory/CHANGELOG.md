@@ -7,6 +7,41 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-30 — Stage before upload (review-then-start queue)
+
+A common power-user gripe: drops fire upload immediately, so people who want to assemble a batch across multiple folder picks get punished ("Already uploading — please wait for the current batch"). Added an opt-in **"Stage before upload"** toggle that turns the dropzone into an accumulator with a Start button.
+
+### Shipped
+
+#### Frontend
+1. **`components/StagedUploadTray.jsx`** (new, ~95 lines) — presentational list of staged files with per-row remove, total bytes display, "near limit" badge when 90%+ full, `Clear all` + `Start uploading N` buttons. Pure render, no state.
+2. **`components/UploadZone.jsx`** integration:
+   - New state: `stagingEnabled` (persisted to `localStorage` under `shelfsort_stage_before_upload`), `stagedFiles[]`.
+   - `addToStagedQueue()` dedupes by `${name}::${size}`, soft-caps at 2000 files with a toast, surfaces queued/duplicate counts on every drop.
+   - `acceptIncomingFiles()` router — drops/picks go to the tray when staging is on and we're not mid-upload; otherwise they fall through to the existing `handleFiles()` pipeline.
+   - **`shelfsort:upload-files` event still bypasses staging** — re-drop / retry-on-server are deliberate "go now" actions, so the failed-uploads banner integration keeps its current behavior.
+   - New toggle UI above the dropzone (outside the click target so it doesn't fire the picker). Hidden during an active upload.
+   - `startStagedUpload()` empties the tray and feeds the full batch through `handleFiles()`, so the existing non-EPUB Convert/Keep/Skip prompts, big-library 200/batch chunking, airdrop mode, concurrency throttle, retry-from-server, and per-file failure rows all continue to apply unchanged.
+3. **`index.css`** — added dark-mode mappings for the two new arbitrary colors (`bg-[#FAF3E5]` → purple-tinted callout, `bg-[#E4D9C8]` → `--surface-hover`) so the 5th standing lint stays green.
+
+### Verification (live preview)
+- Toggle starts off (default unchanged from before).
+- Flipping it on → drop 3 files via the picker → tray shows "3 files ready · 24 B" with file rows + Clear/Start.
+- Drop 2 more (one a duplicate of an existing entry) → tray shows 4 rows, toast "Queued 1 file — 4 ready to upload" + "1 duplicate file already in queue".
+- Remove one row via the X button → 3 left.
+- Hit Start → tray vanishes, dropzone shows "Sorting your books… · 0 of 3 processed · 3 books currently sorting".
+- Library count: 0 → 3 books on shelves ✅
+- Toggle persists across page reload (verified within one Playwright context: `initial LS: None → after-ON LS: 1 → after-reload LS: 1 → toggle restored: True`).
+- Toggle OFF path: drops still fire `handleFiles()` immediately — no tray ever renders.
+- Dark mode: tray + toggle render correctly with the new CSS mappings; toast/buttons all readable.
+- `bash scripts/pre_deploy.sh` → 5/5 lints green + 25 backend tests green.
+
+### Notes / non-goals
+- **Persistence**: the *toggle* persists, but the *file queue* does not survive a refresh. Persisting File bytes would mean dumping thousands of EPUBs into IndexedDB — not worth the OOM math and complexity right now. If the user refreshes mid-staging, they re-drop.
+- **Fanfic URLs** stay in their own card (URL paste flow unchanged); only ebook files participate in the staging tray.
+
+---
+
 ## 2026-06-30 — #23 Retry from server (bulk re-run of failed uploads, no re-pick)
 
 The single biggest pain in the failed-uploads flow has been that *every* recovery required the user to find the original files on disk again. This is hostile when the failure was the backend's fault (Calibre crash, AV timeout, transient classifier blow-up) — the bytes are *already* on the server, but the `finally` sweep of the staging dir tore them up before the user could see the failure banner.

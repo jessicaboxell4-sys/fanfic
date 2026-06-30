@@ -538,6 +538,18 @@ html, body {
 /* readable when the user flips to dark.                                */
 :root[data-theme="dark"] .bg-\[\#FAF7F0\] { background-color: var(--bg); }
 
+/* `bg-[#FAF3E5]` — cream header inside the StagedUploadTray.  Map to
+   the same warm callout treatment we use for the upload-resume
+   banner so the staged-files header reads as a soft accent in dark
+   mode instead of going pure-cream. */
+:root[data-theme="dark"] .bg-\[\#FAF3E5\] { background-color: rgba(167, 139, 250, 0.12); }
+
+/* `bg-[#E4D9C8]` — kraft-tan used for the "Stage before upload"
+   toggle's off-state track + tray clear-button borders.  Lift it to
+   the same surface-hover token used by sibling neutrals so the
+   off-state remains visible against the dark card. */
+:root[data-theme="dark"] .bg-\[\#E4D9C8\] { background-color: var(--surface-hover); }
+
 /* `bg-[#EEF3EC]` — pale sage used by the "Since you were last here"    */
 /* activity banner on the Library page. The remapped near-white text   */
 /* was invisible against the un-remapped cream background; converge it */

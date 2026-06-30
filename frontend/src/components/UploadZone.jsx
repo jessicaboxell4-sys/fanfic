@@ -9,6 +9,7 @@ import {
   untrackPendingJob,
 } from "../lib/uploadJobs";
 import AirdropInfoTip from "./AirdropInfoTip";
+import StagedUploadTray from "./StagedUploadTray";
 
 // Every format the backend accepts — .epub goes through the EPUB pipeline,
 // the rest land on the "Needs conversion" shelf with a Calibre nudge.
@@ -107,6 +108,41 @@ export default function UploadZone({ onUploaded, compact = false }) {
   const inFlightRef = useRef(false);
   const [drag, setDrag] = useState(false);
   const [uploading, setUploading] = useState(false);
+
+  // 2026-07-06 — "Stage before upload" mode.  When enabled, dropped /
+  // picked files accumulate in a local tray instead of firing
+  // handleFiles() immediately.  The user hits "Start uploading" when
+  // they're ready, at which point we feed the entire batch through
+  // the existing pipeline.  Toggle is persisted to localStorage so
+  // it sticks across reloads, and the staging tray itself is
+  // intentionally NOT persisted — File objects can't be re-hydrated
+  // from localStorage anyway, and the bytes would be lost on refresh.
+  // Explicit retry events (`shelfsort:upload-files` from the failed-
+  // uploads banner, the retry-server flow) bypass staging — those
+  // are deliberate "go now" actions.
+  const STAGED_CAP = 2000;
+  const STAGED_PREF_KEY = "shelfsort_stage_before_upload";
+  const [stagingEnabled, setStagingEnabled] = useState(() => {
+    try {
+      return localStorage.getItem(STAGED_PREF_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const [stagedFiles, setStagedFiles] = useState([]);
+  const toggleStaging = (v) => {
+    setStagingEnabled(v);
+    try {
+      localStorage.setItem(STAGED_PREF_KEY, v ? "1" : "0");
+    } catch {
+      // localStorage disabled (private mode) — toggle still works in-memory.
+    }
+    // Flipping the toggle off should empty the queue so users
+    // don't accidentally lose track of files that won't be uploaded.
+    if (!v && stagedFiles.length > 0) {
+      setStagedFiles([]);
+    }
+  };
   // `batch` / `batches` are populated when a drop exceeds CHUNK_SIZE so the
   // progress line can read "Batch 2 of 5 · 347 of 1000 processed".  For
   // smaller drops they stay at 1/1 and the UI hides the batch prefix.
@@ -1031,18 +1067,99 @@ export default function UploadZone({ onUploaded, compact = false }) {
     const onUploadFilesEvent = (e) => {
       const files = e?.detail;
       if (!files || (Array.isArray(files) && files.length === 0)) return;
+      // Explicit retry actions bypass staging — the user already
+      // clicked "Re-drop" or "Retry on server", so they expect the
+      // pipeline to fire immediately.
       handleFiles(files);
     };
     window.addEventListener("shelfsort:upload-files", onUploadFilesEvent);
     return () => window.removeEventListener("shelfsort:upload-files", onUploadFilesEvent);
   }, [handleFiles]);
 
+  // 2026-07-06 — Staging tray helpers.  ``addToStagedQueue`` dedupes
+  // by ``name::size`` so re-dropping the same folder doesn't double
+  // it, and enforces a soft cap so the browser doesn't OOM on
+  // tens of thousands of File objects.  The new shim key
+  // ``__stageKey`` is non-enumerable on the underlying File so the
+  // upload pipeline ignores it.
+  const stagedKey = (f) => `${f.name}::${f.size}`;
+  const addToStagedQueue = (filesList) => {
+    const incoming = Array.from(filesList || []);
+    if (incoming.length === 0) return;
+    setStagedFiles((prev) => {
+      const seen = new Set(prev.map((f) => f.__stageKey));
+      const fresh = [];
+      let duplicates = 0;
+      for (const f of incoming) {
+        const key = stagedKey(f);
+        if (seen.has(key)) {
+          duplicates += 1;
+          continue;
+        }
+        // Stamp the dedupe key onto the File for stable React keys
+        // + cheap removal.  File is iterable so we attach as a
+        // direct property (writable but non-enumerable wouldn't
+        // matter — the upload pipeline only reads name/size/etc.).
+        try {
+          f.__stageKey = key;
+        } catch {
+          // Shouldn't happen with real File objects, but defend.
+        }
+        seen.add(key);
+        fresh.push(f);
+      }
+      const next = [...prev, ...fresh];
+      if (next.length > STAGED_CAP) {
+        const dropped = next.length - STAGED_CAP;
+        toast(
+          `Queue capped at ${STAGED_CAP.toLocaleString()} files — ${dropped} skipped. Hit Start to send what you have, then add more.`,
+          { duration: 6000 },
+        );
+        next.length = STAGED_CAP;
+      }
+      if (duplicates > 0) {
+        toast(`${duplicates} duplicate file${duplicates === 1 ? "" : "s"} already in queue`, { duration: 3500 });
+      }
+      const added = next.length - prev.length;
+      if (added > 0) {
+        toast.success(
+          `Queued ${added} file${added === 1 ? "" : "s"} — ${next.length} ready to upload`,
+          { duration: 3000 },
+        );
+      }
+      return next;
+    });
+  };
+  const removeFromStaged = (key) => {
+    setStagedFiles((prev) => prev.filter((f) => f.__stageKey !== key));
+  };
+  const clearStaged = () => setStagedFiles([]);
+  const startStagedUpload = () => {
+    if (stagedFiles.length === 0 || uploading) return;
+    const batch = stagedFiles;
+    setStagedFiles([]);
+    handleFiles(batch);
+  };
+
+  // Routes a fresh drop / file-pick.  Goes to the tray when staging
+  // is on (and we're not mid-upload), otherwise straight into the
+  // pipeline.  Staging during an in-flight upload silently falls
+  // through to the existing "Already uploading…" toast in
+  // handleFiles so the guard logic stays single-sourced.
+  const acceptIncomingFiles = (filesList) => {
+    if (stagingEnabled && !uploading) {
+      addToStagedQueue(filesList);
+      return;
+    }
+    handleFiles(filesList);
+  };
+
   const handleDrop = async (e) => {
     e.preventDefault();
     setDrag(false);
     try {
       const files = await filesFromDataTransfer(e.dataTransfer);
-      handleFiles(files);
+      acceptIncomingFiles(files);
     } catch (err) {
       console.error(err);
       toast.error("Couldn't read what you dropped");
@@ -1070,6 +1187,36 @@ export default function UploadZone({ onUploaded, compact = false }) {
       )}
       {/* One-time educational tip: tab-close-safe upload pipeline. */}
       <AirdropInfoTip compact={compact} />
+
+      {/* 2026-07-06 — "Stage before upload" toggle.  Sits above the
+          dropzone (outside its click target) so flipping it doesn't
+          fire the picker.  Hidden during an active upload to keep
+          the in-flight UI focused. */}
+      {!uploading && (
+        <div
+          className="mb-3 flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-white border border-[#EDE6D5]"
+          data-testid="staging-toggle-row"
+        >
+          <div className="flex items-center gap-2 text-xs text-[#5B5F4D]">
+            <span className="font-semibold text-[#2C2C2C]">Stage before upload</span>
+            <span className="hidden sm:inline">— review your batch, then hit Start</span>
+          </div>
+          <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={stagingEnabled}
+              onChange={(e) => toggleStaging(e.target.checked)}
+              className="sr-only peer"
+              data-testid="staging-toggle"
+              aria-label="Stage files before upload"
+            />
+            <span className="relative inline-block w-9 h-5 rounded-full bg-[#E4D9C8] peer-checked:bg-[#6B46C1] transition-colors">
+              <span className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-4" />
+            </span>
+            <span className="text-xs text-[#5B5F4D]">{stagingEnabled ? "On" : "Off"}</span>
+          </label>
+        </div>
+      )}
       <div
         data-testid="upload-zone"
         onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
@@ -1085,7 +1232,7 @@ export default function UploadZone({ onUploaded, compact = false }) {
         multiple
         className="hidden"
         data-testid="upload-input"
-        onChange={(e) => handleFiles(e.target.files)}
+        onChange={(e) => acceptIncomingFiles(e.target.files)}
       />
       <input
         ref={folderInputRef}
@@ -1101,7 +1248,7 @@ export default function UploadZone({ onUploaded, compact = false }) {
         multiple
         className="hidden"
         data-testid="upload-folder-input"
-        onChange={(e) => handleFiles(e.target.files)}
+        onChange={(e) => acceptIncomingFiles(e.target.files)}
       />
       {uploading ? (
         <>
@@ -1260,6 +1407,20 @@ export default function UploadZone({ onUploaded, compact = false }) {
         </>
       )}
     </div>
+    {/* 2026-07-06 — Staged tray.  Renders directly below the
+        dropzone when files are queued.  Empty state is the
+        component returning null, so when there's nothing staged
+        the layout collapses cleanly. */}
+    {!uploading && stagingEnabled && (
+      <StagedUploadTray
+        files={stagedFiles}
+        onRemove={removeFromStaged}
+        onClear={clearStaged}
+        onStart={startStagedUpload}
+        busy={uploading}
+        capacity={STAGED_CAP}
+      />
+    )}
     {retryInboxOpen && (
       <div
         className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-8"
