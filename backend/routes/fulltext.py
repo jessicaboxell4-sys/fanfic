@@ -72,6 +72,44 @@ async def search_fulltext(
     return {"q": q, "count": len(out), "results": out}
 
 
+@api_router.get("/admin/fulltext/stats")
+async def fulltext_stats(_user: User = Depends(require_admin)):
+    """Cheap Mongo-count summary so the admin card can render a live
+    progress bar (indexed / total_active, %) between backfill clicks.
+
+    * ``total_active`` = books not in the Trash category (mirrors what
+      the backfill routine actually walks).
+    * ``indexed`` = rows in ``book_fulltext``.  Trash rows may still
+      have a fulltext entry from before deletion, so we count against
+      the ``$in`` intersection to keep the ratio honest.
+    * ``remaining`` = total_active minus indexed (clamped at 0).
+    * ``pct`` = 100 when total_active == 0, otherwise the rounded ratio.
+    """
+    total_active = await db.books.count_documents({"category": {"$ne": "Trash"}})
+    # Count of fulltext rows that still map to an active book.  We do
+    # this as a distinct-with-lookup so a stale ``book_fulltext`` row
+    # for a Trashed book doesn't inflate the "indexed" count.
+    active_ids = {
+        r["book_id"] async for r in db.books.find(
+            {"category": {"$ne": "Trash"}}, {"_id": 0, "book_id": 1},
+        )
+    }
+    if not active_ids:
+        indexed = 0
+    else:
+        indexed = await db.book_fulltext.count_documents(
+            {"book_id": {"$in": list(active_ids)}}
+        )
+    remaining = max(0, total_active - indexed)
+    pct = 100 if total_active == 0 else round((indexed / total_active) * 100, 1)
+    return {
+        "total_active": total_active,
+        "indexed": indexed,
+        "remaining": remaining,
+        "pct": pct,
+    }
+
+
 @api_router.post("/admin/fulltext/backfill")
 async def backfill_fulltext(
     limit: int = Query(500, ge=1, le=5000),

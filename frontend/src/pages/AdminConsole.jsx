@@ -7417,9 +7417,27 @@ function ReExtractLinksCard() {
 function FulltextBackfillCard() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
+  const [stats, setStats] = useState(null);
+
+  // 2026-07-01 — Poll stats on mount and after every run so operators
+  // can watch the backfill actually move.  Cheap Mongo counts, safe to
+  // hit repeatedly.
+  const loadStats = async () => {
+    try {
+      const { data } = await api.get("/admin/fulltext/stats");
+      setStats(data);
+    } catch { /* silent — the card is still usable without the bar */ }
+  };
+  useEffect(() => { loadStats(); }, []);
+
   const run = async () => {
     setBusy(true);
     setResult(null);
+    // Optimistically refresh stats every 4s while the request is
+    // in-flight so long-running batches feel alive.  The backfill
+    // itself is synchronous, but Mongo already sees each newly-indexed
+    // book so the counter climbs even mid-run.
+    const tick = setInterval(loadStats, 4000);
     try {
       const { data } = await api.post("/admin/fulltext/backfill?limit=500");
       setResult(data);
@@ -7427,9 +7445,15 @@ function FulltextBackfillCard() {
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Backfill failed");
     } finally {
+      clearInterval(tick);
       setBusy(false);
+      loadStats();
     }
   };
+
+  const pct = stats?.pct ?? 0;
+  const done = stats && stats.remaining === 0 && stats.total_active > 0;
+
   return (
     <Card
       icon={Search}
@@ -7441,19 +7465,58 @@ function FulltextBackfillCard() {
         <p>
           New uploads are indexed automatically. Run this to index the older books that pre-date the feature. Each click processes up to <strong>500 books</strong> — re-click to continue.
         </p>
-        <button
-          type="button"
-          onClick={run}
-          disabled={busy}
-          data-testid="admin-fulltext-backfill-btn"
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#6B46C1] text-white text-xs font-bold uppercase tracking-[0.15em] hover:bg-[#553397] transition-colors disabled:opacity-40"
-        >
-          {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
-          {busy ? "Indexing…" : "Run backfill (500)"}
-        </button>
+
+        {/* Progress panel — the "how the process is going" surface. */}
+        {stats && (
+          <div className="space-y-1.5" data-testid="admin-fulltext-progress">
+            <div className="flex items-baseline justify-between text-xs">
+              <span className="text-[#5B5F4D]">
+                <span className="font-bold text-[#2C2C2C]" data-testid="admin-fulltext-indexed">{stats.indexed.toLocaleString()}</span>
+                <span className="mx-1">of</span>
+                <span className="font-bold text-[#2C2C2C]" data-testid="admin-fulltext-total">{stats.total_active.toLocaleString()}</span>
+                <span> books indexed</span>
+                {stats.remaining > 0 && (
+                  <span className="text-[#5B5F4D]"> &middot; <span data-testid="admin-fulltext-remaining">{stats.remaining.toLocaleString()}</span> left</span>
+                )}
+              </span>
+              <span
+                className={`font-bold tabular-nums ${done ? "text-[#3F7A3F]" : "text-[#6B46C1]"}`}
+                data-testid="admin-fulltext-pct"
+              >
+                {pct}%
+              </span>
+            </div>
+            <div className="h-2 rounded-full bg-[#F5F3EC] dark:bg-white/10 overflow-hidden" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+              <div
+                className={`h-full transition-[width] duration-500 ease-out ${done ? "bg-[#5C8A5C]" : "bg-gradient-to-r from-[#6B46C1] to-[#8A6DD9]"}`}
+                style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+                data-testid="admin-fulltext-progress-bar"
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center gap-3 flex-wrap">
+          <button
+            type="button"
+            onClick={run}
+            disabled={busy || done}
+            data-testid="admin-fulltext-backfill-btn"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#6B46C1] text-white text-xs font-bold uppercase tracking-[0.15em] hover:bg-[#553397] transition-colors disabled:opacity-40"
+          >
+            {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+            {busy ? "Indexing…" : done ? "All caught up" : `Run backfill (${stats ? Math.min(500, stats.remaining).toLocaleString() : 500})`}
+          </button>
+          {busy && (
+            <span className="text-xs text-[#5B5F4D] italic" data-testid="admin-fulltext-busy-hint">
+              Progress updates every few seconds…
+            </span>
+          )}
+        </div>
+
         {result && (
           <div className="text-xs text-[#5B5F4D] font-mono" data-testid="admin-fulltext-result">
-            scanned={result.scanned} · indexed={result.indexed} · missing_file={result.skipped_missing_file} · errors={result.errors}
+            last run — scanned={result.scanned} · indexed={result.indexed} · missing_file={result.skipped_missing_file} · errors={result.errors}
           </div>
         )}
       </div>
