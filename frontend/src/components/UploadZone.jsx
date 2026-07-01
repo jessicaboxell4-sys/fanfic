@@ -810,7 +810,16 @@ export default function UploadZone({ onUploaded, compact = false }) {
         } else if (status === 524 || status === 504) {
           detail = "Server took too long to accept this file. Try again in a few minutes.";
         } else if (status === 502 || status === 503) {
-          detail = "Server is temporarily unavailable. Try again in a moment.";
+          // 2026-07-01 — Strict cloud-staging mode (UPLOAD_REQUIRE_CLOUD_STAGING=1)
+          // returns 503 when R2 mirroring fails 3× — surface the
+          // server's specific detail if present so the user knows to
+          // retry vs "something's on fire".
+          const serverDetail = lastErr?.response?.data?.detail;
+          if (typeof serverDetail === "string" && serverDetail.toLowerCase().includes("storage")) {
+            detail = serverDetail;
+          } else {
+            detail = "Server is temporarily unavailable. Try again in a moment.";
+          }
         } else if (status === 500) {
           // 2026-06-29 — Raw axios "Request failed with status code 500"
           // was leaking into the failed-uploads banner.  Humanize it so

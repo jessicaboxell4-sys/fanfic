@@ -422,6 +422,25 @@ async def upload_books_async(
                         cloud_key, last_exc,
                     )
                     cloud_key = None  # don't lie about it being there.
+                    # 2026-07-01 — Strict-mode toggle.  Setting
+                    # ``UPLOAD_REQUIRE_CLOUD_STAGING=1`` in .env flips
+                    # the failure semantics: instead of accepting the
+                    # upload with disk-only durability (and gambling
+                    # that the backfill cron catches up before a pod
+                    # restart), we return 503 and ask the user to retry
+                    # in a moment.  Slower feedback loop but zero
+                    # chance of losing bytes to a restart.
+                    if os.environ.get("UPLOAD_REQUIRE_CLOUD_STAGING", "").lower() in ("1", "true", "yes"):
+                        # Clean up the partial staging dir before failing.
+                        shutil.rmtree(staging, ignore_errors=True)
+                        raise HTTPException(
+                            status_code=503,
+                            detail=(
+                                "Our storage layer is having a hiccup — we can't "
+                                "guarantee your upload will survive a pod restart. "
+                                "Please try again in ~30 seconds."
+                            ),
+                        )
             staged_files.append({
                 "original_name": f.filename or safe_basename,
                 "path": str(target),

@@ -7,6 +7,40 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-07-01 (afternoon, later) — Strict cloud-staging mode (opt-in toggle)
+
+Follow-up to the durability work. Added an operator-controlled kill switch so paranoid deployments can refuse uploads that can't be safely mirrored to R2.
+
+### Shipped
+
+- **`backend/routes/upload_jobs.py`** `upload_books_async` — after the 3× R2 retry fails, if `UPLOAD_REQUIRE_CLOUD_STAGING=1|true|yes` is set in the env, the endpoint returns **HTTP 503** with a friendly message instead of accepting the upload disk-only. Staging dir is cleaned up so partial bytes don't linger.
+- **`frontend/src/components/UploadZone.jsx`** — 503 error handler now surfaces the server's specific "storage layer hiccup" detail (when it starts with the word "storage") instead of the generic "temporarily unavailable" copy. The existing `isTransientOriginError` gate already treats 503 as retryable, so the frontend auto-retries up to 4× (over ~12s) before showing the failure. R2 blips of a few seconds → invisible to users.
+
+### Usage
+
+Add to `/app/backend/.env` when needed:
+```
+UPLOAD_REQUIRE_CLOUD_STAGING="1"
+```
+
+Default (unset or `0`) = today's behavior: accept upload + backfill cron catches missing cloud_keys within ~2 minutes.
+Strict (`1`) = reject upload with 503 if R2 unreachable + frontend auto-retries + user only sees error after 4 failed attempts.
+
+### Trade-off
+
+- **Strict on:** zero chance of losing bytes across a pod restart. Users may see "storage hiccup" toasts during real R2 outages.
+- **Strict off (default):** near-zero chance of losing bytes (backfill cron closes the window in 2 min), users always see success. Recommended for normal traffic.
+
+Turn strict on if you're doing a bulk-upload run and can't afford to lose anything; turn it off for casual browsing.
+
+### Verified
+
+- Env-var parser accepts `1`, `true`, `yes` (case-insensitive) and correctly rejects unset / `0` / other values.
+- Backend restarts cleanly with the flag both set and unset.
+- Frontend build lint clean (only pre-existing unused-eslint-disable warnings remain).
+
+---
+
 ## 2026-07-01 (afternoon) — Kill "Staging directory vanished" failures for good
 
 Root cause (from last night's 8 lost uploads): pods restarted 3× during the OOM crisis + failed deploy. Uploads that landed mid-crisis had their first R2 mirror attempt fail (silently swallowed → `cloud_key=None`), THEN the pod restarted and wiped local disk — no cloud copy to restore from → 8 "Staging directory vanished" failures.
