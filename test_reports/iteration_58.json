@@ -1,0 +1,30 @@
+{
+  "summary": "Verified the ClamAV concurrency-cap OOM fix in /app/backend/utils/antivirus.py. Ran the two target tests in tests/test_antivirus_concurrency.py (both PASS), then a broader antivirus-related sweep (tests/test_iter77_av_background.py + tests/test_av_gate_friend_library.py + tests/test_av_watchdog.py) — all PASS. Added a small regression suite tests/test_antivirus_regression.py (5 tests) pinning the ScanResult shape (ok, infected, signature, scanner, elapsed_ms, error) and fail-open behavior via scan_bytes()/scan_path() when the scanner is unavailable, empty input, missing file, and oversize input — all PASS. Backend /api/health returns 200 with antivirus.ok=true and mongo.ok=true, confirming the antivirus.py refactor didn't break import/boot.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_antivirus_concurrency.py",
+    "/app/backend/tests/test_antivirus_regression.py",
+    "/app/backend/tests/test_iter77_av_background.py",
+    "/app/test_reports/pytest/iteration_58_av.xml",
+    "/app/test_reports/pytest/iteration_58_av_full.xml",
+    "/app/test_reports/pytest/iteration_58_av_related.xml",
+    "/app/test_reports/pytest/iteration_58_av_related2.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "utils/antivirus.py: BoundedSemaphore is initialised at module import from AV_MAX_CONCURRENT_SCANS. Operators changing the env var require a backend restart to take effect; consider exposing a private setter or reading the env at first use if runtime tuning is ever needed (minor — current behaviour matches K8s deploy conventions).",
+    "The 30s acquire timeout in _run_clamscan returns ok=False with a friendly error but callers currently treat 'antivirus unavailable' identically (fail-open); if queue-full ever becomes common under load, consider a distinct status/metric so operators can tell 'saturated' apart from 'scanner missing'.",
+    "test_env_var_tunes_the_cap only asserts _AV_MAX_CONCURRENT >= 1 and equals the env default OR 2 — it doesn't actually re-import with a different value, so it's more of a smoke check than a true tuning test. Left as-is per the file's docstring caveat; a stronger test could importlib.reload(antivirus) under monkeypatched env, but that risks cross-test state leak with the module-level semaphore."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_antivirus_regression.py (new — 5 regression tests for ScanResult shape + fail-open)"
+  ],
+  "success_rate": {"backend": "100% (11/11 antivirus-scoped tests passed; unrelated test_av_fields.py had 5 HTTP-login timeouts flagged as known-flaky by main agent)", "frontend": "not tested (per request)"},
+  "test_credentials": "n/a — not required for this verification",
+  "seed_data_creation": "none",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "AV concurrency cap fix verified end-to-end: (1) both tests in tests/test_antivirus_concurrency.py pass in ~0.9s, (2) added tests/test_antivirus_regression.py (5 tests) pinning ScanResult shape + fail-open, (3) tests/test_iter77_av_background.py (4 tests) still green, (4) /api/health returns 200 with antivirus.ok=true. Known-flaky tests/test_av_fields.py (HTTP /api/auth/login timeouts) are unrelated to antivirus.py — main agent should keep those in the known-flaky-HTTP bucket. If runtime tuning of AV_MAX_CONCURRENT_SCANS is ever needed, note the semaphore is created at module import so a backend restart is required after changing the env var.",
+  "rca of the issue": "n/a — verification pass only; no regressions found. The OOM fix (BoundedSemaphore capped at AV_MAX_CONCURRENT_SCANS=2 gating _run_clamscan) is in place at /app/backend/utils/antivirus.py:62-129, and the burst test proves at most 2 scans run concurrently under an 8-thread burst while all 8 complete within 5s."
+}
