@@ -7415,44 +7415,53 @@ function ReExtractLinksCard() {
 
 
 function FulltextBackfillCard() {
-  const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState(null);
   const [stats, setStats] = useState(null);
+  const [starting, setStarting] = useState(false);
 
-  // 2026-07-01 — Poll stats on mount and after every run so operators
-  // can watch the backfill actually move.  Cheap Mongo counts, safe to
-  // hit repeatedly.
-  const loadStats = async () => {
-    try {
-      const { data } = await api.get("/admin/fulltext/stats");
-      setStats(data);
-    } catch { /* silent — the card is still usable without the bar */ }
-  };
-  useEffect(() => { loadStats(); }, []);
+  // 2026-07-01 — Poll continuously while a run is active so the bar keeps
+  // ticking even if the admin closed the tab and re-opened it later.
+  // Once idle, stop polling to be gentle on Mongo.
+  useEffect(() => {
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const { data } = await api.get("/admin/fulltext/stats");
+        if (!cancelled) setStats(data);
+      } catch { /* keep the last snapshot */ }
+    };
+    tick(); // initial fetch
+    const iv = setInterval(tick, 4000);
+    return () => { cancelled = true; clearInterval(iv); };
+  }, []);
 
   const run = async () => {
-    setBusy(true);
-    setResult(null);
-    // Optimistically refresh stats every 4s while the request is
-    // in-flight so long-running batches feel alive.  The backfill
-    // itself is synchronous, but Mongo already sees each newly-indexed
-    // book so the counter climbs even mid-run.
-    const tick = setInterval(loadStats, 4000);
+    setStarting(true);
     try {
       const { data } = await api.post("/admin/fulltext/backfill?limit=500");
-      setResult(data);
-      toast.success(`Indexed ${data.indexed} books (${data.skipped_missing_file} missing files, ${data.errors} errors)`);
+      if (data.already_running) {
+        toast.info("A backfill is already running — watch the bar.");
+      } else {
+        toast.success("Backfill started. You can leave this page — it keeps running.");
+      }
+      // Refresh once immediately so the button flips to "Indexing…"
+      // without waiting for the next 4s tick.
+      const { data: fresh } = await api.get("/admin/fulltext/stats");
+      setStats(fresh);
     } catch (e) {
-      toast.error(e?.response?.data?.detail || "Backfill failed");
+      toast.error(e?.response?.data?.detail || "Couldn't start backfill");
     } finally {
-      clearInterval(tick);
-      setBusy(false);
-      loadStats();
+      setStarting(false);
     }
   };
 
   const pct = stats?.pct ?? 0;
   const done = stats && stats.remaining === 0 && stats.total_active > 0;
+  const running = !!stats?.running;
+  const btnLabel =
+    starting ? "Starting…" :
+    running  ? "Indexing…" :
+    done     ? "All caught up" :
+               `Run backfill (${stats ? Math.min(500, stats.remaining).toLocaleString() : 500})`;
 
   return (
     <Card
@@ -7463,10 +7472,10 @@ function FulltextBackfillCard() {
     >
       <div className="text-sm text-[#2C2C2C] space-y-3" data-testid="admin-fulltext-body">
         <p>
-          New uploads are indexed automatically. Run this to index the older books that pre-date the feature. Each click processes up to <strong>500 books</strong> — re-click to continue.
+          New uploads are indexed automatically. Run this to index the older books that pre-date the feature. Each click processes up to <strong>500 books</strong> in the background — you can close this page and it&apos;ll keep running.
         </p>
 
-        {/* Progress panel — the "how the process is going" surface. */}
+        {/* Overall progress panel — indexed vs total, from Mongo. */}
         {stats && (
           <div className="space-y-1.5" data-testid="admin-fulltext-progress">
             <div className="flex items-baseline justify-between text-xs">
@@ -7493,6 +7502,16 @@ function FulltextBackfillCard() {
                 data-testid="admin-fulltext-progress-bar"
               />
             </div>
+
+            {/* Sub-line: "this run" progress while a batch is in flight. */}
+            {running && stats.batch_target > 0 && (
+              <div className="text-[11px] text-[#5B5F4D] italic pt-0.5" data-testid="admin-fulltext-batch-progress">
+                This run: <span className="font-mono text-[#2C2C2C]">{stats.batch_scanned}</span> / <span className="font-mono text-[#2C2C2C]">{stats.batch_target}</span> scanned
+                {" · "}<span className="font-mono">{stats.batch_indexed}</span> indexed
+                {stats.batch_missing_file > 0 && <>{" · "}<span className="font-mono">{stats.batch_missing_file}</span> missing</>}
+                {stats.batch_errors > 0 && <>{" · "}<span className="font-mono text-[#B43F26]">{stats.batch_errors}</span> errors</>}
+              </div>
+            )}
           </div>
         )}
 
@@ -7500,23 +7519,25 @@ function FulltextBackfillCard() {
           <button
             type="button"
             onClick={run}
-            disabled={busy || done}
+            disabled={starting || running || done}
             data-testid="admin-fulltext-backfill-btn"
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#6B46C1] text-white text-xs font-bold uppercase tracking-[0.15em] hover:bg-[#553397] transition-colors disabled:opacity-40"
           >
-            {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
-            {busy ? "Indexing…" : done ? "All caught up" : `Run backfill (${stats ? Math.min(500, stats.remaining).toLocaleString() : 500})`}
+            {(starting || running) ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+            {btnLabel}
           </button>
-          {busy && (
+          {running && (
             <span className="text-xs text-[#5B5F4D] italic" data-testid="admin-fulltext-busy-hint">
-              Progress updates every few seconds…
+              Running in the background — safe to close this tab.
             </span>
           )}
         </div>
 
-        {result && (
+        {/* Last-run summary once the batch finishes. */}
+        {stats && !running && stats.finished_at && stats.batch_target > 0 && (
           <div className="text-xs text-[#5B5F4D] font-mono" data-testid="admin-fulltext-result">
-            last run — scanned={result.scanned} · indexed={result.indexed} · missing_file={result.skipped_missing_file} · errors={result.errors}
+            last run — scanned={stats.batch_scanned} · indexed={stats.batch_indexed} · missing_file={stats.batch_missing_file} · errors={stats.batch_errors}
+            {stats.last_error && <span className="text-[#B43F26]"> · error: {stats.last_error}</span>}
           </div>
         )}
       </div>

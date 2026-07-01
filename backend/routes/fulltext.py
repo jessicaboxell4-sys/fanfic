@@ -13,8 +13,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from fastapi import Depends, HTTPException, Query
 
@@ -72,23 +73,111 @@ async def search_fulltext(
     return {"q": q, "count": len(out), "results": out}
 
 
+# ---------------------------------------------------------------------------
+# Fulltext backfill — background job
+#
+# Historically this endpoint ran synchronously inside the request.  That
+# meant admins had to keep the tab open for the entire batch, and closing
+# the page mid-run cancelled uvicorn's task handler.  With 4k+ books
+# in prod that was a real papercut.
+#
+# The state below is a *single* in-process runner: only one backfill runs
+# at a time (an admin double-clicking gets a "already_running" reply
+# instead of two overlapping walks).  Progress is updated after every
+# book so ``/admin/fulltext/stats`` can render the live counter.
+#
+# Deliberately not persisted to Mongo — a pod restart mid-run just means
+# the counter resets to zero and the admin clicks "Run" again.  The
+# ``indexed`` count in the stats endpoint is derived from the actual
+# ``book_fulltext`` collection, so no progress is ever lost.
+# ---------------------------------------------------------------------------
+_backfill_state: Dict[str, Any] = {
+    "running": False,
+    "started_at": None,        # ISO-8601 str or None
+    "finished_at": None,       # ISO-8601 str or None
+    "batch_target": 0,         # how many books this batch will attempt
+    "batch_scanned": 0,        # incremented as we walk
+    "batch_indexed": 0,
+    "batch_missing_file": 0,
+    "batch_errors": 0,
+    "last_error": None,
+}
+
+
+async def _run_backfill_batch(limit: int) -> None:
+    """Actual worker that walks up to ``limit`` unindexed books and
+    writes their fulltext rows.  Updates ``_backfill_state`` as it goes
+    so ``/admin/fulltext/stats`` can serve a live progress payload.
+
+    Runs as an ``asyncio.create_task`` — the HTTP handler returns
+    immediately, so the admin can close the tab and this keeps going.
+    """
+    try:
+        await ensure_text_index(db)
+        indexed = {row["book_id"] async for row in db.book_fulltext.find({}, {"_id": 0, "book_id": 1})}
+        cursor = db.books.find(
+            {"category": {"$ne": "Trash"}, "book_id": {"$nin": list(indexed)}},
+            {"_id": 0, "book_id": 1, "user_id": 1},
+        ).limit(limit)
+        candidates = await cursor.to_list(length=limit)
+        _backfill_state["batch_target"] = len(candidates)
+
+        from utils.storage_cloud import ensure_local_cached
+        for b in candidates:
+            book_id = b["book_id"]
+            user_id = b["user_id"]
+            epub_path = STORAGE_DIR / user_id / f"{book_id}.epub"
+            ok = await asyncio.to_thread(
+                ensure_local_cached, epub_path, user_id, book_id, ".epub",
+            )
+            if not ok:
+                _backfill_state["batch_missing_file"] += 1
+                # Empty stub row so we don't keep retrying this file.
+                await upsert_fulltext(db, book_id, user_id, "")
+                _backfill_state["batch_scanned"] += 1
+                continue
+            try:
+                text = await asyncio.to_thread(extract_epub_text, epub_path)
+                await upsert_fulltext(db, book_id, user_id, text)
+                wc = count_words(text)
+                if wc > 0:
+                    await db.books.update_one(
+                        {"book_id": book_id},
+                        {"$set": {"word_count": wc}},
+                    )
+                _backfill_state["batch_indexed"] += 1
+            except Exception as exc:
+                logger.warning("backfill: %s failed: %s", book_id, exc)
+                _backfill_state["batch_errors"] += 1
+            _backfill_state["batch_scanned"] += 1
+    except Exception as exc:
+        logger.exception("fulltext backfill task crashed")
+        _backfill_state["last_error"] = str(exc)[:200]
+    finally:
+        _backfill_state["running"] = False
+        _backfill_state["finished_at"] = datetime.now(timezone.utc).isoformat()
+
+
 @api_router.get("/admin/fulltext/stats")
 async def fulltext_stats(_user: User = Depends(require_admin)):
-    """Cheap Mongo-count summary so the admin card can render a live
-    progress bar (indexed / total_active, %) between backfill clicks.
+    """Cheap Mongo-count summary + live in-process progress so the admin
+    card can render a progress bar that keeps ticking even after the
+    admin closes their tab.
 
-    * ``total_active`` = books not in the Trash category (mirrors what
-      the backfill routine actually walks).
-    * ``indexed`` = rows in ``book_fulltext``.  Trash rows may still
-      have a fulltext entry from before deletion, so we count against
-      the ``$in`` intersection to keep the ratio honest.
-    * ``remaining`` = total_active minus indexed (clamped at 0).
-    * ``pct`` = 100 when total_active == 0, otherwise the rounded ratio.
+    Fields:
+      * ``total_active`` — books not in Trash (matches what the walker sees).
+      * ``indexed`` — rows in ``book_fulltext`` that still map to an
+        active book.  Survives pod restarts (comes straight from Mongo).
+      * ``remaining`` — ``total_active - indexed``, clamped at 0.
+      * ``pct`` — 100 when total is 0, else rounded ratio.
+      * ``running`` — True iff a background batch is in-flight in *this*
+        process.  A pod restart flips this back to False even if there
+        was a running batch — the ``indexed`` count still reflects
+        whatever the crashed batch managed to write.
+      * ``batch_*`` — per-run counters, useful for the "X of Y this run"
+        sub-line under the main progress bar.
     """
     total_active = await db.books.count_documents({"category": {"$ne": "Trash"}})
-    # Count of fulltext rows that still map to an active book.  We do
-    # this as a distinct-with-lookup so a stale ``book_fulltext`` row
-    # for a Trashed book doesn't inflate the "indexed" count.
     active_ids = {
         r["book_id"] async for r in db.books.find(
             {"category": {"$ne": "Trash"}}, {"_id": 0, "book_id": 1},
@@ -107,6 +196,16 @@ async def fulltext_stats(_user: User = Depends(require_admin)):
         "indexed": indexed,
         "remaining": remaining,
         "pct": pct,
+        # Live in-process runner state — safe to expose to the admin UI.
+        "running": bool(_backfill_state["running"]),
+        "started_at": _backfill_state["started_at"],
+        "finished_at": _backfill_state["finished_at"],
+        "batch_target": _backfill_state["batch_target"],
+        "batch_scanned": _backfill_state["batch_scanned"],
+        "batch_indexed": _backfill_state["batch_indexed"],
+        "batch_missing_file": _backfill_state["batch_missing_file"],
+        "batch_errors": _backfill_state["batch_errors"],
+        "last_error": _backfill_state["last_error"],
     }
 
 
@@ -115,61 +214,37 @@ async def backfill_fulltext(
     limit: int = Query(500, ge=1, le=5000),
     _user: User = Depends(require_admin),
 ):
-    """Index up to `limit` active books that don't yet have a fulltext row.
+    """Kick off a background backfill of up to ``limit`` un-indexed books.
 
-    Runs synchronously inside the request — admins explicitly trigger
-    this, so we'd rather return a real count than fire-and-forget. Tune
-    `limit` down if a single call ever stalls.
+    Returns immediately (HTTP 202-esque semantics via a normal 200 body
+    with ``started: True``).  The actual walk runs as an asyncio task so
+    the admin can close the tab and the indexing continues.
+
+    If a run is already in-flight, returns ``already_running: True``
+    with the current batch progress — clients should poll
+    ``/admin/fulltext/stats`` for updates instead of spawning a second
+    worker.
     """
-    await ensure_text_index(db)
-    indexed = {row["book_id"] async for row in db.book_fulltext.find({}, {"_id": 0, "book_id": 1})}
-    cursor = db.books.find(
-        {"category": {"$ne": "Trash"}, "book_id": {"$nin": list(indexed)}},
-        {"_id": 0, "book_id": 1, "user_id": 1},
-    ).limit(limit)
-    candidates = await cursor.to_list(length=limit)
-    if not candidates:
-        return {"scanned": 0, "indexed": 0, "errors": 0, "skipped_missing_file": 0}
-
-    indexed_n = 0
-    errors_n = 0
-    missing_n = 0
-    for b in candidates:
-        book_id = b["book_id"]
-        user_id = b["user_id"]
-        epub_path = STORAGE_DIR / user_id / f"{book_id}.epub"
-        # 2026-06-21 R2 migration fix: bare ``.exists()`` was treating
-        # every R2-hosted book as "missing file" and writing an empty
-        # fulltext row, which meant search returned zero results
-        # post-migration even though the EPUB content is sitting in
-        # R2 perfectly intact.
-        from utils.storage_cloud import ensure_local_cached
-        ok = await asyncio.to_thread(
-            ensure_local_cached, epub_path, user_id, book_id, ".epub",
-        )
-        if not ok:
-            missing_n += 1
-            # Write an empty row so we don't keep retrying this file
-            await upsert_fulltext(db, book_id, user_id, "")
-            continue
-        try:
-            # Heavy work — push to a thread so we don't pin the loop.
-            text = await asyncio.to_thread(extract_epub_text, epub_path)
-            await upsert_fulltext(db, book_id, user_id, text)
-            # Also stamp word_count so the reading-time estimate is fresh.
-            wc = count_words(text)
-            if wc > 0:
-                await db.books.update_one(
-                    {"book_id": book_id},
-                    {"$set": {"word_count": wc}},
-                )
-            indexed_n += 1
-        except Exception as exc:
-            logger.warning("backfill: %s failed: %s", book_id, exc)
-            errors_n += 1
-    return {
-        "scanned": len(candidates),
-        "indexed": indexed_n,
-        "errors": errors_n,
-        "skipped_missing_file": missing_n,
-    }
+    if _backfill_state["running"]:
+        return {
+            "started": False,
+            "already_running": True,
+            "batch_target":  _backfill_state["batch_target"],
+            "batch_scanned": _backfill_state["batch_scanned"],
+            "batch_indexed": _backfill_state["batch_indexed"],
+        }
+    # Reset per-batch counters, mark running BEFORE spawning so an
+    # immediate follow-up POST sees the guard flag.
+    _backfill_state.update({
+        "running": True,
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "finished_at": None,
+        "batch_target": 0,
+        "batch_scanned": 0,
+        "batch_indexed": 0,
+        "batch_missing_file": 0,
+        "batch_errors": 0,
+        "last_error": None,
+    })
+    asyncio.create_task(_run_backfill_batch(limit))
+    return {"started": True, "limit": limit}
