@@ -2993,6 +2993,9 @@ function UsersCard() {
             title={u.last_login_at ? `Last login: ${new Date(u.last_login_at).toLocaleString()}` : "This user has never logged in."}
           >
             last on {fmtAgo(u.last_login_at)}
+            {u.last_login_at && (
+              <span className="text-[#9B9B8C]"> ({fmtTime(u.last_login_at)})</span>
+            )}
           </span>
         </p>
         {/* Attribution "came from" — shows the referrer domain + a
