@@ -11,12 +11,20 @@ import base64
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+from bson import ObjectId
+from bson.errors import InvalidId
 from fastapi import Depends, File, Form, HTTPException, Request, UploadFile
 from pydantic import BaseModel, Field
 
 from deps import api_router, db
 from models import User
 from auth_dep import get_current_user_or_none, require_admin
+
+
+# Status transitions allowed for Help-page feedback rows.  Mirrors the
+# suggestion-board statuses on FeedbackInboxCard so operators use one
+# vocabulary across both admin inboxes.
+_HELP_FEEDBACK_STATUSES = {"open", "under_review", "planned", "done", "declined"}
 
 
 @api_router.post("/feedback")
@@ -112,9 +120,40 @@ async def list_suggestions(
         q.update(mongo_exclude_tests_clause("user_email"))
     rows: List[dict] = []
     async for r in db.suggestions.find(q).sort("ts", -1).limit(limit):
-        r.pop("_id", None)
+        # Expose the Mongo ObjectId as the row's stable ``feedback_id``
+        # so the admin UI can PUT status updates against a real handle
+        # (mirrors the FeedbackInboxCard's suggestion_id contract).
+        oid = r.pop("_id", None)
+        if oid is not None:
+            r["feedback_id"] = str(oid)
         rows.append(r)
     return {"rows": rows}
+
+
+@api_router.put("/admin/feedback/{feedback_id}")
+async def update_help_feedback(
+    feedback_id: str,
+    body: Dict[str, Any],
+    _admin: User = Depends(require_admin),
+):
+    """Set the status on a single Help-page feedback row.  Accepts the
+    same 5 statuses the FeedbackInboxCard uses so admins can triage
+    per-page friction reports through the same open →
+    reviewing → planned → done / declined lifecycle."""
+    new_status = str(body.get("status", "")).strip().lower()
+    if new_status not in _HELP_FEEDBACK_STATUSES:
+        raise HTTPException(status_code=400, detail="invalid_status")
+    try:
+        oid = ObjectId(feedback_id)
+    except (InvalidId, TypeError):
+        raise HTTPException(status_code=400, detail="invalid_id")
+    res = await db.suggestions.update_one(
+        {"_id": oid, "text": {"$exists": True, "$ne": None}},
+        {"$set": {"status": new_status, "status_updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="not_found")
+    return {"ok": True, "status": new_status}
 
 
 @api_router.get("/admin/feedback/by-page")

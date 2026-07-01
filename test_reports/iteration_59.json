@@ -1,0 +1,37 @@
+{
+  "summary": "Iteration 59 — Help-page Inbox restyle (status chips + PUT endpoint). Added backend regression suite test_iter59_help_feedback_status.py (6 tests, all PASS) covering feedback_id exposure (24-char hex, no _id leak), full status cycle open→under_review→planned→done→declined→open via PUT /api/admin/feedback/{feedback_id}, invalid_status (400), invalid_id (400), not_found (404), and admin-auth gate. Playwright UI smoke against /admin verified: (a) card renders with all 6 status chips [OPEN, REVIEWING, PLANNED, DONE, DECLINED, ALL] using the expected data-testids, (b) the under_review chip highlights with bg-[#6B46C1] when clicked, (c) 'Tests: hidden/shown' toggle flips and reloads the drill-down list, (d) by-page aggregation widget renders (/library, /help, /search buckets), (e) rows carry a color-coded Open/Reviewing/Planned/Done/Declined badge next to the page-URL breadcrumb, (f) expanding a row reveals the 4 non-current transition chips with the correct data-testid pattern help-feedback-status-set-{idx}-{status} and excludes a chip for the row's current status, (g) clicking help-feedback-status-set-{idx}-planned fires PUT /api/admin/feedback/{feedback_id} with body {status:'planned'} returning {ok:true,status:'planned'} — verified via page.expect_response — and the row subsequently appears under the PLANNED filter. Backend was manually curl-verified earlier and my pytest run confirms every error-case detail string ('invalid_status','invalid_id','not_found') matches. One observation: initial admin console fetches sometimes have to be re-triggered by clicking a different status chip and back to OPEN before a just-submitted row appears — this looks like the card's fetch is only re-issued on status/filter change, not on external POSTs (expected, low priority).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/admin (all sections)", "issues": ["React hydration warning: '<span> cannot be a child of <option>' from AdminConsole mobile-select — coming from the emergent dev-tooling injected <span data-ve-dynamic> wrapper inside <option>, not iteration-59 code. Not blocking, but should be filed against the visual-editor overlay owner."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter59_help_feedback_status.py",
+    "/app/test_reports/pytest/iteration_59.xml"
+  ],
+  "action_items": [
+    "Consider auto-refreshing the Help-page feedback list a few seconds after the Help-page suggestion box POSTs, so admins don't need to manually toggle filter chips to see a just-submitted report (low priority — testing workaround exists).",
+    "Investigate the dev-tooling '<span> inside <option>' hydration warning on /admin — appears to be from the visual-editor injected wrapper, not app code."
+  ],
+  "critical_code_review_comments": [
+    "routes/suggestions_box.py — PUT handler validates body.get('status') via a lowercase membership check; body isn't a Pydantic model so a nested/malformed JSON still funnels through str(...) which is fine but you lose 422 semantics. Non-blocking.",
+    "AdminConsole HelpFeedbackCard uses 'setRowStatus(fid, s)' with optimistic list removal — verified working; the toast selector should probably standardize on data-testid='toast-*' since we currently rely on sonner's role='status' which some Playwright runs miss.",
+    "The status filter chip row logic maps 'all' to setStatus('all') and the fetch honors ?status=all — confirmed the backend list_suggestions passes status='all' straight through to Mongo which will yield 0 rows; the client short-circuits status==='all' in queryString (verified by browser test rendering 13 rows under ALL). Working as designed but worth a one-line comment noting the client convention."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter59_help_feedback_status.py (new — 6 tests covering feedback_id + PUT endpoint + error cases)"
+  ],
+  "success_rate": {"backend": "100% (6/6)", "frontend": "100% on regression items — all six chips, chip highlight, toggle, by-page widget, row badges, per-row transition chip set + exclude-current-status behavior, and PUT firing via chip click were verified"},
+  "test_credentials": "admin-smoke-test@example.com / AdminSmoke123! (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Multiple TEST_ / iter59-ui- Help-page feedback rows created under user_email admin-smoke-test@example.com (test-account pattern) — only visible with include_tests=true so they don't leak into normal admin triage.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "The Help-page feedback card now mirrors the Feedback Inbox — 6 status chips, per-row transition chips (idx-scoped), color-coded status badge, and a Tests toggle. Backend contract: GET /api/admin/feedback returns rows with a 24-char hex 'feedback_id' string (no _id), PUT /api/admin/feedback/{feedback_id} accepts {status: one of open|under_review|planned|done|declined}, returns 400/invalid_status, 400/invalid_id, 404/not_found. The card is collapsed by default in the admin console; click its 'SHOW' button before asserting testids. Also note the card only refetches when the status filter chip is clicked — force a refetch by clicking any other filter then back. include_tests must be turned on for submissions from admin-smoke-test@example.com to appear (test-account email pattern).",
+  "rca of the issue": "n/a — happy-path iteration verification. No regressions introduced. Backend + frontend implementation both match the review-request contract precisely."
+}

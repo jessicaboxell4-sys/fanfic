@@ -999,10 +999,15 @@ function FeedbackInboxCard() {
 function HelpFeedbackCard() {
   const [byPage, setByPage] = useState([]);
   const [rows, setRows] = useState([]);
-  const [status, setStatus] = useState("open"); // open | all
+  // 2026-07-01 — Match FeedbackInboxCard's full status filter row so
+  // Help-page friction reports move through the same open →
+  // reviewing → planned → done / declined lifecycle.  Was previously
+  // just [open | all] before the operator experience unification.
+  const [status, setStatus] = useState("open"); // open | under_review | planned | done | declined | all
   const [pageFilter, setPageFilter] = useState(""); // "" = all pages
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(null);
+  const [busyId, setBusyId] = useState(null);
   // 2026-06-27 — Help-page feedback is also polluted by integration
   // tests posting placeholder text from agent-account submitters
   // (@example.com / user_* / etc.).  Mirror the FeedbackInboxCard
@@ -1034,6 +1039,37 @@ function HelpFeedbackCard() {
 
   const totalCount = byPage.reduce((s, r) => s + (r.count || 0), 0);
 
+  const setRowStatus = async (fid, newStatus) => {
+    if (!fid) return;
+    setBusyId(fid);
+    try {
+      await api.put(`/admin/feedback/${fid}`, { status: newStatus });
+      toast.success(`Marked ${newStatus.replace("_", " ")}`);
+      // Optimistic: drop the row from the current view if the filter
+      // no longer matches, otherwise update in place.
+      if (status !== "all" && status !== newStatus) {
+        setRows(rows.filter((r) => r.feedback_id !== fid));
+      } else {
+        setRows(rows.map((r) => r.feedback_id === fid ? { ...r, status: newStatus } : r));
+      }
+    } catch { toast.error("Couldn't update"); }
+    finally { setBusyId(null); }
+  };
+
+  // Shared status pill — same palette as FeedbackInboxCard so operators
+  // read both inboxes at a glance without re-learning the colors.
+  const statusBadge = (s) => {
+    const map = {
+      open: { bg: "bg-[#FBE9E5]", fg: "text-[#B43F26]", label: "Open" },
+      under_review: { bg: "bg-[#F5F0E0]", fg: "text-[#8B4F00]", label: "Reviewing" },
+      planned: { bg: "bg-[#E8EEF5]", fg: "text-[#3A5A8C]", label: "Planned" },
+      done: { bg: "bg-[#EEF3EC]", fg: "text-[#1F4D2A]", label: "Done" },
+      declined: { bg: "bg-[#F5F3EC]", fg: "text-[#5B5F4D]", label: "Declined" },
+    };
+    const t = map[s] || map.open;
+    return <span className={`px-2 py-0.5 rounded-full ${t.bg} ${t.fg} text-xs font-medium`}>{t.label}</span>;
+  };
+
   return (
     <Card
       icon={MessageSquare}
@@ -1041,10 +1077,15 @@ function HelpFeedbackCard() {
       subtitle="Free-text + screenshot reports from the Help page, grouped by where the user was."
       testid="admin-help-feedback-card"
     >
-      {/* Status filter */}
+      {/* Status filter — mirrors the FeedbackInboxCard chip row so
+          operators use one vocabulary across both admin inboxes. */}
       <div className="flex flex-wrap items-center gap-2 mb-4" data-testid="help-feedback-filter-row">
         {[
           ["open", "Open"],
+          ["under_review", "Reviewing"],
+          ["planned", "Planned"],
+          ["done", "Done"],
+          ["declined", "Declined"],
           ["all", "All"],
         ].map(([val, lbl]) => (
           <button
@@ -1142,9 +1183,12 @@ function HelpFeedbackCard() {
               </p>
               <ul className="space-y-2">
                 {rows.map((r, idx) => {
-                  const id = `${r.ts}-${idx}`;
+                  const fid = r.feedback_id;
+                  const id = fid || `${r.ts}-${idx}`;
                   const open = expanded === id;
                   const text = r.text || "";
+                  const rowStatus = r.status || "open";
+                  const alwaysExpandable = true;
                   return (
                     <li
                       key={id}
@@ -1153,14 +1197,17 @@ function HelpFeedbackCard() {
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs text-[#5B5F4D] font-mono truncate">{r.page || "(unknown)"}</p>
-                          <p className="text-sm text-[#2C2C2C] mt-0.5 line-clamp-2">{text}</p>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {statusBadge(rowStatus)}
+                            <p className="text-xs text-[#5B5F4D] font-mono truncate">{r.page || "(unknown)"}</p>
+                          </div>
+                          <p className="text-sm text-[#2C2C2C] mt-1 line-clamp-2">{text}</p>
                           <p className="text-xs text-[#5B5F4D] mt-1">
                             {r.user_email || r.user_id || "anonymous"} · {fmtTime(r.ts)}
                             {r.photo_b64 && <span className="ml-2 text-[#6B46C1] font-bold">· photo</span>}
                           </p>
                         </div>
-                        {(r.photo_b64 || text.length > 160) && (
+                        {alwaysExpandable && (
                           <button
                             onClick={() => setExpanded(open ? null : id)}
                             data-testid={`help-feedback-expand-${idx}`}
@@ -1183,9 +1230,30 @@ function HelpFeedbackCard() {
                               <img
                                 src={`data:${r.photo_mime || "image/png"};base64,${r.photo_b64}`}
                                 alt="attachment"
-                                className="max-w-full max-h-80 rounded-md border border-[#E5DDC5]"
+                                className="max-w-full max-h-80 rounded-md border border-[#E5DDC5] mb-3"
                               />
                             </a>
+                          )}
+                          {/* Per-row status transition chips — mirrors
+                              FeedbackInboxCard so operators can move
+                              friction reports through the same lifecycle
+                              without leaving the admin console. */}
+                          {fid && (
+                            <div className="flex flex-wrap items-center gap-1.5" data-testid={`help-feedback-actions-${idx}`}>
+                              {["under_review", "planned", "done", "declined", "open"]
+                                .filter((s) => s !== rowStatus)
+                                .map((s) => (
+                                  <button
+                                    key={s}
+                                    onClick={() => setRowStatus(fid, s)}
+                                    disabled={busyId === fid}
+                                    data-testid={`help-feedback-status-set-${idx}-${s}`}
+                                    className="px-2.5 py-1 rounded-full bg-[#F5F3EC] hover:bg-[#E8E2D4] text-[#2C2C2C] text-xs disabled:opacity-60 capitalize"
+                                  >
+                                    → {s.replace("_", " ")}
+                                  </button>
+                                ))}
+                            </div>
                           )}
                         </div>
                       )}
