@@ -2862,15 +2862,28 @@ function UsersCard() {
   };
   const closeTimeline = () => { setTimelineUser(null); setTimeline(null); };
 
-  const load = async () => {
-    setLoading(true);
+  const load = async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     try {
       const { data } = await api.get("/admin/users");
       setUsers(data?.users || []);
-    } catch { toast.error("Couldn't load users"); }
-    finally { setLoading(false); }
+    } catch { if (!silent) toast.error("Couldn't load users"); }
+    finally { if (!silent) setLoading(false); }
   };
-  useEffect(() => { load(); }, []);
+  // 2026-07-01 — Live refresh every 15s while the tab is visible so
+  // operators see new sign-ups / last_login shifts without hitting F5.
+  // Skips ticks while a mutation is in flight (``busyId`` set) so
+  // optimistic UI state doesn't get stomped mid-toggle.
+  useEffect(() => {
+    load();
+    const id = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      if (busyId) return;
+      load({ silent: true });
+    }, 15_000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busyId]);
 
   const toggleAdmin = async (u) => {
     const promoting = !u.is_admin;
@@ -3728,16 +3741,16 @@ function StuckUploadsCard() {
   const [error, setError] = useState(null);
   const [recovering, setRecovering] = useState(false);
 
-  const load = async () => {
-    setLoading(true);
+  const load = async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const { data } = await api.get("/admin/upload-jobs/stuck?threshold_minutes=10");
       setData(data);
     } catch (e) {
-      setError(e?.response?.data?.detail || e.message || "Failed to load stuck uploads");
+      if (!silent) setError(e?.response?.data?.detail || e.message || "Failed to load stuck uploads");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -3759,13 +3772,19 @@ function StuckUploadsCard() {
     }
   };
 
+  // 2026-07-01 — Tightened from 60s -> 15s and moved to silent refresh so
+  // the "Loading…" placeholder doesn't flash every tick.  Skips ticks
+  // while a recovery-now click is in flight to avoid racing the response.
   useEffect(() => {
     load();
     const id = setInterval(() => {
-      if (document.visibilityState === "visible") load();
-    }, 60_000);
+      if (document.visibilityState !== "visible") return;
+      if (recovering) return;
+      load({ silent: true });
+    }, 15_000);
     return () => clearInterval(id);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recovering]);
 
   const count = data?.count ?? 0;
   const jobs = Array.isArray(data?.jobs) ? data.jobs : [];
