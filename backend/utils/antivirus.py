@@ -23,11 +23,13 @@ would break uploads for every user).
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import shutil
 import subprocess
 import tempfile
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -42,6 +44,23 @@ logger = logging.getLogger(__name__)
 # Real EPUBs are <30 MB; PDF/MOBI rarely exceeds 200 MB.
 MAX_SCAN_BYTES = 500 * 1024 * 1024   # 500 MB
 SCAN_TIMEOUT_S = 60
+
+# 2026-07-01 — Concurrent-scan cap.  In response to Emergent Support's
+# 2026-06-30 diagnosis of a production OOM: a 26-file upload burst
+# triggered ~40+ concurrent scans, each holding ~1 GB resident for
+# ClamAV signatures, and the pod's 2 Gi limit was blown.  Cap the
+# number of scanner subprocesses that can run at once so the memory
+# ceiling is bounded regardless of burst size.  Applies to both the
+# thread-pool sync callers AND async paths that wrap us via
+# ``asyncio.to_thread``.
+#
+# Value tuning:
+#   * On the 2 Gi tier: 2 concurrent scans → ~2 GB resident worst-case,
+#     with headroom for FastAPI + nginx + Calibre.  Safe.
+#   * If the operator upgrades to 4 Gi+, raise via env var
+#     ``AV_MAX_CONCURRENT_SCANS`` — no code change needed.
+_AV_MAX_CONCURRENT = max(1, int(os.environ.get("AV_MAX_CONCURRENT_SCANS", "2")))
+_AV_SEMAPHORE = threading.BoundedSemaphore(_AV_MAX_CONCURRENT)
 
 
 def _clamscan_path() -> Optional[str]:
@@ -95,7 +114,23 @@ def _run_clamscan(path: Path) -> Dict[str, Any]:
       0 = no infection found
       1 = virus(es) found
       2 = error during scan
+
+    Gated by ``_AV_SEMAPHORE`` so we never run more than
+    ``AV_MAX_CONCURRENT_SCANS`` (default 2) at once — protects the
+    pod against upload-burst OOMs per Emergent Support's 2026-06-30
+    diagnosis.  Uses a 30s acquire timeout so we don't wedge the
+    caller forever on a stuck queue.
     """
+    if not _AV_SEMAPHORE.acquire(timeout=30.0):
+        return _make_result(False, error="AV scan queue full — try again shortly")
+    try:
+        return _run_clamscan_locked(path)
+    finally:
+        _AV_SEMAPHORE.release()
+
+
+def _run_clamscan_locked(path: Path) -> Dict[str, Any]:
+    """Inner scan implementation — assumes the semaphore is held."""
     started = time.time()
     binary = _clamscan_path()
     if not binary:
