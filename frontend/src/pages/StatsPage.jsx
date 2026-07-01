@@ -195,7 +195,7 @@ export default function StatsPage() {
                     style={{
                       background:
                         d.books_opened === 0
-                          ? "#F5F3EC"
+                          ? "var(--surface-hover)"
                           : `rgba(224, 122, 95, ${Math.min(1, 0.25 + (d.books_opened / maxDaily) * 0.75)})`,
                     }}
                   />

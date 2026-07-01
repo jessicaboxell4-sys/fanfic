@@ -527,6 +527,9 @@ html, body {
 :root[data-theme="dark"] .bg-\[\#FFF6E5\] { background-color: rgba(167, 139, 250, 0.12); }
 :root[data-theme="dark"] .bg-\[\#F5F3EC\],
 :root[data-theme="dark"] .hover\:bg-\[\#F5F3EC\]:hover,
+:root[data-theme="dark"] .hover\:bg-\[\#FBFAF6\]:hover,
+:root[data-theme="dark"] .hover\:bg-\[\#FAF6EE\]:hover,
+:root[data-theme="dark"] .hover\:bg-\[\#F2EEE5\]:hover,
 :root[data-theme="dark"] .bg-\[\#FDF3E1\]\/60,
 :root[data-theme="dark"] .bg-\[\#E5DDC5\]\/60,
 :root[data-theme="dark"] .bg-\[\#E5DDC5\]\/40,
