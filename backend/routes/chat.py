@@ -114,12 +114,46 @@ async def admin_list_chat_rooms(
     users + test agents in fixture flows, while ``created_by`` cleanly
     discriminates "this whole room exists for test purposes" vs
     "this is a real room that happens to include a test user".
+
+    2026-07-01 — Also hide rooms whose *every* member is a test user
+    (chat fixtures like ``TEST_dm_user_a_*``, ``chatA_*``, ``batch1_*``
+    are all real signups with test-prefix emails, so ``is_test_account``
+    was already stamped on them).  Rooms with at least one real user
+    still show up so operators can moderate mixed cases.
     """
     query: Dict[str, Any] = {}
     if not include_tests:
         from utils.test_account_filter import mongo_exclude_test_user_ids_clause
         query.update(await mongo_exclude_test_user_ids_clause(db, "created_by"))
-    rooms = await db.chat_rooms.find(query, {"_id": 0}).to_list(length=200)
+        # 2026-07-01 — Also drop rooms whose *every* member is a
+        # non-real user.  A "real" member is one whose user_id lives
+        # in the ``users`` collection *and* is not flagged
+        # ``is_test_account``.  Floating fixture ids like
+        # ``TEST_dm_user_a_*``, ``batch1_b_*``, ``chatA_*`` don't
+        # exist in ``users`` at all — they were never real signups —
+        # so they auto-fail the "real" test.  Rooms with even one
+        # real user still show so ops can moderate mixed cases.
+        rooms = await db.chat_rooms.find(query, {"_id": 0}).to_list(length=500)
+        # Collect the union of every member across every room, then
+        # one Mongo query to find which are real (single round-trip).
+        all_member_ids: set[str] = set()
+        for r in rooms:
+            for uid in (r.get("member_user_ids") or []):
+                if uid:
+                    all_member_ids.add(uid)
+        real_ids: set[str] = set()
+        if all_member_ids:
+            async for u in db.users.find(
+                {"user_id": {"$in": list(all_member_ids)}, "is_test_account": {"$ne": True}},
+                {"_id": 0, "user_id": 1},
+            ):
+                real_ids.add(u["user_id"])
+        rooms = [
+            r for r in rooms
+            if any(uid in real_ids for uid in (r.get("member_user_ids") or []))
+        ]
+        return {"rooms": [_serialize_room(r) for r in rooms]}
+    rooms = await db.chat_rooms.find(query, {"_id": 0}).to_list(length=500)
     return {"rooms": [_serialize_room(r) for r in rooms]}
 
 

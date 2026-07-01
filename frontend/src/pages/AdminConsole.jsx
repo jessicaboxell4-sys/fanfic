@@ -5646,12 +5646,15 @@ function ChatRoomsCard() {
   const [editingId, setEditingId] = useState(null);
   const [editName, setEditName] = useState("");
   const [editMembers, setEditMembers] = useState([]);
+  // 2026-07-01 — Match every other admin card's convention: real rooms
+  // by default, flip on to include test-fixture rooms.
+  const [includeTests, setIncludeTests] = useState(false);
 
   const load = async () => {
     setLoading(true);
     try {
       const [r, u] = await Promise.all([
-        api.get("/admin/chat-rooms"),
+        api.get(`/admin/chat-rooms${includeTests ? "?include_tests=true" : ""}`),
         api.get("/admin/users"),
       ]);
       setRooms(r?.data?.rooms || []);
@@ -5659,7 +5662,7 @@ function ChatRoomsCard() {
     } catch { toast.error("Couldn't load chat rooms"); }
     finally { setLoading(false); }
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [includeTests]);
 
   const toggleMember = (uid, current, setCurrent) => {
     setCurrent(current.includes(uid) ? current.filter((x) => x !== uid) : [...current, uid]);
@@ -5716,6 +5719,20 @@ function ChatRoomsCard() {
       subtitle="Create direct-message rooms for sets of users. Members can talk freely inside, share books and palette tokens. Only admins can create / edit / delete rooms (Phase 1 — open user-to-user messaging is parked)."
       testid="admin-chat-rooms-card"
     >
+      {/* Tests toggle — mirrors the other admin inbox cards so operators
+          can flip between "real rooms only" and "everything including
+          test fixtures" with a single click. */}
+      <div className="flex items-center justify-end mb-3">
+        <button
+          type="button"
+          onClick={() => setIncludeTests((v) => !v)}
+          data-testid="admin-chat-rooms-toggle-include-tests"
+          className="text-[10px] font-bold uppercase tracking-[0.15em] px-2.5 py-1 rounded-full bg-[#F5F3EC] hover:bg-[#E8E2D4] text-[#5B5F4D]"
+          title={includeTests ? "Currently showing test rooms too" : "Currently hiding test rooms"}
+        >
+          Tests: {includeTests ? "Shown" : "Hidden"}
+        </button>
+      </div>
       {loading ? (
         <p className="text-sm text-[#5B5F4D] italic">Loading…</p>
       ) : (
