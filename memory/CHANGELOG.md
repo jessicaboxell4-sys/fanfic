@@ -7,6 +7,41 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-07-01 (afternoon) — Kill "Staging directory vanished" failures for good
+
+Root cause (from last night's 8 lost uploads): pods restarted 3× during the OOM crisis + failed deploy. Uploads that landed mid-crisis had their first R2 mirror attempt fail (silently swallowed → `cloud_key=None`), THEN the pod restarted and wiped local disk — no cloud copy to restore from → 8 "Staging directory vanished" failures.
+
+### Shipped
+
+- **`backend/routes/upload_jobs.py`** `upload_books_async` — every staged file now retries the R2 mirror **3× with exponential backoff** (100 ms, 200 ms, 400 ms) before falling back to `cloud_key=None`. Transient blips no longer cause permanent bytes loss.
+- **`backend/routes/upload_jobs.py`** new `backfill_cloud_staging()` cron — every 2 minutes, walks queued/processing upload jobs, finds `staged_files` where `cloud_key is None` but the local file still exists, and mirrors them up. Writes the new `cloud_key` back to the job's `staged_files` array so the existing recovery cron can restore from R2 after a subsequent restart. Idempotent.
+- **`backend/server.py`** — schedules the new cron alongside the other upload sweepers. Scheduler jobs 19 → 20.
+- **`backend/tests/test_backfill_cloud_staging.py`** (new, 4 tests) — pins the sweeper behavior:
+  - Mirrors files whose `cloud_key is None` but local bytes are present.
+  - Skips files whose local path has already vanished (doesn't crash).
+  - Leaves already-mirrored files alone (idempotent).
+  - Returns 0 immediately when `storage_cloud.is_enabled()` is False.
+
+### Verified
+
+- All 4 backfill tests pass (0.41 s).
+- Boot log: `Cloud-staging backfill cron scheduled (every 2 min).`
+- Preview `/api/health` — scheduler now shows 20 jobs including `backfill_cloud_staging`.
+- Retry logic inspected via `inspect.getsource`: `range(3)` + `0.1 * (2 ** attempt)` present in `upload_books_async`.
+
+### Durability window
+
+- **Before:** if the R2 mirror failed once (network blip, storage_cloud OOM'd, whatever), the file was disk-only until processing. If the pod restarted in that window (could be minutes to hours), bytes were permanently lost.
+- **After:** worst case is ~2 minutes (one backfill cron tick) between "bytes accepted" and "safely on R2". A pod restart in that window is still recoverable because the recovery cron will find the cloud_key.
+
+### Trade-offs
+
+- ~4× more R2 API calls in the failure case (rare). Negligible cost impact.
+- Backfill cron re-scans queued/processing jobs every 2 min — bounded by a 6-hour recency filter so we don't accidentally re-mirror ancient stuck jobs.
+- Uploads during a real sustained R2 outage still succeed to disk; they just process without the cloud-copy safety net until R2 recovers.
+
+---
+
 ## 2026-07-01 (late-morning) — Friendly referrer labels + preserved raw-URL click-through
 
 User asked for BOTH: readable labels ("@user's tweet", "r/subreddit — title") AND keep the raw URL click-through. Extended attribution with a URL-pattern → readable-title extractor.

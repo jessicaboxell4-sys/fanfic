@@ -545,6 +545,25 @@ async def on_startup():
             except Exception as e:
                 logger.warning("Upload-job recovery failed to schedule: %s", e)
 
+            # 2026-07-01 — Backfill R2 mirror for staged files whose
+            # upload-time R2 mirror failed (even after 3 retries).  Runs
+            # every 2 minutes so the durability window between "bytes
+            # accepted" and "safely on R2" collapses to a couple of
+            # minutes worst case — orders of magnitude smaller than
+            # the multi-hour outage that lost 8 files last night.
+            try:
+                from routes.upload_jobs import backfill_cloud_staging as _backfill_cloud
+                digest._scheduler.add_job(
+                    wrap_cron_job(_backfill_cloud, "backfill_cloud_staging"),
+                    "interval",
+                    minutes=2,
+                    id="backfill_cloud_staging",
+                    replace_existing=True,
+                )
+                logger.info("Cloud-staging backfill cron scheduled (every 2 min).")
+            except Exception as e:
+                logger.warning("Cloud-staging backfill failed to schedule: %s", e)
+
             # Quarantine sweep — drops _retry_staging/<failure_id>/
             # dirs older than 7 days.  Pairs with the
             # `POST /api/uploads/failures/retry-server` flow so

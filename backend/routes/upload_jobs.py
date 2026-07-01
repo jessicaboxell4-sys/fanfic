@@ -397,10 +397,30 @@ async def upload_books_async(
                 # The leading ``_staging`` prefix lets a sweeper hard-cap
                 # transient junk later, separately from permanent books.
                 cloud_key = f"_staging/{user.user_id}/{job_id}/{idx:04d}__{safe_basename}"
-                try:
-                    _storage.mirror_up(target, cloud_key)
-                except Exception:  # noqa: BLE001
-                    logger.exception("upload_jobs: cloud mirror failed for %s (will fall back to disk-only)", cloud_key)
+                # 2026-07-01 — Retry the R2 mirror up to 3× with
+                # exponential backoff.  During last night's OOM crisis
+                # a transient blip on the first attempt caused files to
+                # be recorded with ``cloud_key=None``, and the ensuing
+                # pod restart wiped local staging → 8 "Staging directory
+                # vanished" failures because there was no cloud copy to
+                # restore from.  Retries turn "one blip = permanent loss"
+                # into "one blip = 100 ms delay".  See ROOT_CAUSE:
+                # ``routes/upload_failures.retry_from_server``.
+                mirrored = False
+                last_exc: Exception | None = None
+                for attempt in range(3):
+                    try:
+                        if _storage.mirror_up(target, cloud_key):
+                            mirrored = True
+                            break
+                    except Exception as _e:  # noqa: BLE001
+                        last_exc = _e
+                    await asyncio.sleep(0.1 * (2 ** attempt))  # 100ms, 200ms, 400ms
+                if not mirrored:
+                    logger.warning(
+                        "upload_jobs: cloud mirror failed after 3 retries for %s (last error: %s) — file is disk-only until backfill_cloud_staging cron catches up",
+                        cloud_key, last_exc,
+                    )
                     cloud_key = None  # don't lie about it being there.
             staged_files.append({
                 "original_name": f.filename or safe_basename,
@@ -650,6 +670,79 @@ async def recover_stuck_upload_jobs() -> int:
     if recovered > 0:
         logger.info("recover_stuck_upload_jobs: re-kicked %d job(s)", recovered)
     return recovered
+
+
+# ---------------------------------------------------------------------------
+# Backfill cloud staging (2026-07-01)
+# ---------------------------------------------------------------------------
+# When R2 hiccups at upload time and even our 3× retry fails, files land
+# with ``cloud_key=None`` and local-disk-only durability.  If the pod
+# survives long enough to process them, no harm done.  If it restarts
+# BEFORE processing, the bytes vanish and the user sees the dreaded
+# "Staging directory vanished" failure.
+#
+# This cron closes the window: every 2 minutes it walks upload_jobs
+# that are still queued/processing, finds ``staged_files`` where
+# ``cloud_key is None`` but the local file still exists, and mirrors
+# them up.  Idempotent — a file that succeeds gets its ``cloud_key``
+# written back to the job's ``staged_files`` array so the recovery
+# cron can find it after the next pod restart.
+async def backfill_cloud_staging() -> int:
+    """Return the number of files newly mirrored to R2."""
+    try:
+        from utils import storage_cloud as _storage
+        if not _storage.is_enabled():
+            return 0
+    except Exception:  # noqa: BLE001
+        return 0
+
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=6)
+    cursor = db.upload_jobs.find(
+        {
+            "status": {"$in": ["queued", "processing"]},
+            "created_at": {"$gte": cutoff.isoformat()},
+            "staged_files.cloud_key": None,
+        },
+        {"_id": 0, "job_id": 1, "user_id": 1, "staged_files": 1},
+    )
+    mirrored_total = 0
+    async for job in cursor:
+        staged = job.get("staged_files") or []
+        changed = False
+        for idx, sf in enumerate(staged):
+            if sf.get("cloud_key"):
+                continue
+            path = sf.get("path")
+            if not path:
+                continue
+            p = Path(path)
+            if not p.exists():
+                continue
+            # Reconstruct the canonical staging key so both the
+            # upload-time mirror and the backfill land in the same
+            # place → the recovery cron finds it either way.
+            filename_slug = p.name  # already prefixed with idx.
+            key = f"_staging/{job['user_id']}/{job['job_id']}/{filename_slug}"
+            try:
+                if _storage.mirror_up(p, key):
+                    staged[idx]["cloud_key"] = key
+                    changed = True
+                    mirrored_total += 1
+            except Exception:  # noqa: BLE001 — best effort; next tick will retry.
+                logger.debug("backfill_cloud_staging: mirror_up failed for %s", key)
+        if changed:
+            try:
+                await db.upload_jobs.update_one(
+                    {"job_id": job["job_id"]},
+                    {"$set": {"staged_files": staged, "updated_at": datetime.now(timezone.utc).isoformat()}},
+                )
+            except Exception:  # noqa: BLE001
+                logger.warning("backfill_cloud_staging: failed to persist cloud_keys for job %s", job.get("job_id"))
+    if mirrored_total > 0:
+        logger.info("backfill_cloud_staging: mirrored %d staged file(s) after transient R2 hiccup", mirrored_total)
+    return mirrored_total
+
+
 
 
 @api_router.get("/admin/upload-jobs/stuck")
