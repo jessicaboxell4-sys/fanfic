@@ -7,6 +7,51 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-07-01 (late-morning) — Friendly referrer labels + preserved raw-URL click-through
+
+User asked for BOTH: readable labels ("@user's tweet", "r/subreddit — title") AND keep the raw URL click-through. Extended attribution with a URL-pattern → readable-title extractor.
+
+### Shipped
+
+- **`backend/utils/attribution.py`** — new `friendly_label_for_url(url)` helper (~80 LOC). Pattern-matches 10 common referrer sources and returns a short human label:
+  - Twitter/X `/{user}/status/{id}` → `@user's tweet`
+  - Reddit `/r/{sub}/comments/{id}/{slug}` → `r/sub — {slug-as-title}`
+  - YouTube (both `youtube.com/watch?v=` and `youtu.be/`) → `YouTube video`
+  - Substack `{sub}.substack.com/p/{slug}` → `"{title}" on {sub}.substack.com`
+  - Hacker News item → `Hacker News thread`
+  - Product Hunt post → `Product Hunt — {slug}`
+  - Medium `@author/slug-hash` → `"{title}" by @author`
+  - Google/Bing/DuckDuckGo search → `Google search: "{query}"`
+  - LinkedIn post → `LinkedIn post`
+  - Bluesky post → `@handle's Bluesky post`
+- **Bug caught in review**: initial version used `host.lstrip("www.")` which strips ANY leading `w`/`.` chars (would truncate `waffles.com` to `affles.com`). Fixed to explicit `if host.startswith("www."): host = host[4:]`. Regression tested.
+- **`promote_visit_to_user`** now bakes `first_referrer_label` into the users row at promotion time, so `list_users` doesn't re-parse URLs on every admin page load.
+- **`user_attribution_timeline`** attaches `referrer_label` per visit so the modal renders labels for every historical visit, not just the first.
+- **`list_users`** falls back to computing the label on the fly for users promoted BEFORE this deploy (one regex per row, no DB writes).
+- **`AdminConsole.jsx` UsersCard row**: shows `"{label}" · {domain}` when a label exists; falls back to just `{domain}` otherwise. Full referrer URL still available as `<a href>` click-through + `title` tooltip. Label truncates + external-link icon docked at end.
+- **`AdminConsole.jsx` UsersCard timeline modal**: each visit shows the label as primary text, tiny domain badge next to it, campaign pill, timestamp, and the raw URL as a click-through underneath.
+
+### Verified
+
+Backend unit sweep over 15 URL patterns — all match correctly, unknown patterns return `None` (frontend falls back cleanly).
+
+Playwright DOM assertions on preview:
+- Users list: `@shelfsort's tweet · twitter.com [↗]`
+- Timeline modal (3 visits): `r/ebooks — best epub organizer hint shelfsort`, `"why i built a shelf sorter" on byrneofford.substack.com`, `@shelfsort's tweet`
+
+Seed data cleaned up after verification (no residue on real user accounts).
+
+### API contract (additions)
+
+```
+users[].first_referrer_label     // optional string
+timeline.visits[].referrer_label // optional string
+```
+
+Both fields are `null` when the URL doesn't match a known pattern — the frontend already handles that case.
+
+---
+
 ## 2026-07-01 (mid-morning) — Per-user "Came from X" + click-through referrer + full visit timeline
 
 User asked to see, on the users list, "where a user came from" — plus a link back to the exact URL. Extended the attribution stack with per-user surfacing.

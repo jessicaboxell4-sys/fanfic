@@ -2930,12 +2930,19 @@ function UsersCard() {
                 href={u.first_referrer_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="font-mono text-[#6B46C1] hover:text-[#E07A5F] underline decoration-dotted underline-offset-2 inline-flex items-center gap-1"
+                className="text-[#6B46C1] hover:text-[#E07A5F] underline decoration-dotted underline-offset-2 inline-flex items-center gap-1 min-w-0 max-w-[24rem]"
                 title={u.first_referrer_url}
                 data-testid={`admin-user-referrer-link-${u.user_id}`}
               >
-                {u.first_referrer_domain}
-                <ExternalLink className="w-3 h-3" />
+                {u.first_referrer_label ? (
+                  <>
+                    <span className="truncate" data-testid={`admin-user-referrer-label-${u.user_id}`}>{u.first_referrer_label}</span>
+                    <span className="text-[10px] text-[#9B9B8C] shrink-0 font-mono">· {u.first_referrer_domain}</span>
+                  </>
+                ) : (
+                  <span className="font-mono truncate">{u.first_referrer_domain}</span>
+                )}
+                <ExternalLink className="w-3 h-3 shrink-0" />
               </a>
             ) : (
               <span className="font-mono text-[#6B46C1]">{u.first_referrer_domain}</span>
@@ -3076,7 +3083,14 @@ function UsersCard() {
                       data-testid={`admin-user-timeline-visit-${i}`}
                     >
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-mono text-[#6B46C1]">{v.referrer_domain || "direct"}</span>
+                        {v.referrer_label ? (
+                          <>
+                            <span className="text-[#2C2C2C] font-semibold" data-testid={`admin-user-timeline-label-${i}`}>{v.referrer_label}</span>
+                            <span className="font-mono text-[10px] text-[#7A7457]">· {v.referrer_domain}</span>
+                          </>
+                        ) : (
+                          <span className="font-mono text-[#6B46C1]">{v.referrer_domain || "direct"}</span>
+                        )}
                         {v.utm_campaign && (
                           <span className="text-[10px] bg-[#EEE9FB] text-[#6B46C1] px-1.5 py-0.5 rounded">{v.utm_campaign}</span>
                         )}

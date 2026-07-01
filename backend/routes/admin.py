@@ -52,7 +52,8 @@ async def list_users(user: User = Depends(require_admin)):
         {"_id": 0, "user_id": 1, "email": 1, "name": 1, "is_admin": 1, "is_moderator": 1, "created_at": 1, "last_login_at": 1, "last_seen_at": 1,
          # 2026-07-01 — Attribution surface: show "came from X" in the users list
          # with a click-through to the full referrer URL.  See utils/attribution.
-         "first_referrer_domain": 1, "first_referrer_url": 1, "first_utm_source": 1, "first_utm_campaign": 1, "first_landing_at": 1},
+         "first_referrer_domain": 1, "first_referrer_url": 1, "first_referrer_label": 1,
+         "first_utm_source": 1, "first_utm_campaign": 1, "first_landing_at": 1},
     ).sort("created_at", 1).to_list(length=2000)
     # Annotate with book counts (single aggregation, not per-row).
     counts_cursor = db.books.aggregate([
@@ -88,6 +89,15 @@ async def list_users(user: User = Depends(require_admin)):
         fla = r.get("first_landing_at")
         if isinstance(fla, datetime):
             r["first_landing_at"] = fla.isoformat()
+        # Backfill the friendly label at read time for users promoted
+        # BEFORE the label baker landed (2026-07-01) — cheap: one URL
+        # regex per row, no DB writes.  See utils.attribution.
+        if r.get("first_referrer_url") and not r.get("first_referrer_label"):
+            try:
+                from utils.attribution import friendly_label_for_url as _flab
+                r["first_referrer_label"] = _flab(r.get("first_referrer_url"))
+            except Exception:
+                pass
     return {"users": rows, "count": len(rows)}
 
 

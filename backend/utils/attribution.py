@@ -104,6 +104,97 @@ def _hash_ip(ip: Optional[str]) -> Optional[str]:
 
 
 # ---------------------------------------------------------------------------
+# Friendly-label extractor (2026-07-01)
+# ---------------------------------------------------------------------------
+# Raw referrer URLs like ``https://twitter.com/shelfsort/status/1809012345?s=20``
+# are noisy on a dense admin table.  When the URL matches a known pattern
+# from a common source (Twitter, Reddit, YouTube, Substack, HN, Product
+# Hunt, Medium, Google search), extract a human-readable label so the
+# operator can skim "who tweeted us today" without decoding hashes.
+#
+# The raw URL is ALWAYS preserved separately so the click-through opens
+# the real thing — the label is purely a display aid.
+def friendly_label_for_url(url: Optional[str]) -> Optional[str]:
+    """Return a short human-readable label for ``url`` when it matches
+    a known pattern; None otherwise (frontend falls back to the domain)."""
+    if not url:
+        return None
+    try:
+        p = urlparse(url)
+    except Exception:
+        return None
+    host = (p.hostname or "").lower()
+    if host.startswith("www."):
+        host = host[4:]
+    path = (p.path or "").rstrip("/")
+    parts = [seg for seg in path.split("/") if seg]
+
+    from urllib.parse import parse_qs, unquote_plus
+    qs = parse_qs(p.query or "")
+
+    # Twitter / X — /{user}/status/{id}
+    if host in ("twitter.com", "x.com", "mobile.twitter.com") and len(parts) >= 3 and parts[1] == "status":
+        return f"@{parts[0]}'s tweet"
+
+    # Reddit — /r/{sub}/comments/{id}/{title_slug}
+    if host in ("reddit.com", "old.reddit.com", "new.reddit.com") and len(parts) >= 4 and parts[0] == "r" and parts[2] == "comments":
+        slug = parts[4] if len(parts) >= 5 else ""
+        title = unquote_plus(slug).replace("_", " ").strip()
+        if title:
+            return f"r/{parts[1]} — {title[:80]}"
+        return f"r/{parts[1]} thread"
+
+    # YouTube — either /watch?v=... or youtu.be/{id}
+    if host == "youtube.com" and qs.get("v"):
+        return "YouTube video"
+    if host == "youtu.be" and parts:
+        return "YouTube video"
+
+    # Substack post — {sub}.substack.com/p/{slug}
+    if host.endswith(".substack.com") and len(parts) >= 2 and parts[0] == "p":
+        sub = host[: -len(".substack.com")]
+        title = unquote_plus(parts[1]).replace("-", " ").strip()
+        return f"“{title[:60]}” on {sub}.substack.com" if title else f"{sub}.substack.com post"
+
+    # Hacker News item
+    if host == "news.ycombinator.com" and qs.get("id"):
+        return "Hacker News thread"
+
+    # Product Hunt — /posts/{slug}
+    if host == "producthunt.com" and len(parts) >= 2 and parts[0] == "posts":
+        slug = unquote_plus(parts[1]).replace("-", " ")
+        return f"Product Hunt — {slug[:60]}"
+
+    # Medium — /{author}/{slug} or {sub}.medium.com/{slug}
+    if host == "medium.com" and len(parts) >= 2 and parts[0].startswith("@"):
+        title = unquote_plus(parts[1]).rsplit("-", 1)[0].replace("-", " ")
+        return f"“{title[:50]}” by {parts[0]}"
+    if host.endswith(".medium.com") and parts:
+        title = unquote_plus(parts[0]).rsplit("-", 1)[0].replace("-", " ")
+        return f"“{title[:50]}” on {host}"
+
+    # Google / Bing / DuckDuckGo search
+    if host in ("google.com", "www.google.com") and qs.get("q"):
+        return f"Google search: “{unquote_plus(qs['q'][0])[:50]}”"
+    if host in ("bing.com", "www.bing.com") and qs.get("q"):
+        return f"Bing search: “{unquote_plus(qs['q'][0])[:50]}”"
+    if host == "duckduckgo.com" and qs.get("q"):
+        return f"DuckDuckGo: “{unquote_plus(qs['q'][0])[:50]}”"
+
+    # LinkedIn — /posts/{slug}
+    if host == "linkedin.com" and len(parts) >= 2 and parts[0] == "posts":
+        return "LinkedIn post"
+
+    # Bluesky
+    if host in ("bsky.app", "bluesky.app") and len(parts) >= 4 and parts[0] == "profile" and parts[2] == "post":
+        return f"@{parts[1]}'s Bluesky post"
+
+    return None
+
+
+
+
+# ---------------------------------------------------------------------------
 # Index setup — called from server.py startup
 # ---------------------------------------------------------------------------
 async def ensure_indexes() -> None:
@@ -215,6 +306,9 @@ async def promote_visit_to_user(*, session_id: str, user_id: str) -> None:
                 "first_landing_at":       earliest.get("arrived_at"),
                 "first_referrer_domain":  earliest.get("referrer_domain"),
                 "first_referrer_url":     earliest.get("referrer_url"),
+                # Friendly label baked at promotion time so ``list_users``
+                # doesn't have to re-parse URLs on every admin page load.
+                "first_referrer_label":   friendly_label_for_url(earliest.get("referrer_url")),
                 "first_landing_path":     earliest.get("landing_path"),
                 "first_utm_source":       earliest.get("utm_source"),
                 "first_utm_medium":       earliest.get("utm_medium"),
@@ -298,6 +392,11 @@ async def user_attribution_timeline(user_id: str, limit: int = 50) -> List[Dict[
         async for r in cursor:
             ts = r.get("arrived_at")
             r["arrived_at"] = ts.isoformat() if hasattr(ts, "isoformat") else ts
+            # Attach a human-friendly label when the referrer URL matches
+            # a known pattern (twitter status, reddit thread, YouTube, etc.)
+            # so the admin timeline can show "@user's tweet" alongside the
+            # raw click-through URL.  See friendly_label_for_url.
+            r["referrer_label"] = friendly_label_for_url(r.get("referrer_url"))
             out.append(r)
         return out
     except Exception as e:  # noqa: BLE001
