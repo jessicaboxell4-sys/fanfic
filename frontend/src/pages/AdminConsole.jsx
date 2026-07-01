@@ -78,6 +78,7 @@ const ADMIN_CARD_MANIFEST = [
   { testid: "admin-stuck-uploads-card", category: "system", title: "Stuck uploads", subtitle: "Upload jobs sitting queued/processing for >10 min — leading indicator of Atlas instability or staging-disk loss.", keywords: "stuck uploads upload jobs queued processing mongo atlas failover recovery cron stranded airdrop" },
   { testid: "admin-classifier-reliability-card", category: "system", title: "Classifier reliability", subtitle: "Polish-worker error fingerprints, retry distribution, permanently-stuck count — last 7 days.", keywords: "classifier reliability polish failed errors fingerprint claude llm ai timeout retry attempts stuck pending sort book" },
   { testid: "admin-crash-pulse-card", category: "system", title: "Crash pulse", subtitle: "Client-side render errors grouped by message + page. Empty = good.", keywords: "crash pulse client error render boundary uncaught react js javascript page tour appearance regression incident telemetry" },
+  { testid: "admin-attribution-card", category: "data", title: "Attribution", subtitle: "Where new visitors are finding Shelfsort — referrer domains + UTM campaigns for the last N days.", keywords: "attribution referrer utm source medium campaign marketing traffic acquisition google twitter reddit facebook direct where from came landing signup conversion" },
   { testid: "cron-health-card", category: "system", title: "Scheduled jobs", subtitle: "Last-run telemetry for crons.", keywords: "cron jobs scheduled task background failure last-run" },
   { testid: "route-catalogue-card", category: "system", title: "Route catalogue", subtitle: "Every /api/* endpoint.", keywords: "route catalogue endpoint api list routes urls" },
   { testid: "admin-flags-card", category: "system", title: "Feature flags", subtitle: "Runtime kill switches.", keywords: "feature flags toggles kill switch runtime config" },
@@ -3982,6 +3983,135 @@ function ClientErrorPulseCard() {
 }
 
 
+// ---------------------------------------------------------------------------
+// AttributionCard (2026-07-01) — where are new visitors finding Shelfsort?
+// Pulls /api/admin/attribution/summary; renders top referrer domains + top
+// UTM campaigns with a signup-conversion column.  Users list can also link
+// individual users to their full visit timeline via
+// /api/admin/attribution/user/{user_id}.
+// ---------------------------------------------------------------------------
+function AttributionCard() {
+  const [days, setDays] = useState(30);
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = async (d = days) => {
+    setLoading(true);
+    try {
+      const { data: resp } = await api.get(`/admin/attribution/summary?days=${d}`);
+      setData(resp);
+    } catch {
+      toast.error("Couldn't load attribution data.");
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => { load(days); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [days]);
+
+  const domains = data?.by_domain || [];
+  const campaigns = data?.by_campaign || [];
+  const totalVisits = data?.total_visits ?? 0;
+  const totalSignups = data?.total_signups ?? 0;
+  const convRate = totalVisits > 0 ? ((totalSignups / totalVisits) * 100).toFixed(1) : "0";
+
+  return (
+    <Card icon={TrendingUp} title="Attribution" subtitle="Where visitors are arriving from — referrer domains + UTM campaigns." testid="admin-attribution-card">
+      <div className="flex items-center gap-1 mb-3" data-testid="attribution-window-selector">
+        {[7, 30, 90].map((d) => (
+          <button
+            key={d}
+            type="button"
+            onClick={() => setDays(d)}
+            data-testid={`attribution-window-${d}d`}
+            className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-[0.15em] border ${days === d ? "bg-[#6B46C1] text-white border-[#6B46C1]" : "bg-white text-[#5B5F4D] border-[#E5DDC5] hover:border-[#6B46C1] hover:text-[#6B46C1]"}`}
+          >
+            {d}d
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={() => load(days)}
+          data-testid="attribution-refresh"
+          className="ml-auto text-[11px] font-semibold text-[#6B46C1] hover:text-[#E07A5F] inline-flex items-center gap-1"
+        >
+          <ChevronRight className="w-3 h-3" /> Refresh
+        </button>
+      </div>
+
+      {loading ? (
+        <p className="text-xs text-[#5B5F4D] italic py-6 text-center">Loading…</p>
+      ) : (
+        <>
+          <div className="grid grid-cols-3 gap-2 mb-4 text-center" data-testid="attribution-totals">
+            <div className="bg-[#FBFAF6] border border-[#E5DDC5] rounded-lg px-3 py-2">
+              <p className="text-[10px] uppercase tracking-[0.15em] text-[#7A7457]">Visits</p>
+              <p className="font-serif text-2xl text-[#2C2C2C]" data-testid="attribution-total-visits">{totalVisits.toLocaleString()}</p>
+            </div>
+            <div className="bg-[#FBFAF6] border border-[#E5DDC5] rounded-lg px-3 py-2">
+              <p className="text-[10px] uppercase tracking-[0.15em] text-[#7A7457]">Signups</p>
+              <p className="font-serif text-2xl text-[#2C2C2C]" data-testid="attribution-total-signups">{totalSignups.toLocaleString()}</p>
+            </div>
+            <div className="bg-[#FBFAF6] border border-[#E5DDC5] rounded-lg px-3 py-2">
+              <p className="text-[10px] uppercase tracking-[0.15em] text-[#7A7457]">Conv %</p>
+              <p className="font-serif text-2xl text-[#2C2C2C]" data-testid="attribution-conv-rate">{convRate}%</p>
+            </div>
+          </div>
+
+          <div className="mb-3">
+            <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#5B5F4D] mb-1.5">Top referrer domains</p>
+            {domains.length === 0 ? (
+              <p className="text-xs text-[#5B5F4D] italic py-3 text-center" data-testid="attribution-domains-empty">No visits recorded in this window yet.</p>
+            ) : (
+              <ul className="space-y-1" data-testid="attribution-domains-list">
+                {domains.map((d, i) => {
+                  const pct = totalVisits > 0 ? (d.visits / totalVisits) * 100 : 0;
+                  return (
+                    <li
+                      key={i}
+                      className="flex items-center gap-2 text-xs bg-white border border-[#E5DDC5] rounded-lg px-3 py-1.5"
+                      data-testid={`attribution-domain-row-${i}`}
+                    >
+                      <span className="font-mono text-[#2C2C2C] truncate flex-1" data-testid={`attribution-domain-name-${i}`}>{d.key || "direct"}</span>
+                      <span className="text-[#7A7457] w-16 text-right shrink-0">{d.visits} visits</span>
+                      <span className="text-[#7A7457] w-16 text-right shrink-0">{d.signups} signup{d.signups === 1 ? "" : "s"}</span>
+                      <span className="w-12 text-right text-[10px] text-[#7A7457] shrink-0">{pct.toFixed(0)}%</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+
+          {campaigns.length > 0 && (
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#5B5F4D] mb-1.5">Top UTM campaigns</p>
+              <ul className="space-y-1" data-testid="attribution-campaigns-list">
+                {campaigns.map((c, i) => (
+                  <li
+                    key={i}
+                    className="flex items-center gap-2 text-xs bg-white border border-[#E5DDC5] rounded-lg px-3 py-1.5"
+                    data-testid={`attribution-campaign-row-${i}`}
+                  >
+                    <span className="font-mono text-[#2C2C2C] truncate flex-1">{c.key}</span>
+                    <span className="text-[#7A7457] w-16 text-right shrink-0">{c.visits} visits</span>
+                    <span className="text-[#7A7457] w-16 text-right shrink-0">{c.signups} signup{c.signups === 1 ? "" : "s"}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <p className="mt-3 text-[10px] text-[#7A7457] italic">
+            Tag your promo links with <code className="bg-[#F4EFE4] px-1 rounded">?utm_source=twitter&utm_campaign=launch</code> to bucket a channel in the campaigns table.
+          </p>
+        </>
+      )}
+    </Card>
+  );
+}
+
+
+
 
 
 function HealthCard() {
@@ -7700,6 +7830,7 @@ export default function AdminConsole() {
                       case "admin-stuck-uploads-card":          return <StuckUploadsCard key={c.testid} />;
                       case "admin-classifier-reliability-card": return <ClassifierReliabilityCard key={c.testid} />;
                       case "admin-crash-pulse-card":            return <ClientErrorPulseCard key={c.testid} />;
+                      case "admin-attribution-card":            return <AttributionCard key={c.testid} />;
                       case "cron-health-card":                  return <CronHealthCard key={c.testid} />;
                       case "route-catalogue-card":              return <RouteCatalogueCard key={c.testid} />;
                       case "admin-flags-card":                  return <FeatureFlagsCard key={c.testid} />;

@@ -6,6 +6,7 @@ import { Toaster } from "sonner";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import TourOverlay, { hasSeenTour } from "@/components/TourOverlay";
 import AppErrorBoundary from "@/components/AppErrorBoundary";
+import { useAttributionCapture } from "@/hooks/useAttributionCapture";
 import GlobalConfettiHost from "@/components/GlobalConfettiHost";
 import { ThemeProvider, useTheme } from "@/context/ThemeContext";
 import { PaletteProvider } from "@/context/PaletteContext";
@@ -158,6 +159,10 @@ function ModeratorRoute({ children }) {
 
 function AppRouter() {
   const location = useLocation();
+  // Attribution capture — fires ONCE per browser session (localStorage
+  // + sessionStorage gated), records where the visitor arrived from.
+  // See hooks/useAttributionCapture.js.
+  useAttributionCapture();
   // Detect Emergent OAuth callback in URL fragment, handle BEFORE normal routing.
   if (location.hash?.includes("session_id=")) {
     return <AuthCallback />;

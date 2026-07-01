@@ -146,6 +146,94 @@ async def stamp_view_from_spa(
 
 
 # ---------------------------------------------------------------------
+# Attribution capture (2026-07-01) — where did this visitor arrive from?
+# ---------------------------------------------------------------------
+# Frontend calls this once per session (localStorage-gated).  If the
+# visitor is anonymous we still capture the row keyed on session_id;
+# when they later sign up, ``promote_visit_to_user`` (called from
+# auth) attaches the user_id and copies the earliest attribution into
+# the user record itself.
+class AttributionVisitBody(BaseModel):
+    session_id:   str = Field("", max_length=120)
+    referrer_url: str = Field("", max_length=500)
+    landing_path: str = Field("", max_length=200)
+    utm_source:   str = Field("", max_length=120)
+    utm_medium:   str = Field("", max_length=120)
+    utm_campaign: str = Field("", max_length=120)
+    utm_content:  str = Field("", max_length=120)
+    utm_term:     str = Field("", max_length=120)
+
+
+@api_router.post("/analytics/visit")
+async def post_attribution_visit(
+    body: AttributionVisitBody,
+    request: Request,
+    user: Optional[User] = Depends(get_current_user_or_none),
+):
+    """Public — records one attribution row per session first-visit.
+    Called from the frontend ``useAttributionCapture`` hook once per
+    session (subsequent same-session calls dedupe on the backend)."""
+    from utils.attribution import capture_visit, promote_visit_to_user
+    session_id = (body.session_id or "").strip()
+    if not session_id:
+        # No client-side session id yet — fall back to the auth cookie
+        # if the user is already logged in, otherwise skip.
+        session_id = (request.cookies.get("session_token") or "").strip()
+    if not session_id:
+        return {"skipped": True, "reason": "no session id"}
+
+    # Own-host list so a hit from another page on shelfsort.com maps
+    # to referrer_domain="internal" instead of eating our own budget.
+    own_host = None
+    try:
+        own_host = (urlparse(str(request.base_url)).hostname or "").lower()
+    except Exception:
+        pass
+    own_hosts = [h for h in [own_host, "shelfsort.com", "www.shelfsort.com"] if h]
+
+    result = await capture_visit(
+        session_id=session_id,
+        referrer_url=(body.referrer_url or "").strip() or None,
+        landing_path=(body.landing_path or "").strip() or None,
+        utm={
+            "utm_source":   body.utm_source or None,
+            "utm_medium":   body.utm_medium or None,
+            "utm_campaign": body.utm_campaign or None,
+            "utm_content":  body.utm_content or None,
+            "utm_term":     body.utm_term or None,
+        },
+        user_agent=request.headers.get("user-agent"),
+        ip=(request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+            or (request.client.host if request.client else None)),
+        own_hosts=own_hosts,
+    )
+    # If the visitor is ALREADY signed in when they land (e.g. they
+    # opened a bookmarked link with an existing cookie), promote right
+    # now so future admin lookups have the row attached.
+    if user and user.user_id and result.get("ok"):
+        await promote_visit_to_user(session_id=session_id, user_id=user.user_id)
+    return result
+
+
+# ---------------------------------------------------------------------
+# Admin attribution surfaces
+# ---------------------------------------------------------------------
+@api_router.get("/admin/attribution/summary")
+async def get_attribution_summary(days: int = 30, _user: User = Depends(require_admin)):
+    from utils.attribution import attribution_summary
+    return await attribution_summary(days=days)
+
+
+@api_router.get("/admin/attribution/user/{user_id}")
+async def get_user_attribution_timeline(user_id: str, _user: User = Depends(require_admin)):
+    from utils.attribution import user_attribution_timeline
+    return {"user_id": user_id, "visits": await user_attribution_timeline(user_id)}
+
+
+
+
+
+# ---------------------------------------------------------------------
 # Client-side render errors (2026-06-30)
 # ---------------------------------------------------------------------
 # Powers AppErrorBoundary's "we've logged the details" promise.  Each

@@ -7,6 +7,50 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-07-01 (morning) — Attribution stack (Option E — the whole thing)
+
+User asked "is there a way to make it easier to see exactly where a user found the link to come in" and picked (e) the full stack: sign-up attribution, aggregate dashboard, per-visit referrer history, and UTM campaign tracking.
+
+### Shipped
+
+- **`backend/utils/attribution.py`** (new, 280 LOC) — `capture_visit()` inserts one row per session first-visit; `promote_visit_to_user()` attaches `user_id` to anon rows once a session signs up + copies earliest referrer/UTM into the user record; `attribution_summary(days)` aggregates by domain + campaign with visit/signup counts; `user_attribution_timeline(user_id)` returns per-user history. Referrer-domain normalizer collapses aliases (`t.co`→`twitter.com`, `l.facebook.com`→`facebook.com`, etc.). Salted 16-char IP hashes for privacy. Partial TTL index — anon rows expire after 90 d, user-tied rows are permanent.
+- **`backend/routes/analytics.py`** — new endpoints: `POST /api/analytics/visit` (public capture), `GET /api/admin/attribution/summary?days=N`, `GET /api/admin/attribution/user/{user_id}`.
+- **`backend/routes/auth.py`** — reads `X-Visitor-Session-Id` header on register / login / password-reset / Google OAuth and calls `promote_visit_to_user()` best-effort.
+- **`backend/server.py` startup** — calls `attribution.ensure_indexes()`.
+- **`frontend/src/hooks/useAttributionCapture.js`** (new, 85 LOC) — mints a stable `shelfsort_visitor_id` in localStorage, gates the POST behind sessionStorage so it only fires once per browser session, and installs a global axios interceptor that stamps every request with the `X-Visitor-Session-Id` header (so auth endpoints can auto-promote).
+- **`frontend/src/App.js`** — calls `useAttributionCapture()` at the top of `AppRouter`.
+- **`frontend/src/pages/AdminConsole.jsx`** — new `<AttributionCard />` in the Data & Diagnostics section with 7d/30d/90d window toggle, Visits/Signups/Conv% totals, top referrer-domains list (with visit/signup counts + %), top UTM campaigns list, and a "tag your promo links" hint at the bottom.
+
+### Verified
+
+Full end-to-end curl + browser screenshot:
+1. `POST /api/analytics/visit` with a Reddit referrer → returns `{"ok":true,"referrer_domain":"reddit.com"}`.
+2. Duplicate visit within the hour → `{"skipped":true,"reason":"recent duplicate"}` (in-hour dedupe holds).
+3. `POST /api/auth/register` with `X-Visitor-Session-Id: v_smoke_promote` → user's Mongo row has `first_referrer_domain: "reddit.com"`, `first_utm_source: "reddit"`, `first_utm_campaign: "community"` populated.
+4. Admin card renders with correct totals + top-domains + UTM campaigns table.
+
+### Privacy
+
+- No raw IPs stored — 16-char salted hash only, salt from `ATTRIBUTION_IP_SALT` env var.
+- Anon rows TTL out after 90 d via partial-index filter; user-tied rows survive forever.
+- Referrer URLs capped at 500 chars, UTM tags at 120 each, user agents at 200 chars.
+
+### API contract
+
+```
+POST /api/analytics/visit          (public, captures one row per session)
+GET  /api/admin/attribution/summary?days=<1..365>
+GET  /api/admin/attribution/user/{user_id}
+```
+
+New user fields:
+```
+first_landing_at, first_referrer_domain, first_referrer_url, first_landing_path,
+first_utm_source, first_utm_medium, first_utm_campaign, first_utm_content, first_utm_term
+```
+
+---
+
 ## 2026-07-01 (EMERGENCY) — Prod still OOMKilling; add `AV_DISABLED=1` operator kill switch
 
 Second post-deploy check showed prod climbing to 99.9% memory within 90 seconds of a fresh boot, with Mongo dropping. The pattern was clear: even with clamd daemon disabled, EACH standalone `clamscan` invocation still loads the signature DB into RAM (~700-1000 MB per invocation) — one real upload during normal ops = OOM.

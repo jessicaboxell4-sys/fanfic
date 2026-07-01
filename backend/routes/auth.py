@@ -134,6 +134,21 @@ async def auth_google(request: Request, response: Response):
         samesite=COOKIE_SAMESITE,
         path="/",
     )
+
+    # 2026-07-01 — Promote any anon attribution rows recorded under the
+    # visitor's client-side session_id (sent by the frontend's
+    # useAttributionCapture hook via the ``X-Visitor-Session-Id``
+    # header) to this new user_id, and copy the earliest referrer /
+    # UTM tags into the users row.  Best-effort — never let attribution
+    # bookkeeping fail a login.
+    try:
+        _vis_sid = (request.headers.get("x-visitor-session-id") or "").strip()
+        if _vis_sid:
+            from utils.attribution import promote_visit_to_user
+            await promote_visit_to_user(session_id=_vis_sid, user_id=user_id)
+    except Exception as _e:
+        pass
+
     # Match /auth/me shape so AuthContext can ``setUser(data)`` directly
     # without dropping is_admin / username / approval_status.
     user_doc = await db.users.find_one({"user_id": user_id}, {"_id": 0})
@@ -220,7 +235,7 @@ def _verify_password(pw: str, pw_hash: str) -> bool:
         return False
 
 
-async def _issue_session(user_id: str, response: Response) -> str:
+async def _issue_session(user_id: str, response: Response, request: Optional[Request] = None) -> str:
     """Create a fresh session_token row + set the cookie. Mirrors the Google flow."""
     token = f"st_{uuid.uuid4().hex}{uuid.uuid4().hex[:16]}"
     expires_at = datetime.now(timezone.utc) + timedelta(days=7)
@@ -250,6 +265,16 @@ async def _issue_session(user_id: str, response: Response) -> str:
         samesite=COOKIE_SAMESITE,
         path="/",
     )
+    # 2026-07-01 — Promote attribution rows from the pre-auth visitor
+    # session (see utils/attribution.py).  Best-effort.
+    try:
+        if request is not None:
+            _vis_sid = (request.headers.get("x-visitor-session-id") or "").strip()
+            if _vis_sid:
+                from utils.attribution import promote_visit_to_user
+                await promote_visit_to_user(session_id=_vis_sid, user_id=user_id)
+    except Exception:
+        pass
     return token
 
 
@@ -294,7 +319,7 @@ class LoginBody(BaseModel):
     password: str
 
 @api_router.post("/auth/register")
-async def auth_register(body: RegisterBody, response: Response):
+async def auth_register(body: RegisterBody, request: Request, response: Response):
     email = (body.email or "").strip().lower()
     password = body.password or ""
     name = (body.name or "").strip() or email.split("@")[0]
@@ -402,7 +427,7 @@ async def auth_register(body: RegisterBody, response: Response):
             "message": "Your account is pending admin approval. You'll get an email when it's reviewed.",
         }
 
-    await _issue_session(user_id, response)
+    await _issue_session(user_id, response, request)
     # Smart welcome email — fire-and-forget on the auto-approve path
     # (approval gate off, OR test/first-user bypass).  When the user
     # is gated to "pending", they get the welcome from the admin
@@ -474,7 +499,7 @@ async def auth_login(body: LoginBody, request: Request, response: Response):
         )
 
     await _clear_failed_attempts(identifier)
-    await _issue_session(user["user_id"], response)
+    await _issue_session(user["user_id"], response, request)
     # IMPORTANT: return the SAME shape as /auth/me so the React
     # AuthContext (which calls ``setUser(data)`` straight from this
     # response) doesn't lose ``is_admin``, ``username``, etc. on
@@ -773,7 +798,7 @@ async def auth_forgot_password(body: ForgotPasswordBody):
 
 
 @api_router.post("/auth/reset-password")
-async def auth_reset_password(body: ResetPasswordBody, response: Response):
+async def auth_reset_password(body: ResetPasswordBody, request: Request, response: Response):
     token = (body.token or "").strip()
     password = body.password or ""
 
@@ -810,7 +835,7 @@ async def auth_reset_password(body: ResetPasswordBody, response: Response):
     await _clear_failed_attempts(f"email:{rec['email']}")
 
     # Issue a fresh session so the user is signed in immediately
-    await _issue_session(rec["user_id"], response)
+    await _issue_session(rec["user_id"], response, request)
     user = await db.users.find_one({"user_id": rec["user_id"]}, {"_id": 0})
     return {
         "ok": True,

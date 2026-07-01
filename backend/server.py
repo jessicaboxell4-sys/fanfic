@@ -103,6 +103,14 @@ async def on_startup():
     except Exception as e:
         logger.warning(f"pod_memory_samples index setup: {e}")
 
+    # 2026-07-01 — Attribution TTL (90d on anon rows, permanent on
+    # user-tied rows via partial-index filter).  See utils/attribution.
+    try:
+        from utils.attribution import ensure_indexes as _attr_ensure
+        await _attr_ensure()
+    except Exception as e:
+        logger.warning(f"user_attribution index setup: {e}")
+
     # 2026-06-20 — hydrate the Emergent fallback toggle from Mongo so
     # an admin-paused fallback survives a pod reboot.  See
     # ``utils/storage_cloud.set_emergent_fallback_paused``.
