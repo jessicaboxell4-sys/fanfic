@@ -87,6 +87,22 @@ async def on_startup():
     except Exception as e:
         logger.warning(f"Index setup: {e}")
 
+    # 2026-07-01 — Pod-memory sample history TTL (48h retention).  Owned
+    # by utils/memory_canary; centralised here so index create failures
+    # are grouped with the rest of the boot-time index work.
+    try:
+        from utils.memory_canary import ensure_indexes as _pm_ensure, record_boot as _pm_boot
+        await _pm_ensure()
+        # Record this pod boot so the sparkline can draw a deploy-boundary
+        # marker.  Uses the same BOOT_ID the frontend polls via /api/version.
+        try:
+            from routes.health import BOOT_ID as _boot_id
+            await _pm_boot(_boot_id)
+        except Exception as e:
+            logger.warning(f"record_boot failed: {e}")
+    except Exception as e:
+        logger.warning(f"pod_memory_samples index setup: {e}")
+
     # 2026-06-20 — hydrate the Emergent fallback toggle from Mongo so
     # an admin-paused fallback survives a pod reboot.  See
     # ``utils/storage_cloud.set_emergent_fallback_paused``.
@@ -646,6 +662,15 @@ async def on_startup():
         from pathlib import Path as _Path
 
         async def _self_heal_binaries():
+            # 2026-07-01 (emergency) — operator kill switch.  When
+            # ``AV_DISABLED=1`` is set (e.g. because the pod is on the
+            # 2 Gi tier and every ClamAV invocation OOMs the pod),
+            # skip the entire ClamAV install/download/daemon chain.
+            # Saves ~200 MB of signature download + ~500 MB apt install
+            # transient during boot.  Calibre still installs — it's
+            # PDF/MOBI conversion, unrelated to AV.
+            _av_disabled = os.environ.get("AV_DISABLED", "").lower() in ("1", "true", "yes")
+
             # ---- Step 1: Calibre (for PDF/MOBI/AZW conversion) -----------
             if not shutil.which("ebook-convert"):
                 logger.info("Calibre missing — running `apt-get install -y calibre` in background")
@@ -659,6 +684,13 @@ async def on_startup():
                     logger.info("Calibre installed — uploads will auto-convert from now on")
                 else:
                     logger.warning("Calibre install failed (rc=%s): %s", proc.returncode, (stderr or b"").decode()[-300:])
+
+            if _av_disabled:
+                logger.warning(
+                    "AV_DISABLED=1 — skipping ClamAV install, freshclam, and daemon start entirely.  "
+                    "Uploads will fail-open (no virus scanning) until memory tier upgrade + env-var flip."
+                )
+                return
 
             # ---- Step 2: ClamAV (uploads/restores/downloads scanner) ------
             if not shutil.which("clamscan"):

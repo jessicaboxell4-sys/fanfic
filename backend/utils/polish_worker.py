@@ -207,6 +207,12 @@ async def _polish_drain(user_id: str) -> None:
                         # trail.  Records attempt count + last error so
                         # the retry inbox can show the user something
                         # actionable instead of a mystery.
+                        # 2026-07-01 — Capture the error string BEFORE the
+                        # lambda: Python's ``except X as exc:`` binding
+                        # is deleted at the end of the except block, so
+                        # a lambda closing over ``exc`` (ruff F821) is
+                        # fragile.  A plain local is safe + explicit.
+                        err_repr = (str(exc) or type(exc).__name__)[:200]
                         from utils.db_retry import retry_on_transient
                         attempts = (b.get("polish_attempts") or 0) + 1
                         try:
@@ -216,7 +222,7 @@ async def _polish_drain(user_id: str) -> None:
                                     {"$set": {
                                         "classifier": "polish-failed",
                                         "polish_attempts": attempts,
-                                        "polish_last_error": (str(exc) or type(exc).__name__)[:200],
+                                        "polish_last_error": err_repr,
                                         "polish_failed_at": datetime.now(timezone.utc).isoformat(),
                                     }},
                                 ),

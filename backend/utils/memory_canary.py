@@ -15,6 +15,10 @@ The signal is intentionally very cheap:
     (includes uvicorn + any subprocesses we've spawned, e.g. clamd, calibre).
   * `/sys/fs/cgroup/memory.max`     — the K8s pod's memory limit in bytes.
 
+Every tick also inserts one row into `db.pod_memory_samples` (48-hour TTL) so
+the admin console can render a 48-hour sparkline — long enough that a spike
+overnight is still visible when the operator checks in the morning after.
+
 No `psutil` dependency; both files are readable by any process in the pod.
 
 Falls back cleanly on non-Linux (dev laptops) or cgroup-v1 hosts — logs an
@@ -24,9 +28,11 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, Optional
+
+from deps import db
 
 
 logger = logging.getLogger(__name__)
@@ -42,6 +48,11 @@ _INFO_PCT = int(os.environ.get("POD_MEM_INFO_PCT", "60"))
 # One tick = 1 minute (see server.py scheduler wiring), so N=15 = quarter-hour.
 _REPEAT_TICKS = int(os.environ.get("POD_MEM_REPEAT_TICKS", "15"))
 _state: Dict[str, int] = {"last_warn_tick": -_REPEAT_TICKS, "last_info_tick": -_REPEAT_TICKS, "tick": 0}
+
+# 48-hour retention on the sample history.  Life happens — operator might
+# not check until the morning after a Friday-night spike.
+_HISTORY_TTL_SECONDS = 48 * 60 * 60
+_HISTORY_MAX_HOURS = 48
 
 
 def _read_int(p: Path) -> Optional[int]:
@@ -78,7 +89,9 @@ def sample_pod_memory() -> Optional[Dict[str, object]]:
 
 
 async def pod_memory_canary_tick() -> Dict[str, object]:
-    """APScheduler tick — sample cgroup memory, log if we cross a threshold.
+    """APScheduler tick — sample cgroup memory, log if we cross a threshold,
+    persist one row to ``db.pod_memory_samples`` for the 48-hour history
+    sparkline.
 
     Returns the sample dict so tests + `/api/health` can plumb it through
     if we ever want to surface it in the admin dashboard."""
@@ -106,7 +119,139 @@ async def pod_memory_canary_tick() -> Dict[str, object]:
         )
         _state["last_info_tick"] = tick
 
+    # Persist a compact row for the 48-hour history sparkline.  Wrapped in
+    # try/except so a Mongo blip never kills the canary tick — this is a
+    # nice-to-have signal, not a hard dep.
+    try:
+        await db.pod_memory_samples.insert_one({
+            "sampled_at": datetime.now(timezone.utc),
+            "pct":        snap["pct"],
+            "used_mb":    snap["used_mb"],
+            "limit_mb":   snap["limit_mb"],
+        })
+    except Exception as e:  # noqa: BLE001
+        logger.debug("pod_memory_samples insert failed (non-fatal): %s", e)
+
     return snap
 
 
-__all__ = ["sample_pod_memory", "pod_memory_canary_tick"]
+async def ensure_indexes() -> None:
+    """Idempotent — creates the 48h TTL indexes on ``pod_memory_samples``
+    and ``pod_boots``.  Called from server.py startup alongside the other
+    index-create sweeps."""
+    try:
+        # Mongo TTL granularity is ~60s so 48h is exact enough for our
+        # "did we OOM overnight?" use case.
+        await db.pod_memory_samples.create_index(
+            "sampled_at", expireAfterSeconds=_HISTORY_TTL_SECONDS,
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.warning("pod_memory_samples TTL index create failed: %s", e)
+    try:
+        # 48h TTL on pod-boot events too — anything older than the
+        # sparkline window is irrelevant for the "did a deploy cause
+        # this spike?" question.
+        await db.pod_boots.create_index(
+            "booted_at", expireAfterSeconds=_HISTORY_TTL_SECONDS,
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.warning("pod_boots TTL index create failed: %s", e)
+
+
+async def record_boot(boot_id: str) -> None:
+    """One-shot insert on backend startup — records this pod's boot so
+    the sparkline can draw a vertical marker at every deploy boundary.
+    Best-effort; a Mongo blip here shouldn't crash the app boot."""
+    try:
+        await db.pod_boots.insert_one({
+            "boot_id":   boot_id,
+            "booted_at": datetime.now(timezone.utc),
+        })
+    except Exception as e:  # noqa: BLE001
+        logger.warning("pod_boots insert failed (non-fatal): %s", e)
+
+
+async def load_history(hours: int = _HISTORY_MAX_HOURS, max_points: int = 288) -> Dict[str, object]:
+    """Return the pod-memory sample history for the last ``hours`` hours,
+    downsampled to at most ``max_points`` points so an admin popover
+    doesn't have to render 2880 SVG nodes.
+
+    Downsample strategy: bucket the samples into ``max_points`` equal-time
+    buckets and take the *peak* pct per bucket — peaks are what matter for
+    an OOM investigation, not averages.
+
+    Also returns any deploy-boundary events (pod boots) inside the window
+    so the frontend can overlay vertical marker lines — turns the passive
+    sparkline into an active regression detector ("did the spike start
+    right after our deploy, or was it already climbing?").
+    """
+    hours = max(1, min(int(hours), _HISTORY_MAX_HOURS))
+    since = datetime.now(timezone.utc) - timedelta(hours=hours)
+    try:
+        cursor = db.pod_memory_samples.find(
+            {"sampled_at": {"$gte": since}},
+            {"_id": 0, "sampled_at": 1, "pct": 1, "used_mb": 1, "limit_mb": 1},
+        ).sort("sampled_at", 1)
+        rows = [r async for r in cursor]
+    except Exception as e:  # noqa: BLE001
+        logger.warning("pod_memory_samples read failed: %s", e)
+        rows = []
+
+    # Deploy boundaries inside the window — one per pod boot.  Cheap read;
+    # 48 h × ~1 deploy/hour worst case = ~50 docs.
+    deploys = []
+    try:
+        cursor = db.pod_boots.find(
+            {"booted_at": {"$gte": since}},
+            {"_id": 0, "booted_at": 1, "boot_id": 1},
+        ).sort("booted_at", 1)
+        async for r in cursor:
+            ts = r.get("booted_at")
+            deploys.append({
+                "t":       ts.isoformat() if hasattr(ts, "isoformat") else ts,
+                "boot_id": r.get("boot_id"),
+            })
+    except Exception as e:  # noqa: BLE001
+        logger.warning("pod_boots read failed: %s", e)
+
+    if not rows:
+        return {"points": [], "deploys": deploys, "hours": hours, "peak_pct": None, "downsampled": False}
+
+    def _row_to_point(r):
+        ts = r["sampled_at"]
+        return {
+            "t":        ts.isoformat() if hasattr(ts, "isoformat") else ts,
+            "pct":      r.get("pct"),
+            "used_mb":  r.get("used_mb"),
+            "limit_mb": r.get("limit_mb"),
+        }
+
+    if len(rows) <= max_points:
+        points = [_row_to_point(r) for r in rows]
+        return {
+            "points":      points,
+            "deploys":     deploys,
+            "hours":       hours,
+            "peak_pct":    max((p["pct"] for p in points if p["pct"] is not None), default=None),
+            "downsampled": False,
+        }
+
+    # Bucket-max downsample — peaks matter for OOM diagnostics, not averages.
+    bucket_size = len(rows) / max_points
+    points = []
+    for i in range(max_points):
+        start = int(i * bucket_size)
+        end = int((i + 1) * bucket_size) or (start + 1)
+        chunk = rows[start:end] or [rows[start]]
+        peak_row = max(chunk, key=lambda r: r.get("pct") or 0)
+        points.append(_row_to_point(peak_row))
+    return {
+        "points":      points,
+        "deploys":     deploys,
+        "hours":       hours,
+        "peak_pct":    max((p["pct"] for p in points if p["pct"] is not None), default=None),
+        "downsampled": True,
+    }
+
+
+__all__ = ["sample_pod_memory", "pod_memory_canary_tick", "ensure_indexes", "record_boot", "load_history"]

@@ -89,7 +89,19 @@ def _is_daemon() -> bool:
 
 
 def is_available() -> bool:
-    """True iff the ClamAV binary is on PATH AND the signature DB exists."""
+    """True iff the ClamAV binary is on PATH AND the signature DB exists.
+
+    2026-07-01 — Adds an operator-controlled kill switch via the
+    ``AV_DISABLED`` env var.  Motivated by the 2 Gi pod OOMKill loop:
+    each standalone ``clamscan`` invocation spikes ~700-1000 MB while
+    it loads the signature DB, and on a 2 Gi limit that tips one active
+    upload → OOM.  Set ``AV_DISABLED=1`` in production ``.env`` to
+    fail-open on every scan until the memory tier is upgraded and
+    ``clamd`` daemon mode can be re-enabled (see
+    ``memory/EMERGENT_SUPPORT_MEMORY_TIER_UPGRADE.md``).
+    """
+    if os.environ.get("AV_DISABLED", "").lower() in ("1", "true", "yes"):
+        return False
     if not _clamscan_path():
         return False
     db_dir = Path("/var/lib/clamav")

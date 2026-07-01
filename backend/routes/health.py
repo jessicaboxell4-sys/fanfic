@@ -85,10 +85,17 @@ def _probe_storage() -> Dict[str, Any]:
 def _probe_antivirus() -> Dict[str, Any]:
     try:
         from utils import antivirus
+        # If AV_DISABLED=1 is set, the operator has deliberately turned
+        # off virus scanning (e.g. 2 Gi pod tier that can't afford
+        # clamd/clamscan memory).  Report ok=True with a distinct
+        # ``disabled`` flag so /api/health doesn't fall into "degraded"
+        # forever — the state IS the desired steady state.
+        if os.environ.get("AV_DISABLED", "").lower() in ("1", "true", "yes"):
+            return {"ok": True, "available": False, "disabled": True}
         available = antivirus.is_available()
-        # AV being absent is "degraded" (we still allow uploads but
-        # they're unscanned), so flag it but don't mark the system
-        # down.  The eicar liveness check lives on
+        # AV being absent (without the explicit disable) is "degraded" —
+        # we still allow uploads but they're unscanned, so flag it.
+        # The eicar liveness check lives on
         # /api/admin/antivirus/status so we don't burn 10ms+ on every
         # /health hit from a monitor.
         return {"ok": available, "available": available}
@@ -111,6 +118,34 @@ def _probe_env_config() -> Dict[str, Any]:
         return {"ok": False, "error": str(e)[:200]}
 
 
+def _probe_pod_memory() -> Dict[str, Any]:
+    """Cgroup-v2 memory snapshot for the pod.  See utils/memory_canary
+    for the rationale — two prod OOMKill incidents in 4 days motivated
+    the always-on canary; surfacing it on /api/health lets the admin
+    dashboard render a live "Pod: N% / X GB" pill without needing a
+    separate endpoint.
+
+    Returns ``{ok, available, used_mb, limit_mb, pct, over_warn}``.
+    ``ok`` is True even when memory is high — the health endpoint's
+    top-level ``status`` shouldn't flip degraded just because we're
+    under memory pressure (that's what ``over_warn`` is for)."""
+    try:
+        from utils import memory_canary
+        snap = memory_canary.sample_pod_memory()
+        if snap is None:
+            return {"ok": True, "available": False}
+        return {
+            "ok":         True,
+            "available":  True,
+            "used_mb":    snap["used_mb"],
+            "limit_mb":   snap["limit_mb"],
+            "pct":        snap["pct"],
+            "over_warn":  snap["over_warn"],
+        }
+    except Exception as e:
+        return {"ok": True, "available": False, "error": str(e)[:200]}
+
+
 # ---------------------------------------------------------------------------
 # Public endpoint
 # ---------------------------------------------------------------------------
@@ -121,6 +156,7 @@ async def health():
     storage = _probe_storage()
     av = _probe_antivirus()
     env_config = _probe_env_config()
+    pod_memory = _probe_pod_memory()
 
     # Mongo + env-config are the hard deps. A pod booting with no
     # MONGO_URL would already be crash-looping, but env_config also
@@ -147,6 +183,7 @@ async def health():
             "storage":    storage,
             "antivirus":  av,
             "env_config": env_config,
+            "pod_memory": pod_memory,
         },
     }
 

@@ -7075,6 +7075,220 @@ function FulltextBackfillCard() {
 
 
 
+// ---------------------------------------------------------------------------
+// Pod-memory pill (2026-07-01) — surfaces the live cgroup-v2 memory snapshot
+// from utils/memory_canary via /api/health.  After two 520 incidents in 4 days
+// we wanted an always-on operator signal: red pill when the pod is >=80% of
+// its K8s limit, amber at >=60%, green otherwise.  Polls every 30s.  Only
+// renders when the backend reports pod_memory.available (K8s + cgroup-v2);
+// otherwise hides so we don't clutter the header on dev laptops.
+//
+// Click the pill to open a popover with the 48-hour sparkline (bucket-peak
+// downsample from utils/memory_canary.load_history) — long enough that an
+// overnight/weekend spike is still visible when the operator checks in
+// after "life happens" delays.
+// ---------------------------------------------------------------------------
+function PodMemorySparkline({ points, deploys = [], warnPct = 80, infoPct = 60 }) {
+  // Inline SVG so we don't pull in a charting lib for one popover.
+  const W = 320, H = 80, PAD_L = 30, PAD_R = 6, PAD_T = 8, PAD_B = 16;
+  if (!points || points.length < 2) {
+    return (
+      <p className="text-xs text-[#5B5F4D] italic py-8 text-center" data-testid="admin-pod-memory-sparkline-empty">
+        Not enough data yet — canary needs a few minutes to warm up.
+      </p>
+    );
+  }
+  const innerW = W - PAD_L - PAD_R, innerH = H - PAD_T - PAD_B;
+  const times = points.map((p) => new Date(p.t).getTime());
+  const tMin = times[0];
+  const tMax = times[times.length - 1];
+  const tSpan = Math.max(1, tMax - tMin);
+  const xForT = (ms) => PAD_L + ((ms - tMin) / tSpan) * innerW;
+  const xs = times.map(xForT);
+  // Y is % — always 0..100 so operator sees the warn/info bands in context.
+  const yFor = (pct) => PAD_T + innerH - (Math.max(0, Math.min(100, pct)) / 100) * innerH;
+  const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"}${xs[i]},${yFor(p.pct || 0)}`).join(" ");
+  const areaPath = `${linePath} L${xs[xs.length - 1]},${PAD_T + innerH} L${xs[0]},${PAD_T + innerH} Z`;
+  const first = new Date(times[0]);
+  const last  = new Date(times[times.length - 1]);
+  const fmtTs = (d) => d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  // Deploy-boundary markers — only draw ones inside the visible time span.
+  const deployMarkers = (deploys || [])
+    .map((d) => ({ x: xForT(new Date(d.t).getTime()), boot_id: d.boot_id, t: d.t }))
+    .filter((m) => m.x >= PAD_L && m.x <= W - PAD_R);
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-24" data-testid="admin-pod-memory-sparkline">
+      {/* threshold bands */}
+      <rect x={PAD_L} y={yFor(100)} width={innerW} height={yFor(warnPct) - yFor(100)} fill="#FBE2E0" opacity="0.55" />
+      <rect x={PAD_L} y={yFor(warnPct)} width={innerW} height={yFor(infoPct) - yFor(warnPct)} fill="#FBF1D9" opacity="0.55" />
+      <rect x={PAD_L} y={yFor(infoPct)} width={innerW} height={yFor(0) - yFor(infoPct)} fill="#F4F8F0" opacity="0.4" />
+      {/* Y-axis tick labels */}
+      {[0, 50, 100].map((v) => (
+        <g key={v}>
+          <line x1={PAD_L} x2={W - PAD_R} y1={yFor(v)} y2={yFor(v)} stroke="#E5DDC5" strokeWidth="0.5" strokeDasharray="2,3" />
+          <text x={PAD_L - 4} y={yFor(v) + 3} fontSize="9" fill="#7A7457" textAnchor="end">{v}%</text>
+        </g>
+      ))}
+      {/* Deploy-boundary markers — vertical dashed lines with a small
+          triangle at the top so the operator can spot them without
+          learning yet another chart convention. */}
+      {deployMarkers.map((m, i) => (
+        <g key={`deploy-${i}`} data-testid={`admin-pod-memory-deploy-marker-${i}`}>
+          <line
+            x1={m.x} x2={m.x}
+            y1={PAD_T} y2={PAD_T + innerH}
+            stroke="#6B46C1" strokeWidth="1" strokeDasharray="2,2" opacity="0.7"
+          />
+          <polygon
+            points={`${m.x - 3},${PAD_T} ${m.x + 3},${PAD_T} ${m.x},${PAD_T + 4}`}
+            fill="#6B46C1"
+          >
+            <title>{`Deploy · boot_id ${m.boot_id?.slice(0, 8)} · ${new Date(m.t).toLocaleString()}`}</title>
+          </polygon>
+        </g>
+      ))}
+      {/* filled area under the line */}
+      <path d={areaPath} fill="#6B46C1" opacity="0.12" />
+      {/* the line itself */}
+      <path d={linePath} fill="none" stroke="#6B46C1" strokeWidth="1.5" />
+      {/* X-axis first/last timestamps */}
+      <text x={PAD_L} y={H - 2} fontSize="9" fill="#7A7457" textAnchor="start">{fmtTs(first)}</text>
+      <text x={W - PAD_R} y={H - 2} fontSize="9" fill="#7A7457" textAnchor="end">{fmtTs(last)}</text>
+    </svg>
+  );
+}
+
+function PodMemoryPill() {
+  const [snap, setSnap] = useState(null);
+  const [expanded, setExpanded] = useState(false);
+  const [history, setHistory] = useState(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const { data } = await api.get("/health");
+        if (!cancelled) setSnap(data?.checks?.pod_memory || null);
+      } catch { /* silent — pill just doesn't render */ }
+    };
+    load();
+    const t = setInterval(load, 30_000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, []);
+
+  const loadHistory = async () => {
+    setHistoryLoading(true);
+    try {
+      const { data } = await api.get("/admin/pod-memory/history?hours=48");
+      setHistory(data);
+    } catch {
+      toast.error("Couldn't load pod memory history.");
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const togglePopover = () => {
+    const next = !expanded;
+    setExpanded(next);
+    if (next && !history) loadHistory();
+  };
+
+  if (!snap || snap.available === false) return null;
+  const pct = typeof snap.pct === "number" ? snap.pct : null;
+  if (pct === null) return null;
+
+  const tier =
+    pct >= 80 ? { bg: "bg-[#FBE2E0]", border: "border-[#E8B5B0]", text: "text-[#7C2D2A]", dot: "bg-[#C5564B]" } :
+    pct >= 60 ? { bg: "bg-[#FBF1D9]", border: "border-[#E8CFA0]", text: "text-[#7A5B1F]", dot: "bg-[#D48F2C]" } :
+                { bg: "bg-[#F4F8F0]", border: "border-[#D6E0CC]", text: "text-[#3A4A2E]", dot: "bg-[#5C8A5C]" };
+
+  const usedMb = typeof snap.used_mb === "number" ? snap.used_mb.toFixed(0) : "?";
+  const limitMb = typeof snap.limit_mb === "number" ? snap.limit_mb.toFixed(0) : "?";
+  const limitGb = typeof snap.limit_mb === "number" ? (snap.limit_mb / 1024).toFixed(1) : "?";
+  const peak = history?.peak_pct;
+
+  return (
+    <div className="relative inline-block">
+      <button
+        type="button"
+        onClick={togglePopover}
+        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-bold uppercase tracking-[0.15em] hover:brightness-95 transition ${tier.bg} ${tier.border} ${tier.text}`}
+        title={`Pod memory: ${usedMb} MB / ${limitMb} MB (${pct}% of the K8s cgroup limit).  Click for 48h history.`}
+        data-testid="admin-pod-memory-pill"
+        aria-expanded={expanded}
+      >
+        <span className={`inline-block w-2 h-2 rounded-full ${tier.dot}`} aria-hidden="true" />
+        <HardDrive className="w-3.5 h-3.5" />
+        <span data-testid="admin-pod-memory-pct">Pod: {pct}%</span>
+        <span className="text-[10px] opacity-70">/ {limitGb} GB</span>
+      </button>
+      {expanded && (
+        <div
+          className="absolute top-full right-0 mt-2 w-[360px] max-w-[92vw] z-50 bg-white border border-[#E5DDC5] rounded-2xl shadow-xl p-4"
+          data-testid="admin-pod-memory-popover"
+        >
+          <div className="flex items-start justify-between mb-2">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#5B5F4D]">Pod memory · last 48h</p>
+              <p className="font-serif text-xl text-[#2C2C2C] leading-tight" data-testid="admin-pod-memory-popover-current">
+                {pct}% <span className="text-[#7A7457] text-sm font-sans">({usedMb} / {limitMb} MB)</span>
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setExpanded(false)}
+              className="text-[#7A7457] hover:text-[#2C2C2C] p-1"
+              aria-label="Close"
+              data-testid="admin-pod-memory-popover-close"
+            >
+              <XIcon className="w-4 h-4" />
+            </button>
+          </div>
+          {historyLoading ? (
+            <p className="text-xs text-[#5B5F4D] italic py-6 text-center">Loading history…</p>
+          ) : (
+            <>
+              <PodMemorySparkline points={history?.points || []} deploys={history?.deploys || []} />
+              <div className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
+                <div className="bg-[#FBFAF6] border border-[#E5DDC5] rounded-lg px-2 py-1.5">
+                  <p className="text-[#7A7457]">48h peak</p>
+                  <p className="font-semibold text-[#2C2C2C]" data-testid="admin-pod-memory-peak">
+                    {typeof peak === "number" ? `${peak}%` : "—"}
+                  </p>
+                </div>
+                <div className="bg-[#FBFAF6] border border-[#E5DDC5] rounded-lg px-2 py-1.5">
+                  <p className="text-[#7A7457]">Samples</p>
+                  <p className="font-semibold text-[#2C2C2C]" data-testid="admin-pod-memory-sample-count">
+                    {history?.points?.length ?? 0}{history?.downsampled ? " (peak-bucketed)" : ""}
+                  </p>
+                </div>
+              </div>
+              {history?.deploys?.length > 0 && (
+                <p className="mt-2 text-[10px] text-[#7A7457] flex items-center gap-1.5" data-testid="admin-pod-memory-deploy-legend">
+                  <span className="inline-block w-[1px] h-3 border-l border-dashed border-[#6B46C1]" aria-hidden="true" />
+                  <span>{history.deploys.length} deploy{history.deploys.length === 1 ? "" : "s"} in the last 48 h — vertical dashed lines mark each pod boot.</span>
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={loadHistory}
+                className="mt-3 text-[11px] font-semibold text-[#6B46C1] hover:text-[#E07A5F] inline-flex items-center gap-1"
+                data-testid="admin-pod-memory-refresh"
+              >
+                <ChevronRight className="w-3 h-3" /> Refresh history
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+
 export default function AdminConsole() {
   const [openTick, setOpenTick] = useState(0);
   const [closeTick, setCloseTick] = useState(0);
@@ -7317,6 +7531,7 @@ export default function AdminConsole() {
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap" data-testid="admin-bulk-toggles">
+            <PodMemoryPill />
             <Link
               to="/admin/help"
               data-testid="admin-help-link"

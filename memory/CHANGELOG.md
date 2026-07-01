@@ -7,6 +7,133 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-07-01 (EMERGENCY) — Prod still OOMKilling; add `AV_DISABLED=1` operator kill switch
+
+Second post-deploy check showed prod climbing to 99.9% memory within 90 seconds of a fresh boot, with Mongo dropping. The pattern was clear: even with clamd daemon disabled, EACH standalone `clamscan` invocation still loads the signature DB into RAM (~700-1000 MB per invocation) — one real upload during normal ops = OOM.
+
+### Hard truth
+
+2 Gi is genuinely not enough to run ClamAV in any mode. Not daemon, not standalone. The tier must be upgraded, or AV must be turned off. There is no third option.
+
+### Shipped (bridge fix until memory tier upgrade)
+
+- **`backend/utils/antivirus.py`** — `is_available()` now returns False immediately when `AV_DISABLED=1|true|yes` is in the env. Every scan path (`scan_bytes`, `scan_path`, background scanner, restore/share checks) already short-circuits when `is_available()` is False, so this single flag disables the entire AV surface.
+- **`backend/server.py` `_self_heal_binaries`** — early-returns after Calibre install when `AV_DISABLED=1`, skipping the ~200 MB freshclam download + ~500 MB apt-get transient. Calibre still installs (it's PDF/MOBI conversion — unrelated).
+- **`backend/routes/health.py` `_probe_antivirus`** — when `AV_DISABLED=1`, returns `{ok: true, available: false, disabled: true}` so `/api/health` shows `status: ok` (the state IS the desired steady state, not degraded).
+- **`backend/.env`** — added `AV_DISABLED="1"` to preview so it ships to prod on next redeploy.
+
+### Trade-off
+
+Every upload fail-opens (no virus scanning) until the memory tier is upgraded. Given Shelfsort's authenticated-users-only EPUB flow, real-world risk short-term is very low. When tier upgrade lands: flip `AV_DISABLED=0`, set `AV_USE_CLAMD=1`, set `AV_MAX_CONCURRENT_SCANS=4`, redeploy.
+
+### Verified
+
+- 12/12 antivirus + memory-canary tests still pass.
+- Preview `/api/health` returns `status: ok` with `av: {ok:true, available:false, disabled:true}`.
+- Boot log: `"AV_DISABLED=1 — skipping ClamAV install, freshclam, and daemon start entirely. Uploads will fail-open (no virus scanning) until memory tier upgrade + env-var flip."`
+
+### Next
+
+USER MUST REDEPLOY IMMEDIATELY. Prod is currently in an OOMKill loop and this is the bridge.
+
+---
+
+## 2026-07-01 (very late) — Deploy-boundary markers overlaid on the 48h sparkline
+
+Turns the passive memory chart into an active regression detector — when you see a spike in the sparkline, you can now instantly tell whether it started right after a deploy or was already climbing before it.
+
+### Answered support question
+
+User asked whether they can self-serve upgrade the pod's memory tier instead of emailing Emergent. Ran `support_agent` — **no self-serve option exists yet; support@emergent.sh is currently the only path**. The `EMERGENT_SUPPORT_MEMORY_TIER_UPGRADE.md` draft still needs to be sent.
+
+### Shipped
+
+- **`backend/utils/memory_canary.py`** — new `record_boot(boot_id)` one-shot insert into `db.pod_boots` (48h TTL). `load_history()` now returns `deploys: [{t, boot_id}, …]` alongside points.
+- **`backend/server.py` startup** — after `ensure_indexes()`, imports the process-wide `BOOT_ID` from `routes.health` and calls `record_boot(BOOT_ID)`.
+- **`frontend/src/pages/AdminConsole.jsx`**:
+  - `<PodMemorySparkline />` now maps x-coordinates from real timestamps (not equal spacing), so deploy markers line up with the exact wall-clock moment each pod booted.
+  - New deploy-boundary overlay: thin dashed vertical purple line + small triangle marker at top, `<title>` tooltip shows "Deploy · boot_id abc12345 · <local time>".
+  - Legend row under the peak/samples cards: "N deploys in the last 48 h — vertical dashed lines mark each pod boot." (only rendered when deploys > 0).
+
+### Verified (screenshot)
+
+Preview `/admin` → pill → popover shows sparkline with **2 dashed vertical purple lines** at the two recorded boot times, tiny triangles at the top, legend line reading "2 deploys in the last 48 h", peak 41.5%, samples 10.
+
+`tests/test_memory_canary.py` — 5/5 still pass. Endpoint payload verified via curl: `{"points": 10, "deploys": [{"t":"...","boot_id":"aa2a5984d790"}, …], "peak_pct": 41.5}`.
+
+### API contract (updated)
+
+```
+GET /api/admin/pod-memory/history?hours=<1..48>
+→ {
+    "points":       [{"t","pct","used_mb","limit_mb"}, …],
+    "deploys":      [{"t","boot_id"}, …],   // NEW
+    "hours":        48,
+    "peak_pct":     45.4,
+    "downsampled":  true
+  }
+```
+
+---
+
+## 2026-07-01 (late) — 48-hour sparkline popover on the pod-memory pill
+
+User feedback: "yes but make it 48 hours. Just in case I don't see it right away. Life happens." Turned the current-value pill into a click-to-open popover with a full 48-hour peak-bucketed history sparkline, so an overnight or weekend spike is still visible when the operator checks in after.
+
+### Shipped
+
+- **`backend/utils/memory_canary.py`** — every canary tick now inserts a row into `db.pod_memory_samples` (`{sampled_at, pct, used_mb, limit_mb}`). Added `ensure_indexes()` (TTL 48h on `sampled_at`) and `load_history(hours=48, max_points=288)` — peak-bucket downsamples 2880 raw samples down to 288 so the popover doesn't render a 200 KB SVG. Peaks are what matter for OOM diagnostics, not averages.
+- **`backend/server.py` startup** — calls `memory_canary.ensure_indexes()` alongside the other index-create sweeps so the TTL is idempotent across deploys.
+- **`backend/routes/admin.py`** — new `GET /api/admin/pod-memory/history?hours=48` (admin-only, capped at 48 h server-side) returning `{points, hours, peak_pct, downsampled}`.
+- **`frontend/src/pages/AdminConsole.jsx`** — new `<PodMemorySparkline />` inline-SVG chart (no lib deps) with y-axis threshold bands (red ≥80%, amber ≥60%, green ≤60%), 0/50/100% grid, first/last timestamp x-labels. The `<PodMemoryPill />` is now a button — click opens a 360 px popover with the sparkline + "48h peak" + sample-count cards + a Refresh button. Loads lazily on first click so the pill stays cheap on visit-only sessions.
+
+### Verified (screenshot)
+
+Preview `/admin` → click pill → popover renders correctly:
+- Header: "POD MEMORY · LAST 48H", current: "45.4% (3717 / 8192 MB)"
+- Sparkline visible showing the peak spike + current, threshold bands in bg, X-axis timestamps, Y-axis 0/50/100%
+- "48h peak: 90%" + "Samples: 8" cards below
+- "Refresh history" link
+
+### Test coverage
+
+`tests/test_memory_canary.py` — **5/5 still pass** (0.30s) after adding DB-insert side-effect (the tick still returns the same snap dict; the insert is best-effort under try/except).
+
+### API contract
+
+```
+GET /api/admin/pod-memory/history?hours=<1..48>
+→ {
+    "points":       [{"t": "2026-07-01T…", "pct": 45.4, "used_mb": 3717, "limit_mb": 8192}, …],
+    "hours":        48,
+    "peak_pct":     90.0,
+    "downsampled":  true  // false when raw sample count <= 288
+  }
+```
+
+---
+
+## 2026-07-01 (evening, later) — Pod memory pill on Admin Console
+
+Follow-up to the memory canary: surface the live sample in the operator UI so nobody has to grep log files to know whether the pod is climbing toward OOM.
+
+### Shipped
+
+- **`backend/routes/health.py`** — added `_probe_pod_memory()` → new `checks.pod_memory` field on `/api/health` returning `{ok, available, used_mb, limit_mb, pct, over_warn}`. Wraps `utils.memory_canary.sample_pod_memory()` so we don't create a second endpoint for the same data.
+- **`frontend/src/pages/AdminConsole.jsx`** — new `<PodMemoryPill />` component (~55 LOC) in the header alongside Help / Expand-all. Polls `/api/health` every 30 s. Colors: green <60%, amber 60-80%, red ≥80%. Hover-tooltip shows exact MB and the threshold explainer. Only renders when the backend reports `pod_memory.available: true` (i.e. K8s + cgroup-v2) so it stays hidden on dev laptops.
+
+### Verified
+
+- `/api/health` → `checks.pod_memory` returns `{ok:true, available:true, used_mb:3275.6, limit_mb:8192.0, pct:40.0, over_warn:false}` on preview.
+- Screenshot from `/admin`: green pill reads **"POD: 45.8% / 8.0 GB"**, positioned neatly beside Help/Expand All in the header.
+- Backend + frontend both clean-restart, no new lint issues from the pill code.
+
+### Test creds updated
+
+Added new admin smoke-test account to `memory/test_credentials.md` (`admin-smoke-test@example.com` / `AdminSmoke123!` / `is_admin: true`) so any future testing agent can drive `/admin` flows directly.
+
+---
+
 ## 2026-07-01 (evening) — Pod memory canary (early-warning for OOMKill loops)
 
 Two prod OOM incidents in 4 days, both invisible until Cloudflare 520s hit real users. Building an early-warning signal so the next one gives us a heads-up minutes ahead.

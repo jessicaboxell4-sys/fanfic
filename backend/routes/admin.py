@@ -652,6 +652,20 @@ async def reject_user(
 # Today pulse (mini-dashboard, 24-hour window)
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Pod memory history (2026-07-01) — powers the 48h sparkline popover under
+# the header pod-memory pill.  See utils/memory_canary.load_history for the
+# downsampling strategy; the endpoint caps the requested window at 48h so
+# even a permissive query can't blow the pod's memory reading a 200MB doc.
+# ---------------------------------------------------------------------------
+@api_router.get("/admin/pod-memory/history")
+async def get_pod_memory_history(hours: int = 48, _user: User = Depends(require_admin)):
+    from utils.memory_canary import load_history
+    return await load_history(hours=hours)
+
+
+
+
 @api_router.get("/admin/today-pulse")
 async def get_today_pulse(user: User = Depends(require_admin)):
     """First-thing-in-the-morning glance: what happened in the last 24h.
