@@ -14,14 +14,18 @@ import { useAuth } from "../context/AuthContext";
 // the user back to /login makes the whole flow feel broken — the
 // user rightly says "signing in with Google doesn't work every
 // time we deploy".  We now:
-//   * Retry the exchange up to 3 times with exponential backoff
-//     (600ms → 1200ms → 2400ms) on 5xx / network errors.
+//   * Retry the exchange up to 5 times over ~60 seconds
+//     (5s → 10s → 15s → 15s → 15s = 60s total) — that spans
+//     the entire realistic cold-pod window.
 //   * Surface a friendly error message + "Try again" button when
 //     all retries exhaust or the failure is a 4xx (invalid
 //     session_id) instead of silently redirecting.
 
-const MAX_RETRIES = 3;
-const BASE_BACKOFF_MS = 600;
+const MAX_RETRIES = 5;
+// Explicit per-attempt backoffs so total elapsed ≈ 60s.  A short
+// first delay catches a real transient blip fast; the tail keeps
+// grinding for the full cold-pod window.
+const RETRY_DELAYS_MS = [5000, 10000, 15000, 15000, 15000];
 
 export default function AuthCallback() {
   const navigate = useNavigate();
@@ -59,9 +63,10 @@ export default function AuthCallback() {
           // terminal — retrying won't help, so break immediately.
           if (typeof status === "number" && status >= 400 && status < 500) break;
           // 5xx or network error: back off and retry.  Skip the sleep
-          // after the last attempt.
+          // after the last attempt.  Per-attempt delays sum to ~60s
+          // so we ride out the entire cold-pod window.
           if (i < MAX_RETRIES - 1) {
-            await new Promise((res) => setTimeout(res, BASE_BACKOFF_MS * 2 ** i));
+            await new Promise((res) => setTimeout(res, RETRY_DELAYS_MS[i] || 15000));
           }
         }
       }
@@ -80,7 +85,7 @@ export default function AuthCallback() {
           <p className="text-sm text-[#5B5F4D] mb-4">{errorMessage}</p>
           <p className="text-xs text-[#5B5F4D] mb-4">
             This can happen right after a deploy while the server is still warming
-            up. Try again in a moment.
+            up (we waited about a minute). Try again in a moment — it should work.
           </p>
           <div className="flex gap-2">
             <button
@@ -107,13 +112,19 @@ export default function AuthCallback() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-paper" data-testid="auth-callback-loading">
-      <div className="text-center">
+      <div className="text-center max-w-sm px-6">
         <div className="inline-block h-8 w-8 border-2 border-[#E07A5F] border-t-transparent rounded-full animate-spin" />
         <p className="mt-4 text-[#5B5F4D] font-serif text-xl">Opening your library&hellip;</p>
         {attempt > 1 && (
-          <p className="mt-2 text-xs text-[#5B5F4D]" data-testid="auth-callback-attempt">
-            Attempt {attempt} of {MAX_RETRIES} &mdash; the server is warming up.
-          </p>
+          <>
+            <p className="mt-2 text-xs text-[#5B5F4D]" data-testid="auth-callback-attempt">
+              Attempt {attempt} of {MAX_RETRIES} &mdash; the server is warming up.
+            </p>
+            <p className="mt-3 text-[11px] text-[#5B5F4D] leading-relaxed">
+              This usually clears within a minute after a deploy. Hang tight &mdash;
+              we&apos;ll keep trying so you don&apos;t have to.
+            </p>
+          </>
         )}
       </div>
     </div>
