@@ -7,6 +7,50 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-06-30 — Google OAuth "sign-in bounces back to /login on every deploy" — root cause + fix
+
+User-reported production symptom: clicking *"Sign in with Google"* on https://shelfsort.com sometimes (often, after deploys) redirected the user right back to `/login` instead of `/library`. Verified against the Emergent Auth playbook.
+
+### Root cause
+
+`ProtectedRoute` in `App.js` only consulted `useAuth()`, not the `location.state?.user` handoff from `AuthCallback`. The sequence was:
+
+1. `AuthCallback` POSTs `session_id` → backend returns user data + sets cookie.
+2. `AuthCallback` calls `loginSuccess(data)` which schedules `setUser(data)` on the AuthContext (async React commit).
+3. `AuthCallback` immediately calls `navigate("/library", { state: { user: data } })`.
+4. React re-renders. `ProtectedRoute` reads `useAuth()` — but the `setUser` from step 2 hasn't committed yet, so `user` is `null` and `loading` is `false` (AuthProvider set `loading=false` because it detected the OAuth hash and deliberately skipped its own `/auth/me` check per playbook).
+5. `!user` branch runs → `<Navigate to="/login" replace />`.
+
+The user is bounced. On subsequent visits (via a direct URL, or after a manual retry), the AuthContext's `checkAuth` runs, `/auth/me` succeeds via the cookie, and login works. But the OAuth flow itself was broken by the race.
+
+Why "every deploy"? A deploy invalidates any warm state and forces a fresh cold flow — so the race hits reliably. On subsequent sign-in attempts the cookie may already exist and the race is masked.
+
+### Shipped
+
+- **`frontend/src/App.js` → `ProtectedRoute`** — the playbook-prescribed pattern: `if (location.state?.user) return children;` runs FIRST, before any `useAuth()` inspection. Authoritative "just-authenticated" signal from AuthCallback wins immediately.
+
+- **`frontend/src/pages/AuthCallback.jsx` — resilience + no more silent failures**:
+  - **Retry on 5xx / network errors** with exponential backoff (600ms → 1.2s → 2.4s, max 3 attempts). Handles cold-pod window (30-90s post-deploy) where the backend hasn't finished bootstrapping and `/api/auth/google` transiently returns 502/503.
+  - **4xx (401 invalid session_id)** is terminal — retry breaks immediately, no waste.
+  - **Never redirect silently**. On exhausted retries, renders a friendly error card ("Sign-in didn't complete" + explanation + "Try signing in again" / "Take me home" buttons + hint about server warming up) instead of dumping the user back at `/login` with no context.
+  - Shows "Attempt N of 3 — the server is warming up" while retries are in flight.
+
+### Verification (preview)
+- Simulated an invalid `session_id` → callback rendered the error card with `OAuth verification failed` and both action buttons.
+- Loading state + retry-attempt indicator wired via `data-testid` attributes for future testing.
+- `bash scripts/pre_deploy.sh` → **5/5 lints + 25 backend tests green in 13s** (had to bump one `text-[#8A8472]` → `text-[#5B5F4D]` to satisfy the pair-aware contrast lint).
+
+### Playbook compliance
+Verified against the Emergent Auth playbook returned by `integration_playbook_expert_v2` this session:
+- ✅ `location.state?.user` short-circuit in ProtectedRoute (playbook-prescribed race fix).
+- ✅ AuthProvider skips `/auth/me` on `session_id=` hash (already correct).
+- ✅ AuthCallback uses `useRef` for the processed flag (already correct).
+- ✅ Backend session-data call is server-side, uses `X-Session-ID` header (already correct).
+- ✅ Cookie: `httpOnly=True, secure=True, samesite="none", path="/"` (already correct).
+- ✅ `redirect_url = window.location.origin + "/library"` — no hardcoded fallbacks (already correct).
+
+---
+
 ## 2026-06-30 — Admin crash-pulse widget (closes the loop on AppErrorBoundary)
 
 Earlier today we shipped a global `AppErrorBoundary` that captures every uncaught React render error and POSTs to `/api/analytics/client-errors`. That data was landing in Mongo but nothing surfaced it. Today's widget closes that loop so the operator can spot a regression hours before users start filing Help feedback.

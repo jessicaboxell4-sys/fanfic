@@ -91,6 +91,28 @@ import AvRescanNudgeBanner from "@/components/AvRescanNudgeBanner";
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
+  const location = useLocation();
+  // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
+  //
+  // 2026-06-30 — Race-condition fix for Google OAuth flow.
+  // Symptom (reported by user): after clicking "Sign in with Google" on
+  // production, users get bounced back to /login instead of landing on
+  // /library.
+  //
+  // Root cause: AuthCallback POSTs the session_id, calls
+  // `loginSuccess(data)` (which schedules `setUser(data)` on the
+  // AuthContext), then immediately `navigate("/library", { state: { user: data } })`.
+  // In React 18 the setUser may not have committed by the time
+  // ProtectedRoute renders — so `useAuth()` returns `user: null`,
+  // `loading: false`, and ProtectedRoute redirects to /login before the
+  // next render can flush.
+  //
+  // The Emergent Auth playbook prescribes exactly this: check
+  // `location.state?.user` FIRST as an authoritative "just-authenticated"
+  // signal, and only fall back to the AuthContext when that's absent.
+  // Since AuthCallback always passes the user in state, the OAuth flow
+  // becomes race-free.
+  if (location.state?.user) return children;
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-paper">
