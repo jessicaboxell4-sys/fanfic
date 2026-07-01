@@ -2994,7 +2994,7 @@ function UsersCard() {
           >
             last on {fmtAgo(u.last_login_at)}
             {u.last_login_at && (
-              <span className="text-[#9B9B8C]"> ({fmtTime(u.last_login_at)})</span>
+              <span className="text-[#5B5F4D]/70 dark:text-white/50"> ({fmtTime(u.last_login_at)})</span>
             )}
           </span>
         </p>
