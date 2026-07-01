@@ -7,6 +7,29 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-07-01 — Verified ClamAV concurrency-cap OOM fix + unblocked deploy
+
+Second half of the OOM-burst mitigation (root-cause diagnosis: 2026-06-30 by Emergent Support). The `BoundedSemaphore(AV_MAX_CONCURRENT_SCANS=2)` fix in `utils/antivirus.py::_run_clamscan` was applied yesterday but never went through the mandatory `testing_agent` verification loop. Also cleared the recurring `.gitignore` env-block regression that had blocked the prior `deployment_agent` run.
+
+### Verified
+- `bash scripts/fix_gitignore.sh` — `.gitignore` clean of `.env`, `.env.*`, `*.env` lines. `check_gitignore_health.py` green.
+- `testing_agent_v3_fork` verified the AV concurrency cap end-to-end:
+  - `tests/test_antivirus_concurrency.py` — both tests PASS (~0.9s).
+  - Added `tests/test_antivirus_regression.py` (5 tests) pinning `ScanResult` shape (`ok/infected/signature/scanner/elapsed_ms/error`) + fail-open behavior for empty input, missing file, oversize input, scanner-unavailable.
+  - `tests/test_iter77_av_background.py` (4 tests) + `test_av_gate_friend_library.py` + `test_av_watchdog.py` — all green.
+  - `/api/health` returns 200 with `antivirus.ok=true` + `mongo.ok=true`.
+  - **Success rate: 100% on all antivirus-scoped tests (11/11).**
+- `deployment_agent` re-ran — status **PASS**. No blockers: env files clean, no hardcoded URLs/secrets, CORS wildcard, supervisor config valid, `.gitignore`/`.dockerignore` no longer block required files.
+
+### Notes for future ops
+- Semaphore is created at module import; changing `AV_MAX_CONCURRENT_SCANS` env var requires `sudo supervisorctl restart backend`.
+- If the queue-full 30s timeout ever becomes common under load, consider a distinct error status/metric so operators can tell "queue saturated" apart from "scanner missing" (currently both fail-open with generic errors).
+
+### Deploy status
+Ready. User can redeploy.
+
+---
+
 ## 2026-06-30 — Google OAuth "sign-in bounces back to /login on every deploy" — root cause + fix
 
 User-reported production symptom: clicking *"Sign in with Google"* on https://shelfsort.com sometimes (often, after deploys) redirected the user right back to `/login` instead of `/library`. Verified against the Emergent Auth playbook.
