@@ -23,8 +23,9 @@ automatically.
 """
 from __future__ import annotations
 
+import hashlib
 import os
-import uuid
+import subprocess
 from datetime import datetime, timezone
 from typing import Any, Dict
 
@@ -33,10 +34,56 @@ from deps import api_router, db
 
 # ---------------------------------------------------------------------------
 # Process-lifetime identifiers (generated once when this module is imported,
-# which happens during backend startup).  A new container = new BOOT_ID, so
-# the frontend can reliably tell when a deploy has just landed.
+# which happens during backend startup).
+#
+# NOTE (2026-07-01): ``BOOT_ID`` used to be ``uuid.uuid4().hex[:12]``, which
+# meant *every* backend process boot minted a new value.  That was fine for
+# deploys — but it also fired the "Shelfsort just updated" banner every
+# time the pod cycled for any reason (OOM kill, HPA scale event, ClamAV
+# restart, memory-canary bounce, K8s eviction, etc.).  Users reported
+# refreshing the tab only to see the banner return minutes later, which
+# eroded trust in what the banner was actually telling them.
+#
+# We now derive ``BOOT_ID`` from the *deployed code* instead of the process:
+#   1. Prefer the current git commit sha (stable across pod restarts within
+#      the same deploy, changes on every real code push).
+#   2. Fall back to a sha1 of ``server.py``'s mtime — every deploy rewrites
+#      that file, restarts don't touch it.
+#   3. As a last resort (bare filesystem, no code fingerprint available),
+#      still use a random uuid so at worst we fall back to the old
+#      restart-noisy behaviour rather than crashing.
+#
+# The frontend contract stays exactly the same: 12 lowercase hex chars,
+# stable within a process — see ``tests/test_version_endpoint.py``.
 # ---------------------------------------------------------------------------
-BOOT_ID = uuid.uuid4().hex[:12]
+def _derive_boot_id() -> str:
+    # (1) git sha — cheap, unambiguous, changes on every real deploy.
+    try:
+        sha = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd="/app",
+            stderr=subprocess.DEVNULL,
+            timeout=1.5,
+        ).decode().strip()
+        if sha:
+            return hashlib.sha1(sha.encode()).hexdigest()[:12]
+    except Exception:
+        pass
+
+    # (2) mtime of server.py — replaced on every deploy, untouched by restarts.
+    try:
+        server_path = os.path.join(os.path.dirname(__file__), "..", "server.py")
+        mtime = os.path.getmtime(server_path)
+        return hashlib.sha1(f"srv:{mtime}".encode()).hexdigest()[:12]
+    except Exception:
+        pass
+
+    # (3) Last-resort fallback — random per-process id.
+    import uuid
+    return uuid.uuid4().hex[:12]
+
+
+BOOT_ID = _derive_boot_id()
 BOOT_TIME = datetime.now(timezone.utc).isoformat()
 
 
