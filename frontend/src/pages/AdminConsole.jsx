@@ -9,7 +9,7 @@ import {
   Check, ChevronRight, ChevronDown, Download, AlertOctagon, RotateCcw, Send,
   Mail, MessageSquare, Clock, CircleAlert, Route as RouteIcon, Search,
   Inbox, Database, Siren, HardDrive, TrendingUp, Eye, BookOpen, Sparkles, ShieldAlert, FlaskConical,
-  Paperclip, HelpCircle, Bell, EyeOff, History,
+  Paperclip, HelpCircle, Bell, EyeOff, History, ExternalLink,
 } from "lucide-react";
 import MongoInspectorCard from "../components/MongoInspectorCard";
 import ModerationLogCard from "../components/ModerationLogCard";
@@ -2763,6 +2763,27 @@ function UsersCard() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
+  // Per-user attribution timeline modal — opened via the "full timeline"
+  // link next to each user's "Came from" badge.  See utils/attribution.py.
+  const [timelineUser, setTimelineUser] = useState(null);
+  const [timeline, setTimeline] = useState(null);
+  const [timelineLoading, setTimelineLoading] = useState(false);
+
+  const openTimeline = async (u) => {
+    setTimelineUser(u);
+    setTimeline(null);
+    setTimelineLoading(true);
+    try {
+      const { data } = await api.get(`/admin/attribution/user/${u.user_id}`);
+      setTimeline(data?.visits || []);
+    } catch {
+      toast.error("Couldn't load visit timeline.");
+      setTimeline([]);
+    } finally {
+      setTimelineLoading(false);
+    }
+  };
+  const closeTimeline = () => { setTimelineUser(null); setTimeline(null); };
 
   const load = async () => {
     setLoading(true);
@@ -2897,6 +2918,44 @@ function UsersCard() {
             last on {fmtAgo(u.last_login_at)}
           </span>
         </p>
+        {/* Attribution "came from" — shows the referrer domain + a
+            click-through to the exact URL they arrived from, plus an
+            info-i button that opens their full visit timeline.  See
+            utils/attribution.py + AttributionCard in this file. */}
+        {u.first_referrer_domain && (
+          <p className="text-xs text-[#5B5F4D] mt-0.5 flex items-center gap-1.5 flex-wrap" data-testid={`admin-user-attribution-${u.user_id}`}>
+            <span className="text-[10px] uppercase tracking-[0.15em] text-[#7A7457]">Came from</span>
+            {u.first_referrer_url ? (
+              <a
+                href={u.first_referrer_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-mono text-[#6B46C1] hover:text-[#E07A5F] underline decoration-dotted underline-offset-2 inline-flex items-center gap-1"
+                title={u.first_referrer_url}
+                data-testid={`admin-user-referrer-link-${u.user_id}`}
+              >
+                {u.first_referrer_domain}
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            ) : (
+              <span className="font-mono text-[#6B46C1]">{u.first_referrer_domain}</span>
+            )}
+            {u.first_utm_campaign && (
+              <span className="text-[10px] bg-[#EEE9FB] text-[#6B46C1] px-1.5 py-0.5 rounded" title={`utm_source: ${u.first_utm_source || "?"}`}>
+                {u.first_utm_campaign}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => openTimeline(u)}
+              className="text-[10px] font-semibold text-[#7A7457] hover:text-[#6B46C1] underline decoration-dotted underline-offset-2"
+              data-testid={`admin-user-timeline-btn-${u.user_id}`}
+              title="See every visit this user has recorded"
+            >
+              full timeline
+            </button>
+          </p>
+        )}
       </div>
       <div className="flex items-center gap-1.5 flex-shrink-0">
         {/* Mod toggle — distinct from the admin toggle on its right. */}
@@ -2976,6 +3035,82 @@ function UsersCard() {
           )}
         </>
       )}
+      {/* Per-user attribution timeline modal */}
+      {timelineUser && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#2C2C2C]/60 backdrop-blur-sm p-4"
+          data-testid="admin-user-timeline-modal"
+          onClick={closeTimeline}
+        >
+          <div
+            className="bg-[#FBFAF6] border border-[#E5DDC5] rounded-2xl shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-5 border-b border-[#E5DDC5] flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#5B5F4D]">Visit timeline</p>
+                <p className="font-serif text-2xl text-[#2C2C2C] leading-tight truncate">{timelineUser.name || timelineUser.email}</p>
+                <p className="text-xs text-[#7A7457] truncate">{timelineUser.email}</p>
+              </div>
+              <button
+                type="button"
+                onClick={closeTimeline}
+                aria-label="Close"
+                className="text-[#7A7457] hover:text-[#2C2C2C] p-1"
+                data-testid="admin-user-timeline-close"
+              >
+                <XIcon className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5 overflow-y-auto flex-1">
+              {timelineLoading ? (
+                <p className="text-xs text-[#5B5F4D] italic py-6 text-center">Loading…</p>
+              ) : timeline && timeline.length > 0 ? (
+                <ol className="space-y-2" data-testid="admin-user-timeline-list">
+                  {timeline.map((v, i) => (
+                    <li
+                      key={i}
+                      className="bg-white border border-[#E5DDC5] rounded-lg px-3 py-2 text-xs"
+                      data-testid={`admin-user-timeline-visit-${i}`}
+                    >
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono text-[#6B46C1]">{v.referrer_domain || "direct"}</span>
+                        {v.utm_campaign && (
+                          <span className="text-[10px] bg-[#EEE9FB] text-[#6B46C1] px-1.5 py-0.5 rounded">{v.utm_campaign}</span>
+                        )}
+                        <span className="text-[#7A7457] text-[10px] ml-auto">{v.arrived_at ? new Date(v.arrived_at).toLocaleString() : "?"}</span>
+                      </div>
+                      {v.referrer_url && (
+                        <a
+                          href={v.referrer_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-1 block text-[#6B46C1] hover:text-[#E07A5F] underline decoration-dotted underline-offset-2 break-all"
+                          title={v.referrer_url}
+                        >
+                          {v.referrer_url}
+                        </a>
+                      )}
+                      <div className="mt-1 text-[10px] text-[#7A7457] flex flex-wrap gap-x-3 gap-y-0.5">
+                        {v.landing_path && <span>landed: <code className="bg-[#F4EFE4] px-1 rounded">{v.landing_path}</code></span>}
+                        {v.utm_source && <span>utm_source: <code className="bg-[#F4EFE4] px-1 rounded">{v.utm_source}</code></span>}
+                        {v.utm_medium && <span>utm_medium: <code className="bg-[#F4EFE4] px-1 rounded">{v.utm_medium}</code></span>}
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p className="text-xs text-[#5B5F4D] italic py-6 text-center" data-testid="admin-user-timeline-empty">
+                  No attribution records yet — this user hasn&apos;t opened a browser session since attribution was introduced (2026-07-01).
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
     </Card>
   );
 }

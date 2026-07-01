@@ -7,6 +7,42 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-07-01 (mid-morning) — Per-user "Came from X" + click-through referrer + full visit timeline
+
+User asked to see, on the users list, "where a user came from" — plus a link back to the exact URL. Extended the attribution stack with per-user surfacing.
+
+### Shipped
+
+- **`backend/routes/admin.py`** `list_users` — projection now includes `first_referrer_domain`, `first_referrer_url`, `first_utm_source`, `first_utm_campaign`, `first_landing_at` (with datetime→ISO coercion) so the frontend can render "Came from X" inline without a second call.
+- **`frontend/src/pages/AdminConsole.jsx`** `UsersCard.renderRow` — under each user row, when `first_referrer_domain` is set, renders a "CAME FROM" line with:
+  - The referrer domain in mono type, styled as a click-through link to the exact `first_referrer_url` (opens in a new tab; graceful fallback to plain text when only the domain is known).
+  - A purple pill showing the `first_utm_campaign` if one was tagged.
+  - A "full timeline" text button that opens a per-user visit-history modal.
+- **`UsersCard` timeline modal** — fetches `GET /api/admin/attribution/user/{user_id}`, renders each visit as a card with referrer domain + optional campaign badge + local timestamp + full referrer URL (click-through) + landing path + UTM source/medium chips. Empty state explains the pre-2026-07-01 cutoff.
+- **`ExternalLink` icon** added to the lucide-react import block.
+
+### Verified
+
+Full end-to-end via Playwright:
+1. Seed a real user with attribution → `Came from twitter.com beta-launch full timeline` renders correctly (innerText match).
+2. Click "full timeline" → modal opens → `admin-user-timeline-visit-0/1/2` all present → 3 visits rendered (Twitter → direct → Reddit).
+3. Seed data cleaned up after verification.
+
+### API contract (users list additions)
+
+```
+GET /api/admin/users → users[].{
+  ...existing,
+  first_referrer_domain,
+  first_referrer_url,
+  first_landing_at,
+  first_utm_source,
+  first_utm_campaign
+}
+```
+
+---
+
 ## 2026-07-01 (morning) — Attribution stack (Option E — the whole thing)
 
 User asked "is there a way to make it easier to see exactly where a user found the link to come in" and picked (e) the full stack: sign-up attribution, aggregate dashboard, per-visit referrer history, and UTM campaign tracking.

@@ -49,7 +49,10 @@ async def list_users(user: User = Depends(require_admin)):
     """
     rows = await db.users.find(
         {"$nor": mongo_test_account_filter()["$or"]},
-        {"_id": 0, "user_id": 1, "email": 1, "name": 1, "is_admin": 1, "is_moderator": 1, "created_at": 1, "last_login_at": 1, "last_seen_at": 1},
+        {"_id": 0, "user_id": 1, "email": 1, "name": 1, "is_admin": 1, "is_moderator": 1, "created_at": 1, "last_login_at": 1, "last_seen_at": 1,
+         # 2026-07-01 — Attribution surface: show "came from X" in the users list
+         # with a click-through to the full referrer URL.  See utils/attribution.
+         "first_referrer_domain": 1, "first_referrer_url": 1, "first_utm_source": 1, "first_utm_campaign": 1, "first_landing_at": 1},
     ).sort("created_at", 1).to_list(length=2000)
     # Annotate with book counts (single aggregation, not per-row).
     counts_cursor = db.books.aggregate([
@@ -80,6 +83,11 @@ async def list_users(user: User = Depends(require_admin)):
         sts = r.get("last_seen_at")
         if isinstance(sts, datetime):
             r["last_seen_at"] = sts.isoformat()
+        # Attribution: coerce first_landing_at (datetime from Mongo → ISO)
+        # and pass through the referrer + first UTM tags for the users list.
+        fla = r.get("first_landing_at")
+        if isinstance(fla, datetime):
+            r["first_landing_at"] = fla.isoformat()
     return {"users": rows, "count": len(rows)}
 
 
