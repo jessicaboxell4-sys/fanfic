@@ -5117,6 +5117,19 @@ function CrossoverSuggestionsCard() {
                   <div className="min-w-0 flex-1">
                     <div className="font-medium text-sm text-[#2C2C2C] truncate" title={r.title}>{r.title || "(no title)"}</div>
                     <div className="text-xs text-[#5B5F4D] truncate" title={r.author}>by {r.author || "(no author)"}</div>
+                    {r.source_url && (
+                      <a
+                        href={r.source_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        data-testid={`admin-crossover-suggestions-source-${dk}`}
+                        className="inline-flex items-center gap-1 mt-1 text-xs text-[#6B46C1] hover:text-[#553B96] hover:underline break-all"
+                        title={r.source_url}
+                      >
+                        <span aria-hidden>↗</span>
+                        <span className="truncate max-w-[42ch]">{r.source_url.replace(/^https?:\/\//, "").replace(/\/$/, "")}</span>
+                      </a>
+                    )}
                     <div className="mt-1.5 text-xs text-[#5B5F4D]">
                       <span className="font-semibold">AI saw:</span> {(r.ai_fandoms || []).join(" / ") || "—"}{" · "}
                       <span className="font-semibold">Heuristic saw:</span> {(r.heuristic_fandoms || []).join(" / ") || "(none)"}{" · "}

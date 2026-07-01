@@ -3386,6 +3386,40 @@ async def admin_list_crossover_suggestions(
     rows = await db.crossover_suggestions.find(
         query, {"_id": 0},
     ).sort("last_seen_at", -1).limit(limit).to_list(length=limit)
+    # 2026-07-01 — Enrich rows with ``source_url`` so admins can click
+    # through to the actual story on AO3/FFN/etc. to see which
+    # characters appear.  We match on (title, author) against the
+    # ``books`` collection — the crossover-suggestion writer captures
+    # the same title/author strings the book was uploaded with, so a
+    # direct equality join works (case-sensitive, exact).  Batch-fetch
+    # in one Mongo query, then attach.  Existing suggestions logged
+    # before this feature was shipped are also enriched at read-time
+    # — no migration needed.
+    if rows:
+        title_author_pairs = list({
+            (str(r.get("title") or ""), str(r.get("author") or ""))
+            for r in rows
+        })
+        or_clauses = [
+            {"title": t, "author": a}
+            for t, a in title_author_pairs
+            if t or a
+        ]
+        url_by_pair: Dict[tuple, str] = {}
+        if or_clauses:
+            cursor = db.books.find(
+                {"$or": or_clauses, "source_url": {"$type": "string", "$ne": ""}},
+                {"_id": 0, "title": 1, "author": 1, "source_url": 1},
+            )
+            async for b in cursor:
+                key = (b.get("title") or "", b.get("author") or "")
+                # First match wins — usually there's one book per
+                # (title, author) globally anyway.
+                url_by_pair.setdefault(key, b.get("source_url"))
+        for r in rows:
+            key = (str(r.get("title") or ""), str(r.get("author") or ""))
+            if key in url_by_pair and not r.get("source_url"):
+                r["source_url"] = url_by_pair[key]
     counts: Dict[str, int] = {}
     for s in ("pending", "accepted", "rejected"):
         counts[s] = await db.crossover_suggestions.count_documents({"status": s})
