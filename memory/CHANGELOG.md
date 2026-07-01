@@ -48,6 +48,14 @@ This iteration makes the two inboxes read identically.
   chips exclude current status, PUT fires on click, by-page aggregation and
   Tests-toggle regression-clean.
 
+### OneTimeTip
+
+- `tipKey`: `help-inbox-lifecycle-chips`
+- Surface: `HelpFeedbackCard` inside `AdminConsole.jsx`
+- Copy: *"Help-page reports now use the same lifecycle as the Feedback
+  Inbox — filter by Reviewing / Planned / Done / Declined, and move rows
+  through the pipeline with the transition chips inside each row."*
+
 ---
 
 ## 2026-07-01 (afternoon, later) — Strict cloud-staging mode (opt-in toggle)

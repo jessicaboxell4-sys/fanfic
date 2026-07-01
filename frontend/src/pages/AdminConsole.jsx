@@ -14,6 +14,7 @@ import {
 import MongoInspectorCard from "../components/MongoInspectorCard";
 import ModerationLogCard from "../components/ModerationLogCard";
 import AdminAnalyticsCard from "../components/AdminAnalyticsCard";
+import OneTimeTip from "../components/OneTimeTip";
 
 // ---------------------------------------------------------------------------
 // Page-level "Expand all / Collapse all" broadcast
@@ -1077,6 +1078,14 @@ function HelpFeedbackCard() {
       subtitle="Free-text + screenshot reports from the Help page, grouped by where the user was."
       testid="admin-help-feedback-card"
     >
+      {/* 2026-07-01 — Announce the new lifecycle chips + per-row status
+          transitions to existing admins.  Uses the shared `OneTimeTip`
+          pattern so it self-dismisses on first click. */}
+      <OneTimeTip tipKey="help-inbox-lifecycle-chips" title="New:" compact>
+        Help-page reports now use the same lifecycle as the Feedback Inbox —
+        filter by Reviewing / Planned / Done / Declined, and move rows
+        through the pipeline with the transition chips inside each row.
+      </OneTimeTip>
       {/* Status filter — mirrors the FeedbackInboxCard chip row so
           operators use one vocabulary across both admin inboxes. */}
       <div className="flex flex-wrap items-center gap-2 mb-4" data-testid="help-feedback-filter-row">
