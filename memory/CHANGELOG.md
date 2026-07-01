@@ -7,6 +7,36 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-07-01 (evening) — Pod memory canary (early-warning for OOMKill loops)
+
+Two prod OOM incidents in 4 days, both invisible until Cloudflare 520s hit real users. Building an early-warning signal so the next one gives us a heads-up minutes ahead.
+
+### Shipped
+
+- **`backend/utils/memory_canary.py`** (new, 100 LOC) — reads cgroup-v2 `memory.current` / `memory.max` every tick; logs `WARNING "pod memory canary: N% used…"` when we cross `POD_MEM_WARN_PCT` (default 80%), `INFO` at `POD_MEM_INFO_PCT` (default 60%), silent below. Log-repeat guard via `POD_MEM_REPEAT_TICKS` (default 15 min) prevents flooding.
+- **`backend/server.py`** — wires `pod_memory_canary_tick` into APScheduler as a 1-minute interval job named `pod_memory_canary`. Job count 18 → 19.
+- **`backend/tests/test_memory_canary.py`** (new, 5 tests) — pins the cgroup sampler, threshold logic, and skip-gracefully fallback. **5/5 pass**.
+
+### Live check (preview)
+
+Manual `sample_pod_memory()`: `{used: 2780 MB, limit: 8192 MB, pct: 33.9%, over_warn: false}` — canary stays quiet at 34% as designed. On the 2 Gi prod tier, the same code will emit a WARNING as soon as RSS crosses 1.6 GB.
+
+### Tunable env vars (defaults are conservative)
+
+```
+POD_MEM_WARN_PCT=80        # log WARNING at N% of pod limit
+POD_MEM_INFO_PCT=60        # log INFO at N% (drops to quiet below)
+POD_MEM_REPEAT_TICKS=15    # re-log at the same severity every N ticks
+```
+
+### Design notes
+
+- Zero new deps (no psutil). Pure `/sys/fs/cgroup/*` reads.
+- Falls back cleanly on cgroup-v1 or non-Linux (test runs, dev laptops) — returns `None` from `sample_pod_memory()` and `{"skipped": True}` from the tick.
+- Log message includes the exact env-var names so on-call can tune without grep'ing the code.
+
+---
+
 ## 2026-07-01 (later same day) — Prod OOMKill flap loop fixed by disabling `clamd` daemon
 
 The morning's fix (BoundedSemaphore on concurrent scans) wasn't enough. After the user redeployed, prod flapped in a 30-90s cycle: `520 → briefly 200 → connection reset → 520`. Diagnosed as an OOMKill loop.

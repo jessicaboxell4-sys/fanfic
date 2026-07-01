@@ -435,6 +435,27 @@ async def on_startup():
             except Exception as e:
                 logger.warning("ClamAV watchdog failed to schedule: %s", e)
 
+            # 2026-07-01 — Pod-memory canary.  We hit two prod OOM
+            # incidents in 4 days; both were invisible until Cloudflare
+            # started returning 520.  This job samples the pod's
+            # cgroup-v2 memory usage every minute and logs a WARNING
+            # when we cross 80% of the K8s memory limit — enough
+            # warning to raise the tier, disable clamd, or pause
+            # uploads before real users see 520s.  See
+            # utils/memory_canary.py for the full rationale.
+            try:
+                from utils.memory_canary import pod_memory_canary_tick
+                digest._scheduler.add_job(
+                    wrap_cron_job(pod_memory_canary_tick, "pod_memory_canary"),
+                    "interval",
+                    minutes=1,
+                    id="pod_memory_canary",
+                    replace_existing=True,
+                )
+                logger.info("Pod memory canary scheduled (every 1 min).")
+            except Exception as e:
+                logger.warning("Pod memory canary failed to schedule: %s", e)
+
             # 2026-06-27 — Recovery cron for the new background AV scan
             # path (utils.av_background).  Fresh uploads schedule a
             # fire-and-forget task that flips ``av_status: "pending"``
