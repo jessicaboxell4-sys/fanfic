@@ -7,6 +7,49 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-07-01 (evening) — Help-page Inbox restyle (matches Feedback Inbox)
+
+Operator UX unification. The Help-page feedback card in the admin console
+was previously stuck with a bare `[Open | All]` filter row while the
+Feedback Inbox next to it had the full lifecycle chip row. Every triage
+session required context-switching between two different mental models.
+This iteration makes the two inboxes read identically.
+
+### Shipped
+
+- **`backend/routes/suggestions_box.py`** —
+  - `GET /api/admin/feedback` now exposes each row's Mongo ObjectId as a
+    24-char hex `feedback_id` string (drop-in analogue of the
+    suggestion-board's `suggestion_id`).
+  - New `PUT /api/admin/feedback/{feedback_id}` endpoint accepts
+    `{status: open|under_review|planned|done|declined}` and stamps
+    `status_updated_at`. Guards: 400 `invalid_status`, 400 `invalid_id`,
+    404 `not_found`.
+- **`frontend/src/pages/AdminConsole.jsx > HelpFeedbackCard`** —
+  - Filter chip row expanded to the full 6-chip set matching
+    FeedbackInboxCard: `[Open | Reviewing | Planned | Done | Declined | All]`.
+  - Each row now renders the shared color-coded status pill next to the
+    page-URL breadcrumb (same palette: Open=red, Reviewing=amber,
+    Planned=blue, Done=green, Declined=grey).
+  - Expanded rows now include a set of per-row transition chips (`→ under
+    review`, `→ planned`, etc.), excluding a chip for the row's current
+    status. Clicking one fires `PUT /api/admin/feedback/{feedback_id}` and
+    optimistically drops/keeps the row based on the active filter.
+  - `Tests: hidden/shown` toggle unchanged (was already shared with
+    FeedbackInboxCard's semantics).
+
+### Tests
+
+- Backend regression suite `backend/tests/test_iter59_help_feedback_status.py`
+  (6/6 PASS): feedback_id exposure, full status cycle, invalid_status (400),
+  invalid_id (400), not_found (404), admin-auth gate.
+- Frontend Playwright verification (via testing_agent_v3_fork): all 6 chips
+  render with correct testids, chip highlight logic, per-row transition
+  chips exclude current status, PUT fires on click, by-page aggregation and
+  Tests-toggle regression-clean.
+
+---
+
 ## 2026-07-01 (afternoon, later) — Strict cloud-staging mode (opt-in toggle)
 
 Follow-up to the durability work. Added an operator-controlled kill switch so paranoid deployments can refuse uploads that can't be safely mirrored to R2.
