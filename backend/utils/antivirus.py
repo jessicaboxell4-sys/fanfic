@@ -54,12 +54,22 @@ SCAN_TIMEOUT_S = 60
 # thread-pool sync callers AND async paths that wrap us via
 # ``asyncio.to_thread``.
 #
+# 2026-07-01 (later) — Follow-up: clamd daemon disabled entirely on
+# the 2 Gi tier because its ~978 MB steady-state RSS crowds out
+# FastAPI + boot-time apt installs.  With daemon off, we run
+# standalone ``clamscan`` which loads the signature DB on-demand,
+# spiking ~1 GB per invocation.  So the concurrency cap is now doing
+# double duty: it protects the pod from BOTH the burst-OOM
+# (multiple simultaneous scans) AND the tight steady-state budget.
+#
 # Value tuning:
-#   * On the 2 Gi tier: 2 concurrent scans → ~2 GB resident worst-case,
-#     with headroom for FastAPI + nginx + Calibre.  Safe.
+#   * On the 2 Gi tier + standalone-scan mode: 1 concurrent scan →
+#     ~1 GB transient + ~400 MB FastAPI = 1.4 GB peak.  Safe.
+#   * On the 2 Gi tier + clamd daemon: 2 concurrent OK because
+#     daemon-mode scans don't re-load the DB (they proxy to clamd).
 #   * If the operator upgrades to 4 Gi+, raise via env var
 #     ``AV_MAX_CONCURRENT_SCANS`` — no code change needed.
-_AV_MAX_CONCURRENT = max(1, int(os.environ.get("AV_MAX_CONCURRENT_SCANS", "2")))
+_AV_MAX_CONCURRENT = max(1, int(os.environ.get("AV_MAX_CONCURRENT_SCANS", "1")))
 _AV_SEMAPHORE = threading.BoundedSemaphore(_AV_MAX_CONCURRENT)
 
 

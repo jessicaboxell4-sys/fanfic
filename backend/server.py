@@ -676,30 +676,53 @@ async def on_startup():
                 if proc.returncode != 0:
                     logger.warning("freshclam failed (rc=%s): %s", proc.returncode, (stderr or b"").decode()[-300:])
 
-            # ---- Step 4: start clamd as a background daemon ---------------
-            sock = _Path("/var/run/clamav/clamd.ctl")
-            if not sock.exists() and shutil.which("clamd"):
-                logger.info("clamd not running — starting in background")
-                _Path("/var/run/clamav").mkdir(parents=True, exist_ok=True)
-                try:
-                    import subprocess as _sp
-                    _sp.run(["chown", "clamav:clamav", "/var/run/clamav"], check=False)
-                except Exception:
-                    pass
-                await asyncio.create_subprocess_exec(
-                    "clamd",
-                    stdout=asyncio.subprocess.DEVNULL,
-                    stderr=asyncio.subprocess.DEVNULL,
+            # ---- Step 4: standalone-scan mode (no clamd daemon) ------------
+            # 2026-07-01 — Emergent 2 Gi pods can't afford clamd's ~978 MB
+            # steady-state RSS (measured on preview: 978492 KB just to hold
+            # the signature DB in memory).  On a fresh deploy the boot-time
+            # spike (FastAPI + apt-get install calibre transient ~500 MB +
+            # clamd signature load ~1 GB) blew past the 2 Gi cap and put
+            # prod in an OOMKill flap loop.
+            #
+            # Switch to standalone-scan mode: no daemon, each ``clamscan``
+            # invocation loads the DB on-demand (~1 GB transient, ~6-8 s
+            # cold).  Combined with utils/antivirus._AV_SEMAPHORE (max 2
+            # concurrent), idle memory drops to ~400 MB and peak stays
+            # bounded at ~2 GB during scan bursts.  Trade-off: scan
+            # latency ~6 s per file cold vs ~50 ms with clamd — acceptable
+            # for a background-scanned upload path.
+            #
+            # If a memory-tier upgrade lands (>= 4 Gi pod), flip back to
+            # daemon mode by uncommenting the clamd startup block or
+            # setting ``AV_USE_CLAMD=1`` (not yet wired — see roadmap).
+            if os.environ.get("AV_USE_CLAMD") == "1":
+                sock = _Path("/var/run/clamav/clamd.ctl")
+                if not sock.exists() and shutil.which("clamd"):
+                    logger.info("clamd not running — starting in background (AV_USE_CLAMD=1)")
+                    _Path("/var/run/clamav").mkdir(parents=True, exist_ok=True)
+                    try:
+                        import subprocess as _sp
+                        _sp.run(["chown", "clamav:clamav", "/var/run/clamav"], check=False)
+                    except Exception:
+                        pass
+                    await asyncio.create_subprocess_exec(
+                        "clamd",
+                        stdout=asyncio.subprocess.DEVNULL,
+                        stderr=asyncio.subprocess.DEVNULL,
+                    )
+                    for _ in range(60):
+                        if sock.exists():
+                            logger.info("clamd ready — uploads scan from now on")
+                            break
+                        await asyncio.sleep(1)
+                    else:
+                        logger.warning("clamd socket never appeared — antivirus will fail open")
+            else:
+                logger.info(
+                    "clamd daemon disabled (memory-tier constraint) — "
+                    "using standalone `clamscan` with concurrency cap %s",
+                    os.environ.get("AV_MAX_CONCURRENT_SCANS", "1"),
                 )
-                # Wait up to 60 s for the socket — clamd loads ~3.6M
-                # signatures on boot.
-                for _ in range(60):
-                    if sock.exists():
-                        logger.info("clamd ready — uploads scan from now on")
-                        break
-                    await asyncio.sleep(1)
-                else:
-                    logger.warning("clamd socket never appeared — antivirus will fail open")
 
         asyncio.create_task(_self_heal_binaries())
     except Exception as e:
