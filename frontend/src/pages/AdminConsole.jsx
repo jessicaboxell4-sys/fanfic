@@ -7559,9 +7559,9 @@ function PodMemoryPill() {
   if (pct === null) return null;
 
   const tier =
-    pct >= 80 ? { bg: "bg-[#FBE2E0]", border: "border-[#E8B5B0]", text: "text-[#7C2D2A]", dot: "bg-[#C5564B]" } :
-    pct >= 60 ? { bg: "bg-[#FBF1D9]", border: "border-[#E8CFA0]", text: "text-[#7A5B1F]", dot: "bg-[#D48F2C]" } :
-                { bg: "bg-[#F4F8F0]", border: "border-[#D6E0CC]", text: "text-[#3A4A2E]", dot: "bg-[#5C8A5C]" };
+    pct >= 80 ? { bg: "bg-[#FBE2E0] dark:bg-red-950/40", border: "border-[#E8B5B0] dark:border-red-800/50", text: "text-[#7C2D2A] dark:text-red-200", dot: "bg-[#C5564B]" } :
+    pct >= 60 ? { bg: "bg-[#FBF1D9] dark:bg-amber-950/40", border: "border-[#E8CFA0] dark:border-amber-700/50", text: "text-[#7A5B1F] dark:text-amber-200", dot: "bg-[#D48F2C]" } :
+                { bg: "bg-[#F4F8F0] dark:bg-emerald-950/40", border: "border-[#D6E0CC] dark:border-emerald-800/50", text: "text-[#3A4A2E] dark:text-emerald-200", dot: "bg-[#5C8A5C]" };
 
   const usedMb = typeof snap.used_mb === "number" ? snap.used_mb.toFixed(0) : "?";
   const limitMb = typeof snap.limit_mb === "number" ? snap.limit_mb.toFixed(0) : "?";
