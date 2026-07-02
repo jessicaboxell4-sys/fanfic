@@ -1,10 +1,11 @@
 {
-  "status": "ok",
-  "updated_at": "2026-06-27T00:00:00Z",
-  "last_event": "initial_seed",
-  "note": "Default seed — no canary failure detected yet. This file is overwritten by .github/workflows/prod-smoke-canary-retry.yml after each retry decision.",
-  "upstream_run_url": null,
-  "retry_run_url": null,
-  "passed": null,
-  "total": null
+  "status": "fail",
+  "updated_at": "2026-07-02T12:12:16Z",
+  "last_event": "confirmed_failure",
+  "note": "Production smoke canary failed twice (initial + 15-min retry). Agent should investigate.",
+  "upstream_run_url": "https://github.com/jessicaboxell4-sys/fanfic/actions/runs/28588022396",
+  "retry_run_url": "https://github.com/jessicaboxell4-sys/fanfic/actions/runs/28588083617",
+  "passed": 22,
+  "total": 23,
+  "tail": ">> Reusing existing backend at https://shelfsort.com\n============================= test session starts ==============================\ncollected 30 items\n\ntests/test_regression_smoke.py ...............F.ssss......sss            [100%]\n\n=================================== FAILURES ===================================\n_______________________ test_shipped_suggestions_present _______________________\ntests/test_regression_smoke.py:228: in test_shipped_suggestions_present\n    assert found_dnd or found_dark, f\"no known shipped suggestions in done list: {titles[:10]}\"\nE   AssertionError: no known shipped suggestions in done list: ['Clarify']\nE   assert (False or False)\n=========================== short test summary info ============================\nFAILED tests/test_regression_smoke.py::test_shipped_suggestions_present - AssertionError: no known shipped suggestions in done list: ['Clarify']\nassert (False or False)\n=================== 1 failed, 22 passed, 7 skipped in 4.66s ====================\n"
 }
