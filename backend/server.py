@@ -1,0 +1,860 @@
+"""Shelfsort API entry-point.
+
+The actual endpoint definitions live under ``backend/routes/*``. Importing
+each routes module here registers its endpoints on the shared
+``api_router`` (defined in ``deps.py``) by side effect. We then mount the
+router and the CORS middleware on the FastAPI app and wire up the
+startup/shutdown lifecycle hooks.
+"""
+from starlette.middleware.cors import CORSMiddleware
+import os
+from datetime import datetime, timezone
+
+from deps import app, api_router, db, logger, client
+
+# Import each routes module so its @api_router decorators register.
+from routes import root, auth, books, bulk_ops, covers, conversions, library_reads, user_prefs, library_backup, tags, authors, pairings, characters, trash, bookmarks, library_discovery, stats, series_categories, digest, year, smart_shelves, announcements, admin, admin_db, fulltext, chat, friends, invites, friend_library, suggestions, notifications, bookclubs, recommendations, opds, wordcount, goals, refresh, duplicates, url_lists, fandoms, exports, reading_activity, library_views, duplicate_resolution, view_consents, cover_public, reading_sync, push, analytics, operator_digest, storage_admin, help_analytics, suggestions_box, signup_config, health, admin_antivirus, account_safety, reader_prefs, admin_whats_new, upload_jobs, upload_failures, staged_drafts, changelog, library_social, community, verdicts, polish, library_quarantine  # noqa: F401
+
+# Some static-path routes (e.g. /api/books/refresh-status, /api/books/recent)
+# live in route modules that are imported *after* books.py, which means
+# books.py's dynamic /api/books/{book_id} route is registered first and would
+# shadow them.  Re-sort the router so any route whose path contains a path
+# parameter is matched LAST.  Static paths first, dynamic second — preserves
+# the contract from before the Phase 4 refactor without re-ordering imports.
+def _reorder_static_routes_first() -> None:
+    static_routes = [r for r in api_router.routes if "{" not in getattr(r, "path", "")]
+    dynamic_routes = [r for r in api_router.routes if "{" in getattr(r, "path", "")]
+    api_router.routes[:] = static_routes + dynamic_routes
+
+
+_reorder_static_routes_first()
+
+# Mount the router and middleware.
+app.include_router(api_router)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_credentials=True,
+    allow_origins=os.environ.get("CORS_ORIGINS", "*").split(","),
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.on_event("startup")
+async def on_startup():
+    # 2026-06-28 — Loud env-config self-check. Catches the prod outage
+    # where Emergent's MANAGE_SECRETS step silently drops MONGO_URL /
+    # DB_NAME (root cause of the 3 shelfsort.com 520 incidents).
+    # Result also surfaces on /api/health so the canary flags it red.
+    try:
+        from utils.env_check import validate_critical_env
+        validate_critical_env()
+    except Exception as e:
+        logger.error(f"env_check raised unexpectedly: {e}")
+    # Install the email suppression layer FIRST so any startup hook
+    # that might fire an email (digest backfill, etc.) routes through
+    # the test-recipient + outbound-pause gates.
+    try:
+        from utils.email_suppression import install as _install_email_guards
+        _install_email_guards()
+    except Exception as e:
+        logger.warning(f"email_suppression install failed: {e}")
+    try:
+        await db.users.create_index("email", unique=True)
+        await db.user_sessions.create_index("session_token", unique=True)
+        await db.login_attempts.create_index("identifier")
+        await db.login_attempts.create_index("ts")
+        await db.password_reset_tokens.create_index("token", unique=True)
+        await db.password_reset_tokens.create_index("user_id")
+        await db.year_in_books_shares.create_index("share_token", unique=True)
+        await db.year_in_books_shares.create_index([("user_id", 1), ("year", 1)])
+        await db.smart_shelves.create_index("shelf_id", unique=True)
+        await db.smart_shelves.create_index([("user_id", 1), ("created_at", -1)])
+        await db.books.create_index([("user_id", 1), ("tags", 1)])
+        # Phase 6D follow-up (2026-06-27): indexes for the high-traffic
+        # routes in library_reads.py.  Create is idempotent — Mongo no-ops
+        # if the index already exists, so this is safe across redeploys.
+        await db.books.create_index([("user_id", 1), ("category", 1)])
+        await db.books.create_index([("user_id", 1), ("last_opened_at", -1)])
+        await db.books.create_index([("user_id", 1), ("replaces", 1), ("update_seen", 1)])
+        await db.books.create_index([("user_id", 1), ("fandom", 1)])
+        # Author lookups (`GET /authors/{name}`) — same shape as the
+        # author dedupe queries used during upload, so this index also
+        # speeds up the dup-finder + the "find more by this author"
+        # rail on the book detail page.
+        await db.books.create_index([("user_id", 1), ("author", 1), ("created_at", -1)])
+        # 2026-07-07 — book_fulltext indexes.  Previously created lazily
+        # only when the admin kicked off a backfill or ran a search, so
+        # if prod started fresh and neither happened, `/admin/fulltext/stats`
+        # would time out at 30s trying to run a $in of ~7500 book_ids
+        # without a book_id index backing the join.  Creating them here
+        # guarantees they're present before the first admin-console load.
+        try:
+            from utils.epub_fulltext import ensure_text_index
+            await ensure_text_index(db)
+        except Exception as _e:
+            logger.warning(f"ensure_text_index (startup): {_e}")
+    except Exception as e:
+        logger.warning(f"Index setup: {e}")
+
+    # 2026-07-01 — Pod-memory sample history TTL (48h retention).  Owned
+    # by utils/memory_canary; centralised here so index create failures
+    # are grouped with the rest of the boot-time index work.
+    try:
+        from utils.memory_canary import ensure_indexes as _pm_ensure, record_boot as _pm_boot
+        await _pm_ensure()
+        # Record this pod boot so the sparkline can draw a deploy-boundary
+        # marker.  Uses the same BOOT_ID the frontend polls via /api/version.
+        try:
+            from routes.health import BOOT_ID as _boot_id
+            await _pm_boot(_boot_id)
+        except Exception as e:
+            logger.warning(f"record_boot failed: {e}")
+    except Exception as e:
+        logger.warning(f"pod_memory_samples index setup: {e}")
+
+    # 2026-07-01 — Attribution TTL (90d on anon rows, permanent on
+    # user-tied rows via partial-index filter).  See utils/attribution.
+    try:
+        from utils.attribution import ensure_indexes as _attr_ensure
+        await _attr_ensure()
+    except Exception as e:
+        logger.warning(f"user_attribution index setup: {e}")
+
+    # 2026-06-20 — hydrate the Emergent fallback toggle from Mongo so
+    # an admin-paused fallback survives a pod reboot.  See
+    # ``utils/storage_cloud.set_emergent_fallback_paused``.
+    try:
+        from utils.storage_cloud import set_emergent_fallback_paused
+        cfg = await db.storage_config.find_one({"_id": "singleton"}) or {}
+        set_emergent_fallback_paused(bool(cfg.get("emergent_fallback_paused", False)))
+    except Exception as e:
+        logger.warning(f"Could not hydrate storage_config: {e}")
+
+    # 2026-06-20 — Backfill the ``is_test_account`` flag on every user
+    # whose email matches the current test-fixture patterns.  The
+    # patterns expanded over time, so legacy users won't have the
+    # flag set even though they match.  Idempotent — only writes when
+    # ``is_test_account`` is missing or false. Cheap (single
+    # ``update_many``) so safe to run on every boot.
+    try:
+        from utils.test_account_filter import mongo_test_account_filter
+        # Step 1: stamp the is_test_account flag on every matching user.
+        flt = {
+            "is_test_account": {"$ne": True},
+            **mongo_test_account_filter(),
+        }
+        result = await db.users.update_many(
+            flt,
+            {"$set": {"is_test_account": True, "auto_approved_test": True}},
+        )
+        if result.modified_count:
+            logger.info(
+                "test_account_filter backfill: stamped is_test_account=True on %d legacy users",
+                result.modified_count,
+            )
+        # Step 2: flip every test-account user still stuck in
+        # ``approval_status="pending"`` to ``"approved"``.  These
+        # accounts pre-date the auto-accept logic and would otherwise
+        # render with a "Pending" badge on the test-accounts
+        # quarantine page even though they're already excluded from
+        # the main pending-users inbox.  Idempotent — only touches
+        # rows where the status isn't already approved.
+        approval_result = await db.users.update_many(
+            {
+                "is_test_account": True,
+                "approval_status": {"$ne": "approved"},
+            },
+            {"$set": {"approval_status": "approved"}},
+        )
+        if approval_result.modified_count:
+            logger.info(
+                "test_account_filter backfill: flipped approval_status='approved' on %d test fixtures",
+                approval_result.modified_count,
+            )
+    except Exception as e:
+        logger.warning(f"Test-account backfill failed: {e}")
+
+    # 2026-06-20 — Backfill suggestion ``device`` to "Unknown" for
+    # rows submitted before the device picker was introduced.  Single
+    # update_many; idempotent (only touches rows where the field is
+    # missing).  Also creates a case-insensitive unique index on the
+    # ``custom_devices`` collection so concurrent inserts of the same
+    # novel device don't duplicate.
+    try:
+        sug_res = await db.suggestions.update_many(
+            {"suggestion_id": {"$exists": True}, "device": {"$exists": False}},
+            {"$set": {"device": "Unknown"}},
+        )
+        if sug_res.modified_count:
+            logger.info(
+                "suggestions device backfill: stamped 'Unknown' on %d legacy rows",
+                sug_res.modified_count,
+            )
+        await db.custom_devices.create_index("name_lc", unique=True)
+    except Exception as e:
+        logger.warning(f"Suggestion device backfill: {e}")
+
+    # Auto-backfill on startup — fire-and-forget so a slow upload to
+    # the object store doesn't delay the server accepting traffic.
+    # Catches the "I just deployed, my pod just rebooted, are my files
+    # safe?" case without needing the user to click anything.  The
+    # 10-min cron tick continues afterwards for new uploads.
+    try:
+        import asyncio as _asyncio
+        from routes.storage_admin import storage_backfill_tick
+
+        async def _initial_backfill_delayed():
+            # Wait 15 s after startup so the app is fully serving
+            # traffic before we start chewing on disk + network for
+            # the mirror.
+            await _asyncio.sleep(15)
+            try:
+                await storage_backfill_tick()
+            except Exception as e:
+                logger.warning("Initial storage backfill failed: %s", e)
+
+        _asyncio.create_task(_initial_backfill_delayed())
+    except Exception as e:
+        logger.warning(f"Could not schedule initial storage backfill: {e}")
+
+    # 2026-06-30 — Boot-time `.gitignore` sanitizer.  Background:
+    # the Emergent platform's `emergent-agent-e1` auto-commit step
+    # periodically re-adds env-blocking lines (`.env`, `.env.*`,
+    # `*.env`) to `.gitignore`, which silently breaks `MANAGE_SECRETS`
+    # at deploy time (see `/app/memory/EMERGENT_SUPPORT_EMAIL_DRAFT.md`
+    # for the full ticket).  Recurrence count: 7+ in 4 days.
+    #
+    # Running `scripts/fix_gitignore.sh` on every backend boot keeps
+    # the source-of-truth file clean continuously, so even if the
+    # operator forgets to run `pre_deploy.sh` manually, the next
+    # natural restart (file change reload, deploy, ops) sanitizes
+    # the repo state.  Best-effort: never let a script blip break
+    # backend startup.
+    try:
+        import subprocess as _subprocess_gi
+        from pathlib import Path as _Path_gi
+        _gi_script = _Path_gi(__file__).resolve().parent.parent / "scripts" / "fix_gitignore.sh"
+        if _gi_script.is_file():
+            _gi_result = _subprocess_gi.run(
+                ["bash", str(_gi_script)],
+                capture_output=True, text=True, timeout=10,
+            )
+            # Only log when the script actually removed lines — silent
+            # success is the common case and doesn't need a log line.
+            if "Removed" in _gi_result.stdout:
+                logger.warning(
+                    "boot-time gitignore sanitizer stripped env-blocking lines: %s",
+                    _gi_result.stdout.strip().splitlines()[-2] if _gi_result.stdout.strip().splitlines() else "(no detail)",
+                )
+            elif _gi_result.returncode != 0:
+                logger.info(
+                    "boot-time gitignore sanitizer non-zero exit (%d) — output: %s",
+                    _gi_result.returncode, _gi_result.stdout[:200],
+                )
+    except Exception as _gi_exc:  # noqa: BLE001
+        logger.info("Boot-time gitignore sanitizer skipped: %s", _gi_exc)
+
+    # 2026-06-27 — Upload-job recovery on startup.  If the pod crashed
+    # mid-upload (e.g. during a deploy), books that were buffered to
+    # staging but not yet processed will have their upload_jobs row
+    # stuck in "queued" or "processing".  Re-kick the worker for each
+    # so the bytes don't strand on local disk.  The 5-min cron then
+    # picks up anything that's still stuck.
+    try:
+        import asyncio as _asyncio_recov
+        from routes.upload_jobs import recover_stuck_upload_jobs as _initial_upload_recover
+
+        async def _initial_upload_recovery_delayed():
+            await _asyncio_recov.sleep(20)  # let the rest of startup settle
+            try:
+                n = await _initial_upload_recover()
+                if n > 0:
+                    logger.info("Startup upload recovery re-kicked %d job(s).", n)
+            except Exception as e:  # noqa: BLE001
+                logger.warning("Startup upload recovery failed: %s", e)
+
+        _asyncio_recov.create_task(_initial_upload_recovery_delayed())
+    except Exception as e:
+        logger.warning(f"Could not schedule startup upload recovery: {e}")
+
+    # One-time migration (2026-05): rename legacy `fichub_*` DB fields on
+    # existing book records to their new names. Idempotent: only matches docs
+    # that still have at least one legacy field. Safe to run on every startup.
+    try:
+        legacy_filter = {
+            "$or": [
+                {"fichub_unavailable": {"$exists": True}},
+                {"fichub_last_error": {"$exists": True}},
+                {"fichub_last_attempt_at": {"$exists": True}},
+                {"fichub_meta": {"$exists": True}},
+            ]
+        }
+        result = await db.books.update_many(
+            legacy_filter,
+            {"$rename": {
+                "fichub_unavailable": "unavailable",
+                "fichub_last_error": "last_fetch_error",
+                "fichub_last_attempt_at": "last_fetch_attempt_at",
+                "fichub_meta": "source_meta",
+            }},
+        )
+        if result.modified_count:
+            logger.info(
+                "Migrated %d book records from legacy fichub_* fields to new names.",
+                result.modified_count,
+            )
+    except Exception as e:
+        logger.warning("Fanfic field rename migration: %s", e)
+
+    # One-time migration (2026-06): renormalize existing `source_url` and
+    # `fanfic_urls` to the canonical form (www/m subdomain collapsed, AO3
+    # collection prefix dropped, chapter id stripped, http→https). Without
+    # this, a freshly-pasted URL won't match a book whose stored URL was
+    # captured under the old non-normalized rules. Idempotent: only writes
+    # when normalization produces a different string.
+    try:
+        from routes.books import normalize_fanfic_url  # noqa: WPS433
+        scanned = 0
+        updated = 0
+        cursor = db.books.find(
+            {"$or": [
+                {"source_url": {"$exists": True, "$ne": None}},
+                {"fanfic_urls": {"$exists": True, "$ne": []}},
+            ]},
+            {"book_id": 1, "source_url": 1, "fanfic_urls": 1},
+        )
+        async for doc in cursor:
+            scanned += 1
+            patch = {}
+            src = doc.get("source_url")
+            if src:
+                norm = normalize_fanfic_url(src)
+                if norm and norm != src:
+                    patch["source_url"] = norm
+            urls = doc.get("fanfic_urls") or []
+            if urls:
+                seen = set()
+                new_list = []
+                for u in urls:
+                    n = normalize_fanfic_url(u) or u
+                    if n not in seen:
+                        seen.add(n)
+                        new_list.append(n)
+                if new_list != urls:
+                    patch["fanfic_urls"] = new_list
+            if patch:
+                await db.books.update_one({"book_id": doc["book_id"]}, {"$set": patch})
+                updated += 1
+        if updated:
+            logger.info(
+                "Renormalized fanfic URLs on %d/%d book records.", updated, scanned,
+            )
+    except Exception as e:
+        logger.warning("Fanfic URL renormalization migration: %s", e)
+
+    # One-time migration (2026-06-06): coerce stored `format_prefs.* == "convert"`
+    # (silent auto-convert) to "ask". Silent conversion was removed — every
+    # non-EPUB upload now always prompts the user. Idempotent: scoped to
+    # users whose format_prefs actually contains a "convert" value.
+    try:
+        r = await db.users.update_many(
+            {"format_prefs": {"$exists": True}},
+            [{
+                "$set": {
+                    "format_prefs": {
+                        "$arrayToObject": {
+                            "$map": {
+                                "input": {"$objectToArray": "$format_prefs"},
+                                "as": "p",
+                                "in": {
+                                    "k": "$$p.k",
+                                    "v": {
+                                        "$cond": [
+                                            {"$eq": ["$$p.v", "convert"]},
+                                            "ask",
+                                            "$$p.v",
+                                        ],
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            }],
+        )
+        if getattr(r, "modified_count", 0):
+            logger.info(
+                "Coerced legacy `format_prefs: convert` → `ask` on %d user records.",
+                r.modified_count,
+            )
+    except Exception as e:
+        logger.warning("Format-prefs convert-to-ask migration: %s", e)
+    try:
+        digest.start_digest_scheduler()
+    except Exception as e:
+        logger.warning(f"Digest scheduler failed to start: {e}")
+
+    # cursor_history TTL — auto-delete reading-progress events older
+    # than 180 days so the collection doesn't grow unboundedly.  The
+    # re-read detector only walks the trailing 30-day window, so 180d
+    # is generous head-room.  Idempotent: creating an index that
+    # already exists is a no-op in Mongo.
+    try:
+        await db.cursor_history.create_index(
+            "created_at",
+            expireAfterSeconds=180 * 24 * 3600,
+            name="cursor_history_ttl_180d",
+        )
+        logger.info("cursor_history TTL index live (180d retention).")
+    except Exception as e:
+        logger.warning("cursor_history TTL index create failed: %s", e)
+
+    # Auto-purge fixture accounts (testing-agent leftovers like
+    # ``@test.local``, ``test_*@example.com``) older than 7 days +
+    # their books + sessions.  Runs daily at 03:00 UTC via APScheduler
+    # so the admin's "/admin/test-accounts" page stays clean without
+    # the operator needing to click "Purge all" manually.
+    try:
+        from apscheduler.schedulers.asyncio import AsyncIOScheduler
+        from utils.test_account_filter import mongo_test_account_filter
+        from utils.cron_health import wrap_cron_job
+        from datetime import timedelta as _td
+
+        async def _purge_old_fixtures():
+            cutoff = (datetime.now(timezone.utc) - _td(days=7)).isoformat()
+            stale = await db.users.find(
+                {
+                    "created_at": {"$lt": cutoff},
+                    **mongo_test_account_filter(),
+                },
+                {"_id": 0, "user_id": 1},
+            ).to_list(length=10000)
+            if not stale:
+                return
+            ids = [u["user_id"] for u in stale]
+            await db.books.delete_many({"user_id": {"$in": ids}})
+            await db.user_sessions.delete_many({"user_id": {"$in": ids}})
+            res = await db.users.delete_many({"user_id": {"$in": ids}})
+            logger.info("Auto-purged %d fixture accounts (older than 7d)", res.deleted_count)
+
+        # Borrow the existing scheduler instance set up by
+        # ``digest.start_digest_scheduler()`` so we don't run two.
+        if digest._scheduler is not None:
+            digest._scheduler.add_job(
+                wrap_cron_job(_purge_old_fixtures, "fixture_auto_purge"),
+                "cron",
+                hour=3,
+                minute=0,
+                id="fixture_auto_purge",
+                replace_existing=True,
+            )
+            logger.info("Fixture auto-purge job scheduled (daily 03:00 UTC).")
+
+            # ClamAV watchdog — auto-pauses uploads if the scanner has
+            # been unreachable for AV_DOWN_THRESHOLD_MIN minutes
+            # straight.  Runs every minute so the longest a real outage
+            # can leak unscanned uploads is roughly the threshold +
+            # one tick.  See utils/av_watchdog.py for full rationale.
+            try:
+                from utils.av_watchdog import av_health_watchdog_tick
+                digest._scheduler.add_job(
+                    wrap_cron_job(av_health_watchdog_tick, "av_health_watchdog"),
+                    "interval",
+                    minutes=1,
+                    id="av_health_watchdog",
+                    replace_existing=True,
+                )
+                logger.info("ClamAV watchdog job scheduled (every 1 min).")
+            except Exception as e:
+                logger.warning("ClamAV watchdog failed to schedule: %s", e)
+
+            # 2026-07-01 — Pod-memory canary.  We hit two prod OOM
+            # incidents in 4 days; both were invisible until Cloudflare
+            # started returning 520.  This job samples the pod's
+            # cgroup-v2 memory usage every minute and logs a WARNING
+            # when we cross 80% of the K8s memory limit — enough
+            # warning to raise the tier, disable clamd, or pause
+            # uploads before real users see 520s.  See
+            # utils/memory_canary.py for the full rationale.
+            try:
+                from utils.memory_canary import pod_memory_canary_tick
+                digest._scheduler.add_job(
+                    wrap_cron_job(pod_memory_canary_tick, "pod_memory_canary"),
+                    "interval",
+                    minutes=1,
+                    id="pod_memory_canary",
+                    replace_existing=True,
+                )
+                logger.info("Pod memory canary scheduled (every 1 min).")
+            except Exception as e:
+                logger.warning("Pod memory canary failed to schedule: %s", e)
+
+            # 2026-06-27 — Recovery cron for the new background AV scan
+            # path (utils.av_background).  Fresh uploads schedule a
+            # fire-and-forget task that flips ``av_status: "pending"``
+            # → "clean" / "infected" / "unscanned" when ClamAV returns.
+            # If the backend restarts mid-scan or the in-memory task
+            # was lost to OOM, the book is stuck in "pending".  This
+            # tick walks any rows pending for >5 minutes and re-scans
+            # them from disk so no upload is ever silently unscanned.
+            try:
+                from utils.av_background import rescan_pending
+                async def _av_pending_recovery_tick():
+                    return await rescan_pending(max_age_seconds=300)
+                digest._scheduler.add_job(
+                    wrap_cron_job(_av_pending_recovery_tick, "av_pending_recovery"),
+                    "interval",
+                    minutes=5,
+                    id="av_pending_recovery",
+                    replace_existing=True,
+                )
+                logger.info("AV pending-recovery job scheduled (every 5 min).")
+            except Exception as e:
+                logger.warning("AV pending-recovery failed to schedule: %s", e)
+
+            # 2026-06-27 — Polish recovery cron.  The deferred-
+            # classifier worker (utils/polish_worker.py) fires a task
+            # per upload, but if the backend restarts mid-drain the
+            # in-memory task dies.  This cron periodically sweeps for
+            # books stuck in classifier:"pending" >2 min old and re-
+            # schedules polish for the owning user.  Tab-close
+            # resilience: even if the user closes the SPA before the
+            # original drain finishes, this cron picks up the
+            # remainder within 5 min.
+            try:
+                from utils.polish_worker import polish_recovery_tick as _polish_tick
+                digest._scheduler.add_job(
+                    wrap_cron_job(_polish_tick, "polish_recovery"),
+                    "interval",
+                    minutes=5,
+                    id="polish_recovery",
+                    replace_existing=True,
+                )
+                logger.info("Polish-recovery job scheduled (every 5 min).")
+            except Exception as e:
+                logger.warning("Polish-recovery failed to schedule: %s", e)
+
+            # 2026-06-27 — Upload-job recovery cron.  Airdrop-mode
+            # uploads (>20 files) have the frontend walk away the
+            # moment the backend accepts the bytes.  If the backend
+            # restarts between byte-acceptance and pipeline-completion
+            # the in-memory _run_upload_job task vanishes.  This cron
+            # re-kicks any upload_jobs row stuck in
+            # queued/processing > 5 min.
+            try:
+                from routes.upload_jobs import recover_stuck_upload_jobs as _upload_recover
+                digest._scheduler.add_job(
+                    wrap_cron_job(_upload_recover, "upload_recovery"),
+                    "interval",
+                    minutes=5,
+                    id="upload_recovery",
+                    replace_existing=True,
+                )
+                logger.info("Upload-job recovery cron scheduled (every 5 min).")
+            except Exception as e:
+                logger.warning("Upload-job recovery failed to schedule: %s", e)
+
+            # 2026-07-01 — Backfill R2 mirror for staged files whose
+            # upload-time R2 mirror failed (even after 3 retries).  Runs
+            # every 2 minutes so the durability window between "bytes
+            # accepted" and "safely on R2" collapses to a couple of
+            # minutes worst case — orders of magnitude smaller than
+            # the multi-hour outage that lost 8 files last night.
+            try:
+                from routes.upload_jobs import backfill_cloud_staging as _backfill_cloud
+                digest._scheduler.add_job(
+                    wrap_cron_job(_backfill_cloud, "backfill_cloud_staging"),
+                    "interval",
+                    minutes=2,
+                    id="backfill_cloud_staging",
+                    replace_existing=True,
+                )
+                logger.info("Cloud-staging backfill cron scheduled (every 2 min).")
+            except Exception as e:
+                logger.warning("Cloud-staging backfill failed to schedule: %s", e)
+
+            # Quarantine sweep — drops _retry_staging/<failure_id>/
+            # dirs older than 7 days.  Pairs with the
+            # `POST /api/uploads/failures/retry-server` flow so
+            # operator disk doesn't accumulate dead bytes from
+            # failures the user never came back to.
+            try:
+                from routes.upload_failures import cleanup_retry_staging
+                digest._scheduler.add_job(
+                    wrap_cron_job(cleanup_retry_staging, "retry_staging_cleanup"),
+                    "cron",
+                    hour=3,
+                    minute=30,
+                    id="retry_staging_cleanup",
+                    replace_existing=True,
+                )
+                logger.info("Retry-staging cleanup scheduled (daily 03:30 UTC).")
+            except Exception as e:
+                logger.warning("Retry-staging cleanup failed to schedule: %s", e)
+
+            # Weekly admin digest — Sundays 09:00 UTC.  Drains the
+            # admin_pending_alerts queue (populated by cron-failure
+            # alerts + other admin signals) into one consolidated
+            # email per real admin.  Resend quota brake — replaces
+            # the per-failure fan-out that was burning 100+
+            # emails/day.  See utils/admin_alerts.py.
+            try:
+                from utils.admin_alerts import weekly_admin_digest_tick
+                digest._scheduler.add_job(
+                    wrap_cron_job(weekly_admin_digest_tick, "weekly_admin_digest"),
+                    "cron",
+                    day_of_week="sun",
+                    hour=9,
+                    minute=0,
+                    id="weekly_admin_digest",
+                    replace_existing=True,
+                )
+                logger.info("Weekly admin digest scheduled (Sundays 09:00 UTC).")
+            except Exception as e:
+                logger.warning("Weekly admin digest failed to schedule: %s", e)
+
+            # Canary throwaway-account sweep — hourly at :05 past the
+            # hour.  The generic fixture purge (above) catches these
+            # after 7 days, but with hourly canary runs that's ~168
+            # lingering rows.  Tighter 60-min cutoff keeps prod
+            # clean while preserving the in-flight canary run's
+            # user (a full canary cycle takes <2 min).  See
+            # routes.admin.sweep_canary_accounts.
+            try:
+                from routes.admin import sweep_canary_accounts
+
+                async def _canary_sweep_tick():
+                    await sweep_canary_accounts(min_age_minutes=60, dry_run=False)
+
+                digest._scheduler.add_job(
+                    wrap_cron_job(_canary_sweep_tick, "canary_account_sweep"),
+                    "cron",
+                    minute=5,
+                    id="canary_account_sweep",
+                    replace_existing=True,
+                )
+                logger.info("Canary throwaway-account sweep scheduled (hourly at :05).")
+            except Exception as e:
+                logger.warning("Canary account sweep failed to schedule: %s", e)
+
+            # Re-engagement nudge — weekly, Tuesday 17:00 UTC.  Sends
+            # a one-shot email to dormant users with incomplete
+            # profiles (created >7d ago, no login in 14d, completeness
+            # < 3, no prior nudge sent).  Capped at 30 sends/tick to
+            # protect the Resend quota; backlog drains over weeks
+            # naturally.  See utils/re_engagement_email.py.
+            try:
+                from utils.re_engagement_email import re_engagement_tick
+
+                digest._scheduler.add_job(
+                    wrap_cron_job(re_engagement_tick, "re_engagement_tick"),
+                    "cron",
+                    day_of_week="tue",
+                    hour=17,
+                    minute=0,
+                    id="re_engagement_tick",
+                    replace_existing=True,
+                )
+                logger.info("Re-engagement nudge scheduled (Tuesdays 17:00 UTC).")
+            except Exception as e:
+                logger.warning("Re-engagement nudge failed to schedule: %s", e)
+
+            # Proactive prod-vs-source drift monitor — hourly at :17.
+            # Runs the deploy_drift_check.py script, stores result in
+            # Mongo.  Added 2026-07-08 after a deploy silently dropped
+            # 19 testids that the old spot-check drift step didn't
+            # detect.  Catches drift the moment it appears (e.g. after
+            # a pod reset) instead of only at deploy time.
+            try:
+                from utils.drift_monitor import run_drift_check_once
+                import asyncio as _asyncio_drift
+
+                async def _drift_tick():
+                    await run_drift_check_once(db)
+
+                digest._scheduler.add_job(
+                    wrap_cron_job(_drift_tick, "drift_check"),
+                    "cron",
+                    minute=17,
+                    id="drift_check",
+                    replace_existing=True,
+                )
+                # Run once at startup so admins get an immediate
+                # result on the drift-status endpoint without waiting
+                # for the top of the next hour.
+                _asyncio_drift.create_task(_drift_tick())
+                logger.info("Drift monitor scheduled (hourly at :17) + kicked at startup.")
+            except Exception as e:
+                logger.warning("Drift monitor failed to schedule: %s", e)
+    except Exception as e:
+        logger.warning("Fixture auto-purge job failed to schedule: %s", e)
+
+    # One-time bootstrap (2026-06): if no user is flagged is_admin yet,
+    # promote the oldest existing account so the operator of a freshly
+    # upgraded install can publish release-note announcements. Subsequent
+    # admins must be promoted manually (Mongo update). Idempotent: noop
+    # after the first run.
+    try:
+        admin_count = await db.users.count_documents({"is_admin": True})
+        if admin_count == 0:
+            oldest = await db.users.find_one(
+                {},
+                {"user_id": 1, "email": 1},
+                sort=[("created_at", 1)],
+            )
+            if oldest:
+                await db.users.update_one(
+                    {"user_id": oldest["user_id"]},
+                    {"$set": {"is_admin": True}},
+                )
+                logger.info(
+                    "Bootstrapped first admin: %s (%s)",
+                    oldest.get("email"),
+                    oldest["user_id"],
+                )
+    except Exception as e:
+        logger.warning("Admin-bootstrap migration: %s", e)
+
+    # Calibre + ClamAV self-heal pipeline (2026-06-18) — chained
+    # sequentially via a single task because apt-get holds an
+    # exclusive lock; running both installs concurrently caused
+    # the second to fail with "Could not get lock /var/lib/dpkg/
+    # lock-frontend" in the first deploy attempt.
+    try:
+        import shutil
+        import asyncio
+        from pathlib import Path as _Path
+
+        async def _self_heal_binaries():
+            # 2026-07-01 (emergency) — operator kill switch.  When
+            # ``AV_DISABLED=1`` is set (e.g. because the pod is on the
+            # 2 Gi tier and every ClamAV invocation OOMs the pod),
+            # skip the entire ClamAV install/download/daemon chain.
+            # Saves ~200 MB of signature download + ~500 MB apt install
+            # transient during boot.  Calibre still installs — it's
+            # PDF/MOBI conversion, unrelated to AV.
+            _av_disabled = os.environ.get("AV_DISABLED", "").lower() in ("1", "true", "yes")
+
+            # ---- Step 1: Calibre (for PDF/MOBI/AZW conversion) -----------
+            if not shutil.which("ebook-convert"):
+                logger.info("Calibre missing — running `apt-get install -y calibre` in background")
+                proc = await asyncio.create_subprocess_exec(
+                    "apt-get", "install", "-y", "calibre",
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                _, stderr = await proc.communicate()
+                if proc.returncode == 0 and shutil.which("ebook-convert"):
+                    logger.info("Calibre installed — uploads will auto-convert from now on")
+                else:
+                    logger.warning("Calibre install failed (rc=%s): %s", proc.returncode, (stderr or b"").decode()[-300:])
+
+            if _av_disabled:
+                logger.warning(
+                    "AV_DISABLED=1 — skipping ClamAV install, freshclam, and daemon start entirely.  "
+                    "Uploads will fail-open (no virus scanning) until memory tier upgrade + env-var flip."
+                )
+                return
+
+            # ---- Step 2: ClamAV (uploads/restores/downloads scanner) ------
+            if not shutil.which("clamscan"):
+                logger.info("ClamAV missing — installing clamav + clamav-daemon")
+                proc = await asyncio.create_subprocess_exec(
+                    "apt-get", "install", "-y", "clamav", "clamav-daemon",
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                _, stderr = await proc.communicate()
+                if proc.returncode != 0:
+                    logger.warning("ClamAV install failed (rc=%s): %s", proc.returncode, (stderr or b"").decode()[-300:])
+                    return
+                # Bump scan size caps so larger EPUB/PDF uploads scan
+                # in full instead of being truncated by clamd's 100M default.
+                try:
+                    cfg = _Path("/etc/clamav/clamd.conf")
+                    if cfg.exists():
+                        txt = cfg.read_text()
+                        txt = txt.replace("MaxScanSize 100M", "MaxScanSize 500M")
+                        txt = txt.replace("MaxFileSize 25M", "MaxFileSize 500M")
+                        cfg.write_text(txt)
+                except Exception as e:
+                    logger.warning("clamd.conf cap bump failed: %s", e)
+
+            # ---- Step 3: download virus signatures (~200 MB) --------------
+            sig_dir = _Path("/var/lib/clamav")
+            if not any(sig_dir.glob("*.c?d")):
+                logger.info("ClamAV signatures missing — running freshclam")
+                proc = await asyncio.create_subprocess_exec(
+                    "freshclam",
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                _, stderr = await proc.communicate()
+                if proc.returncode != 0:
+                    logger.warning("freshclam failed (rc=%s): %s", proc.returncode, (stderr or b"").decode()[-300:])
+
+            # ---- Step 4: standalone-scan mode (no clamd daemon) ------------
+            # 2026-07-01 — Emergent 2 Gi pods can't afford clamd's ~978 MB
+            # steady-state RSS (measured on preview: 978492 KB just to hold
+            # the signature DB in memory).  On a fresh deploy the boot-time
+            # spike (FastAPI + apt-get install calibre transient ~500 MB +
+            # clamd signature load ~1 GB) blew past the 2 Gi cap and put
+            # prod in an OOMKill flap loop.
+            #
+            # Switch to standalone-scan mode: no daemon, each ``clamscan``
+            # invocation loads the DB on-demand (~1 GB transient, ~6-8 s
+            # cold).  Combined with utils/antivirus._AV_SEMAPHORE (max 2
+            # concurrent), idle memory drops to ~400 MB and peak stays
+            # bounded at ~2 GB during scan bursts.  Trade-off: scan
+            # latency ~6 s per file cold vs ~50 ms with clamd — acceptable
+            # for a background-scanned upload path.
+            #
+            # If a memory-tier upgrade lands (>= 4 Gi pod), flip back to
+            # daemon mode by uncommenting the clamd startup block or
+            # setting ``AV_USE_CLAMD=1`` (not yet wired — see roadmap).
+            if os.environ.get("AV_USE_CLAMD") == "1":
+                sock = _Path("/var/run/clamav/clamd.ctl")
+                if not sock.exists() and shutil.which("clamd"):
+                    logger.info("clamd not running — starting in background (AV_USE_CLAMD=1)")
+                    _Path("/var/run/clamav").mkdir(parents=True, exist_ok=True)
+                    try:
+                        import subprocess as _sp
+                        _sp.run(["chown", "clamav:clamav", "/var/run/clamav"], check=False)
+                    except Exception:
+                        pass
+                    await asyncio.create_subprocess_exec(
+                        "clamd",
+                        stdout=asyncio.subprocess.DEVNULL,
+                        stderr=asyncio.subprocess.DEVNULL,
+                    )
+                    for _ in range(60):
+                        if sock.exists():
+                            logger.info("clamd ready — uploads scan from now on")
+                            break
+                        await asyncio.sleep(1)
+                    else:
+                        logger.warning("clamd socket never appeared — antivirus will fail open")
+            else:
+                logger.info(
+                    "clamd daemon disabled (memory-tier constraint) — "
+                    "using standalone `clamscan` with concurrency cap %s",
+                    os.environ.get("AV_MAX_CONCURRENT_SCANS", "1"),
+                )
+
+        asyncio.create_task(_self_heal_binaries())
+    except Exception as e:
+        logger.warning(f"Binary self-heal failed to schedule: {e}")
+
+
+@app.on_event("shutdown")
+async def shutdown_db_client():
+    # Stop the APScheduler BEFORE closing the Mongo client so in-flight
+    # cron jobs don't try to read/write to a closed connection (was
+    # spamming "Cannot use MongoClient after close" on every reload).
+    try:
+        digest.stop_digest_scheduler()
+    except Exception as e:
+        logger.warning("Scheduler shutdown raised: %s", e)
+    client.close()

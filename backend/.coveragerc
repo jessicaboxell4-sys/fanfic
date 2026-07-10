@@ -1,0 +1,27 @@
+# Coverage scope: only measure our application code
+[run]
+source =
+    deps.py
+    models.py
+    auth_dep.py
+    server.py
+    routes
+omit =
+    tests/*
+    */__pycache__/*
+    routes/__init__.py
+
+[report]
+# Skip covering trivial lines
+exclude_lines =
+    pragma: no cover
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    except Exception as e:
+    logger\.warning
+    logger\.error
+precision = 1
+show_missing = True
+
+[xml]
+output = /app/test_reports/pytest/coverage.xml

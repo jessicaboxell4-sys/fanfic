@@ -1,0 +1,19 @@
+# Allow all search engines + AI crawlers full access to the public surface.
+# Disallow the authenticated areas so they don't show up in search snippets
+# (they all 401 anyway, but explicit disallow is cleaner for crawl budget).
+
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /admin/
+Disallow: /account
+Disallow: /account/
+Disallow: /library
+Disallow: /library/
+Disallow: /shelves
+Disallow: /shelves/
+Disallow: /friends
+Disallow: /friends/
+Disallow: /api/
+
+Sitemap: https://shelfsort.com/sitemap.xml

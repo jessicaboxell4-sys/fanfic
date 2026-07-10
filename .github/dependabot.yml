@@ -1,0 +1,69 @@
+version: 2
+
+updates:
+  # Backend: pip
+  - package-ecosystem: "pip"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "backend"
+    commit-message:
+      prefix: "deps(py)"
+      include: "scope"
+    groups:
+      # Bundle minor/patch updates of the same ecosystem to reduce PR noise.
+      backend-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      # Pinned because 2.34.x has a CookieJar regression that breaks integration tests.
+      - dependency-name: "requests"
+        versions: [">=2.34.0"]
+
+  # Frontend: yarn / npm
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "frontend"
+    commit-message:
+      prefix: "deps(js)"
+      include: "scope"
+    groups:
+      frontend-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      # Keep react on the major you've integrated against (currently 19.x)
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major"]
+
+  # GitHub Actions itself
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:00"
+      timezone: "UTC"
+    labels:
+      - "dependencies"
+      - "ci"
+    commit-message:
+      prefix: "deps(ci)"

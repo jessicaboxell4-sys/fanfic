@@ -1,0 +1,195 @@
+<analysis>**original_problem_statement**: Continue building Shelfsort based on user feedback and launch issues. Build Shelfsort, an application to upload, auto-categorize (using AI) EPUB files into categories, tags, and custom shelves. 
+PRODUCT REQUIREMENTS: Fast and reliable bulk book uploads, intelligent classification, secure AV scanning, public-friendly reader experience, and personalization for users based on their preferred library focus.
+
+**User's preferred language**: English (INSTRUCT next agent to respond in English only)
+
+**what currently exists?** 
+A live React + FastAPI + MongoDB application. The application recently suffered severe source-vs-prod drift (17 missing testids). In the previous session, the agent successfully reconstructed all 17 missing testids (Quarantine page, Duplicate dismissals, Why panels) and built an Admin Drift Status card. However, **deployments failed to update the live production bundle** because the user was working in an inactive old chat environment. The user has just forked to this new session to bring all the reconstructed code into a fresh, active environment so deployments will actually work.
+
+**Last working item**:
+    - Last item agent was working: Transitioning the user to a new active fork to resolve the deployment pipeline failure. The agent successfully reconstructed the 17 missing testids and the Drift Status Admin Card, achieving 0 drift, but the inactive environment blocked the live push.
+    - Status: USER VERIFICATION PENDING (User needs to deploy from this new fork and confirm the live bundle hash changes).
+    - Agent Testing Done: Y (Testing agent verified the 17-testid reconstruction perfectly).
+    - Which testing method agent to use? both
+    - User Testing Done: N
+
+**All Pending/In progress Issue list**:  
+  Issue 1: Verify deployment from new fork (Priority P0)
+     - Attempted fixes: The user was instructed to fork the environment to fix the inactive chat deployment bug.
+     - Next debug checklist: Run → Fetching https://shelfsort.com/static/js/main.f3b98cff.js
+  (3,828,124 bytes)
+→ 2,122 distinct data-testid values in prod bundle
+
+✅ Every prod testid is present in source — no regressions would ship.
+
+Summary:
+  prod testids:        2,122
+  prod-only (drift):   0 to ensure it reports 0 drift. Then, the user must trigger a deploy. Verify the production JS bundle hash () changes from the stuck .
+     - Why fix this issue and what will be achieved with the fix? Pushes all the massively reconstructed Quarantine/Duplicate features, the Drift Admin Card, and the Wake Lock features to live production.
+     - Status: USER VERIFICATION PENDING
+     - Is recurring issue? Y (Environment/fork traps).
+     - Should Test frontend/backend/both after fix? both
+     - Blocked on other issue: None
+
+  Issue 2: GitHub Remote Disconnected / Save to Github failing (Priority P1)
+     - Attempted fixes: Support suggested OAuth reconnect and forking the pod.
+     - Next debug checklist: Await Emergent Support's infra escalation and user's OAuth reconnect. Do not force push. Do not CLI git remote.
+     - Why fix this issue and what will be achieved with the fix? Unblocks pushing to GitHub.
+     - Status: BLOCKED (On Emergent Support)
+     - Is recurring issue? Y
+     - Should Test frontend/backend/both after fix? NA
+     - Blocked on other issue: Emergent Support
+
+  Issue 3: 638 books silently dropped during 2,000-book upload (Priority P1)
+     - Attempted fixes: Agent built Wake Lock (Keep-Me-Awake) API feature in preview.
+     - Next debug checklist: Await successful deployment (Issue 1). Post-deployment, user must change duplicate policy to Send to Trash, re-upload folder, keep tab foregrounded, and empty trash.
+     - Why fix this issue and what will be achieved with the fix? Recovers missing files.
+     - Status: USER VERIFICATION PENDING
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix? NA
+     - Blocked on other issue: Issue 1 (Deployment)
+
+**In progress Task List**: 
+  Task 1: Keep-Me-Awake Upload Guard enhancements (Priority P2)
+     - Where to resume:  and backend upload route.
+     - What will be achieved with this? Add resume banner for crashed uploads and server-side idempotency ().
+     - Status: NOT STARTED
+     - Should Test frontend/backend/both after fix? both
+     - Blocked on something: Waiting for P0 Deploy Verification
+
+**Upcoming and Future Tasks**
+  Task 1: Break  into per-category files (Priority P0) - *File is ~8400 lines long.*
+  Task 2: Phase 6C books.py refactoring (Priority P2) - *Break down 4400 LOC monolith.*
+  Task 3: Saved-draft restore-rate stat (Priority P2)
+  Task 4: Re-engagement email preview / send now admin tool (Priority P2)
+  Task 5: Admin  regression counter (Priority P3)
+  Task 6: Surface  on the admin queue dashboard (Priority P3)
+  Task 7: Pair-aware text-contrast lint v2 (Priority P3)
+  Task 8: Real-stage labels on queue-summary strip (Priority P3)
+  Task 9: Ambient Recently active signal on public /community page (Priority P3)
+
+**Completed work in this session**
+- Reconstructed 17 missing testids (, , , etc.) from cached prod bundle (DONE)
+- Created  and  (DONE)
+- Built Drift-Status Admin Card () in  (DONE)
+- Generated safety snapshot backup ZIP of  to protect work (DONE)
+
+**Earlier issues found/mentioned but not fixed**
+   Issue 1: Legacy Pytest timeouts (, )
+   - Debug checklist: Mock external HTTP calls.
+   - Why to solve this issue and what will be achieved with this? Stable test suite.
+   - Should Test frontend/backend/both after fix: backend
+   - Is recurring issue? Y
+
+**Known issue recurrence from previous fork**
+  - Issue recurrence in previous fork: Deployments failed to push new code to production because the user kept working in an inactive old chat after previously forking. Prod JS bundle was stuck on an old hash ().
+  - Recurrence count: 3+ 
+  - Status: USER VERIFICATION PENDING (User just forked to this chat to resolve this).
+
+**Code Architecture**
+
+
+**Key Technical Concepts**
+React Context, FastAPI, MongoDB (Atlas), Cloudflare R2, Wake Lock API, Axios Interceptors, AST/Babel-cache extraction for lost code recovery, deployment drift tracking.
+
+**key DB schema**
+  - : 
+  - : 
+
+**changes in tech stack**
+  - None this session.
+
+**All files of reference** 
+  - → Fetching https://shelfsort.com/static/js/main.f3b98cff.js
+  (3,828,124 bytes)
+→ 2,122 distinct data-testid values in prod bundle
+
+✅ Every prod testid is present in source — no regressions would ship.
+
+Summary:
+  prod testids:        2,122
+  prod-only (drift):   0 (CRITICAL: Must run to verify 0 drift)
+  -  (Newly reconstructed)
+  -  (Newly reconstructed)
+  -  (Newly reconstructed)
+  -  (Modified with )
+  -  (Modified with )
+  -  (Updated with Reconstruction info)
+
+**Areas that need refactoring**: 
+  -  (~8400 LOC).
+  -  (~4400 LOC).
+
+**key api endpoints**
+  - 
+  - 
+  - 
+
+**Critical Info for New Agent**
+- **CRITICAL**: You are in a **NEW FORK**. The user forked this session because their old environment was inactive, preventing their recent deployments from reaching production.
+- **Immediate Step**: Run → Fetching https://shelfsort.com/static/js/main.f3b98cff.js
+  (3,828,124 bytes)
+→ 2,122 distinct data-testid values in prod bundle
+
+✅ Every prod testid is present in source — no regressions would ship.
+
+Summary:
+  prod testids:        2,122
+  prod-only (drift):   0 to confirm it reports **0 drift**. Check that  and  exist. If they do not exist, the fork failed to copy the codebase and you must extract the backup from .
+- **Deployment Verification**: The user needs to trigger a deployment from *this* active environment. Confirm with the user that the live JS bundle hash on production changes away from . Do not begin any refactoring (like AdminConsole or books.py) until the deploy is successful.
+- **Save to Github**: Still broken due to an Emergent platform bug (pod inactive). Support is handling it. Do not attempt to fix or force push.
+
+**documents and test reports created in this job** 
+  - 
+  - 
+  - 
+
+**Last 10 User Messages and any pending HUMAN messages** 
+ - (Agent reconstructed all 17 testids perfectly and tested them via testing subagent.)
+ - (User asked to build the Drift Status Admin card next.)
+ - (Agent built and verified Drift Status Admin card.)
+ - (User deployed to production.)
+ - (User reported the deploy didn't work, prod was still broken, provided screenshots.)
+ - (Agent diagnosed that the deploy failed because the user was working in an old, inactive chat environment. The build pipeline was ignoring the recent code.)
+ - (Agent bundled the code into a ZIP backup and advised the user to FORK the chat to restore an active environment.)
+ - (User asked what to tell the new agent and support before forking.)
+ - (Agent provided this handoff context.)
+ - *(PENDING HUMAN MESSAGE: The user is arriving in this new fork right now. Your first task is to verify the code came over safely (0 drift) and guide them to redeploy.)*
+
+**Project Health Check:**
+Broken: Save to Github (Platform bug).
+Mocked: None.
+
+**3rd Party Integrations** 
+ - Cloudflare R2 (Object Storage) — requires User API Key
+ - Resend (Emails) — requires User API Key
+ - Emergent LLM Key — Claude Text Gen, Nano-Banana Image Gen
+ - Google OAuth (Login) — uses Emergent LLM Key configuration logic internally
+
+**Testing status**
+  - Testing agent used after significant changes: YES ( used to verify 17-testid reconstruction and passed 14/14 backend tests).
+  - Troubleshoot agent used after agent stuck in loop: NO
+  - Test files created: None newly created, existing suites modified.
+  - Known regressions: None (Assuming the fork cleanly ported the rebuilt files).
+
+**Credentials to test flow:**
+Check .
+
+**What agent forgot to execute**
+Nothing was forgotten. The previous agent completed the task, but the environment state blocked the deployment success, prompting this fork.
+
+**Debugging checklist for current issue**
+    Issue: Verify code ported correctly into new fork and deploy updates production bundle.
+    Next Steps:
+    - Run → Fetching https://shelfsort.com/static/js/main.f3b98cff.js
+  (3,828,124 bytes)
+→ 2,122 distinct data-testid values in prod bundle
+
+✅ Every prod testid is present in source — no regressions would ship.
+
+Summary:
+  prod testids:        2,122
+  prod-only (drift):   0. It MUST output .
+    - Check if  and  exist.
+    - If missing: Unzip  to restore the code.
+    - If present: Tell the user to trigger a deploy from this chat. Verify the hash on the deployed frontend changes.</analysis>

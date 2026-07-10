@@ -1,0 +1,90 @@
+{
+  "theme": "light",
+  "archetype": "1 (Organic & Earthy)",
+  "rationale": "For a reading and fanfiction library app, users need a calm, comfortable environment that reduces eye strain while evoking the tactile, cozy feeling of physical books and personal organization. Dark modes can feel too technical or clinical here, while bright neon is distracting.",
+  "colors": {
+    "background": "#FDFBF7",
+    "surface": "#FFFFFF",
+    "surface_hover": "#F5F3EC",
+    "text_primary": "#2C2C2C",
+    "text_secondary": "#6B705C",
+    "primary": "#E07A5F",
+    "primary_hover": "#D1684D",
+    "accent_green": "#3A5A40",
+    "accent_green_muted": "#E5EBE6",
+    "border": "#E8E6E1",
+    "error": "#D9534F"
+  },
+  "typography": {
+    "font_family": {
+      "heading": "Cormorant Garamond, serif",
+      "body": "Manrope, sans-serif"
+    },
+    "hierarchy": {
+      "h1": "text-4xl sm:text-5xl font-medium tracking-tight text-[#2C2C2C]",
+      "h2": "text-2xl sm:text-3xl font-medium tracking-tight text-[#2C2C2C]",
+      "h3": "text-xl sm:text-2xl font-medium text-[#2C2C2C]",
+      "body": "text-base font-normal leading-relaxed text-[#6B705C]",
+      "small": "text-sm font-medium tracking-wide text-[#6B705C]",
+      "overline": "text-xs font-bold uppercase tracking-[0.2em] text-[#3A5A40]"
+    }
+  },
+  "layout_and_spacing": {
+    "container_padding": "p-6 md:p-8 lg:p-12",
+    "grid_library": "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6",
+    "grid_dashboard": "grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6",
+    "border_radius": "rounded-xl",
+    "shadows": {
+      "card": "shadow-sm shadow-black/5",
+      "card_hover": "shadow-md shadow-black/10",
+      "glass": "shadow-[0_8px_32px_rgba(0,0,0,0.08)]"
+    }
+  },
+  "surfaces": {
+    "header": "backdrop-blur-xl bg-[#FDFBF7]/80 border-b border-[#E8E6E1] sticky top-0 z-50",
+    "card_default": "bg-white border border-[#E8E6E1] rounded-xl transition-all duration-200",
+    "card_interactive": "bg-white border border-[#E8E6E1] rounded-xl transition-all duration-200 hover:-translate-y-1 hover:shadow-md hover:border-[#E07A5F]/30",
+    "dropzone": "border-2 border-dashed border-[#E8E6E1] bg-[#FDFBF7] hover:bg-white hover:border-[#E07A5F] transition-colors rounded-2xl flex flex-col items-center justify-center p-16"
+  },
+  "components": {
+    "button_primary": "bg-[#E07A5F] text-white hover:bg-[#D1684D] rounded-lg px-6 py-2.5 font-medium transition-colors focus:ring-2 focus:ring-[#E07A5F]/50 focus:outline-none",
+    "button_secondary": "bg-white border border-[#E8E6E1] text-[#2C2C2C] hover:bg-[#F5F3EC] rounded-lg px-6 py-2.5 font-medium transition-colors",
+    "badge_fandom": "bg-[#E5EBE6] text-[#3A5A40] border border-[#3A5A40]/20 px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider",
+    "badge_original": "bg-[#FDF3E1] text-[#B87A00] border border-[#B87A00]/20 px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider"
+  },
+  "media": {
+    "app_logo": {
+      "url": "https://static.prod-images.emergentagent.com/jobs/a7cbf064-1bb1-48e6-b642-01b29d2915a4/images/eac8f0e5102ecaa7b07814b173c4b7ac58ec614a37bd9b76de1a206265a626c4.png",
+      "description": "Minimalist logo of an open book with leaves growing out, terracotta and dark green",
+      "usage": "Top left navbar, Auth page logo, Favicon inspiration"
+    },
+    "auth_hero_bg": {
+      "url": "https://static.prod-images.emergentagent.com/jobs/a7cbf064-1bb1-48e6-b642-01b29d2915a4/images/69b714e80ad3526797631c1c9c820d1ffe10c66de28dc4bc99a11bde433fe454.png",
+      "description": "Warm digital illustration of a cozy reading corner with a comfortable chair, sunlight, stacks of books.",
+      "usage": "Split screen background for the Auth/Login page"
+    },
+    "empty_state_books": {
+      "url": "https://images.pexels.com/photos/35972719/pexels-photo-35972719.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Minimalist stack of books",
+      "usage": "Empty state illustration when the library has no EPUBs yet"
+    },
+    "google_drive_icon": {
+      "url": "https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg",
+      "description": "Official Google Drive Icon",
+      "usage": "Import from Google Drive button"
+    }
+  },
+  "interactions_and_motion": {
+    "hover_states": "All cards and buttons must have distinct hover states. Use transform -translate-y-1 for book cover cards.",
+    "page_transitions": "Fade in on page load using framer-motion (opacity 0 to 1, y: 10 to 0).",
+    "accessibility": "Ensure focus rings (focus:ring-2 focus:ring-[#E07A5F]/50) are visible on keyboard navigation."
+  },
+  "instructions_to_main_agent": [
+    "Use Lucide-React for all icons (Book, Library, UploadCloud, Download, Trash, Tag).",
+    "Use standard Tailwind classes as mapped in the typography and colors sections.",
+    "For the library view, books should use aspect ratio 2:3 for the cover images.",
+    "Include data-testid on all interactive elements (e.g., data-testid='upload-epub-button', data-testid='book-card-1').",
+    "Do NOT use transparent navigation headers; use the defined header surface style with backdrop-blur.",
+    "For Shadcn components, heavily customize to remove the default 'Vercel/Stripe' monochrome look. Inject the Organic Earthy palette (Terracotta/Forest Green)."
+  ]
+}

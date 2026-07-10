@@ -1,0 +1,396 @@
+import React from "react";
+import "@/App.css";
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from "react-router-dom";
+import { Toaster } from "sonner";
+
+import { AuthProvider, useAuth } from "@/context/AuthContext";
+import TourOverlay, { hasSeenTour } from "@/components/TourOverlay";
+import AppErrorBoundary from "@/components/AppErrorBoundary";
+import { useAttributionCapture } from "@/hooks/useAttributionCapture";
+import GlobalConfettiHost from "@/components/GlobalConfettiHost";
+import { ThemeProvider, useTheme } from "@/context/ThemeContext";
+import { PaletteProvider } from "@/context/PaletteContext";
+import UrlPasteDetector from "@/components/UrlPasteDetector";
+import { FETCHING_UI_ENABLED } from "@/lib/featureFlags";
+import Landing from "@/pages/Landing";
+import Login from "@/pages/Login";
+import Privacy from "@/pages/Privacy";
+import Terms from "@/pages/Terms";
+import KindleImport from "@/pages/KindleImport";
+import Changelog from "@/pages/Changelog";
+import Dashboard from "@/pages/Dashboard";
+import BookDetail from "@/pages/BookDetail";
+import FandomShelf from "@/pages/FandomShelf";
+import SeriesShelf from "@/pages/SeriesShelf";
+import AuthorShelf from "@/pages/AuthorShelf";
+import StatsPage from "@/pages/StatsPage";
+import GoalsPage from "@/pages/GoalsPage";
+import YearInBooksPage from "@/pages/YearInBooksPage";
+import PublicYearInBooks from "@/pages/PublicYearInBooks";
+import PublicCoverProfile from "@/pages/PublicCoverProfile";
+import PublicLibraryView from "@/pages/PublicLibraryView";
+import FandomDiscoveryPage from "@/pages/FandomDiscoveryPage";
+import PublicCoverDetail from "@/pages/PublicCoverDetail";
+import ExploreCoversPage from "@/pages/ExploreCoversPage";
+import CoverArchivePage from "@/pages/CoverArchivePage";
+import StuckBooksPage from "@/pages/StuckBooksPage";
+import SmartShelves from "@/pages/SmartShelves";
+import SmartShelfPage from "@/pages/SmartShelfPage";
+import AllBooksPage from "@/pages/AllBooksPage";
+import ReadingQueuePage from "@/pages/ReadingQueuePage";
+import TagCloudPage from "@/pages/TagCloudPage";
+import TagShelfPage from "@/pages/TagShelfPage";
+import CantFindOnline from "@/pages/CantFindOnline";
+import Account from "@/pages/Account";
+import AppearancePage from "@/pages/AppearancePage";
+import FriendsPage from "@/pages/FriendsPage";
+import UsersDirectory from "@/pages/UsersDirectory";
+import CommunityPage from "@/pages/CommunityPage";
+import RecentlyAddedPage from "@/pages/RecentlyAddedPage";
+import BookclubsPage from "@/pages/BookclubsPage";
+import RecommendationsPage from "@/pages/RecommendationsPage";
+import SuggestionsPage from "@/pages/SuggestionsPage";
+import InviteAcceptPage from "@/pages/InviteAcceptPage";
+import Reader from "@/pages/Reader";
+import ReadOriginal from "@/pages/ReadOriginal";
+import CompareVersions from "@/pages/CompareVersions";
+import EmailPreferences from "@/pages/EmailPreferences";
+import FindDuplicates from "@/pages/FindDuplicates";
+import Trash from "@/pages/Trash";
+import Quarantine from "@/pages/Quarantine";
+import UnreadLibraryPage from "@/pages/UnreadLibraryPage";
+import BookmarksPage from "@/pages/BookmarksPage";
+import Conversions from "@/pages/Conversions";
+import FilterUrlList from "@/pages/FilterUrlList";
+import DownloadPage from "@/pages/DownloadPage";
+import CrossoverShelf from "@/pages/CrossoverShelf";
+import LinklessShelf from "@/pages/LinklessShelf";
+import PolishLibraryPage from "@/pages/PolishLibraryPage";
+import PolishCoversPage from "@/pages/PolishCoversPage";
+import UnreadableShelf from "@/pages/UnreadableShelf";
+import UnknownSourcesPage from "@/pages/UnknownSourcesPage";
+import { CompleteShelf, OngoingShelf } from "@/pages/StatusShelves";
+import { AuthorsDirectory } from "@/pages/AuthorsPage";
+import { PairingsDirectory, PairingShelf } from "@/pages/PairingsPage";
+import { CharactersDirectory, CharacterShelf } from "@/pages/CharactersPage";
+import RestoreBackupPage from "@/pages/RestoreBackupPage";
+import OriginalsShelf from "@/pages/OriginalsShelf";
+import Help from "@/pages/Help";
+import Rules from "@/pages/Rules";
+import AccountSafety from "@/pages/AccountSafety";
+import AdminConsole from "@/pages/AdminConsole";
+import AdminHelp from "@/pages/AdminHelp";
+import AdminTestAccounts from "@/pages/AdminTestAccounts";
+import AdminViewAs from "@/pages/AdminViewAs";
+import ModInbox from "@/pages/ModInbox";
+import AuthCallback from "@/pages/AuthCallback";
+import ResetPassword from "@/pages/ResetPassword";
+import Status from "@/pages/Status";
+import MaintenanceBanner from "@/components/MaintenanceBanner";
+import NewVersionBanner from "@/components/NewVersionBanner";
+import PendingDeletionBanner from "@/components/PendingDeletionBanner";
+import AvRescanNudgeBanner from "@/components/AvRescanNudgeBanner";
+
+function ProtectedRoute({ children }) {
+  const { user, loading } = useAuth();
+  const location = useLocation();
+  // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
+  //
+  // 2026-06-30 — Race-condition fix for Google OAuth flow.
+  // Symptom (reported by user): after clicking "Sign in with Google" on
+  // production, users get bounced back to /login instead of landing on
+  // /library.
+  //
+  // Root cause: AuthCallback POSTs the session_id, calls
+  // `loginSuccess(data)` (which schedules `setUser(data)` on the
+  // AuthContext), then immediately `navigate("/library", { state: { user: data } })`.
+  // In React 18 the setUser may not have committed by the time
+  // ProtectedRoute renders — so `useAuth()` returns `user: null`,
+  // `loading: false`, and ProtectedRoute redirects to /login before the
+  // next render can flush.
+  //
+  // The Emergent Auth playbook prescribes exactly this: check
+  // `location.state?.user` FIRST as an authoritative "just-authenticated"
+  // signal, and only fall back to the AuthContext when that's absent.
+  // Since AuthCallback always passes the user in state, the OAuth flow
+  // becomes race-free.
+  if (location.state?.user) return children;
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-paper">
+        <div className="h-8 w-8 border-2 border-[#E07A5F] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+  if (!user) return <Navigate to="/login" replace />;
+  return children;
+}
+
+function AdminRoute({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-paper">
+        <div className="h-8 w-8 border-2 border-[#E07A5F] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+  if (!user) return <Navigate to="/login" replace />;
+  if (!user.is_admin) return <Navigate to="/library" replace />;
+  return children;
+}
+
+// ModeratorRoute — passes for mods OR admins so the Mod Inbox is reachable
+// by either role.  Mods who try to hit /admin (the full console) still
+// bounce back to /library via AdminRoute above; this gate exists so
+// /admin/pending and similar focused pages aren't admin-exclusive.
+function ModeratorRoute({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-paper">
+        <div className="h-8 w-8 border-2 border-[#E07A5F] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+  if (!user) return <Navigate to="/login" replace />;
+  if (!user.is_admin && !user.is_moderator) return <Navigate to="/library" replace />;
+  return children;
+}
+
+function AppRouter() {
+  const location = useLocation();
+  // Attribution capture — fires ONCE per browser session (localStorage
+  // + sessionStorage gated), records where the visitor arrived from.
+  // See hooks/useAttributionCapture.js.
+  useAttributionCapture();
+  // Detect Emergent OAuth callback in URL fragment, handle BEFORE normal routing.
+  if (location.hash?.includes("session_id=")) {
+    return <AuthCallback />;
+  }
+  return (
+    <>
+      <Routes>
+      <Route path="/" element={<Landing />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/privacy" element={<Privacy />} />
+      <Route path="/terms" element={<Terms />} />
+      <Route path="/help/kindle-import" element={<KindleImport />} />
+      <Route path="/changelog" element={<Changelog />} />
+      <Route path="/status" element={<Status />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/share/yib/:token" element={<PublicYearInBooks />} />
+      <Route path="/u/:username" element={<PublicCoverProfile />} />
+      <Route path="/u/:username/library" element={<PublicLibraryView />} />
+      <Route path="/explore/fandom/:fandom" element={<FandomDiscoveryPage />} />
+      <Route path="/cover/:coverId" element={<PublicCoverDetail />} />
+      <Route path="/explore/covers" element={<ExploreCoversPage />} />
+      <Route path="/cover-archive" element={<CoverArchivePage />} />
+      <Route path="/library/stuck" element={<ProtectedRoute><StuckBooksPage /></ProtectedRoute>} />
+      <Route path="/library" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+      <Route path="/library/all" element={<ProtectedRoute><AllBooksPage /></ProtectedRoute>} />
+      <Route path="/library/queue" element={<ProtectedRoute><ReadingQueuePage /></ProtectedRoute>} />
+      <Route path="/library/fandom/:fandom" element={<ProtectedRoute><FandomShelf /></ProtectedRoute>} />
+      <Route path="/library/series/:name" element={<ProtectedRoute><SeriesShelf /></ProtectedRoute>} />
+      <Route path="/library/author/:name" element={<ProtectedRoute><AuthorShelf /></ProtectedRoute>} />
+      <Route path="/library/stats" element={<ProtectedRoute><StatsPage /></ProtectedRoute>} />
+      <Route path="/goals" element={<ProtectedRoute><GoalsPage /></ProtectedRoute>} />
+      <Route path="/library/year/:year" element={<ProtectedRoute><YearInBooksPage /></ProtectedRoute>} />
+      <Route path="/library/smart-shelves" element={<ProtectedRoute><SmartShelves /></ProtectedRoute>} />
+      <Route path="/library/smart/:id" element={<ProtectedRoute><SmartShelfPage /></ProtectedRoute>} />
+      <Route path="/library/tags" element={<ProtectedRoute><TagCloudPage /></ProtectedRoute>} />
+      <Route path="/library/tag/:name" element={<ProtectedRoute><TagShelfPage /></ProtectedRoute>} />
+      <Route path="/library/lost-found" element={<ProtectedRoute><CantFindOnline /></ProtectedRoute>} />
+      {/* Legacy URL — kept as a redirect so old bookmarks still resolve.
+          The canonical path is /library/lost-found (less indexable). */}
+      <Route path="/library/cant-find-online" element={<Navigate to="/library/lost-found" replace />} />
+      <Route path="/library/unread" element={<ProtectedRoute><UnreadLibraryPage /></ProtectedRoute>} />
+      <Route path="/library/polish" element={<ProtectedRoute><PolishLibraryPage /></ProtectedRoute>} />
+      <Route path="/library/polish-covers" element={<ProtectedRoute><PolishCoversPage /></ProtectedRoute>} />
+      <Route path="/bookmarks" element={<ProtectedRoute><BookmarksPage /></ProtectedRoute>} />
+      <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
+      <Route path="/account/appearance" element={<ProtectedRoute><AppearancePage /></ProtectedRoute>} />
+      <Route path="/messages" element={<Navigate to="/friends" replace />} />
+      <Route path="/messages/:roomId" element={<MessagesRoomRedirect />} />
+      <Route path="/friends" element={<ProtectedRoute><FriendsPage /></ProtectedRoute>} />
+      <Route path="/users" element={<ProtectedRoute><UsersDirectory /></ProtectedRoute>} />
+      <Route path="/community" element={<ProtectedRoute><CommunityPage /></ProtectedRoute>} />
+      <Route path="/library/recently-added" element={<ProtectedRoute><RecentlyAddedPage /></ProtectedRoute>} />
+      <Route path="/bookclubs" element={<ProtectedRoute><BookclubsPage /></ProtectedRoute>} />
+      <Route path="/bookclubs/:roomId" element={<ProtectedRoute><BookclubsPage /></ProtectedRoute>} />
+      <Route path="/library/recommendations" element={<ProtectedRoute><RecommendationsPage /></ProtectedRoute>} />
+      <Route path="/suggestions" element={<ProtectedRoute><SuggestionsPage /></ProtectedRoute>} />
+      <Route path="/invite/:token" element={<InviteAcceptPage />} />
+      <Route path="/account/emails" element={<ProtectedRoute><EmailPreferences /></ProtectedRoute>} />
+      <Route path="/account/duplicates" element={<ProtectedRoute><FindDuplicates /></ProtectedRoute>} />
+      <Route path="/library/trash" element={<ProtectedRoute><Trash /></ProtectedRoute>} />
+      <Route path="/library/quarantine" element={<ProtectedRoute><Quarantine /></ProtectedRoute>} />
+      <Route path="/library/conversions" element={<ProtectedRoute><Conversions /></ProtectedRoute>} />
+      <Route path="/library/filter-urls" element={<ProtectedRoute><FilterUrlList /></ProtectedRoute>} />
+      <Route path="/library/download" element={<ProtectedRoute><DownloadPage /></ProtectedRoute>} />
+      <Route path="/library/crossovers" element={<ProtectedRoute><CrossoverShelf /></ProtectedRoute>} />
+      <Route path="/library/linkless" element={<ProtectedRoute><LinklessShelf /></ProtectedRoute>} />
+      <Route path="/library/unreadable" element={<ProtectedRoute><UnreadableShelf /></ProtectedRoute>} />
+      <Route path="/admin/unknown-sources" element={<ProtectedRoute><UnknownSourcesPage /></ProtectedRoute>} />
+      <Route path="/library/complete" element={<ProtectedRoute><CompleteShelf /></ProtectedRoute>} />
+      <Route path="/library/ongoing" element={<ProtectedRoute><OngoingShelf /></ProtectedRoute>} />
+      <Route path="/library/authors" element={<ProtectedRoute><AuthorsDirectory /></ProtectedRoute>} />
+      <Route path="/library/pairings" element={<ProtectedRoute><PairingsDirectory /></ProtectedRoute>} />
+      <Route path="/library/by-pairing/:pairing" element={<ProtectedRoute><PairingShelf /></ProtectedRoute>} />
+      <Route path="/library/characters" element={<ProtectedRoute><CharactersDirectory /></ProtectedRoute>} />
+      <Route path="/library/by-character/:character" element={<ProtectedRoute><CharacterShelf /></ProtectedRoute>} />
+      <Route path="/account/restore" element={<ProtectedRoute><RestoreBackupPage /></ProtectedRoute>} />
+      <Route path="/library/originals" element={<ProtectedRoute><OriginalsShelf /></ProtectedRoute>} />
+      <Route path="/help" element={<Help />} />
+      <Route path="/rules" element={<Rules />} />
+      <Route path="/account/safety" element={<ProtectedRoute><AccountSafety /></ProtectedRoute>} />
+      <Route path="/admin" element={<AdminRoute><AdminConsole /></AdminRoute>} />
+      <Route path="/admin/help" element={<AdminRoute><AdminHelp /></AdminRoute>} />
+      <Route path="/admin/test-accounts" element={<AdminRoute><AdminTestAccounts /></AdminRoute>} />
+      <Route path="/admin/pending" element={<ModeratorRoute><ModInbox /></ModeratorRoute>} />
+      <Route path="/admin/view/:uid" element={<AdminRoute><AdminViewAs /></AdminRoute>} />
+      <Route path="/book/:id" element={<ProtectedRoute><BookDetail /></ProtectedRoute>} />
+      <Route path="/book/:id/compare" element={<ProtectedRoute><CompareVersions /></ProtectedRoute>} />
+      <Route path="/read/:id" element={<ProtectedRoute><Reader /></ProtectedRoute>} />
+      <Route path="/read-original/:id" element={<ProtectedRoute><ReadOriginal /></ProtectedRoute>} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+    <TourMount />
+    <ThemeKeyboardShortcut />
+    </>
+  );
+}
+
+function MessagesRoomRedirect() {
+  // Old deep-link `/messages/:roomId` still appears in older emails/notifications.
+  // The route was retired in 2026-06-14 in favour of the inline DmDrawer on
+  // /friends.  Preserve the roomId so FriendsPage can auto-open the matching
+  // DM drawer instead of dropping the user on the bare /friends page.
+  const { roomId } = useParams();
+  return <Navigate to={`/friends?room=${encodeURIComponent(roomId || "")}`} replace />;
+}
+
+function TourMount() {
+  const { user, loading } = useAuth();
+  const location = useLocation();
+  const [open, setOpen] = React.useState(false);
+  React.useEffect(() => {
+    if (loading || !user) return;
+    if (hasSeenTour()) return;
+    // 2026-06-20 — Deep-link past the welcome tour when arriving on
+    // a shared reader URL.  Two heuristics:
+    //   1. The path is `/read/<book_id>` (someone followed a "read
+    //      this!" link) — popping the tour over their book is rude.
+    //   2. The URL carries `?from=share` (or `?ref=share`) explicitly.
+    // We mark the tour seen so the next visit also stays out of the
+    // way — they've already been onboarded by the link giver.
+    try {
+      const params = new URLSearchParams(location.search || "");
+      const fromShare = params.get("from") === "share" || params.get("ref") === "share";
+      const onReader = /^\/read\/[^/]+/.test(location.pathname || "");
+      if (fromShare || onReader) {
+        try { window.localStorage.setItem("shelfsort_tour_seen", "1"); } catch { /* ignore */ }
+        return;
+      }
+    } catch { /* ignore */ }
+    // Brief delay so the destination page mounts first.  Honors three
+    // bypass signals so testing harnesses (Playwright in fresh browser
+    // contexts always lacks localStorage) and demo screenshots can
+    // suppress the tour without touching localStorage manually:
+    //   1. `?notour=1` query string on the destination URL
+    //   2. `?test=1` query string (also used by the testing agent for
+    //      other test-mode hints; surfaced here so the tour overlay
+    //      doesn't mask admin testids)
+    //   3. Presence of a `window.__shelfsort_disable_tour__` flag on
+    //      the window object (script-injection escape hatch)
+    try {
+      const params = new URLSearchParams(location.search || "");
+      const noTourParam = params.get("notour") === "1" || params.get("test") === "1";
+      const windowFlag = typeof window !== "undefined" && window.__shelfsort_disable_tour__ === true;
+      if (noTourParam || windowFlag) {
+        try { window.localStorage.setItem("shelfsort_tour_seen", "1"); } catch { /* ignore */ }
+        return;
+      }
+    } catch { /* ignore */ }
+    const id = setTimeout(() => setOpen(true), 600);
+    return () => clearTimeout(id);
+  }, [loading, user, location.pathname, location.search]);
+  React.useEffect(() => {
+    const fn = () => setOpen(true);
+    window.addEventListener("shelfsort:replay-tour", fn);
+    return () => window.removeEventListener("shelfsort:replay-tour", fn);
+  }, []);
+  return <TourOverlay open={open} onClose={() => setOpen(false)} />;
+}
+
+/**
+ * Theme keyboard shortcut — Cmd/Ctrl + Shift + D toggles light/dark.
+ * Mounts a single global listener at the app root so the shortcut
+ * works from any page.  Skipped when the user is typing into an
+ * input/textarea/contenteditable so we don't fight the OS bookmark-
+ * sidebar shortcut.
+ */
+function ThemeKeyboardShortcut() {
+  const { toggleTheme } = useTheme();
+  React.useEffect(() => {
+    const onKey = (e) => {
+      if (!(e.shiftKey && (e.metaKey || e.ctrlKey))) return;
+      if ((e.key || "").toLowerCase() !== "d") return;
+      const t = e.target;
+      const tag = (t?.tagName || "").toLowerCase();
+      if (tag === "input" || tag === "textarea" || t?.isContentEditable) return;
+      e.preventDefault();
+      toggleTheme();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [toggleTheme]);
+  return null;
+}
+
+/**
+ * ThemedToaster — a small wrapper so the sonner Toaster picks up the
+ * current app theme.  Sonner's `richColors` variant renders red/green
+ * toast bodies that need a `theme` hint to swap between light and
+ * dark palettes; passing the value from `useTheme()` keeps the toasts
+ * legible when the user is in dark mode (was rendering as bright
+ * white blocks on the dark page — audit iteration 69).
+ */
+function ThemedToaster() {
+  const { theme } = useTheme();
+  return <Toaster position="top-center" richColors theme={theme} />;
+}
+
+function App() {
+  return (
+    <div className="App">
+      <BrowserRouter>
+        <ThemeProvider>
+          <PaletteProvider>
+            <AuthProvider>
+              {/* 2026-06-30 — AppErrorBoundary wraps the routed
+                  subtree so an unhandled render error on any route
+                  surfaces a friendly recovery screen instead of a
+                  blank document.  Sits INSIDE the providers (so the
+                  fallback UI still gets palette/theme tokens) but
+                  OUTSIDE the route component so navigating to a
+                  different page after a crash works. */}
+              <PendingDeletionBanner />
+              <MaintenanceBanner />
+              <NewVersionBanner />
+              <AvRescanNudgeBanner />
+              {FETCHING_UI_ENABLED && <UrlPasteDetector />}
+              <AppErrorBoundary>
+                <AppRouter />
+              </AppErrorBoundary>
+              <GlobalConfettiHost />
+              <ThemedToaster />
+            </AuthProvider>
+          </PaletteProvider>
+        </ThemeProvider>
+      </BrowserRouter>
+    </div>
+  );
+}
+
+export default App;

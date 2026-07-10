@@ -1,0 +1,235 @@
+name: Production smoke canary
+
+# Nightly + on-demand smoke test against the LIVE production deploy.
+#
+# Hits the production HTTPS URL (via SHELFSORT_PROD_URL secret) with
+# the same 22-test regression smoke band that CI runs at PR time.
+# Creates a fresh throwaway account per run (prefix
+# `shelfsort-canary-…@example.com`) — the test fixture handles
+# registration + cleanup-on-failure is best-effort via the prefix.
+#
+# When the canary fails, an issue is auto-filed against the repo so
+# the operator sees it next time they open GitHub.
+#
+# Setup required (one-time, repo settings → Secrets and variables):
+#   • SHELFSORT_PROD_URL — full HTTPS URL of the production backend
+#     (e.g. https://shelfsort.com).  Used as REACT_APP_BACKEND_URL.
+
+on:
+  schedule:
+    # 03:00 UTC every day — middle of the US night, low-traffic
+    # window for the production app.  Adjust if it conflicts with
+    # scheduled maintenance.
+    - cron: "0 3 * * *"
+  workflow_dispatch: {}   # Allow manual runs from the Actions UI.
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    # The `Open an issue if the canary failed` step uses GITHUB_TOKEN
+    # to file an alert issue.  Default workflow token is read-only, so
+    # we explicitly grant `issues: write` (and `contents: read` for
+    # checkout) here.  Without this, the step 403s with
+    # `Resource not accessible by integration`.
+    permissions:
+      contents: read
+      issues: write
+
+    env:
+      # Pytest reads BASE_URL via REACT_APP_BACKEND_URL — pointing it
+      # at prod is the ONE knob that flips the smoke into canary mode.
+      REACT_APP_BACKEND_URL: ${{ secrets.SHELFSORT_PROD_URL }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Symlink /app to checkout for hardcoded test paths
+        # Tests reference absolute /app/... paths — see the same step
+        # in backend-tests.yml for the full explanation.
+        run: sudo ln -sfn "$GITHUB_WORKSPACE" /app
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install minimal test deps
+        # Only what the smoke band imports — no need for the full
+        # backend requirements.  Keeps the canary fast (~30 s cold).
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest requests
+
+      - name: Verify prod URL is configured
+        run: |
+          if [ -z "${REACT_APP_BACKEND_URL}" ]; then
+            echo "::error::SHELFSORT_PROD_URL secret is not set."
+            echo "::error::Add it under repo Settings → Secrets → Actions."
+            exit 1
+          fi
+          echo "Canary target: ${REACT_APP_BACKEND_URL}"
+
+      - name: Probe /api/health (fast-fail on env-config regression)
+        # Hits the public /api/health probe FIRST, before running the
+        # full smoke band.  Catches the prod-outage fingerprint (CF
+        # 520 on every endpoint after MANAGE_SECRETS drops MONGO_URL
+        # because .gitignore re-added .env blocks) in <2 s instead of
+        # waiting for the full smoke band to time out and time-bleed
+        # the on-call's morning.
+        #
+        # Surfaces three failure modes loudly:
+        #   1. /api/health unreachable → CF 520 / pod down
+        #   2. checks.env_config.ok == false → missing/malformed env
+        #   3. checks.mongo.ok == false → Mongo connection broken
+        # Each failure prints the exact failing var/error so the alert
+        # text is actionable without needing to dig through logs.
+        run: |
+          set +e
+          HTTP_CODE=$(curl -sS -o /tmp/health.json -w "%{http_code}" -m 15 \
+            "${REACT_APP_BACKEND_URL}/api/health")
+          CURL_RC=$?
+          set -e
+          if [ "$CURL_RC" != "0" ] || [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::/api/health unreachable (curl=$CURL_RC http=$HTTP_CODE). Prod pod is likely down or CF↔origin broken."
+            cat /tmp/health.json 2>/dev/null | head -40 || true
+            exit 1
+          fi
+          # Parse with python (already on the runner) — jq isn't preinstalled.
+          python <<'PY'
+          import json, sys
+          with open("/tmp/health.json") as f:
+              h = json.load(f)
+          status = h.get("status")
+          checks = h.get("checks", {})
+          env_cfg = checks.get("env_config", {})
+          mongo   = checks.get("mongo", {})
+          print(f"::notice::/api/health → status={status} boot_id={h.get('boot_id')} version={h.get('version')}")
+          if not env_cfg.get("ok", False):
+              findings = env_cfg.get("findings") or []
+              names = ", ".join(f.get("var", "?") for f in findings) or "(no detail)"
+              print(f"::error::env_config FAIL — missing/malformed: {names}")
+              for f in findings:
+                  print(f"::error::  ✗ {f.get('var')}: {f.get('error')}")
+              print("::error::This is the .gitignore-blocks-.env / MANAGE_SECRETS regression.")
+              print("::error::Fix: ensure backend/.env and frontend/.env are committed (run scripts/check_gitignore_health.py).")
+              sys.exit(2)
+          if not mongo.get("ok", False):
+              print(f"::error::mongo FAIL — {mongo.get('error', 'unknown')}")
+              sys.exit(3)
+          print("✓ /api/health → status:ok, env_config:ok, mongo:ok — safe to run full smoke band")
+          PY
+
+      - name: Run regression smoke against prod
+        id: smoke
+        working-directory: backend
+        run: |
+          chmod +x scripts/run_regression_smoke.sh
+          START_TS=$(date +%s)
+          set +e
+          ./scripts/run_regression_smoke.sh 2>&1 | tee /tmp/canary.log
+          STATUS=${PIPESTATUS[0]}
+          set -e
+          END_TS=$(date +%s)
+          echo "duration_s=$((END_TS - START_TS))" >> $GITHUB_OUTPUT
+          echo "exit_code=$STATUS" >> $GITHUB_OUTPUT
+          # Pull pass/total from pytest's summary line (e.g. "27 passed").
+          PASSED=$(grep -oE '[0-9]+ passed' /tmp/canary.log | tail -1 | awk '{print $1}')
+          FAILED=$(grep -oE '[0-9]+ failed' /tmp/canary.log | tail -1 | awk '{print $1}')
+          PASSED=${PASSED:-0}
+          FAILED=${FAILED:-0}
+          echo "passed_count=$PASSED" >> $GITHUB_OUTPUT
+          echo "failed_count=$FAILED" >> $GITHUB_OUTPUT
+          echo "total_count=$((PASSED + FAILED))" >> $GITHUB_OUTPUT
+          exit $STATUS
+
+      - name: Auth-flow probe (2026-06-28)
+        # Smoke-checks the auth pipeline end-to-end against prod.
+        # Catches the "Mongo pool warmup race after redeploy" class
+        # of bug we saw 2026-06-28 — the regression-smoke band
+        # creates a fresh account per run, but doesn't specifically
+        # assert the cookie + /auth/me round-trip survives.
+        # This probe does exactly that:
+        #   1. POST /api/auth/register with a throwaway account.
+        #   2. Re-fetch the cookie from the response.
+        #   3. GET /api/auth/me with that cookie.
+        #   4. Assert 200 + the returned user_id matches.
+        # If any of the four fails, the canary fails — same alert
+        # path as the regression band.
+        if: always() && env.REACT_APP_BACKEND_URL != ''
+        run: |
+          set -e
+          STAMP=$(date +%s)
+          EMAIL="shelfsort-canary-auth-${STAMP}@example.com"
+          PW="canary-${STAMP}-aB1!"
+          REG=$(curl -sS -c /tmp/canary-cookies.txt \
+            -X POST "${REACT_APP_BACKEND_URL}/api/auth/register" \
+            -H "Content-Type: application/json" \
+            --data "{\"email\":\"$EMAIL\",\"password\":\"$PW\",\"name\":\"Canary Auth\"}" \
+            -w "HTTP:%{http_code}" -o /tmp/reg.json)
+          REG_CODE=$(echo "$REG" | grep -oE 'HTTP:[0-9]+' | cut -d: -f2)
+          if [ "$REG_CODE" != "200" ] && [ "$REG_CODE" != "201" ]; then
+            echo "::error::auth canary: /auth/register returned $REG_CODE (expected 200/201)"
+            cat /tmp/reg.json
+            exit 1
+          fi
+          ME=$(curl -sS -b /tmp/canary-cookies.txt \
+            "${REACT_APP_BACKEND_URL}/api/auth/me" \
+            -w "HTTP:%{http_code}" -o /tmp/me.json)
+          ME_CODE=$(echo "$ME" | grep -oE 'HTTP:[0-9]+' | cut -d: -f2)
+          if [ "$ME_CODE" != "200" ]; then
+            echo "::error::auth canary: /auth/me returned $ME_CODE — session cookie not surviving redeploy"
+            cat /tmp/me.json
+            exit 1
+          fi
+          USER_ID=$(python -c "import json,sys;print(json.load(open('/tmp/me.json')).get('user_id',''))")
+          if [ -z "$USER_ID" ]; then
+            echo "::error::auth canary: /auth/me returned 200 but no user_id"
+            cat /tmp/me.json
+            exit 1
+          fi
+          echo "✓ auth canary: register → cookie → /auth/me round-trip passed (user_id=$USER_ID)"
+
+      - name: Push canary result to AdminConsole widget
+        # GitHub Actions doesn't allow `secrets.X` in `if:` expressions
+        # for security.  Instead we map the secret to env at step scope
+        # then check env in the `if`.  Empty env means the secret is
+        # unset → skip the push instead of failing.
+        if: always() && env.REACT_APP_BACKEND_URL != '' && env.CANARY_REPORT_SECRET != ''
+        env:
+          CANARY_REPORT_SECRET: ${{ secrets.CANARY_REPORT_SECRET }}
+        # POSTs a row to /api/canary/report so the in-app widget can
+        # plot a 7-day uptime sparkline.  Auth via shared secret —
+        # set CANARY_REPORT_SECRET in repo secrets to enable this.
+        # `if: always()` makes the report run on both pass AND fail.
+        run: |
+          STATUS="${{ steps.smoke.outcome == 'success' && 'pass' || 'fail' }}"
+          # Trim the log to the last 60 lines so the body stays light.
+          TAIL=$(tail -n 60 /tmp/canary.log 2>/dev/null | python -c 'import sys,json;print(json.dumps(sys.stdin.read()))')
+          PAYLOAD=$(cat <<EOF
+          {
+            "run_id":      "${{ github.run_id }}",
+            "status":      "$STATUS",
+            "passed":      ${{ steps.smoke.outputs.passed_count || 0 }},
+            "total":       ${{ steps.smoke.outputs.total_count  || 0 }},
+            "target":      "${REACT_APP_BACKEND_URL}",
+            "duration_s":  ${{ steps.smoke.outputs.duration_s   || 0 }},
+            "finished_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "tail":        $TAIL
+          }
+          EOF
+          )
+          # `|| true` so a push failure never masks the actual canary
+          # outcome — we still want the issue-opener step below to fire.
+          curl -sS -X POST \
+            "${REACT_APP_BACKEND_URL}/api/canary/report?secret=${CANARY_REPORT_SECRET}" \
+            -H "Content-Type: application/json" \
+            --data "$PAYLOAD" || true
+
+      # 2026-06-27 — Issue auto-filing moved to the retry workflow
+      # (`prod-smoke-canary-retry.yml`).  A single transient blip used
+      # to file a noisy GitHub issue every time; now the retry workflow
+      # waits 15 min, re-runs the smoke, and ONLY files an issue if
+      # the failure is still present.  Transient blips are silent.

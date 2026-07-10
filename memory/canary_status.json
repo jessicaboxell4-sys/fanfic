@@ -1,0 +1,10 @@
+{
+  "status": "ok",
+  "updated_at": "2026-06-27T00:00:00Z",
+  "last_event": "initial_seed",
+  "note": "Default seed — no canary failure detected yet. This file is overwritten by .github/workflows/prod-smoke-canary-retry.yml after each retry decision.",
+  "upstream_run_url": null,
+  "retry_run_url": null,
+  "passed": null,
+  "total": null
+}

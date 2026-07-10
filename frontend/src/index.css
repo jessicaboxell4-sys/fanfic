@@ -1,0 +1,1128 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+    --bg: #FDFBF7;
+    --surface: #FFFFFF;
+    --surface-hover: #F5F3EC;
+    --text-primary: #2C2C2C;
+    --text-secondary: #5B5F4D;
+    /* Brand accent (purple). Swap these four lines to recolor the whole  */
+    /* site — every accent in JSX uses `text-[var(--primary)]` / `bg-     */
+    /* [var(--accent-pale-1)]` etc. so there are no hex hardcodes to     */
+    /* hunt for. Dark mode brightens `--primary` for legibility on        */
+    /* `--bg #1B1B1E` and inverts the pale tints (see below).             */
+    /* 2026-07-09 — Primary brand token tuned for WCAG AA contrast on
+       white text.  Previous #8B5CF6 gave 3.98:1 → white (fails AA
+       normal, passes AA large only).  #7C3AED (violet-600) → white
+       is 5.05:1 which passes AA at every text size while still
+       reading as a vivid violet.  Applies to both light and dark
+       modes (dark also has an explicit .btn-primary override to
+       compensate for the brightened --primary variable). */
+    --primary: #7C3AED;
+    --primary-hover: #6D28D9;
+    --accent-pale-1: #F3EDFF;
+    --accent-pale-2: #E5D3FF;
+    --accent-green: #6B46C1;
+    --accent-green-muted: #EDE7FB;
+    --border: #E8E6E1;
+    --error: #D9534F;
+}
+
+@layer base {
+    :root {
+        --background: 40 33% 98%;
+        --foreground: 0 0% 17%;
+        --card: 0 0% 100%;
+        --card-foreground: 0 0% 17%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 0 0% 17%;
+        --primary: 12 65% 63%;
+        --primary-foreground: 0 0% 100%;
+        --secondary: 40 20% 95%;
+        --secondary-foreground: 0 0% 17%;
+        --muted: 40 20% 95%;
+        --muted-foreground: 75 11% 40%;
+        --accent: 134 22% 91%;
+        --accent-foreground: 134 22% 30%;
+        --destructive: 1 64% 58%;
+        --destructive-foreground: 0 0% 100%;
+        --border: 40 16% 90%;
+        --input: 40 16% 90%;
+        --ring: 12 65% 63%;
+        --radius: 0.75rem;
+    }
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+    body {
+        background: var(--bg);
+        color: var(--text-primary);
+        font-family: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+    h1, h2, h3, h4, .font-serif {
+        font-family: 'Cormorant Garamond', serif;
+        letter-spacing: -0.01em;
+    }
+}
+
+/* Grain texture overlay */
+.bg-paper {
+    background-color: var(--bg);
+    background-image:
+        radial-gradient(at 0% 0%, rgba(224, 122, 95, 0.04) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(58, 90, 64, 0.04) 0px, transparent 50%);
+}
+
+.shelf-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
+}
+.shelf-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 32px rgba(44, 44, 44, 0.08);
+    border-color: rgba(224, 122, 95, 0.4);
+}
+
+/* "Just landed" pulse — applied to BookCard for ~3 s after a background
+   upload completes so the user sees the new books *arriving* on the
+   library grid.  Coral border glow + tiny vertical bounce; respects
+   prefers-reduced-motion. */
+.book-card-fresh-pulse {
+    animation: book-card-fresh-pulse 3s ease-out 1;
+    will-change: transform, box-shadow, border-color;
+}
+@keyframes book-card-fresh-pulse {
+    0% {
+        transform: translateY(-6px) scale(1.02);
+        box-shadow: 0 0 0 4px rgba(224, 122, 95, 0.65), 0 16px 40px rgba(224, 122, 95, 0.35);
+        border-color: rgba(224, 122, 95, 1);
+    }
+    60% {
+        transform: translateY(-2px) scale(1.01);
+        box-shadow: 0 0 0 3px rgba(224, 122, 95, 0.35), 0 10px 24px rgba(224, 122, 95, 0.18);
+        border-color: rgba(224, 122, 95, 0.7);
+    }
+    100% {
+        transform: translateY(0) scale(1);
+        box-shadow: 0 0 0 0 rgba(224, 122, 95, 0);
+        border-color: var(--border);
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .book-card-fresh-pulse {
+        animation: none;
+        border-color: rgba(224, 122, 95, 0.8) !important;
+    }
+}
+
+/* BackgroundJobsBell flyout — slides in from the right edge of its
+   anchor (so it appears to peel away from the row the user is
+   hovering, rather than popping in abruptly). */
+@keyframes bgjobs-flyout-in {
+    0%   { opacity: 0; transform: translateX(8px); }
+    100% { opacity: 1; transform: translateX(0); }
+}
+@keyframes bgjobs-row-pulse {
+    0%   { background-color: rgba(224, 122, 95, 0.22); }
+    60%  { background-color: rgba(224, 122, 95, 0.10); }
+    100% { background-color: transparent; }
+}
+.bgjobs-row-just-done {
+    animation: bgjobs-row-pulse 3s ease-out 1;
+}
+@media (prefers-reduced-motion: reduce) {
+    [data-testid="bgjobs-flyout"], .bgjobs-row-just-done {
+        animation: none !important;
+    }
+}
+
+/* --------------------------------------------------------------------- */
+/*  A11y — visible focus indicator (WCAG 2.4.7)                          */
+/* --------------------------------------------------------------------- */
+/*  Keyboard and switch users MUST be able to see which element the      */
+/*  focus ring is on.  Browsers strip most default outlines when a       */
+/*  reset is applied; we add a high-contrast outline back via            */
+/*  :focus-visible so it appears only for keyboard focus, not mouse      */
+/*  clicks (which would look noisy).                                     */
+:focus-visible {
+    outline: 2px solid #6B46C1;
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+a:focus-visible,
+button:focus-visible,
+[role="button"]:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible {
+    outline: 2px solid #6B46C1;
+    outline-offset: 2px;
+}
+
+.btn-primary {
+    background: var(--primary);
+    color: #fff;
+    padding: 0.625rem 1.25rem;
+    border-radius: 0.625rem;
+    font-weight: 500;
+    /* 2026-07-09 — mobile tap-target: enforce 44×44 minimum for WCAG
+       2.5.5 / iOS HIG, and centre content so the label doesn't flush
+       to the top-left when the button grows to meet min-height. */
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 150ms ease, transform 100ms ease;
+}
+.btn-primary:hover {
+    background: var(--primary-hover);
+}
+.btn-primary:active {
+    transform: scale(0.98);
+}
+
+.btn-secondary {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    padding: 0.625rem 1.25rem;
+    border-radius: 0.625rem;
+    font-weight: 500;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 150ms ease;
+}
+.btn-secondary:hover {
+    background: var(--surface-hover);
+}
+
+.badge-fandom {
+    background: var(--accent-green-muted);
+    color: var(--accent-green);
+    border: 1px solid rgba(58, 90, 64, 0.2);
+    padding: 0.125rem 0.625rem;
+    border-radius: 9999px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    display: inline-block;
+}
+.badge-original {
+    background: #FDF3E1;
+    color: #B87A00;
+    border: 1px solid rgba(184, 122, 0, 0.2);
+    padding: 0.125rem 0.625rem;
+    border-radius: 9999px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    display: inline-block;
+}
+.badge-nonfic {
+    background: #EAF1F8;
+    color: #3A5A75;
+    border: 1px solid rgba(58, 90, 117, 0.2);
+    padding: 0.125rem 0.625rem;
+    border-radius: 9999px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    display: inline-block;
+}
+.badge-unclassified {
+    background: #F1EEE8;
+    color: #5B5F4D;
+    border: 1px solid var(--border);
+    padding: 0.125rem 0.625rem;
+    border-radius: 9999px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    display: inline-block;
+}
+
+.dropzone {
+    border: 2px dashed var(--border);
+    background: var(--bg);
+    border-radius: 1rem;
+    transition: all 200ms ease;
+}
+.dropzone:hover, .dropzone.active {
+    background: var(--surface);
+    border-color: var(--primary);
+}
+
+.book-spine {
+    aspect-ratio: 2 / 3;
+    background: linear-gradient(135deg, var(--primary) 0%, var(--accent-green) 100%);
+    border-radius: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-family: 'Cormorant Garamond', serif;
+    text-align: center;
+    padding: 1rem;
+    overflow: hidden;
+}
+
+::selection {
+    background: rgba(224, 122, 95, 0.25);
+    color: var(--text-primary);
+}
+
+.fade-in {
+    animation: fadeIn 0.4s ease forwards;
+    opacity: 0;
+}
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ------------------------------------------------------------------ */
+/*  MOBILE SAFETY NET (2026-06-17)                                     */
+/*  Pinned to viewport width so no rogue element (long URL, sticky    */
+/*  table cell, fixed-min-width filter input) can ever introduce a    */
+/*  horizontal scroll on Android / iOS phones.  Each rule below is    */
+/*  scoped to <=640px ("sm" breakpoint) so desktop layouts are        */
+/*  untouched.                                                        */
+/* ------------------------------------------------------------------ */
+html, body {
+    /* Belt-and-braces: even if a child overflows, the document itself  */
+    /* never grows past the viewport.  Has no effect on desktop where  */
+    /* nothing tries to overflow.                                      */
+    /* 2026-07-09 — was `overflow-x: hidden` which silently broke      */
+    /* `position: sticky` on the app navbar (any ancestor with         */
+    /* `overflow: hidden` traps sticky).  `overflow-x: clip` gives    */
+    /* the same visual clipping without creating a scroll container,  */
+    /* so the sticky navbar now actually sticks on every page.        */
+    /* Supported in Chrome 90+/Safari 16+/Firefox 81+ (all browsers   */
+    /* Shelfsort targets — see package.json browserslist).            */
+    overflow-x: clip;
+    max-width: 100vw;
+}
+
+@media (max-width: 640px) {
+    /* Any explicit `min-w-[NNNpx]` Tailwind class (typical culprits:   */
+    /* filter inputs, search boxes, popover content) is relaxed to     */
+    /* "shrink down to anything" on phones.  Tailwind escapes the      */
+    /* bracket in the compiled class name as `min-w-\[`, hence the     */
+    /* attribute selector below.                                       */
+    [class*="min-w-\\["] {
+        min-width: 0 !important;
+    }
+    /* Prevent long words / URLs / tag names from punching out of      */
+    /* their containers — but ONLY where the runaway string is the     */
+    /* sole reason an element overflows (e.g. a 60-char tag name).     */
+    /* ``break-word`` keeps normal prose wrapping at spaces; only as a */
+    /* last resort does it split mid-word.  We deliberately DO NOT use */
+    /* ``anywhere`` here (it would shatter "Library by the numbers"    */
+    /* into vertical letters when a sibling flex item forces the       */
+    /* heading into a narrow column).                                  */
+    p, li, td, code, .break-anywhere {
+        overflow-wrap: break-word;
+    }
+    /* Tables that aren't already wrapped in `overflow-x-auto` should  */
+    /* at least scroll instead of pushing the page.                    */
+    table {
+        max-width: 100%;
+        display: block;
+        overflow-x: auto;
+    }
+    /* Native scroll containers — keep momentum on iOS / Chrome.       */
+    .overflow-x-auto, .overflow-x-scroll {
+        -webkit-overflow-scrolling: touch;
+    }
+    /* shadcn dialogs (`<DialogContent>`) ship with a fixed max-width  */
+    /* that's wider than narrow phones.  Force them to respect the     */
+    /* viewport with a little gutter so the close button stays         */
+    /* tappable.                                                       */
+    [role="dialog"],
+    [data-radix-popper-content-wrapper] > * {
+        max-width: calc(100vw - 1rem);
+    }
+
+    /* ---------------------------------------------------------------- */
+    /* Tap targets (2026-06-17)                                          */
+    /* Apple HIG: 44pt minimum.  Material: 48dp.  Many of our inline    */
+    /* icon-only buttons compile to ~28-32px — too small to hit         */
+    /* reliably on a phone.  Two complementary rules:                   */
+    /*  1. ``.tap-min`` — opt-in utility for buttons we explicitly      */
+    /*     promote (chevrons, toast close, chapter tabs).               */
+    /*  2. Global floor — ANY <button> or role=button that has only an  */
+    /*     SVG icon child (no text) gets a 40px minimum on phones.      */
+    /*     Generous enough to fix the offenders without bloating        */
+    /*     textual buttons (which are already comfortable).             */
+    /* ---------------------------------------------------------------- */
+    .tap-min,
+    button.tap-min,
+    a.tap-min {
+        min-width: 44px;
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    /* Catch-all for the icon-only buttons that didn't get explicit     */
+    /* ``.tap-min``.  ``:has()`` is supported in every evergreen        */
+    /* browser as of 2024 (Chrome 105+, Safari 15.4+, Firefox 121+).    */
+    /* Targets buttons/links whose ONLY visible child is an <svg> —    */
+    /* heuristic for "icon button".                                    */
+    button:has(> svg:only-child),
+    a:has(> svg:only-child) {
+        min-width: 40px;
+        min-height: 40px;
+    }
+    /* Chapter-tab pills in bookclub rooms (`text-xs px-2.5 py-1`)      */
+    /* compile to ~28px tall.  Bump tap height without changing the    */
+    /* desktop styling.                                                */
+    [data-testid^="chapter-tab-"] {
+        min-height: 36px;
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+    }
+
+    /* ---------------------------------------------------------------- */
+    /* Universal "icon + title + CTA" card wrap (2026-06-17 v2)         */
+    /* Original rule was scoped to `.shelf-card` parents, but several   */
+    /* page-level headers (GoalsPage, FriendRecsPage, ReadingStats,     */
+    /* Appearance, FromFriends digest preview) use the same crushed-   */
+    /* column pattern OUTSIDE a `.shelf-card`.  Broadened the selector  */
+    /* so the rule catches every `flex justify-between` row on phones, */
+    /* and any trailing button or link stacks full-width.              */
+    /* Risk: catches navbar / footer-style rows too.  Mitigated by     */
+    /* explicit `[data-testid*="navbar"]` / `[data-testid*="footer"]`  */
+    /* opt-outs below.                                                 */
+    /* ---------------------------------------------------------------- */
+    .flex.justify-between {
+        flex-wrap: wrap;
+    }
+    .flex.justify-between > button:last-child,
+    .flex.justify-between > a.btn-primary:last-child,
+    .flex.justify-between > a.btn-secondary:last-child,
+    .flex.justify-between > .btn-primary:last-child,
+    .flex.justify-between > .btn-secondary:last-child {
+        width: 100%;
+    }
+    /* Opt-outs — navbar + footer + small inline rows that must stay  */
+    /* single-line and aren't crushing anything.                       */
+    nav .flex.justify-between,
+    header .flex.justify-between,
+    footer .flex.justify-between,
+    [data-testid^="navbar"] .flex.justify-between {
+        flex-wrap: nowrap;
+    }
+    /* Card titles step down one size on phones so headlines wrap     */
+    /* to 2 lines instead of 3 (was scoped to .shelf-card h2 only).   */
+    .shelf-card h2,
+    main h1 {
+        font-size: 1.5rem;     /* text-2xl mobile cap */
+        line-height: 2rem;
+    }
+
+    /* Theme picker (`AppearancePage.jsx`) renders Light/Dark/Auto as */
+    /* a 3-column grid even at 360px.  Each column ends up ~80px wide */
+    /* and the body copy breaks one letter per line.  Force single-  */
+    /* column on phones.                                              */
+    [data-testid="appearance-theme-grid"],
+    [data-testid="theme-picker-grid"] {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* StatsCard label truncate (added earlier) is now relaxed —      */
+    /* truncating produced "B…" / "PA…" / "D…" which is worse than    */
+    /* a clean 2-line wrap.  Restore wrap, but with smaller line-     */
+    /* height so the tile stays compact.                              */
+    [data-testid="stats-card"] .truncate {
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+        line-height: 1.1;
+    }
+}
+
+/* One-shot attention pulse for the new navbar appearance icon.
+   Fires three soft rings, then stops. Used to surface the merged
+   theme/palette popover to users who haven't discovered it yet.
+   The component flips a localStorage flag after first fire so it
+   never plays again on this browser. */
+@keyframes appearancePulse {
+    0%   { box-shadow: 0 0 0 0   color-mix(in srgb, var(--primary) 70%, transparent); }
+    70%  { box-shadow: 0 0 0 10px color-mix(in srgb, var(--primary) 0%,  transparent); }
+    100% { box-shadow: 0 0 0 0   color-mix(in srgb, var(--primary) 0%,  transparent); }
+}
+.appearance-pulse {
+    animation: appearancePulse 1.4s ease-out 3;
+    border-radius: 0.5rem;
+}
+
+/* ─── Brand-accent theme bridge ────────────────────────────────────── */
+/* The JSX still uses literal-hex utility classes like                  */
+/* `text-[#E07A5F]` and `bg-[#E07A5F]/20` (44 component / page files,   */
+/* ~200 occurrences). Rather than rewrite all of them, we hijack each   */
+/* compiled Tailwind class here and point it at `var(--primary)`.      */
+/* Result: changing the four CSS variables at the top of this file     */
+/* recolors the entire site (both light + dark modes). To re-theme,    */
+/* edit `--primary`, `--primary-hover`, `--accent-pale-1`,             */
+/* `--accent-pale-2` in `:root` (and the dark-mode overrides) — done.  */
+/* `color-mix(in srgb, var(--primary) N%, transparent)` gives correct  */
+/* alpha behaviour with CSS variables; supported in all modern         */
+/* evergreen browsers (Chrome 111+, Safari 16.2+, Firefox 113+).        */
+
+/* Solid colour utilities ------------------------------------------- */
+.text-\[\#E07A5F\],
+.hover\:text-\[\#E07A5F\]:hover { color: var(--primary); }
+.bg-\[\#E07A5F\],
+.hover\:bg-\[\#E07A5F\]:hover { background-color: var(--primary); }
+.bg-\[\#d06a4f\],
+.hover\:bg-\[\#d06a4f\]:hover { background-color: var(--primary-hover); }
+.border-\[\#E07A5F\],
+.focus\:border-\[\#E07A5F\]:focus,
+.hover\:border-\[\#E07A5F\]:hover { border-color: var(--primary); }
+.ring-\[\#E07A5F\] { --tw-ring-color: var(--primary); }
+
+/* Alpha variants (background, border, ring) ------------------------- */
+.bg-\[\#E07A5F\]\/5,  .hover\:bg-\[\#E07A5F\]\/5:hover  { background-color: color-mix(in srgb, var(--primary)  5%, transparent); }
+.bg-\[\#E07A5F\]\/10, .hover\:bg-\[\#E07A5F\]\/10:hover { background-color: color-mix(in srgb, var(--primary) 10%, transparent); }
+.bg-\[\#E07A5F\]\/15  { background-color: color-mix(in srgb, var(--primary) 15%, transparent); }
+.bg-\[\#E07A5F\]\/20, .hover\:bg-\[\#E07A5F\]\/20:hover { background-color: color-mix(in srgb, var(--primary) 20%, transparent); }
+.bg-\[\#E07A5F\]\/30  { background-color: color-mix(in srgb, var(--primary) 30%, transparent); }
+.bg-\[\#E07A5F\]\/40  { background-color: color-mix(in srgb, var(--primary) 40%, transparent); }
+.bg-\[\#E07A5F\]\/50  { background-color: color-mix(in srgb, var(--primary) 50%, transparent); }
+.bg-\[\#E07A5F\]\/60  { background-color: color-mix(in srgb, var(--primary) 60%, transparent); }
+
+.border-\[\#E07A5F\]\/20, .focus\:border-\[\#E07A5F\]\/20:focus { border-color: color-mix(in srgb, var(--primary) 20%, transparent); }
+.border-\[\#E07A5F\]\/30, .focus\:border-\[\#E07A5F\]\/30:focus { border-color: color-mix(in srgb, var(--primary) 30%, transparent); }
+.border-\[\#E07A5F\]\/40, .focus\:border-\[\#E07A5F\]\/40:focus { border-color: color-mix(in srgb, var(--primary) 40%, transparent); }
+.border-\[\#E07A5F\]\/50, .hover\:border-\[\#E07A5F\]\/50:hover { border-color: color-mix(in srgb, var(--primary) 50%, transparent); }
+.border-\[\#E07A5F\]\/60, .focus\:border-\[\#E07A5F\]\/60:focus { border-color: color-mix(in srgb, var(--primary) 60%, transparent); }
+
+.ring-\[\#E07A5F\]\/20, .focus\:ring-\[\#E07A5F\]\/20:focus { --tw-ring-color: color-mix(in srgb, var(--primary) 20%, transparent); }
+
+/* Pale tints — used by the Help "What's new" card gradient + a couple */
+/* of solid backgrounds. Auto-switches between light/dark per theme.   */
+.bg-\[\#FCEFE6\] { background-color: var(--accent-pale-1); }
+.from-\[\#FCEFE6\] { --tw-gradient-from: var(--accent-pale-1) var(--tw-gradient-from-position); --tw-gradient-to: color-mix(in srgb, var(--accent-pale-1) 0%, transparent) var(--tw-gradient-to-position); --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to); }
+.to-\[\#F8E3D3\] { --tw-gradient-to: var(--accent-pale-2) var(--tw-gradient-to-position); }
+
+/* The site's brand gradient (used inside `.logo-gradient`)             */
+.logo-gradient-brand { background: linear-gradient(135deg, var(--primary) 0%, var(--accent-green) 100%); }
+
+/* ------------------------------------------------------------------ */
+/*  DARK THEME (Tier 1)                                                */
+/*  Activated by <html data-theme="dark">. The site uses literal hex   */
+/*  utility classes (e.g. bg-[#FAF6EE]) throughout, so dark mode is    */
+/*  achieved by retargeting those exact compiled class names to dark   */
+/*  values via an attribute selector. The accent purple is brightened  */
+/*  in dark mode via `--primary` override (see :root[data-theme=dark]) */
+/*  so we do NOT need separate per-class dark rules for it.            */
+/* ------------------------------------------------------------------ */
+:root[data-theme="dark"] {
+    /* dark canvas tokens */
+    --bg: #1B1B1E;
+    --surface: #26262B;
+    --surface-hover: #34343A;
+    --text-primary: #E8E4D8;
+    --text-secondary: #9C9C8E;
+    --border: #3B3B41;
+    /* Brighten the accent on dark — same hue, higher luminosity so it
+       still reads against `--bg`. Pale tints invert to deep-purple so
+       gradient cards stop being white-on-white in dark mode.
+       2026-07-09 — Dropped the button-only override that used #7C3AED
+       for WCAG AA (5.05:1 white-on-violet); kept #A78BFA for glow
+       accents but `.btn-primary` gets an explicit darker bg below so
+       the button-with-white-text case passes AA. See audit iteration
+       69 (2.72:1 white-on-#A78BFA fail). */
+    --primary: #A78BFA;
+    --primary-hover: #C4B5FD;
+    --accent-pale-1: #2A1F3A;
+    --accent-pale-2: #3A2A4F;
+    color-scheme: dark;
+}
+
+/* 2026-07-09 — Button-only primary override for WCAG AA on white
+   text.  Applies to both the .btn-primary utility class and the two
+   CTA button components (PrimaryCTAButton uses inline bg-[#6B46C1]
+   in JSX which we do NOT want to touch in dark, but the utility
+   version comes through here).  #7C3AED (violet-600) on #FFF = 5.05:1. */
+:root[data-theme="dark"] .btn-primary { background: #7C3AED; }
+:root[data-theme="dark"] .btn-primary:hover { background: #6D28D9; }
+
+
+/* Page / surface backgrounds — every cream/off-white the site uses     */
+/* funnels into the same `--bg` (page) and `--surface` (card) tokens.  */
+:root[data-theme="dark"] body { background: var(--bg); color: var(--text-primary); }
+:root[data-theme="dark"] .bg-paper { background-color: var(--bg); background-image: none; }
+:root[data-theme="dark"] .bg-white,
+:root[data-theme="dark"] .bg-\[\#FFFFFF\],
+:root[data-theme="dark"] .bg-\[\#FDFBF7\],
+:root[data-theme="dark"] .bg-\[\#FBFAF6\],
+:root[data-theme="dark"] .bg-\[\#fffaf0\] { background-color: var(--surface); }
+/* `/80` opacity variants used by the sticky navbar — translucent so   */
+/* the page bg subtly shows through the backdrop-blur, but on dark     */
+/* surface (NOT cream) so toggle icons and nav links remain visible.   */
+:root[data-theme="dark"] .bg-\[\#FDFBF7\]\/80,
+:root[data-theme="dark"] .bg-\[\#FBFAF6\]\/80,
+:root[data-theme="dark"] .bg-white\/80,
+:root[data-theme="dark"] .bg-white\/90 { background-color: rgba(38, 38, 43, 0.82); }
+:root[data-theme="dark"] .bg-\[\#FAF6EE\],
+:root[data-theme="dark"] .bg-\[\#FBF7EE\],
+:root[data-theme="dark"] .bg-\[\#F2EDDF\] { background-color: var(--bg); }
+/* `#FFF6E5` — warm peach-cream used by the upload-resume banner.
+   Map it to a faint purple-tinted surface so it still reads as a
+   callout in dark mode instead of going pure-dark and disappearing. */
+:root[data-theme="dark"] .bg-\[\#FFF6E5\] { background-color: rgba(167, 139, 250, 0.12); }
+:root[data-theme="dark"] .bg-\[\#F5F3EC\],
+:root[data-theme="dark"] .hover\:bg-\[\#F5F3EC\]:hover,
+:root[data-theme="dark"] .hover\:bg-\[\#FBFAF6\]:hover,
+:root[data-theme="dark"] .hover\:bg-\[\#FAF6EE\]:hover,
+:root[data-theme="dark"] .hover\:bg-\[\#F2EEE5\]:hover,
+:root[data-theme="dark"] .bg-\[\#FDF3E1\]\/60,
+:root[data-theme="dark"] .bg-\[\#E5DDC5\]\/60,
+:root[data-theme="dark"] .bg-\[\#E5DDC5\]\/40,
+:root[data-theme="dark"] .bg-\[\#F7F4EE\],
+:root[data-theme="dark"] .hover\:bg-\[\#F7F4EE\]:hover { background-color: var(--surface-hover); }
+
+/* `bg-[#FAF7F0]` is another cream sibling — converge it on `--bg` so   */
+/* fixed cream panels (Help fandom grid, Ao3FilterChips panel) stay     */
+/* readable when the user flips to dark.                                */
+:root[data-theme="dark"] .bg-\[\#FAF7F0\] { background-color: var(--bg); }
+
+/* `bg-[#FAF3E5]` — cream header inside the StagedUploadTray.  Map to
+   the same warm callout treatment we use for the upload-resume
+   banner so the staged-files header reads as a soft accent in dark
+   mode instead of going pure-cream. */
+:root[data-theme="dark"] .bg-\[\#FAF3E5\] { background-color: rgba(167, 139, 250, 0.12); }
+
+/* `bg-[#E4D9C8]` — kraft-tan used for the "Stage before upload"
+   toggle's off-state track + tray clear-button borders.  Lift it to
+   the same surface-hover token used by sibling neutrals so the
+   off-state remains visible against the dark card. */
+:root[data-theme="dark"] .bg-\[\#E4D9C8\] { background-color: var(--surface-hover); }
+
+/* `bg-[#EEF3EC]` — pale sage used by the "Since you were last here"    */
+/* activity banner on the Library page. The remapped near-white text   */
+/* was invisible against the un-remapped cream background; converge it */
+/* on the same tinted purple surface used by other accented panels.    */
+:root[data-theme="dark"] .bg-\[\#EEF3EC\] { background-color: rgba(167, 139, 250, 0.14); }
+
+/* Text — primary headings + body, and the muted "sage" support text. */
+:root[data-theme="dark"] .text-\[\#2C2C2C\] { color: var(--text-primary); }
+:root[data-theme="dark"] .text-\[\#5B5F4D\],
+:root[data-theme="dark"] .text-\[\#6E6E6E\] { color: var(--text-secondary); }
+
+/* Deep red accents used by the failed-uploads + in-flight banners.
+   On dark surfaces these need to brighten so the stage labels and
+   "Couldn't sort" markers don't sink into the background. */
+:root[data-theme="dark"] .text-\[\#A03D33\],
+:root[data-theme="dark"] .text-\[\#7C2D2A\],
+:root[data-theme="dark"] .text-\[\#B53C39\],
+:root[data-theme="dark"] .text-\[\#C5564B\] { color: #FFB0A6; }
+
+/* 2026-07-09 — dark-mode overrides for amber/brown accent text used by
+   the "popular" badges, Kindle-import warning callout, and other
+   suggestion surfaces.  The un-remapped `#8C5C00`/`#7C5400` on the
+   dimmed callout backgrounds computed to ~1.19:1 in the mobile audit.
+   Brighten to a warm amber that reads on dark surfaces. */
+:root[data-theme="dark"] .text-\[\#8C5C00\],
+:root[data-theme="dark"] .text-\[\#7C5400\],
+:root[data-theme="dark"] .text-\[\#9C4521\] { color: #F5D082; }
+:root[data-theme="dark"] .border-\[\#F5E0A8\],
+:root[data-theme="dark"] .border-\[\#E0A95F\]\/40,
+:root[data-theme="dark"] .border-\[\#E07A5F\]\/40 { border-color: rgba(245, 208, 130, 0.35); }
+:root[data-theme="dark"] .bg-\[\#FFF7E6\],
+:root[data-theme="dark"] .bg-\[\#FFF1E5\],
+:root[data-theme="dark"] .bg-\[\#FCEFE6\],
+:root[data-theme="dark"] .bg-\[\#FFEFEC\] { background-color: rgba(245, 208, 130, 0.10); }
+
+/* 2026-07-10 — Reconstructed Quarantine / Duplicate / Admin callout
+   backgrounds.  These pale tints (blue / sage / cream / peach) exist
+   on the Quarantine page stat strip, DuplicateDismissalsCard, and
+   AdminConsole safety panels.  Converge cool tones onto the tinted-
+   purple surface, warm tones onto the amber-callout surface, and
+   neutral cream/gray onto `--surface-hover` so the panels stay
+   readable in dark mode without losing their accent role. */
+:root[data-theme="dark"] .bg-\[\#DCEBFA\],
+:root[data-theme="dark"] .bg-\[\#E7F2ED\],
+:root[data-theme="dark"] .bg-\[\#EAF5EA\] { background-color: rgba(167, 139, 250, 0.12); }
+:root[data-theme="dark"] .bg-\[\#EAEAEA\],
+:root[data-theme="dark"] .bg-\[\#EDE7CE\],
+:root[data-theme="dark"] .bg-\[\#F4EFE3\],
+:root[data-theme="dark"] .bg-\[\#F5F1E4\] { background-color: var(--surface-hover); }
+:root[data-theme="dark"] .bg-\[\#FCEBD3\],
+:root[data-theme="dark"] .bg-\[\#FDF3E7\] { background-color: rgba(245, 208, 130, 0.10); }
+
+/* 2026-07-09 — Safety stats palette (Clean/Flagged/Awaiting).  Uses
+   `[data-safety-color]` attribute set in AccountSafety.jsx SafetyStat
+   component so both light and dark modes can style the card without
+   inline `style` props (which would out-specificity any class rule). */
+.safety-stat-card[data-safety-color="green"] {
+  background: #E8F3EC;
+  border-color: #2C7A3E;
+}
+.safety-stat-card[data-safety-color="green"] .safety-stat-icon,
+.safety-stat-card[data-safety-color="green"] .safety-stat-label,
+.safety-stat-card[data-safety-color="green"] .safety-stat-value { color: #2C7A3E; }
+.safety-stat-card[data-safety-color="red"] {
+  background: #FDECE6;
+  border-color: #B43F26;
+}
+.safety-stat-card[data-safety-color="red"] .safety-stat-icon,
+.safety-stat-card[data-safety-color="red"] .safety-stat-label,
+.safety-stat-card[data-safety-color="red"] .safety-stat-value { color: #B43F26; }
+.safety-stat-card[data-safety-color="grey"] {
+  background: #FBFAF6;
+  border-color: #E5DDC5;
+}
+.safety-stat-card[data-safety-color="grey"] .safety-stat-icon,
+.safety-stat-card[data-safety-color="grey"] .safety-stat-label,
+.safety-stat-card[data-safety-color="grey"] .safety-stat-value { color: #5B5F4D; }
+.safety-stat-card .safety-stat-icon { color: inherit; }
+.safety-stat-card .safety-stat-muted { color: #3F4034; }
+/* Dark-mode remap: card surface + border converge on the neutral
+   dark tokens, and the accent text brightens to a readable pastel. */
+:root[data-theme="dark"] .safety-stat-card { background: var(--surface); border-color: var(--border); }
+:root[data-theme="dark"] .safety-stat-card[data-safety-color="green"] .safety-stat-icon,
+:root[data-theme="dark"] .safety-stat-card[data-safety-color="green"] .safety-stat-label,
+:root[data-theme="dark"] .safety-stat-card[data-safety-color="green"] .safety-stat-value { color: #86EFAC; }
+:root[data-theme="dark"] .safety-stat-card[data-safety-color="red"] .safety-stat-icon,
+:root[data-theme="dark"] .safety-stat-card[data-safety-color="red"] .safety-stat-label,
+:root[data-theme="dark"] .safety-stat-card[data-safety-color="red"] .safety-stat-value { color: #FFB0A6; }
+:root[data-theme="dark"] .safety-stat-card[data-safety-color="grey"] .safety-stat-icon,
+:root[data-theme="dark"] .safety-stat-card[data-safety-color="grey"] .safety-stat-label,
+:root[data-theme="dark"] .safety-stat-card[data-safety-color="grey"] .safety-stat-value { color: var(--text-primary); }
+:root[data-theme="dark"] .safety-stat-card .safety-stat-muted { color: var(--text-secondary); }
+
+/* Borders — the cream `#E8E6E1` / `#E5DDC5` / `#D5D2CC` all converge  */
+:root[data-theme="dark"] .border-\[\#E8E6E1\],
+:root[data-theme="dark"] .border-\[\#E8E2D4\],
+:root[data-theme="dark"] .border-\[\#E5DDC5\],
+:root[data-theme="dark"] .border-\[\#D5D2CC\],
+:root[data-theme="dark"] .divide-\[\#E5DDC5\] > * + * { border-color: var(--border); }
+
+/* Tinted accent surfaces — sage 10% bg etc. stay tinted but on the     */
+/* dark surface so they still pop without burning the eyes. Peach (now  */
+/* purple) accents are handled by the variable bridge above.            */
+:root[data-theme="dark"] .bg-\[\#6B46C1\]\/10 { background-color: rgba(167, 139, 250, 0.18); color: #C4B5FD; }
+:root[data-theme="dark"] .text-\[\#6B46C1\] { color: #C4B5FD; }
+
+/* Fandom shelf chips & crossover chips — solid tinted backgrounds    */
+/* that need their own dark-mode treatment so the dark text doesn't   */
+/* turn invisible on the now-pale background (and the brightened      */
+/* `text-[#6B46C1]` isn't readable on its own original pale sage      */
+/* background either). Reuse the dark surface + brightened text.      */
+:root[data-theme="dark"] .bg-\[\#EDE7FB\] { background-color: rgba(167, 139, 250, 0.22); }
+:root[data-theme="dark"] .border-\[\#6B46C1\]\/20 { border-color: rgba(196, 181, 253, 0.35); }
+:root[data-theme="dark"] .bg-\[\#FDF3E1\],
+:root[data-theme="dark"] .hover\:bg-\[\#FDF3E1\]:hover { background-color: rgba(255, 200, 145, 0.14); }
+/* 2026-06-18 — text overrides for the cream `#FDF3E1` card (the
+   "Polish your library?" OnboardingPrompt, the backup-reminder
+   ribbon, etc.).  Without these, dark-on-dark-brown body text was
+   illegible.  The cream is reserved for "soft suggestion" surfaces
+   so a warm amber-tinted foreground reads as suggestion-coloured.
+   2026-06-19 — body text brightened from #D9C49A → #F5E0AE to
+   restore readable contrast (user-reported "can't read it"). */
+:root[data-theme="dark"] .bg-\[\#FDF3E1\] .text-\[\#2C2C2C\],
+:root[data-theme="dark"] .bg-\[\#FDF3E1\] .text-\[\#3F4034\] { color: #FBEACB !important; }
+:root[data-theme="dark"] .bg-\[\#FDF3E1\] .text-\[\#5B5F4D\] { color: #F5E0AE !important; }
+/* The former AO3-maroon `#900` accent was retired in favour of the purple    */
+/* primary `#6B46C1` everywhere (2026-06-13 theme parity sweep). The text     */
+/* and border overrides that lived here are no longer referenced by any JSX  */
+/* and have been removed.                                                    */
+
+/* Amber / warning chips — keep the warm hue but lift contrast.       */
+:root[data-theme="dark"] .bg-\[\#FDF4E5\],
+:root[data-theme="dark"] .bg-amber-50,
+:root[data-theme="dark"] .bg-amber-50\/60 { background-color: #3a2f1b; color: #F0D6A0; }
+:root[data-theme="dark"] .border-amber-200,
+:root[data-theme="dark"] .border-\[\#E5C97A\]\/60 { border-color: #6b4e1f; }
+:root[data-theme="dark"] .text-amber-700,
+:root[data-theme="dark"] .text-\[\#7A5C00\],
+:root[data-theme="dark"] .text-\[\#8A6800\] { color: #F0D6A0; }
+:root[data-theme="dark"] .text-\[\#B87A00\] { color: #F0B860; }
+
+/* ── Recent additions (2026-06-12) — dark mode parity ───────────────── */
+/* Lavender 10% pale (`#EEE9FB`) — used as the icon backdrop on every    */
+/* Admin Console card, the "M" classifier chip, and the DownloadPage     */
+/* selected-row highlight. The `color:` override was removed (2026-06-13)*/
+/* because it washed out generic container text — elements that needed   */
+/* the purple-accent text already use `text-[#6B46C1]` explicitly, which */
+/* has its own override.                                                  */
+:root[data-theme="dark"] .bg-\[\#EEE9FB\] { background-color: rgba(167, 139, 250, 0.18); }
+/* Hover variant used by the feature-flag "Enabled" pill                 */
+:root[data-theme="dark"] .hover\:bg-\[\#EEE9FB\]:hover { background-color: rgba(167, 139, 250, 0.30); }
+
+/* Red 10% pale (`#FBE9E7`) — demote button hover, classifier delete UI. */
+:root[data-theme="dark"] .bg-\[\#FBE9E7\] { background-color: rgba(217, 83, 79, 0.18); color: #FF9A85; }
+:root[data-theme="dark"] .hover\:bg-\[\#FBE9E7\]:hover { background-color: rgba(217, 83, 79, 0.30); }
+
+/* Red text shades — `#9B3531` (demote button), `#D9534F` (delete         */
+/* buttons / error toggles), `#B53C39` (red hover). Lift to coral.       */
+:root[data-theme="dark"] .text-\[\#9B3531\],
+:root[data-theme="dark"] .text-\[\#D9534F\],
+:root[data-theme="dark"] .text-\[\#B53C39\],
+:root[data-theme="dark"] .hover\:text-\[\#B53C39\]:hover { color: #FF9A85; }
+
+/* New classifier chip colors introduced for "A" (ai) and "X" (manual). */
+:root[data-theme="dark"] .bg-\[\#F0E8F5\] { background-color: rgba(150, 110, 200, 0.20); }
+:root[data-theme="dark"] .text-\[\#6B4A8C\] { color: #C9B0E8; }
+:root[data-theme="dark"] .bg-\[\#E8EEF5\] { background-color: rgba(110, 140, 200, 0.20); }
+:root[data-theme="dark"] .text-\[\#3A5A8C\] { color: #A8C0E8; }
+
+/* ── Recent additions (2026-06-15) — dark mode parity ───────────────── */
+/* Cream summary surface used by the Help-page "Show full fandom list"   */
+/* details/summary hover row — same family as `#F5F3EC`. Converge it on   */
+/* the surface-hover variable so the row still feels "tapped" on dark.   */
+:root[data-theme="dark"] .bg-\[\#F5F0E0\],
+:root[data-theme="dark"] .hover\:bg-\[\#F5F0E0\]:hover { background-color: var(--surface-hover); }
+
+/* Pale peach `#FBE9E5` — used by the "X muted" notification chip, the   */
+/* "Friend rec" callout, and the BookClub-room highlighted-message bg.   */
+/* Already-overridden `text-[#B43F26]` paired with it becomes invisible  */
+/* on cream-on-dark, so map both onto the dark coral accent family.      */
+:root[data-theme="dark"] .bg-\[\#FBE9E5\],
+:root[data-theme="dark"] .bg-\[\#FBE7DF\] { background-color: rgba(217, 83, 79, 0.18); }
+:root[data-theme="dark"] .text-\[\#B43F26\] { color: #FF9A85; }
+
+/* Deep brand purple text `#4C2A99` — used by the Landing-page "150+    */
+/* fandoms" pill and the PolishLibraryPage banner copy. Same family as  */
+/* the regular `text-[#6B46C1]` link, just one shade darker — lift it   */
+/* to the same dark-mode lavender so it stays legible on the tinted    */
+/* purple surfaces.                                                     */
+:root[data-theme="dark"] .text-\[\#4C2A99\] { color: #DDD6FE; }
+
+/* Moderator role (2026-06-17) — three new accent colors used by the   */
+/* "Mod" badge, the Mod inbox page header, and the lock/unlock         */
+/* reject-reason error CTA.  Sea-green family for mod tints, deep coral */
+/* for the destructive "Reject & email" button.                        */
+:root[data-theme="dark"] .bg-\[\#E0F0EA\] { background-color: rgba(125, 217, 195, 0.14); }
+:root[data-theme="dark"] .text-\[\#2F6E60\] { color: #7DD9C3; }
+:root[data-theme="dark"] .text-\[\#C04A3F\] { color: #FF7A6F; }
+
+/* Light cream border `#EFEAE0` — disabled-row outline in the mute     */
+/* matrix. Converge on `--border` so the row outline blends with the   */
+/* rest of the dark surface.                                            */
+:root[data-theme="dark"] .border-\[\#EFEAE0\] { border-color: var(--border); }
+
+/* Dark greens used as supporting text on pale sage backgrounds:        */
+/*   - `#1F4D2A` — the deep forest "Recommendations / Catalog sync /    */
+/*     Friend recs" headers + status text on `bg-[#EEF3EC]`.            */
+/*   - `#1F8F4E` — the lighter "in-progress" green on Goals/Account.    */
+/* Both go invisible once the pale-sage bg gets remapped to a tinted    */
+/* purple surface; lift to bright sage variants that read well there.   */
+:root[data-theme="dark"] .text-\[\#1F4D2A\] { color: #A0E4B0; }
+:root[data-theme="dark"] .text-\[\#1F8F4E\] { color: #6EE7A8; }
+
+/* Hover state for the brand purple link `text-[#6B46C1]`. Original     */
+/* hover went *darker* (`#553B96`) — on dark mode we need it to go     */
+/* *lighter* instead so the hover still indicates a state change.       */
+:root[data-theme="dark"] .text-\[\#553B96\],
+:root[data-theme="dark"] .hover\:text-\[\#553B96\]:hover { color: #DDD6FE; }
+
+/* Dark amber / dark coral text used by the AdminConsole alert-health    */
+/* and pending-rejection banners. On dark-mode the banner bg already    */
+/* gets remapped to a lighter tinted strip, so the body text needs to   */
+/* lift to a readable tone in the same family instead of staying dark.  */
+:root[data-theme="dark"] .text-\[\#5C3300\] { color: #FFD89A; }
+:root[data-theme="dark"] .text-\[\#7A2417\] { color: #FFB7A8; }
+:root[data-theme="dark"] .text-\[\#8B4F00\] { color: #FFC872; }
+
+/* Cream "subtle separator" border `#F5F3EC` used by table-row dividers  */
+/* in the feedback inbox + the view-as recent-uploads/timeline rows.    */
+/* Same surface-on-surface trick — converge on `--border`.              */
+:root[data-theme="dark"] .border-\[\#F5F3EC\] { border-color: var(--border); }
+
+/* "Currently live" mini-card on the Announcements form — `#6B46C1` text */
+/* is already remapped but the small uppercase label was hard to read    */
+/* against the surface-hover bg; this is implicit in the existing         */
+/* `text-[#6B46C1]` override so no extra rule needed.                    */
+
+/* shelf-card variant on dark theme — softer shadow, kept hover lift. */
+:root[data-theme="dark"] .shelf-card { background: var(--surface); border-color: var(--border); }
+:root[data-theme="dark"] .shelf-card:hover { box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5); border-color: rgba(224, 122, 95, 0.5); }
+
+/* Form inputs — Tailwind's bg-white inputs adopted via the override   */
+/* above, but native form controls also need a kick to look right.    */
+:root[data-theme="dark"] input[type="text"],
+:root[data-theme="dark"] input[type="email"],
+:root[data-theme="dark"] input[type="password"],
+:root[data-theme="dark"] input[type="search"],
+:root[data-theme="dark"] input[type="url"],
+:root[data-theme="dark"] textarea,
+:root[data-theme="dark"] select { background-color: var(--surface); color: var(--text-primary); }
+:root[data-theme="dark"] input::placeholder,
+:root[data-theme="dark"] textarea::placeholder { color: #6E6E6E; }
+
+/* Scrollbar — gently themed so the bright-white default doesn't yell */
+:root[data-theme="dark"] ::-webkit-scrollbar-thumb { background-color: #45454B; }
+:root[data-theme="dark"] ::-webkit-scrollbar-track { background-color: #1B1B1E; }
+
+
+
+/* ── Bulk dark-mode overrides (2026-06-13) ─────────────────────────────── */
+/* Surfaces the static-analysis test (`test_dark_mode_overrides.py`) found  */
+/* in JSX without a matching dark-mode rule. Same pattern as the existing   */
+/* override blocks above: tint the surface to fit the dark palette so the   */
+/* already-remapped near-white text stays readable.                         */
+
+/* Warm peach pales — Account streak card, Email-prefs success banners,    */
+/* Pairings/Authors/RestoreBackup info pills, AllBooks pinned-shelf chips. */
+:root[data-theme="dark"] .bg-\[\#FFF1ED\],
+:root[data-theme="dark"] .bg-\[\#FDEFE7\],
+:root[data-theme="dark"] .bg-\[\#FCEFE6\],
+:root[data-theme="dark"] .bg-\[\#FDECE6\],
+:root[data-theme="dark"] .bg-\[\#FBE8E0\],
+:root[data-theme="dark"] .bg-\[\#F8E8D8\] { background-color: rgba(255, 165, 130, 0.16); }
+
+/* Warm yellow/amber cream — DownloadPage "calibre" callouts, processing   */
+/* progress banners. Match the existing amber pale pattern.                */
+:root[data-theme="dark"] .bg-\[\#FCF8E8\],
+:root[data-theme="dark"] .bg-\[\#FDF5DC\],
+:root[data-theme="dark"] .bg-\[\#F5ECD5\] { background-color: #3a2f1b; color: #F0D6A0; }
+
+/* Neutral cream surfaces — MessagesPage thread row, AdminConsole route   */
+/* row, ReadingStatsCard tiles, DownloadPage divider. Converge on the      */
+/* generic dark surface so they blend with the surrounding cards.          */
+/* Case-sensitive: CSS class names preserve the exact case used in JSX, so */
+/* both `#EEE` (DownloadPage divider) and `#eee` (DownloadPage Cancel btn) */
+/* need their own selector.                                                */
+:root[data-theme="dark"] .bg-\[\#F4EFE5\],
+:root[data-theme="dark"] .bg-\[\#F4EFE4\],
+:root[data-theme="dark"] .bg-\[\#F1EFE8\],
+:root[data-theme="dark"] .bg-\[\#EEE\],
+:root[data-theme="dark"] .bg-\[\#eee\],
+:root[data-theme="dark"] .hover\:bg-\[\#ddd\]:hover { background-color: var(--surface); }
+:root[data-theme="dark"] .border-\[\#eee\],
+:root[data-theme="dark"] .border-\[\#EEE\] { border-color: var(--border); }
+
+/* Pink-red pale — CompareVersions "removed" highlight. Match the existing */
+/* `#FBE9E7` red-pale treatment.                                            */
+:root[data-theme="dark"] .bg-\[\#F8ECEC\] { background-color: rgba(217, 83, 79, 0.18); }
+
+/* Lavender pales — DownloadPage's themed surfaces (filter pane background,  */
+/* active-filter chip strip, hover-row highlight). Sit on the same purple    */
+/* family as the existing `#EEE9FB`/`#EDE7FB` overrides above.               */
+:root[data-theme="dark"] .bg-\[\#FBFAFE\] { background-color: rgba(167, 139, 250, 0.10); }
+:root[data-theme="dark"] .bg-\[\#F4EFF9\] { background-color: rgba(167, 139, 250, 0.16); }
+
+
+
+/* ── Dark-text overrides (2026-06-13) ──────────────────────────────────── */
+/* Caught by `test_dark_mode_overrides.py` — dark `text-[#hex]` colours    */
+/* would render as near-black on the dark surface and become invisible.    */
+
+/* Neutral darks (greys + body text variants) — match primary text colour. */
+/* Both lowercase and uppercase spellings are listed because CSS class      */
+/* selectors are case-sensitive and the JSX mixes both casings.             */
+:root[data-theme="dark"] .text-\[\#333\],
+:root[data-theme="dark"] .text-\[\#3a3a3a\],
+:root[data-theme="dark"] .text-\[\#3A3A3A\],
+:root[data-theme="dark"] .text-\[\#4a4a4a\],
+:root[data-theme="dark"] .text-\[\#4A4A4A\] { color: var(--text-primary); }
+/* Mid-grey `#666` is secondary support copy — match `--text-secondary`. */
+:root[data-theme="dark"] .text-\[\#666\] { color: var(--text-secondary); }
+
+/* Dark purple `#553397` is the deep purple variant of the brand accent — */
+/* match the existing `#6B46C1 → #C4B5FD` brightening.                    */
+:root[data-theme="dark"] .text-\[\#553397\] { color: #C4B5FD; }
+
+/* Red / red-orange family — coral matches the existing `#9B3531` family. */
+:root[data-theme="dark"] .text-\[\#9d2a2a\],
+:root[data-theme="dark"] .text-\[\#9D2A2A\],
+:root[data-theme="dark"] .text-\[\#a83a36\],
+:root[data-theme="dark"] .text-\[\#A83A36\],
+:root[data-theme="dark"] .text-\[\#b43f26\],
+:root[data-theme="dark"] .text-\[\#B43F26\],
+:root[data-theme="dark"] .text-\[\#a8532f\],
+:root[data-theme="dark"] .text-\[\#A8532F\],
+:root[data-theme="dark"] .text-\[\#9e5a2e\],
+:root[data-theme="dark"] .text-\[\#9E5A2E\] { color: #FF9A85; }
+
+/* Dark amber — match the existing `#B87A00 → #F0B860` brightening.       */
+:root[data-theme="dark"] .text-\[\#8c5c00\],
+:root[data-theme="dark"] .text-\[\#8C5C00\],
+:root[data-theme="dark"] .text-\[\#a76900\],
+:root[data-theme="dark"] .text-\[\#A76900\] { color: #F0B860; }
+
+/* Dark blue (`#2a6496` formerly used as DownloadPage info text — retired   */
+/* 2026-06-13 in the purple theme parity sweep. Override kept for safety in  */
+/* case any third-party content embeds the colour.                            */
+:root[data-theme="dark"] .text-\[\#2a6496\] { color: #A8C0E8; }
+
+/* Dark pink (`#b85c7c` LibraryActivityWidgets "Recently added by friends") */
+:root[data-theme="dark"] .text-\[\#b85c7c\],
+:root[data-theme="dark"] .text-\[\#B85C7C\] { color: #FFB0CC; }
+
+/* Muted sage placeholder (`#9A9580`) used by FandomFinder + AdminConsole  */
+/* section-search inputs — match the existing input::placeholder colour.  */
+:root[data-theme="dark"] .placeholder\:text-\[\#9A9580\]::placeholder,
+:root[data-theme="dark"] .text-\[\#9a9580\],
+:root[data-theme="dark"] .text-\[\#9A9580\] { color: #8a8675; }
+
+/* ── Light-border overrides (2026-06-13) ──────────────────────────────── */
+/* The `border-[#eee]` / `border-[#EEE]` cases are handled above alongside */
+/* their matching bg overrides. This section is reserved for any future    */
+/* light-border hexes the regression test surfaces.                        */
+
+
+
+/* Hide scrollbars for fullscreen scroll-snap experiences (e.g. Year in Books). */
+.scrollbar-hide {
+    scrollbar-width: none;          /* Firefox */
+    -ms-overflow-style: none;       /* IE 10+ */
+}
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;                  /* Chrome, Safari, Edge */
+}
+
+/* ---------------------------------------------------------------------- */
+/* 2026-06-18 — Contrast sweep                                            */
+/* ---------------------------------------------------------------------- */
+/* Multiple cards across the app render ``text-[#5B5F4D]`` (medium olive  */
+/* gray) body text on saturated pastel backgrounds — purple ``#EDE6FA``,  */
+/* mint ``#E8F3EC``, butter ``#FDF3E1``, blush ``#FDECE6``, cream         */
+/* ``#FBE9E5``.  That combo only hits ~3.5:1 contrast (WCAG AA needs      */
+/* 4.5:1 for normal text), which is why the toggle subtitles + invite    */
+/* helper text looked washed out in production.                          */
+/*                                                                       */
+/* Rather than visiting every JSX file to add ``dark:`` variants, we let */
+/* CSS attribute selectors do the heavy lifting: any element with a     */
+/* known colored background that contains a known faded text color      */
+/* gets its descendant text bumped to ``#3F4034`` (luminance ~0.14 =    */
+/* 5.5:1 against ``#EDE6FA``, passes WCAG AA).                          */
+[class*="bg-[#EDE6FA]"] [class*="text-[#5B5F4D]"],
+[class*="bg-[#E8F3EC]"] [class*="text-[#5B5F4D]"],
+[class*="bg-[#FDF3E1]"] [class*="text-[#5B5F4D]"],
+[class*="bg-[#FDECE6]"] [class*="text-[#5B5F4D]"],
+[class*="bg-[#FBE9E5]"] [class*="text-[#5B5F4D]"],
+[class*="bg-[#F5F0E0]"] [class*="text-[#5B5F4D]"],
+[class*="bg-[#EDE6FA]"] [class*="text-[#5B5F4D]"] *,
+[class*="bg-[#E8F3EC]"] [class*="text-[#5B5F4D]"] * {
+    color: #3F4034 !important;
+}
+/* 2026-06-18 — Dark-mode escape hatch.  The light-mode `#3F4034`
+   above turns into illegible near-black on the dark theme's
+   remapped backgrounds, so we override the override and let the
+   per-card text colors (defined above, e.g. cream cards →
+   `#F8E8C5`) win.  Without this, the prior rule's `!important`
+   would beat them.  */
+:root[data-theme="dark"] [class*="bg-["][class*="text-[#5B5F4D]"],
+:root[data-theme="dark"] [class*="bg-["] [class*="text-[#5B5F4D]"],
+:root[data-theme="dark"] [class*="bg-["] [class*="text-[#5B5F4D]"] * {
+    color: inherit !important;
+}
+
+
+/* ────────────────────────────────────────────────────────────────────
+ * 2026-06-28 — Dark-mode coverage backfill.
+ *
+ * Surfaces flagged by ``scripts/check_dark_mode_coverage.py`` —
+ * light hex backgrounds that were rendering as giant white slabs
+ * when the user flipped to dark theme.  Grouped by accent family
+ * so each light tint converges on an appropriately-tinted dark
+ * surface (purple stays purple, mint stays mint, etc.).
+ *
+ * If you add a new ``bg-[#XXXXXX]`` to JSX, run
+ * ``python3 scripts/check_dark_mode_coverage.py`` and either add
+ * the mapping here or append ``// dark-ok`` to the JSX line if the
+ * bright background is intentional in both modes.
+ * ──────────────────────────────────────────────────────────────── */
+
+/* Cream / paper / oat — converge on the neutral dark surface. */
+:root[data-theme="dark"] .bg-\[\#FDF8F0\],
+:root[data-theme="dark"] .bg-\[\#FAF7F2\],
+:root[data-theme="dark"] .bg-\[\#F5F2EE\],
+:root[data-theme="dark"] .bg-\[\#F5F2EA\],
+:root[data-theme="dark"] .bg-\[\#F2EEE5\],
+:root[data-theme="dark"] .bg-\[\#F1F1F0\],
+:root[data-theme="dark"] .bg-\[\#F0EDE5\],
+:root[data-theme="dark"] .bg-\[\#EFEDE7\],
+:root[data-theme="dark"] .bg-\[\#EDE9DF\],
+:root[data-theme="dark"] .bg-\[\#EAE4D6\],
+:root[data-theme="dark"] .bg-\[\#E8E6E1\],
+:root[data-theme="dark"] .bg-\[\#E8E2D4\],
+:root[data-theme="dark"] .bg-\[\#ddd\] { background-color: var(--surface); }
+
+/* Pale purple / lavender tints — keep the purple identity but on  */
+/* a dark backdrop so dark-text-on-pale becomes light-text-on-tint.*/
+:root[data-theme="dark"] .bg-\[\#F7F3FF\],
+:root[data-theme="dark"] .bg-\[\#F0EAFE\],
+:root[data-theme="dark"] .bg-\[\#F0EBFB\],
+:root[data-theme="dark"] .bg-\[\#EFE7FD\],
+:root[data-theme="dark"] .bg-\[\#E5DDF9\],
+:root[data-theme="dark"] .bg-\[\#EDE6FA\],
+:root[data-theme="dark"] .bg-\[\#EDE7FB\]\/40,
+:root[data-theme="dark"] .bg-\[\#EDE7FB\]\/60 { background-color: rgba(167, 139, 250, 0.14); }
+
+/* Pale mint / sage tints — keep the green identity. */
+:root[data-theme="dark"] .bg-\[\#F4F8F0\],
+:root[data-theme="dark"] .bg-\[\#F1F8E9\],
+:root[data-theme="dark"] .bg-\[\#EEF7E9\],
+:root[data-theme="dark"] .bg-\[\#E8F3EC\],
+:root[data-theme="dark"] .bg-\[\#E6F4EA\],
+:root[data-theme="dark"] .bg-\[\#E6F2E8\],
+:root[data-theme="dark"] .bg-\[\#E6F2E6\],
+:root[data-theme="dark"] .bg-\[\#E4F4EE\] { background-color: rgba(129, 178, 154, 0.14); }
+
+/* Peach / blush / coral tints — keep warm coral identity. */
+:root[data-theme="dark"] .bg-\[\#FFEFEC\],
+:root[data-theme="dark"] .bg-\[\#FDECEC\],
+:root[data-theme="dark"] .bg-\[\#FDE2E4\],
+:root[data-theme="dark"] .bg-\[\#FBEAE7\],
+:root[data-theme="dark"] .bg-\[\#FBE7E4\],
+:root[data-theme="dark"] .bg-\[\#FBE2E0\],
+:root[data-theme="dark"] .bg-\[\#FBE9E9\],
+:root[data-theme="dark"] .bg-\[\#F9DED5\],
+:root[data-theme="dark"] .bg-\[\#F6D7CE\] { background-color: rgba(224, 122, 95, 0.14); }
+
+/* Butter / amber / honey tints — keep warm amber identity. */
+:root[data-theme="dark"] .bg-\[\#FFF8EC\],
+:root[data-theme="dark"] .bg-\[\#FFF8E1\],
+:root[data-theme="dark"] .bg-\[\#FFF7E6\],
+:root[data-theme="dark"] .bg-\[\#FFF6D6\],
+:root[data-theme="dark"] .bg-\[\#FFF3D6\],
+:root[data-theme="dark"] .bg-\[\#FFF2DE\],
+:root[data-theme="dark"] .bg-\[\#FFF1E5\],
+:root[data-theme="dark"] .bg-\[\#FFE9C2\],
+:root[data-theme="dark"] .bg-\[\#FDF6D6\],
+:root[data-theme="dark"] .bg-\[\#FDF3E1\]\/40,
+:root[data-theme="dark"] .bg-\[\#FCE9C2\],
+:root[data-theme="dark"] .bg-\[\#FCE9B0\],
+:root[data-theme="dark"] .bg-\[\#FBF6E9\],
+:root[data-theme="dark"] .bg-\[\#FBF1D9\],
+:root[data-theme="dark"] .bg-\[\#FBF1D6\],
+:root[data-theme="dark"] .bg-\[\#FBE8C8\],
+:root[data-theme="dark"] .bg-\[\#F8E8D8\]\/40,
+:root[data-theme="dark"] .bg-\[\#F5EFE0\],
+:root[data-theme="dark"] .bg-\[\#F3EBE0\],
+:root[data-theme="dark"] .bg-\[\#F0EBE2\],
+:root[data-theme="dark"] .bg-\[\#F0EBE0\],
+:root[data-theme="dark"] .bg-\[\#F0EBDE\],
+:root[data-theme="dark"] .bg-\[\#F0EAD9\] { background-color: rgba(240, 200, 120, 0.12); }
+
+/* Sky / cool blue tints. */
+:root[data-theme="dark"] .bg-\[\#DCE8EF\] { background-color: rgba(140, 180, 210, 0.14); }
+
+/* Pale purple tints (e.g. UploadZone queue-summary "processing" chip). */
+:root[data-theme="dark"] .bg-\[\#E8E0F4\] { background-color: rgba(167, 139, 250, 0.18); }
+
+/* Pale red hover tints (e.g. UploadZone retry-inbox failed chip hover). */
+:root[data-theme="dark"] .bg-\[\#F8D2CE\],
+:root[data-theme="dark"] .hover\:bg-\[\#F8D2CE\]:hover { background-color: rgba(199, 84, 80, 0.22); }

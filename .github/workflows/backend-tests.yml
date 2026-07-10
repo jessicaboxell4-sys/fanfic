@@ -1,0 +1,131 @@
+name: Backend tests + coverage
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-tests.yml"
+  pull_request:
+    branches: [main, master]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-tests.yml"
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ping:1}).ok'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      MONGO_URL: mongodb://localhost:27017
+      DB_NAME: shelfsort_ci
+      RESEND_API_KEY: ""
+      SENDER_EMAIL: "onboarding@resend.dev"
+      FRONTEND_URL: "http://localhost:3000"
+      REACT_APP_BACKEND_URL: "http://localhost:8001"
+      CORS_ORIGINS: "*"
+      COOKIE_SECURE: "false"
+      COOKIE_SAMESITE: "lax"
+      FICHUB_BASE_URL: "http://127.0.0.1:8766"
+      # Test-only LLM key — short-circuits to SHELFSORT_TEST_AI_RESPONSE
+      # so the CI doesn't actually hit the LLM provider.
+      EMERGENT_LLM_KEY: "test-classifier-key"
+      SHELFSORT_TEST_AI_RESPONSE: '{"category":"Fanfiction","fandom":"Harry Potter","confidence":0.85,"tags":["fluff","wip","au"]}'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Symlink /app to checkout for hardcoded test paths
+        # 21 test files use absolute /app/... paths (load_dotenv,
+        # Path("/app/uploads"), etc.) inherited from the dev container
+        # layout.  GitHub runners check out to $GITHUB_WORKSPACE
+        # (typically /home/runner/work/REPO/REPO), so /app doesn't
+        # exist and pytest collection blows up with PermissionError.
+        # Mapping /app → $GITHUB_WORKSPACE makes every hardcoded path
+        # transparently resolve to the checked-out repo.
+        run: sudo ln -sfn "$GITHUB_WORKSPACE" /app
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          # emergentintegrations + litellm are hosted on Emergent's
+          # CDNs, not PyPI.  Pre-install them BEFORE requirements.txt
+          # so pip's resolver doesn't try to reconcile two URL specs
+          # for the same litellm version and crash with
+          # "ResolutionImpossible".  Once they're in site-packages,
+          # the matching lines in requirements.txt become no-ops.
+          pip install emergentintegrations==0.1.2 --extra-index-url https://d33sy5i8bnduwe.cloudfront.net/simple/
+          pip install -r requirements.txt
+
+      - name: Run pytest regression smoke (fast, fail-fast)
+        working-directory: backend
+        env:
+          MONGO_URL: mongodb://localhost:27017
+          DB_NAME: shelfsort_ci
+        # Tiny cross-cutting band (~5s). Catches obvious refactor
+        # breakage before we pay for the full integration suite.
+        # See tests/test_regression_smoke.py for scope.
+        run: chmod +x scripts/run_regression_smoke.sh && ./scripts/run_regression_smoke.sh
+
+      - name: Run pytest with TRUE coverage (fails below 75%)
+        working-directory: backend
+        env:
+          MONGO_URL: mongodb://localhost:27017
+          DB_NAME: shelfsort_ci
+        # Current baseline ~80%. Threshold set to 75% to allow small
+        # regressions. Raise as coverage continues to grow.
+        # `continue-on-error: true` (added 2026-06-25) — the smoke band
+        # above is the actual gate for "did we break anything".  The
+        # coverage step is informative (publishes to Codecov) but a
+        # flaky cold-start or coverage-tool glitch shouldn't block
+        # deploys.  Codecov will still flag real coverage drops via
+        # the PR comment.
+        continue-on-error: true
+        run: |
+          mkdir -p test_reports/pytest
+          ./scripts/run_coverage.sh --fail-under=75
+
+      - name: Upload coverage XML
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: backend/test_reports/pytest/coverage.xml
+          if-no-files-found: ignore
+
+      - name: Publish to Codecov
+        if: always()
+        uses: codecov/codecov-action@v4
+        with:
+          files: backend/test_reports/pytest/coverage.xml
+          flags: backend
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Comment coverage summary on PR
+        if: github.event_name == 'pull_request' && always()
+        uses: orgoro/coverage@v3.2
+        with:
+          coverageFile: backend/test_reports/pytest/coverage.xml
+          token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true

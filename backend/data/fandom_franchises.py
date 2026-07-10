@@ -1,0 +1,338 @@
+"""Franchise groupings — collapses related sub-fandoms into a single parent
+cell on the Account-page treemap (and anywhere else that wants the rolled-up
+view).
+
+Each key is a *display* franchise name (the parent cell label). The value is
+the list of *exact* canonical fandom names — as they appear in
+`FANDOM_KEYWORDS` (after the bundled `ao3_top_fandoms.py` merge) — that
+should roll up under it.
+
+A fandom that isn't in any list stays standalone (no parent cell). Order
+within a list doesn't matter.
+
+The frontend exposes a toggle on the Fandom Treemap so users can flip between
+"Show every fandom" (raw `/api/fandoms` view) and "Group by franchise"
+(nested treemap using this map).
+"""
+
+from typing import Dict, List
+
+
+FRANCHISE_GROUPS: Dict[str, List[str]] = {
+    "Stargate": [
+        "Stargate SG-1",
+        "Stargate Atlantis",
+        "Stargate Universe",
+        "Stargate (Movies)",
+    ],
+    "NCIS": [
+        "NCIS",
+        "NCIS: Hawai'i",
+        "NCIS: Los Angeles",
+        "NCIS: New Orleans",
+        "NCIS: Origins",
+        "NCIS: Sydney",
+        "NCIS: Tony & Ziva",
+    ],
+    "Riordanverse": [
+        "Percy Jackson and the Olympians",
+        "Percy Jackson and the Olympians (TV)",
+        "Heroes of Olympus",
+        "Trials of Apollo",
+        "The Sun and the Star",
+        "Magnus Chase and the Gods of Asgard",
+        "The Kane Chronicles",
+        "Daughter of the Deep",
+    ],
+    "Shadowhunters (Cassandra Clare)": [
+        "Shadowhunter Chronicles - Cassandra Clare",
+        "The Mortal Instruments",
+        "The Infernal Devices",
+        "The Dark Artifices",
+        "The Last Hours",
+        "The Eldest Curses",
+        "Tales from the Shadowhunter Academy",
+        "Shadowhunters (TV)",
+    ],
+    "Cosmere (Brandon Sanderson)": [
+        "Mistborn Series - Brandon Sanderson",
+        "Mistborn: Wax & Wayne (Era 2)",
+        "The Stormlight Archive - Brandon Sanderson",
+        "Warbreaker",
+        "Elantris",
+        "Tress of the Emerald Sea",
+        "Yumi and the Nightmare Painter",
+        "The Sunlit Man",
+    ],
+    "Sarah J. Maas": [
+        "A Court of Thorns and Roses - Sarah J. Maas",
+        "Throne of Glass - Sarah J. Maas",
+        "Crescent City",
+    ],
+    "Star Wars Universe": [
+        "Star Wars",
+        "Star Wars - All Media Types",
+        "Star Wars Sequel Trilogy",
+        "Star Wars: The Clone Wars (2008) - All Media Types",
+        "The Mandalorian (TV)",
+        "Andor (TV)",
+        "Star Wars: The Bad Batch (Cartoon)",
+        "Star Wars Rebels",
+        "Star Wars: Knights of the Old Republic",
+        "Star Wars Visions",
+        "Rogue One: A Star Wars Story",
+    ],
+    "Critical Role / D&D": [
+        "Critical Role (Web Series)",
+        "The Legend of Vox Machina (Cartoon)",
+        "Vox Machina (Critical Role)",
+        "The Mighty Nein (Critical Role)",
+        "Bell's Hells (Critical Role)",
+        "Dungeons & Dragons (Role-Playing Game)",
+    ],
+    "My Hero Academia": [
+        "My Hero Academia",
+        "My Hero Academia: Vigilantes",
+    ],
+    "Marvel": [
+        "Marvel",
+        "Marvel Cinematic Universe",
+        "The Avengers (Marvel Movies)",
+        "Captain America (Movies)",
+        "Iron Man (Movies)",
+        "Thor (Movies)",
+        "Spider-Man: Homecoming (2017)",
+        "Daredevil (Comics)",
+        "X-Men (Comicverse)",
+    ],
+    "DC": [
+        "DC Comics",
+        "DCU (Movies)",
+        "DCU (Comics)",
+        "Batman - All Media Types",
+        "Young Justice (Comics)",
+    ],
+    "Star Wars": [
+        # Empty — superseded by "Star Wars Universe" near the top of
+        # this dict (which adds Mandalorian, Andor, Bad Batch, Rebels,
+        # KOTOR, Visions, Rogue One). Kept here as a sentinel so
+        # downstream code that imports this module can still introspect
+        # the name; the reverse index picks the populated entry.
+    ],
+    "Middle-earth": [
+        "Lord of the Rings",
+        "Lord of the Rings (Movies)",
+        "The Hobbit (Jackson Movies)",
+    ],
+    "Star Trek": [
+        "Star Trek: Alternate Original Series (AOS) - Fandom",
+        "Star Trek: The Original Series",
+        "Star Trek: The Next Generation",
+        "Star Trek: Deep Space Nine",
+        "Star Trek: Voyager",
+        "Star Trek: Strange New Worlds",
+        "Star Trek: Lower Decks",
+        "Star Trek: Picard",
+        "Star Trek: Discovery",
+        "Star Trek: Enterprise",
+        "Star Trek: Prodigy",
+    ],
+    "Pokémon": [
+        "Pokemon - All Media Types",
+        "Pokémon Adventures / Pokémon Special (Manga)",
+        "Detective Pikachu",
+        "Pokémon GO",
+    ],
+    "Honkai / miHoYo Games": [
+        "原神 | Genshin Impact (Video Game)",
+        "崩坏：星穹铁道 | Honkai: Star Rail (Video Game)",
+        "Honkai Impact 3rd",
+    ],
+    "Vivziepop": [
+        "Hazbin Hotel",
+        "Helluva Boss",
+    ],
+    "The Boys": [
+        "The Boys (TV)",
+        "The Boys (Comics)",
+        "Gen V (TV)",
+    ],
+    "Steven Universe": [
+        "Steven Universe",
+        "Steven Universe: Future",
+    ],
+    "Studio Ghibli": [
+        "Spirited Away",
+        "Howl's Moving Castle",
+        "Princess Mononoke",
+        "My Neighbor Totoro",
+        "Castle in the Sky",
+        "Kiki's Delivery Service",
+        "Ponyo",
+        "The Tale of the Princess Kaguya",
+        "The Wind Rises",
+        "Nausicaä of the Valley of the Wind",
+    ],
+    "Bridgerton-verse": [
+        "Bridgerton (TV)",
+        "Queen Charlotte: A Bridgerton Story",
+    ],
+    "Buffyverse": [
+        "Buffy the Vampire Slayer",
+        "Angel: the Series",
+    ],
+    "Arrowverse": [
+        "Arrow (TV)",
+        "The Flash (TV 2014)",
+        "Supergirl (TV 2015)",
+        "Legends of Tomorrow (TV)",
+        "Batwoman (TV)",
+        "Black Lightning (TV)",
+        "Stargirl (TV)",
+        "Titans (TV)",
+    ],
+    "League of Legends": [
+        "League of Legends",
+        "Arcane: League of Legends (Cartoon)",
+    ],
+    "Castlevania": [
+        "Castlevania (Cartoon)",
+        "Castlevania: Nocturne (Cartoon)",
+    ],
+    "Wheel of Time": [
+        "The Wheel of Time - Robert Jordan",
+        "The Wheel of Time (TV)",
+    ],
+    "Dragon Ball": [
+        "ドラゴンボール | Dragon Ball - All Media Types",
+        "Dragon Ball Z",
+        "Dragon Ball Super",
+        "Dragon Ball GT",
+    ],
+    "The Locked Tomb": [
+        "The Locked Tomb - Tamsyn Muir",
+        "Gideon the Ninth",
+        "Harrow the Ninth",
+        "Nona the Ninth",
+    ],
+    "Grishaverse": [
+        "Shadow and Bone Trilogy - Leigh Bardugo",
+        "Six of Crows Series - Leigh Bardugo",
+        "King of Scars Duology - Leigh Bardugo",
+    ],
+    "The Expanse": [
+        "The Expanse - James S. A. Corey",
+        "The Expanse (TV)",
+    ],
+    "Foundation": [
+        "Foundation - Isaac Asimov",
+        "Foundation (TV)",
+    ],
+    "Dune": [
+        "Dune - Frank Herbert",
+        "Dune (2021)",
+        "Dune: Part Two (2024)",
+    ],
+    "ASOIAF / GoT / HotD": [
+        "A Song of Ice and Fire - George R. R. Martin",
+        "Game of Thrones",
+        "House of the Dragon (TV)",
+    ],
+    "The Sandman": [
+        "The Sandman - Neil Gaiman",
+        "The Sandman (TV)",
+    ],
+    "Stephen King multiverse": [
+        "It - Stephen King",
+        "The Dark Tower - Stephen King",
+        "The Shining - Stephen King",
+        "Carrie - Stephen King",
+        "Misery - Stephen King",
+        "Salem's Lot - Stephen King",
+    ],
+    "Resident Evil": [
+        "Resident Evil (Video Games)",
+        "Resident Evil (Movies)",
+    ],
+    "Hunger Games (Suzanne Collins)": [
+        "Hunger Games",
+        "The Ballad of Songbirds and Snakes",
+    ],
+    "Holly Black (Faerie books)": [
+        "The Folk of the Air Series - Holly Black",
+        "The Spiderwick Chronicles",
+        "The Stolen Heir Duology - Holly Black",
+    ],
+    "Discworld - Terry Pratchett": [
+        "Discworld - Terry Pratchett",
+        "Discworld: City Watch",
+        "Discworld: Witches",
+        "Discworld: Death",
+        "Discworld: Rincewind",
+        "Discworld: Tiffany Aching",
+    ],
+    "Avatar (Bryke)": [
+        "Avatar: The Last Airbender",
+        "The Legend of Korra",
+    ],
+    "Final Fantasy": [
+        "Final Fantasy VII",
+        "Final Fantasy XIV Online",
+        "Final Fantasy XV",
+    ],
+    "Persona": [
+        "Persona 5",
+        "Persona Series",
+    ],
+    "Fire Emblem": [
+        "Fire Emblem: Three Houses",
+        "Fire Emblem Series - All Media Types",
+    ],
+    "Dragon Age": [
+        "Dragon Age - All Media Types",
+        "Dragon Age: Inquisition",
+    ],
+    "The Witcher": [
+        "The Witcher - Andrzej Sapkowski",
+        "The Witcher (TV)",
+    ],
+    "The Legend of Zelda": [
+        "The Legend of Zelda - All Media Types",
+        "The Legend of Zelda: Breath of the Wild",
+    ],
+    "Sherlock Holmes": [
+        "Sherlock Holmes",
+        "Sherlock (TV)",
+    ],
+    "Mo Xiang Tong Xiu — The Untamed / MDZS": [
+        "魔道祖师 - 墨香铜臭 | Módào Zǔshī - Mòxiāng Tóngxiù",
+        "天官赐福 - 墨香铜臭 | Tiān Guān Cì Fú - Mòxiāng Tóngxiù",
+        "陈情令 | The Untamed (TV)",
+    ],
+    # Sarah J. Maas + Sanderson Cosmere franchises now live in the
+    # consolidated block near the top of this dict (lines ~57-72) which
+    # bundles Crescent City and the rest of the Cosmere alongside the
+    # original AO3-seed entries — removed from here 2026-06-13 to fix a
+    # dict-key collision that was hiding the new sub-fandoms.
+    # ``Honkai / miHoYo Games`` was likewise consolidated upstream (now
+    # also includes ``Honkai Impact 3rd``); see definition near the top
+    # of this dict. No stub is needed here — dict-key collisions silently
+    # overwrite.
+}
+
+
+# Reverse index: fandom canonical → franchise name. Built lazily so the
+# module is cheap to import.
+_REVERSE_INDEX: Dict[str, str] = {}
+for _franchise, _members in FRANCHISE_GROUPS.items():
+    for _m in _members:
+        _REVERSE_INDEX[_m] = _franchise
+del _franchise, _members, _m
+
+
+def franchise_for(fandom: str) -> str:
+    """Return the franchise the given canonical fandom belongs to, or the
+    fandom itself when it doesn't roll up under any franchise."""
+    if not fandom:
+        return ""
+    return _REVERSE_INDEX.get(fandom, fandom)
