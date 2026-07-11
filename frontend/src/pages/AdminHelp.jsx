@@ -22,6 +22,8 @@ const SECTIONS = [
   { id: "campaign",         label: "Campaign / referral stats", icon: BarChart3 },
   { id: "r2-migration",     label: "R2 storage migration",    icon: HardDrive },
   { id: "orphan-audit",     label: "Orphan audit & cleanup",  icon: AlertOctagon },
+  { id: "unknown-fandoms",  label: "Unknown fandoms",         icon: AlertOctagon },
+  { id: "crossovers",       label: "Crossover suggestions",   icon: Sparkles },
   { id: "fallback",         label: "Pause Emergent fallback", icon: Pause },
   { id: "savings",          label: "$ saved this month + tuner", icon: BarChart3 },
   { id: "antivirus",        label: "Antivirus & quarantine",  icon: ShieldAlert },
@@ -147,12 +149,14 @@ export default function AdminHelp() {
           </Section>
 
           <Section id="r2-migration" icon={HardDrive} title="R2 storage migration">
-            <p>The R2 Migration Progress card shows what percent of books have moved from Emergent Object Storage to Cloudflare R2. It samples 100 books per refresh + HEAD-checks them against the R2 bucket.</p>
+            <p>The R2 Migration Progress card shows what percent of books have moved from Emergent Object Storage to Cloudflare R2. It samples 100 books per refresh + HEAD-checks them in parallel (32-wide) against the R2 bucket, then extrapolates.</p>
             <ul>
-              <li><strong>Migrate next 25</strong>: kicks off a chunk of backfill. Each book is downloaded from Emergent and re-uploaded to R2, then the DB record is updated. Hit it as many times as needed.</li>
-              <li><strong>Re-sample</strong>: re-runs the percentage sample without doing any actual migration work.</li>
+              <li><strong>Migrate all remaining</strong>: kicks off the backfill and <strong>auto-loops in 15-book chunks</strong> until the whole library is on R2. Each book is pulled from Emergent, re-uploaded to R2 (4-wide parallel transfers on the backend), and the DB row updated. A live &ldquo;Batch N · migrated X · ~Y remaining · Z%&rdquo; indicator ticks as it runs. One click, walk away, come back done — even for thousands of pending books.</li>
+              <li><strong>Stop</strong>: appears while migration is running. Sets a cancel flag; the loop exits cleanly after the current 15-book batch completes (no orphaned mid-transfer files). Safe to click any time.</li>
+              <li><strong>Re-sample</strong>: re-runs the percentage sample without doing any actual migration work. Fast (parallelised HEAD checks — ~1 second even on slow R2 days).</li>
               <li><strong>Migration complete banner</strong>: once the percent hits 100 a green ribbon unlocks with the &quot;Pause Emergent fallback&quot; button.</li>
-              <li><strong>Auto-migration on read</strong>: any time a user opens a book served from Emergent, the file is silently mirrored to R2 in the background.</li>
+              <li><strong>Auto-migration on read</strong>: any time a user opens a book still served from Emergent, the file is silently mirrored to R2 in the background — so even without touching the button, the migration drains itself over time as users read.</li>
+              <li><strong>Timeout safety</strong>: each 15-book chunk finishes in well under Cloudflare&apos;s 120s proxy timeout. The old &ldquo;Migrate next 25&rdquo; button routinely 524&apos;d on slow-Emergent days; the new small-chunk auto-loop cannot.</li>
             </ul>
           </Section>
 
@@ -160,10 +164,33 @@ export default function AdminHelp() {
             <p>HEAD-checks every book with a stored filename against R2 AND the Emergent fallback. A book is &quot;orphaned&quot; only if BOTH backends return 404 — meaning the DB row points at bytes you can no longer serve.</p>
             <ul>
               <li><strong>Run audit</strong>: paginates through the library in 1000-book windows at 64-wide HEAD concurrency, aggregating orphans as it goes. A live &ldquo;Scanning X / Y books · found N orphans so far…&rdquo; counter shows progress. Handles libraries of any size — each window comfortably clears Cloudflare&apos;s 120 s proxy timeout.</li>
-              <li><strong>Bulk delete (auto-batched)</strong>: select rows → &quot;Delete N selected&quot;. The backend still hard-caps each POST at 500 rows for safety, but the button now automatically slices your full selection into 500-row batches and fires them sequentially — no more clicking through page after page for a large cleanup. A live &ldquo;Batch X of Y · removed Z so far…&rdquo; indicator shows progress; if any batch fails mid-run, you get a partial-progress toast so you know exactly where it stopped. Each row is still RE-checked against object storage before deletion so a recovered file is never nuked.</li>
+              <li><strong>Bulk delete (auto-batched)</strong>: select rows → &quot;Delete N selected&quot;. The backend caps each POST at 250 rows (down from 500 as of 2026-07-11) and does HEAD rechecks 32-wide in parallel, so every batch clears the 120s proxy in ~2s even on slow days. The frontend auto-slices your full selection into 100-row batches and fires them sequentially — no more clicking through page after page for a large cleanup. A live &ldquo;Batch X of Y · removed Z so far…&rdquo; indicator shows progress; if any batch fails mid-run, you get a partial-progress toast so you know exactly where it stopped. Each row is still RE-checked against object storage before deletion so a recovered file is never nuked.</li>
               <li><strong>When to run</strong>: after the migration gauge plateaus &lt; 100%. Most plateaus mean orphaned DB records, not failed migrations.</li>
               <li><strong>Is deleting an orphan safe for the user?</strong> — <strong>Yes.</strong> An orphan means the underlying bytes are <em>already gone from both storage backends</em> — nobody can read, download, or share that book anymore. All you&apos;re removing is a dead DB pointer. The user loses nothing more than they&apos;d already lost when the file vanished; what they gain is a cleaner library free of ghost entries that would only render as &ldquo;file not found&rdquo; on open. Common causes of orphans include: mid-migration cutover races (files moved but rows not yet re-linked), silent upload drops during huge bulk imports, or the odd manual-cleanup by an admin. In every case, the bytes are the loss — the row is just paperwork.</li>
               <li><strong>Safety net still on</strong>: the pre-delete re-check means if a file has been quietly restored (e.g. cloud-mirror backfill just landed) between audit and delete, that row is skipped. So even if you leave &ldquo;select all&rdquo; checked, you can&apos;t accidentally purge a book that came back to life.</li>
+            </ul>
+          </Section>
+
+          <Section id="unknown-fandoms" icon={AlertOctagon} title="Unknown fandoms">
+            <p>Any fandom name that shows up on a book but isn&apos;t in the keyword classifier surfaces here. Left alone, unknown fandoms mean books get bucketed as &quot;Other&quot; on the dashboard and don&apos;t appear in fandom-scoped searches.</p>
+            <ul>
+              <li><strong>Sample links</strong>: each row lists up to 3 clickable source URLs pulled from the actual books tagged with that fandom. Never heard of &quot;MHA&quot;? Open the first link, see the fic on FanFiction.net, identify the canon in 5 seconds. This is the fastest triage aid the card has — always click through if you&apos;re unsure before renaming or dismissing.</li>
+              <li><strong>Rescan (per row)</strong>: re-runs the keyword classifier against the books currently tagged with that fandom. Useful after you&apos;ve added keywords to the classifier — books that used to fall through the cracks get automatically re-classified. No AI, no EPUB re-parse.</li>
+              <li><strong>Rescan N selected (batch)</strong>: checkbox-select multiple unknown fandoms → hit the batch button. The card loops through each, showing &ldquo;Fandom X of Y · scanned N books · reclassified M&rdquo; live. One click, no repeated confirmations, walk away.</li>
+              <li><strong>Rename</strong>: click Rename on a row → type the canonical fandom name (e.g. &quot;MHA&quot; → &quot;My Hero Academia&quot;) → hit Save. Every book carrying the old fandom tag is bulk-updated in one Mongo write. If the new name matches an existing classifier keyword, those books instantly count against the correct fandom stat. Idempotent — re-running with the same target changes 0 books.</li>
+              <li><strong>Dismiss</strong>: hides a fandom from the main list permanently (stored in <code>dismissed_unknown_fandoms</code>). Dismissed entries move to a collapsible &quot;Dismissed&quot; section at the bottom where you can still Rescan / Rename / Restore them.</li>
+              <li><strong>When to use which</strong>: <em>Rename</em> when you know what the fandom is and want to canonicalize. <em>Rescan</em> when you&apos;ve just taught the classifier a new keyword and want to sweep existing books. <em>Dismiss</em> when the fandom is real but obscure and you don&apos;t care to teach the classifier about it.</li>
+            </ul>
+          </Section>
+
+          <Section id="crossovers" icon={Sparkles} title="Crossover suggestions">
+            <p>When two fandoms appear together in a book&apos;s tags/description in a way the classifier didn&apos;t catch, the crossover-suggestion worker writes a row here. Admins triage: <em>Accept</em> (adds the fandom pair as a canonical crossover), <em>Reject</em> (records that this pairing is spurious).</p>
+            <ul>
+              <li><strong>Auto-purge of URL-less rows (2026-07-11)</strong>: every list request runs a housekeeping pass that <em>deletes</em> (not filters) any suggestion whose story has no reachable <code>source_url</code> after enrichment. Rationale: without a URL there&apos;s nothing to click through to verify — the story has been removed from its source site, and the row is just noise. Enrichment runs FIRST, so a suggestion that COULD get a URL from the local <code>books</code> collection is protected. Purge count is returned in the response as <code>purged</code>.</li>
+              <li><strong>Book removed but URL still present</strong>: shows a &quot;book removed&quot; hint on the row. The suggestion&apos;s <code>source_url</code> was persisted from an earlier enrichment pass, so the URL still opens even after the local book was deleted — that&apos;s the intended snapshot behavior.</li>
+              <li><strong>Accept</strong>: adds the (fandom-A, fandom-B) pair to the crossover-knowledge base + optional per-fandom keyword hints inline.</li>
+              <li><strong>Reject</strong>: marks the suggestion as spurious so it never re-surfaces if the same book is re-scanned later.</li>
+              <li><strong>Tab counts</strong>: Pending / Accepted / Rejected badges reflect the true post-purge state (URL-less rows are already deleted before the count query runs).</li>
             </ul>
           </Section>
 

@@ -14,10 +14,10 @@ import {
   Filter, Heart, AlertTriangle, Settings, GitCompare, Bell, LineChart,
   Globe, Shield, CheckCircle2, Clock, FileWarning, User as UserIcon, X,
   MessageSquare, Search, ListChecks, AtSign, Target, Compass, Lightbulb,
-  Dna, Repeat, Command, Send, Tag,
+  Dna, Repeat, Command, Send, Tag, Download,
 } from "lucide-react";
 
-// Help guide — kept current with the app. Last updated: 2026-06-24.
+// Help guide — kept current with the app. Last updated: 2026-07-11.
 // When you add a feature, drop a new <Section> here; the sticky table
 // of contents builds itself from each section's `id`.
 
@@ -88,7 +88,7 @@ const SEO_FAQ = [
     a: "Yes — Shelfsort handles every EPUB. The Library mode preference (Account → Library mode, or the inline pill on /library/all) lets you choose Fanfic-first, Original/Non-fic first, or Mixed (both, in separate sections on the same page). Original mode hides fanfic chrome (pairings, fandom shelves) so original fiction and non-fic don't compete for attention; Fanfic mode keeps the AO3-style fandom-first layout front and centre; Mixed mode shows two collapsible grids on the library page so you can browse each world distinctly. Switching mode actually filters the book list — original mode never shows fanfic-category books, and vice versa.",
   },
   {
-    a: "Yes. The Cloud Library Mirror automatically copies every EPUB to Cloudflare R2 the moment you upload it. You can also export the full library as a ZIP (raw EPUBs) or an Excel workbook (title + author + source URL) from /library/download. Backups are reminded if your last export is older than the configured threshold.",
+    a: "Yes. The Cloud Library Mirror automatically copies every EPUB to Cloudflare R2 the moment you upload it. You can also export the full library as a ZIP (raw EPUBs) or an Excel workbook (title + author + source URL) from /library/download — and for libraries over 2,000 books the ZIP export automatically splits into per-category zips so no download hits the proxy timeout. Backups are reminded if your last export is older than the configured threshold.",
   },
   {
     id: "antivirus",
@@ -147,6 +147,7 @@ const SECTIONS = [
   { id: "fandoms", label: "Fandoms we sort into" },
   { id: "sources", label: "Sources we recognize" },
   { id: "detection", label: "Detection & overrides" },
+  { id: "download-library", label: "Download your library" },
   { id: "data-safety", label: "Backup & restore" },
   { id: "cloud-backup", label: "Cloud library mirror" },
   { id: "antivirus", label: "Antivirus & library safety" },
@@ -1096,6 +1097,20 @@ export default function Help() {
               <p>
                 <strong>In-place metadata editing</strong> — the <em>Edit</em> button on any book&apos;s detail page now lets you fix the <strong>title</strong>, <strong>author</strong>, and <strong>description</strong> alongside category and fandom. Edits land in the database immediately, and if the original EPUB is still on disk, the OPF metadata is rewritten <em>inside the file</em> too — so when you re-download the book or send it to a friend, your corrections travel with it. Chapters, covers, and every other byte in the EPUB stay untouched (we surgically replace only the <code>&lt;dc:title&gt;</code> / <code>&lt;dc:creator&gt;</code> / <code>&lt;dc:description&gt;</code> tags). If the rewrite ever fails (some malformed EPUBs can&apos;t round-trip), the DB save still goes through and a toast lets you know.
               </p>
+            </Section>
+
+            <Section id="download-library" icon={Download} title="Download your library">
+              <p>Grab your books as a ZIP (raw EPUBs) or a spreadsheet manifest (title / author / source URL) from <Link to="/library/download">/library/download</Link>. Filters let you scope by fandom, pairing, author, or category before downloading.</p>
+              <ul>
+                <li><strong>Full library ZIP</strong> — leave all filters set to &quot;Any&quot; and hit <em>Download full library ZIP</em>. Files stream directly to your browser (no server-side temp file), so bytes start arriving within about a second. Filename is dated so you can keep multiple.</li>
+                <li><strong>Auto-split for large libraries</strong> — if you have <strong>2,000 or more books</strong>, the full-library ZIP <em>automatically splits into per-category zips</em> (one for Fanfiction, one for Fiction, one for Non-fiction, etc.) instead of packing everything into a single 5-10 GB file. This avoids the browser and reverse-proxy timeouts that plague giant single downloads. You still click once — the page just delivers a few smaller files instead of one huge one, and shows a heads-up banner beforehand so you know what to expect. Filenames look like <code>shelfsort_Fanfiction.zip</code>, <code>shelfsort_Fiction.zip</code>, etc.</li>
+                <li><strong>Filtered ZIP</strong> — pick any combination of fandoms / pairings / authors / categories → hit <em>Download filtered ZIP</em>. Filtered downloads always land as a single file, regardless of size, so a single-fandom archive stays predictable.</li>
+                <li><strong>Excel manifest</strong> — switch to the &quot;Library manifest (.xlsx)&quot; toggle at the top for a spreadsheet listing every book with its metadata + source URL. Handy for de-duping against a Kindle library or auditing what you own outside Shelfsort.</li>
+                <li><strong>Progress + cancel</strong> — a live toast shows &quot;Streaming... 42 MB so far · 8s&quot; with a Cancel button. Cancelled downloads stop cleanly (in an auto-batch, the current category&apos;s download aborts and the loop halts).</li>
+                <li><strong>Sub-shelves preserved</strong> — inside the ZIP, Fanfiction is grouped as <code>Fanfiction/&lt;Fandom&gt;/&lt;Pairing&gt;/</code> (books with multiple pairings file under their first alphabetically), with pairing-less fics in <code>_No_pairing</code>. Everything else lands in a flat category folder.</li>
+                <li><strong>Books that can&apos;t be restored</strong> — extremely rare, but if a book&apos;s bytes are missing from both storage backends (e.g. a rare hardware event) it&apos;s skipped and logged. The final ZIP still ships; you get a warning in the toast if any were skipped.</li>
+              </ul>
+              <p className="text-xs text-[#5B5F4D]">The auto-batch threshold and per-file naming might change as we tune it; the auto-split behavior is designed to be a hands-off improvement, not a surprise — your existing single-file mental model still holds for small-to-medium libraries.</p>
             </Section>
 
             <Section id="data-safety" icon={Shield} title="Backup &amp; restore">
