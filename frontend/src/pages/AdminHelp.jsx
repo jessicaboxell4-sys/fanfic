@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowLeft, Shield, Inbox, Users, HardDrive, AlertOctagon, Database,
@@ -15,30 +15,47 @@ import WhatsNewFeed from "@/components/WhatsNewFeed";
  * button, and what the gotchas are.  Lives at /admin/help so it's
  * one click away from the console itself.
  */
-const SECTIONS = [
-  { id: "users",            label: "Users & approvals",       icon: Users },
-  { id: "pending",          label: "Pending sign-ups inbox",  icon: Inbox },
-  { id: "test-accounts",    label: "Test-account quarantine", icon: FlaskConical },
-  { id: "campaign",         label: "Campaign / referral stats", icon: BarChart3 },
-  { id: "r2-migration",     label: "R2 storage migration",    icon: HardDrive },
-  { id: "orphan-audit",     label: "Orphan audit & cleanup",  icon: AlertOctagon },
-  { id: "unknown-fandoms",  label: "Unknown fandoms",         icon: AlertOctagon },
-  { id: "crossovers",       label: "Crossover suggestions",   icon: Sparkles },
-  { id: "fallback",         label: "Pause Emergent fallback", icon: Pause },
-  { id: "savings",          label: "$ saved this month + tuner", icon: BarChart3 },
-  { id: "antivirus",        label: "Antivirus & quarantine",  icon: ShieldAlert },
-  { id: "feedback",         label: "Feedback inbox + attachments", icon: MessageSquare },
-  { id: "notifications",    label: "Operator digest + cron",  icon: Bell },
-  { id: "email-system",     label: "Email system kill switch", icon: Pause },
-  { id: "email-logs",       label: "Email logs & retry",      icon: Mail },
-  { id: "llm-key-health",   label: "LLM key health & runway", icon: Sparkles },
-  { id: "changelog",        label: "Recent changelog",        icon: History },
-  { id: "bookclubs",        label: "Book-club moderation",    icon: Users },
-  { id: "unknown-sources",  label: "Unknown sources triage",  icon: Eye },
-  { id: "av-flag",          label: "AV scan-on-upload toggle", icon: Shield },
-  { id: "stuck-uploads",    label: "Stuck uploads & Atlas failover", icon: Inbox },
-  { id: "troubleshooting",  label: "Troubleshooting & slowness", icon: LifeBuoy },
+// Category-grouped table of contents, mirroring the /admin console's
+// left-nav categories so operators use the same mental model in both
+// places.  Each section belongs to exactly one category; the sidebar
+// renders them grouped with a count badge per group (identical
+// affordance to /admin's sidebar).  Recent-viewed section is
+// persisted per-admin in localStorage.
+const HELP_CATEGORIES = [
+  { id: "users",     label: "Users & sign-ups",      icon: Users },
+  { id: "feedback",  label: "Feedback & moderation", icon: MessageSquare },
+  { id: "storage",   label: "Storage & files",       icon: HardDrive },
+  { id: "email",     label: "Email",                 icon: Mail },
+  { id: "system",    label: "System & health",       icon: LifeBuoy },
 ];
+
+const SECTIONS = [
+  { id: "users",            label: "Users & approvals",       icon: Users,          category: "users" },
+  { id: "pending",          label: "Pending sign-ups inbox",  icon: Inbox,          category: "users" },
+  { id: "test-accounts",    label: "Test-account quarantine", icon: FlaskConical,   category: "users" },
+  { id: "campaign",         label: "Campaign / referral stats", icon: BarChart3,    category: "users" },
+  { id: "bookclubs",        label: "Book-club moderation",    icon: Users,          category: "feedback" },
+  { id: "feedback",         label: "Feedback inbox + attachments", icon: MessageSquare, category: "feedback" },
+  { id: "unknown-sources",  label: "Unknown sources triage",  icon: Eye,            category: "feedback" },
+  { id: "r2-migration",     label: "R2 storage migration",    icon: HardDrive,      category: "storage" },
+  { id: "orphan-audit",     label: "Orphan audit & cleanup",  icon: AlertOctagon,   category: "storage" },
+  { id: "unknown-fandoms",  label: "Unknown fandoms",         icon: AlertOctagon,   category: "storage" },
+  { id: "crossovers",       label: "Crossover suggestions",   icon: Sparkles,       category: "storage" },
+  { id: "fallback",         label: "Pause Emergent fallback", icon: Pause,          category: "storage" },
+  { id: "savings",          label: "$ saved this month + tuner", icon: BarChart3,   category: "storage" },
+  { id: "antivirus",        label: "Antivirus & quarantine",  icon: ShieldAlert,    category: "storage" },
+  { id: "av-flag",          label: "AV scan-on-upload toggle", icon: Shield,        category: "storage" },
+  { id: "stuck-uploads",    label: "Stuck uploads & Atlas failover", icon: Inbox,   category: "storage" },
+  { id: "notifications",    label: "Operator digest + cron",  icon: Bell,           category: "email" },
+  { id: "email-system",     label: "Email system kill switch", icon: Pause,         category: "email" },
+  { id: "email-logs",       label: "Email logs & retry",      icon: Mail,           category: "email" },
+  { id: "llm-key-health",   label: "LLM key health & runway", icon: Sparkles,       category: "system" },
+  { id: "changelog",        label: "Recent changelog",        icon: History,        category: "system" },
+  { id: "troubleshooting",  label: "Troubleshooting & slowness", icon: LifeBuoy,    category: "system" },
+];
+
+const HELP_RECENT_KEY = "admin_help.recent_sections";
+const HELP_RECENT_MAX = 3;
 
 function Section({ id, icon: Icon, title, children }) {
   return (
@@ -59,6 +76,57 @@ function Section({ id, icon: Icon, title, children }) {
 }
 
 export default function AdminHelp() {
+  // Recent-section tracking mirrors the /admin console.  Clicking any
+  // sidebar link pushes the section id to the head of the recent list
+  // (dedup + cap to 3) so the operator's last-viewed items are always
+  // one tap away, exactly like /admin.
+  const [recentSections, setRecentSections] = useState(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(HELP_RECENT_KEY) || "[]");
+      return Array.isArray(raw) ? raw.slice(0, HELP_RECENT_MAX) : [];
+    } catch { return []; }
+  });
+  // Which section is currently in the viewport — used to purple-
+  // highlight the active sidebar link, again mirroring /admin.
+  const [activeSection, setActiveSection] = useState(SECTIONS[0]?.id || null);
+
+  const rememberSection = (id) => {
+    setRecentSections((prev) => {
+      const next = [id, ...prev.filter((x) => x !== id)].slice(0, HELP_RECENT_MAX);
+      try { localStorage.setItem(HELP_RECENT_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    // Scroll-spy: pick the section closest to the top of the viewport
+    // via IntersectionObserver — same "top 15% of viewport" tracking
+    // window /admin uses so the two pages feel identical when scrolling.
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .map((e) => e.target.id)
+          .filter(Boolean);
+        if (visible.length > 0) setActiveSection(visible[0]);
+      },
+      { rootMargin: "-15% 0px -75% 0px", threshold: 0 },
+    );
+    SECTIONS.forEach((s) => {
+      const el = document.getElementById(s.id);
+      if (el) observer.observe(el);
+    });
+    return () => observer.disconnect();
+  }, []);
+
+  const recentDetails = recentSections
+    .map((id) => SECTIONS.find((s) => s.id === id))
+    .filter(Boolean);
+  const sectionsByCategory = HELP_CATEGORIES.map((cat) => ({
+    ...cat,
+    sections: SECTIONS.filter((s) => s.category === cat.id),
+  })).filter((cat) => cat.sections.length > 0);
+
   return (
     <div className="min-h-screen bg-[#FDFBF7]">
       <header className="border-b border-[#E5DDC5] bg-white">
@@ -79,26 +147,75 @@ export default function AdminHelp() {
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 grid md:grid-cols-[220px_1fr] gap-8">
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 grid md:grid-cols-[240px_1fr] gap-8">
+        {/* ─── Category-grouped sidebar — matches /admin's left nav so
+              operators use the same mental model in both places
+              (2026-07-11).  Recent block pins to the top of the aside
+              via ``sticky top-0`` so it stays visible even when the
+              sections list is longer than the viewport. */}
         <aside
-          className="md:sticky md:top-6 md:self-start md:max-h-[calc(100vh-3rem)] md:overflow-y-auto md:pr-2"
+          className="md:sticky md:top-6 md:self-start md:max-h-[calc(100vh-3rem)] md:overflow-y-auto md:pr-1"
           data-testid="admin-help-toc"
         >
-          <p className="text-[10px] uppercase tracking-[0.2em] text-[#5B5F4D] font-bold mb-2">
-            On this page
-          </p>
-          <nav className="text-sm space-y-1.5">
-            {SECTIONS.map((s) => (
-              <a
-                key={s.id}
-                href={`#${s.id}`}
-                className="block text-[#5B5F4D] hover:text-[#6B46C1] py-0.5"
-                data-testid={`admin-help-toc-${s.id}`}
+          {recentDetails.length > 0 && (
+            <div
+              className="sticky top-0 z-10 -mx-1 px-1 pt-1 pb-2 bg-[#FDFBF7]"
+              data-testid="admin-help-toc-recent-sticky"
+            >
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#5B5F4D] mb-2 px-2">Recent</p>
+              <nav
+                className="space-y-0.5"
+                aria-label="Recently viewed help sections"
+                data-testid="admin-help-toc-recent"
               >
-                {s.label}
-              </a>
+                {recentDetails.map((s) => (
+                  <a
+                    key={`recent-${s.id}`}
+                    href={`#${s.id}`}
+                    onClick={() => rememberSection(s.id)}
+                    className="w-full text-left block px-2.5 py-1.5 rounded-lg text-xs text-[#5B5F4D] hover:bg-[#FDF3E1] hover:text-[#B87A00] transition-colors truncate"
+                    data-testid={`admin-help-toc-recent-${s.id}`}
+                  >
+                    <span className="text-[10px] mr-1.5 opacity-60">↻</span>{s.label}
+                  </a>
+                ))}
+              </nav>
+            </div>
+          )}
+          <div className="mt-1">
+            {sectionsByCategory.map((cat) => (
+              <div key={cat.id} className="mb-4">
+                <p
+                  className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#5B5F4D] mb-2 px-2 flex items-center justify-between"
+                  data-testid={`admin-help-toc-category-${cat.id}`}
+                >
+                  <span>{cat.label}</span>
+                  <span className="text-[10px] tabular-nums text-[#6E6E6E] font-normal">{cat.sections.length}</span>
+                </p>
+                <nav className="space-y-0.5" aria-label={cat.label}>
+                  {cat.sections.map((s) => {
+                    const active = activeSection === s.id;
+                    return (
+                      <a
+                        key={s.id}
+                        href={`#${s.id}`}
+                        onClick={() => rememberSection(s.id)}
+                        data-testid={`admin-help-toc-${s.id}`}
+                        data-active={active ? "true" : "false"}
+                        className={`w-full text-left block px-2.5 py-1.5 rounded-lg text-xs transition-colors truncate ${
+                          active
+                            ? "bg-[#6B46C1] text-white font-semibold"
+                            : "text-[#5B5F4D] hover:bg-[#EEE9FB] hover:text-[#6B46C1]"
+                        }`}
+                      >
+                        {s.label}
+                      </a>
+                    );
+                  })}
+                </nav>
+              </div>
             ))}
-          </nav>
+          </div>
         </aside>
 
         <div>
