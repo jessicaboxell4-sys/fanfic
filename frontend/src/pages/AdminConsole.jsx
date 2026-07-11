@@ -2248,6 +2248,7 @@ function OrphanCleanupCard() {
   const [selected, setSelected] = useState(() => new Set());
   const [lastResult, setLastResult] = useState(null);
   const [progress, setProgress] = useState(null);
+  const [deleteProgress, setDeleteProgress] = useState(null);
 
   const audit = async () => {
     setLoading(true);
@@ -2313,22 +2314,58 @@ function OrphanCleanupCard() {
     if (!window.confirm(
       `Delete ${ids.length} orphaned book record${ids.length === 1 ? "" : "s"}?\n\n`
       + `Each row will be re-checked against object storage before deletion. `
-      + `Files won't be touched (they're already gone). This action is logged.`,
+      + `Files won't be touched (they're already gone). This action is logged.\n\n`
+      + `Large batches are automatically split into chunks of 500 — no more clicking.`,
     )) return;
     setDeleting(true);
+    setLastResult(null);
+    // Backend caps each POST at 500 book_ids.  Auto-slice the full
+    // selection into chunks and fire them sequentially so a big
+    // migration cleanup is a single click, not a hand-cranked loop.
+    const CHUNK = 500;
+    const totals = { deleted: 0, recovered: [], not_found: [] };
+    setDeleteProgress({ done: 0, total: ids.length, chunks: Math.ceil(ids.length / CHUNK) });
     try {
-      const { data: r } = await api.post("/admin/orphan-audit/delete-bulk", {
-        book_ids: ids,
-        confirm_recheck: true,
-      });
-      setLastResult(r);
-      toast.success(`Removed ${r.deleted} orphan${r.deleted === 1 ? "" : "s"}`);
+      for (let i = 0; i < ids.length; i += CHUNK) {
+        const slice = ids.slice(i, i + CHUNK);
+        // eslint-disable-next-line no-await-in-loop
+        const { data: r } = await api.post("/admin/orphan-audit/delete-bulk", {
+          book_ids: slice,
+          confirm_recheck: true,
+        });
+        totals.deleted += r?.deleted || 0;
+        if (r?.recovered?.length) totals.recovered.push(...r.recovered);
+        if (r?.not_found?.length) totals.not_found.push(...r.not_found);
+        setDeleteProgress({
+          done: Math.min(i + CHUNK, ids.length),
+          total: ids.length,
+          chunks: Math.ceil(ids.length / CHUNK),
+          deletedSoFar: totals.deleted,
+        });
+      }
+      setLastResult(totals);
+      const chunkCount = Math.ceil(ids.length / CHUNK);
+      toast.success(
+        `Removed ${totals.deleted} orphan${totals.deleted === 1 ? "" : "s"}`
+        + (chunkCount > 1 ? ` across ${chunkCount} batches` : "")
+        + (totals.recovered.length ? ` · ${totals.recovered.length} skipped (recovered)` : ""),
+      );
       // Refresh the audit so the table reflects the post-delete state.
       audit();
     } catch (e) {
-      toast.error(e?.response?.data?.detail || "Bulk delete failed");
+      // Report partial progress if some chunks succeeded before a failure.
+      if (totals.deleted > 0) {
+        setLastResult(totals);
+        toast.error(
+          `Partial: removed ${totals.deleted} before failure. `
+          + (e?.response?.data?.detail || "Bulk delete failed mid-batch"),
+        );
+      } else {
+        toast.error(e?.response?.data?.detail || "Bulk delete failed");
+      }
     } finally {
       setDeleting(false);
+      setDeleteProgress(null);
     }
   };
 
@@ -2406,9 +2443,23 @@ function OrphanCleanupCard() {
                 className="px-3 py-1.5 rounded-full bg-[#E07A5F] text-white text-xs font-bold uppercase tracking-[0.15em] hover:bg-[#C8674E] disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
               >
                 {deleting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
-                {deleting ? "Removing…" : `Delete ${selected.size || ""} selected`}
+                {deleting
+                  ? (deleteProgress
+                      ? `Removing ${deleteProgress.done}/${deleteProgress.total}…`
+                      : "Removing…")
+                  : `Delete ${selected.size || ""} selected${selected.size > 500 ? ` (auto-batched)` : ""}`}
               </button>
             </div>
+            {deleting && deleteProgress && deleteProgress.chunks > 1 && (
+              <p
+                className="text-[11px] text-[#5B5F4D] italic"
+                data-testid="orphan-audit-delete-progress"
+              >
+                Batch {Math.min(Math.ceil(deleteProgress.done / 500), deleteProgress.chunks)} of
+                {" "}{deleteProgress.chunks}
+                {" "}· removed <span className="font-mono">{deleteProgress.deletedSoFar ?? 0}</span> so far…
+              </p>
+            )}
             <div className="overflow-x-auto border border-[#E5DDC5] rounded">
               <table className="w-full text-xs">
                 <thead className="bg-[#FBFAF6] text-[#5B5F4D] uppercase tracking-[0.12em] text-[10px]">
