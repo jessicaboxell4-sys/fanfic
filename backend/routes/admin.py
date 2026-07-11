@@ -3156,23 +3156,47 @@ async def orphan_audit_notify_retroactive(user: User = Depends(require_admin)):
     if marker:
         return {"ok": True, "already_sent": True, "sent_count": marker.get("sent_count", 0)}
 
-    latest = await db.admin_actions.find_one(
+    latest = await db.admin_audit.find_one(
         {"action": "books.delete_orphans_bulk"},
-        sort=[("created_at", -1)],
+        sort=[("ts", -1)],
     )
     if not latest:
         raise HTTPException(400, "No orphan-delete admin action found to anchor the notice")
-    anchor_ts = latest.get("created_at")
+    anchor_ts = latest.get("ts") or latest.get("created_at")
+    # users.created_at drifted between datetime and ISO-string over the
+    # project's history (~43% datetime / 57% string as of 2026-07-11).
+    # Normalise the anchor to ISO-8601 STRING before the $lt query so
+    # both storage variants sort correctly under lexical comparison
+    # (ISO-8601 lexical order == chronological order).
+    if isinstance(anchor_ts, datetime):
+        anchor_iso = anchor_ts.isoformat()
+    else:
+        anchor_iso = str(anchor_ts)
     from routes.notifications import create_notification
 
     # "Old" users only — anyone who registered before the purge.
     old_user_ids: List[str] = []
     async for u in db.users.find(
-        {"created_at": {"$lt": anchor_ts}},
+        {"created_at": {"$lt": anchor_iso}},
         {"_id": 0, "user_id": 1},
     ):
         if u.get("user_id"):
             old_user_ids.append(u["user_id"])
+    # Also catch users whose created_at is stored as a datetime — the
+    # ISO-string $lt above matches both variants because ISO-8601 sorts
+    # correctly against Mongo datetime, but belt-and-suspenders: run a
+    # second query against the datetime anchor for any stragglers whose
+    # created_at is stored as a native datetime type.
+    seen = set(old_user_ids)
+    if isinstance(anchor_ts, datetime):
+        async for u in db.users.find(
+            {"created_at": {"$lt": anchor_ts}},
+            {"_id": 0, "user_id": 1},
+        ):
+            uid = u.get("user_id")
+            if uid and uid not in seen:
+                old_user_ids.append(uid)
+                seen.add(uid)
 
     # Filter to users who actually have (or had) books — no point
     # notifying a signup that never uploaded anything.
@@ -3209,7 +3233,7 @@ async def orphan_audit_notify_retroactive(user: User = Depends(require_admin)):
         {"_id": "orphan_retroactive_notify_2026_07_11"},
         {"$set": {
             "sent_count": sent,
-            "anchor_ts": anchor_ts,
+            "anchor_ts": anchor_iso,
             "sent_at": datetime.now(timezone.utc).isoformat(),
             "sent_by": user.user_id,
         }},
@@ -3219,7 +3243,7 @@ async def orphan_audit_notify_retroactive(user: User = Depends(require_admin)):
         user,
         "orphan_notify.retroactive",
         target=f"count:{sent}",
-        metadata={"anchor_ts": anchor_ts, "sent": sent, "old_users_total": len(old_user_ids)},
+        metadata={"anchor_ts": anchor_iso, "sent": sent, "old_users_total": len(old_user_ids)},
     )
     return {"ok": True, "sent_count": sent, "old_users_considered": len(old_user_ids)}
 
