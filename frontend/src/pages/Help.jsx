@@ -14,7 +14,7 @@ import {
   Filter, Heart, AlertTriangle, Settings, GitCompare, Bell, LineChart,
   Globe, Shield, CheckCircle2, Clock, FileWarning, User as UserIcon, X,
   MessageSquare, Search, ListChecks, AtSign, Target, Compass, Lightbulb,
-  Dna, Repeat, Command, Send, Tag, Download,
+  Dna, Repeat, Command, Send, Tag, Download, ChevronDown,
 } from "lucide-react";
 
 // Help guide — kept current with the app. Last updated: 2026-07-11.
@@ -193,6 +193,7 @@ const SECTIONS = [
 
 const HELP_RECENT_KEY = "help.recent_sections";
 const HELP_RECENT_MAX = 3;
+const HELP_EXPAND_KEY = "help.expanded_categories";
 
 function Section({ id, icon: Icon, title, children }) {
   // Note: `prose prose-sm` is kept for forward-compat with
@@ -268,6 +269,27 @@ export default function Help() {
     } catch { return []; }
   });
   const [activeSection, setActiveSection] = useState(SECTIONS[0]?.id || null);
+
+  // Category expand/collapse state.  Persisted per-user so their
+  // preferred layout survives reloads; whichever category the active
+  // section lives in is force-open regardless (scroll-spy always shows
+  // the current group's items).
+  const [expandedCats, setExpandedCats] = useState(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(HELP_EXPAND_KEY) || "null");
+      if (Array.isArray(raw)) return new Set(raw);
+    } catch { /* ignore */ }
+    return new Set(); // default: all collapsed
+  });
+  const toggleCategory = (catId) => {
+    setExpandedCats((prev) => {
+      const next = new Set(prev);
+      if (next.has(catId)) next.delete(catId);
+      else next.add(catId);
+      try { localStorage.setItem(HELP_EXPAND_KEY, JSON.stringify([...next])); } catch { /* ignore */ }
+      return next;
+    });
+  };
 
   const rememberSection = (id) => {
     setRecentSections((prev) => {
@@ -546,53 +568,77 @@ export default function Help() {
                       </div>
                     )}
                     <div className="mt-1">
-                      {sectionsByCategory.map((cat) => (
-                        <div key={cat.id} className="mb-4">
-                          <p
-                            className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#5B5F4D] mb-2 px-2 flex items-center justify-between"
-                            data-testid={`help-toc-category-${cat.id}`}
-                          >
-                            <span>{cat.label}</span>
-                            <span className="text-[10px] tabular-nums text-[#6E6E6E] font-normal">{cat.sections.length}</span>
-                          </p>
-                          <nav className="space-y-0.5" aria-label={cat.label}>
-                            {cat.sections.map((s) => {
-                              const active = activeSection === s.id;
-                              const isPopular = popularSet.has(s.id) && popularIds.indexOf(s.id) < 3;
-                              const popIdx = popularIds.indexOf(s.id);
-                              return (
-                                <a
-                                  key={s.id}
-                                  href={`#${s.id}`}
-                                  onClick={() => rememberSection(s.id)}
-                                  data-testid={`help-toc-${s.id}`}
-                                  data-active={active ? "true" : "false"}
-                                  className={`w-full text-left flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
-                                    active
-                                      ? "bg-[#6B46C1] text-white font-semibold"
-                                      : "text-[#5B5F4D] hover:bg-[#EEE9FB] hover:text-[#6B46C1]"
-                                  }`}
-                                >
-                                  <span className="flex-1 truncate">{s.label}</span>
-                                  {isPopular && (
-                                    <span
-                                      title={`Popular this month — ${popular[popIdx]?.hits || 0} clicks`}
-                                      data-testid={`toc-popular-${s.id}`}
-                                      className={`text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                      {sectionsByCategory.map((cat) => {
+                        // Category is "open" when the user has expanded
+                        // it OR when the currently-active section lives
+                        // inside it (scroll-spy always reveals the
+                        // group you're currently reading).
+                        const activeInCat = cat.sections.some((s) => s.id === activeSection);
+                        const isOpen = expandedCats.has(cat.id) || activeInCat;
+                        return (
+                          <div key={cat.id} className="mb-2">
+                            <button
+                              type="button"
+                              onClick={() => toggleCategory(cat.id)}
+                              aria-expanded={isOpen}
+                              aria-controls={`help-toc-cat-${cat.id}-list`}
+                              className="w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-[0.2em] text-[#5B5F4D] hover:bg-[#EEE9FB] hover:text-[#6B46C1] transition-colors"
+                              data-testid={`help-toc-category-${cat.id}`}
+                            >
+                              <span className="flex items-center gap-1.5">
+                                <ChevronDown
+                                  className={`w-3 h-3 transition-transform ${isOpen ? "" : "-rotate-90"}`}
+                                  aria-hidden="true"
+                                />
+                                {cat.label}
+                              </span>
+                              <span className="text-[10px] tabular-nums text-[#6E6E6E] font-normal">{cat.sections.length}</span>
+                            </button>
+                            {isOpen && (
+                              <nav
+                                id={`help-toc-cat-${cat.id}-list`}
+                                className="space-y-0.5 mt-1 ml-2"
+                                aria-label={cat.label}
+                              >
+                                {cat.sections.map((s) => {
+                                  const active = activeSection === s.id;
+                                  const isPopular = popularSet.has(s.id) && popularIds.indexOf(s.id) < 3;
+                                  const popIdx = popularIds.indexOf(s.id);
+                                  return (
+                                    <a
+                                      key={s.id}
+                                      href={`#${s.id}`}
+                                      onClick={() => rememberSection(s.id)}
+                                      data-testid={`help-toc-${s.id}`}
+                                      data-active={active ? "true" : "false"}
+                                      className={`w-full text-left flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
                                         active
-                                          ? "bg-white/25 text-white"
-                                          : "bg-[#FDF3E1] text-[#8C5C00] border border-[#F5E0A8]"
+                                          ? "bg-[#6B46C1] text-white font-semibold"
+                                          : "text-[#5B5F4D] hover:bg-[#EEE9FB] hover:text-[#6B46C1]"
                                       }`}
                                     >
-                                      popular
-                                    </span>
-                                  )}
-                                </a>
-                              );
-                            })}
-                          </nav>
-                        </div>
-                      ))}
+                                      <span className="flex-1 truncate">{s.label}</span>
+                                      {isPopular && (
+                                        <span
+                                          title={`Popular this month — ${popular[popIdx]?.hits || 0} clicks`}
+                                          data-testid={`toc-popular-${s.id}`}
+                                          className={`text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                                            active
+                                              ? "bg-white/25 text-white"
+                                              : "bg-[#FDF3E1] text-[#8C5C00] border border-[#F5E0A8]"
+                                          }`}
+                                        >
+                                          popular
+                                        </span>
+                                      )}
+                                    </a>
+                                  );
+                                })}
+                              </nav>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </>
                 );

@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import {
   ArrowLeft, Shield, Inbox, Users, HardDrive, AlertOctagon, Database,
   Mail, ShieldAlert, FlaskConical, BarChart3, MessageSquare, Pause,
-  Trash2, Sparkles, Eye, Bell, Send, History, LifeBuoy,
+  Trash2, Sparkles, Eye, Bell, Send, History, LifeBuoy, ChevronDown,
 } from "lucide-react";
 import WhatsNewFeed from "@/components/WhatsNewFeed";
 
@@ -56,6 +56,7 @@ const SECTIONS = [
 
 const HELP_RECENT_KEY = "admin_help.recent_sections";
 const HELP_RECENT_MAX = 3;
+const HELP_EXPAND_KEY = "admin_help.expanded_categories";
 
 function Section({ id, icon: Icon, title, children }) {
   return (
@@ -89,6 +90,26 @@ export default function AdminHelp() {
   // Which section is currently in the viewport — used to purple-
   // highlight the active sidebar link, again mirroring /admin.
   const [activeSection, setActiveSection] = useState(SECTIONS[0]?.id || null);
+
+  // Category expand/collapse — persisted so an operator's preferred
+  // layout survives reloads.  Category containing the currently-active
+  // section is always force-open so scroll-spy still reveals context.
+  const [expandedCats, setExpandedCats] = useState(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(HELP_EXPAND_KEY) || "null");
+      if (Array.isArray(raw)) return new Set(raw);
+    } catch { /* ignore */ }
+    return new Set(); // default: all collapsed
+  });
+  const toggleCategory = (catId) => {
+    setExpandedCats((prev) => {
+      const next = new Set(prev);
+      if (next.has(catId)) next.delete(catId);
+      else next.add(catId);
+      try { localStorage.setItem(HELP_EXPAND_KEY, JSON.stringify([...next])); } catch { /* ignore */ }
+      return next;
+    });
+  };
 
   const rememberSection = (id) => {
     setRecentSections((prev) => {
@@ -183,38 +204,61 @@ export default function AdminHelp() {
             </div>
           )}
           <div className="mt-1">
-            {sectionsByCategory.map((cat) => (
-              <div key={cat.id} className="mb-4">
-                <p
-                  className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#5B5F4D] mb-2 px-2 flex items-center justify-between"
-                  data-testid={`admin-help-toc-category-${cat.id}`}
-                >
-                  <span>{cat.label}</span>
-                  <span className="text-[10px] tabular-nums text-[#6E6E6E] font-normal">{cat.sections.length}</span>
-                </p>
-                <nav className="space-y-0.5" aria-label={cat.label}>
-                  {cat.sections.map((s) => {
-                    const active = activeSection === s.id;
-                    return (
-                      <a
-                        key={s.id}
-                        href={`#${s.id}`}
-                        onClick={() => rememberSection(s.id)}
-                        data-testid={`admin-help-toc-${s.id}`}
-                        data-active={active ? "true" : "false"}
-                        className={`w-full text-left block px-2.5 py-1.5 rounded-lg text-xs transition-colors truncate ${
-                          active
-                            ? "bg-[#6B46C1] text-white font-semibold"
-                            : "text-[#5B5F4D] hover:bg-[#EEE9FB] hover:text-[#6B46C1]"
-                        }`}
-                      >
-                        {s.label}
-                      </a>
-                    );
-                  })}
-                </nav>
-              </div>
-            ))}
+            {sectionsByCategory.map((cat) => {
+              // Force-open when scroll-spy has landed inside this
+              // category — so the sidebar always shows the group
+              // you're currently reading, no manual click needed.
+              const activeInCat = cat.sections.some((s) => s.id === activeSection);
+              const isOpen = expandedCats.has(cat.id) || activeInCat;
+              return (
+                <div key={cat.id} className="mb-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleCategory(cat.id)}
+                    aria-expanded={isOpen}
+                    aria-controls={`admin-help-toc-cat-${cat.id}-list`}
+                    className="w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-[0.2em] text-[#5B5F4D] hover:bg-[#EEE9FB] hover:text-[#6B46C1] transition-colors"
+                    data-testid={`admin-help-toc-category-${cat.id}`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <ChevronDown
+                        className={`w-3 h-3 transition-transform ${isOpen ? "" : "-rotate-90"}`}
+                        aria-hidden="true"
+                      />
+                      {cat.label}
+                    </span>
+                    <span className="text-[10px] tabular-nums text-[#6E6E6E] font-normal">{cat.sections.length}</span>
+                  </button>
+                  {isOpen && (
+                    <nav
+                      id={`admin-help-toc-cat-${cat.id}-list`}
+                      className="space-y-0.5 mt-1 ml-2"
+                      aria-label={cat.label}
+                    >
+                      {cat.sections.map((s) => {
+                        const active = activeSection === s.id;
+                        return (
+                          <a
+                            key={s.id}
+                            href={`#${s.id}`}
+                            onClick={() => rememberSection(s.id)}
+                            data-testid={`admin-help-toc-${s.id}`}
+                            data-active={active ? "true" : "false"}
+                            className={`w-full text-left block px-2.5 py-1.5 rounded-lg text-xs transition-colors truncate ${
+                              active
+                                ? "bg-[#6B46C1] text-white font-semibold"
+                                : "text-[#5B5F4D] hover:bg-[#EEE9FB] hover:text-[#6B46C1]"
+                            }`}
+                          >
+                            {s.label}
+                          </a>
+                        );
+                      })}
+                    </nav>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </aside>
 
