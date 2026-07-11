@@ -3660,10 +3660,41 @@ async def admin_list_crossover_suggestions(
                     )
                 except Exception:
                     pass  # non-fatal — the read still succeeds
+
+    # 2026-07-11 — Auto-purge URL-less suggestions (admin request).
+    # Rationale: without a source_url there's nothing for an admin to
+    # click through to — the story has been removed from its source
+    # site, and the row is just noise in the triage queue.  Enrichment
+    # above has already tried to fill in a URL from the local ``books``
+    # collection; anything still empty after that pass has no path to
+    # verification and gets deleted from the DB entirely (not just
+    # filtered from the response).  Runs before the count query so
+    # the tab badges reflect the post-purge state.
+    try:
+        purge_res = await db.crossover_suggestions.delete_many({
+            "$or": [
+                {"source_url": {"$exists": False}},
+                {"source_url": None},
+                {"source_url": ""},
+            ],
+        })
+        purged_count = getattr(purge_res, "deleted_count", 0)
+    except Exception:
+        purged_count = 0
+    # Drop any of the current page's rows that we just deleted so the
+    # response never surfaces a URL-less suggestion to the admin.
+    if rows and purged_count:
+        rows = [r for r in rows if (r.get("source_url") or "").strip()]
+
     counts: Dict[str, int] = {}
     for s in ("pending", "accepted", "rejected"):
         counts[s] = await db.crossover_suggestions.count_documents({"status": s})
-    return {"suggestions": rows, "count": len(rows), "counts": counts}
+    return {
+        "suggestions": rows,
+        "count": len(rows),
+        "counts": counts,
+        "purged": purged_count,
+    }
 
 
 @api_router.post("/admin/crossover-suggestions/{dedup_key}/accept")

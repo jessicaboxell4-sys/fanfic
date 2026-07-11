@@ -5445,7 +5445,6 @@ function UnknownFandomsCard() {
 function CrossoverSuggestionsCard() {
   const [rows, setRows] = useState([]);
   const [counts, setCounts] = useState({ pending: 0, accepted: 0, rejected: 0 });
-  const [urlFilteredCount, setUrlFilteredCount] = useState(0);
   const [status, setStatus] = useState("pending");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(null);
@@ -5456,16 +5455,11 @@ function CrossoverSuggestionsCard() {
     setLoading(true);
     try {
       const { data } = await api.get(`/admin/crossover-suggestions?status=${status}`);
-      const raw = data?.suggestions || [];
-      // 2026-07-11 — drop URL-less suggestions.  Per admin request:
-      // if a story has been removed from its source site (no URL
-      // recorded, or URL wiped when the book was deleted), there's
-      // nothing left to review — hiding these keeps the queue focused
-      // on suggestions that are still actionable.  Tab counts stay on
-      // the raw backend numbers so operators see the true queue size.
-      const withUrl = raw.filter((r) => (r.source_url || "").trim());
-      setRows(withUrl);
-      setUrlFilteredCount(raw.length - withUrl.length);
+      // Backend now auto-purges URL-less suggestions (removed from
+      // source site) on every list request — the response never
+      // contains them, and the DB rows are deleted too.  Frontend
+      // just renders whatever comes back.
+      setRows(data?.suggestions || []);
       setCounts(data?.counts || { pending: 0, accepted: 0, rejected: 0 });
     } catch { /* ignore */ }
     finally { setLoading(false); }
@@ -5549,24 +5543,10 @@ function CrossoverSuggestionsCard() {
         <p className="text-sm text-[#5B5F4D] italic">Loading…</p>
       ) : rows.length === 0 ? (
         <p className="text-sm text-[#6B46C1] inline-flex items-center gap-1.5" data-testid="admin-crossover-suggestions-empty">
-          <Check className="w-4 h-4" /> No {status} suggestions
-          {urlFilteredCount > 0 ? (
-            <span className="text-[#5B5F4D]"> · {urlFilteredCount} hidden (no URL — removed from source site)</span>
-          ) : null}
-          .
+          <Check className="w-4 h-4" /> No {status} suggestions.
         </p>
       ) : (
-        <>
-          {urlFilteredCount > 0 && (
-            <p
-              className="mb-3 text-xs text-[#5B5F4D] italic"
-              data-testid="admin-crossover-suggestions-url-filtered"
-            >
-              {urlFilteredCount} suggestion{urlFilteredCount === 1 ? "" : "s"} hidden
-              {" "}— story no longer available at its source URL.
-            </p>
-          )}
-          <ul className="space-y-3" data-testid="admin-crossover-suggestions-list">
+        <ul className="space-y-3" data-testid="admin-crossover-suggestions-list">
           {rows.map((r) => {
             const dk = r.dedup_key;
             const isPending = r.status === "pending";
@@ -5676,7 +5656,6 @@ function CrossoverSuggestionsCard() {
             );
           })}
         </ul>
-        </>
       )}
     </Card>
   );
