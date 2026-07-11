@@ -1838,6 +1838,38 @@ async def rename_unknown_fandom(
     }
 
 
+class RescanByNameBody(BaseModel):
+    fandom: str
+    dry_run: bool = False
+
+
+@api_router.post("/admin/unknown-fandoms/rescan-by-name")
+async def rescan_unknown_fandom_by_name(
+    body: RescanByNameBody,
+    user: User = Depends(require_admin),
+):
+    """Same behaviour as ``/admin/unknown-fandoms/{fandom}/rescan`` but
+    takes the fandom name in the request body so callers don't have to
+    URL-encode names with slashes, spaces, or special punctuation.
+
+    Introduced 2026-07-11 after the batch-rescan UI 404'd on names
+    containing characters FastAPI's path parser couldn't reliably
+    round-trip.  The path-based endpoint is retained for the single-
+    row Rescan buttons that always know they have a safe path
+    fragment already.
+    """
+    name = (body.fandom or "").strip()
+    if not name:
+        raise HTTPException(400, "fandom cannot be empty")
+    # Delegate to the exact same handler so behaviour and audit-log
+    # rows stay identical between the two entry points.
+    return await rescan_unknown_fandom(
+        fandom=name,
+        body=RescanBody(dry_run=body.dry_run),
+        user=user,
+    )
+
+
 @api_router.post("/admin/unknown-fandoms/{fandom}/rescan")
 async def rescan_unknown_fandom(
     fandom: str,

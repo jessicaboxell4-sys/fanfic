@@ -5358,29 +5358,66 @@ function UnknownFandomsCard() {
       `Re-scan ${targets.length} fandom${targets.length === 1 ? "" : "s"} `
       + `(${totalBooks} book${totalBooks === 1 ? "" : "s"} total) against the current keyword sets?\n\n`
       + `They'll be scanned one after the other. No EPUB re-parse, no AI call. `
-      + `Click OK to start — this will run without further prompts.`
+      + `Any fandom that errors will be skipped and reported at the end.`
     )) return;
     setBusy("batch-rescan");
     setBatchProgress({ done: 0, total: targets.length, scanned: 0, reclassified: 0 });
+    // 2026-07-11 — tolerant batch: individual fandom failures no longer
+    // abort the whole run.  Previously a single 404 (fandom deleted
+    // mid-batch by a rename or a concurrent admin action) killed the
+    // rest.  Now: skip + collect the failure, keep going, summarise
+    // at the end.  Path uses `?fandom=` query param instead of a path
+    // segment to sidestep FastAPI's path-encoding gotchas with names
+    // containing slashes / punctuation.
+    const failed = [];
     try {
       for (let i = 0; i < targets.length; i += 1) {
         const t = targets[i];
-        // eslint-disable-next-line no-await-in-loop
-        const { data } = await api.post(
-          `/admin/unknown-fandoms/${encodeURIComponent(t.fandom)}/rescan`,
-          { dry_run: false },
-        );
-        setBatchProgress((prev) => ({
-          done: i + 1,
-          total: targets.length,
-          scanned: (prev?.scanned || 0) + (data?.scanned || 0),
-          reclassified: (prev?.reclassified || 0) + (data?.reclassified || 0),
-        }));
+        try {
+          // eslint-disable-next-line no-await-in-loop
+          const { data } = await api.post(
+            "/admin/unknown-fandoms/rescan-by-name",
+            { fandom: t.fandom, dry_run: false },
+          );
+          setBatchProgress((prev) => ({
+            done: i + 1,
+            total: targets.length,
+            scanned: (prev?.scanned || 0) + (data?.scanned || 0),
+            reclassified: (prev?.reclassified || 0) + (data?.reclassified || 0),
+          }));
+        } catch (perErr) {
+          failed.push({
+            fandom: t.fandom,
+            reason: perErr?.response?.data?.detail || perErr?.message || "unknown",
+          });
+          // eslint-disable-next-line no-console
+          console.warn("rescan failed for fandom:", t.fandom, perErr?.response?.status, perErr?.response?.data);
+          setBatchProgress((prev) => ({
+            done: i + 1,
+            total: targets.length,
+            scanned: prev?.scanned || 0,
+            reclassified: prev?.reclassified || 0,
+          }));
+        }
       }
-      toast.success(
-        `Batch rescan done · ${targets.length} fandom${targets.length === 1 ? "" : "s"} scanned`,
-        { duration: 8000 },
-      );
+      if (failed.length && failed.length === targets.length) {
+        toast.error(
+          `All ${targets.length} rescans failed. `
+          + `First error: ${failed[0].reason}. Check console for details.`,
+          { duration: 10000 },
+        );
+      } else if (failed.length) {
+        toast.warning(
+          `Batch rescan done · ${targets.length - failed.length}/${targets.length} succeeded · `
+          + `${failed.length} skipped (see console)`,
+          { duration: 8000 },
+        );
+      } else {
+        toast.success(
+          `Batch rescan done · ${targets.length} fandom${targets.length === 1 ? "" : "s"} scanned`,
+          { duration: 8000 },
+        );
+      }
       clearSelection();
       await load();
     } catch (e) {
@@ -8695,17 +8732,16 @@ export default function AdminConsole() {
     return () => observer.disconnect();
   }, [query]);
 
-  // Keep the active sidebar link visible when the page-scroll shifts
-  // it inside the (potentially scrollable) sidebar container.  Without
-  // this, on shorter screens the highlight can move OFF-viewport in
-  // the sidebar while the user watches, defeating the point of the
-  // sticky nav.
-  useEffect(() => {
-    const el = document.querySelector(`[data-testid="admin-sidebar-link-${activeCategory}"]`);
-    if (el?.scrollIntoView) {
-      el.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
-    }
-  }, [activeCategory]);
+  // 2026-07-11 — removed the internal auto-scroll effect that used to
+  // ``scrollIntoView`` the active category as the page scrolled.  On
+  // shorter viewports that behaviour was pushing the RECENT list up
+  // out of the sidebar's visible area whenever the active section
+  // was near the bottom of the SECTIONS list.  With Recent now
+  // ``sticky top-0`` inside the aside (see below), the internal
+  // auto-scroll is no longer needed — the highlight follows the
+  // page-scroll naturally via the IntersectionObserver, and Recent
+  // stays pinned so it's always reachable regardless of viewport
+  // height.
   const jumpToCategory = (id) => {
     const el = document.getElementById(`admin-section-${id}`);
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -8739,9 +8775,12 @@ export default function AdminConsole() {
           data-testid="admin-sidebar"
         >
           {recentCards.length > 0 && (
-            <>
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#5B5F4D] mb-3 px-2">Recent</p>
-              <nav className="space-y-0.5 mb-4" aria-label="Recently viewed" data-testid="admin-sidebar-recent">
+            <div
+              className="sticky top-0 z-10 -mx-1 px-1 pt-1 pb-2 bg-[#FAF6EE] dark:bg-[color:var(--bg,#1B1B1E)]"
+              data-testid="admin-sidebar-recent-sticky"
+            >
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#5B5F4D] mb-2 px-2">Recent</p>
+              <nav className="space-y-0.5" aria-label="Recently viewed" data-testid="admin-sidebar-recent">
                 {recentCards.map((card) => (
                   <button
                     key={card.testid}
@@ -8763,7 +8802,7 @@ export default function AdminConsole() {
                   </button>
                 ))}
               </nav>
-            </>
+            </div>
           )}
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#5B5F4D] mb-3 px-2">Sections</p>
           <nav className="space-y-0.5" aria-label="Admin sections">
