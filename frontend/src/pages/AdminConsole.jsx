@@ -2047,6 +2047,8 @@ function R2MigrationProgressCard() {
   const [lastBackfill, setLastBackfill] = useState(null);
   const [togglingPause, setTogglingPause] = useState(false);
   const [savings, setSavings] = useState(null);
+  const [batchProgress, setBatchProgress] = useState(null);
+  const abortRef = useRef(false);
 
   const load = async () => {
     setLoading(true);
@@ -2067,18 +2069,75 @@ function R2MigrationProgressCard() {
   useEffect(() => { load(); loadSavings(); }, []);
 
   const backfill = async () => {
+    // 2026-07-11 — loop backfill until nothing left to migrate.
+    // Serial "Migrate next 25" was blowing Cloudflare's 120s proxy
+    // on slow Emergent HEAD days, and forcing the admin to hand-click
+    // ~30 times to drain a typical 682-book queue.  Now: one click,
+    // small server-side chunks (safely under 120s each), auto-loop
+    // client-side until the response reports nothing remaining.
+    const CHUNK = 15;
+    // Safety cap — 500 * 15 = 7,500 books max per session, well above
+    // any realistic library size.  Prevents a runaway loop if the API
+    // ever starts lying about `processed` / `remaining_estimate`.
+    const MAX_ITER = 500;
+    abortRef.current = false;
     setBackfilling(true);
+    setLastBackfill(null);
+    const totals = { migrated: 0, already: 0, missing: 0, failed: 0, iterations: 0 };
+    setBatchProgress({ ...totals, remaining: data?.total_remaining ?? null, stage: "starting" });
     try {
-      const { data: r } = await api.post("/admin/storage-migration-backfill?chunk_size=25");
-      setLastBackfill(r);
-      toast.success(`Migrated ${r.migrated} · skipped ${r.already_on_r2} · failed ${r.failed}`);
+      for (let i = 0; i < MAX_ITER; i += 1) {
+        if (abortRef.current) break;
+        // eslint-disable-next-line no-await-in-loop
+        const { data: r } = await api.post(
+          `/admin/storage-migration-backfill?chunk_size=${CHUNK}`,
+        );
+        totals.migrated += r?.migrated || 0;
+        totals.already  += r?.already_on_r2 || 0;
+        totals.missing  += r?.emergent_missing || 0;
+        totals.failed   += r?.failed || 0;
+        totals.iterations = i + 1;
+        setBatchProgress({
+          ...totals,
+          remaining: r?.remaining_estimate ?? null,
+          pct: r?.percent ?? null,
+          stage: "running",
+        });
+        setLastBackfill(r);
+        // Stop conditions:
+        //   1. Nothing left to migrate (processed = 0 = no candidates found)
+        //   2. Everything remaining is missing-from-Emergent (nothing to do)
+        //   3. Server reports 100% migrated
+        const noProgress = (r?.processed || 0) === 0;
+        const complete = (r?.percent ?? 0) >= 100;
+        if (noProgress || complete) break;
+      }
+      toast.success(
+        `Migration ${abortRef.current ? "stopped" : "complete"} · ${totals.migrated} moved`
+        + (totals.missing ? ` · ${totals.missing} missing (data loss)` : "")
+        + (totals.failed  ? ` · ${totals.failed} failed`               : ""),
+        { duration: 8000 },
+      );
       load();
     } catch (e) {
-      toast.error(e?.response?.data?.detail || "Backfill failed");
+      // Report partial progress before the failure.
+      if (totals.migrated > 0) {
+        toast.error(
+          `Partial: ${totals.migrated} migrated before error. `
+          + (e?.response?.data?.detail || "Backfill loop failed"),
+        );
+      } else {
+        toast.error(e?.response?.data?.detail || "Backfill failed");
+      }
+      // Still reload the gauge so the admin sees the true state.
+      load();
     } finally {
       setBackfilling(false);
+      setBatchProgress(null);
+      abortRef.current = false;
     }
   };
+  const stopBackfill = () => { abortRef.current = true; };
 
   const togglePause = async () => {
     if (!data) return;
@@ -2197,7 +2256,7 @@ function R2MigrationProgressCard() {
               Migration nearly complete. Safe to consider dropping the Emergent fallback after a week of clean reads.
             </p>
           )}
-          <div className="flex items-center gap-3 pt-1">
+          <div className="flex items-center gap-3 pt-1 flex-wrap">
             <button
               type="button"
               onClick={backfill}
@@ -2206,19 +2265,57 @@ function R2MigrationProgressCard() {
               className="px-3 py-1.5 rounded-full bg-[#6B46C1] text-white text-xs font-bold uppercase tracking-[0.15em] hover:bg-[#5C3AAD] disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
             >
               {backfilling ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
-              {backfilling ? "Migrating…" : "Migrate next 25"}
+              {backfilling
+                ? (batchProgress
+                    ? `Migrating… (${batchProgress.migrated} moved)`
+                    : "Migrating…")
+                : "Migrate all remaining"}
             </button>
+            {backfilling && (
+              <button
+                type="button"
+                onClick={stopBackfill}
+                data-testid="r2-migration-stop"
+                className="px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-[0.15em] text-[#E07A5F] hover:bg-[#FDECE7] inline-flex items-center gap-2"
+                title="Stop after the current batch finishes"
+              >
+                Stop
+              </button>
+            )}
             <button
               type="button"
               onClick={load}
-              disabled={loading}
+              disabled={loading || backfilling}
               data-testid="r2-migration-resample"
               className="text-[11px] text-[#6B46C1] hover:underline disabled:opacity-50"
             >
               {loading ? "Sampling…" : "Re-sample"}
             </button>
           </div>
-          {lastBackfill && (
+          {backfilling && batchProgress && (
+            <p
+              className="text-[11px] text-[#5B5F4D] italic"
+              data-testid="r2-migration-batch-progress"
+            >
+              Batch {batchProgress.iterations || 0} · migrated
+              {" "}<span className="font-mono font-semibold text-[#6B46C1]">{batchProgress.migrated}</span>
+              {batchProgress.remaining != null && batchProgress.remaining > 0 ? (
+                <>
+                  {" "}· ~<span className="font-mono">{batchProgress.remaining}</span> remaining
+                </>
+              ) : null}
+              {batchProgress.pct != null ? (
+                <> · <span className="font-mono font-semibold">{batchProgress.pct}%</span></>
+              ) : null}
+              {batchProgress.missing ? (
+                <> · <span className="text-[#E07A5F]">{batchProgress.missing} missing</span></>
+              ) : null}
+              {batchProgress.failed ? (
+                <> · <span className="text-[#E07A5F]">{batchProgress.failed} failed</span></>
+              ) : null}
+            </p>
+          )}
+          {lastBackfill && !backfilling && (
             <p className="text-[11px] text-[#5B5F4D] italic" data-testid="r2-migration-last-result">
               Last batch: {lastBackfill.migrated} migrated · {lastBackfill.already_on_r2} already · {lastBackfill.failed} failed · {lastBackfill.emergent_missing} missing in Emergent
             </p>

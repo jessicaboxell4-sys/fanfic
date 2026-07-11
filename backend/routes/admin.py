@@ -2427,24 +2427,49 @@ async def storage_migration_backfill(
         {"_id": 0, "book_id": 1, "user_id": 1, "filename": 1},
     ).to_list(length=5000)  # plenty of headroom
 
+    # 2026-07-11 — Parallelise transfers.  The old serial loop hit
+    # Cloudflare's 120s proxy timeout on ~25-book chunks whenever
+    # Emergent HEAD latency spiked, blocking the whole migration.
+    # 4-wide keeps R2/Emergent within safe rate-limit territory while
+    # cutting wall-clock roughly to 1/4 (each transfer is I/O-bound).
+    sem_migrate = asyncio.Semaphore(4)
     migrated = already = missing = failed = processed = 0
-    for b in books:
-        if processed >= chunk_size:
-            break
-        fn  = b["filename"]
+
+    # First pass: cheap HEAD-only sweep to skip books already on R2.
+    # Parallelised so we don't burn 25s just checking heads.
+    head_sem = asyncio.Semaphore(32)
+
+    async def _classify(b):
+        fn = b["filename"]
         ext = os.path.splitext(fn)[1] or ".epub"
         key = storage_key_for(b["user_id"], b["book_id"], ext)
-        if _r2_head_exists(key):
+        async with head_sem:
+            exists = await asyncio.to_thread(_r2_head_exists, key)
+        return (b, key, ext, exists)
+
+    classified = await asyncio.gather(*[_classify(b) for b in books])
+    to_migrate = []
+    for b, key, ext, exists in classified:
+        if exists:
             already += 1
-            continue
-        processed += 1
+        else:
+            to_migrate.append((b, key, ext))
+        if len(to_migrate) >= chunk_size:
+            break
+
+    async def _migrate_one(b, key, ext):
+        nonlocal migrated, missing, failed
         with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
             tmp_path = Path(tmp.name)
         try:
-            if not _emergent_restore_to_disk(tmp_path, key):
+            async with sem_migrate:
+                restored = await asyncio.to_thread(_emergent_restore_to_disk, tmp_path, key)
+            if not restored:
                 missing += 1
-                continue
-            if _r2_put(tmp_path, key):
+                return
+            async with sem_migrate:
+                put_ok = await asyncio.to_thread(_r2_put, tmp_path, key)
+            if put_ok:
                 migrated += 1
             else:
                 failed += 1
@@ -2456,15 +2481,25 @@ async def storage_migration_backfill(
             except Exception:
                 pass
 
-    # Quick extrapolation: % migrated on a tiny resample after this batch
+    processed = len(to_migrate)
+    if to_migrate:
+        await asyncio.gather(*[_migrate_one(b, k, e) for b, k, e in to_migrate])
+
+    # Quick extrapolation: % migrated on a tiny resample after this batch.
+    # Also parallelised — the old serial version added ~10-15s on top of
+    # every backfill call which was pure dead weight.
     sampled = books[:min(100, len(books))]
-    sample_hit = 0
-    for b in sampled:
-        fn  = b["filename"]
+    sample_sem = asyncio.Semaphore(32)
+
+    async def _sample_hit(b):
+        fn = b["filename"]
         ext = os.path.splitext(fn)[1] or ".epub"
         key = storage_key_for(b["user_id"], b["book_id"], ext)
-        if _r2_head_exists(key):
-            sample_hit += 1
+        async with sample_sem:
+            return await asyncio.to_thread(_r2_head_exists, key)
+
+    sample_results = await asyncio.gather(*[_sample_hit(b) for b in sampled]) if sampled else []
+    sample_hit = sum(1 for r in sample_results if r)
     pct = int(round((sample_hit / len(sampled)) * 100)) if sampled else 100
     remaining_estimate = int(round((1 - sample_hit / len(sampled)) * len(books))) if sampled else 0
 
@@ -2532,12 +2567,23 @@ async def storage_migration_progress(
     sample = await cursor.to_list(length=sample_size)
 
     sample_hit = 0
-    for b in sample:
-        fn = b.get("filename") or ""
-        ext = os.path.splitext(fn)[1] or ".epub"
-        key = storage_key_for(b["user_id"], b["book_id"], ext)
-        if _r2_head_exists(key):
-            sample_hit += 1
+    # 2026-07-11 — Parallelise HEAD checks.  Old serial loop: 100 books
+    # × ~150ms/probe = 15s wall-clock, and would blow past Cloudflare's
+    # 120s proxy on slow R2 days when combined with the total-count
+    # ``count_documents`` before it.  32-wide keeps the whole sample
+    # phase under ~1s at typical R2 HEAD latency.
+    if sample:
+        sem = asyncio.Semaphore(32)
+
+        async def _hit(b):
+            fn = b.get("filename") or ""
+            ext = os.path.splitext(fn)[1] or ".epub"
+            key = storage_key_for(b["user_id"], b["book_id"], ext)
+            async with sem:
+                return await asyncio.to_thread(_r2_head_exists, key)
+
+        results = await asyncio.gather(*[_hit(b) for b in sample])
+        sample_hit = sum(1 for r in results if r)
 
     estimated = int(round((sample_hit / len(sample)) * total)) if sample else 0
     percent   = int(round((sample_hit / len(sample)) * 100)) if sample else 0

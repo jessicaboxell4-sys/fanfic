@@ -112,18 +112,32 @@ async def export_zip(
     # doesn't break the whole export.
     from utils.storage_cloud import ensure_local_cached
     skipped_books: List[str] = []
-    for b in books:
+    # 2026-07-11 — Parallelise the cache-warming sweep.  Old serial
+    # loop: N books × ~200ms (R2 GET on cache miss) meant a 500-book
+    # export took ~100s before we even started zipping — reliably
+    # timed out at Cloudflare's 120s proxy on any library with a
+    # cold local cache.  16-wide keeps the whole sweep bounded at
+    # ~N/16 × per-book latency while staying safely under R2's
+    # rate-limit envelope.
+    cache_sem = asyncio.Semaphore(16)
+
+    async def _warm(b):
         fp = STORAGE_DIR / user.user_id / f"{b['book_id']}.epub"
         try:
-            ok = await asyncio.to_thread(
-                ensure_local_cached, fp, user.user_id, b["book_id"], ".epub",
-            )
+            async with cache_sem:
+                ok = await asyncio.to_thread(
+                    ensure_local_cached, fp, user.user_id, b["book_id"], ".epub",
+                )
         except Exception as e:  # noqa: BLE001
             logger.warning(
                 "export_zip: ensure_local_cached raised for book=%s: %s",
                 b.get("book_id"), e,
             )
             ok = False
+        return (b, ok)
+
+    warmed = await asyncio.gather(*[_warm(b) for b in books])
+    for b, ok in warmed:
         if not ok:
             skipped_books.append(b.get("book_id") or "?")
             continue
