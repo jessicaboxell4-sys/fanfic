@@ -3008,7 +3008,7 @@ async def orphan_audit_delete_bulk(
 
     targets = await db.books.find(
         {"book_id": {"$in": body.book_ids}},
-        {"_id": 0, "book_id": 1, "user_id": 1, "filename": 1, "title": 1},
+        {"_id": 0, "book_id": 1, "user_id": 1, "filename": 1, "title": 1, "author": 1},
     ).to_list(length=300)
 
     deleted_ids: List[str] = []
@@ -3047,9 +3047,73 @@ async def orphan_audit_delete_bulk(
             not_found.append(bid)
 
     deleted_count = 0
+    # Snapshot the DB rows we're about to delete so users can be
+    # notified with real title/author metadata (the rows themselves
+    # are gone by the time we send the notification).
+    snapshot_by_user: Dict[str, List[Dict[str, Any]]] = {}
     if deleted_ids:
+        deleted_targets = [t for t in targets if t["book_id"] in set(deleted_ids)]
+        # Persist a permanent audit trail — every deleted-orphan row
+        # lives in ``deleted_books_ledger`` for retroactive lookup /
+        # support triage.  Never truncated (unlike admin-action
+        # metadata which caps at 50 book_ids for log-size reasons).
+        try:
+            now_iso = datetime.now(timezone.utc).isoformat()
+            await db.deleted_books_ledger.insert_many([
+                {
+                    "book_id": t["book_id"],
+                    "user_id": t.get("user_id"),
+                    "title": t.get("title") or "",
+                    "author": t.get("author") or "",
+                    "reason": "orphan_delete",
+                    "deleted_at": now_iso,
+                    "deleted_by_admin_id": user.user_id,
+                }
+                for t in deleted_targets
+            ])
+        except Exception as e:  # noqa: BLE001
+            logger.warning("orphan-delete ledger insert failed: %s", e)
+
+        # Group snapshot by user so we send ONE notification per
+        # affected user instead of spamming them per book.
+        for t in deleted_targets:
+            uid = t.get("user_id")
+            if not uid:
+                continue
+            snapshot_by_user.setdefault(uid, []).append({
+                "title": t.get("title") or "(untitled)",
+                "book_id": t["book_id"],
+            })
+
         res = await db.books.delete_many({"book_id": {"$in": deleted_ids}})
         deleted_count = res.deleted_count
+
+    # Notify each affected user — after the delete, so notifications only
+    # fire when the rows actually left the database.  Kept in a separate
+    # try/except so a notification failure never rolls back the delete
+    # or leaks a 500 back to the admin.
+    from routes.notifications import create_notification
+    try:
+        for uid, books_lost in snapshot_by_user.items():
+            n = len(books_lost)
+            preview_titles = ", ".join(b["title"] for b in books_lost[:3])
+            more_suffix = f" and {n - 3} more" if n > 3 else ""
+            await create_notification(
+                user_id=uid,
+                kind="library_maintenance",
+                title=f"{n} book{'' if n == 1 else 's'} cleaned from your library",
+                body=(
+                    f"{n} book{'' if n == 1 else 's'} with missing files "
+                    f"({preview_titles}{more_suffix}) were removed today. "
+                    f"Their files were already unrecoverable from storage — "
+                    f"nobody could open, download, or share them. If any of "
+                    f"these were important to you, contact support and we'll "
+                    f"dig through backups."
+                ),
+                link="/help#antivirus",
+            )
+    except Exception as e:  # noqa: BLE001
+        logger.warning("orphan-delete user notify failed: %s", e)
 
     await record_admin_action(
         user,
@@ -3070,7 +3134,97 @@ async def orphan_audit_delete_bulk(
     }
 
 
-@api_router.post("/admin/email-logs/clear-pre-cutover-failures")
+@api_router.post("/admin/orphan-audit/notify-retroactive")
+async def orphan_audit_notify_retroactive(user: User = Depends(require_admin)):
+    """One-shot notification for the 2026-07-11 orphan-purge incident
+    where 363-ish books were bulk-deleted before the auto-notify code
+    (below) landed.  Since that delete happened without a per-user
+    ledger, we can't precisely list which books each user lost — so
+    we send every user who joined BEFORE the delete a single
+    library_maintenance notification explaining what happened.
+
+    Guarded three ways so it can't spam:
+    1. Idempotent — checks a marker in ``system_flags`` before firing
+       and stamps it after; a second call is a no-op.
+    2. Only fires for users whose ``created_at`` is BEFORE the most
+       recent ``books.delete_orphans_bulk`` admin action.  New users
+       (e.g. contest visitors) never see this notification.
+    3. Only fires for users who actually had books at some point
+       (checked via ``books`` OR ``deleted_books_ledger`` presence).
+    """
+    marker = await db.system_flags.find_one({"_id": "orphan_retroactive_notify_2026_07_11"})
+    if marker:
+        return {"ok": True, "already_sent": True, "sent_count": marker.get("sent_count", 0)}
+
+    latest = await db.admin_actions.find_one(
+        {"action": "books.delete_orphans_bulk"},
+        sort=[("created_at", -1)],
+    )
+    if not latest:
+        raise HTTPException(400, "No orphan-delete admin action found to anchor the notice")
+    anchor_ts = latest.get("created_at")
+    from routes.notifications import create_notification
+
+    # "Old" users only — anyone who registered before the purge.
+    old_user_ids: List[str] = []
+    async for u in db.users.find(
+        {"created_at": {"$lt": anchor_ts}},
+        {"_id": 0, "user_id": 1},
+    ):
+        if u.get("user_id"):
+            old_user_ids.append(u["user_id"])
+
+    # Filter to users who actually have (or had) books — no point
+    # notifying a signup that never uploaded anything.
+    users_with_books: List[str] = []
+    for uid in old_user_ids:
+        has_current = await db.books.find_one({"user_id": uid}, {"_id": 1}) is not None
+        has_deleted = await db.deleted_books_ledger.find_one({"user_id": uid}, {"_id": 1}) is not None
+        if has_current or has_deleted:
+            users_with_books.append(uid)
+
+    sent = 0
+    for uid in users_with_books:
+        try:
+            await create_notification(
+                user_id=uid,
+                kind="library_maintenance",
+                title="Recent library maintenance",
+                body=(
+                    "During routine storage-integrity maintenance today we removed "
+                    "book entries whose files were unrecoverable from both our primary "
+                    "and backup storage — nobody could open, download, or share them. "
+                    "If your book count dropped and any of those titles were important "
+                    "to you, contact support and we'll dig through our backups. Going "
+                    "forward, this notification is auto-sent whenever an orphan cleanup "
+                    "affects a library."
+                ),
+                link="/help#antivirus",
+            )
+            sent += 1
+        except Exception as e:  # noqa: BLE001
+            logger.warning("retroactive notify failed for user=%s: %s", uid, e)
+
+    await db.system_flags.update_one(
+        {"_id": "orphan_retroactive_notify_2026_07_11"},
+        {"$set": {
+            "sent_count": sent,
+            "anchor_ts": anchor_ts,
+            "sent_at": datetime.now(timezone.utc).isoformat(),
+            "sent_by": user.user_id,
+        }},
+        upsert=True,
+    )
+    await record_admin_action(
+        user,
+        "orphan_notify.retroactive",
+        target=f"count:{sent}",
+        metadata={"anchor_ts": anchor_ts, "sent": sent, "old_users_total": len(old_user_ids)},
+    )
+    return {"ok": True, "sent_count": sent, "old_users_considered": len(old_user_ids)}
+
+
+
 async def clear_pre_cutover_failures(user: User = Depends(require_admin)):
     """Delete `status="error"` email_log rows older than the Resend
     domain-verification timestamp (``RESEND_DOMAIN_VERIFIED_AT`` in

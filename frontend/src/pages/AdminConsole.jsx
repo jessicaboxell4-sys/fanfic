@@ -2491,6 +2491,30 @@ function OrphanCleanupCard() {
             {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
             {loading ? "Auditing…" : data ? "Re-audit" : "Run audit"}
           </button>
+          <button
+            type="button"
+            onClick={async () => {
+              if (!window.confirm(
+                "Send a one-time in-app notification to every existing user "
+                + "(created before today's orphan-delete) explaining what happened?\n\n"
+                + "• Idempotent — a second click is a no-op.\n"
+                + "• New signups (post-purge) are NOT notified.\n"
+                + "• Only users who actually had books get pinged."
+              )) return;
+              try {
+                const { data: r } = await api.post("/admin/orphan-audit/notify-retroactive");
+                if (r.already_sent) toast(`Already sent · ${r.sent_count} users notified previously`);
+                else toast.success(`Sent to ${r.sent_count} user${r.sent_count === 1 ? "" : "s"} (of ${r.old_users_considered} old users considered)`);
+              } catch (e) {
+                toast.error(e?.response?.data?.detail || "Retroactive notify failed");
+              }
+            }}
+            data-testid="orphan-audit-notify-retroactive"
+            className="text-[11px] px-2.5 py-1 rounded-lg text-[#B87A00] hover:bg-[#FDF3E1] inline-flex items-center gap-1 font-semibold"
+            title="One-shot: notify existing users about the 2026-07-11 purge (idempotent)"
+          >
+            Send retroactive notice
+          </button>
           {loading && progress && (
             <p className="text-xs text-[#5B5F4D]" data-testid="orphan-audit-progress">
               Scanning <span className="font-mono">{progress.scanned}</span>
