@@ -159,6 +159,12 @@ frontend/public/backups/
 node_modules/
 frontend/node_modules/
 memory/*.log
-.env
-.env.*
-*.env
+
+# NOTE: do NOT re-add `.env`, `**/.env`, `backend/.env`, `frontend/.env`,
+# `.env.*`, or `*.env` here.  Those patterns cause Emergent's deploy
+# pipeline (MANAGE_SECRETS → pull_source) to fail with "read env file
+# backend/.env: no such file or directory", killing every deployment.
+# Lines removed 2026-07-10 after Emergent Support's history-reset
+# (commit 6bbc98e2) inadvertently wiped backend/.env & frontend/.env
+# from the workspace, causing the backend to crash-loop on KeyError:
+# MONGO_URL.  Restore from /app/backups/*.zip if this happens again.
