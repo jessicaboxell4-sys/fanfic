@@ -159,3 +159,6 @@ frontend/public/backups/
 node_modules/
 frontend/node_modules/
 memory/*.log
+.env
+.env.*
+*.env
