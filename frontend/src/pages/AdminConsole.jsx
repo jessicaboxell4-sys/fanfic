@@ -8637,6 +8637,29 @@ export default function AdminConsole() {
   const recentCards = recentIds
     .map((id) => ADMIN_CARD_MANIFEST.find((c) => c.testid === id))
     .filter(Boolean);
+
+  // Category expand/collapse for the sidebar — same treatment as
+  // /help and /admin/help.  Persisted so operators keep their preferred
+  // layout across sessions; the category containing the currently
+  // active section is always force-open so scroll-spy still reveals
+  // the card list the operator is reading right now.
+  const SIDEBAR_EXPAND_KEY = "admin.sidebar_expanded_categories";
+  const [expandedCats, setExpandedCats] = useState(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(SIDEBAR_EXPAND_KEY) || "null");
+      if (Array.isArray(raw)) return new Set(raw);
+    } catch { /* ignore */ }
+    return new Set(); // default: all collapsed
+  });
+  const toggleCategoryExpand = (catId) => {
+    setExpandedCats((prev) => {
+      const next = new Set(prev);
+      if (next.has(catId)) next.delete(catId);
+      else next.add(catId);
+      try { localStorage.setItem(SIDEBAR_EXPAND_KEY, JSON.stringify([...next])); } catch { /* ignore */ }
+      return next;
+    });
+  };
   const [remember, setRemember] = useState(() => {
     try { return localStorage.getItem(REMEMBER_PREF_KEY) === "1"; } catch { return false; }
   });
@@ -8805,26 +8828,79 @@ export default function AdminConsole() {
             </div>
           )}
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#5B5F4D] mb-3 px-2">Sections</p>
-          <nav className="space-y-0.5" aria-label="Admin sections">
+          <nav className="space-y-1" aria-label="Admin sections">
             {ADMIN_CATEGORIES.map((cat) => {
-              const count = ADMIN_CARD_MANIFEST.filter((c) => c.category === cat.id).length;
+              const cardsInCat = ADMIN_CARD_MANIFEST.filter((c) => c.category === cat.id);
+              const count = cardsInCat.length;
               const active = activeCategory === cat.id && !query;
+              // Force-open when scroll-spy has landed in this category
+              // so the card list is visible while you're reading it.
+              const isOpen = expandedCats.has(cat.id) || active;
               return (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => jumpToCategory(cat.id)}
-                  data-testid={`admin-sidebar-link-${cat.id}`}
-                  data-active={active ? "true" : "false"}
-                  className={`w-full text-left flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
-                    active
-                      ? "bg-[#6B46C1] text-white font-semibold"
-                      : "text-[#5B5F4D] hover:bg-[#EEE9FB] hover:text-[#6B46C1]"
-                  }`}
-                >
-                  <span>{cat.label}</span>
-                  <span className={`text-[10px] tabular-nums ${active ? "text-[#EEE9FB]" : "text-[#6E6E6E]"}`}>{count}</span>
-                </button>
+                <div key={cat.id}>
+                  <div
+                    className={`w-full flex items-stretch rounded-lg text-xs transition-colors overflow-hidden ${
+                      active
+                        ? "bg-[#6B46C1] text-white font-semibold"
+                        : "text-[#5B5F4D] hover:bg-[#EEE9FB]"
+                    }`}
+                  >
+                    {/* Expand/collapse toggle — small chevron on the left
+                        edge of the row.  Separate hit target from the
+                        category-jump button so a click on the chevron
+                        never accidentally jumps the page. */}
+                    <button
+                      type="button"
+                      onClick={() => toggleCategoryExpand(cat.id)}
+                      aria-expanded={isOpen}
+                      aria-controls={`admin-sidebar-cat-${cat.id}-list`}
+                      aria-label={`${isOpen ? "Collapse" : "Expand"} ${cat.label}`}
+                      data-testid={`admin-sidebar-toggle-${cat.id}`}
+                      className={`px-1.5 flex items-center justify-center transition-colors ${
+                        active
+                          ? "hover:bg-white/10"
+                          : "hover:bg-[#DAD4EF] hover:text-[#6B46C1]"
+                      }`}
+                    >
+                      <ChevronDown
+                        className={`w-3 h-3 transition-transform ${isOpen ? "" : "-rotate-90"}`}
+                        aria-hidden="true"
+                      />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => jumpToCategory(cat.id)}
+                      data-testid={`admin-sidebar-link-${cat.id}`}
+                      data-active={active ? "true" : "false"}
+                      className={`flex-1 text-left flex items-center justify-between px-2 py-1.5 transition-colors ${
+                        active ? "" : "hover:text-[#6B46C1]"
+                      }`}
+                    >
+                      <span>{cat.label}</span>
+                      <span className={`text-[10px] tabular-nums ${active ? "text-[#EEE9FB]" : "text-[#6E6E6E]"}`}>{count}</span>
+                    </button>
+                  </div>
+                  {isOpen && cardsInCat.length > 0 && (
+                    <nav
+                      id={`admin-sidebar-cat-${cat.id}-list`}
+                      className="space-y-0.5 mt-1 ml-4 mb-1"
+                      aria-label={`${cat.label} cards`}
+                    >
+                      {cardsInCat.map((card) => (
+                        <button
+                          key={card.testid}
+                          type="button"
+                          onClick={() => jumpToCard(card.testid)}
+                          title={card.subtitle}
+                          data-testid={`admin-sidebar-card-${card.testid}`}
+                          className="w-full text-left block px-2 py-1 rounded text-[11px] text-[#5B5F4D] hover:bg-[#FDF3E1] hover:text-[#B87A00] transition-colors truncate"
+                        >
+                          {card.title}
+                        </button>
+                      ))}
+                    </nav>
+                  )}
+                </div>
               );
             })}
           </nav>
