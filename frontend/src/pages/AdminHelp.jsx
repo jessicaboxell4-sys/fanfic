@@ -156,9 +156,11 @@ export default function AdminHelp() {
           <Section id="orphan-audit" icon={AlertOctagon} title="Orphan audit & cleanup">
             <p>HEAD-checks every book with a stored filename against R2 AND the Emergent fallback. A book is &quot;orphaned&quot; only if BOTH backends return 404 — meaning the DB row points at bytes you can no longer serve.</p>
             <ul>
-              <li><strong>Run audit</strong>: scans up to 5000 books with 20-wide concurrency. Returns a sortable table with title, owner, filename, size.</li>
+              <li><strong>Run audit</strong>: paginates through the library in 1000-book windows at 64-wide HEAD concurrency, aggregating orphans as it goes. A live &ldquo;Scanning X / Y books · found N orphans so far…&rdquo; counter shows progress. Handles libraries of any size — each window comfortably clears Cloudflare&apos;s 120 s proxy timeout.</li>
               <li><strong>Bulk delete</strong>: select rows → &quot;Delete N selected&quot;. Each row is RE-checked before deletion so a recovered file is never nuked. Capped at 500 per batch.</li>
               <li><strong>When to run</strong>: after the migration gauge plateaus &lt; 100%. Most plateaus mean orphaned DB records, not failed migrations.</li>
+              <li><strong>Is deleting an orphan safe for the user?</strong> — <strong>Yes.</strong> An orphan means the underlying bytes are <em>already gone from both storage backends</em> — nobody can read, download, or share that book anymore. All you&apos;re removing is a dead DB pointer. The user loses nothing more than they&apos;d already lost when the file vanished; what they gain is a cleaner library free of ghost entries that would only render as &ldquo;file not found&rdquo; on open. Common causes of orphans include: mid-migration cutover races (files moved but rows not yet re-linked), silent upload drops during huge bulk imports, or the odd manual-cleanup by an admin. In every case, the bytes are the loss — the row is just paperwork.</li>
+              <li><strong>Safety net still on</strong>: the pre-delete re-check means if a file has been quietly restored (e.g. cloud-mirror backfill just landed) between audit and delete, that row is skipped. So even if you leave &ldquo;select all&rdquo; checked, you can&apos;t accidentally purge a book that came back to life.</li>
             </ul>
           </Section>
 
