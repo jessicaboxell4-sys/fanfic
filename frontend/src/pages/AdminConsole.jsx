@@ -8794,7 +8794,7 @@ export default function AdminConsole() {
             auto-scrolls into the sidebar viewport when scroll-spy
             updates so the highlight is always visible. */}
         <aside
-          className="hidden lg:block sticky top-6 self-start max-h-[calc(100vh-3rem)] overflow-y-auto pr-1"
+          className="hidden lg:block sticky top-6 self-start max-h-[calc(100vh-3rem)] overflow-y-auto scrollbar-hidden pr-1"
           data-testid="admin-sidebar"
         >
           {recentCards.length > 0 && (
