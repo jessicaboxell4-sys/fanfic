@@ -168,3 +168,4 @@ memory/*.log
 # (commit 6bbc98e2) inadvertently wiped backend/.env & frontend/.env
 # from the workspace, causing the backend to crash-loop on KeyError:
 # MONGO_URL.  Restore from /app/backups/*.zip if this happens again.
+frontend/build/backups/shelfsort-snapshot-20260709-015036Z.zip
