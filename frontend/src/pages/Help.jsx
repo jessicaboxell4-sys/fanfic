@@ -127,54 +127,72 @@ const SEO_FAQ = [
   },
 ];
 
-const SECTIONS = [
-  { id: "feedback", label: "Send us feedback" },
-  { id: "getting-started", label: "Getting started" },
-  { id: "tour", label: "First-time tour" },
-  { id: "dashboard-tour", label: "Dashboard tour" },
-  { id: "uploads", label: "Uploading books" },
-  { id: "quick-search", label: "Navbar quick-search" },
-  { id: "shelves", label: "Shelves & filters" },
-  { id: "library-mode", label: "Library mode (Fanfic / Original / Mixed)" },
-  { id: "verdicts", label: "Verdicts (favorite, need to read, never again…)" },
-  { id: "discovery", label: "Browsing & discovery" },
-  { id: "ao3-metadata", label: "AO3 metadata: ratings, warnings, tags" },
-  { id: "ao3-filters", label: "AO3 filter chips & Save-as-shelf" },
-  { id: "smart-shelves", label: "Smart shelves" },
-  { id: "reading-queue", label: "Reading queue (Up next)" },
-  { id: "goals", label: "Reading goals" },
-  { id: "filter-urls", label: "Filter URLs you already own" },
-  { id: "fandoms", label: "Fandoms we sort into" },
-  { id: "sources", label: "Sources we recognize" },
-  { id: "detection", label: "Detection & overrides" },
-  { id: "download-library", label: "Download your library" },
-  { id: "data-safety", label: "Backup & restore" },
-  { id: "cloud-backup", label: "Cloud library mirror" },
-  { id: "antivirus", label: "Antivirus & library safety" },
-  { id: "rules", label: "Community rules" },
-  { id: "reading", label: "Reader & stats" },
-  { id: "cross-device", label: "Cross-device reading sync" },
-  { id: "reading-insights", label: "Reading insights (Re-read · Pace · Cohort)" },
-  { id: "similar-books", label: "Finished a book? Want a similar one" },
-  { id: "reader-dna", label: "Reader DNA & comfort reads" },
-  { id: "year-in-books", label: "Year in Books (Wrapped recap)" },
-  { id: "usernames", label: "Public usernames & @handles" },
-  { id: "messages", label: "Messages & friends" },
-  { id: "bookclubs", label: "Book-club reading rooms" },
-  { id: "public-library", label: "Sharing your library publicly" },
-  { id: "library-discovery", label: "Discovering other readers' libraries" },
-  { id: "covers", label: "Community Covers" },
-  { id: "recommendations", label: "Friend recommendations" },
-  { id: "opds", label: "E-reader sync (OPDS)" },
-  ...(SEND_TO_KINDLE_UI_ENABLED ? [{ id: "send-to-kindle", label: "Send to Kindle" }] : []),
-  { id: "notifications", label: "Notifications & mutes" },
-  { id: "push", label: "Web push notifications" },
-  { id: "auto-theme", label: "Scheduled auto-theme" },
-  { id: "keyboard-shortcuts", label: "Keyboard shortcuts" },
-  { id: "word-count", label: "Word count & reading time" },
-  { id: "account", label: "Account & preferences" },
-  { id: "operator-digest", label: "Operator weekly digest (admin)" },
+// Category-grouped table of contents, mirroring the /admin/help layout
+// so operators use the same mental model across all help surfaces.
+// Each section belongs to exactly one category; the sidebar renders
+// them grouped with a count badge per group and remembers the last
+// three clicked sections in a sticky "Recent" block at the top.
+const HELP_CATEGORIES = [
+  { id: "start",       label: "Getting started" },
+  { id: "library",     label: "Your library" },
+  { id: "reading",     label: "Reading & discovery" },
+  { id: "fanfic",      label: "Fanfic & AO3" },
+  { id: "community",   label: "Community & sharing" },
+  { id: "backup",      label: "Backup & sync" },
+  { id: "settings",    label: "Settings & notifications" },
 ];
+
+const SECTIONS = [
+  { id: "feedback",             label: "Send us feedback",                                      category: "start" },
+  { id: "getting-started",      label: "Getting started",                                       category: "start" },
+  { id: "tour",                 label: "First-time tour",                                       category: "start" },
+  { id: "dashboard-tour",       label: "Dashboard tour",                                        category: "start" },
+  { id: "uploads",              label: "Uploading books",                                       category: "start" },
+  { id: "quick-search",         label: "Navbar quick-search",                                   category: "library" },
+  { id: "shelves",              label: "Shelves & filters",                                     category: "library" },
+  { id: "library-mode",         label: "Library mode (Fanfic / Original / Mixed)",              category: "library" },
+  { id: "verdicts",             label: "Verdicts (favorite, need to read, never again…)",       category: "library" },
+  { id: "filter-urls",          label: "Filter URLs you already own",                           category: "library" },
+  { id: "fandoms",              label: "Fandoms we sort into",                                  category: "library" },
+  { id: "sources",              label: "Sources we recognize",                                  category: "library" },
+  { id: "detection",            label: "Detection & overrides",                                 category: "library" },
+  { id: "word-count",           label: "Word count & reading time",                             category: "library" },
+  { id: "reading",              label: "Reader & stats",                                        category: "reading" },
+  { id: "discovery",            label: "Browsing & discovery",                                  category: "reading" },
+  { id: "reading-queue",        label: "Reading queue (Up next)",                               category: "reading" },
+  { id: "goals",                label: "Reading goals",                                         category: "reading" },
+  { id: "cross-device",         label: "Cross-device reading sync",                             category: "reading" },
+  { id: "reading-insights",     label: "Reading insights (Re-read · Pace · Cohort)",            category: "reading" },
+  { id: "similar-books",        label: "Finished a book? Want a similar one",                   category: "reading" },
+  { id: "reader-dna",           label: "Reader DNA & comfort reads",                            category: "reading" },
+  { id: "year-in-books",        label: "Year in Books (Wrapped recap)",                         category: "reading" },
+  { id: "ao3-metadata",         label: "AO3 metadata: ratings, warnings, tags",                 category: "fanfic" },
+  { id: "ao3-filters",          label: "AO3 filter chips & Save-as-shelf",                      category: "fanfic" },
+  { id: "smart-shelves",        label: "Smart shelves",                                         category: "fanfic" },
+  { id: "usernames",            label: "Public usernames & @handles",                           category: "community" },
+  { id: "messages",             label: "Messages & friends",                                    category: "community" },
+  { id: "bookclubs",            label: "Book-club reading rooms",                               category: "community" },
+  { id: "public-library",       label: "Sharing your library publicly",                         category: "community" },
+  { id: "library-discovery",    label: "Discovering other readers' libraries",                  category: "community" },
+  { id: "covers",               label: "Community Covers",                                      category: "community" },
+  { id: "recommendations",      label: "Friend recommendations",                                category: "community" },
+  { id: "rules",                label: "Community rules",                                       category: "community" },
+  { id: "download-library",     label: "Download your library",                                 category: "backup" },
+  { id: "data-safety",          label: "Backup & restore",                                      category: "backup" },
+  { id: "cloud-backup",         label: "Cloud library mirror",                                  category: "backup" },
+  { id: "antivirus",            label: "Antivirus & library safety",                            category: "backup" },
+  { id: "opds",                 label: "E-reader sync (OPDS)",                                  category: "backup" },
+  ...(SEND_TO_KINDLE_UI_ENABLED ? [{ id: "send-to-kindle", label: "Send to Kindle",             category: "backup" }] : []),
+  { id: "notifications",        label: "Notifications & mutes",                                 category: "settings" },
+  { id: "push",                 label: "Web push notifications",                                category: "settings" },
+  { id: "auto-theme",           label: "Scheduled auto-theme",                                  category: "settings" },
+  { id: "keyboard-shortcuts",   label: "Keyboard shortcuts",                                    category: "settings" },
+  { id: "account",              label: "Account & preferences",                                 category: "settings" },
+  { id: "operator-digest",      label: "Operator weekly digest (admin)",                        category: "settings" },
+];
+
+const HELP_RECENT_KEY = "help.recent_sections";
+const HELP_RECENT_MAX = 3;
 
 function Section({ id, icon: Icon, title, children }) {
   // Note: `prose prose-sm` is kept for forward-compat with
@@ -239,6 +257,46 @@ export default function Help() {
   // small "popular" pill); the rest preserve the curated order so
   // newer users still get a logical reading flow.
   const [popular, setPopular] = useState([]);   // [{section, hits}]
+
+  // Recent-section tracking — mirrors /admin/help.  Clicking any
+  // sidebar link pushes the section id to the head of the recent
+  // list (dedup + cap to 3), persisted in localStorage.
+  const [recentSections, setRecentSections] = useState(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(HELP_RECENT_KEY) || "[]");
+      return Array.isArray(raw) ? raw.slice(0, HELP_RECENT_MAX) : [];
+    } catch { return []; }
+  });
+  const [activeSection, setActiveSection] = useState(SECTIONS[0]?.id || null);
+
+  const rememberSection = (id) => {
+    setRecentSections((prev) => {
+      const next = [id, ...prev.filter((x) => x !== id)].slice(0, HELP_RECENT_MAX);
+      try { localStorage.setItem(HELP_RECENT_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+    try { api.post("/help/track", { section: id }); } catch { /* fire-and-forget */ }
+  };
+
+  // Scroll-spy for the active-section highlight — same "top 15% of
+  // viewport" tracking window /admin uses so /help feels identical.
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .map((e) => e.target.id)
+          .filter(Boolean);
+        if (visible.length > 0) setActiveSection(visible[0]);
+      },
+      { rootMargin: "-15% 0px -75% 0px", threshold: 0 },
+    );
+    SECTIONS.forEach((s) => {
+      const el = document.getElementById(s.id);
+      if (el) observer.observe(el);
+    });
+    return () => observer.disconnect();
+  }, []);
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -251,21 +309,11 @@ export default function Help() {
   }, []);
   const popularIds = popular.map((p) => p.section);
 
-  // Re-order: popular ids first (in their hit-count order), then the
-  // remaining curated order.  Filter step still applies on top.
-  const orderedSections = (() => {
-    if (!popularIds.length) return SECTIONS;
-    const seen = new Set();
-    const out = [];
-    for (const pid of popularIds) {
-      const s = SECTIONS.find((x) => x.id === pid);
-      if (s) { out.push(s); seen.add(pid); }
-    }
-    for (const s of SECTIONS) {
-      if (!seen.has(s.id)) out.push(s);
-    }
-    return out;
-  })();
+  // Note: the old ``orderedSections`` (popular-first re-ordering) was
+  // removed 2026-07-11 in favour of category grouping — popularity is
+  // now surfaced by the "popular" chip inline in the sidebar so
+  // sections stay in their own category rather than floating to the
+  // top and disrupting the grouped mental model.
 
   // After the article renders, recompute matches whenever query changes.
   // Reads DOM text directly, so it must run after layout.
@@ -446,44 +494,109 @@ export default function Help() {
               article inside a collapsible <details>; on lg+ it pins to the
               left edge of the wrapper, Wikipedia-style. */}
           <nav
-            className="lg:sticky lg:top-24 lg:w-56 lg:shrink-0 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:pr-2 lg:[scrollbar-width:thin] mb-6 lg:mb-0"
+            className="lg:sticky lg:top-24 lg:w-60 lg:shrink-0 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:pr-1 lg:[scrollbar-width:thin] mb-6 lg:mb-0"
             data-testid="help-toc"
           >
             <details className="lg:open:!block lg:[&]:!block" open>
               <summary className="lg:hidden cursor-pointer select-none text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-2 px-1 py-2 rounded-lg border border-[#E8E6E1] bg-white">
                 Sections
               </summary>
-              <p className="hidden lg:block text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-3">
-                Sections
-              </p>
-              <ul className="space-y-1.5 text-sm pt-2 lg:pt-0">
-                {orderedSections.filter((s) => matchingSectionIds.includes(s.id)).map((s) => {
-                  const popIdx = popularIds.indexOf(s.id);
+              {(() => {
+                const matchingSet = new Set(matchingSectionIds);
+                const recentDetails = recentSections
+                  .map((id) => SECTIONS.find((s) => s.id === id))
+                  .filter((s) => s && matchingSet.has(s.id));
+                const popularSet = new Set(popularIds);
+                const sectionsByCategory = HELP_CATEGORIES.map((cat) => ({
+                  ...cat,
+                  sections: SECTIONS.filter((s) => s.category === cat.id && matchingSet.has(s.id)),
+                })).filter((cat) => cat.sections.length > 0);
+                if (sectionsByCategory.length === 0) {
                   return (
-                    <li key={s.id} className="flex items-center gap-1.5">
-                      <a
-                        href={`#${s.id}`}
-                        onClick={() => { try { api.post("/help/track", { section: s.id }); } catch { /* fire-and-forget */ } }}
-                        className="text-[#5B5F4D] hover:text-[#E07A5F] flex-1 min-h-[44px] flex items-center"
-                      >
-                        {s.label}
-                      </a>
-                      {popIdx >= 0 && popIdx < 3 && (
-                        <span
-                          title={`Popular this month — ${popular[popIdx]?.hits || 0} clicks`}
-                          data-testid={`toc-popular-${s.id}`}
-                          className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-[#FDF3E1] text-[#8C5C00] border border-[#F5E0A8]"
-                        >
-                          popular
-                        </span>
-                      )}
-                    </li>
+                    <p className="text-[11px] italic text-[#5B5F4D] pt-4 px-1">
+                      No matches — clear search to see all.
+                    </p>
                   );
-                })}
-                {SECTIONS.length > 0 && matchingSectionIds.length === 0 && (
-                  <li className="text-[10px] italic text-[#5B5F4D]">no matches — clear search to see all</li>
-                )}
-              </ul>
+                }
+                return (
+                  <>
+                    {recentDetails.length > 0 && (
+                      <div
+                        className="sticky top-0 z-10 -mx-1 px-1 pt-1 pb-2 bg-[#FAF6EE]"
+                        data-testid="help-toc-recent-sticky"
+                      >
+                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#5B5F4D] mb-2 px-2">Recent</p>
+                        <nav
+                          className="space-y-0.5"
+                          aria-label="Recently viewed help sections"
+                          data-testid="help-toc-recent"
+                        >
+                          {recentDetails.map((s) => (
+                            <a
+                              key={`recent-${s.id}`}
+                              href={`#${s.id}`}
+                              onClick={() => rememberSection(s.id)}
+                              className="w-full text-left block px-2.5 py-1.5 rounded-lg text-xs text-[#5B5F4D] hover:bg-[#FDF3E1] hover:text-[#B87A00] transition-colors truncate"
+                              data-testid={`help-toc-recent-${s.id}`}
+                            >
+                              <span className="text-[10px] mr-1.5 opacity-60">↻</span>{s.label}
+                            </a>
+                          ))}
+                        </nav>
+                      </div>
+                    )}
+                    <div className="mt-1">
+                      {sectionsByCategory.map((cat) => (
+                        <div key={cat.id} className="mb-4">
+                          <p
+                            className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#5B5F4D] mb-2 px-2 flex items-center justify-between"
+                            data-testid={`help-toc-category-${cat.id}`}
+                          >
+                            <span>{cat.label}</span>
+                            <span className="text-[10px] tabular-nums text-[#6E6E6E] font-normal">{cat.sections.length}</span>
+                          </p>
+                          <nav className="space-y-0.5" aria-label={cat.label}>
+                            {cat.sections.map((s) => {
+                              const active = activeSection === s.id;
+                              const isPopular = popularSet.has(s.id) && popularIds.indexOf(s.id) < 3;
+                              const popIdx = popularIds.indexOf(s.id);
+                              return (
+                                <a
+                                  key={s.id}
+                                  href={`#${s.id}`}
+                                  onClick={() => rememberSection(s.id)}
+                                  data-testid={`help-toc-${s.id}`}
+                                  data-active={active ? "true" : "false"}
+                                  className={`w-full text-left flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
+                                    active
+                                      ? "bg-[#6B46C1] text-white font-semibold"
+                                      : "text-[#5B5F4D] hover:bg-[#EEE9FB] hover:text-[#6B46C1]"
+                                  }`}
+                                >
+                                  <span className="flex-1 truncate">{s.label}</span>
+                                  {isPopular && (
+                                    <span
+                                      title={`Popular this month — ${popular[popIdx]?.hits || 0} clicks`}
+                                      data-testid={`toc-popular-${s.id}`}
+                                      className={`text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                                        active
+                                          ? "bg-white/25 text-white"
+                                          : "bg-[#FDF3E1] text-[#8C5C00] border border-[#F5E0A8]"
+                                      }`}
+                                    >
+                                      popular
+                                    </span>
+                                  )}
+                                </a>
+                              );
+                            })}
+                          </nav>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                );
+              })()}
             </details>
           </nav>
 
