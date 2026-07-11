@@ -9,7 +9,7 @@ import {
   Check, ChevronRight, ChevronDown, Download, AlertOctagon, RotateCcw, Send,
   Mail, MessageSquare, Clock, CircleAlert, Route as RouteIcon, Search,
   Inbox, Database, Siren, HardDrive, TrendingUp, Eye, BookOpen, Sparkles, ShieldAlert, FlaskConical,
-  Paperclip, HelpCircle, Bell, EyeOff, History, ExternalLink,
+  Paperclip, HelpCircle, Bell, EyeOff, History, ExternalLink, Edit2,
 } from "lucide-react";
 import MongoInspectorCard from "../components/MongoInspectorCard";
 import ModerationLogCard from "../components/ModerationLogCard";
@@ -2315,14 +2315,16 @@ function OrphanCleanupCard() {
       `Delete ${ids.length} orphaned book record${ids.length === 1 ? "" : "s"}?\n\n`
       + `Each row will be re-checked against object storage before deletion. `
       + `Files won't be touched (they're already gone). This action is logged.\n\n`
-      + `Large batches are automatically split into chunks of 500 — no more clicking.`,
+      + `Large batches are automatically split into chunks of 100 — no more clicking.`,
     )) return;
     setDeleting(true);
     setLastResult(null);
-    // Backend caps each POST at 500 book_ids.  Auto-slice the full
-    // selection into chunks and fire them sequentially so a big
-    // migration cleanup is a single click, not a hand-cranked loop.
-    const CHUNK = 500;
+    // Backend caps each POST at 250 book_ids AND does the HEAD-recheck
+    // phase in parallel (32-wide) — a 100-row window comfortably clears
+    // Cloudflare's 120s proxy timeout even on slow R2 days.  Dropped
+    // from 500 → 100 on 2026-07-11 after a 1166-orphan cleanup 524'd
+    // at 500/batch.
+    const CHUNK = 100;
     const totals = { deleted: 0, recovered: [], not_found: [] };
     setDeleteProgress({ done: 0, total: ids.length, chunks: Math.ceil(ids.length / CHUNK) });
     try {
@@ -2447,7 +2449,7 @@ function OrphanCleanupCard() {
                   ? (deleteProgress
                       ? `Removing ${deleteProgress.done}/${deleteProgress.total}…`
                       : "Removing…")
-                  : `Delete ${selected.size || ""} selected${selected.size > 500 ? ` (auto-batched)` : ""}`}
+                  : `Delete ${selected.size || ""} selected${selected.size > 100 ? ` (auto-batched)` : ""}`}
               </button>
             </div>
             {deleting && deleteProgress && deleteProgress.chunks > 1 && (
@@ -2455,7 +2457,7 @@ function OrphanCleanupCard() {
                 className="text-[11px] text-[#5B5F4D] italic"
                 data-testid="orphan-audit-delete-progress"
               >
-                Batch {Math.min(Math.ceil(deleteProgress.done / 500), deleteProgress.chunks)} of
+                Batch {Math.min(Math.ceil(deleteProgress.done / 100), deleteProgress.chunks)} of
                 {" "}{deleteProgress.chunks}
                 {" "}· removed <span className="font-mono">{deleteProgress.deletedSoFar ?? 0}</span> so far…
               </p>
@@ -5018,60 +5020,163 @@ function AuditLogCard() {
 // ---------------------------------------------------------------------------
 // Single row in the Unknown Fandoms card. Kept at module scope so React
 // doesn't re-create the component type on every parent render.
-function UnknownFandomRow({ r, isDismissed, busy, onRescan, onDismiss, onUndismiss }) {
+function UnknownFandomRow({
+  r,
+  isDismissed,
+  busy,
+  isSelected,
+  onToggleSelect,
+  isRenaming,
+  onStartRename,
+  onCancelRename,
+  onSubmitRename,
+  onRescan,
+  onDismiss,
+  onUndismiss,
+}) {
+  const [renameValue, setRenameValue] = React.useState(r.fandom);
+  React.useEffect(() => {
+    if (isRenaming) setRenameValue(r.fandom);
+  }, [isRenaming, r.fandom]);
+  const sampleUrls = r.sample_source_urls || [];
   return (
     <li
-      className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-[#FBFAF6] border border-[#E5DDC5]"
+      className="flex flex-col gap-2 px-3 py-2 rounded-lg bg-[#FBFAF6] border border-[#E5DDC5]"
       data-testid={`admin-unknown-fandom-row-${r.fandom}`}
     >
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-[#2C2C2C] truncate">
-          {r.fandom}
-          <span className="ml-2 text-xs text-[#5B5F4D] font-normal">{r.count} book{r.count === 1 ? "" : "s"}</span>
-          {isDismissed && <span className="ml-2 text-[10px] uppercase tracking-[0.15em] text-[#5B5F4D] font-bold">DISMISSED</span>}
-        </p>
-        {r.sample_book_ids?.length > 0 && (
-          <p className="text-xs text-[#5B5F4D] truncate">
-            Sample IDs: <code>{r.sample_book_ids.slice(0, 3).join(", ")}</code>
-          </p>
+      <div className="flex items-center gap-3">
+        {!isDismissed && (
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={() => onToggleSelect(r.fandom)}
+            aria-label={`Select ${r.fandom}`}
+            data-testid={`admin-unknown-fandom-select-${r.fandom}`}
+            className="w-4 h-4 rounded border-[#B8AA88] text-[#6B46C1] focus:ring-[#6B46C1] cursor-pointer shrink-0"
+          />
+        )}
+        <div className="min-w-0 flex-1">
+          {isRenaming ? (
+            <form
+              onSubmit={(e) => { e.preventDefault(); onSubmitRename(r.fandom, renameValue); }}
+              className="flex items-center gap-2"
+            >
+              <span className="text-xs text-[#5B5F4D] shrink-0">{r.fandom} →</span>
+              <input
+                type="text"
+                autoFocus
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Escape") onCancelRename(); }}
+                placeholder="e.g. My Hero Academia"
+                aria-label={`Rename ${r.fandom}`}
+                data-testid={`admin-unknown-fandom-rename-input-${r.fandom}`}
+                className="flex-1 text-sm px-2 py-1 border border-[#6B46C1] rounded focus:outline-none focus:ring-1 focus:ring-[#6B46C1] bg-white"
+              />
+              <button
+                type="submit"
+                disabled={busy === `rename:${r.fandom}` || !renameValue.trim() || renameValue.trim() === r.fandom}
+                data-testid={`admin-unknown-fandom-rename-submit-${r.fandom}`}
+                className="text-xs px-3 py-1 rounded bg-[#6B46C1] text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {busy === `rename:${r.fandom}` ? "Saving…" : "Save"}
+              </button>
+              <button
+                type="button"
+                onClick={onCancelRename}
+                data-testid={`admin-unknown-fandom-rename-cancel-${r.fandom}`}
+                className="text-xs px-2 py-1 rounded text-[#5B5F4D] hover:bg-[#F5F3EC]"
+              >
+                Cancel
+              </button>
+            </form>
+          ) : (
+            <>
+              <p className="text-sm font-semibold text-[#2C2C2C] truncate">
+                {r.fandom}
+                <span className="ml-2 text-xs text-[#5B5F4D] font-normal">{r.count} book{r.count === 1 ? "" : "s"}</span>
+                {isDismissed && <span className="ml-2 text-[10px] uppercase tracking-[0.15em] text-[#5B5F4D] font-bold">DISMISSED</span>}
+              </p>
+              {r.sample_book_ids?.length > 0 && (
+                <p className="text-xs text-[#5B5F4D] truncate">
+                  Sample IDs: <code>{r.sample_book_ids.slice(0, 3).join(", ")}</code>
+                </p>
+              )}
+            </>
+          )}
+        </div>
+        {!isRenaming && (
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => onStartRename(r.fandom)}
+              disabled={!!busy}
+              data-testid={`admin-unknown-fandom-rename-${r.fandom}`}
+              className="text-xs px-3 py-1.5 rounded-lg text-[#B87A00] hover:bg-[#FDF3E1] inline-flex items-center gap-1 font-semibold"
+              title="Rename — change every book's fandom tag to a canonical name"
+            >
+              <Edit2 className="w-3 h-3" />
+              Rename
+            </button>
+            <button
+              type="button"
+              onClick={() => onRescan(r.fandom, r.count)}
+              disabled={busy === `rescan:${r.fandom}`}
+              data-testid={`admin-unknown-fandom-rescan-${r.fandom}`}
+              className="text-xs px-3 py-1.5 rounded-lg text-[#6B46C1] hover:bg-[#EEE9FB] inline-flex items-center gap-1 font-semibold"
+              title="Re-run keyword classifier on these books"
+            >
+              {busy === `rescan:${r.fandom}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
+              Rescan
+            </button>
+            {isDismissed ? (
+              <button
+                type="button"
+                onClick={() => onUndismiss(r.fandom)}
+                disabled={busy === `undismiss:${r.fandom}`}
+                data-testid={`admin-unknown-fandom-undismiss-${r.fandom}`}
+                className="text-xs px-3 py-1.5 rounded-lg text-[#5B5F4D] hover:bg-[#F5F3EC] inline-flex items-center gap-1"
+              >
+                {busy === `undismiss:${r.fandom}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <ChevronRight className="w-3 h-3" />}
+                Restore
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onDismiss(r.fandom)}
+                disabled={busy === `dismiss:${r.fandom}`}
+                data-testid={`admin-unknown-fandom-dismiss-${r.fandom}`}
+                className="text-xs px-3 py-1.5 rounded-lg text-[#5B5F4D] hover:bg-[#F5F3EC] inline-flex items-center gap-1"
+              >
+                {busy === `dismiss:${r.fandom}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <XIcon className="w-3 h-3" />}
+                Dismiss
+              </button>
+            )}
+          </div>
         )}
       </div>
-      <div className="flex items-center gap-1 flex-shrink-0">
-        <button
-          type="button"
-          onClick={() => onRescan(r.fandom, r.count)}
-          disabled={busy === `rescan:${r.fandom}`}
-          data-testid={`admin-unknown-fandom-rescan-${r.fandom}`}
-          className="text-xs px-3 py-1.5 rounded-lg text-[#6B46C1] hover:bg-[#EEE9FB] inline-flex items-center gap-1 font-semibold"
-          title="Re-run keyword classifier on these books"
+      {sampleUrls.length > 0 && !isRenaming && (
+        <div
+          className="pl-7 text-xs text-[#5B5F4D] flex flex-wrap items-center gap-x-3 gap-y-1"
+          data-testid={`admin-unknown-fandom-urls-${r.fandom}`}
         >
-          {busy === `rescan:${r.fandom}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
-          Rescan
-        </button>
-        {isDismissed ? (
-          <button
-            type="button"
-            onClick={() => onUndismiss(r.fandom)}
-            disabled={busy === `undismiss:${r.fandom}`}
-            data-testid={`admin-unknown-fandom-undismiss-${r.fandom}`}
-            className="text-xs px-3 py-1.5 rounded-lg text-[#5B5F4D] hover:bg-[#F5F3EC] inline-flex items-center gap-1"
-          >
-            {busy === `undismiss:${r.fandom}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <ChevronRight className="w-3 h-3" />}
-            Restore
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => onDismiss(r.fandom)}
-            disabled={busy === `dismiss:${r.fandom}`}
-            data-testid={`admin-unknown-fandom-dismiss-${r.fandom}`}
-            className="text-xs px-3 py-1.5 rounded-lg text-[#5B5F4D] hover:bg-[#F5F3EC] inline-flex items-center gap-1"
-          >
-            {busy === `dismiss:${r.fandom}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <XIcon className="w-3 h-3" />}
-            Dismiss
-          </button>
-        )}
-      </div>
+          <span className="font-semibold shrink-0">Sample links:</span>
+          {sampleUrls.map((s, i) => (
+            <a
+              key={s.book_id}
+              href={s.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={s.title || s.url}
+              data-testid={`admin-unknown-fandom-url-${r.fandom}-${i}`}
+              className="inline-flex items-center gap-1 text-[#6B46C1] hover:underline max-w-[36ch] truncate"
+            >
+              <span aria-hidden>↗</span>
+              <span className="truncate">{s.title || s.url.replace(/^https?:\/\//, "")}</span>
+            </a>
+          ))}
+        </div>
+      )}
     </li>
   );
 }
@@ -5081,6 +5186,9 @@ function UnknownFandomsCard() {
   const [dismissedRows, setDismissedRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(null);
+  const [selected, setSelected] = useState(() => new Set());
+  const [renaming, setRenaming] = useState(null); // fandom name currently in inline-rename mode
+  const [batchProgress, setBatchProgress] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -5093,11 +5201,27 @@ function UnknownFandomsCard() {
   };
   useEffect(() => { load(); }, []);
 
+  const toggleSelect = (fandom) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(fandom)) next.delete(fandom);
+      else next.add(fandom);
+      return next;
+    });
+  };
+  const selectAll = () => setSelected(new Set(rows.map((r) => r.fandom)));
+  const clearSelection = () => setSelected(new Set());
+
   const dismiss = async (fandom) => {
     setBusy(`dismiss:${fandom}`);
     try {
       await api.post(`/admin/unknown-fandoms/${encodeURIComponent(fandom)}/dismiss`);
       toast.success(`Dismissed "${fandom}"`);
+      setSelected((prev) => {
+        const next = new Set(prev);
+        next.delete(fandom);
+        return next;
+      });
       await load();
     } catch { toast.error("Couldn't dismiss"); }
     finally { setBusy(null); }
@@ -5115,7 +5239,7 @@ function UnknownFandomsCard() {
 
   const rescan = async (fandom, count) => {
     if (!window.confirm(
-      `Re-scan ${count} book${count === 1 ? "" : "s"} tagged "${fandom}" against the current ${151} keyword sets?\n\nBooks whose title/author/description now matches a known fandom will be reassigned. No EPUB re-parse, no AI call.`
+      `Re-scan ${count} book${count === 1 ? "" : "s"} tagged "${fandom}" against the current keyword sets?\n\nBooks whose title/author/description now matches a known fandom will be reassigned. No EPUB re-parse, no AI call.`
     )) return;
     setBusy(`rescan:${fandom}`);
     try {
@@ -5129,8 +5253,77 @@ function UnknownFandomsCard() {
     finally { setBusy(null); }
   };
 
+  const rescanSelected = async () => {
+    const targets = rows.filter((r) => selected.has(r.fandom));
+    if (!targets.length) return;
+    const totalBooks = targets.reduce((n, t) => n + (t.count || 0), 0);
+    if (!window.confirm(
+      `Re-scan ${targets.length} fandom${targets.length === 1 ? "" : "s"} `
+      + `(${totalBooks} book${totalBooks === 1 ? "" : "s"} total) against the current keyword sets?\n\n`
+      + `They'll be scanned one after the other. No EPUB re-parse, no AI call. `
+      + `Click OK to start — this will run without further prompts.`
+    )) return;
+    setBusy("batch-rescan");
+    setBatchProgress({ done: 0, total: targets.length, scanned: 0, reclassified: 0 });
+    try {
+      for (let i = 0; i < targets.length; i += 1) {
+        const t = targets[i];
+        // eslint-disable-next-line no-await-in-loop
+        const { data } = await api.post(
+          `/admin/unknown-fandoms/${encodeURIComponent(t.fandom)}/rescan`,
+          { dry_run: false },
+        );
+        setBatchProgress((prev) => ({
+          done: i + 1,
+          total: targets.length,
+          scanned: (prev?.scanned || 0) + (data?.scanned || 0),
+          reclassified: (prev?.reclassified || 0) + (data?.reclassified || 0),
+        }));
+      }
+      toast.success(
+        `Batch rescan done · ${targets.length} fandom${targets.length === 1 ? "" : "s"} scanned`,
+        { duration: 8000 },
+      );
+      clearSelection();
+      await load();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Batch rescan failed");
+    } finally {
+      setBusy(null);
+      setBatchProgress(null);
+    }
+  };
+
+  const startRename = (fandom) => setRenaming(fandom);
+  const cancelRename = () => setRenaming(null);
+  const submitRename = async (oldFandom, newFandom) => {
+    const target = (newFandom || "").trim();
+    if (!target || target === oldFandom) return;
+    setBusy(`rename:${oldFandom}`);
+    try {
+      const { data } = await api.post("/admin/unknown-fandoms/rename", {
+        old_fandom: oldFandom,
+        new_fandom: target,
+      });
+      toast.success(`Renamed "${oldFandom}" → "${target}" · ${data.modified} book${data.modified === 1 ? "" : "s"} updated`, { duration: 8000 });
+      setRenaming(null);
+      setSelected((prev) => {
+        const next = new Set(prev);
+        next.delete(oldFandom);
+        return next;
+      });
+      await load();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Rename failed");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const anySelected = selected.size > 0;
+
   return (
-    <Card icon={AlertOctagon} title="Unknown fandoms" subtitle="Fandoms appearing in book records that aren't in the keyword classifier yet. Rescan re-runs the classifier on existing books (no AI, no re-parse). Dismiss to hide permanently." testid="admin-unknown-fandoms-card">
+    <Card icon={AlertOctagon} title="Unknown fandoms" subtitle="Fandoms appearing in book records that aren't in the keyword classifier yet. Rescan re-runs the classifier on existing books (no AI, no re-parse). Rename bulk-updates the fandom tag to a canonical name across every matching book. Dismiss to hide permanently." testid="admin-unknown-fandoms-card">
       {loading ? (
         <p className="text-sm text-[#5B5F4D] italic">Loading…</p>
       ) : (
@@ -5140,19 +5333,73 @@ function UnknownFandomsCard() {
               <Check className="w-4 h-4" /> All fandoms in your library are recognized.
             </p>
           ) : (
-            <ul className="space-y-1.5" data-testid="admin-unknown-fandoms-list">
-              {rows.map((r) => (
-                <UnknownFandomRow
-                  key={r.fandom}
-                  r={r}
-                  isDismissed={false}
-                  busy={busy}
-                  onRescan={rescan}
-                  onDismiss={dismiss}
-                  onUndismiss={undismiss}
-                />
-              ))}
-            </ul>
+            <>
+              <div
+                className="flex flex-wrap items-center gap-2 mb-3 text-xs"
+                data-testid="admin-unknown-fandoms-toolbar"
+              >
+                <button
+                  type="button"
+                  onClick={selectAll}
+                  disabled={!!busy || selected.size === rows.length}
+                  data-testid="admin-unknown-fandoms-select-all"
+                  className="px-2.5 py-1 rounded-lg text-[#6B46C1] hover:bg-[#EEE9FB] disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                >
+                  Select all ({rows.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={clearSelection}
+                  disabled={!!busy || !anySelected}
+                  data-testid="admin-unknown-fandoms-clear"
+                  className="px-2.5 py-1 rounded-lg text-[#5B5F4D] hover:bg-[#F5F3EC] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Clear
+                </button>
+                <div className="flex-1" />
+                <button
+                  type="button"
+                  onClick={rescanSelected}
+                  disabled={!!busy || !anySelected}
+                  data-testid="admin-unknown-fandoms-rescan-selected"
+                  className="px-3 py-1.5 rounded-full bg-[#6B46C1] text-white font-bold uppercase tracking-[0.15em] hover:bg-[#5C3AAD] disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+                >
+                  {busy === "batch-rescan" ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
+                  {busy === "batch-rescan" && batchProgress
+                    ? `Rescanning ${batchProgress.done}/${batchProgress.total}…`
+                    : `Rescan ${selected.size || ""} selected`}
+                </button>
+              </div>
+              {busy === "batch-rescan" && batchProgress && (
+                <p
+                  className="mb-3 text-[11px] text-[#5B5F4D] italic"
+                  data-testid="admin-unknown-fandoms-batch-progress"
+                >
+                  Fandom {batchProgress.done} of {batchProgress.total} ·
+                  {" "}scanned <span className="font-mono">{batchProgress.scanned}</span> books ·
+                  {" "}reclassified <span className="font-mono font-semibold text-[#6B46C1]">{batchProgress.reclassified}</span>
+                </p>
+              )}
+              <ul className="space-y-1.5" data-testid="admin-unknown-fandoms-list">
+                {rows.map((r) => (
+                  <UnknownFandomRow
+                    key={r.fandom}
+                    r={r}
+                    isDismissed={false}
+                    busy={busy}
+                    isSelected={selected.has(r.fandom)}
+                    onToggleSelect={toggleSelect}
+                    isRenaming={renaming === r.fandom}
+                    onStartRename={startRename}
+                    onCancelRename={cancelRename}
+                    onSubmitRename={submitRename}
+                    onRescan={rescan}
+                    onDismiss={dismiss}
+                    onUndismiss={undismiss}
+                  />
+                ))}
+              </ul>
+            </>
           )}
           {dismissedRows.length > 0 && (
             <details className="mt-4" data-testid="admin-unknown-fandoms-dismissed-details">
@@ -5166,6 +5413,12 @@ function UnknownFandomsCard() {
                     r={r}
                     isDismissed={true}
                     busy={busy}
+                    isSelected={false}
+                    onToggleSelect={() => {}}
+                    isRenaming={renaming === r.fandom}
+                    onStartRename={startRename}
+                    onCancelRename={cancelRename}
+                    onSubmitRename={submitRename}
                     onRescan={rescan}
                     onDismiss={dismiss}
                     onUndismiss={undismiss}
@@ -5192,6 +5445,7 @@ function UnknownFandomsCard() {
 function CrossoverSuggestionsCard() {
   const [rows, setRows] = useState([]);
   const [counts, setCounts] = useState({ pending: 0, accepted: 0, rejected: 0 });
+  const [urlFilteredCount, setUrlFilteredCount] = useState(0);
   const [status, setStatus] = useState("pending");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(null);
@@ -5202,7 +5456,16 @@ function CrossoverSuggestionsCard() {
     setLoading(true);
     try {
       const { data } = await api.get(`/admin/crossover-suggestions?status=${status}`);
-      setRows(data?.suggestions || []);
+      const raw = data?.suggestions || [];
+      // 2026-07-11 — drop URL-less suggestions.  Per admin request:
+      // if a story has been removed from its source site (no URL
+      // recorded, or URL wiped when the book was deleted), there's
+      // nothing left to review — hiding these keeps the queue focused
+      // on suggestions that are still actionable.  Tab counts stay on
+      // the raw backend numbers so operators see the true queue size.
+      const withUrl = raw.filter((r) => (r.source_url || "").trim());
+      setRows(withUrl);
+      setUrlFilteredCount(raw.length - withUrl.length);
       setCounts(data?.counts || { pending: 0, accepted: 0, rejected: 0 });
     } catch { /* ignore */ }
     finally { setLoading(false); }
@@ -5286,10 +5549,24 @@ function CrossoverSuggestionsCard() {
         <p className="text-sm text-[#5B5F4D] italic">Loading…</p>
       ) : rows.length === 0 ? (
         <p className="text-sm text-[#6B46C1] inline-flex items-center gap-1.5" data-testid="admin-crossover-suggestions-empty">
-          <Check className="w-4 h-4" /> No {status} suggestions.
+          <Check className="w-4 h-4" /> No {status} suggestions
+          {urlFilteredCount > 0 ? (
+            <span className="text-[#5B5F4D]"> · {urlFilteredCount} hidden (no URL — removed from source site)</span>
+          ) : null}
+          .
         </p>
       ) : (
-        <ul className="space-y-3" data-testid="admin-crossover-suggestions-list">
+        <>
+          {urlFilteredCount > 0 && (
+            <p
+              className="mb-3 text-xs text-[#5B5F4D] italic"
+              data-testid="admin-crossover-suggestions-url-filtered"
+            >
+              {urlFilteredCount} suggestion{urlFilteredCount === 1 ? "" : "s"} hidden
+              {" "}— story no longer available at its source URL.
+            </p>
+          )}
+          <ul className="space-y-3" data-testid="admin-crossover-suggestions-list">
           {rows.map((r) => {
             const dk = r.dedup_key;
             const isPending = r.status === "pending";
@@ -5399,6 +5676,7 @@ function CrossoverSuggestionsCard() {
             );
           })}
         </ul>
+        </>
       )}
     </Card>
   );
@@ -8340,6 +8618,18 @@ export default function AdminConsole() {
     });
     return () => observer.disconnect();
   }, [query]);
+
+  // Keep the active sidebar link visible when the page-scroll shifts
+  // it inside the (potentially scrollable) sidebar container.  Without
+  // this, on shorter screens the highlight can move OFF-viewport in
+  // the sidebar while the user watches, defeating the point of the
+  // sticky nav.
+  useEffect(() => {
+    const el = document.querySelector(`[data-testid="admin-sidebar-link-${activeCategory}"]`);
+    if (el?.scrollIntoView) {
+      el.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+    }
+  }, [activeCategory]);
   const jumpToCategory = (id) => {
     const el = document.getElementById(`admin-section-${id}`);
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -8362,8 +8652,16 @@ export default function AdminConsole() {
           <GuardiansBanner />
           <InFlightUploadsBanner />
         </div>
-        {/* ─── Sticky category sidebar (2026-06-22) — jump-nav across the 33 cards. ─── */}
-        <aside className="hidden lg:block sticky top-6 self-start" data-testid="admin-sidebar">
+        {/* ─── Sticky category sidebar (2026-06-22, updated 2026-07-11) ─
+            Sticky-scrolls with the page.  Internal max-height + scroll
+            keeps the whole nav visible even when the recent + section
+            list combined exceeds viewport height.  Active category
+            auto-scrolls into the sidebar viewport when scroll-spy
+            updates so the highlight is always visible. */}
+        <aside
+          className="hidden lg:block sticky top-6 self-start max-h-[calc(100vh-3rem)] overflow-y-auto pr-1"
+          data-testid="admin-sidebar"
+        >
           {recentCards.length > 0 && (
             <>
               <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#5B5F4D] mb-3 px-2">Recent</p>

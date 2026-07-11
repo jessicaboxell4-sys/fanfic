@@ -78,7 +78,10 @@ export default function AdminHelp() {
       </header>
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 grid md:grid-cols-[220px_1fr] gap-8">
-        <aside className="md:sticky md:top-6 md:self-start" data-testid="admin-help-toc">
+        <aside
+          className="md:sticky md:top-6 md:self-start md:max-h-[calc(100vh-3rem)] md:overflow-y-auto md:pr-2"
+          data-testid="admin-help-toc"
+        >
           <p className="text-[10px] uppercase tracking-[0.2em] text-[#5B5F4D] font-bold mb-2">
             On this page
           </p>

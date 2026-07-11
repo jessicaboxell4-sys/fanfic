@@ -1689,9 +1689,40 @@ async def get_unknown_fandoms(user: User = Depends(require_admin)):
     """Return any fandom currently present in the books collection that
     doesn't match a key in the keyword classifier. Dismissed entries are
     returned in a separate `dismissed` array so the UI can still offer
-    "Rescan" / "Un-dismiss" actions on them."""
+    "Rescan" / "Un-dismiss" actions on them.
+
+    Each row also includes ``sample_source_urls`` — up to 3 clickable
+    URLs pulled from the sample books' ``source_url`` field — so an
+    admin who's never heard of the fandom name (e.g. "MHA" abbrev) can
+    open one of the actual books in a new tab and identify the canon
+    before deciding to rename / rescan / dismiss.
+    """
     from utils.unknown_fandoms import list_unknown_fandoms
     rows = await list_unknown_fandoms(_known_fandoms())
+
+    # Hydrate sample_source_urls for the primary rows so the UI can
+    # link off to the actual books.  Batch-fetch to keep it 1 round-trip.
+    all_sample_ids: List[str] = []
+    for r in rows:
+        all_sample_ids.extend((r.get("sample_book_ids") or [])[:3])
+    url_map: Dict[str, str] = {}
+    if all_sample_ids:
+        async for doc in db.books.find(
+            {"book_id": {"$in": all_sample_ids}},
+            {"_id": 0, "book_id": 1, "source_url": 1, "title": 1},
+        ):
+            if doc.get("source_url"):
+                url_map[doc["book_id"]] = {
+                    "url": doc["source_url"],
+                    "title": doc.get("title") or "",
+                }
+    for r in rows:
+        r["sample_source_urls"] = [
+            {"book_id": bid, **url_map[bid]}
+            for bid in (r.get("sample_book_ids") or [])[:3]
+            if bid in url_map
+        ]
+
     # Also pull dismissed entries (with their current book counts) so the
     # admin can re-run rescan on previously-dismissed fandoms.
     dismissed_docs = await db.dismissed_unknown_fandoms.find({}, {"_id": 0}).to_list(length=200)
@@ -1747,6 +1778,64 @@ async def undismiss_unknown_fandom(fandom: str, user: User = Depends(require_adm
 
 class RescanBody(BaseModel):
     dry_run: bool = False
+
+
+class RenameFandomBody(BaseModel):
+    old_fandom: str
+    new_fandom: str
+
+
+@api_router.post("/admin/unknown-fandoms/rename")
+async def rename_unknown_fandom(
+    body: RenameFandomBody,
+    user: User = Depends(require_admin),
+):
+    """Rename an unknown fandom across every book that currently uses it.
+
+    Use-case: admin sees "MHA — 348 books" and knows this is "My Hero
+    Academia".  Instead of dismissing (which just hides it) or
+    rescanning (which won't help until the classifier learns "MHA"),
+    they can rename all 348 books' ``fandom`` field to the canonical
+    name in one shot.  If the canonical name matches an existing
+    keyword-classifier entry, those books immediately become
+    "recognised" and count against the correct fandom stats.
+
+    Fully audited.  No AI, no re-parse.  Idempotent — running it a
+    second time with the same target changes 0 books.
+    """
+    old = (body.old_fandom or "").strip()
+    new = (body.new_fandom or "").strip()
+    if not old or not new:
+        raise HTTPException(400, "old_fandom and new_fandom both required")
+    if old == new:
+        raise HTTPException(400, "old_fandom == new_fandom; nothing to rename")
+    if len(new) > 120:
+        raise HTTPException(400, "new_fandom too long (max 120 chars)")
+
+    # If the fandom was previously dismissed, clear the dismissal too so
+    # the row disappears from the dismissed list rather than lingering
+    # with a zero-count.
+    await db.dismissed_unknown_fandoms.delete_one({"fandom": old})
+
+    res = await db.books.update_many(
+        {"fandom": old},
+        {"$set": {"fandom": new, "classifier": "admin_rename"}},
+    )
+    from utils.unknown_fandoms import invalidate_count_cache
+    invalidate_count_cache()
+
+    await record_admin_action(
+        user,
+        "unknown_fandoms.rename",
+        target=old,
+        metadata={"old": old, "new": new, "modified": res.modified_count},
+    )
+    return {
+        "ok": True,
+        "old_fandom": old,
+        "new_fandom": new,
+        "modified": res.modified_count,
+    }
 
 
 @api_router.post("/admin/unknown-fandoms/{fandom}/rescan")
@@ -2836,29 +2925,42 @@ async def orphan_audit_delete_bulk(
         raise HTTPException(400, "Object storage not enabled")
     if not body.book_ids:
         raise HTTPException(400, "book_ids cannot be empty")
-    if len(body.book_ids) > 500:
-        raise HTTPException(400, "Cap of 500 books per batch — split larger jobs")
+    if len(body.book_ids) > 250:
+        raise HTTPException(400, "Cap of 250 books per batch — split larger jobs")
 
     targets = await db.books.find(
         {"book_id": {"$in": body.book_ids}},
         {"_id": 0, "book_id": 1, "user_id": 1, "filename": 1, "title": 1},
-    ).to_list(length=600)
+    ).to_list(length=300)
 
     deleted_ids: List[str] = []
     recovered: List[Dict[str, str]] = []
     not_found: List[str] = []
 
-    for b in targets:
-        if body.confirm_recheck:
+    if body.confirm_recheck:
+        # Parallelise HEAD rechecks — running them serially at 100-500
+        # rows per call reliably blew past Cloudflare's 120s proxy
+        # timeout (each HEAD is 50-200ms; 500 × 150ms = 75s worst-case,
+        # 100s+ with jitter).  32-wide keeps the whole recheck phase
+        # under ~2s for a 250-row batch while staying well below R2's
+        # per-worker rate limits.
+        sem = asyncio.Semaphore(32)
+
+        async def _still_orphan(b):
             fn = b.get("filename") or ""
             ext = os.path.splitext(fn)[1] or ".epub"
             key = storage_key_for(b["user_id"], b["book_id"], ext)
-            still_orphan = not await asyncio.to_thread(remote_exists, key)
-            if not still_orphan:
-                # File magically came back — refuse to delete.
+            async with sem:
+                return b, not await asyncio.to_thread(remote_exists, key)
+
+        checks = await asyncio.gather(*[_still_orphan(t) for t in targets])
+        for b, still_orphan in checks:
+            if still_orphan:
+                deleted_ids.append(b["book_id"])
+            else:
                 recovered.append({"book_id": b["book_id"], "title": b.get("title") or ""})
-                continue
-        deleted_ids.append(b["book_id"])
+    else:
+        deleted_ids = [t["book_id"] for t in targets]
 
     # Calculate IDs in the request that didn't even resolve to a book.
     found_ids = {t["book_id"] for t in targets}
