@@ -540,7 +540,12 @@ html, body {
     --surface: #26262B;
     --surface-hover: #34343A;
     --text-primary: #E8E4D8;
-    --text-secondary: #9C9C8E;
+    /* 2026-07-11 — bumped from #9C9C8E (5.04:1 on --surface, technically
+       WCAG AA but reads visibly washed-out on subtitle / description
+       body copy across the app).  #C4C1B0 lands at ~7.8:1 (AAA-clean)
+       while keeping the muted-olive hierarchy so it still reads as
+       "supporting" text, not primary. */
+    --text-secondary: #C4C1B0;
     --border: #3B3B41;
     /* Brighten the accent on dark — same hue, higher luminosity so it
        still reads against `--bg`. Pale tints invert to deep-purple so
