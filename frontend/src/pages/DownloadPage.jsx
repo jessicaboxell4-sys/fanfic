@@ -161,6 +161,7 @@ export default function DownloadPage() {
 
   const [downloading, setDownloading] = useState(false);
   const [overview, setOverview] = useState(null);
+  const [booksStats, setBooksStats] = useState(null);
   const [relationships, setRelationships] = useState([]);
   const [authors, setAuthors] = useState([]);
   const [fandomsAll, setFandomsAll] = useState([]);
@@ -182,14 +183,16 @@ export default function DownloadPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [ov, rel, au, fd] = await Promise.all([
+        const [ov, bs, rel, au, fd] = await Promise.all([
           api.get("/stats/overview"),
+          api.get("/books/stats"),
           api.get("/relationships"),
           api.get("/authors"),
           api.get("/fandoms"),
         ]);
         if (cancelled) return;
         setOverview(ov.data || {});
+        setBooksStats(bs.data || null);
         setRelationships(rel.data?.relationships || []);
         setAuthors(au.data?.authors || []);
         setFandomsAll(fd.data?.fandoms || []);
@@ -206,6 +209,73 @@ export default function DownloadPage() {
     if (n < 1024) return `${n} B`;
     if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
     return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  // Threshold above which an un-filtered full-library ZIP export
+  // gets auto-split into per-category zips.  Rationale: at ~200ms/book
+  // (R2 cache-warm, 16-wide parallel on the backend), a 2000-book
+  // library takes ~25s just to warm the cache before ZIP streaming
+  // begins.  Bigger libraries drift toward Cloudflare's 120s proxy
+  // timeout window, and even when they finish, they land a single
+  // 5-10 GB file that many browsers choke on.  Splitting into
+  // ~6 per-category zips keeps each transfer comfortably under the
+  // timeout AND gives the user resumable, individually-openable
+  // archives.  Threshold intentionally conservative — small libraries
+  // stay on the single-file happy path.
+  const LARGE_LIBRARY_THRESHOLD = 2000;
+
+  // Download ONE zip for the given filter params.  Extracted from the
+  // original startDownload so the auto-batch loop below can reuse it
+  // per-category without duplicating the streaming/progress/blob code.
+  const downloadOne = async ({ qsParams, filterLabel, nameStem, toastId, controller }) => {
+    const startedAt = Date.now();
+    let bytesReceived = 0;
+    const cancel = () => { controller.abort(); toast.dismiss(toastId); };
+    const showProgress = () => {
+      const elapsed = Math.max(1, Math.floor((Date.now() - startedAt) / 1000));
+      toast.loading(
+        `${KIND_COPY.verb} ${filterLabel}… ${fmt(bytesReceived)} so far · ${elapsed}s`,
+        { id: toastId, duration: 60000, action: { label: "Cancel", onClick: cancel } },
+      );
+    };
+    showProgress();
+    const fullQs = [KIND_COPY.extraQuery, qsParams.toString()].filter(Boolean).join("&");
+    const resp = await fetch(`${API}${KIND_COPY.endpoint}${fullQs ? `?${fullQs}` : ""}`, {
+      credentials: "include",
+      signal: controller.signal,
+    });
+    if (!resp.ok) {
+      if (resp.status === 404) throw new Error("No books match those filters");
+      const text = await resp.text().catch(() => "");
+      throw new Error(`HTTP ${resp.status}${text ? ` — ${text.slice(0, 120)}` : ""}`);
+    }
+    if (!resp.body) throw new Error("Streaming not supported in this browser");
+    const reader = resp.body.getReader();
+    const chunks = [];
+    let lastTick = Date.now();
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      bytesReceived += value.byteLength;
+      const now = Date.now();
+      if (now - lastTick > 300) { showProgress(); lastTick = now; }
+    }
+    const blob = new Blob(chunks);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `shelfsort_${nameStem}.${KIND_COPY.ext}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    toast.success(
+      `${KIND_COPY.successVerb} ${fmt(bytesReceived)} · ${Math.floor((Date.now() - startedAt) / 1000)}s`,
+      { id: toastId },
+    );
+    return bytesReceived;
   };
 
   const startDownload = async () => {
@@ -230,51 +300,72 @@ export default function DownloadPage() {
       labelFor("cat", category),
     ].filter(Boolean).join(" · ") || "full library";
 
-    const toastId = `${kind}-${Date.now()}`;
-    const startedAt = Date.now();
-    let bytesReceived = 0;
     const controller = new AbortController();
     abortRef.current = controller;
-    const cancel = () => { controller.abort(); toast.dismiss(toastId); };
-    const showProgress = () => {
-      const elapsed = Math.max(1, Math.floor((Date.now() - startedAt) / 1000));
-      toast.loading(
-        `${KIND_COPY.verb} ${filterLabel}… ${fmt(bytesReceived)} so far · ${elapsed}s`,
-        { id: toastId, duration: 60000, action: { label: "Cancel", onClick: cancel } },
+
+    // Auto-batch-by-category decision:
+    //   Only triggers for un-filtered, full-library ZIP exports on
+    //   libraries above the threshold.  Filtered downloads already
+    //   scoped themselves; XLSX exports are metadata-only and never
+    //   hit the 120s timeout regardless of size.
+    const totalBooks = booksStats?.total ?? overview?.books_total ?? 0;
+    const isFullLibrary = fandom.size + relationship.size + author.size + category.size === 0;
+    const cats = (booksStats?.categories || []).filter((c) => (c?.count || 0) > 0);
+    const shouldAutoBatch =
+      kind === "zip"
+      && isFullLibrary
+      && totalBooks >= LARGE_LIBRARY_THRESHOLD
+      && cats.length >= 2;
+
+    if (shouldAutoBatch) {
+      // Heads-up so the admin knows why they're about to see N downloads.
+      toast.info(
+        `Large library detected (${totalBooks.toLocaleString()} books) — splitting into `
+        + `${cats.length} category zip${cats.length === 1 ? "" : "s"} to avoid proxy timeouts. `
+        + `You'll get one download per category.`,
+        { duration: 7000 },
       );
-    };
+      let totalBytes = 0;
+      let doneCats = 0;
+      try {
+        for (const c of cats) {
+          if (controller.signal.aborted) break;
+          const perCatParams = new URLSearchParams();
+          perCatParams.append("category", c.name);
+          const perCatToastId = `${kind}-cat-${c.name}-${Date.now()}`;
+          doneCats += 1;
+          // eslint-disable-next-line no-await-in-loop
+          const bytes = await downloadOne({
+            qsParams: perCatParams,
+            filterLabel: `${c.name} (${doneCats}/${cats.length}) — ${c.count} books`,
+            nameStem: c.name.replace(/[^A-Za-z0-9_-]+/g, "_"),
+            toastId: perCatToastId,
+            controller,
+          });
+          totalBytes += bytes;
+        }
+        toast.success(
+          `Full library exported · ${cats.length} zip${cats.length === 1 ? "" : "s"} · ${fmt(totalBytes)} total`,
+          { duration: 8000 },
+        );
+      } catch (e) {
+        if (e.name === "AbortError" || controller.signal.aborted) {
+          toast(`Batch export cancelled after ${doneCats}/${cats.length} categor${doneCats === 1 ? "y" : "ies"}`);
+        } else {
+          toast.error(
+            `Batch export failed after ${doneCats}/${cats.length} categor${doneCats === 1 ? "y" : "ies"} — ${e.message || "try again"}`,
+          );
+        }
+      } finally {
+        abortRef.current = null;
+        setDownloading(false);
+      }
+      return;
+    }
 
+    // Single-zip / XLSX / filtered path — same as before.
+    const toastId = `${kind}-${Date.now()}`;
     try {
-      showProgress();
-      const fullQs = [KIND_COPY.extraQuery, qs].filter(Boolean).join("&");
-      const resp = await fetch(`${API}${KIND_COPY.endpoint}${fullQs ? `?${fullQs}` : ""}`, {
-        credentials: "include",
-        signal: controller.signal,
-      });
-      if (!resp.ok) {
-        if (resp.status === 404) throw new Error("No books match those filters");
-        const text = await resp.text().catch(() => "");
-        throw new Error(`HTTP ${resp.status}${text ? ` — ${text.slice(0, 120)}` : ""}`);
-      }
-      if (!resp.body) throw new Error("Streaming not supported in this browser");
-
-      const reader = resp.body.getReader();
-      const chunks = [];
-      let lastTick = Date.now();
-      // eslint-disable-next-line no-constant-condition
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        chunks.push(value);
-        bytesReceived += value.byteLength;
-        const now = Date.now();
-        if (now - lastTick > 300) { showProgress(); lastTick = now; }
-      }
-
-      const blob = new Blob(chunks);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
       const singleOrNull = (s) => (s.size === 1 ? [...s][0] : null);
       const fSingle = singleOrNull(fandom);
       const rSingle = singleOrNull(relationship);
@@ -289,26 +380,29 @@ export default function DownloadPage() {
       else if (aSingle && totalPicked === 1) nameStem = aSingle.replace(/\s+/g, "_");
       else if (cSingle && totalPicked === 1) nameStem = cSingle.replace(/\s+/g, "_");
       else nameStem = "filtered";
-      a.download = `shelfsort_${nameStem}.${KIND_COPY.ext}`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 5000);
 
-      toast.success(
-        `${KIND_COPY.successVerb} ${fmt(bytesReceived)} · ${Math.floor((Date.now() - startedAt) / 1000)}s`,
-        { id: toastId },
-      );
+      const bytesReceived = await downloadOne({
+        qsParams,
+        filterLabel,
+        nameStem,
+        toastId,
+        controller,
+      });
+      // downloadOne already toasted success — no double toast here.
+      void bytesReceived;
     } catch (e) {
       if (e.name === "AbortError" || controller.signal.aborted) {
-        toast(`Download cancelled${bytesReceived > 0 ? ` after ${fmt(bytesReceived)}` : ""}`, { id: toastId });
+        toast(`Download cancelled`, { id: toastId });
       } else {
-        toast.error(`Download failed${bytesReceived > 0 ? ` after ${fmt(bytesReceived)}` : ""} — ${e.message || "try again"}`, { id: toastId });
+        toast.error(`Download failed — ${e.message || "try again"}`, { id: toastId });
       }
     } finally {
       abortRef.current = null;
       setDownloading(false);
     }
+    // (Note: legacy filterLabel already used above; keep the qs var referenced for
+    // future debugging — the URLSearchParams is what downloadOne actually reads.)
+    void qs;
   };
 
   const fandoms = fandomsAll;
@@ -456,6 +550,22 @@ export default function DownloadPage() {
                 {downloading ? `${KIND_COPY.verb}…` : activeFilterCount > 0 ? KIND_COPY.ctaFiltered : KIND_COPY.ctaFull}
               </button>
             </div>
+            {kind === "zip"
+              && activeFilterCount === 0
+              && (booksStats?.total ?? overview?.books_total ?? 0) >= LARGE_LIBRARY_THRESHOLD
+              && (booksStats?.categories || []).length >= 2
+              && (
+                <p
+                  className="mt-2 text-xs text-[#5B5F4D] italic"
+                  data-testid="download-auto-batch-hint"
+                >
+                  Your library is large ({(booksStats?.total ?? overview?.books_total ?? 0).toLocaleString()}
+                  {" "}books) — the full-library ZIP will auto-split into
+                  {" "}<strong>{(booksStats?.categories || []).filter((c) => (c?.count || 0) > 0).length}
+                  {" "}per-category zips</strong> so no download hits the proxy timeout.
+                  One click still works — you&apos;ll just get a few files instead of one.
+                </p>
+              )}
           </div>
         </div>
       </main>
