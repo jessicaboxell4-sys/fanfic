@@ -2585,7 +2585,7 @@ async def upload_books(
         existing_rows = await db.books.aggregate([
             {"$match": {"user_id": user.user_id, "fandom": {"$ne": None, "$exists": True}}},
             {"$group": {"_id": "$fandom"}},
-        ]).to_list(5000)
+        ]).to_list(length=None)
         existing_fandoms = [r["_id"] for r in existing_rows if r.get("_id")]
         # Only suggest when the just-uploaded fandom is rare in the library
         # (otherwise it's clearly already an "established" shelf).
@@ -3095,7 +3095,7 @@ async def export_all_links(
         query["relationships"] = {"$in": relationship} if len(relationship) > 1 else relationship[0]
     if author:
         query["author"] = {"$in": author} if len(author) > 1 else author[0]
-    books = await db.books.find(query, {"_id": 0}).sort("created_at", -1).to_list(5000)
+    books = await db.books.find(query, {"_id": 0}).sort("created_at", -1).to_list(length=None)
     if not books:
         raise HTTPException(status_code=404, detail="No books")
 
@@ -3935,7 +3935,7 @@ async def detect_series_all(user: User = Depends(get_current_user)):
     books = await db.books.find(
         {"user_id": user.user_id},
         {"_id": 0, "book_id": 1, "title": 1, "series_name": 1},
-    ).to_list(5000)
+    ).to_list(length=None)
     user_dir = STORAGE_DIR / user.user_id
     found = 0
     for b in books:

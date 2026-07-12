@@ -64,7 +64,7 @@ async def reclassify_all(body: ReclassifyAllBody, user: User = Depends(get_curre
         if body.fandom:
             query["fandom"] = body.fandom
 
-    books = await db.books.find(query, {"_id": 0}).to_list(5000)
+    books = await db.books.find(query, {"_id": 0}).to_list(length=None)
     if not books:
         return {"processed": 0, "changed": 0}
 
@@ -398,7 +398,7 @@ async def bulk_metadata(body: BulkMetadataBody, user: User = Depends(get_current
         books = await db.books.find(
             {"book_id": {"$in": body.book_ids}, "user_id": user.user_id},
             {"_id": 0, "book_id": 1, "title": 1},
-        ).to_list(5000)
+        ).to_list(length=None)
         for b in books:
             t = b.get("title") or ""
             if t.startswith(prefix):

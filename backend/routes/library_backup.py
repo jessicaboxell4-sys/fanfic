@@ -28,6 +28,12 @@ from fastapi import Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from stream_zip import stream_zip, ZIP_64
+from pymongo import ReplaceOne, InsertOne
+from pymongo.errors import BulkWriteError
+import asyncio
+import logging
+
+_bulk_logger = logging.getLogger(__name__)
 
 from auth_dep import get_current_user
 from deps import api_router, db, STORAGE_DIR
@@ -462,10 +468,38 @@ async def restore_apply(
     user_dir = STORAGE_DIR / user.user_id
     user_dir.mkdir(parents=True, exist_ok=True)
 
+    # --- Fast restore (2026-07-12) --------------------------------------
+    # Old restore was fully sequential (one Mongo op + one file write per
+    # book).  For a 2 k-book restore that trended past the Cloudflare
+    # 120 s edge timeout.  Now we build ``bulk_write`` ops and parallelize
+    # the file extraction so a 2 k-book restore completes in seconds.
+    # ---------------------------------------------------------------------
     restored_books = 0
     skipped_books = 0
     overwritten_books = 0
     restored_files = 0
+
+    db_ops: List[Any] = []
+    file_tasks: List[Any] = []
+
+    def _extract_file(bid: str, format_hint: str) -> int:
+        """Try both plausible filenames inside the ZIP.  Returns 1 if the
+        sidecar was written, else 0.  Runs on a worker thread via
+        ``asyncio.to_thread``."""
+        for candidate in (
+            f"epubs/{bid}.epub",
+            f"epubs/{bid}.{(format_hint or 'epub').lstrip('.')}",
+        ):
+            if candidate not in names:
+                continue
+            target = user_dir / candidate.split("/", 1)[1]
+            if target.exists() and not sel.overwrite_collisions:
+                return 0
+            with open(target, "wb") as out:
+                out.write(zf.read(candidate))
+            return 1
+        return 0
+
     for b in (manifest.get("books") or []):
         bid = b.get("book_id")
         if not bid or bid not in chosen_books:
@@ -477,27 +511,45 @@ async def restore_apply(
         doc = {k: v for k, v in b.items() if not k.startswith("_")}
         doc["user_id"] = user.user_id  # always re-anchor to the importing user
         if collision:
-            await db.books.replace_one(
+            db_ops.append(ReplaceOne(
                 {"user_id": user.user_id, "book_id": bid}, doc,
-            )
+            ))
             overwritten_books += 1
         else:
-            await db.books.insert_one(doc)
+            db_ops.append(InsertOne(doc))
             restored_books += 1
-        for candidate in (
-            f"epubs/{bid}.epub",
-            f"epubs/{bid}.{(b.get('original_format') or 'epub').lstrip('.')}",
-        ):
-            if candidate in names:
-                target = user_dir / candidate.split("/", 1)[1]
-                if not target.exists() or sel.overwrite_collisions:
-                    with open(target, "wb") as out:
-                        out.write(zf.read(candidate))
-                    restored_files += 1
-                break
+        file_tasks.append(asyncio.to_thread(
+            _extract_file, bid, b.get("original_format") or "epub",
+        ))
+
+    # DB: bulk_write in chunks of 500 (Motor / Mongo cap is 1000, keep
+    # headroom).  ``ordered=False`` so a single-doc failure doesn't
+    # abort the whole restore — the old sequential loop was resilient
+    # to per-book crashes, so we preserve that by catching
+    # ``BulkWriteError`` and logging.
+    for i in range(0, len(db_ops), 500):
+        chunk = db_ops[i:i + 500]
+        if not chunk:
+            continue
+        try:
+            await db.books.bulk_write(chunk, ordered=False)
+        except BulkWriteError as bwe:
+            errs = (bwe.details or {}).get("writeErrors") or []
+            _bulk_logger.warning(
+                "restore books bulk_write had %d errors, %d succeeded",
+                len(errs), len(chunk) - len(errs),
+            )
+
+    # Files: parallel extract, capped at 32 in flight so we don't OOM
+    # the pod on huge EPUBs.
+    for i in range(0, len(file_tasks), 32):
+        chunk = file_tasks[i:i + 32]
+        results = await asyncio.gather(*chunk, return_exceptions=True)
+        restored_files += sum(r for r in results if isinstance(r, int))
 
     restored_shelves = 0
     skipped_shelves = 0
+    shelf_ops: List[Any] = []
     for s in (manifest.get("smart_shelves") or []):
         name = s.get("name")
         if not name or name not in chosen_shelves:
@@ -509,12 +561,22 @@ async def restore_apply(
         doc = {k: v for k, v in s.items() if not k.startswith("_")}
         doc["user_id"] = user.user_id
         if collision:
-            await db.smart_shelves.replace_one(
+            shelf_ops.append(ReplaceOne(
                 {"user_id": user.user_id, "name": name}, doc,
-            )
+            ))
         else:
-            await db.smart_shelves.insert_one(doc)
+            shelf_ops.append(InsertOne(doc))
         restored_shelves += 1
+
+    if shelf_ops:
+        try:
+            await db.smart_shelves.bulk_write(shelf_ops, ordered=False)
+        except BulkWriteError as bwe:
+            errs = (bwe.details or {}).get("writeErrors") or []
+            _bulk_logger.warning(
+                "restore shelves bulk_write had %d errors, %d succeeded",
+                len(errs), len(shelf_ops) - len(errs),
+            )
 
     return {
         "ok": True,

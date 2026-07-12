@@ -54,7 +54,7 @@ async def export_zip(
         query["relationships"] = {"$in": relationship} if len(relationship) > 1 else relationship[0]
     if author:
         query["author"] = {"$in": author} if len(author) > 1 else author[0]
-    books = await db.books.find(query, {"_id": 0}).to_list(5000)
+    books = await db.books.find(query, {"_id": 0}).to_list(length=None)
     if not books:
         raise HTTPException(status_code=404, detail="No books")
 

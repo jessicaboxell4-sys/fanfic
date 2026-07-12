@@ -94,7 +94,7 @@ async def _build_digest_payload(user_doc: Dict[str, Any]) -> Dict[str, Any]:
         {"_id": 0},
     ).to_list(200) if opened_book_ids else []
 
-    all_books = await db.books.find({"user_id": uid}, {"_id": 0}).to_list(5000)
+    all_books = await db.books.find({"user_id": uid}, {"_id": 0}).to_list(length=None)
 
     # Stats for this week
     finished_this_week = 0

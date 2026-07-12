@@ -112,7 +112,7 @@ async def list_books_by_author(
             "status": 1, "manual_status": 1,
         },
     ).sort("created_at", -1)
-    books = await cursor.to_list(5000)
+    books = await cursor.to_list(length=None)
     by_category: Dict[str, int] = {}
     for b in books:
         b["effective_status"] = effective_status(b)

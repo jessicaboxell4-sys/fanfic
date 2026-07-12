@@ -205,7 +205,7 @@ async def list_originals(user: User = Depends(get_current_user)):
     books = await db.books.find(
         {"user_id": user.user_id, "original_only": True},
         {"_id": 0},
-    ).sort("created_at", -1).to_list(5000)
+    ).sort("created_at", -1).to_list(length=None)
     return {"count": len(books), "books": books}
 
 
@@ -224,7 +224,7 @@ async def convert_all_originals(
             {"cross_format_duplicate_of": []},
             {"cross_format_duplicate_of": None},
         ]
-    books = await db.books.find(query, {"_id": 0, "book_id": 1}).to_list(5000)
+    books = await db.books.find(query, {"_id": 0, "book_id": 1}).to_list(length=None)
     converted: List[str] = []
     failed: List[Dict[str, str]] = []
     for b in books:

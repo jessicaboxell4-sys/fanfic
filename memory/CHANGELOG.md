@@ -7,6 +7,50 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-07-12 — Cleanup walk-through + timeout/cap hardening
+
+Two-part sweep after the operator asked to check for other issues like the Cloudflare 120s timeout on bulk keep-latest.
+
+### Shipped
+
+- **New Help section** at `/help#cleanup-walkthrough` (registered
+  in the sidebar under *Backup & sync*): 6-step numbered walk-through
+  linking diagnostics → rescan → per-group / bulk resolve → empty
+  trash → verify → weekly cron.  Closes with a reversibility recap
+  (30-day Trash grace + Old-stories preserving reading progress).
+- **`POST /api/library/restore/apply` — parallelized**:
+  - Replaced the sequential `insert_one`/`replace_one` loop with
+    `bulk_write(chunks of 500, ordered=False)` split across books
+    and shelves.
+  - Replaced the sequential file extraction loop with
+    `asyncio.to_thread(_extract_file, …)` fanned out via
+    `asyncio.gather` in chunks of 32 (bounded fan-out to avoid
+    OOM on huge EPUBs).
+  - `BulkWriteError` is caught + logged so per-doc failures don't
+    abort the whole restore (preserves the resilience of the old
+    per-op loop).
+- **`to_list(5000)` silent caps lifted → `to_list(length=None)`** in
+  every user-scoped path that iterates the caller's own library:
+  - `routes/books.py` — `/books/export/links` (line 3098),
+    `detect-series-all` (3938), and the fandom-suggestion
+    aggregate at 2588.
+  - `routes/authors.py` — per-author book fetch (115).
+  - `routes/bulk_ops.py` — bulk update filter (67) and
+    title-prefix strip (401).
+  - `routes/conversions.py` — originals list (208), cross-format
+    dedupe (227).
+  - `routes/digest.py` — weekly digest source data (97).
+  - `routes/exports.py` — export builder (57).
+
+### Verified locally
+End-to-end restore test with 200 books + 5 shelves + 200 sidecar files:
+- HTTP 200 in 6.6 s
+- `restored_books: 200, restored_files: 200, restored_shelves: 5`
+- All 200 books in Mongo, all 200 EPUB sidecars on disk at
+  `/app/uploads/{user_id}/`
+- Extrapolating linearly, a 2 k-book restore should complete in ~10 s
+  — well under Cloudflare's 120 s edge timeout.
+
 ## 2026-07-12 — Weekly duplicate-rescan cron + in-app notification
 
 Follows the on-demand rescan with an automatic one so missed duplicates
