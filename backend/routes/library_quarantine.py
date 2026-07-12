@@ -121,6 +121,7 @@ async def list_quarantine(user: User = Depends(get_current_user)):
             "source_url": 1,
             "fanfic_urls": 1,
             "duplicate_of": 1,
+            "created_at": 1,
         },
     )
     dupe_docs: List[Dict[str, Any]] = []
@@ -139,7 +140,7 @@ async def list_quarantine(user: User = Depends(get_current_user)):
     if keeper_ids:
         async for k in db.books.find(
             {"user_id": user.user_id, "book_id": {"$in": list(keeper_ids)}},
-            {"_id": 0, "book_id": 1, "title": 1, "author": 1, "has_cover": 1, "source_url": 1, "fanfic_urls": 1},
+            {"_id": 0, "book_id": 1, "title": 1, "author": 1, "has_cover": 1, "source_url": 1, "fanfic_urls": 1, "created_at": 1},
         ):
             keeper_map[k["book_id"]] = k
 
@@ -175,6 +176,7 @@ async def list_quarantine(user: User = Depends(get_current_user)):
             "match_reasons": match_reasons,
             "shared_fanfic_urls": shared,
             "source_url": d.get("source_url") or "",
+            "created_at": d.get("created_at") or "",
         }
 
         group = groups_by_keeper.setdefault(first_keeper["book_id"], {
@@ -184,6 +186,7 @@ async def list_quarantine(user: User = Depends(get_current_user)):
                 "author": first_keeper.get("author") or "",
                 "has_cover": bool(first_keeper.get("has_cover")),
                 "source_url": first_keeper.get("source_url") or "",
+                "created_at": first_keeper.get("created_at") or "",
             },
             "duplicates": [],
         })
@@ -435,3 +438,169 @@ async def delete_duplicate_dismissal(
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Dismissal not found")
     return {"ok": True, "id": dismissal_id}
+
+
+# ---------------------------------------------------------------------------
+# Group-level "keep only the latest" (2026-07-12)
+# ---------------------------------------------------------------------------
+# One-click cleanup: given a keeper's book_id, look at the keeper + every
+# quarantined duplicate that references it and keep only the copy with the
+# most recent ``created_at``.  Everything else in the group goes to Trash.
+# If the winner is a duplicate (not the keeper), we promote it via the
+# same "new_version" flow so the old keeper is archived to Old stories,
+# preserving reading progress and history.
+# ---------------------------------------------------------------------------
+def _created_at_key(v: Any) -> str:
+    """Sort key that treats missing/invalid created_at as oldest."""
+    if isinstance(v, str) and v:
+        return v
+    if isinstance(v, datetime):
+        return v.astimezone(timezone.utc).isoformat()
+    return ""
+
+
+@api_router.post("/library/quarantine/group/{keeper_book_id}/keep-latest")
+async def keep_latest_in_group(
+    keeper_book_id: str,
+    user: User = Depends(get_current_user),
+):
+    """Resolve an entire quarantine group by keeping only the latest copy.
+
+    - Loads the keeper + every ``duplicate_pending: True`` book that lists
+      this keeper in its ``duplicate_of`` array.
+    - Picks the row with the most recent ``created_at`` as the winner.
+    - If the winner is the keeper: every duplicate goes to Trash.
+    - If the winner is a duplicate: it's promoted (``new_version``), the
+      keeper is archived to Old stories, and every OTHER duplicate goes to
+      Trash.
+
+    Returns a summary the UI can toast:
+      ``{ok, winner_book_id, promoted, keeper_archived, trashed_ids: [...]}``.
+    """
+    keeper = await db.books.find_one(
+        {"book_id": keeper_book_id, "user_id": user.user_id},
+    )
+    if not keeper:
+        raise HTTPException(status_code=404, detail="Keeper not found")
+
+    # Pull every quarantined dupe that references this keeper.
+    dupes: List[Dict[str, Any]] = []
+    async for d in db.books.find(
+        {
+            "user_id": user.user_id,
+            "duplicate_pending": True,
+            "duplicate_of.book_id": keeper_book_id,
+        },
+    ):
+        dupes.append(d)
+
+    if not dupes:
+        raise HTTPException(
+            status_code=400,
+            detail="No quarantined duplicates reference this keeper.",
+        )
+
+    # Rank keeper + duplicates by created_at descending.  Winner is index 0.
+    ranked = [{"row": keeper, "is_keeper": True}] + [
+        {"row": d, "is_keeper": False} for d in dupes
+    ]
+    ranked.sort(
+        key=lambda x: _created_at_key(x["row"].get("created_at")),
+        reverse=True,
+    )
+    winner = ranked[0]
+    losers = ranked[1:]
+
+    now_dt = datetime.now(timezone.utc)
+    now_iso = now_dt.isoformat()
+    expires_at = (now_dt + timedelta(days=TRASH_GRACE_DAYS)).isoformat()
+
+    trashed_ids: List[str] = []
+    promoted = False
+    keeper_archived = False
+
+    if winner["is_keeper"]:
+        # Just trash every duplicate.
+        for L in losers:
+            bid = L["row"]["book_id"]
+            await db.books.update_one(
+                {"book_id": bid, "user_id": user.user_id},
+                {
+                    "$set": {
+                        "category": TRASH_SHELF,
+                        "trash_expires_at": expires_at,
+                        "dupe_action_meta": {
+                            "action": "discard",
+                            "via": "group_keep_latest",
+                            "prev_category_new": L["row"].get("category"),
+                            "applied_at": now_iso,
+                        },
+                    },
+                    "$unset": {"duplicate_pending": "", "duplicate_of": ""},
+                },
+            )
+            trashed_ids.append(bid)
+    else:
+        # Promote the winning duplicate to primary; archive the keeper.
+        winner_id = winner["row"]["book_id"]
+        await db.books.update_one(
+            {"book_id": winner_id, "user_id": user.user_id},
+            {
+                "$set": {
+                    "replaces": keeper_book_id,
+                    "last_refreshed_at": now_iso,
+                    "update_seen": False,
+                    "dupe_action_meta": {
+                        "action": "new_version",
+                        "via": "group_keep_latest",
+                        "target_book_id": keeper_book_id,
+                        "prev_category_new": winner["row"].get("category"),
+                        "prev_category_target": keeper.get("category"),
+                        "applied_at": now_iso,
+                    },
+                },
+                "$unset": {"duplicate_pending": "", "duplicate_of": ""},
+            },
+        )
+        await db.books.update_one(
+            {"book_id": keeper_book_id, "user_id": user.user_id},
+            {"$set": {
+                "category": OLD_STORIES_SHELF,
+                "replaced_by": winner_id,
+                "replaced_at": now_iso,
+            }},
+        )
+        promoted = True
+        keeper_archived = True
+
+        # Trash every OTHER duplicate.
+        for L in losers:
+            if L["is_keeper"]:
+                continue
+            bid = L["row"]["book_id"]
+            await db.books.update_one(
+                {"book_id": bid, "user_id": user.user_id},
+                {
+                    "$set": {
+                        "category": TRASH_SHELF,
+                        "trash_expires_at": expires_at,
+                        "dupe_action_meta": {
+                            "action": "discard",
+                            "via": "group_keep_latest",
+                            "prev_category_new": L["row"].get("category"),
+                            "applied_at": now_iso,
+                        },
+                    },
+                    "$unset": {"duplicate_pending": "", "duplicate_of": ""},
+                },
+            )
+            trashed_ids.append(bid)
+
+    return {
+        "ok": True,
+        "winner_book_id": winner["row"]["book_id"],
+        "promoted": promoted,
+        "keeper_archived": keeper_archived,
+        "trashed_ids": trashed_ids,
+        "trashed_count": len(trashed_ids),
+    }

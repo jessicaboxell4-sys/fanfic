@@ -5,6 +5,7 @@ import { api } from "../lib/api";
 import {
   ArrowLeft, ArrowRight, Layers, Loader2, RotateCcw, ChevronDown, ChevronUp,
   Copy, ChevronsUp, Clock, Trash2, ExternalLink, Book, Bookmark, ShieldCheck,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -207,13 +208,25 @@ function QuarantineRow({ dup, keeper, onResolve, onNotDuplicate, busyId, notDupB
   );
 }
 
-function QuarantineGroup({ group, onResolve, onNotDuplicate, busyId, notDupBusyId }) {
+function QuarantineGroup({ group, onResolve, onNotDuplicate, onKeepLatest, busyId, notDupBusyId, groupBusy }) {
+  const busy = groupBusy === group.keeper.book_id;
+  // Compute which book would be the "latest" so we can show a hint.
+  const rows = [
+    { book_id: group.keeper.book_id, created_at: group.keeper.created_at || "", is_keeper: true, title: group.keeper.title || "" },
+    ...group.duplicates.map((d) => ({ book_id: d.book_id, created_at: d.created_at || "", is_keeper: false, title: d.title || "" })),
+  ];
+  rows.sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+  const winner = rows[0];
+  const winnerLabel = winner.is_keeper
+    ? "keeper stays, duplicates → Trash"
+    : "newer copy promoted, keeper → Old stories, extras → Trash";
+
   return (
     <section
       data-testid={`quarantine-group-${group.keeper.book_id}`}
       className="shelf-card overflow-hidden"
     >
-      <div className="bg-[#F5F1E4] px-4 py-2 flex items-center gap-2 border-b border-[#E5DDC5]">
+      <div className="bg-[#F5F1E4] px-4 py-2 flex flex-wrap items-center gap-2 border-b border-[#E5DDC5]">
         <Bookmark className="w-4 h-4 text-[#5B5F4D]" />
         <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#5B5F4D]">Keeper</span>
         <span className="text-[#5B5F4D]">·</span>
@@ -227,6 +240,17 @@ function QuarantineGroup({ group, onResolve, onNotDuplicate, busyId, notDupBusyI
         <span className="ml-auto text-[11px] text-[#5B5F4D]">
           {group.duplicates.length} duplicate{group.duplicates.length === 1 ? "" : "s"}
         </span>
+        <button
+          type="button"
+          data-testid={`quarantine-keep-latest-${group.keeper.book_id}`}
+          disabled={busy}
+          onClick={() => onKeepLatest(group.keeper.book_id, winnerLabel)}
+          title={`Keep only the newest copy — ${winnerLabel}`}
+          className="ml-2 px-2 py-1 rounded text-[11px] font-medium bg-[#EDE7FB] border border-[#6B46C1]/30 text-[#6B46C1] hover:bg-[#DFD3F4] disabled:opacity-50 inline-flex items-center gap-1"
+        >
+          {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+          Keep only the latest
+        </button>
       </div>
       <div>
         {group.duplicates.map((dup) => (
@@ -250,6 +274,7 @@ export default function Quarantine() {
   const [data, setData] = useState({ count: 0, groups: [] });
   const [busyId, setBusyId] = useState(null);
   const [notDupBusyId, setNotDupBusyId] = useState(null);
+  const [groupBusy, setGroupBusy] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -299,6 +324,27 @@ export default function Quarantine() {
       toast.error(e?.response?.data?.detail || "Couldn't dismiss");
     } finally {
       setNotDupBusyId(null);
+    }
+  };
+
+  const keepLatest = async (keeperBookId, winnerLabel) => {
+    if (!window.confirm(`Keep only the newest copy — ${winnerLabel}?\n\nDiscarded copies land in Trash (30-day grace) so you can restore any of them.`)) {
+      return;
+    }
+    setGroupBusy(keeperBookId);
+    try {
+      const { data: r } = await api.post(`/library/quarantine/group/${keeperBookId}/keep-latest`);
+      const trashed = r?.trashed_count || 0;
+      if (r?.promoted) {
+        toast.success(`Newer copy promoted. Old keeper archived. ${trashed} extra copy${trashed === 1 ? "" : "ies"} → Trash.`);
+      } else {
+        toast.success(`Kept keeper. ${trashed} duplicate${trashed === 1 ? "" : "s"} → Trash.`);
+      }
+      load();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't resolve group");
+    } finally {
+      setGroupBusy(null);
     }
   };
 
@@ -352,8 +398,10 @@ export default function Quarantine() {
                   group={g}
                   onResolve={resolve}
                   onNotDuplicate={notDuplicate}
+                  onKeepLatest={keepLatest}
                   busyId={busyId}
                   notDupBusyId={notDupBusyId}
+                  groupBusy={groupBusy}
                 />
               ))}
             </div>

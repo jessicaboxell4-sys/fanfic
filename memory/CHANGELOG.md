@@ -7,6 +7,39 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-07-12 — "Keep only the latest" per-group action on Duplicates page
+
+Cuts 470-book duplicate cleanup from 382 manual clicks × N rows to a
+single click per group. Requested by the operator after the recovery
+upload landed 470 excess duplicates that the row-by-row workflow
+would take an hour to clear.
+
+### Shipped
+
+- **NEW `POST /api/library/quarantine/group/{keeper_book_id}/keep-latest`**
+  — resolves an entire duplicate group by keeping the row with the most
+  recent `created_at`. If the keeper is the newest, every duplicate → Trash
+  (30-day grace). If a duplicate is the newest, it's promoted via the same
+  `new_version` flow used by the row-level "Promote" button, keeper → Old
+  stories, other duplicates → Trash. Returns `{winner_book_id, promoted,
+  keeper_archived, trashed_ids, trashed_count}`.
+- **`GET /api/library/quarantine`** now includes `created_at` on both
+  keeper and duplicate rows so the UI can compute the winner and preview
+  the outcome in a tooltip before the user commits.
+- **UI:** `Quarantine.jsx` group header now has a purple `Sparkles`-icon
+  "Keep only the latest" button. Confirmation dialog explains outcome
+  (either "keeper stays, duplicates → Trash" or "newer copy promoted,
+  keeper → Old stories, extras → Trash"). Toast on success reports the
+  action taken and count. Testid `quarantine-keep-latest-{keeper_id}`.
+
+### Verified locally
+Two scripted DB scenarios:
+1. Newest is a duplicate — dup gets promoted (`replaces` = old keeper),
+   keeper category flipped to `Old stories` with `replaced_by`, other
+   dup → Trash with expiry. ✅
+2. Newest is the keeper — keeper untouched, single duplicate → Trash. ✅
+
+---
 ## 2026-07-10 — Library Diagnostics admin card
 
 Post-recovery-upload the operator reported "extras" after a 2,000-book folder
