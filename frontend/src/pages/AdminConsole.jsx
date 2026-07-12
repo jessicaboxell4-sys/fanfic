@@ -6173,6 +6173,20 @@ function LibraryDiagnosticsCard() {
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
   const [justCleaned, setJustCleaned] = useState(false);
+  const CELEBRATE_KEY = "shelfsort.diagnostics.celebrate";
+  const [celebrate, setCelebrate] = useState(() => {
+    try {
+      const v = window.localStorage.getItem(CELEBRATE_KEY);
+      return v === null ? true : v === "1";
+    } catch { return true; }
+  });
+
+  const toggleCelebrate = () => {
+    const next = !celebrate;
+    setCelebrate(next);
+    try { window.localStorage.setItem(CELEBRATE_KEY, next ? "1" : "0"); } catch { /* ignore */ }
+    if (!next) setJustCleaned(false);
+  };
 
   const load = async () => {
     setLoading(true);
@@ -6180,15 +6194,15 @@ function LibraryDiagnosticsCard() {
     try {
       const { data: resp } = await api.get("/admin/my-library-diagnostics");
       // --- Celebration: excess just transitioned from >0 to 0 ---------------
-      // We persist the last-seen excess in localStorage so the celebration
-      // fires exactly once when the operator finishes their cleanup and
-      // never re-fires on subsequent refreshes.
+      // Gated by the per-user opt-in flag so operators who don't want the
+      // dopamine hit can silence it.  State persists across refreshes so
+      // the celebration fires exactly once per cleanup.
       try {
         const KEY = "shelfsort.diagnostics.lastExcess";
         const prevRaw = window.localStorage.getItem(KEY);
         const prev = prevRaw == null ? null : parseInt(prevRaw, 10);
         const nextExcess = resp?.duplicates?.excess ?? 0;
-        if (prev != null && prev > 0 && nextExcess === 0) {
+        if (celebrate && prev != null && prev > 0 && nextExcess === 0) {
           toast.success("🎉 All duplicates resolved! Your library is squeaky clean.", { duration: 6000 });
           setJustCleaned(true);
           setTimeout(() => setJustCleaned(false), 20000);
@@ -6393,7 +6407,7 @@ function LibraryDiagnosticsCard() {
             </div>
           )}
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center flex-wrap">
             <button
               type="button"
               onClick={load}
@@ -6410,6 +6424,19 @@ function LibraryDiagnosticsCard() {
             >
               {copied ? "Copied ✓" : "Copy report"}
             </button>
+            <label
+              className="ml-auto inline-flex items-center gap-1.5 text-[11px] text-[#5B5F4D] cursor-pointer select-none"
+              title="When on, we show a small 🎉 toast the moment your library reaches 0 duplicates."
+            >
+              <input
+                type="checkbox"
+                checked={celebrate}
+                onChange={toggleCelebrate}
+                data-testid="admin-library-diagnostics-celebrate-toggle"
+                className="w-3 h-3 accent-[#6B46C1]"
+              />
+              Celebrate when clean
+            </label>
           </div>
         </div>
       )}

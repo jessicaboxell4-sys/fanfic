@@ -7,24 +7,29 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
-## 2026-07-12 — Diagnostics celebration + bulk keep-latest
+## 2026-07-12 — Diagnostics celebration + opt-in toggle
 
 Follows the "Keep the latest" work with a small dopamine hit when the
-operator actually finishes their cleanup.
+operator actually finishes their cleanup — and puts the operator in
+charge of whether they want it.
 
 ### Shipped
 
-- **Celebration toast** on `LibraryDiagnosticsCard`: when `duplicates.excess`
-  transitions from >0 to 0 between refreshes, we fire a `sonner` success
-  toast (`🎉 All duplicates resolved! Your library is squeaky clean.`)
-  and show a persistent-for-20s green sub-line under the "No likely
-  duplicate groups detected" pill nudging the operator toward
-  "Empty Trash next to reclaim the storage." Testid
-  `admin-library-diagnostics-just-cleaned`.
-- State is tracked in `localStorage.shelfsort.diagnostics.lastExcess` so
-  the celebration fires exactly once per cleanup, never on subsequent
-  page loads while excess remains at 0. Silent no-op if localStorage
-  is unavailable (private tabs, embedded contexts).
+- **Celebration toast** on `LibraryDiagnosticsCard`: when
+  `duplicates.excess` transitions from >0 to 0 between refreshes, we
+  fire a `sonner` success toast (`🎉 All duplicates resolved! Your
+  library is squeaky clean.`) and show a 20s green sub-line under the
+  "No likely duplicate groups detected" pill nudging the operator toward
+  "Empty Trash next to reclaim the storage."
+- **Per-user opt-in toggle**: small "Celebrate when clean" checkbox in
+  the card footer (testid `admin-library-diagnostics-celebrate-toggle`).
+  Persists to `localStorage.shelfsort.diagnostics.celebrate`. Default
+  ON so nothing changes for the current operator; anyone who finds it
+  noisy can turn it off in one click.
+- Transition state itself lives in
+  `localStorage.shelfsort.diagnostics.lastExcess` so the celebration
+  fires exactly once per cleanup, never on subsequent page loads while
+  excess remains at 0. Silent no-op if localStorage is unavailable.
 
 ## 2026-07-12 — "Keep only the latest" per-group + bulk actions on Duplicates page
 
