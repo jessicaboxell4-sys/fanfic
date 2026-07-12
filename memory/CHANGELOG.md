@@ -7,6 +7,28 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-07-12 — "Trash emptied" cheer nudge
+
+Second entry in the nudge registry. Closes the cleanup loop:
+`resolve duplicates → celebration → empty trash → cheer`.
+
+### Shipped
+
+- **New nudge**: `trash_emptied_cheer` (default ON, category
+  "Library upkeep") — auto-appeared in `NudgePreferencesCard`.
+- **`POST /api/trash/empty`** now also returns `bytes_freed` — the sum
+  of the book docs' `size_bytes` (when present, for R2-hosted files)
+  plus the actual size of any local sidecars removed. So the toast
+  works whether files live on the pod or on R2.
+- **`Trash.jsx`**: after empty succeeds, if `deleted > 0` and the pref
+  is on, we show a ✨ cheer with the book count and (when known) the
+  storage reclaimed formatted via a small `formatBytes` helper.
+  Gracefully hides the size chunk when `bytes_freed === 0`.
+
+Verified against a seeded 2-book trash: endpoint returns
+`{deleted: 2, bytes_freed: N}` and the frontend renders the cheer
+toast.
+
 ## 2026-07-12 — Nudge preference registry + Notification preferences card
 
 Central home for every in-app celebration/nudge, following operator

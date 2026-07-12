@@ -90,17 +90,29 @@ async def restore_all_trash(user: User = Depends(get_current_user)):
 @api_router.post("/trash/empty")
 async def empty_trash(user: User = Depends(get_current_user)):
     """Hard-delete every book currently in Trash for the user. Also
-    removes the EPUB/cover/links sidecar files from disk."""
+    removes the EPUB/cover/links sidecar files from disk.
+
+    Returns ``{deleted, bytes_freed}`` so the UI can render a satisfying
+    "reclaimed X MB" cheer when the ``trash_emptied_cheer`` nudge is on.
+    """
     user_dir = STORAGE_DIR / user.user_id
     cursor = db.books.find(
         {"user_id": user.user_id, "category": TRASH_SHELF},
-        {"_id": 0, "book_id": 1},
+        {"_id": 0, "book_id": 1, "size_bytes": 1},
     )
-    book_ids = [b["book_id"] async for b in cursor]
+    trash_docs = [b async for b in cursor]
+    book_ids = [b["book_id"] for b in trash_docs]
+    # Fallback size from the book doc for R2-hosted files where local
+    # sidecars don't exist on this pod.
+    bytes_freed = sum(int(b.get("size_bytes") or 0) for b in trash_docs)
     for bid in book_ids:
         for ext in (".epub", ".cover", ".links.txt"):
             p = user_dir / f"{bid}{ext}"
             if p.exists():
+                try:
+                    bytes_freed += p.stat().st_size
+                except OSError:
+                    pass
                 try:
                     p.unlink()
                 except OSError:
@@ -108,7 +120,7 @@ async def empty_trash(user: User = Depends(get_current_user)):
     result = await db.books.delete_many(
         {"user_id": user.user_id, "category": TRASH_SHELF},
     )
-    return {"deleted": result.deleted_count}
+    return {"deleted": result.deleted_count, "bytes_freed": bytes_freed}
 
 
 async def sweep_expired_trash() -> int:

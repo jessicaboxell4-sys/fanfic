@@ -4,6 +4,14 @@ import Navbar from "../components/Navbar";
 import { api } from "../lib/api";
 import { ArrowLeft, Trash2, RotateCcw, Loader2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
+import { getNudgePref } from "../lib/nudgePrefs";
+
+function formatBytes(n) {
+  if (!n || n < 1024) return `${n || 0} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
 
 function formatExpiry(iso) {
   if (!iso) return "";
@@ -53,7 +61,17 @@ export default function Trash() {
     setEmptying(true);
     try {
       const { data: r } = await api.post("/trash/empty");
-      toast.success(`Permanently deleted ${r.deleted}`);
+      const deleted = r?.deleted || 0;
+      const freed = r?.bytes_freed || 0;
+      if (deleted > 0 && getNudgePref("trash_emptied_cheer")) {
+        const freedText = freed > 0 ? `, ${formatBytes(freed)} reclaimed` : "";
+        toast.success(
+          `✨ Trash emptied — ${deleted} book${deleted === 1 ? "" : "s"} gone${freedText}.`,
+          { duration: 6000 },
+        );
+      } else {
+        toast.success(`Permanently deleted ${deleted}`);
+      }
       load();
     } catch (e) {
       toast.error("Couldn't empty Trash");

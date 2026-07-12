@@ -27,6 +27,15 @@ export const NUDGE_PREFS = [
     default: true,
     category: "Library upkeep",
   },
+  {
+    key: "trash_emptied_cheer",
+    localStorageKey: "shelfsort.trash.cheer",
+    label: "Cheer when Trash is emptied",
+    description:
+      "After you permanently delete Trash contents, show a small ✨ toast with how much storage you just reclaimed.",
+    default: true,
+    category: "Library upkeep",
+  },
   // Future nudges slot in here.  One entry = one toggle.
 ];
 
