@@ -32,6 +32,7 @@ from utils.admin_audit import record_admin_action
 from utils.test_account_filter import mongo_test_account_filter
 from utils.email_log import log_email_send
 from utils.feature_flags import KNOWN_FLAGS, get_flags, set_flag
+from utils.constants import TRASH_SHELF
 
 
 # ---------------------------------------------------------------------------
@@ -4575,5 +4576,204 @@ async def purge_test_account_spam(user: User = Depends(require_admin)):
         "friendships_deleted": friendships_deleted,
         "notifications_deleted": notifs_deleted,
         "test_users_considered": len(test_user_ids),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Library Diagnostics (2026-07-10)
+# ---------------------------------------------------------------------------
+# Post-upload / post-cleanup breakdown of the caller's own library. Powers
+# the admin "Library Diagnostics" card so operators can reconcile expected
+# vs actual book counts after big recovery flows (e.g. the 2,000-book
+# recovery upload) without opening a Mongo shell.
+#
+# All counts are scoped to the calling admin's own ``user_id``. No target
+# param — this is a self-service diagnostic, not a user-impersonation tool.
+# ---------------------------------------------------------------------------
+@api_router.get("/admin/my-library-diagnostics")
+async def my_library_diagnostics(user: User = Depends(require_admin)):
+    """Per-account library breakdown for the calling admin.
+
+    Returns totals, category split, upload cadence, and a duplicate-group
+    summary so the admin can reconcile counts after a bulk recovery upload.
+    Everything is scoped to ``user.user_id`` — never returns other users'
+    data even for admins.
+    """
+    from routes.books import _normalize_title_for_match
+
+    uid = user.user_id
+    now = datetime.now(timezone.utc)
+
+    # ---- Totals -----------------------------------------------------------
+    all_total = await db.books.count_documents({"user_id": uid})
+    trash_total = await db.books.count_documents(
+        {"user_id": uid, "category": TRASH_SHELF}
+    )
+    non_trash_total = all_total - trash_total
+
+    # ---- Category breakdown (non-trash) ----------------------------------
+    cat_cursor = db.books.aggregate([
+        {"$match": {"user_id": uid, "category": {"$ne": TRASH_SHELF}}},
+        {"$group": {"_id": "$category", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+        {"$limit": 20},
+    ])
+    by_category = [
+        {"name": row["_id"] or "Unclassified", "count": row["count"]}
+        async for row in cat_cursor
+    ]
+
+    # ---- Upload cadence buckets ------------------------------------------
+    def _iso(dt: datetime) -> str:
+        return dt.astimezone(timezone.utc).isoformat()
+
+    async def _count_since(hours: int) -> int:
+        since = now - timedelta(hours=hours)
+        # created_at is stored as ISO string in most rows; also match datetime.
+        return await db.books.count_documents({
+            "user_id": uid,
+            "$or": [
+                {"created_at": {"$gte": _iso(since)}},
+                {"created_at": {"$gte": since}},
+            ],
+        })
+
+    uploaded_last_24h = await _count_since(24)
+    uploaded_last_48h = await _count_since(48)
+    uploaded_last_7d = await _count_since(24 * 7)
+    uploaded_last_30d = await _count_since(24 * 30)
+
+    # ---- Per-day histogram (last 14 days) --------------------------------
+    fourteen_ago = now - timedelta(days=14)
+    cursor_recent = db.books.find(
+        {
+            "user_id": uid,
+            "$or": [
+                {"created_at": {"$gte": _iso(fourteen_ago)}},
+                {"created_at": {"$gte": fourteen_ago}},
+            ],
+        },
+        {"_id": 0, "created_at": 1},
+    )
+    by_day: Dict[str, int] = {}
+    async for row in cursor_recent:
+        ts = row.get("created_at")
+        if isinstance(ts, datetime):
+            day = ts.astimezone(timezone.utc).date().isoformat()
+        elif isinstance(ts, str):
+            day = ts[:10]
+        else:
+            continue
+        by_day[day] = by_day.get(day, 0) + 1
+    by_day_sorted = [
+        {"day": k, "count": v} for k, v in sorted(by_day.items(), reverse=True)
+    ]
+
+    # ---- Duplicate summary (cheap: title-normalized union-find) ----------
+    dup_cursor = db.books.find(
+        {
+            "user_id": uid,
+            "category": {"$ne": TRASH_SHELF},
+            "replaced_by": {"$exists": False},
+        },
+        {"_id": 0, "book_id": 1, "title": 1, "author": 1, "source_url": 1},
+    )
+    by_title: Dict[str, List[int]] = {}
+    by_source: Dict[str, List[int]] = {}
+    books_seen: List[Dict[str, Any]] = []
+    async for b in dup_cursor:
+        i = len(books_seen)
+        books_seen.append(b)
+        nt = _normalize_title_for_match(b.get("title"))
+        if nt:
+            # Author-scoped key so different books that share a title
+            # (e.g. two different Fic collections) aren't merged.
+            author = (b.get("author") or "").strip().lower()
+            key = f"{nt}||{author}"
+            by_title.setdefault(key, []).append(i)
+        s = b.get("source_url")
+        if s:
+            by_source.setdefault(s, []).append(i)
+
+    parent = list(range(len(books_seen)))
+
+    def _find(x: int) -> int:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def _union(a: int, b: int):
+        ra, rb = _find(a), _find(b)
+        if ra != rb:
+            parent[rb] = ra
+
+    for indexes in list(by_title.values()) + list(by_source.values()):
+        if len(indexes) < 2:
+            continue
+        head = indexes[0]
+        for j in indexes[1:]:
+            _union(head, j)
+
+    counts_by_root: Dict[int, int] = {}
+    for i in range(len(books_seen)):
+        counts_by_root[_find(i)] = counts_by_root.get(_find(i), 0) + 1
+
+    dup_groups = sum(1 for c in counts_by_root.values() if c >= 2)
+    dup_books = sum(c for c in counts_by_root.values() if c >= 2)
+    dup_excess = sum(c - 1 for c in counts_by_root.values() if c >= 2)
+
+    # ---- Recent upload_jobs summary --------------------------------------
+    since_7d = now - timedelta(days=7)
+    jobs_cursor = db.upload_jobs.find(
+        {
+            "user_id": uid,
+            "$or": [
+                {"created_at": {"$gte": _iso(since_7d)}},
+                {"created_at": {"$gte": since_7d}},
+            ],
+        },
+        {"_id": 0, "status": 1, "total_files": 1, "processed_files": 1,
+         "duplicate_count": 1, "created_at": 1},
+    ).sort("created_at", -1).limit(20)
+    jobs = [row async for row in jobs_cursor]
+    for j in jobs:
+        ts = j.get("created_at")
+        if isinstance(ts, datetime):
+            j["created_at"] = ts.isoformat()
+
+    # ---- Upload failures (last 7 days) -----------------------------------
+    failures_count = await db.upload_failures.count_documents({
+        "user_id": uid,
+        "$or": [
+            {"created_at": {"$gte": _iso(since_7d)}},
+            {"created_at": {"$gte": since_7d}},
+        ],
+    })
+
+    return {
+        "user_id": uid,
+        "generated_at": now.isoformat(),
+        "totals": {
+            "all": all_total,
+            "non_trash": non_trash_total,
+            "trash": trash_total,
+        },
+        "by_category": by_category,
+        "cadence": {
+            "last_24h": uploaded_last_24h,
+            "last_48h": uploaded_last_48h,
+            "last_7d": uploaded_last_7d,
+            "last_30d": uploaded_last_30d,
+        },
+        "by_day_last_14": by_day_sorted,
+        "duplicates": {
+            "groups": dup_groups,
+            "books_in_groups": dup_books,
+            "excess": dup_excess,
+            "note": "Excess = number of books that could be removed if you kept one per group.",
+        },
+        "recent_upload_jobs": jobs,
+        "recent_failures_count": failures_count,
     }
 

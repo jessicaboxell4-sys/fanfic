@@ -106,6 +106,13 @@ and personalization for users based on their preferred library focus.
 - Real-stage labels on queue-summary strip ("AI classifying", "Cover gen")
 
 ## Known blockers (platform-side)
-- **Save to GitHub** — user has emailed Emergent Support; the platform
-  keeps overwriting `.git/config` when the modal opens.  Not addressable
-  from CLI.
+- **Save to GitHub** — RESOLVED 2026-07-11: Emergent Support rewrote
+  git history to eliminate 2.4GB bloat; `.env` files restored.
+
+## 2026-07-10 — Library diagnostics card (this session)
+Added `/api/admin/my-library-diagnostics` + `LibraryDiagnosticsCard`
+in Admin → Data & Diagnostics so operators can reconcile expected vs
+actual book counts (totals, by-category, cadence, dupes) without a
+Mongo shell. Testid: `admin-library-diagnostics-card`. Context: user
+completed a 2,000-book recovery upload and reported "extras" — this
+card is the debugging path.

@@ -9,7 +9,7 @@ import {
   Check, ChevronRight, ChevronDown, Download, AlertOctagon, RotateCcw, Send,
   Mail, MessageSquare, Clock, CircleAlert, Route as RouteIcon, Search,
   Inbox, Database, Siren, HardDrive, TrendingUp, Eye, BookOpen, Sparkles, ShieldAlert, FlaskConical,
-  Paperclip, HelpCircle, Bell, EyeOff, History, ExternalLink, Edit2,
+  Paperclip, HelpCircle, Bell, EyeOff, History, ExternalLink, Edit2, LineChart,
 } from "lucide-react";
 import MongoInspectorCard from "../components/MongoInspectorCard";
 import ModerationLogCard from "../components/ModerationLogCard";
@@ -87,6 +87,7 @@ const ADMIN_CARD_MANIFEST = [
   { testid: "admin-changelog-card", category: "system", title: "Recent changelog", subtitle: "Last 20 dated entries from CHANGELOG.md.", keywords: "changelog history recent log entries shipped features fixes release dates h2 memory append" },
   { testid: "admin-canary-card", category: "system", title: "Production canary", subtitle: "7-day uptime sparkline from the nightly smoke-canary workflow.", keywords: "canary smoke production uptime sparkline workflow github actions monitor health" },
   { testid: "admin-drift-status-card", category: "system", title: "Prod ↔ source drift", subtitle: "Hourly parity check between the live prod bundle and the preview source. Green = safe to deploy.", keywords: "drift prod source parity testid regression deploy safety hourly monitor missing bundle compiled reverse-engineered reconstruct guard" },
+  { testid: "admin-library-diagnostics-card", category: "data", title: "My library diagnostics", subtitle: "Reconcile expected vs actual book counts for your own account after bulk uploads.", keywords: "library diagnostics count breakdown trash cadence duplicates upload recovery reconcile totals category buckets by day admin self mine 2000 recovery" },
   { testid: "admin-re-extract-links-card", category: "data", title: "Backfill EPUB links", subtitle: "Re-run the link extractor on existing books to pick up reconstructed Storyid URLs.", keywords: "backfill links epub storyid fanfiction.net url reconstruction source extract reextract reprocess" },
   { testid: "admin-llm-key-health-card", category: "system", title: "LLM key health", subtitle: "Universal Key balance + 7-day burn rate + days of runway.", keywords: "llm key health balance burn rate runway days remaining claude nano banana cost spend usage emergent universal key cliff warning" },
   { testid: "admin-unknown-fandoms-card", category: "system", title: "Unknown fandoms", subtitle: "Fandoms not yet in the keyword classifier.", keywords: "unknown fandoms classifier rescan dismiss missing tag" },
@@ -6163,6 +6164,237 @@ function DriftStatusCard() {
 
 
 // ---------------------------------------------------------------------------
+// My library diagnostics (2026-07-10).  Reconcile expected-vs-actual book
+// counts after bulk uploads (e.g. the 2,000-book recovery flow).  Scoped
+// to the CALLING admin's own user_id — never shows other users' data.
+function LibraryDiagnosticsCard() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [copied, setCopied] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data: resp } = await api.get("/admin/my-library-diagnostics");
+      setData(resp);
+    } catch (e) {
+      setError(e?.response?.data?.detail || "Failed to load diagnostics");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const copyReport = () => {
+    if (!data) return;
+    const lines = [
+      `=== Library Diagnostics (${data.generated_at}) ===`,
+      `User: ${data.user_id}`,
+      ``,
+      `Totals:`,
+      `  All (incl. trash): ${data.totals.all}`,
+      `  On the shelves:    ${data.totals.non_trash}`,
+      `  In trash:          ${data.totals.trash}`,
+      ``,
+      `Cadence:`,
+      `  Last 24h: ${data.cadence.last_24h}`,
+      `  Last 48h: ${data.cadence.last_48h}`,
+      `  Last 7d:  ${data.cadence.last_7d}`,
+      `  Last 30d: ${data.cadence.last_30d}`,
+      ``,
+      `Duplicates: ${data.duplicates.groups} groups / ${data.duplicates.books_in_groups} books / ${data.duplicates.excess} excess`,
+      `Recent upload failures (7d): ${data.recent_failures_count}`,
+      ``,
+      `Top categories:`,
+      ...data.by_category.map((c) => `  ${String(c.name).padEnd(24)} ${c.count}`),
+      ``,
+      `Last 14 days:`,
+      ...data.by_day_last_14.map((d) => `  ${d.day}  ${d.count}`),
+    ].join("\n");
+    navigator.clipboard.writeText(lines).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    });
+  };
+
+  return (
+    <Card
+      icon={LineChart}
+      title="My library diagnostics"
+      subtitle="Reconcile expected vs actual book counts for your own account after bulk uploads."
+      testid="admin-library-diagnostics-card"
+    >
+      {loading && (
+        <div className="flex items-center gap-2 text-sm text-[#5B5F4D]" data-testid="admin-library-diagnostics-loading">
+          <Loader2 className="w-4 h-4 animate-spin" /> Loading…
+        </div>
+      )}
+
+      {error && !loading && (
+        <div
+          data-testid="admin-library-diagnostics-error"
+          className="p-3 rounded bg-[#FBE2E0] border border-[#F0B6B0] text-[#7C2D2A] text-sm"
+        >
+          {error}
+        </div>
+      )}
+
+      {data && !loading && (
+        <div className="space-y-4">
+          {/* Totals */}
+          <div className="grid grid-cols-3 gap-2" data-testid="admin-library-diagnostics-totals">
+            <div className="p-3 rounded bg-[#F5F1E4] border border-[#E4D9C8]">
+              <p className="text-[10px] uppercase tracking-wide text-[#5B5F4D]">All books</p>
+              <p className="text-2xl font-serif tabular-nums text-[#2C2C2C]" data-testid="admin-diag-total-all">
+                {data.totals.all.toLocaleString()}
+              </p>
+            </div>
+            <div className="p-3 rounded bg-[#E7F2ED] border border-[#B9DAC9]">
+              <p className="text-[10px] uppercase tracking-wide text-[#2F6E60]">On shelves</p>
+              <p className="text-2xl font-serif tabular-nums text-[#2F6E60]" data-testid="admin-diag-total-shelves">
+                {data.totals.non_trash.toLocaleString()}
+              </p>
+            </div>
+            <div className="p-3 rounded bg-[#FBE2E0] border border-[#F0B6B0]">
+              <p className="text-[10px] uppercase tracking-wide text-[#7C2D2A]">In trash</p>
+              <p className="text-2xl font-serif tabular-nums text-[#7C2D2A]" data-testid="admin-diag-total-trash">
+                {data.totals.trash.toLocaleString()}
+              </p>
+            </div>
+          </div>
+
+          {/* Cadence */}
+          <div className="grid grid-cols-4 gap-2 text-sm" data-testid="admin-library-diagnostics-cadence">
+            {[
+              { label: "24h", key: "last_24h" },
+              { label: "48h", key: "last_48h" },
+              { label: "7d", key: "last_7d" },
+              { label: "30d", key: "last_30d" },
+            ].map((b) => (
+              <div key={b.key} className="p-2 rounded bg-[#FBFAF6] border border-[#E4D9C8] text-center">
+                <p className="text-[10px] uppercase tracking-wide text-[#5B5F4D]">Added last {b.label}</p>
+                <p className="font-serif text-lg tabular-nums text-[#2C2C2C]" data-testid={`admin-diag-cadence-${b.key}`}>
+                  {data.cadence[b.key].toLocaleString()}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* Duplicates */}
+          <div
+            data-testid="admin-library-diagnostics-duplicates"
+            className={`p-3 rounded border text-sm ${
+              data.duplicates.groups === 0
+                ? "bg-[#E7F2ED] border-[#B9DAC9] text-[#2F6E60]"
+                : "bg-[#FDF3E1] border-[#F5D48A] text-[#8C5C00]"
+            }`}
+          >
+            <p className="font-semibold">
+              {data.duplicates.groups === 0
+                ? "No likely duplicate groups detected."
+                : `${data.duplicates.groups} duplicate group${data.duplicates.groups === 1 ? "" : "s"} · ${data.duplicates.excess} excess book${data.duplicates.excess === 1 ? "" : "s"} could be removed`}
+            </p>
+            <p className="text-[11px] mt-0.5 opacity-80">
+              Match by normalized title + author or shared source URL. Use the <em>Duplicates</em> page in the library to review.
+            </p>
+          </div>
+
+          {/* Category breakdown */}
+          <details className="rounded border border-[#E4D9C8] bg-[#FBFAF6]">
+            <summary
+              className="px-3 py-2 text-sm cursor-pointer text-[#2C2C2C] font-medium"
+              data-testid="admin-library-diagnostics-categories-toggle"
+            >
+              Top categories ({data.by_category.length})
+            </summary>
+            <ul className="divide-y divide-[#E4D9C8]" data-testid="admin-library-diagnostics-categories-list">
+              {data.by_category.map((c) => (
+                <li key={c.name} className="px-3 py-1.5 flex items-center justify-between text-sm">
+                  <span className="text-[#2C2C2C]">{c.name}</span>
+                  <span className="tabular-nums text-[#5B5F4D]">{c.count.toLocaleString()}</span>
+                </li>
+              ))}
+            </ul>
+          </details>
+
+          {/* Per-day histogram */}
+          {data.by_day_last_14.length > 0 && (
+            <details className="rounded border border-[#E4D9C8] bg-[#FBFAF6]">
+              <summary
+                className="px-3 py-2 text-sm cursor-pointer text-[#2C2C2C] font-medium"
+                data-testid="admin-library-diagnostics-days-toggle"
+              >
+                Added last 14 days ({data.by_day_last_14.length} active days)
+              </summary>
+              <ul className="divide-y divide-[#E4D9C8]" data-testid="admin-library-diagnostics-days-list">
+                {data.by_day_last_14.map((d) => (
+                  <li key={d.day} className="px-3 py-1.5 flex items-center justify-between text-sm">
+                    <span className="text-[#2C2C2C] font-mono text-[11px]">{d.day}</span>
+                    <span className="tabular-nums text-[#5B5F4D]">{d.count.toLocaleString()}</span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+
+          {/* Recent upload jobs */}
+          {data.recent_upload_jobs.length > 0 && (
+            <details className="rounded border border-[#E4D9C8] bg-[#FBFAF6]">
+              <summary
+                className="px-3 py-2 text-sm cursor-pointer text-[#2C2C2C] font-medium"
+                data-testid="admin-library-diagnostics-jobs-toggle"
+              >
+                Recent upload jobs (last 7d, top {data.recent_upload_jobs.length})
+              </summary>
+              <ul className="divide-y divide-[#E4D9C8]" data-testid="admin-library-diagnostics-jobs-list">
+                {data.recent_upload_jobs.map((j, i) => (
+                  <li key={i} className="px-3 py-1.5 text-xs text-[#5B5F4D]">
+                    <span className="tabular-nums">{String(j.created_at || "").replace("T", " ").slice(0, 16)}</span>
+                    {" · "}<span className="font-medium">{j.status}</span>
+                    {" · "}{j.processed_files || 0}/{j.total_files || 0} processed
+                    {j.duplicate_count ? ` · ${j.duplicate_count} dupes` : ""}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+
+          {data.recent_failures_count > 0 && (
+            <div className="p-2 rounded bg-[#FDF3E1] border border-[#F5D48A] text-[11px] text-[#8C5C00]" data-testid="admin-library-diagnostics-failures">
+              <strong>{data.recent_failures_count}</strong> upload failures logged in the last 7 days.
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={load}
+              data-testid="admin-library-diagnostics-refresh"
+              className="px-3 py-1.5 text-xs rounded bg-[#F5F1E4] border border-[#E4D9C8] hover:bg-[#E4D9C8] text-[#2C2C2C] inline-flex items-center gap-1"
+            >
+              <RotateCcw className="w-3 h-3" /> Refresh
+            </button>
+            <button
+              type="button"
+              onClick={copyReport}
+              data-testid="admin-library-diagnostics-copy"
+              className="px-3 py-1.5 text-xs rounded bg-[#F5F1E4] border border-[#E4D9C8] hover:bg-[#E4D9C8] text-[#2C2C2C]"
+            >
+              {copied ? "Copied ✓" : "Copy report"}
+            </button>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+
+
+// ---------------------------------------------------------------------------
 function EmailDiagnosticCard() {
   const [users, setUsers] = useState([]);
   const [mode, setMode] = useState("self"); // self | pick | custom
@@ -9148,6 +9380,7 @@ export default function AdminConsole() {
                       case "admin-changelog-card":              return <ChangelogCard key={c.testid} />;
                       case "admin-canary-card":                 return <CanaryCard key={c.testid} />;
                       case "admin-drift-status-card":           return <DriftStatusCard key={c.testid} />;
+                      case "admin-library-diagnostics-card":    return <LibraryDiagnosticsCard key={c.testid} />;
                       case "admin-llm-key-health-card":         return <LlmKeyHealthCard key={c.testid} />;
                       case "admin-unknown-fandoms-card":        return <UnknownFandomsCard key={c.testid} />;
                       case "admin-crossover-suggestions-card":  return <CrossoverSuggestionsCard key={c.testid} />;

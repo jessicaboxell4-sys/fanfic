@@ -7,6 +7,31 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-07-10 — Library Diagnostics admin card
+
+Post-recovery-upload the operator reported "extras" after a 2,000-book folder
+upload + orphan audit + trash empty + R2 migration. Added a self-service
+diagnostic card so the admin can reconcile expected-vs-actual counts without a
+Mongo shell.
+
+### Shipped
+
+- **NEW `GET /api/admin/my-library-diagnostics`** — returns per-caller
+  totals (all / on-shelves / trash), category breakdown (top 20), upload
+  cadence buckets (24h / 48h / 7d / 30d), last-14-day daily histogram,
+  duplicate-group summary (title + author normalized, plus source_url),
+  recent upload_jobs (last 7d), and recent upload_failures count.
+  Scoped to `user_id` — admins only see their own library.
+- **NEW `LibraryDiagnosticsCard`** in `AdminConsole.jsx` under
+  Data & Diagnostics. Testid `admin-library-diagnostics-card`. Has
+  refresh + copy-report buttons and collapsible sections for the
+  category / day / job lists. Testids on every value so drift-check
+  and testing agents can validate.
+- Uses the existing `_normalize_title_for_match` helper from
+  `routes/books.py` to keep the dupe grouping consistent with the
+  `/library/duplicates` page.
+
+---
 ## 2026-07-09 (post-deploy, later) — Text sentinel for visual regression coverage
 
 Follow-up to the presence-pill regression. The testid-only `deploy_drift_check.py`
