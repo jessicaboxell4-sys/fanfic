@@ -146,6 +146,34 @@ SENTINELS: list[tuple[str, str, str]] = [
     ("library",   "Send to Trash",   "Duplicate policy option (part of 638-book recovery flow)"),
     ("library",   "Continue reading", "Home / library resume block"),
 
+    # ---- Primary CTAs — highest-friction if silently dropped ----
+    # These are the buttons that DO the work. Losing one silently
+    # breaks a real user workflow, not just visual polish.
+    ("admin-signups",    "Approve all",             "Bulk approval primary CTA (Pending sign-ups)"),
+    ("admin-email",      "Send diagnostic",         "Email diagnostic card primary CTA"),
+    ("admin-storage",    "Migrate all remaining",   "R2 migration primary CTA"),
+    ("admin-users-card", "Request access",          "View-as consent primary CTA"),
+    ("admin-chat-rooms", "Create a new room",       "Chat rooms primary CTA"),
+    ("admin-attribution","Top UTM campaigns",       "Attribution card section header"),
+    ("admin-attribution","Top referrer domains",    "Attribution card section header"),
+    ("admin-users-card", "Visit timeline",          "Timeline drill-down link"),
+    ("admin-email",      "Resend plan usage",       "Email stats section"),
+    ("admin-email",      "Recent failures",         "Email stats section"),
+
+    # ---- Upload zone / dashboard / find-duplicates ----
+    ("upload",           "Drop files or folders here", "UploadZone empty state (hero copy)"),
+    ("upload",           "Stage before upload",        "UploadZone stage-mode toggle"),
+    ("dashboard",        "Smart shelves",              "Dashboard section header"),
+    ("find-duplicates",  "Find duplicates",            "Page title / primary CTA"),
+    ("find-duplicates",  "No duplicates found",        "Empty state"),
+
+    # ---- Book detail / conversion recovery ----
+    ("book-detail",      "Edit book details",          "Book actions menu label"),
+    ("book-detail",      "Save & retry",               "Convert-retry CTA (Unreadable shelf recovery)"),
+
+    # ---- Community / bookclubs ----
+    ("bookclubs",        "Start your first reading room", "Empty-state CTA"),
+
     # ---- Landing (unauthenticated marketing surface) ----
     # These are the hero-strip promises. Losing them silently would tank
     # sign-up conversion — worst-case for a marketing page regression.
@@ -154,6 +182,10 @@ SENTINELS: list[tuple[str, str, str]] = [
     ("landing", "Folders that feel right",     "Landing feature card title"),
     ("landing", "Friends who actually read",   "Landing feature card title"),
     ("landing", "Goals & streaks (gently)",    "Landing feature card title"),
+    ("landing", "AI auto-sorts by fandom",     "Landing feature pill"),
+    ("landing", "Every upload virus-scanned",  "Landing feature pill"),
+    ("landing", "Sync across devices",         "Landing feature pill"),
+    ("landing", "Free while we grow",          "Landing feature pill"),
 
     # ---- Attribution / admin timeline (fragile — reconstructed heavily) ----
     ("admin-users-card", "utm_campaign",  "Attribution timeline field label"),

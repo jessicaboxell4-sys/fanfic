@@ -7,6 +7,58 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-07-12 — Text-sentinel primary-CTA expansion (iter 88 continued, 73 → 95)
+
+Followed the "one CTA per admin cluster + key non-admin CTAs" plan.
+The prior expansion covered card TITLES so a card silently disappearing
+would be caught. This expansion covers the **primary action buttons**
+so a card whose title survives but whose main button is stripped
+(higher-friction regression) is caught too.
+
+### Shipped — 22 new sentinels
+
+Admin CTAs (10):
+- ``Approve all`` — Pending sign-ups bulk approval
+- ``Send diagnostic`` — Email diagnostic card
+- ``Migrate all remaining`` — R2 migration primary button
+- ``Request access`` — View-as-user consent request
+- ``Create a new room`` — Chat rooms create button
+- ``Top UTM campaigns`` — Attribution section header
+- ``Top referrer domains`` — Attribution section header
+- ``Visit timeline`` — Users card timeline drill-down link
+- ``Resend plan usage`` — Email stats section
+- ``Recent failures`` — Email stats section
+
+Non-admin CTAs (12):
+- ``Drop files or folders here`` — UploadZone empty state
+- ``Stage before upload`` — UploadZone toggle label
+- ``Smart shelves`` — Dashboard section
+- ``Find duplicates`` — Page title / CTA
+- ``No duplicates found`` — Empty state
+- ``Edit book details`` — Book actions menu
+- ``Save & retry`` — Convert-retry CTA (Unreadable shelf)
+- ``Start your first reading room`` — Bookclubs empty CTA
+- 4 more Landing feature pills (``AI auto-sorts by fandom``, ``Every
+  upload virus-scanned``, ``Sync across devices``, ``Free while we grow``)
+
+### Verification
+
+All 22 new candidates confirmed **live in the current prod bundle**
+(main.5db4aa8b.js) before adding — so the sentinel goes green
+immediately for those additions, no false positives.
+
+Current state:
+- **95 sentinels total, 94 passing.**
+- 1 miss remains: ``Copy sentinel`` — awaits the next deploy.
+
+The admin card correctly renders the "1 copy string missing" pill
+with the exact string / surface / note diagnostic. Any future
+regression on any of these 95 surfaces is now caught within 60
+minutes of the pod picking it up.
+
+---
+
+
 ## 2026-07-12 — Text-sentinel expansion + Terser hex-escape fix (iter 88 continued)
 
 Grew the sentinel table from 24 → 73 checks so every admin card + the
