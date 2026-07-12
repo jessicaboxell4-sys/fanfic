@@ -137,6 +137,7 @@ async def _run_backfill_batch(limit: int) -> None:
                 "category": {"$ne": "Trash"},
                 "book_id": {"$nin": list(indexed)},
                 "storage_missing_at": {"$exists": False},
+                "user_id": {"$type": "string", "$ne": ""},
             },
             {"_id": 0, "book_id": 1, "user_id": 1},
         ).limit(limit)
@@ -146,7 +147,13 @@ async def _run_backfill_batch(limit: int) -> None:
         from utils.storage_cloud import ensure_local_cached
         for b in candidates:
             book_id = b["book_id"]
-            user_id = b["user_id"]
+            user_id = b.get("user_id")
+            if not user_id:
+                # Defensive: the query above should exclude these, but
+                # if a row slips through we skip rather than crash the
+                # whole background task on a single malformed doc.
+                _backfill_state["batch_scanned"] += 1
+                continue
             epub_path = STORAGE_DIR / user_id / f"{book_id}.epub"
             ok = await asyncio.to_thread(
                 ensure_local_cached, epub_path, user_id, book_id, ".epub",

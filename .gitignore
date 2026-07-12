@@ -170,3 +170,6 @@ memory/*.log
 # MONGO_URL.  Restore from /app/backups/*.zip if this happens again.
 frontend/build/backups/shelfsort-snapshot-20260709-015036Z.zip
 frontend/node_modules/.cache/default-development/35.pack
+frontend/node_modules/.cache/default-development/42.pack
+frontend/node_modules/.cache/default-development/42.pack
+frontend/node_modules/.cache/default-development/42.pack

@@ -27,6 +27,7 @@ const HELP_CATEGORIES = [
   { id: "storage",   label: "Storage & files",       icon: HardDrive },
   { id: "email",     label: "Email",                 icon: Mail },
   { id: "system",    label: "System & health",       icon: LifeBuoy },
+  { id: "data",      label: "Data & diagnostics",    icon: BarChart3 },
 ];
 
 const SECTIONS = [
@@ -52,6 +53,8 @@ const SECTIONS = [
   { id: "llm-key-health",   label: "LLM key health & runway", icon: Sparkles,       category: "system" },
   { id: "changelog",        label: "Recent changelog",        icon: History,        category: "system" },
   { id: "troubleshooting",  label: "Troubleshooting & slowness", icon: LifeBuoy,    category: "system" },
+  { id: "library-diagnostics", label: "My library diagnostics", icon: BarChart3,    category: "data" },
+  { id: "nudge-prefs",      label: "Notification preferences", icon: Bell,          category: "data" },
 ];
 
 const HELP_RECENT_KEY = "admin_help.recent_sections";
@@ -669,6 +672,57 @@ export default function AdminHelp() {
               Most real browser-compat bugs persist after a cache clear
               and across networks &mdash; if the issue is intermittent or
               self-resolves, it&rsquo;s almost certainly upstream.
+            </p>
+          </Section>
+
+          <Section id="library-diagnostics" icon={BarChart3} title="My library diagnostics">
+            <p>
+              Self-service reconcile tool for your own account after a bulk
+              upload or cleanup. Renders as the <em>My library diagnostics</em>{" "}
+              card under <Link to="/admin#admin-library-diagnostics-card" className="text-[#6B46C1] underline">Admin → Data &amp; diagnostics</Link>. Scoped to your caller <code>user_id</code>{" "}
+              — even admins never see other users&apos; libraries through this endpoint.
+            </p>
+            <ul>
+              <li><strong>Totals</strong>: all books / on-shelves / in-trash counts side by side.</li>
+              <li><strong>Cadence</strong>: how many books landed in the last 24 h / 48 h / 7 d / 30 d — quick sanity check after a big upload.</li>
+              <li><strong>Category breakdown</strong>: top 20 non-trash categories with counts.</li>
+              <li><strong>Last 14 days</strong>: per-day upload histogram (helps spot the &ldquo;wait, I uploaded on Monday but rows show Tuesday&rdquo; timezone confusion).</li>
+              <li><strong>Duplicates</strong>: total groups / books in groups / <em>excess</em> — books that could be removed without losing any unique work. Match is title+author normalized (dots stripped, case-insensitive) plus shared <code>source_url</code>.</li>
+              <li><strong>Recent upload jobs</strong>: last 20 entries from <code>upload_jobs</code> so you can trace what a batch actually did.</li>
+              <li><strong>Copy report</strong>: dumps the whole thing as pastable text so you can share it here in chat when debugging.</li>
+            </ul>
+            <p>
+              Endpoint: <code>GET /api/admin/my-library-diagnostics</code>.
+              Returns in ~50 ms even against a 4 k-book account.
+            </p>
+          </Section>
+
+          <Section id="nudge-prefs" icon={Bell} title="Notification preferences">
+            <p>
+              Central home for every in-app celebration / nudge toast the app fires.
+              Each preference is a per-browser localStorage flag; toggling here
+              takes effect immediately, no reload. Rendered as the{" "}
+              <em>Notification preferences</em> card under{" "}
+              <Link to="/admin#admin-nudge-preferences-card" className="text-[#6B46C1] underline">Admin → Data &amp; diagnostics</Link>.
+            </p>
+            <ul>
+              <li><strong>Celebrate when duplicates hit zero</strong> — fires a 🎉 toast + a 20 s green sub-line under the diagnostics card the moment your <em>excess</em> count transitions from &gt; 0 to 0.</li>
+              <li><strong>Cheer when Trash is emptied</strong> — after <em>Empty Trash</em> succeeds with at least one book deleted, shows ✨ with count + storage reclaimed (KB / MB / GB, when the size is known).</li>
+            </ul>
+            <p>
+              Under the hood: <code>frontend/src/lib/nudgePrefs.js</code>
+              exposes an array <code>NUDGE_PREFS</code>. Adding a new nudge
+              is one entry — the toggle appears automatically. Features
+              read state via <code>getNudgePref(key)</code> and can
+              subscribe to changes via <code>subscribeToNudgePrefs()</code>
+              so they update live when the operator flips the switch.
+            </p>
+            <p>
+              <strong>Because they&apos;re browser-local</strong>, flipping a
+              toggle in Chrome does not affect Safari, and a fresh incognito
+              window starts with defaults. If you want per-account
+              server-side prefs later, extend the helper to sync to a
+              <code>user_nudge_prefs</code> collection.
             </p>
           </Section>
 
