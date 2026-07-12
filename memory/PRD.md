@@ -97,7 +97,8 @@ and personalization for users based on their preferred library focus.
   handoff summary but not in the rolled-back prod bundle either.
 - Saved-draft restore-rate stat
 - Re-engagement email preview / send-now admin tool
-- Break down `books.py` (~4400 LOC)
+- Break down `books.py` (~4400 LOC) — ✅ **Partially done 2026-07-12 (Phase 6C-A)**: 5 clusters extracted (polish, relationships, unknown_sources, versions, links) → 3,429 LOC. Follow-up Phase 6C-B: extract upload + classifier clusters.
+- Break down `AdminConsole.jsx` (~9,600 LOC) — ✅ **Started 2026-07-12**: Card wrapper + shared helpers + Storage cluster extracted → 8,490 LOC. Follow-up: Email cluster (~700 LOC), System cluster, Data cluster.
 
 ### P3 — Nice to have
 - Admin `.gitignore` regression counter

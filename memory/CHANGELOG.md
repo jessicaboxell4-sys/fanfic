@@ -7,6 +7,66 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-07-12 — Phase 6C-A refactor: books.py + AdminConsole.jsx split (iter 88)
+
+Long-deferred structural refactor to tame the two biggest monolith files
+in the codebase. Zero behavior change; all extracted routes/components
+verified functionally identical to their pre-refactor counterparts.
+
+### Backend — `routes/books.py`: 4,441 → 3,429 LOC (−1,012 / −23%)
+
+Five self-contained route clusters extracted into new modules. All
+shared helpers (``extract_epub_metadata``, ``OLD_STORIES_SHELF``,
+``_templated_filename``, ``extract_urls_from_epub``, ``format_links_txt``,
+``extract_chapters``, ``diff_chapters``, ``FANDOM_KEYWORDS``,
+``classify_book``, ``_write_local_and_mirror_to_r2``, ``apply_template_to_epub``,
+etc.) stay in books.py so the 28+ modules that import from
+``routes.books`` keep working unchanged.
+
+New modules (each imports helpers from ``routes.books`` and registers
+on the shared ``api_router``):
+- **``routes/books_polish.py``** (~155 LOC) — polish preview + apply
+- **``routes/books_relationships.py``** (~140 LOC) — relationships list/backfill, detect-series-all, PATCH ``/books/{id}/series``
+- **``routes/books_unknown_sources.py``** (~180 LOC) — 4 admin unknown-source endpoints
+- **``routes/books_versions.py``** (~340 LOC) — ``upload-new-version`` + ``diff``
+- **``routes/books_links.py``** (~350 LOC) — ``/books/export/links`` (txt/zip/xlsx), single-book links, ``download-original``
+
+Registered in ``server.py`` line 16 alongside the existing modules.
+
+### Frontend — `pages/AdminConsole.jsx`: 9,603 → 8,490 LOC (−1,113 / −12%)
+
+Shared building blocks + one card cluster extracted:
+- **``pages/adminConsole/shared.jsx``** — ``Card`` wrapper, ``AdminCardsContext``,
+  ``ADMIN_CATEGORIES``, ``ADMIN_CARD_MANIFEST``, ``cardMatchesQuery``, ``fmtBytes``,
+  ``fmtTime``, ``REMEMBER_PREF_KEY``, ``CARD_STATE_PREFIX``.
+- **``pages/adminConsole/StorageCards.jsx``** — ``R2MigrationProgressCard``,
+  ``OrphanCleanupCard``, ``StorageByUserCard``, ``StorageTrendCard``, plus the
+  ``SavingsLine`` helper local to R2 migration.
+
+AdminConsole.jsx now imports Card + storage cards from these modules.
+Everything else in AdminConsole.jsx untouched — sidebar categories,
+sections, keyboard shortcuts, remember-open, all working.
+
+### Testing status
+
+- Backend: iter 88 testing agent regression — **26/26 pass** (all 14
+  extracted routes verified live against preview backend + shared-helper
+  smoke tests + import-health check).
+- Frontend: /admin loads, expands R2 migration card cleanly, sidebar
+  "Storage & files 5" section renders all 5 cards.
+
+### Follow-ups noted (not blockers)
+
+- Phase 6C-B could extract the upload cluster (``upload_books`` +
+  duplicate policy) and the classifier cluster (``classify_book`` +
+  ``FANDOM_KEYWORDS``) into their own modules, taking books.py toward
+  ~1,500 LOC.
+- Further AdminConsole card groups (Email cluster, System cluster,
+  Data cluster) can be extracted following the same
+  ``adminConsole/*.jsx`` pattern — pattern proven in this iteration.
+
+---
+
 ## 2026-07-12 — Housekeeping: shared helpers extracted (iter 87)
 
 Post-cleanup-toolkit refactor session to prevent the drift bugs that
