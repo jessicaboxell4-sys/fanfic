@@ -53,6 +53,7 @@ const SECTIONS = [
   { id: "llm-key-health",   label: "LLM key health & runway", icon: Sparkles,       category: "system" },
   { id: "changelog",        label: "Recent changelog",        icon: History,        category: "system" },
   { id: "troubleshooting",  label: "Troubleshooting & slowness", icon: LifeBuoy,    category: "system" },
+  { id: "long-running-patterns", label: "Long-running endpoint patterns", icon: Sparkles, category: "system" },
   { id: "library-diagnostics", label: "My library diagnostics", icon: BarChart3,    category: "data" },
   { id: "duplicate-cleanup",   label: "Duplicate cleanup toolkit", icon: Layers,     category: "data" },
   { id: "nudge-prefs",      label: "Notification preferences", icon: Bell,          category: "data" },
@@ -673,6 +674,82 @@ export default function AdminHelp() {
               Most real browser-compat bugs persist after a cache clear
               and across networks &mdash; if the issue is intermittent or
               self-resolves, it&rsquo;s almost certainly upstream.
+            </p>
+          </Section>
+
+          <Section id="long-running-patterns" icon={Sparkles} title="Long-running endpoint patterns">
+            <p>
+              Cloudflare kills any single HTTP response that takes longer than{" "}
+              <strong>120 seconds</strong> at the edge. Every admin/heavy
+              endpoint has to finish under that ceiling or the client sees a
+              524 with partial state on the backend. We&rsquo;ve been bitten
+              enough times that the fix pattern is standardized. Pick one:
+            </p>
+
+            <h4 className="mt-4 mb-1 font-semibold text-[#2C2C2C]">Pattern A · One big call + internal parallelism</h4>
+            <p>
+              Use when the whole job can plausibly finish inside <strong>10 seconds</strong> even
+              at the top of your growth curve. Blocks the client for the full
+              duration but keeps the API contract simple. Examples in the
+              codebase:
+            </p>
+            <ul>
+              <li><code>POST /api/library/restore/apply</code> &mdash; <code>bulk_write(ordered=False)</code> for Mongo, <code>asyncio.gather</code> in chunks of 32 for file I/O. 2 k-book restore = ~10 s.</li>
+              <li><code>POST /api/trash/empty</code> &mdash; single <code>delete_many</code> for Mongo + serial <code>unlink</code> for sidecars (bounded by trash size).</li>
+              <li><code>POST /api/admin/orphan-audit/delete-bulk</code> &mdash; 100-per-chunk <code>gather</code> over R2 deletes.</li>
+            </ul>
+            <p>
+              Signals to reach for this pattern:
+              per-item cost is small (single DB update, single R2 delete),
+              total item count is bounded by a per-user quota, and the
+              client doesn&rsquo;t need progress feedback.
+            </p>
+
+            <h4 className="mt-4 mb-1 font-semibold text-[#2C2C2C]">Pattern B · Batch on backend, loop on frontend</h4>
+            <p>
+              Use when the job could realistically exceed 30 seconds, when the
+              operator wants live progress, or when a single failure shouldn&rsquo;t
+              lose the whole run. The backend caps each call at{" "}
+              <code>?limit=N</code> and returns <code>has_more</code> +{" "}
+              <code>remaining</code>; the frontend loops until{" "}
+              <code>has_more=false</code>, accumulating counts and rendering a
+              progress bar.
+            </p>
+            <ul>
+              <li><code>POST /api/library/quarantine/keep-latest-all?limit=100</code> &mdash; up to 5 000 groups per click, live progress bar, idempotent resume on failure.</li>
+              <li><code>POST /api/admin/storage-migration-backfill?limit=100</code> &mdash; same pattern for R2 migration.</li>
+            </ul>
+            <p>
+              Signals to reach for this pattern:
+              per-item cost varies (some books have huge covers, some don&rsquo;t),
+              you&rsquo;re walking every user or every book in the system, and
+              the operator will benefit from seeing &ldquo;X of Y processed&rdquo;.
+            </p>
+
+            <h4 className="mt-4 mb-1 font-semibold text-[#2C2C2C]">Pattern C · Background task with polling</h4>
+            <p>
+              Use when the job takes more than ~5 minutes even parallelized, or
+              when it must survive backend restarts. Kick off with a{" "}
+              <code>POST</code> that returns a <code>job_id</code>; the
+              frontend polls a <code>GET .../progress</code> endpoint. Recovery
+              cron watches for stuck jobs and re-drives them. Examples:
+            </p>
+            <ul>
+              <li>Upload pipeline (<code>upload_jobs</code> collection + <code>polish_worker</code>).</li>
+              <li>AV background scan (<code>av_background</code> + 5-min recovery tick).</li>
+            </ul>
+
+            <h4 className="mt-4 mb-1 font-semibold text-[#2C2C2C]">Anti-patterns to avoid</h4>
+            <ul>
+              <li><strong>Silent <code>to_list(5000)</code> caps</strong>. If you need every row, use <code>to_list(length=None)</code>; if you need a page, add explicit <code>limit</code>/<code>skip</code> params. A cap that&rsquo;s off by one order of magnitude hides missing data instead of failing loudly.</li>
+              <li><strong>Sequential <code>update_one</code> inside a big loop</strong>. If you&rsquo;re processing &gt; ~30 items, prefer <code>bulk_write</code> or the Pattern B loop.</li>
+              <li><strong>Blocking file I/O in async handlers</strong>. <code>open()/write()</code> block the event loop; wrap in <code>asyncio.to_thread</code> or use <code>aiofiles</code>.</li>
+              <li><strong>Unbounded <code>asyncio.gather</code></strong>. If the fan-out size is unknown, chunk it (32-100 is a good default) so a 10 k-item job doesn&rsquo;t OOM the pod on huge payloads.</li>
+            </ul>
+
+            <p className="text-[11px] text-[#5B5F4D] italic mt-3">
+              Rule of thumb: if you catch yourself writing{" "}
+              <code>for x in things: await db.…update_one(…)</code>, ask &ldquo;does <code>things</code> grow with users or with time?&rdquo; If yes, refactor to Pattern A or B before shipping.
             </p>
           </Section>
 

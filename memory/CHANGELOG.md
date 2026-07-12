@@ -7,6 +7,27 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-07-12 — "Long-running endpoint patterns" admin doc
+
+Documents when to reach for each anti-timeout pattern so future
+handlers don't recreate the same Cloudflare-524 bug.
+
+### Shipped
+
+- **New AdminHelp section** at `/help/admin#long-running-patterns`
+  (sidebar entry in *System & health*):
+  - Pattern A · One big call + internal parallelism
+    (<code>bulk_write</code> + <code>asyncio.gather</code>).
+  - Pattern B · Batch on backend, loop on frontend
+    (<code>?limit=N</code> + <code>has_more</code> + progress bar).
+  - Pattern C · Background task with polling for &gt; 5-min jobs.
+  - Anti-patterns list (<code>to_list(5000)</code>, sequential
+    <code>update_one</code>, blocking file I/O in async handlers,
+    unbounded <code>asyncio.gather</code>).
+- Closes with a shipping-time rule of thumb: if you write
+  `for x in things: await db.…update_one(…)`, ask "does `things`
+  grow with users or with time?" — if yes, refactor before ship.
+
 ## 2026-07-12 — Cleanup walk-through + timeout/cap hardening
 
 Two-part sweep after the operator asked to check for other issues like the Cloudflare 120s timeout on bulk keep-latest.
