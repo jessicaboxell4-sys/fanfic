@@ -178,6 +178,7 @@ const SECTIONS = [
   { id: "recommendations",      label: "Friend recommendations",                                category: "community" },
   { id: "rules",                label: "Community rules",                                       category: "community" },
   { id: "download-library",     label: "Download your library",                                 category: "backup" },
+  { id: "cleanup-walkthrough",  label: "Library cleanup walk-through",                          category: "backup" },
   { id: "data-safety",          label: "Backup & restore",                                      category: "backup" },
   { id: "cloud-backup",         label: "Cloud library mirror",                                  category: "backup" },
   { id: "antivirus",            label: "Antivirus & library safety",                            category: "backup" },
@@ -1285,6 +1286,39 @@ export default function Help() {
                 <li><strong>Books that can&apos;t be restored</strong> — extremely rare, but if a book&apos;s bytes are missing from both storage backends (e.g. a rare hardware event) it&apos;s skipped and logged. The final ZIP still ships; you get a warning in the toast if any were skipped.</li>
               </ul>
               <p className="text-xs text-[#5B5F4D]">The auto-batch threshold and per-file naming might change as we tune it; the auto-split behavior is designed to be a hands-off improvement, not a surprise — your existing single-file mental model still holds for small-to-medium libraries.</p>
+            </Section>
+
+            <Section id="cleanup-walkthrough" icon={Sparkles} title="Library cleanup walk-through">
+              <p className="text-sm text-[#5B5F4D] mb-3">
+                One flow that ties every cleanup tool together. Bookmark <code>/help#cleanup-walkthrough</code> and come back to it whenever your library feels off.
+              </p>
+              <ol className="list-decimal list-inside space-y-3 marker:font-semibold marker:text-[#6B46C1]">
+                <li>
+                  <strong>Get the lay of the land.</strong> Admins: open <Link to="/admin#admin-library-diagnostics-card" className="text-[#6B46C1] underline">Admin → Data &amp; diagnostics → My library diagnostics</Link> and hit <em>Copy report</em>. The <em>duplicates.excess</em> line tells you how many books could be removed without losing anything unique.
+                </li>
+                <li>
+                  <strong>Rescan if you suspect hidden duplicates.</strong> Visit <Link to="/library/quarantine" className="text-[#6B46C1] underline">/library/quarantine</Link> and click <em>&ldquo;Rescan library&rdquo;</em> (empty-state hero if the queue is empty, small button in the toolbar otherwise). It catches pairs upload-time detection missed &mdash; author normalization changes, source_url added later, books restored from Old stories, and so on.
+                </li>
+                <li>
+                  <strong>Resolve the pile.</strong> Two ways:
+                  <ul className="list-disc list-inside ml-4 mt-1 space-y-1 text-sm">
+                    <li><em>Per group</em> &mdash; each duplicate group has a purple &ldquo;Keep only the latest&rdquo; button. Good for hand-picking.</li>
+                    <li><em>Bulk</em> &mdash; the toolbar has &ldquo;Keep the latest in all N groups&rdquo;. Runs in batches with a live progress bar, safe under the 120s edge timeout. Idempotent: if it&apos;s interrupted, click again to resume.</li>
+                  </ul>
+                </li>
+                <li>
+                  <strong>Empty Trash to reclaim storage.</strong> Head to <Link to="/library/trash" className="text-[#6B46C1] underline">/library/trash</Link> and permanently delete. You&apos;ll see a ✨ toast with the book count and reclaimed MB/GB (opt-in nudge, on by default).
+                </li>
+                <li>
+                  <strong>Confirm the &ldquo;before/after&rdquo;.</strong> Re-open the diagnostics card &mdash; <em>excess</em> should be near 0 and <em>on-shelves</em> down by the amount you resolved. When excess hits 0 you&apos;ll get a 🎉 &ldquo;squeaky clean&rdquo; toast.
+                </li>
+                <li>
+                  <strong>Set it and forget it.</strong> Every Sunday at 04:00 UTC Shelfsort silently reruns the rescan across your library. If it finds anything new, you&apos;ll get a bell notification (kind <code>duplicate_rescan</code>) linking straight back to the Duplicates page. Quiet weeks: no bell.
+                </li>
+              </ol>
+              <p className="text-xs text-[#5B5F4D] mt-4">
+                Nothing here permanently deletes on the first click &mdash; every &ldquo;kept-latest&rdquo; older copy lands in Trash with a 30-day grace, and every promoted duplicate&apos;s ex-keeper lands in <Link to="/library/old-stories" className="text-[#6B46C1] underline">Old stories</Link> with reading progress preserved. You can undo an entire pass by restoring from Trash before it purges.
+              </p>
             </Section>
 
             <Section id="data-safety" icon={Shield} title="Backup &amp; restore">
