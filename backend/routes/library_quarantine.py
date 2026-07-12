@@ -735,14 +735,13 @@ async def _run_rescan_for_user(user_id: str) -> Dict[str, Any]:
         }
     """
     # 1. Pull every candidate (non-trash, non-Old-stories, not already
-    #    flagged, not already replaced by another book).
+    # 1. Pull every candidate (non-trash, non-Old-stories, not already
+    #    flagged, not already replaced by another book). Filter is
+    #    centralized in ``utils.dupe_queries`` so admin diagnostics and
+    #    this endpoint stay in sync.
+    from utils.dupe_queries import active_dupe_candidates_query
     cursor = db.books.find(
-        {
-            "user_id": user_id,
-            "category": {"$nin": [TRASH_SHELF, OLD_STORIES_SHELF]},
-            "duplicate_pending": {"$ne": True},
-            "replaced_by": {"$exists": False},
-        },
+        active_dupe_candidates_query(user_id),
         {
             "_id": 0,
             "book_id": 1,
