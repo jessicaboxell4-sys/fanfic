@@ -81,7 +81,9 @@ async def reclassify_all(body: ReclassifyAllBody, user: User = Depends(get_curre
                 # "sorted 0 of N".
                 try:
                     from utils.storage_cloud import ensure_local_cached
-                    await ensure_local_cached(user.user_id, b["book_id"])
+                    await asyncio.to_thread(
+                        ensure_local_cached, fp, user.user_id, b["book_id"], ".epub",
+                    )
                 except Exception as e:
                     logger.warning(
                         "reclassify_all: ensure_local_cached failed for %s: %s",

@@ -3252,6 +3252,12 @@ async def export_all_links(
                         f"{b.get('title','Untitled')} — {b.get('author','Unknown')}"
                     )
                     if not epub_path.exists():
+                        # Try R2 hydration before declaring the file missing.
+                        from utils.storage_cloud import ensure_local_cached
+                        await asyncio.to_thread(
+                            ensure_local_cached, epub_path, user.user_id, b['book_id'], ".epub",
+                        )
+                    if not epub_path.exists():
                         bucket_lines.append("  (EPUB missing on disk)")
                         bucket_lines.append("")
                         continue
@@ -3308,6 +3314,11 @@ async def export_all_links(
     for b in books:
         epub_path = user_dir / f"{b['book_id']}.epub"
         if not epub_path.exists():
+            from utils.storage_cloud import ensure_local_cached
+            await asyncio.to_thread(
+                ensure_local_cached, epub_path, user.user_id, b['book_id'], ".epub",
+            )
+        if not epub_path.exists():
             continue
         links = extract_urls_from_epub(epub_path)
         total_links += len(links)
@@ -3354,6 +3365,11 @@ async def get_book_links(book_id: str, user: User = Depends(get_current_user)):
     # Regenerate if missing (e.g., older book uploaded before this feature)
     if not links_path.exists():
         epub_path = user_dir / f"{book_id}.epub"
+        if not epub_path.exists():
+            from utils.storage_cloud import ensure_local_cached
+            await asyncio.to_thread(
+                ensure_local_cached, epub_path, user.user_id, book_id, ".epub",
+            )
         if not epub_path.exists():
             raise HTTPException(status_code=404, detail="File missing")
         links = extract_urls_from_epub(epub_path)
@@ -4259,6 +4275,11 @@ async def backfill_relationships(user: User = Depends(get_current_user)):
     skipped = 0
     async for b in cursor:
         epub_path = user_dir / f"{b['book_id']}.epub"
+        if not epub_path.exists():
+            from utils.storage_cloud import ensure_local_cached
+            await asyncio.to_thread(
+                ensure_local_cached, epub_path, user.user_id, b['book_id'], ".epub",
+            )
         if not epub_path.exists():
             skipped += 1
             continue

@@ -241,6 +241,13 @@ async def _run_template_sweep(user_id: str) -> Dict[str, int]:
     def _process_one(book: Dict[str, Any]) -> str:
         epub_path = user_dir / f"{book['book_id']}.epub"
         if not epub_path.exists():
+            # Sidecar may live on R2 after storage migration — hydrate.
+            try:
+                from utils.storage_cloud import ensure_local_cached
+                ensure_local_cached(epub_path, user_id, book["book_id"], ".epub")
+            except Exception:
+                pass
+        if not epub_path.exists():
             return "skipped"
         try:
             raw = epub_path.read_bytes()
