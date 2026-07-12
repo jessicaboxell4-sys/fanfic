@@ -7,6 +7,43 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-07-12 — On-demand "Scan library for duplicates"
+
+Operator's diagnostic reported 338 duplicate groups after a resolve pass,
+but the Duplicates page only showed the ones caught at upload time.
+Upload-time detection missed some (metadata later changed, books
+restored from Old stories, etc.).  Added an on-demand rescan so those
+missed duplicates land in the same familiar Quarantine queue.
+
+### Shipped
+
+- **NEW `POST /api/library/quarantine/rescan`** — sweeps every
+  non-trash / non-Old-stories book the caller owns that isn't already
+  flagged, union-finds by normalized `(title, author)` and by shared
+  `source_url`, elects the *oldest* row in each cluster as the keeper,
+  and stamps `duplicate_pending: True` + `duplicate_of` + `quarantined_via:
+  "rescan"` on the newer members.  Respects `duplicate_dismissals`
+  (pairs the operator previously accepted as separate are silently
+  skipped).  Returns `{scanned, groups_found, new_flagged,
+  already_flagged, skipped_by_dismissal, note}`.
+- **`Quarantine.jsx`**: two entry points for the rescan.
+  - Empty-state hero button: purple "Scan library for duplicates"
+    (testid `quarantine-rescan-empty`) — visible when the queue is
+    empty and the operator suspects more dupes are hiding.
+  - Toolbar link when the queue has content (testid
+    `quarantine-rescan`) — for topping up between resolve passes.
+- Toast summarizes: `Scanned N books · found G groups · flagged M new
+  books for review`.
+
+### Verified locally
+Seeded 5 books (2 same title+author with dots+case variance, 2 sharing
+`source_url` but with different titles, 1 standalone). Rescan flagged
+exactly 2 books, ignored the standalone, and elected the oldest as
+keeper in each group. GET `/library/quarantine` immediately shows both
+groups. 26 ms end-to-end on the seed. Also confirmed the flagged books
+plug straight into the existing "Keep only the latest" per-group and
+bulk buttons.
+
 ## 2026-07-12 — Batched keep-latest-all + live progress bar
 
 Operator's post-deploy diagnostics showed only 44 of 382 groups

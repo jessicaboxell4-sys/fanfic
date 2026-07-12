@@ -277,6 +277,7 @@ export default function Quarantine() {
   const [groupBusy, setGroupBusy] = useState(null);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkProgress, setBulkProgress] = useState(null);
+  const [rescanBusy, setRescanBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -347,6 +348,34 @@ export default function Quarantine() {
       toast.error(e?.response?.data?.detail || "Couldn't resolve group");
     } finally {
       setGroupBusy(null);
+    }
+  };
+
+  const rescan = async () => {
+    setRescanBusy(true);
+    try {
+      const { data: r } = await api.post(`/library/quarantine/rescan`);
+      const found = r?.new_flagged || 0;
+      const groups = r?.groups_found || 0;
+      const scanned = r?.scanned || 0;
+      const dismissed = r?.skipped_by_dismissal || 0;
+      const already = r?.already_flagged || 0;
+      if (found === 0 && already === 0) {
+        toast.success(
+          `Scanned ${scanned.toLocaleString()} books. No missed duplicates found${dismissed ? ` (${dismissed} respected your "Not a duplicate" choices).` : "."}`,
+          { duration: 6000 },
+        );
+      } else {
+        toast.success(
+          `Scanned ${scanned.toLocaleString()} books · found ${groups} duplicate group${groups === 1 ? "" : "s"} · flagged ${found} new book${found === 1 ? "" : "s"} for review.`,
+          { duration: 6000 },
+        );
+      }
+      load();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't run rescan");
+    } finally {
+      setRescanBusy(false);
     }
   };
 
@@ -443,14 +472,29 @@ export default function Quarantine() {
           <div data-testid="quarantine-empty" className="shelf-card p-10 text-center">
             <Layers className="w-10 h-10 text-[#5B5F4D]/40 mx-auto mb-4" />
             <p className="font-serif text-2xl text-[#2C2C2C]">No duplicates to review</p>
-            <p className="text-sm text-[#5B5F4D] mt-2">When an upload matches a book already in your library, it lands here instead of the main grid.</p>
-            <Link
-              to="/library"
-              data-testid="quarantine-empty-back-link"
-              className="mt-4 inline-flex items-center gap-1 text-sm text-[#6B46C1] hover:underline"
-            >
-              Back to library <ArrowRight className="w-4 h-4" />
-            </Link>
+            <p className="text-sm text-[#5B5F4D] mt-2 max-w-md mx-auto">
+              When an upload matches a book already in your library, it lands here instead of the main grid.
+              If you think there are still duplicates hiding, run a rescan.
+            </p>
+            <div className="mt-5 flex items-center justify-center gap-3 flex-wrap">
+              <button
+                type="button"
+                data-testid="quarantine-rescan-empty"
+                disabled={rescanBusy}
+                onClick={rescan}
+                className="px-3 py-1.5 rounded text-xs font-medium bg-[#6B46C1] text-white hover:bg-[#5834A8] disabled:opacity-50 inline-flex items-center gap-1.5 shadow-sm"
+              >
+                {rescanBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
+                Scan library for duplicates
+              </button>
+              <Link
+                to="/library"
+                data-testid="quarantine-empty-back-link"
+                className="inline-flex items-center gap-1 text-sm text-[#6B46C1] hover:underline"
+              >
+                Back to library <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
           </div>
         ) : (
           <>
@@ -459,6 +503,17 @@ export default function Quarantine() {
                 <span className="font-semibold text-[#2C2C2C]">{data.count}</span> duplicate{data.count === 1 ? "" : "s"} across{" "}
                 <span className="font-semibold text-[#2C2C2C]">{data.groups.length}</span> group{data.groups.length === 1 ? "" : "s"}.
               </p>
+              <button
+                type="button"
+                data-testid="quarantine-rescan"
+                disabled={rescanBusy || bulkBusy}
+                onClick={rescan}
+                title="Sweep your whole library for duplicates that weren't caught at upload time. Newly detected duplicates land in this queue."
+                className="px-2.5 py-1.5 rounded text-[11px] font-medium bg-[#F5F1E4] border border-[#E4D9C8] hover:bg-[#E4D9C8] text-[#2C2C2C] disabled:opacity-50 inline-flex items-center gap-1"
+              >
+                {rescanBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : <ShieldCheck className="w-3 h-3" />}
+                Rescan library
+              </button>
               <button
                 type="button"
                 data-testid="quarantine-keep-latest-all"

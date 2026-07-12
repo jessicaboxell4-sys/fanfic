@@ -699,3 +699,178 @@ async def keep_latest_all_groups(
     }
 
 
+
+# ---------------------------------------------------------------------------
+# On-demand duplicate rescan (2026-07-12)
+# ---------------------------------------------------------------------------
+# Upload-time duplicate detection can miss cases where the metadata changed
+# between uploads (e.g. author normalization tweaks, source_url added later,
+# or a book restored from Old stories).  This endpoint sweeps the caller's
+# entire non-trash library, computes normalized (title, author) + source_url
+# groups, and quarantines every non-primary member so the existing
+# Quarantine / keep-latest UI can resolve them.
+#
+# The oldest ``created_at`` in each group is elected as the "keeper".
+# ``duplicate_dismissals`` are respected — a group that only exists because
+# of a pair the user explicitly dismissed is skipped entirely.
+# ---------------------------------------------------------------------------
+@api_router.post("/library/quarantine/rescan")
+async def rescan_library_for_duplicates(user: User = Depends(get_current_user)):
+    """Sweep the caller's non-trash library and quarantine likely duplicates
+    that weren't caught at upload time.
+
+    Returns::
+
+        {
+            scanned, groups_found, new_flagged, already_flagged,
+            skipped_by_dismissal, note
+        }
+    """
+    # 1. Pull every candidate (non-trash, non-Old-stories, not already
+    #    flagged, not already replaced by another book).
+    cursor = db.books.find(
+        {
+            "user_id": user.user_id,
+            "category": {"$nin": [TRASH_SHELF, OLD_STORIES_SHELF]},
+            "duplicate_pending": {"$ne": True},
+            "replaced_by": {"$exists": False},
+        },
+        {
+            "_id": 0,
+            "book_id": 1,
+            "title": 1,
+            "author": 1,
+            "source_url": 1,
+            "created_at": 1,
+            "category": 1,
+        },
+    )
+    books: List[Dict[str, Any]] = [b async for b in cursor]
+
+    # 2. Bucket by (normalized title + normalized author) and by source_url.
+    #    We union-find the two so books sharing either signal collapse into
+    #    one group.
+    by_title_author: Dict[str, List[int]] = {}
+    by_source: Dict[str, List[int]] = {}
+    for i, b in enumerate(books):
+        nt = _normalize_title_for_match(b.get("title"))
+        if not nt:
+            continue
+        na = _normalize_author_for_match(b.get("author"))
+        key = f"{nt}||{na}" if na else f"{nt}||"
+        by_title_author.setdefault(key, []).append(i)
+        s = b.get("source_url")
+        if s:
+            by_source.setdefault(s, []).append(i)
+
+    parent = list(range(len(books)))
+
+    def _find(x: int) -> int:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def _union(a: int, b: int) -> None:
+        ra, rb = _find(a), _find(b)
+        if ra != rb:
+            parent[rb] = ra
+
+    for group in list(by_title_author.values()) + list(by_source.values()):
+        if len(group) < 2:
+            continue
+        head = group[0]
+        for j in group[1:]:
+            _union(head, j)
+
+    # 3. Reduce to true groups of 2+.
+    groups: Dict[int, List[int]] = {}
+    for i in range(len(books)):
+        r = _find(i)
+        groups.setdefault(r, []).append(i)
+    groups_2plus: List[List[int]] = [ids for ids in groups.values() if len(ids) >= 2]
+
+    # 4. Load the caller's duplicate_dismissals so we can respect them.
+    #    Dismissals are keyed on a normalized (title, author, source_url)
+    #    tuple → per pair.  We drop any candidate pair the user
+    #    already told us to ignore.
+    dismissals_cursor = db.duplicate_dismissals.find(
+        {"user_id": user.user_id},
+        {"_id": 0, "signature": 1},
+    )
+    dismissed_sigs: set = set()
+    async for d in dismissals_cursor:
+        sig = d.get("signature")
+        if sig:
+            dismissed_sigs.add(sig)
+
+    def _pair_sig(a: Dict[str, Any], b: Dict[str, Any]) -> str:
+        # Match the same signature format ``resolve/not_duplicate`` uses.
+        ta = _normalize_title_for_match(a.get("title")) or ""
+        aa = _normalize_author_for_match(a.get("author")) or ""
+        sa = (a.get("source_url") or "").strip()
+        tb = _normalize_title_for_match(b.get("title")) or ""
+        ab = _normalize_author_for_match(b.get("author")) or ""
+        sb = (b.get("source_url") or "").strip()
+        # Order-independent
+        pair = tuple(sorted([f"{ta}|{aa}|{sa}", f"{tb}|{ab}|{sb}"]))
+        return f"{pair[0]}::{pair[1]}"
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    new_flagged = 0
+    already_flagged = 0
+    skipped_by_dismissal = 0
+    real_groups = 0
+
+    for idxs in groups_2plus:
+        members = [books[i] for i in idxs]
+        # Elect the oldest as keeper.
+        members.sort(key=lambda m: (m.get("created_at") or "", m.get("book_id") or ""))
+        keeper = members[0]
+        dupes = members[1:]
+        real_groups += 1
+        for dup in dupes:
+            sig = _pair_sig(keeper, dup)
+            if sig in dismissed_sigs:
+                skipped_by_dismissal += 1
+                continue
+            reasons: List[str] = []
+            if _normalize_title_for_match(keeper.get("title")) == _normalize_title_for_match(dup.get("title")):
+                reasons.append("title+author")
+            if keeper.get("source_url") and keeper.get("source_url") == dup.get("source_url"):
+                reasons.append("source_url")
+            if not reasons:
+                reasons = ["title+author"]
+            res = await db.books.update_one(
+                {"book_id": dup["book_id"], "user_id": user.user_id},
+                {
+                    "$set": {
+                        "duplicate_pending": True,
+                        "duplicate_of": [{
+                            "book_id": keeper["book_id"],
+                            "title": keeper.get("title"),
+                            "author": keeper.get("author"),
+                            "match_reasons": reasons,
+                        }],
+                        "quarantined_via": "rescan",
+                        "quarantined_at": now_iso,
+                    },
+                },
+            )
+            if res.modified_count:
+                new_flagged += 1
+            else:
+                already_flagged += 1
+
+    return {
+        "scanned": len(books),
+        "groups_found": real_groups,
+        "new_flagged": new_flagged,
+        "already_flagged": already_flagged,
+        "skipped_by_dismissal": skipped_by_dismissal,
+        "note": (
+            "Newly flagged books are now visible on the Duplicates page. "
+            "Use the per-group buttons or 'Keep the latest in all N groups' "
+            "to resolve them in bulk."
+        ),
+    }
