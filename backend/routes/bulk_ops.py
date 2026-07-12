@@ -75,7 +75,20 @@ async def reclassify_all(body: ReclassifyAllBody, user: User = Depends(get_curre
         async with sem:
             fp = user_dir / f"{b['book_id']}.epub"
             if not fp.exists():
-                return None
+                # Sidecar isn't on the local pod (likely on R2). Try to
+                # hydrate it before giving up — otherwise every book in a
+                # migrated library would silently skip and the caller sees
+                # "sorted 0 of N".
+                try:
+                    from utils.storage_cloud import ensure_local_cached
+                    await ensure_local_cached(user.user_id, b["book_id"])
+                except Exception as e:
+                    logger.warning(
+                        "reclassify_all: ensure_local_cached failed for %s: %s",
+                        b["book_id"], e,
+                    )
+                if not fp.exists():
+                    return None
             try:
                 meta = extract_epub_metadata(fp)
                 cls = await classify_with_ai(meta)

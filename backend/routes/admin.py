@@ -4670,10 +4670,15 @@ async def my_library_diagnostics(user: User = Depends(require_admin)):
     ]
 
     # ---- Duplicate summary (cheap: title-normalized union-find) ----------
+    # Mirror the rescan endpoint's exclusion set exactly so operators
+    # don't see phantom duplicates against books that are already
+    # resolved (Old stories archive, promoted duplicates, quarantined
+    # rows awaiting review).
     dup_cursor = db.books.find(
         {
             "user_id": uid,
-            "category": {"$ne": TRASH_SHELF},
+            "category": {"$nin": [TRASH_SHELF, "Old stories"]},
+            "duplicate_pending": {"$ne": True},
             "replaced_by": {"$exists": False},
         },
         {"_id": 0, "book_id": 1, "title": 1, "author": 1, "source_url": 1},

@@ -7,6 +7,31 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-07-12 — Diagnostic over-count + "AI sorted 0 of N" fixes
+
+Two prod bugs surfaced immediately after the cleanup toolkit rolled out.
+
+### Shipped
+
+- **Bug 1 — Diagnostic phantom duplicates**: `my_library_diagnostics`
+  was reporting 19 excess even after a full rescan sweep said
+  "No missed duplicates found." Root cause: the diagnostic's dupe
+  scan included books in `Old stories` (they share
+  title+author with their promoted counterparts, so they clustered
+  as fake dupes) and books flagged `duplicate_pending: True` (still
+  awaiting review). Fix: mirror the rescan endpoint's exclusion set
+  exactly — `{category $nin [Trash, Old stories], duplicate_pending
+  $ne True, replaced_by $exists False}`. After the fix the two flows
+  agree on what counts as a duplicate.
+- **Bug 2 — AI sort reporting "sorted 0 of N books"**: `reclassify_all`
+  in `bulk_ops.py` silently returned `None` when the local EPUB
+  sidecar didn't exist on the pod. After the R2 migration, most
+  sidecars live in cloud storage — so *every* book skipped. Fix:
+  before giving up, call `ensure_local_cached(user_id, book_id)` to
+  hydrate from R2 (same pattern already used in `routes/fulltext.py`).
+  Failures are logged via `logger.warning` so silent skips are
+  visible in the log.
+
 ## 2026-07-12 (weekly rollup) — What's new: duplicate cleanup toolkit 🎉
 
 A whole toolkit for reconciling and cleaning up duplicate books landed
