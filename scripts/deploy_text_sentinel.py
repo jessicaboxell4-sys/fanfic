@@ -60,17 +60,73 @@ SENTINELS: list[tuple[str, str, str]] = [
     # ---- Admin: Drift status card ----
     ("admin-drift-status-card", "Prod ↔ source drift", "Card title (↔ arrow is meaningful)"),
     ("admin-drift-status-card", "Safe to deploy",      "Green-status label"),
+    ("admin-drift-status-card", "Copy sentinel",       "Companion pill added 2026-07-12"),
 
     # ---- Admin: Feedback inbox / lifecycle ----
     ("admin-feedback-inbox", "Feedback inbox", "Card title"),
+    ("admin-feedback-inbox", "Help-page feedback", "Per-page friction reports card title"),
 
     # ---- Admin: Sign-up / users ----
     ("admin-signups",       "Pending sign-ups",         "Card title"),
     ("admin-signup-rules",  "Sign-up rules & questions", "Card title"),
+    ("admin-view-consents", "View-as-user consents",    "Card title"),
 
-    # ---- Admin: system + storage sections ----
+    # ---- Admin: section groupers ----
     ("admin-sections", "System & health",  "Section grouper heading"),
     ("admin-sections", "Storage & files",  "Section grouper heading"),
+    ("admin-sections", "Data & diagnostics", "Section grouper heading"),
+    ("admin-sections", "Feedback & moderation", "Section grouper heading"),
+    ("admin-sections", "Users & sign-ups", "Section grouper heading"),
+
+    # ---- Admin: overview / activity ----
+    ("admin-overview", "Today · 24h pulse", "Card title (day-summary pulse)"),
+
+    # ---- Admin: community / oversight ----
+    ("admin-community", "Rooms I'm watching", "Bookclub-oversight card title"),
+    ("admin-community", "Direct-message rooms.", "Chat-rooms card subtitle"),
+    ("admin-community", "Moderation log",     "All-time mod action log card title"),
+
+    # ---- Admin: storage cluster ----
+    ("admin-storage", "ClamAV scanner status", "Antivirus card subtitle (specific to Shelfsort's stack)"),
+    ("admin-storage", "Top storage users",     "Card title"),
+    ("admin-storage", "R2 migration progress", "Card title"),
+    ("admin-storage", "Orphan audit & cleanup","Card title"),
+    ("admin-storage", "Storage trend",         "Card title (30-day chart)"),
+
+    # ---- Admin: email cluster ----
+    ("admin-email", "Master ON/OFF for all outbound", "Email-system card subtitle (kill switch)"),
+    ("admin-email", "Email volume forecast",     "Card title"),
+    ("admin-email", "Admin alert email frequency","Card title"),
+    ("admin-email", "Admin bell · pending alerts","Card title"),
+    ("admin-email", "Resend deliveries",          "Weekly email stats card title"),
+    ("admin-email", "Email diagnostic",           "Card title"),
+
+    # ---- Admin: system / health cluster ----
+    ("admin-system", "Maintenance banner",     "Card title"),
+    ("admin-system", "External dependencies",  "System-health card subtitle"),
+    ("admin-system", "Stuck uploads",          "Card title"),
+    ("admin-system", "Classifier reliability", "Card title"),
+    ("admin-system", "Crash pulse",            "Card title"),
+    ("admin-system", "Where new visitors are finding Shelfsort", "Attribution card subtitle"),
+    ("admin-system", "Scheduled jobs",         "Cron-health card title"),
+    ("admin-system", "Route catalogue",        "Card title"),
+    ("admin-system", "Runtime kill switches",  "Feature-flags card subtitle"),
+    ("admin-system", "Hidden features",        "Card title"),
+    ("admin-system", "Recent changelog",       "Card title"),
+    ("admin-system", "Production canary",      "Card title"),
+    ("admin-system", "LLM key health",         "Card title"),
+    ("admin-system", "Unknown fandoms",        "Card title"),
+    ("admin-system", "Crossover suggestions",  "Card title"),
+    ("admin-system", "Global fandom aliases",  "Card title"),
+
+    # ---- Admin: data & diagnostics cluster ----
+    ("admin-data", "My library diagnostics",    "Card title (2000-book recovery workflow)"),
+    ("admin-data", "Notification preferences",  "Card title (nudge toggles)"),
+    ("admin-data", "Backfill EPUB links",       "Card title"),
+    ("admin-data", "Tenant-wide rollup",        "Global-stats card subtitle"),
+    ("admin-data", "Every admin write action",  "Audit-log card subtitle"),
+    ("admin-data", "Mongo inspector",           "Card title"),
+    ("admin-data", "Full-text index",           "Card title"),
 
     # ---- Library: Quarantine page (2026-07-09 P0 reconstruction) ----
     ("quarantine",     "No duplicates to review",  "Empty-state title"),
@@ -88,9 +144,16 @@ SENTINELS: list[tuple[str, str, str]] = [
 
     # ---- Upload / library core ----
     ("library",   "Send to Trash",   "Duplicate policy option (part of 638-book recovery flow)"),
-
-    # ---- Reader ----
     ("library",   "Continue reading", "Home / library resume block"),
+
+    # ---- Landing (unauthenticated marketing surface) ----
+    # These are the hero-strip promises. Losing them silently would tank
+    # sign-up conversion — worst-case for a marketing page regression.
+    ("landing", "Book clubs, with chapters",   "Landing feature card title"),
+    ("landing", "Fix messy metadata, in place","Landing feature card title"),
+    ("landing", "Folders that feel right",     "Landing feature card title"),
+    ("landing", "Friends who actually read",   "Landing feature card title"),
+    ("landing", "Goals & streaks (gently)",    "Landing feature card title"),
 
     # ---- Attribution / admin timeline (fragile — reconstructed heavily) ----
     ("admin-users-card", "utm_campaign",  "Attribution timeline field label"),
@@ -114,13 +177,43 @@ def _to_unicode_escape(s: str) -> str:
     return "".join(out)
 
 
+def _to_hex_escape(s: str) -> str:
+    """Return the JS ``\\xXX``-escaped form for chars 128–255.
+
+    Terser prefers the shorter ``\\xXX`` form over ``\\uXXXX`` when the
+    code point fits in one byte, so ``"·"`` (U+00B7) becomes ``"\\xb7"``
+    in the minified bundle.  Chars ≥ 256 are left in ``\\uXXXX`` form
+    (Terser will use whichever is shorter; we produce ``\\xXX`` when
+    possible)."""
+    out = []
+    for ch in s:
+        cp = ord(ch)
+        if cp < 128:
+            out.append(ch)
+        elif cp < 256:
+            out.append("\\x{:02x}".format(cp))
+        else:
+            out.append("\\u{:04x}".format(cp))
+    return "".join(out)
+
+
 def sentinel_in_bundle(needle: str, bundle_text: str) -> bool:
-    """A sentinel is present if either its raw form OR its unicode-escape
-    form appears in the bundle text."""
+    """A sentinel is present if the raw form OR any Terser-escaped form
+    appears in the bundle text.
+
+    Terser encodes non-ASCII chars in three ways depending on width:
+      * Byte-range (128–255)     → ``\\xXX``  e.g. ``·`` → ``\\xb7``
+      * Above 255                → ``\\uXXXX`` e.g. ``↔`` → ``\\u2194``
+      * Occasionally kept raw    → matches the plain UTF-8 form
+    We check all three so no false negatives.
+    """
     if needle in bundle_text:
         return True
-    escaped = _to_unicode_escape(needle)
-    if escaped != needle and escaped in bundle_text:
+    u_escaped = _to_unicode_escape(needle)
+    if u_escaped != needle and u_escaped in bundle_text:
+        return True
+    h_escaped = _to_hex_escape(needle)
+    if h_escaped != needle and h_escaped != u_escaped and h_escaped in bundle_text:
         return True
     return False
 

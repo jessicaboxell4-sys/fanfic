@@ -7,6 +7,44 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-07-12 — Text-sentinel expansion + Terser hex-escape fix (iter 88 continued)
+
+Grew the sentinel table from 24 → 73 checks so every admin card + the
+Landing hero features are now guarded. Also fixed a subtle bug in the
+sentinel script that would have false-negatived any sentinel containing
+a Latin-1-range char.
+
+### Shipped
+
+- **`scripts/deploy_text_sentinel.py`** grew to 73 sentinels:
+  - Every admin card now has a title or unique subtitle sentinel
+    (24 admin cards × 1-2 strings each).
+  - 5 Landing feature-card titles added ("Book clubs, with chapters",
+    "Fix messy metadata, in place", "Folders that feel right",
+    "Friends who actually read", "Goals & streaks (gently)").
+  - Added a `Copy sentinel` sentinel for the companion pill itself
+    (self-guard — if the pill ever disappears from prod, the check
+    will notice).
+- **Terser hex-escape fix** in ``sentinel_in_bundle()``. Terser encodes
+  chars 128–255 as ``\xXX`` (e.g. ``·`` → ``\xb7``), not ``\uXXXX``.
+  The old script only checked ``\uXXXX`` and would have missed every
+  sentinel containing ``·``. Added ``_to_hex_escape()`` that produces
+  the ``\xXX`` form; ``sentinel_in_bundle`` now tries raw / ``\uXXXX``
+  / ``\xXX`` in order.
+
+### Current state on prod
+
+- 72 / 73 sentinels present.
+- 1 miss: `Copy sentinel` on `admin-drift-status-card` — legitimate,
+  hasn't been deployed yet. Will flip to green after the next deploy.
+
+The admin card correctly renders the "1 copy string missing" pill
+with an expandable list — confirmed via screenshot with the missing
+list showing the exact ``surface — "needle"  · note`` triple.
+
+---
+
+
 ## 2026-07-12 — Text-sentinel hourly cron + admin surface (iter 88 continued)
 
 Sister guard to the drift monitor. Drift covers **testid** regressions;
