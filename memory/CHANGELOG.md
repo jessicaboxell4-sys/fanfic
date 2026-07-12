@@ -7,6 +7,46 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-07-12 — Pre-deploy hardening: help docs, fulltext bug, test suite
+
+Deployment-readiness sweep after the operator asked "are we ready to deploy?"
+
+### Shipped
+
+- **Fixed `routes/fulltext.py` background bug**: when a book doc had
+  `user_id=null`, the backfill task crashed on `STORAGE_DIR / None`.
+  Added a `user_id` type-filter to the Mongo query and a defensive
+  skip inside the loop. Task no longer spams the error log.
+- **Help pages updated**:
+  - `AdminHelp.jsx` — new `data` category "Data & diagnostics" with
+    two sections: *My library diagnostics* and *Notification
+    preferences*. Both cross-linked to their admin console cards.
+  - `Help.jsx` — extended the Duplicates paragraph with the new
+    "Keep only the latest" per-group + bulk workflow and the Trash
+    "reclaimed X MB" cheer.
+- **Backend regression suite** (iter 85, 12/12 pass) covering:
+  auth boundary on both new endpoints, 404 missing-keeper / 400
+  no-duplicates, keeper-newest and dup-newest state transitions,
+  bulk keep-latest-all rollup (`groups_resolved=3, promoted_count=1,
+  trashed_count=4`), idempotent zero-group call, `/trash/empty
+  bytes_freed` math, `not-duplicate` regression, and `created_at`
+  presence on quarantine responses.
+- **New pytest**: `/app/tests/test_quarantine_keep_latest.py`.
+
+### Code-review notes from testing agent (parked, not blocking)
+- `library_quarantine.py` is now 671 lines — approaching the split
+  threshold. `_apply_keep_latest_to_group` (~130 lines) is a natural
+  extraction candidate.
+- Per-group updates use N+2 sequential `update_one` calls; a single
+  `bulk_write` with `UpdateOne` ops would be lighter under contention.
+- `keep_latest_all_groups` could replace the pending-books scan with a
+  `distinct("duplicate_of.book_id", user_filter)` to save memory on
+  huge accounts.
+- Consider adding `keeper_category` to the response for cleaner UI.
+- `/trash/empty` currently reports `bytes_freed=0` when files exist
+  only on R2 and `size_bytes` was never populated at upload time —
+  worth a follow-up when we backfill that field.
+
 ## 2026-07-12 — "Trash emptied" cheer nudge
 
 Second entry in the nudge registry. Closes the cleanup loop:
