@@ -15,6 +15,7 @@ import MongoInspectorCard from "../components/MongoInspectorCard";
 import ModerationLogCard from "../components/ModerationLogCard";
 import AdminAnalyticsCard from "../components/AdminAnalyticsCard";
 import OneTimeTip from "../components/OneTimeTip";
+import { NUDGE_PREFS, getNudgePref, setNudgePref, subscribeToNudgePrefs } from "../lib/nudgePrefs";
 
 // ---------------------------------------------------------------------------
 // Page-level "Expand all / Collapse all" broadcast
@@ -88,6 +89,7 @@ const ADMIN_CARD_MANIFEST = [
   { testid: "admin-canary-card", category: "system", title: "Production canary", subtitle: "7-day uptime sparkline from the nightly smoke-canary workflow.", keywords: "canary smoke production uptime sparkline workflow github actions monitor health" },
   { testid: "admin-drift-status-card", category: "system", title: "Prod ↔ source drift", subtitle: "Hourly parity check between the live prod bundle and the preview source. Green = safe to deploy.", keywords: "drift prod source parity testid regression deploy safety hourly monitor missing bundle compiled reverse-engineered reconstruct guard" },
   { testid: "admin-library-diagnostics-card", category: "data", title: "My library diagnostics", subtitle: "Reconcile expected vs actual book counts for your own account after bulk uploads.", keywords: "library diagnostics count breakdown trash cadence duplicates upload recovery reconcile totals category buckets by day admin self mine 2000 recovery" },
+  { testid: "admin-nudge-preferences-card", category: "data", title: "Notification preferences", subtitle: "Turn celebration toasts and other in-app nudges on or off per browser.", keywords: "notification preferences nudge toast celebration opt in opt out toggle celebrate dopamine housekeeping settings" },
   { testid: "admin-re-extract-links-card", category: "data", title: "Backfill EPUB links", subtitle: "Re-run the link extractor on existing books to pick up reconstructed Storyid URLs.", keywords: "backfill links epub storyid fanfiction.net url reconstruction source extract reextract reprocess" },
   { testid: "admin-llm-key-health-card", category: "system", title: "LLM key health", subtitle: "Universal Key balance + 7-day burn rate + days of runway.", keywords: "llm key health balance burn rate runway days remaining claude nano banana cost spend usage emergent universal key cliff warning" },
   { testid: "admin-unknown-fandoms-card", category: "system", title: "Unknown fandoms", subtitle: "Fandoms not yet in the keyword classifier.", keywords: "unknown fandoms classifier rescan dismiss missing tag" },
@@ -6173,20 +6175,21 @@ function LibraryDiagnosticsCard() {
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
   const [justCleaned, setJustCleaned] = useState(false);
-  const CELEBRATE_KEY = "shelfsort.diagnostics.celebrate";
-  const [celebrate, setCelebrate] = useState(() => {
-    try {
-      const v = window.localStorage.getItem(CELEBRATE_KEY);
-      return v === null ? true : v === "1";
-    } catch { return true; }
-  });
+  const [celebrate, setCelebrate] = useState(() =>
+    getNudgePref("celebrate_clean_duplicates"),
+  );
 
-  const toggleCelebrate = () => {
-    const next = !celebrate;
-    setCelebrate(next);
-    try { window.localStorage.setItem(CELEBRATE_KEY, next ? "1" : "0"); } catch { /* ignore */ }
-    if (!next) setJustCleaned(false);
-  };
+  // Keep in sync when the operator flips the toggle in the central
+  // "Notification preferences" card.
+  useEffect(() => {
+    const unsub = subscribeToNudgePrefs((key, value) => {
+      if (key === "celebrate_clean_duplicates") {
+        setCelebrate(value);
+        if (!value) setJustCleaned(false);
+      }
+    });
+    return unsub;
+  }, []);
 
   const load = async () => {
     setLoading(true);
@@ -6194,9 +6197,8 @@ function LibraryDiagnosticsCard() {
     try {
       const { data: resp } = await api.get("/admin/my-library-diagnostics");
       // --- Celebration: excess just transitioned from >0 to 0 ---------------
-      // Gated by the per-user opt-in flag so operators who don't want the
-      // dopamine hit can silence it.  State persists across refreshes so
-      // the celebration fires exactly once per cleanup.
+      // Gated by the `celebrate_clean_duplicates` nudge pref so operators
+      // who don't want the dopamine hit can silence it centrally.
       try {
         const KEY = "shelfsort.diagnostics.lastExcess";
         const prevRaw = window.localStorage.getItem(KEY);
@@ -6424,25 +6426,100 @@ function LibraryDiagnosticsCard() {
             >
               {copied ? "Copied ✓" : "Copy report"}
             </button>
-            <label
-              className="ml-auto inline-flex items-center gap-1.5 text-[11px] text-[#5B5F4D] cursor-pointer select-none"
-              title="When on, we show a small 🎉 toast the moment your library reaches 0 duplicates."
-            >
-              <input
-                type="checkbox"
-                checked={celebrate}
-                onChange={toggleCelebrate}
-                data-testid="admin-library-diagnostics-celebrate-toggle"
-                className="w-3 h-3 accent-[#6B46C1]"
-              />
-              Celebrate when clean
-            </label>
+            <span className="ml-auto text-[10px] text-[#5B5F4D] italic">
+              Manage the 🎉 toast in the <em>Notification preferences</em> card.
+            </span>
           </div>
         </div>
       )}
     </Card>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Notification preferences (2026-07-12).  Central home for every in-app
+// nudge/celebration toast defined in ../lib/nudgePrefs.  Adding a new
+// entry to NUDGE_PREFS automatically renders a toggle here — no UI
+// changes required.
+function NudgePreferencesCard() {
+  const [values, setValues] = useState(() => {
+    const out = {};
+    for (const p of NUDGE_PREFS) out[p.key] = getNudgePref(p.key);
+    return out;
+  });
+
+  const toggle = (key) => {
+    const next = !values[key];
+    setValues((prev) => ({ ...prev, [key]: next }));
+    setNudgePref(key, next);
+  };
+
+  // Group by the human-readable `category` field so future additions cluster
+  // (e.g. "Library upkeep", "Community", "Reading", …).
+  const grouped = NUDGE_PREFS.reduce((acc, p) => {
+    const cat = p.category || "General";
+    (acc[cat] = acc[cat] || []).push(p);
+    return acc;
+  }, {});
+
+  return (
+    <Card
+      icon={Bell}
+      title="Notification preferences"
+      subtitle="Turn celebration toasts and other in-app nudges on or off per browser."
+      testid="admin-nudge-preferences-card"
+    >
+      {NUDGE_PREFS.length === 0 && (
+        <p className="text-sm text-[#5B5F4D] italic">
+          No nudges configured yet. This card lights up when the app adds
+          optional in-app celebrations or reminders.
+        </p>
+      )}
+
+      {Object.entries(grouped).map(([cat, prefs]) => (
+        <div key={cat} className="mb-4 last:mb-0" data-testid={`admin-nudge-prefs-group-${cat.toLowerCase().replace(/\s+/g, "-")}`}>
+          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#5B5F4D] mb-2">
+            {cat}
+          </p>
+          <ul className="space-y-2">
+            {prefs.map((p) => (
+              <li
+                key={p.key}
+                className="flex items-start gap-3 p-2 rounded border border-[#E4D9C8] bg-[#FBFAF6]"
+                data-testid={`admin-nudge-pref-row-${p.key}`}
+              >
+                <label className="mt-0.5 relative inline-flex items-center cursor-pointer flex-shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={!!values[p.key]}
+                    onChange={() => toggle(p.key)}
+                    data-testid={`admin-nudge-pref-toggle-${p.key}`}
+                    className="sr-only"
+                  />
+                  <div className={`w-9 h-5 rounded-full transition-colors relative ${values[p.key] ? "bg-[#6B46C1]" : "bg-[#E4D9C8]"}`}>
+                    <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all shadow ${values[p.key] ? "left-[18px]" : "left-0.5"}`} />
+                  </div>
+                </label>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-[#2C2C2C]">{p.label}</p>
+                  {p.description && (
+                    <p className="text-[11px] text-[#5B5F4D] mt-0.5">{p.description}</p>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+
+      <p className="text-[10px] text-[#5B5F4D] italic mt-3">
+        Preferences are stored in this browser only. Sign in from another device to configure them there.
+      </p>
+    </Card>
+  );
+}
+
+
 
 
 
@@ -9433,6 +9510,7 @@ export default function AdminConsole() {
                       case "admin-canary-card":                 return <CanaryCard key={c.testid} />;
                       case "admin-drift-status-card":           return <DriftStatusCard key={c.testid} />;
                       case "admin-library-diagnostics-card":    return <LibraryDiagnosticsCard key={c.testid} />;
+                      case "admin-nudge-preferences-card":      return <NudgePreferencesCard key={c.testid} />;
                       case "admin-llm-key-health-card":         return <LlmKeyHealthCard key={c.testid} />;
                       case "admin-unknown-fandoms-card":        return <UnknownFandomsCard key={c.testid} />;
                       case "admin-crossover-suggestions-card":  return <CrossoverSuggestionsCard key={c.testid} />;

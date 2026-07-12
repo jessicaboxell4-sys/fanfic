@@ -7,6 +7,41 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-07-12 — Nudge preference registry + Notification preferences card
+
+Central home for every in-app celebration/nudge, following operator
+feedback to "let the user decide" per feature. Adds a lightweight
+registry pattern so every future nudge lands with its own opt-in
+switch automatically.
+
+### Shipped
+
+- **NEW `/app/frontend/src/lib/nudgePrefs.js`** — registry + helpers
+  (`getNudgePref`, `setNudgePref`, `subscribeToNudgePrefs`). One
+  `NUDGE_PREFS` array is the single source of truth. Adding a new
+  in-app nudge is a one-liner: append an entry with
+  `{ key, localStorageKey, label, description, default, category }`.
+- **NEW `NudgePreferencesCard`** (testid
+  `admin-nudge-preferences-card`) rendered under Data & diagnostics.
+  Auto-generates a labelled toggle per registry entry, grouped by
+  `category` (currently only "Library upkeep"). Toggle uses conditional
+  classes so the thumb + track colour animate correctly.
+- **Refactored `LibraryDiagnosticsCard`** to use `getNudgePref` and
+  `subscribeToNudgePrefs`, so toggling the preference in the central
+  card immediately updates the diagnostics card without a reload.
+  Removed the inline "Celebrate when clean" checkbox — replaced with a
+  small footer hint pointing to the new card.
+- **Same localStorage key retained** (`shelfsort.diagnostics.celebrate`)
+  so existing operator preferences carry over from yesterday's toggle.
+
+### Verified in preview
+Screenshot confirms:
+- Card renders in Data & diagnostics sidebar (auto-listed).
+- "Library upkeep" group contains "Celebrate when duplicates hit zero"
+  as the sole entry.
+- Toggle click flips checked → unchecked → back, with correct visual
+  thumb travel and colour change (initial ON, click OFF, click ON).
+
 ## 2026-07-12 — Diagnostics celebration + opt-in toggle
 
 Follows the "Keep the latest" work with a small dopamine hit when the
