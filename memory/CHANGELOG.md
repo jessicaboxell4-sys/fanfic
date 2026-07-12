@@ -7,7 +7,26 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
-## 2026-07-12 — "Long-running endpoint patterns" admin doc
+## 2026-07-12 (weekly rollup) — What's new: duplicate cleanup toolkit 🎉
+
+A whole toolkit for reconciling and cleaning up duplicate books landed
+this week. If you missed the live-chat play-by-play, the highlights:
+
+- **Library diagnostics card** in Admin → Data & diagnostics. One click gives you totals, cadence, top categories, and — most importantly — how many duplicates are hiding in your library. Includes a *Copy report* button so you can share the numbers.
+- **"Rescan library"** button on `/library/quarantine`. Sweeps your whole library for duplicates that upload-time detection missed. Respects your previous *"Not a duplicate"* choices.
+- **"Keep only the latest"** per-group + bulk. Per-group button resolves one duplicate cluster with the newest copy winning. The purple toolbar button does the same across every group at once, with a live progress bar and idempotent resume behaviour so you never lose work to a network hiccup.
+- **"Trash emptied" cheer + storage reclaimed**. After you empty Trash you get a ✨ toast telling you exactly how many books went and how much storage came back. Optional (togglable).
+- **Weekly auto-rescan**. Every Sunday at 04:00 UTC Shelfsort silently reruns the library rescan. If it finds new duplicates you get a bell notification (new kind: `duplicate_rescan`). Quiet weeks: no bell.
+- **Notification preferences** card. All the new in-app nudges — celebration toast, trash cheer, weekly rescan bell — live in one place with individual toggles. Adding future nudges is a one-line registry entry.
+- **Cleanup walk-through** at `/help#cleanup-walkthrough`. 6-step numbered flow tying every tool together end-to-end.
+- **Fewer silent ceilings**: the internal `to_list(5000)` cap that could quietly truncate export/digest/bulk-op data was lifted across 8 endpoints. Restore endpoint parallelized (200 books restored in 6.6s vs previously sequential).
+
+Want to try it now? Open `/library/quarantine` and hit **"Rescan library"**.
+Or go to your admin console → *Data & diagnostics* → *My library diagnostics*
+and hit *Copy report* to see where you stand.
+
+---
+## 2026-07-12 — Long-running endpoint patterns admin doc
 
 Documents when to reach for each anti-timeout pattern so future
 handlers don't recreate the same Cloudflare-524 bug.
