@@ -74,6 +74,10 @@ NOTIFICATION_CATALOG: List[Dict[str, Any]] = [
     {"kind": "reengagement_stuck", "group": "Engagement",
      "label": "Stuck-book reminder",
      "description": "Sunday nudge listing books you started but haven\u2019t touched in 14+ days.", "mutable": True},
+    # --- Library upkeep ---
+    {"kind": "duplicate_rescan", "group": "Library upkeep",
+     "label": "Weekly duplicate-rescan digest",
+     "description": "Sunday sweep of your library that flags likely duplicates missed at upload time. Auto-hides quiet weeks.", "mutable": True},
 ]
 
 KNOWN_KINDS = {c["kind"] for c in NOTIFICATION_CATALOG}

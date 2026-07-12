@@ -452,6 +452,29 @@ async def on_startup():
             )
             logger.info("Fixture auto-purge job scheduled (daily 03:00 UTC).")
 
+            # 2026-07-12 — Weekly duplicate rescan.  Catches duplicate
+            # pairs whose upload-time detection was foiled by metadata
+            # tweaks (author normalization changed, source_url added
+            # later, etc.).  Runs Sunday 04:00 UTC so it doesn't
+            # collide with the 03:00 fixture purge above.  On hits it
+            # writes an in-app notification (kind="duplicate_rescan")
+            # linking to /library/quarantine so the user can resolve
+            # via the existing "Keep only the latest" flow.
+            try:
+                from utils.duplicate_rescan_cron import weekly_duplicate_rescan_tick
+                digest._scheduler.add_job(
+                    wrap_cron_job(weekly_duplicate_rescan_tick, "duplicate_rescan_weekly"),
+                    "cron",
+                    day_of_week="sun",
+                    hour=4,
+                    minute=0,
+                    id="duplicate_rescan_weekly",
+                    replace_existing=True,
+                )
+                logger.info("Weekly duplicate rescan scheduled (Sun 04:00 UTC).")
+            except Exception as e:
+                logger.warning("Weekly duplicate rescan failed to schedule: %s", e)
+
             # ClamAV watchdog — auto-pauses uploads if the scanner has
             # been unreachable for AV_DOWN_THRESHOLD_MIN minutes
             # straight.  Runs every minute so the longest a real outage

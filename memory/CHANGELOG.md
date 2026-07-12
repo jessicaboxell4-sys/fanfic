@@ -7,6 +7,40 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-07-12 — Weekly duplicate-rescan cron + in-app notification
+
+Follows the on-demand rescan with an automatic one so missed duplicates
+surface even when the user doesn't remember to click.
+
+### Shipped
+
+- **NEW cron** `duplicate_rescan_weekly` — registered on the APScheduler
+  instance already used by the digest + fixture purge.  Fires every
+  Sunday at 04:00 UTC (04:00 avoids the 03:00 fixture-purge job).
+- **NEW `utils/duplicate_rescan_cron.py`** — iterates every user with
+  at least one non-trash book (fetched via cheap `db.books.distinct`
+  on the `(user_id, category)` index), calls
+  `_run_rescan_for_user(uid)`, and drops an in-app notification when
+  `new_flagged > 0`.  Quiet weeks produce zero notifications.
+- **NEW notification kind** `duplicate_rescan` (mutable = True, group
+  "Library upkeep"), added to `NOTIFICATION_CATALOG` in
+  `routes/notifications.py`.  Users can silence via the standard
+  notification-mute page.
+- **Refactor**: extracted `_run_rescan_for_user(user_id)` helper from
+  the API endpoint so cron and endpoint share the exact same logic.
+- **`AdminHelp.jsx`** updated with the cron schedule + mute
+  instructions.
+
+### Verified locally
+Seeded a user with 3 books (2 obvious dupes, 1 standalone), ran the
+cron function directly:
+- `users_scanned=38, total_new_flags=2, users_notified=2, errors=0,
+  elapsed=0.11s`
+- The seeded user got a notification: *"1 new likely duplicate found"*
+  with link `/library/quarantine`.
+- The seeded duplicate row had `duplicate_pending=True` and
+  `quarantined_via="rescan"`.
+
 ## 2026-07-12 — On-demand "Scan library for duplicates"
 
 Operator's diagnostic reported 338 duplicate groups after a resolve pass,

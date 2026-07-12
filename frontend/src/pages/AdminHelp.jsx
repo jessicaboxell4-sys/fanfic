@@ -710,6 +710,10 @@ export default function AdminHelp() {
               <li><strong>Cheer when Trash is emptied</strong> — after <em>Empty Trash</em> succeeds with at least one book deleted, shows ✨ with count + storage reclaimed (KB / MB / GB, when the size is known).</li>
             </ul>
             <p>
+              Separately, a <strong>weekly cron</strong> runs every Sunday at 04:00 UTC that rescans every active user&apos;s library for missed duplicates. When it finds any, it drops an in-app bell notification (kind{" "}
+              <code>duplicate_rescan</code>) linking to <Link to="/library/quarantine" className="text-[#6B46C1] underline">/library/quarantine</Link>. Quiet weeks emit no notification. Users can mute the whole kind via their standard notification-mute settings.
+            </p>
+            <p>
               Under the hood: <code>frontend/src/lib/nudgePrefs.js</code>
               exposes an array <code>NUDGE_PREFS</code>. Adding a new nudge
               is one entry — the toggle appears automatically. Features

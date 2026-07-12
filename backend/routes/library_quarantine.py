@@ -719,7 +719,15 @@ async def rescan_library_for_duplicates(user: User = Depends(get_current_user)):
     """Sweep the caller's non-trash library and quarantine likely duplicates
     that weren't caught at upload time.
 
-    Returns::
+    Delegates to :func:`_run_rescan_for_user` so the same logic can be
+    triggered by the weekly cron in ``utils/duplicate_rescan_cron.py``.
+    """
+    return await _run_rescan_for_user(user.user_id)
+
+
+async def _run_rescan_for_user(user_id: str) -> Dict[str, Any]:
+    """Rescan logic factored out for both the API endpoint and the
+    weekly cron.  Returns::
 
         {
             scanned, groups_found, new_flagged, already_flagged,
@@ -730,7 +738,7 @@ async def rescan_library_for_duplicates(user: User = Depends(get_current_user)):
     #    flagged, not already replaced by another book).
     cursor = db.books.find(
         {
-            "user_id": user.user_id,
+            "user_id": user_id,
             "category": {"$nin": [TRASH_SHELF, OLD_STORIES_SHELF]},
             "duplicate_pending": {"$ne": True},
             "replaced_by": {"$exists": False},
@@ -795,7 +803,7 @@ async def rescan_library_for_duplicates(user: User = Depends(get_current_user)):
     #    tuple → per pair.  We drop any candidate pair the user
     #    already told us to ignore.
     dismissals_cursor = db.duplicate_dismissals.find(
-        {"user_id": user.user_id},
+        {"user_id": user_id},
         {"_id": 0, "signature": 1},
     )
     dismissed_sigs: set = set()
@@ -842,7 +850,7 @@ async def rescan_library_for_duplicates(user: User = Depends(get_current_user)):
             if not reasons:
                 reasons = ["title+author"]
             res = await db.books.update_one(
-                {"book_id": dup["book_id"], "user_id": user.user_id},
+                {"book_id": dup["book_id"], "user_id": user_id},
                 {
                     "$set": {
                         "duplicate_pending": True,
