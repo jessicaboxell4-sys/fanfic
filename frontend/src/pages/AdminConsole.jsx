@@ -6172,12 +6172,29 @@ function LibraryDiagnosticsCard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [justCleaned, setJustCleaned] = useState(false);
 
   const load = async () => {
     setLoading(true);
     setError(null);
     try {
       const { data: resp } = await api.get("/admin/my-library-diagnostics");
+      // --- Celebration: excess just transitioned from >0 to 0 ---------------
+      // We persist the last-seen excess in localStorage so the celebration
+      // fires exactly once when the operator finishes their cleanup and
+      // never re-fires on subsequent refreshes.
+      try {
+        const KEY = "shelfsort.diagnostics.lastExcess";
+        const prevRaw = window.localStorage.getItem(KEY);
+        const prev = prevRaw == null ? null : parseInt(prevRaw, 10);
+        const nextExcess = resp?.duplicates?.excess ?? 0;
+        if (prev != null && prev > 0 && nextExcess === 0) {
+          toast.success("🎉 All duplicates resolved! Your library is squeaky clean.", { duration: 6000 });
+          setJustCleaned(true);
+          setTimeout(() => setJustCleaned(false), 20000);
+        }
+        window.localStorage.setItem(KEY, String(nextExcess));
+      } catch { /* localStorage unavailable — silent */ }
       setData(resp);
     } catch (e) {
       setError(e?.response?.data?.detail || "Failed to load diagnostics");
@@ -6297,6 +6314,14 @@ function LibraryDiagnosticsCard() {
                 ? "No likely duplicate groups detected."
                 : `${data.duplicates.groups} duplicate group${data.duplicates.groups === 1 ? "" : "s"} · ${data.duplicates.excess} excess book${data.duplicates.excess === 1 ? "" : "s"} could be removed`}
             </p>
+            {justCleaned && data.duplicates.groups === 0 && (
+              <p
+                data-testid="admin-library-diagnostics-just-cleaned"
+                className="mt-1 text-[11px] font-medium text-[#2F6E60]"
+              >
+                🎉 You just cleaned this up. Empty Trash next to reclaim the storage.
+              </p>
+            )}
             <p className="text-[11px] mt-0.5 opacity-80">
               Match by normalized title + author or shared source URL. Use the <em>Duplicates</em> page in the library to review.
             </p>
