@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import {
   ArrowLeft, Shield, Inbox, Users, HardDrive, AlertOctagon, Database,
   Mail, ShieldAlert, FlaskConical, BarChart3, MessageSquare, Pause,
-  Trash2, Sparkles, Eye, Bell, Send, History, LifeBuoy, ChevronDown,
+  Trash2, Sparkles, Eye, Bell, Send, History, LifeBuoy, ChevronDown, Layers,
 } from "lucide-react";
 import WhatsNewFeed from "@/components/WhatsNewFeed";
 
@@ -54,6 +54,7 @@ const SECTIONS = [
   { id: "changelog",        label: "Recent changelog",        icon: History,        category: "system" },
   { id: "troubleshooting",  label: "Troubleshooting & slowness", icon: LifeBuoy,    category: "system" },
   { id: "library-diagnostics", label: "My library diagnostics", icon: BarChart3,    category: "data" },
+  { id: "duplicate-cleanup",   label: "Duplicate cleanup toolkit", icon: Layers,     category: "data" },
   { id: "nudge-prefs",      label: "Notification preferences", icon: Bell,          category: "data" },
 ];
 
@@ -694,6 +695,84 @@ export default function AdminHelp() {
             <p>
               Endpoint: <code>GET /api/admin/my-library-diagnostics</code>.
               Returns in ~50 ms even against a 4 k-book account.
+            </p>
+          </Section>
+
+          <Section id="duplicate-cleanup" icon={Layers} title="Duplicate cleanup toolkit">
+            <p>
+              Everything about resolving duplicate books lives on{" "}
+              <Link to="/library/quarantine" className="text-[#6B46C1] underline">/library/quarantine</Link>.
+              The page shows one group per keeper: keeper on top, quarantined
+              duplicates below, per-row action buttons on each dup.
+            </p>
+            <h4 className="mt-4 mb-1 font-semibold text-[#2C2C2C]">Per-group &ldquo;Keep only the latest&rdquo;</h4>
+            <p>
+              Purple button in the group header. Picks the row with the newest{" "}
+              <code>created_at</code> across keeper + all duplicates:
+            </p>
+            <ul>
+              <li>If <strong>keeper is newest</strong>: every duplicate lands in Trash with a 30-day grace.</li>
+              <li>If <strong>a duplicate is newest</strong>: that dup is <em>promoted</em> via the same <code>new_version</code> flow used by the row-level Promote button — old keeper archived to <em>Old stories</em> with <code>replaced_by</code> set (reading progress preserved), other duplicates → Trash.</li>
+            </ul>
+            <p>
+              Endpoint: <code>POST /api/library/quarantine/group/{"{keeper_book_id}"}/keep-latest</code>.
+              Returns <code>{"{winner_book_id, promoted, keeper_archived, trashed_ids, trashed_count}"}</code>.
+            </p>
+
+            <h4 className="mt-4 mb-1 font-semibold text-[#2C2C2C]">Bulk &ldquo;Keep the latest in all N groups&rdquo;</h4>
+            <p>
+              Solid purple toolbar button. Loops the per-group logic across every
+              quarantine group with a <strong>live progress bar</strong>. Batches
+              of 100 groups per HTTP call keep us safely under Cloudflare&apos;s
+              120 s edge timeout. Testid <code>quarantine-keep-latest-all</code>.
+            </p>
+            <ul>
+              <li>Endpoint: <code>POST /api/library/quarantine/keep-latest-all?limit=100</code>. Returns <code>{"{groups_processed, groups_resolved, groups_skipped, trashed_count, promoted_count, has_more, remaining}"}</code>.</li>
+              <li>Frontend keeps calling until <code>has_more=false</code>, safety cap 50 iterations (5 000 groups max per click).</li>
+              <li>Mid-loop failure: toast tells the user how many were resolved and prompts them to click again — the discovery step only sees remaining quarantined books so <em>the retry is idempotent</em>.</li>
+            </ul>
+
+            <h4 className="mt-4 mb-1 font-semibold text-[#2C2C2C]">&ldquo;Rescan library&rdquo; (on-demand)</h4>
+            <p>
+              Two entry points: hero button on the empty-state view, subtle
+              &ldquo;Rescan library&rdquo; button next to the summary when the
+              queue has content. Sweeps every non-trash / non-Old-stories book
+              the caller owns, union-finds duplicates by normalized{" "}
+              <code>(title, author)</code> + shared <code>source_url</code>,
+              elects the <em>oldest</em> row in each cluster as keeper, and
+              stamps <code>duplicate_pending</code> + <code>quarantined_via: &quot;rescan&quot;</code>{" "}
+              on the newer members. Respects <code>duplicate_dismissals</code>{" "}
+              (pairs the user previously said aren&apos;t duplicates).
+            </p>
+            <p>
+              Endpoint: <code>POST /api/library/quarantine/rescan</code>.
+              Returns <code>{"{scanned, groups_found, new_flagged, already_flagged, skipped_by_dismissal, note}"}</code>.
+              A 2 k-book library completes in ~50 ms.
+            </p>
+
+            <h4 className="mt-4 mb-1 font-semibold text-[#2C2C2C]">Weekly automatic rescan (cron)</h4>
+            <p>
+              APScheduler job <code>duplicate_rescan_weekly</code> runs every{" "}
+              <strong>Sunday at 04:00 UTC</strong> (04:00 avoids the 03:00 fixture
+              purge). Iterates every user with at least one non-trash book,
+              calls the same <code>_run_rescan_for_user</code> helper as the
+              endpoint, and drops an in-app notification when{" "}
+              <code>new_flagged &gt; 0</code>. Quiet weeks: no notification.
+            </p>
+            <ul>
+              <li>Notification kind: <code>duplicate_rescan</code> (mutable, group &ldquo;Library upkeep&rdquo;). Users can silence via <Link to="/account" className="text-[#6B46C1] underline">/account</Link> notification preferences.</li>
+              <li>Handler: <code>utils/duplicate_rescan_cron.py :: weekly_duplicate_rescan_tick()</code>. Logs a summary line every run (<code>users_scanned</code>, <code>total_new_flags</code>, <code>users_notified</code>, <code>errors</code>, <code>elapsed_seconds</code>).</li>
+              <li>Registration: <code>server.py</code> startup, guarded by a try/except that logs a warning if scheduling fails.</li>
+            </ul>
+
+            <h4 className="mt-4 mb-1 font-semibold text-[#2C2C2C]">Trash-empty cheer + storage reclaimed</h4>
+            <p>
+              After the resolve pass, users empty Trash to reclaim storage.{" "}
+              <code>POST /api/trash/empty</code> now also returns{" "}
+              <code>bytes_freed</code> (sum of book <code>size_bytes</code>{" "}
+              for R2-hosted files + local sidecar file sizes). The Trash page
+              renders a ✨ toast with count + reclaimed size when the{" "}
+              <em>Cheer when Trash is emptied</em> nudge preference is on.
             </p>
           </Section>
 

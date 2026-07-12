@@ -894,7 +894,14 @@ export default function Help() {
               <p>
                 <strong>Cleaning up a big pile at once.</strong> Head to <Link to="/library/quarantine" className="text-[#6B46C1] underline">/library/quarantine</Link> to review flagged duplicates.
                 Each group has a purple <em>&ldquo;Keep only the latest&rdquo;</em> button that resolves the whole group in one click — the row with the newest <code>created_at</code> wins; if it&rsquo;s a duplicate we <em>promote</em> it (the older keeper is archived to <Link to="/library/old-stories" className="text-[#6B46C1] underline">Old stories</Link> with reading progress preserved) and the rest go to <Link to="/library/trash" className="text-[#6B46C1] underline">Trash</Link>.
-                Or use the toolbar <em>&ldquo;Keep the latest in all N groups&rdquo;</em> button to run that logic across every group at once (one confirmation, everything else lands in Trash with a 30-day grace period so you can always restore).
+                Or use the toolbar <em>&ldquo;Keep the latest in all N groups&rdquo;</em> button to run that logic across every group at once — it runs in batches of 100 with a <strong>live progress bar</strong>, so it stays under the Cloudflare 120-second edge timeout even for thousands of groups. If it&rsquo;s interrupted, clicking again resumes from where it stopped (fully idempotent).
+              </p>
+              <p>
+                <strong>Feel like duplicates are hiding?</strong> The same page has a <em>&ldquo;Rescan library&rdquo;</em> button (empty-state and in the toolbar). It sweeps your whole non-trash library, catches any duplicate pairs that upload-time detection missed (e.g. author normalization changed after upload, source_url added later, or a book restored from Old stories), and flags the newer copy into the queue so you can resolve it with the same buttons. Respects any <em>&ldquo;Not a duplicate&rdquo;</em> choices you&rsquo;ve made in the past.
+              </p>
+              <p>
+                <strong>Weekly auto-rescan.</strong> Every Sunday at 04:00 UTC Shelfsort quietly re-runs the same sweep across your library. If it finds anything new, you&rsquo;ll get a bell notification (kind{" "}
+                <code>duplicate_rescan</code>) linking straight to the Duplicates page. Quiet weeks: no notification. Don&apos;t want it? Silence the <em>Library upkeep</em> group from your <Link to="/account" className="text-[#6B46C1] underline">Account</Link> notification settings.
               </p>
               <p>
                 <strong>Wrapping up: emptying Trash.</strong> After you&rsquo;ve resolved the pile, drop by <Link to="/library/trash" className="text-[#6B46C1] underline">Trash</Link> to permanently delete. Shelfsort shows a ✨ toast with the book count and how much storage you reclaimed. Both this and the &ldquo;you finished cleaning duplicates&rdquo; 🎉 toast are opt-in — admins can turn them off in the <em>Notification preferences</em> card on the admin console.
