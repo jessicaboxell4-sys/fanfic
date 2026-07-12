@@ -735,7 +735,6 @@ async def _run_rescan_for_user(user_id: str) -> Dict[str, Any]:
         }
     """
     # 1. Pull every candidate (non-trash, non-Old-stories, not already
-    # 1. Pull every candidate (non-trash, non-Old-stories, not already
     #    flagged, not already replaced by another book). Filter is
     #    centralized in ``utils.dupe_queries`` so admin diagnostics and
     #    this endpoint stay in sync.

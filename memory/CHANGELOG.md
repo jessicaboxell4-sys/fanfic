@@ -7,6 +7,73 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-07-12 — Housekeeping: shared helpers extracted (iter 87)
+
+Post-cleanup-toolkit refactor session to prevent the drift bugs that
+caused iter 86's Bug 1 (diagnostic vs rescan filter mismatch) and Bug 2
+(silent EPUB-hydration skip repeated at 6 sites).
+
+### Shipped
+
+- **NEW `utils/storage_hydration.py`**:
+  - ``hydrate_epub_if_missing(user_id, book_id, ext=".epub") -> Path | None``
+    (async, uses ``asyncio.to_thread`` to call the sync
+    ``ensure_local_cached``).
+  - ``hydrate_epub_if_missing_sync(...)`` for callers already running
+    on a worker thread (``run_in_executor`` bodies).
+  - Both return ``None`` when the file still isn't available after
+    hydration, logging a warning so silent-skip regressions stay
+    visible.
+
+- **NEW `utils/dupe_queries.py::active_dupe_candidates_query(uid)`**:
+  Canonical Mongo filter for "books that should be considered when
+  scanning for duplicates".  Import-time cross-check assertion
+  against ``utils.constants.TRASH_SHELF`` catches rename drift
+  immediately at startup.
+
+### Replaced (behaviour identical to iter 86 baseline)
+
+- ``bulk_ops.py::reclassify_all`` (line ~75)
+- ``books.py`` × 4 sites (shelf-bucket export, all-links txt,
+  per-book links regen, relationships backfill)
+- ``user_prefs.py::_run_template_sweep._process_one`` (sync variant)
+- ``admin.py::my_library_diagnostics`` (dup_cursor filter)
+- ``library_quarantine.py::_run_rescan_for_user`` (dup candidate cursor)
+
+### Verified (iter 87, 9/9 pass, 0 critical/minor)
+- All 7 modules import cleanly at boot.
+- ``active_dupe_candidates_query('foo')`` returns exactly the
+  canonical shape.
+- ``/admin/my-library-diagnostics`` schema unchanged.
+- Rescan seeded 5-book scenario: flags exactly 2 groups (title/author
+  + shared source_url), leaves standalone.
+- ``keep-latest`` per-group and ``keep-latest-all`` still work.
+- ``/books/reclassify-all`` with 0 unclassified returns ``{processed:
+  0, changed: 0}`` cleanly.
+- ``/trash/empty`` still returns ``{deleted, bytes_freed}``.
+
+### Deferred from the code-review comments (with reason)
+
+- **`ensure_local_cached` → status enum**: helper has 20+ callers
+  across the codebase; changing the return type is a wider API
+  break than warranted for this session.  Add a ticket:
+  return ``(status: Enum, path: Path | None)`` tuple so callers
+  can distinguish "R2 says 404" from "R2 auth broken".
+- **`books.py` split by concern**: file is now 4,451 lines, well
+  past the 700-line threshold.  Splitting into
+  ``routes/exports_links.py`` + ``routes/relationships.py`` would
+  need careful review of every route registration + full retest.
+  Not urgent — no incident depending on it.  Add ticket.
+- **Route-level top-of-module imports** for the new helpers (vs
+  in-function): all 6 sites still do a late import.  Cosmetic,
+  no perf impact (Python caches module imports).  Add ticket.
+
+### Cleanup patches applied inline this session
+- Removed duplicate comment block in
+  ``library_quarantine.py::_run_rescan_for_user`` (harmless leftover
+  from the refactor).
+- Added constants drift-check assertion in ``utils/dupe_queries.py``.
+
 ## 2026-07-12 — Silent-skip anti-pattern audit + fixes across 6 sites
 
 Bug #2 in the previous entry was a broader class of issue: any

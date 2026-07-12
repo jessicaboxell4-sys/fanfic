@@ -14,10 +14,28 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-# Kept in sync with the constants used across the routes module tree.
-# These are string categories on the books collection.
+# ---------------------------------------------------------------------------
+# Shelf-category constants.
+# ---------------------------------------------------------------------------
+# We deliberately re-declare these here so this module has no upstream
+# dependencies on ``routes.*`` (which would create a circular import via
+# ``routes.library_quarantine``).  A cross-check assertion below catches
+# drift the moment either canonical constant changes.
 TRASH_SHELF = "Trash"
 OLD_STORIES_SHELF = "Old stories"
+
+# Cross-check the local re-declaration against the canonical value in
+# ``utils.constants``.  If a future rename happens over there, this
+# assertion fires at import time (backend startup) instead of quietly
+# producing wrong duplicate counts weeks later.
+try:
+    from utils.constants import TRASH_SHELF as _CANONICAL_TRASH  # noqa: WPS433
+    assert TRASH_SHELF == _CANONICAL_TRASH, (
+        f"utils/dupe_queries.py TRASH_SHELF drifted from utils/constants.py: "
+        f"{TRASH_SHELF!r} vs {_CANONICAL_TRASH!r}"
+    )
+except ImportError:  # pragma: no cover — very early boot
+    pass
 
 
 def active_dupe_candidates_query(user_id: str) -> Dict[str, Any]:
