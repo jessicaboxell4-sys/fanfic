@@ -105,10 +105,7 @@ and personalization for users based on their preferred library focus.
 - Split fresh vs retried queue jobs on the admin queue dashboard
 - Pair-aware text-contrast lint v2
 - Real-stage labels on queue-summary strip ("AI classifying", "Cover gen")
-
-## Known blockers (platform-side)
-- **Save to GitHub** — RESOLVED 2026-07-11: Emergent Support rewrote
-  git history to eliminate 2.4GB bloat; `.env` files restored.
+- Wire text-sentinel script into hourly cron — ✅ **Done 2026-07-12**: `text_sentinel_monitor.py` + `GET /api/admin/text-sentinel-status` + companion pill inside `DriftStatusCard`. Ticks at :23 past each hour.
 
 ## 2026-07-10 — Library diagnostics card (this session)
 Added `/api/admin/my-library-diagnostics` + `LibraryDiagnosticsCard`

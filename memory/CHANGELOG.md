@@ -7,6 +7,44 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-07-12 — Text-sentinel hourly cron + admin surface (iter 88 continued)
+
+Sister guard to the drift monitor. Drift covers **testid** regressions;
+this covers **visible copy** regressions — the kind where a testid
+survives but the surrounding card title / empty-state line / primary
+button label silently disappears (that's how the 2026-07-09 presence-
+pill regression slipped past drift).
+
+### Shipped
+
+- **NEW `backend/utils/text_sentinel_monitor.py`** — subprocess-runs
+  ``scripts/deploy_text_sentinel.py`` on schedule, parses the summary +
+  itemised missing lines, persists a row to ``text_sentinel_results``
+  (retained ~1 week, 168 rows). Non-crashing on script errors or
+  timeouts — records ``status="error"`` / ``"timeout"`` instead.
+- **NEW `GET /api/admin/text-sentinel-status`** (admin-gated) — returns
+  the most recent row plus ``never_run: true`` when the collection is
+  empty.
+- **NEW hourly cron** in ``server.py`` startup — ``text_sentinel`` id,
+  fires at :23 past each hour (offset from the :17 drift check),
+  kicked once at boot so the endpoint has data immediately.
+- **Enhanced `DriftStatusCard`** — the same admin card now renders a
+  compact companion pill for the copy-sentinel state (green / amber /
+  red), with a show/hide list of missing sentinels grouped by surface.
+  Testids: ``admin-text-sentinel-badge``, ``-label``, ``-meta``,
+  ``-refresh``, ``-toggle``, ``-list``, ``-item-{surface}``.
+
+### Result
+
+Both checks are now green on prod:
+- Drift: **2,208 testids in prod · 0 missing from source**
+- Copy sentinel: **24 sentinels checked · 0 missing from prod bundle**
+
+Any future testid or copy regression is now detected within one hour
+of the pod picking it up, without waiting for a deploy attempt.
+
+---
+
 ## 2026-07-12 — Phase 6C-A refactor: books.py + AdminConsole.jsx split (iter 88)
 
 Long-deferred structural refactor to tame the two biggest monolith files

@@ -4903,6 +4903,11 @@ function DriftStatusCard() {
   const [row, setRow] = useState(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
+  // Text-sentinel companion — surfaces visible-copy regressions the
+  // testid drift check would miss. Same hourly cadence, tick :23.
+  const [textRow, setTextRow] = useState(null);
+  const [textLoading, setTextLoading] = useState(true);
+  const [textExpanded, setTextExpanded] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -4916,7 +4921,19 @@ function DriftStatusCard() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  const loadText = async () => {
+    setTextLoading(true);
+    try {
+      const { data } = await api.get("/admin/text-sentinel-status");
+      setTextRow(data);
+    } catch (e) {
+      setTextRow({ status: "error", error: e?.response?.data?.detail || "Failed to load" });
+    } finally {
+      setTextLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); loadText(); }, []);
 
   const status = row?.status;
   const driftCount = row?.drift_count ?? 0;
@@ -5044,6 +5061,122 @@ function DriftStatusCard() {
           The hourly cron ticks at :17 past each hour. You can also run <code className="bg-[#FDF3E1] px-1 rounded">python3 /app/scripts/deploy_drift_check.py</code> from the pod.
         </p>
       )}
+
+      {/* Text-sentinel companion — visible copy regressions the testid
+          drift check would miss. Runs at :23 past each hour. */}
+      {(() => {
+        const tNeverRun = textRow?.never_run === true;
+        const tStatus = textRow?.status;
+        const tMissingCount = textRow?.missing_count ?? 0;
+        const tMissing = textRow?.missing || [];
+        const tShowList = tMissing.length > 0;
+        let tTone, tIcon, tLabel;
+        if (textLoading) {
+          tTone = "bg-[#F5F1E4] border-[#E4D9C8] text-[#5B5F4D]";
+          tIcon = <Loader2 className="w-4 h-4 animate-spin" />;
+          tLabel = "Checking copy…";
+        } else if (tNeverRun) {
+          tTone = "bg-[#F5F1E4] border-[#E4D9C8] text-[#5B5F4D]";
+          tIcon = <Clock className="w-4 h-4" />;
+          tLabel = "Copy check not yet run";
+        } else if (tStatus === "ok" && tMissingCount === 0) {
+          tTone = "bg-[#E7F2ED] border-[#B9DAC9] text-[#2F6E60]";
+          tIcon = <ShieldCheck className="w-4 h-4" />;
+          tLabel = "All critical copy intact";
+        } else if (tStatus === "missing" || tMissingCount > 0) {
+          tTone = "bg-[#FBE2E0] border-[#F0B6B0] text-[#7C2D2A]";
+          tIcon = <AlertTriangle className="w-4 h-4" />;
+          tLabel = `${tMissingCount} copy string${tMissingCount === 1 ? "" : "s"} missing`;
+        } else if (tStatus === "timeout") {
+          tTone = "bg-[#FDF3E1] border-[#F5D48A] text-[#8C5C00]";
+          tIcon = <Clock className="w-4 h-4" />;
+          tLabel = "Last copy check timed out";
+        } else {
+          tTone = "bg-[#FDF3E1] border-[#F5D48A] text-[#8C5C00]";
+          tIcon = <AlertTriangle className="w-4 h-4" />;
+          tLabel = "Copy check errored";
+        }
+        return (
+          <div className="mt-3" data-testid="admin-text-sentinel-wrapper">
+            <div
+              data-testid="admin-text-sentinel-badge"
+              data-status={textLoading ? "loading" : (tNeverRun ? "never-run" : (tStatus === "ok" && tMissingCount === 0 ? "ok" : (tStatus === "missing" || tMissingCount > 0 ? "missing" : tStatus)))}
+              className={`flex items-start gap-3 p-2.5 rounded-lg border ${tTone}`}
+            >
+              <div className="flex-shrink-0 mt-0.5">{tIcon}</div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-xs" data-testid="admin-text-sentinel-label">
+                  Copy sentinel · {tLabel}
+                </p>
+                {!textLoading && !tNeverRun && (
+                  <p className="text-[11px] mt-0.5 opacity-80" data-testid="admin-text-sentinel-meta">
+                    {textRow?.total_checks != null && (
+                      <>
+                        <span className="tabular-nums">{textRow.total_checks}</span> sentinels checked
+                        {" · "}
+                      </>
+                    )}
+                    checked {fmtWhen(textRow?.checked_at)}
+                  </p>
+                )}
+                {textRow?.error && (
+                  <p className="text-[11px] mt-1 italic opacity-80" data-testid="admin-text-sentinel-error">{textRow.error}</p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={loadText}
+                disabled={textLoading}
+                data-testid="admin-text-sentinel-refresh"
+                className="p-1 rounded hover:bg-black/5 disabled:opacity-40 flex-shrink-0"
+                title="Refresh copy-sentinel status"
+              >
+                <RotateCcw className={`w-3.5 h-3.5 ${textLoading ? "animate-spin" : ""}`} />
+              </button>
+            </div>
+            {tShowList && (
+              <div className="mt-2">
+                <button
+                  type="button"
+                  onClick={() => setTextExpanded((v) => !v)}
+                  data-testid="admin-text-sentinel-toggle"
+                  aria-expanded={textExpanded}
+                  className="inline-flex items-center gap-1 text-xs text-[#5B5F4D] hover:text-[#2C2C2C]"
+                >
+                  {textExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                  {textExpanded ? "Hide" : "Show"} missing copy ({tMissing.length})
+                </button>
+                {textExpanded && (
+                  <ul
+                    data-testid="admin-text-sentinel-list"
+                    className="mt-2 max-h-64 overflow-y-auto rounded border border-[#E4D9C8] bg-[#FBFAF6] divide-y divide-[#E4D9C8]"
+                  >
+                    {tMissing.map((m, i) => (
+                      <li
+                        key={`${m.surface}-${m.needle}-${i}`}
+                        data-testid={`admin-text-sentinel-item-${m.surface}`}
+                        className="px-3 py-1.5 text-[11px] text-[#7C2D2A]"
+                      >
+                        <span className="font-mono text-[#5B5F4D]">{m.surface}</span>
+                        {" — "}
+                        <span className="font-mono">{JSON.stringify(m.needle)}</span>
+                        {m.note && (
+                          <span className="text-[#5B5F4D] italic"> · {m.note}</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+            {!textLoading && tNeverRun && (
+              <p className="mt-2 text-[11px] text-[#5B5F4D] italic">
+                Ticks at :23 past each hour. Manual run: <code className="bg-[#FDF3E1] px-1 rounded">python3 /app/scripts/deploy_text_sentinel.py</code>.
+              </p>
+            )}
+          </div>
+        );
+      })()}
     </Card>
   );
 }

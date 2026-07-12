@@ -167,6 +167,31 @@ async def drift_status(_user: User = Depends(require_admin)):
     return row
 
 
+@api_router.get("/admin/text-sentinel-status")
+async def text_sentinel_status(_user: User = Depends(require_admin)):
+    """Latest prod text-sentinel result.
+
+    Companion to ``/admin/drift-status``. Drift covers testids;
+    text-sentinel covers visible copy on load-bearing surfaces
+    (empty-state titles, card headers, primary action buttons). Runs
+    hourly at :23 via ``utils.text_sentinel_monitor``.
+
+    Response:
+      * ``checked_at``    — ISO timestamp of the last run
+      * ``status``        — ``"ok"`` / ``"missing"`` / ``"error"`` / ``"timeout"``
+      * ``total_checks``  — how many sentinels were scanned
+      * ``missing_count`` — how many were not found in the prod bundle
+      * ``missing``       — list of ``{surface, needle, note}`` triples
+      * ``never_run``     — True iff no result exists yet
+    """
+    from utils.text_sentinel_monitor import latest_text_sentinel_result
+    row = await latest_text_sentinel_result(db)
+    if row is None:
+        return {"never_run": True}
+    row["never_run"] = False
+    return row
+
+
 
 
 

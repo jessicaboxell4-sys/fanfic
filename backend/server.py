@@ -711,6 +711,31 @@ async def on_startup():
                 logger.info("Drift monitor scheduled (hourly at :17) + kicked at startup.")
             except Exception as e:
                 logger.warning("Drift monitor failed to schedule: %s", e)
+
+            # Proactive prod text-sentinel monitor — hourly at :23.
+            # Companion to drift_check above. Drift covers testids;
+            # this one covers visible copy (card titles, empty-state
+            # strings, primary buttons) on a curated set of
+            # load-bearing surfaces. Added 2026-07-12 alongside the
+            # books.py + AdminConsole.jsx Phase 6C-A refactor.
+            try:
+                from utils.text_sentinel_monitor import run_text_sentinel_once
+                import asyncio as _asyncio_text
+
+                async def _text_sentinel_tick():
+                    await run_text_sentinel_once(db)
+
+                digest._scheduler.add_job(
+                    wrap_cron_job(_text_sentinel_tick, "text_sentinel"),
+                    "cron",
+                    minute=23,
+                    id="text_sentinel",
+                    replace_existing=True,
+                )
+                _asyncio_text.create_task(_text_sentinel_tick())
+                logger.info("Text-sentinel monitor scheduled (hourly at :23) + kicked at startup.")
+            except Exception as e:
+                logger.warning("Text-sentinel monitor failed to schedule: %s", e)
     except Exception as e:
         logger.warning("Fixture auto-purge job failed to schedule: %s", e)
 
