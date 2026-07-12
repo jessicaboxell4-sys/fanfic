@@ -276,6 +276,7 @@ export default function Quarantine() {
   const [notDupBusyId, setNotDupBusyId] = useState(null);
   const [groupBusy, setGroupBusy] = useState(null);
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -356,22 +357,61 @@ export default function Quarantine() {
     const msg =
       `Resolve ALL ${groupCount} quarantine group${groupCount === 1 ? "" : "s"} by keeping only the newest copy in each?\n\n` +
       `~${dupCount} duplicate row${dupCount === 1 ? "" : "s"} will be reviewed. Everything except the newest copy per group lands in Trash (30-day grace, restorable).\n\n` +
-      `This is a one-way action for this page but you can undo any individual book from Trash.`;
+      `This runs in batches of 100 so it stays under the 120-second edge timeout — you'll see live progress. Safe to leave the tab focused; do not close it.`;
     if (!window.confirm(msg)) return;
+
     setBulkBusy(true);
+    // Snapshot the total we expect to process so the progress bar has a
+    // stable denominator.  Race-lost groups from concurrent tabs still
+    // count as "done" via has_more/remaining feedback.
+    const totalTarget = groupCount;
+    setBulkProgress({
+      processed: 0,
+      total: totalTarget,
+      resolved: 0,
+      promoted: 0,
+      trashed: 0,
+    });
+
+    let cumResolved = 0;
+    let cumPromoted = 0;
+    let cumTrashed = 0;
+    let cumProcessed = 0;
+    let iterations = 0;
+    const MAX_ITERATIONS = 50; // safety cap: 50 * 100 = 5,000 groups max
+
     try {
-      const { data: r } = await api.post(`/library/quarantine/keep-latest-all`);
-      const trashed = r?.trashed_count || 0;
-      const resolved = r?.groups_resolved || 0;
-      const promoted = r?.promoted_count || 0;
+      while (iterations < MAX_ITERATIONS) {
+        iterations += 1;
+        const { data: r } = await api.post(`/library/quarantine/keep-latest-all?limit=100`);
+        cumResolved += r?.groups_resolved || 0;
+        cumPromoted += r?.promoted_count || 0;
+        cumTrashed += r?.trashed_count || 0;
+        cumProcessed += r?.groups_processed || 0;
+        setBulkProgress({
+          processed: cumProcessed,
+          total: Math.max(totalTarget, cumProcessed + (r?.remaining || 0)),
+          resolved: cumResolved,
+          promoted: cumPromoted,
+          trashed: cumTrashed,
+        });
+        if (!r?.has_more) break;
+      }
+
       toast.success(
-        `Resolved ${resolved} group${resolved === 1 ? "" : "s"} · ${promoted} promoted · ${trashed} copy${trashed === 1 ? "" : "ies"} → Trash.`
+        `Resolved ${cumResolved} group${cumResolved === 1 ? "" : "s"} · ${cumPromoted} promoted · ${cumTrashed} copy${cumTrashed === 1 ? "" : "ies"} → Trash.`,
+        { duration: 6000 },
       );
       load();
     } catch (e) {
-      toast.error(e?.response?.data?.detail || "Couldn't run bulk resolve");
+      toast.error(
+        `Bulk paused after resolving ${cumResolved} group${cumResolved === 1 ? "" : "s"}. Click again to continue where it stopped.`,
+      );
+      load();
     } finally {
       setBulkBusy(false);
+      // Keep the progress card visible for 8 s so the operator can read it.
+      setTimeout(() => setBulkProgress(null), 8000);
     }
   };
 
@@ -424,13 +464,46 @@ export default function Quarantine() {
                 data-testid="quarantine-keep-latest-all"
                 disabled={bulkBusy || data.groups.length === 0}
                 onClick={keepLatestAll}
-                title="Resolve every group by keeping the newest copy in each. All older/duplicate copies land in Trash (30-day grace)."
+                title="Resolve every group by keeping the newest copy in each. Runs in batches of 100 to stay under the 120s edge timeout."
                 className="ml-auto px-3 py-1.5 rounded text-xs font-medium bg-[#6B46C1] text-white hover:bg-[#5834A8] disabled:opacity-50 inline-flex items-center gap-1.5 shadow-sm"
               >
                 {bulkBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
                 Keep the latest in all {data.groups.length} group{data.groups.length === 1 ? "" : "s"}
               </button>
             </div>
+
+            {bulkProgress && (
+              <div
+                data-testid="quarantine-bulk-progress"
+                className="mb-4 p-3 rounded border border-[#6B46C1]/30 bg-[#EDE7FB] text-sm"
+              >
+                <div className="flex items-center gap-2 mb-2 text-[#4A2E9B]">
+                  {bulkBusy ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-4 h-4" />
+                  )}
+                  <span className="font-semibold">
+                    {bulkBusy ? "Resolving groups…" : "Done."}
+                  </span>
+                  <span className="ml-auto text-xs tabular-nums" data-testid="quarantine-bulk-progress-count">
+                    {bulkProgress.processed.toLocaleString()} / {bulkProgress.total.toLocaleString()} groups
+                  </span>
+                </div>
+                <div className="w-full h-2 rounded-full bg-white overflow-hidden border border-[#6B46C1]/20">
+                  <div
+                    className="h-full bg-[#6B46C1] transition-all"
+                    style={{
+                      width: `${Math.min(100, Math.round((bulkProgress.processed / Math.max(1, bulkProgress.total)) * 100))}%`,
+                    }}
+                    data-testid="quarantine-bulk-progress-bar"
+                  />
+                </div>
+                <p className="mt-2 text-[11px] text-[#4A2E9B] tabular-nums">
+                  {bulkProgress.resolved.toLocaleString()} resolved · {bulkProgress.promoted.toLocaleString()} promoted · {bulkProgress.trashed.toLocaleString()} → Trash
+                </p>
+              </div>
+            )}
             <div className="space-y-4">
               {data.groups.map((g) => (
                 <QuarantineGroup

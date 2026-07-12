@@ -610,24 +610,44 @@ async def keep_latest_in_group(
 
 @api_router.post("/library/quarantine/keep-latest-all")
 async def keep_latest_all_groups(
+    limit: int = 100,
     user: User = Depends(get_current_user),
 ):
-    """Bulk-resolve every quarantine group by keeping the newest copy.
+    """Bulk-resolve quarantine groups by keeping the newest copy in each.
 
-    Discovers every keeper referenced by the caller's ``duplicate_pending``
-    books, applies :func:`_apply_keep_latest_to_group` to each, and returns
-    a rollup summary. Groups race-lost to concurrent row-level actions are
-    silently skipped (``reason``) rather than aborting the whole run.
+    Cloudflare's 120 s edge timeout kills a single request that walks
+    every group for large accounts (382 groups on the operator's
+    account = ~1.5 k Mongo round-trips).  We now cap each call at
+    ``limit`` groups (default 100) and return ``has_more: true`` when
+    more remain, so the caller can loop with live progress.
+
+    Returns::
+
+        {
+          ok, groups_processed, groups_resolved, groups_skipped,
+          trashed_count, promoted_count, has_more, remaining
+        }
     """
-    keeper_ids: set = set()
+    limit = max(1, min(limit, 500))
+
+    # Discover keepers with pending duplicates.  We only need the first
+    # ``limit`` unique keeper IDs — no reason to page through every
+    # duplicate row.
+    keeper_ids: List[str] = []
+    seen: set = set()
     async for d in db.books.find(
         {"user_id": user.user_id, "duplicate_pending": True},
         {"_id": 0, "duplicate_of": 1},
     ):
         for k in (d.get("duplicate_of") or []):
             kid = k.get("book_id")
-            if kid:
-                keeper_ids.add(kid)
+            if kid and kid not in seen:
+                seen.add(kid)
+                keeper_ids.append(kid)
+                if len(keeper_ids) >= limit:
+                    break
+        if len(keeper_ids) >= limit:
+            break
 
     if not keeper_ids:
         return {
@@ -637,6 +657,8 @@ async def keep_latest_all_groups(
             "groups_skipped": 0,
             "trashed_count": 0,
             "promoted_count": 0,
+            "has_more": False,
+            "remaining": 0,
         }
 
     groups_resolved = 0
@@ -657,6 +679,13 @@ async def keep_latest_all_groups(
         if r.get("promoted"):
             promoted_count += 1
 
+    # Post-batch, count how many quarantined dupes remain so the client
+    # can decide whether to keep looping.  Cheap: a single count with an
+    # index on duplicate_pending.
+    remaining = await db.books.count_documents(
+        {"user_id": user.user_id, "duplicate_pending": True},
+    )
+
     return {
         "ok": True,
         "groups_processed": len(keeper_ids),
@@ -665,6 +694,8 @@ async def keep_latest_all_groups(
         "trashed_count": trashed_count,
         "promoted_count": promoted_count,
         "skipped_reasons": skipped_reasons,
+        "has_more": remaining > 0,
+        "remaining": remaining,
     }
 
 

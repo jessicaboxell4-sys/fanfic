@@ -7,6 +7,41 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-07-12 — Batched keep-latest-all + live progress bar
+
+Operator's post-deploy diagnostics showed only 44 of 382 groups
+resolved after clicking the bulk button — Cloudflare's 120 s edge
+timeout was cutting the single-request bulk endpoint mid-loop.  Same
+pattern that hit orphan-audit and R2-migration.  Same fix.
+
+### Shipped
+
+- **`POST /api/library/quarantine/keep-latest-all` now takes
+  `?limit=100`** (default 100, capped at 500).  Discovers *at most*
+  `limit` unique keeper IDs on each call, processes them, and returns
+  `{has_more, remaining}` so the client can loop.  Every response
+  includes the standard rollup so partial progress is visible even if
+  the loop is interrupted.
+- **`Quarantine.jsx` bulk handler** now loops the endpoint until
+  `has_more=false`, accumulating `resolved / promoted / trashed`
+  counts across batches and rendering them into a purple progress
+  card with a filled bar.  Live testid
+  `quarantine-bulk-progress` / `quarantine-bulk-progress-count`
+  / `quarantine-bulk-progress-bar`.
+- Safety cap: 50 iterations × 100 = 5,000 groups max per click.
+- On mid-loop error, toast reports how many groups were completed
+  before failure and prompts the operator to click again to resume
+  (idempotent — the endpoint's discovery step only sees remaining
+  quarantined books).
+
+### Verified locally
+Seeded a 250-group / 250-duplicate account and ran the loop:
+- Batch 1: 100 processed, `remaining=150`, `has_more=true` (0.46 s)
+- Batch 2: 100 processed, `remaining=50`, `has_more=true` (0.29 s)
+- Batch 3: 50 processed, `remaining=0`, `has_more=false` (0.17 s)
+- Final state: 0 quarantined, 250 trashed, 250 keepers preserved.
+Well under Cloudflare's 120 s ceiling per call.
+
 ## 2026-07-12 — Pre-deploy hardening: help docs, fulltext bug, test suite
 
 Deployment-readiness sweep after the operator asked "are we ready to deploy?"
