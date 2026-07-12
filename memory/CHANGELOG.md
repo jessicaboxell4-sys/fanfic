@@ -7,12 +7,12 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
-## 2026-07-12 — "Keep only the latest" per-group action on Duplicates page
+## 2026-07-12 — "Keep only the latest" per-group + bulk actions on Duplicates page
 
 Cuts 470-book duplicate cleanup from 382 manual clicks × N rows to a
-single click per group. Requested by the operator after the recovery
-upload landed 470 excess duplicates that the row-by-row workflow
-would take an hour to clear.
+single click (bulk) or one click per group. Requested by the operator
+after the recovery upload landed 470 excess duplicates that the
+row-by-row workflow would take an hour to clear.
 
 ### Shipped
 
@@ -23,21 +23,28 @@ would take an hour to clear.
   `new_version` flow used by the row-level "Promote" button, keeper → Old
   stories, other duplicates → Trash. Returns `{winner_book_id, promoted,
   keeper_archived, trashed_ids, trashed_count}`.
+- **NEW `POST /api/library/quarantine/keep-latest-all`** — sequential
+  bulk pass over every quarantine group. Reuses the same per-group
+  helper (`_apply_keep_latest_to_group`) so behaviour is identical to
+  clicking each group's button one-by-one. Returns `{groups_processed,
+  groups_resolved, groups_skipped, promoted_count, trashed_count,
+  skipped_reasons}`. Race-lost groups (already resolved by another tab)
+  are silently skipped rather than aborting.
 - **`GET /api/library/quarantine`** now includes `created_at` on both
-  keeper and duplicate rows so the UI can compute the winner and preview
-  the outcome in a tooltip before the user commits.
-- **UI:** `Quarantine.jsx` group header now has a purple `Sparkles`-icon
-  "Keep only the latest" button. Confirmation dialog explains outcome
-  (either "keeper stays, duplicates → Trash" or "newer copy promoted,
-  keeper → Old stories, extras → Trash"). Toast on success reports the
-  action taken and count. Testid `quarantine-keep-latest-{keeper_id}`.
+  keeper and duplicate rows so the UI can preview the outcome.
+- **UI:** `Quarantine.jsx`
+  - Purple `Sparkles` per-group "Keep only the latest" button.
+    Testid `quarantine-keep-latest-{keeper_id}`.
+  - Toolbar button above the group list: **"Keep the latest in all N
+    groups"** — solid purple, single confirmation, one API call.
+    Testid `quarantine-keep-latest-all`.
 
 ### Verified locally
-Two scripted DB scenarios:
-1. Newest is a duplicate — dup gets promoted (`replaces` = old keeper),
-   keeper category flipped to `Old stories` with `replaced_by`, other
-   dup → Trash with expiry. ✅
-2. Newest is the keeper — keeper untouched, single duplicate → Trash. ✅
+Three scripted DB scenarios via a seeded 3-group / 6-duplicate account:
+1. Keeper-newest group — duplicates → Trash. ✅
+2. Duplicate-newest group — dup promoted, keeper → Old stories. ✅
+3. Mixed bulk of 3 groups — `{groups_resolved: 3, promoted_count: 1,
+   trashed_count: 5, still-quarantined: 0}`. ✅
 
 ---
 ## 2026-07-10 — Library Diagnostics admin card

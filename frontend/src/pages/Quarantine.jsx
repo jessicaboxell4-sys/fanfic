@@ -275,6 +275,7 @@ export default function Quarantine() {
   const [busyId, setBusyId] = useState(null);
   const [notDupBusyId, setNotDupBusyId] = useState(null);
   const [groupBusy, setGroupBusy] = useState(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -348,6 +349,32 @@ export default function Quarantine() {
     }
   };
 
+  const keepLatestAll = async () => {
+    const groupCount = data.groups.length;
+    const dupCount = data.count;
+    if (groupCount === 0) return;
+    const msg =
+      `Resolve ALL ${groupCount} quarantine group${groupCount === 1 ? "" : "s"} by keeping only the newest copy in each?\n\n` +
+      `~${dupCount} duplicate row${dupCount === 1 ? "" : "s"} will be reviewed. Everything except the newest copy per group lands in Trash (30-day grace, restorable).\n\n` +
+      `This is a one-way action for this page but you can undo any individual book from Trash.`;
+    if (!window.confirm(msg)) return;
+    setBulkBusy(true);
+    try {
+      const { data: r } = await api.post(`/library/quarantine/keep-latest-all`);
+      const trashed = r?.trashed_count || 0;
+      const resolved = r?.groups_resolved || 0;
+      const promoted = r?.promoted_count || 0;
+      toast.success(
+        `Resolved ${resolved} group${resolved === 1 ? "" : "s"} · ${promoted} promoted · ${trashed} copy${trashed === 1 ? "" : "ies"} → Trash.`
+      );
+      load();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't run bulk resolve");
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#FAF6EE]">
       <Navbar />
@@ -387,10 +414,23 @@ export default function Quarantine() {
           </div>
         ) : (
           <>
-            <p className="text-sm text-[#5B5F4D] mb-4" data-testid="quarantine-summary">
-              <span className="font-semibold text-[#2C2C2C]">{data.count}</span> duplicate{data.count === 1 ? "" : "s"} across{" "}
-              <span className="font-semibold text-[#2C2C2C]">{data.groups.length}</span> group{data.groups.length === 1 ? "" : "s"}.
-            </p>
+            <div className="mb-4 flex flex-wrap items-center gap-3" data-testid="quarantine-toolbar">
+              <p className="text-sm text-[#5B5F4D]" data-testid="quarantine-summary">
+                <span className="font-semibold text-[#2C2C2C]">{data.count}</span> duplicate{data.count === 1 ? "" : "s"} across{" "}
+                <span className="font-semibold text-[#2C2C2C]">{data.groups.length}</span> group{data.groups.length === 1 ? "" : "s"}.
+              </p>
+              <button
+                type="button"
+                data-testid="quarantine-keep-latest-all"
+                disabled={bulkBusy || data.groups.length === 0}
+                onClick={keepLatestAll}
+                title="Resolve every group by keeping the newest copy in each. All older/duplicate copies land in Trash (30-day grace)."
+                className="ml-auto px-3 py-1.5 rounded text-xs font-medium bg-[#6B46C1] text-white hover:bg-[#5834A8] disabled:opacity-50 inline-flex items-center gap-1.5 shadow-sm"
+              >
+                {bulkBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                Keep the latest in all {data.groups.length} group{data.groups.length === 1 ? "" : "s"}
+              </button>
+            </div>
             <div className="space-y-4">
               {data.groups.map((g) => (
                 <QuarantineGroup

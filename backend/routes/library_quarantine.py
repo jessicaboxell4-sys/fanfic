@@ -459,35 +459,24 @@ def _created_at_key(v: Any) -> str:
     return ""
 
 
-@api_router.post("/library/quarantine/group/{keeper_book_id}/keep-latest")
-async def keep_latest_in_group(
-    keeper_book_id: str,
-    user: User = Depends(get_current_user),
-):
-    """Resolve an entire quarantine group by keeping only the latest copy.
+async def _apply_keep_latest_to_group(
+    user_id: str, keeper_book_id: str
+) -> Dict[str, Any]:
+    """Core "keep the newest copy in this quarantine group" logic.
 
-    - Loads the keeper + every ``duplicate_pending: True`` book that lists
-      this keeper in its ``duplicate_of`` array.
-    - Picks the row with the most recent ``created_at`` as the winner.
-    - If the winner is the keeper: every duplicate goes to Trash.
-    - If the winner is a duplicate: it's promoted (``new_version``), the
-      keeper is archived to Old stories, and every OTHER duplicate goes to
-      Trash.
-
-    Returns a summary the UI can toast:
-      ``{ok, winner_book_id, promoted, keeper_archived, trashed_ids: [...]}``.
+    Returns per-group summary. Raises ``HTTPException(404)`` if the keeper
+    doesn't exist, or returns ``{"skipped": True, "reason": ...}`` if the
+    keeper exists but has no quarantined duplicates pointing at it (safe
+    to call inside a bulk loop that races other resolutions).
     """
-    keeper = await db.books.find_one(
-        {"book_id": keeper_book_id, "user_id": user.user_id},
-    )
+    keeper = await db.books.find_one({"book_id": keeper_book_id, "user_id": user_id})
     if not keeper:
-        raise HTTPException(status_code=404, detail="Keeper not found")
+        return {"skipped": True, "reason": "keeper_missing", "keeper_book_id": keeper_book_id}
 
-    # Pull every quarantined dupe that references this keeper.
     dupes: List[Dict[str, Any]] = []
     async for d in db.books.find(
         {
-            "user_id": user.user_id,
+            "user_id": user_id,
             "duplicate_pending": True,
             "duplicate_of.book_id": keeper_book_id,
         },
@@ -495,12 +484,8 @@ async def keep_latest_in_group(
         dupes.append(d)
 
     if not dupes:
-        raise HTTPException(
-            status_code=400,
-            detail="No quarantined duplicates reference this keeper.",
-        )
+        return {"skipped": True, "reason": "no_duplicates", "keeper_book_id": keeper_book_id}
 
-    # Rank keeper + duplicates by created_at descending.  Winner is index 0.
     ranked = [{"row": keeper, "is_keeper": True}] + [
         {"row": d, "is_keeper": False} for d in dupes
     ]
@@ -520,11 +505,10 @@ async def keep_latest_in_group(
     keeper_archived = False
 
     if winner["is_keeper"]:
-        # Just trash every duplicate.
         for L in losers:
             bid = L["row"]["book_id"]
             await db.books.update_one(
-                {"book_id": bid, "user_id": user.user_id},
+                {"book_id": bid, "user_id": user_id},
                 {
                     "$set": {
                         "category": TRASH_SHELF,
@@ -541,10 +525,9 @@ async def keep_latest_in_group(
             )
             trashed_ids.append(bid)
     else:
-        # Promote the winning duplicate to primary; archive the keeper.
         winner_id = winner["row"]["book_id"]
         await db.books.update_one(
-            {"book_id": winner_id, "user_id": user.user_id},
+            {"book_id": winner_id, "user_id": user_id},
             {
                 "$set": {
                     "replaces": keeper_book_id,
@@ -563,7 +546,7 @@ async def keep_latest_in_group(
             },
         )
         await db.books.update_one(
-            {"book_id": keeper_book_id, "user_id": user.user_id},
+            {"book_id": keeper_book_id, "user_id": user_id},
             {"$set": {
                 "category": OLD_STORIES_SHELF,
                 "replaced_by": winner_id,
@@ -573,13 +556,12 @@ async def keep_latest_in_group(
         promoted = True
         keeper_archived = True
 
-        # Trash every OTHER duplicate.
         for L in losers:
             if L["is_keeper"]:
                 continue
             bid = L["row"]["book_id"]
             await db.books.update_one(
-                {"book_id": bid, "user_id": user.user_id},
+                {"book_id": bid, "user_id": user_id},
                 {
                     "$set": {
                         "category": TRASH_SHELF,
@@ -598,9 +580,91 @@ async def keep_latest_in_group(
 
     return {
         "ok": True,
+        "keeper_book_id": keeper_book_id,
         "winner_book_id": winner["row"]["book_id"],
         "promoted": promoted,
         "keeper_archived": keeper_archived,
         "trashed_ids": trashed_ids,
         "trashed_count": len(trashed_ids),
     }
+
+
+@api_router.post("/library/quarantine/group/{keeper_book_id}/keep-latest")
+async def keep_latest_in_group(
+    keeper_book_id: str,
+    user: User = Depends(get_current_user),
+):
+    """Resolve an entire quarantine group by keeping only the latest copy."""
+    result = await _apply_keep_latest_to_group(user.user_id, keeper_book_id)
+    if result.get("skipped"):
+        reason = result.get("reason")
+        if reason == "keeper_missing":
+            raise HTTPException(status_code=404, detail="Keeper not found")
+        if reason == "no_duplicates":
+            raise HTTPException(
+                status_code=400,
+                detail="No quarantined duplicates reference this keeper.",
+            )
+    return result
+
+
+@api_router.post("/library/quarantine/keep-latest-all")
+async def keep_latest_all_groups(
+    user: User = Depends(get_current_user),
+):
+    """Bulk-resolve every quarantine group by keeping the newest copy.
+
+    Discovers every keeper referenced by the caller's ``duplicate_pending``
+    books, applies :func:`_apply_keep_latest_to_group` to each, and returns
+    a rollup summary. Groups race-lost to concurrent row-level actions are
+    silently skipped (``reason``) rather than aborting the whole run.
+    """
+    keeper_ids: set = set()
+    async for d in db.books.find(
+        {"user_id": user.user_id, "duplicate_pending": True},
+        {"_id": 0, "duplicate_of": 1},
+    ):
+        for k in (d.get("duplicate_of") or []):
+            kid = k.get("book_id")
+            if kid:
+                keeper_ids.add(kid)
+
+    if not keeper_ids:
+        return {
+            "ok": True,
+            "groups_processed": 0,
+            "groups_resolved": 0,
+            "groups_skipped": 0,
+            "trashed_count": 0,
+            "promoted_count": 0,
+        }
+
+    groups_resolved = 0
+    groups_skipped = 0
+    trashed_count = 0
+    promoted_count = 0
+    skipped_reasons: Dict[str, int] = {}
+
+    for keeper_id in keeper_ids:
+        r = await _apply_keep_latest_to_group(user.user_id, keeper_id)
+        if r.get("skipped"):
+            groups_skipped += 1
+            reason = r.get("reason") or "unknown"
+            skipped_reasons[reason] = skipped_reasons.get(reason, 0) + 1
+            continue
+        groups_resolved += 1
+        trashed_count += r.get("trashed_count", 0)
+        if r.get("promoted"):
+            promoted_count += 1
+
+    return {
+        "ok": True,
+        "groups_processed": len(keeper_ids),
+        "groups_resolved": groups_resolved,
+        "groups_skipped": groups_skipped,
+        "trashed_count": trashed_count,
+        "promoted_count": promoted_count,
+        "skipped_reasons": skipped_reasons,
+    }
+
+
