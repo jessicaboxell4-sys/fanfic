@@ -7,6 +7,62 @@ For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 The pre-split verbose history (with every "Added 2026-05-29" line) is preserved verbatim in `PRD.md.bak`.
 
 ---
+## 2026-07-12 — Silent-skip anti-pattern audit + fixes across 6 sites
+
+Bug #2 in the previous entry was a broader class of issue: any
+handler that reads a local EPUB sidecar silently no-ops when the
+file lives on R2 after the storage migration.  Ran an audit across
+`/app/backend/routes/` for the pattern and fixed every site.
+
+### Sites fixed (all now call ``ensure_local_cached`` before giving up)
+
+- ``routes/bulk_ops.py::reclassify_all`` — the original bug 2. Also
+  corrected an earlier mistake: ``ensure_local_cached`` is SYNC with
+  4 required args ``(local_path, user_id, book_id, ext)``, wrapped
+  via ``asyncio.to_thread`` inside the semaphore-bounded worker.
+- ``routes/books.py`` — 4 more sites: shelf-bucket export
+  (~L3256), library all-links txt (~L3319), per-book links regen
+  (~L3371), relationships backfill (~L4281).
+- ``routes/user_prefs.py::_run_template_sweep._process_one`` —
+  used the sync helper directly (function already runs on a thread
+  via ``run_in_executor``).
+
+### Diagnostic phantom-duplicates fix
+
+``routes/admin.py::my_library_diagnostics`` — dup_cursor filter now
+mirrors the rescan endpoint's exclusion set exactly:
+``{category $nin [TRASH_SHELF, 'Old stories'], duplicate_pending
+$ne True, replaced_by $exists False}``.  After the fix the two
+flows agree on what counts as a duplicate.  User's 19 phantom
+excess disappears.
+
+### Testing (iteration 86, 11/11 pass, 0 critical/minor issues)
+
+- Bug 1 verified: diagnostic returns ``excess=0`` when all dupe-looking
+  books are archived/pending/replaced. Positive control (real active
+  dupe) still surfaces ``excess>=1``.
+- Bug 2 verified: reclassify_all returns ``{processed>=1, changed>=0}``
+  with a real local .epub, doesn't crash when hydration fails.
+- Regression: ``GET /api/books/{book_id}/links`` still returns 200
+  when the sidecar exists.
+- Sanity: all modified modules import cleanly; ``ensure_local_cached``
+  is still sync (regression guard for the ``asyncio.to_thread``
+  wrapping).
+- Test file: ``/app/tests/test_iter86_cleanup_toolkit_bugs.py``.
+
+### Testing-agent code-review notes (parked, not blocking)
+- Extract ``_hydrate_epub_if_missing(user_id, book_id) → Path | None``
+  helper — the same 4-line guard is repeated in 4 sites in books.py.
+- Extract ``_active_dupe_candidates_query(uid)`` — the diagnostic and
+  rescan endpoints now both duplicate the filter set inline.  Drift
+  here caused Bug 1.
+- ``routes/books.py`` at 4,451 lines is well past the 700-line split
+  threshold — a further split by concern (exports vs links vs
+  relationships) is overdue.
+- ``ensure_local_cached`` returning bare bool loses the distinction
+  between "R2 says 404" and "R2 auth failed" — future work could
+  return a status enum.
+
 ## 2026-07-12 — Diagnostic over-count + "AI sorted 0 of N" fixes
 
 Two prod bugs surfaced immediately after the cleanup toolkit rolled out.
