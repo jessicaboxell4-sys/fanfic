@@ -24,6 +24,36 @@ Append-only log of dated work entries. Newest at the top.
 For static product context see [PRD.md](./PRD.md).
 For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 
+## 2026-08-27 (afternoon) — Deleted CI `deploy-blocker-gitignore.yml` workflow
+
+Following the successful production deploy this morning (bundle hash flipped from
+`main.d130e52c.js` → `main.ec9c3a79.js`, confirming the reconstructed testids +
+lint fixes are now live), user reported a GitHub email notification:
+
+  > 🚨 deploy-blocker — .gitignore must not block env files: All jobs have failed
+
+This was the **CI equivalent** of the same misdiagnosed sentinel we neutralized
+locally this morning.  The workflow file
+`.github/workflows/deploy-blocker-gitignore.yml` contained a hardcoded grep
+(`^\s*(\.env|\.env\.\*|\*\.env)\s*$` on `.gitignore`) that fired on every push
+and failed the check the moment Emergent's platform-side save added its
+intentional `.env` protection lines — which Support (Akhil) has now confirmed
+is safe, expected behaviour.
+
+The workflow was NOT blocking deploys — the "deploy-blocker" name was aspirational,
+it just spammed the inbox red on every push.  All secondary references to it
+were only inside the file itself (plus an old snapshot ZIP), so it was safe to
+delete outright.
+
+* **Deleted:** `.github/workflows/deploy-blocker-gitignore.yml`
+* **Kept:** `.github/workflows/lint.yml` — runs `run_all_lints.sh`, which
+  invokes `check_gitignore_health.py`.  That script was already downgraded
+  on 2026-07-10 to WARN (not FAIL) on the platform-injected `.env` patterns,
+  so no false-positives will fire from the general lint workflow either.
+
+Post-deletion, pushing to any branch should no longer trigger the
+"deploy-blocker" email.
+
 ## 2026-08-27 — Save-to-Github unblocked: all pre-commit lints green
 
 Emergent Support (Akhil) confirmed via email that ".env" entries in
