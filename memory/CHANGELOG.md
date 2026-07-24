@@ -24,6 +24,80 @@ Append-only log of dated work entries. Newest at the top.
 For static product context see [PRD.md](./PRD.md).
 For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 
+## 2026-08-27 (afternoon) — Per-file upload progress list
+
+User request: expand the existing "Sorting your books…" strip into a
+scrollable list where each individual EPUB/PDF gets its own progress bar
+and status.  Explicitly NOT a route or overlay — an inline expansion
+right where the aggregate counter lives today.
+
+**Shipped:**
+
+* `frontend/src/components/UploadFileList.jsx` (NEW) — grouped,
+  virtualized, filterable, retryable list container.  Uses
+  `react-window@2.3.0` (`<List>`) so a 2,000-file drop only mounts
+  ~10–20 DOM rows at a time.  Groups: `uploading`, `processing`,
+  `failed`, `queued`, `done`, `skipped`.  Default-expanded:
+  `uploading | processing | failed`.  Includes filename search
+  (`upload-progress-search`), status filter (`upload-progress-filter`),
+  and `Retry all failed (N)` button that funnels through the existing
+  `shelfsort:upload-files` CustomEvent bus (so all wake-lock, transient
+  retry, telemetry, and duplicate-detection wiring works automatically).
+  Search auto-expands every non-empty group while a query is active so
+  matches in collapsed Queued/Done buckets don't hide.
+* `frontend/src/components/UploadFileRow.jsx` (NEW) — single-file row
+  with 6 states + per-row `Retry` button (failed only):
+  - **queued**   → grey bar + `Waiting…`
+  - **uploading** → orange bar with real bytes % via `axios.onUploadProgress`
+  - **processing** → purple indeterminate shimmer while server AV + Claude classify
+  - **done ✓**   → green filled bar
+  - **skipped**  → amber + reason tooltip (duplicate-pending, etc.)
+  - **failed ✕** → red + error + per-row Retry button
+* `frontend/src/components/UploadZone.jsx` (MODIFIED — +~180 lines)
+  * `fileStates` useState + `patchFile` coalesced setter (150ms batching)
+    to keep progress updates from spamming React re-renders when axios
+    fires dozens of `onUploadProgress` events per second.
+  * `fileRefsRef` Map (fileId → File) for retry-within-session support.
+  * localStorage persistence (`shelfsort_upload_progress_v1`, 6h TTL)
+    so a mid-upload refresh doesn't drop the visible list.
+  * Rehydrated non-terminal rows snap to `failed` with reason
+    "Session interrupted — re-select this file to retry" so users
+    aren't staring at frozen queued/uploading bars.
+  * State transitions wired into `sendOne`:  batch-init → queued;
+    slot pickup → uploading; axios.onUploadProgress → uploading %;
+    202+jobId → processing; poll done → done / skipped (duplicate_pending)
+    / failed; 404/timeout/catch-all → failed.
+  * The `<UploadFileList>` is rendered OUTSIDE the `{uploading ? … : …}`
+    ternary so:
+    - rows stay visible after a batch completes (users can review outcomes)
+    - rehydrated rows are visible immediately on refresh
+  * `data-testid='upload-progress-dismiss'` link appears only when
+    `uploading=false && fileStates.length>0`, wipes fileStates +
+    fileRefsRef + localStorage in one click.
+  * After a batch completes, fileStates auto-clears 30s after
+    `setUploading(false)` (unless still-active rows exist).
+* `frontend/src/index.css` — added `@keyframes shelfsort-indeterminate`
+  for the processing shimmer.  Added dark-mode CSS for `bg-[#FAF8F5]`
+  (used by the new group headers) — see the parallel dark-mode-lint
+  regression entry below.
+
+**Testing (iterations 116 → 117, both frontend-only):**
+
+* Iter 116 uncovered 3 real bugs (list-hidden-post-refresh, list-vanishes-post-completion,
+  search-hides-matches-in-collapsed-groups).  All three fixed in a follow-up
+  patch and re-verified in iter 117 — 100% pass on the three targeted fixes,
+  0 console errors, no React warnings, all iter-116 regressions still green.
+* `bash /app/scripts/run_all_lints.sh --quiet` → all 5 Shelfsort lints green.
+* `.git/hooks/pre-commit` → exits 0.
+
+**Known limits (acceptable per iter 117 code-review):**
+
+* `UploadZone.jsx` is now ~2090 lines.  Well past the 700-line guideline.
+  Follow-up refactor recommended (hoist per-file patching + polling + retry
+  event bus into hooks/modules) — logged in ROADMAP as new P2 item.
+
+
+
 ## 2026-08-27 (afternoon) — Deleted CI `deploy-blocker-gitignore.yml` workflow
 
 Following the successful production deploy this morning (bundle hash flipped from

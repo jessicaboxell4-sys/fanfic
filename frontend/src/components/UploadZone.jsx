@@ -203,7 +203,17 @@ export default function UploadZone({ onUploaded, compact = false }) {
       // Only rehydrate if the payload is fresh (< 6h old) — otherwise
       // it's stale from a long-abandoned session and would confuse users.
       if (Date.now() - (parsed.timestamp || 0) > 6 * 60 * 60 * 1000) return [];
-      return parsed.files;
+      // 2026-08-27 — File objects can't be JSON-serialized so any
+      // non-terminal row (queued/uploading/processing) has lost its
+      // File ref during the reload.  Snap those to `failed` with a
+      // clear next-step so users aren't staring at a bar that will
+      // never move — and so the Retry button + Dismiss link
+      // both become immediately reachable.
+      return parsed.files.map((f) => (
+        f.status === "queued" || f.status === "uploading" || f.status === "processing"
+          ? { ...f, status: "failed", reason: "Session interrupted — re-select this file to retry", progress: 100 }
+          : f
+      ));
     } catch {
       return [];
     }
