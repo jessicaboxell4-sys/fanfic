@@ -22,6 +22,7 @@ metadata-only query unrelated to search. A sibling collection keyed by
 """
 from __future__ import annotations
 
+import asyncio as __asyncio
 import logging
 import re
 from datetime import datetime, timezone
@@ -106,16 +107,47 @@ async def upsert_fulltext(db, book_id: str, user_id: str, text: str) -> None:
 
     Empty / extraction-failed strings are still written so we don't
     re-extract on every backfill pass; the row's `text` field is just empty.
+
+    2026-07-23 — Wrapped in a MaxTimeMSExpired-tolerant retry.  Prod
+    observed a batch of ``code:50 MaxTimeMSExpired`` write failures on
+    Atlas during the 2026-07-21 deploy — the writeConcern is
+    ``w:majority`` (client-supplied by Motor), and on a large-payload
+    upsert (a full novel can push 1MB+ of text) Atlas can exceed its
+    server-side maxTimeMS while waiting for secondaries.  On timeout
+    we retry twice with exponential backoff; if all three attempts
+    fail we log and swallow — fulltext is best-effort (the admin
+    ``fulltext backfill`` card re-runs any missing rows), so blocking
+    the upload flow on a slow write concern would be worse UX than
+    a slightly-stale search index.
     """
-    await db.book_fulltext.update_one(
-        {"book_id": book_id},
-        {"$set": {
-            "book_id": book_id,
-            "user_id": user_id,
-            "text": text or "",
-            "indexed_at": datetime.now(timezone.utc).isoformat(),
-        }},
-        upsert=True,
+    from pymongo.errors import ExecutionTimeout, OperationFailure
+
+    payload = {
+        "book_id": book_id,
+        "user_id": user_id,
+        "text": text or "",
+        "indexed_at": datetime.now(timezone.utc).isoformat(),
+    }
+    last_err: Exception | None = None
+    for attempt in range(3):
+        try:
+            await db.book_fulltext.update_one(
+                {"book_id": book_id},
+                {"$set": payload},
+                upsert=True,
+            )
+            return
+        except ExecutionTimeout as e:  # code 50 MaxTimeMSExpired
+            last_err = e
+        except OperationFailure as e:  # some drivers surface as OperationFailure
+            if getattr(e, "code", None) != 50:
+                raise
+            last_err = e
+        # 500ms, 1s
+        await __asyncio.sleep(0.5 * (2 ** attempt))
+    logger.warning(
+        "upsert_fulltext: giving up after 3 timeouts on book %s (len(text)=%d) — %s",
+        book_id, len(text or ""), last_err,
     )
 
 

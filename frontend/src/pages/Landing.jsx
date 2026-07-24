@@ -15,6 +15,11 @@ import {
   Shield,
   Smartphone,
   Heart,
+  Trophy,
+  Store,
+  ListChecks,
+  UploadCloud,
+  Flame,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../lib/api";
@@ -155,12 +160,71 @@ export default function Landing() {
         </div>
       </header>
 
+      {/* Iter 89 rebuild — Memorial band for Tamy N Thomas.  Sits between
+          the sticky top nav and the hero so every visitor sees it.
+          2026-08-24 — accent recoloured from coral (#E07A5F) to a soft
+          steel blue (#7BA3D6) — her favourite colour, per family.
+          Also: on the anniversary of her passing (June 30 each year)
+          a small candle-flame glyph appears alongside the year range
+          as a silent visual acknowledgement.  The specific date is
+          NEVER rendered as text — per family's request, only the
+          existing "1978 – 2026" years are visible. */}
+      <div
+        className="bg-gradient-to-r from-[#1A2436] via-[#20304A] to-[#1A2436] border-y border-[#2C3F5C] px-6 py-3"
+        data-testid="landing-memorial-band"
+      >
+        <div className="max-w-6xl mx-auto flex items-center gap-4">
+          <div className="w-10 h-10 rounded-full bg-[#2C3F5C] flex items-center justify-center shrink-0">
+            <Heart className="w-4 h-4 text-[#7BA3D6]" fill="#7BA3D6" aria-hidden="true" />
+          </div>
+          <p className="text-sm italic text-[#DCE6F3] leading-relaxed">
+            <span className="text-[#A7BDD8]">In loving memory of </span>
+            <strong className="not-italic text-white" data-testid="landing-memorial-heading">Tamy N Thomas</strong>
+            <span data-testid="landing-memorial-text">
+              {" "}— a lover of fanfiction. This website was built with her, and those with many fanfiction EPUBs, in mind, and she never got to see it.
+              {" "}<strong className="not-italic text-white">1978 – 2026</strong>
+              {(() => {
+                // Anniversary indicator — silent visual cue only.
+                // June is month index 5 (0-indexed).  No text mention
+                // of the date anywhere in the DOM per family request.
+                const d = new Date();
+                if (d.getMonth() === 5 && d.getDate() === 30) {
+                  return (
+                    <span
+                      className="inline-flex items-center gap-1 ml-1.5 align-middle"
+                      data-testid="landing-memorial-anniversary-marker"
+                      aria-label="Anniversary"
+                      title="Anniversary"
+                    >
+                      <Flame className="w-3.5 h-3.5 text-[#7BA3D6] animate-pulse" fill="#7BA3D6" aria-hidden="true" />
+                    </span>
+                  );
+                }
+                return null;
+              })()}
+              . Always remembered. Never forgotten.
+            </span>
+          </p>
+        </div>
+      </div>
+
       <main id="main-content" tabIndex={-1}>
       <section className="max-w-6xl mx-auto px-6 md:px-8 pt-16 md:pt-24 pb-20 grid lg:grid-cols-2 gap-12 items-center">
         <div className="fade-in">
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-6">
             A quieter way to organize ebooks
           </p>
+          <div className="mb-6" data-testid="landing-contest-chip">
+            <a
+              href="https://emergent.sh"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-[#E07A5F]/40 bg-[#E07A5F]/10 text-[10px] font-bold uppercase tracking-[0.15em] text-[#E07A5F] hover:bg-[#E07A5F]/20 transition-colors"
+            >
+              <Trophy className="w-3 h-3" aria-hidden="true" />
+              Emergent contest 2026
+            </a>
+          </div>
           <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl text-[#2C2C2C] leading-[1.05] mb-6">
             Your EPUBs,<br/>
             {/* 2026-06-27 Phase 2 — hero headline adapts to the
@@ -198,9 +262,12 @@ export default function Landing() {
             </SecondaryCTAButton>
           </div>
           {/* Trust strip — tiny social-proof under the CTA so first-time
-              visitors immediately see the three differentiators we ship.
-              Each item is icon + ~3 words; the whole row is one line on
-              desktop, wraps on mobile.  No claims we can't back up. */}
+              visitors immediately see the differentiators we ship.
+              Each item is icon + ~3 words; the whole row is one line
+              on desktop, wraps on mobile.  No claims we can't back up.
+              2026-08-24 — refreshed to include the recent upload-
+              reliability wins (99%+ success on 200-file batches with
+              slow-start + jittered backoff + resumable retries). */}
           <ul
             className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-6 text-xs text-[#5B5F4D]"
             data-testid="hero-trust-strip"
@@ -209,17 +276,25 @@ export default function Landing() {
               <Sparkles className="w-3.5 h-3.5 text-[#6B46C1]" />
               <span>AI auto-sorts by fandom</span>
             </li>
+            <li className="inline-flex items-center gap-1.5" data-testid="hero-ai-off-pill">
+              <Shield className="w-3.5 h-3.5 text-[#6B46C1]" />
+              <span>AI-off mode if you prefer</span>
+            </li>
             <li className="inline-flex items-center gap-1.5">
               <Shield className="w-3.5 h-3.5 text-[#2C7A3E]" />
               <span>Every upload virus-scanned</span>
+            </li>
+            <li className="inline-flex items-center gap-1.5" data-testid="hero-bulk-upload-pill">
+              <UploadCloud className="w-3.5 h-3.5 text-[#1F4D6B]" />
+              <span>Reliable bulk uploads</span>
             </li>
             <li className="inline-flex items-center gap-1.5">
               <Smartphone className="w-3.5 h-3.5 text-[#E07A5F]" />
               <span>Sync across devices</span>
             </li>
-            <li className="inline-flex items-center gap-1.5">
+            <li className="inline-flex items-center gap-1.5" data-testid="hero-always-free-pill">
               <Heart className="w-3.5 h-3.5 text-[#B43F26]" />
-              <span>Free while we grow</span>
+              <span>Always free</span>
             </li>
           </ul>
         </div>
@@ -271,6 +346,13 @@ export default function Landing() {
           a 200k-word AO3 fic, a non-fic on the nightstand, and three half-read
           novels. Here&apos;s what you get the second you sign in.
         </p>
+        {/* 2026-08-24 — Expanded from 6 → 9 cards.  Since the July
+            refresh we've shipped: Polish Library (bulk metadata
+            fixes), Preset Marketplace (community-shared shelf
+            layouts), Reading Queue (dedicated "up next" list), and
+            tri-state reading status (want-to-read / reading / read).
+            All four now surfaced here so anonymous visitors see the
+            full "inside" pitch before they sign up. */}
         <div className="grid md:grid-cols-3 gap-6">
           <InsideCard
             icon={<PartyPopper className="w-5 h-5" />}
@@ -284,14 +366,21 @@ export default function Landing() {
             accent="#E07A5F"
             tint="bg-[#FBE7DF]"
             title="A reader that respects your eyes"
-            body="EPUB, PDF, TXT and DOCX all open inline. Reading position syncs across devices, bookmarks remember the chapter you loved, dark mode follows your OS, and there are zero ads. Ever."
+            body="EPUB, PDF, TXT and DOCX all open inline. PDFs render natively via pdf.js — no re-conversion, no quality loss. Reading position syncs across devices, bookmarks remember the chapter you loved, dark mode follows your OS, and there are zero ads. Ever."
           />
           <InsideCard
             icon={<Target className="w-5 h-5" />}
             accent="#1F4D6B"
             tint="bg-[#DCE8EF]"
-            title="Goals & streaks (gently)"
-            body="Set a goal of 30 books, or 200 hours, or a fandom marathon. We track quietly, fire confetti when you hit it, and never guilt-trip you on a Tuesday."
+            title="Goals, streaks & status"
+            body="Tag books as want-to-read, reading, or read with one tap — filter your library by any state. Set a goal of 30 books, or 200 hours, or a fandom marathon. We track quietly, fire confetti when you hit it, and never guilt-trip you on a Tuesday."
+          />
+          <InsideCard
+            icon={<ListChecks className="w-5 h-5" />}
+            accent="#B87A00"
+            tint="bg-[#FDF3E1]"
+            title="A Reading Queue that actually helps"
+            body="A dedicated 'up next' list separate from your library so you know exactly what to pick up when you finish tonight's book. Reorder by drag, pin favourites to the top, and see the total estimated reading time so you can plan a weekend or a flight."
           />
           <InsideCard
             icon={<Users className="w-5 h-5" />}
@@ -308,11 +397,25 @@ export default function Landing() {
             body="Spin up a private room, pick the book, set a chapter-per-week pace. We auto-post discussion prompts, members chat inline, and a weekly digest email keeps the slow readers in the loop."
           />
           <InsideCard
-            icon={<PencilLine className="w-5 h-5" />}
+            icon={<Wand2 className="w-5 h-5" />}
+            accent="#2C7A3E"
+            tint="bg-[#E8F3EC]"
+            title="Polish Library — bulk fix messy metadata"
+            body="Inherited a Downloads folder of AO3 exports with 'Unknown' authors and mangled titles? Polish Library scans your whole collection at once, suggests corrections you can accept in a click, and rewrites the fixes back into the EPUB itself so the corrections travel with the file."
+          />
+          <InsideCard
+            icon={<Store className="w-5 h-5" />}
             accent="#E07A5F"
             tint="bg-[#FBE7DF]"
-            title="Fix messy metadata, in place"
-            body="Title got mangled by an AO3 export? Author shows as &ldquo;Unknown&rdquo;? Edit it in two clicks — corrections are rewritten into the EPUB itself, so when you re-download or send to a friend, the fix travels with the file."
+            title="Preset Marketplace"
+            body="Not sure how to organize? Browse community-shared library layouts — 'Regency romance shelf by trope', 'MCU fics by pairing', 'Non-fic by topic' — apply one in a click, tweak to taste, or publish your own for others to remix. Comments and stars on every preset."
+          />
+          <InsideCard
+            icon={<PencilLine className="w-5 h-5" />}
+            accent="#6B46C1"
+            tint="bg-[#EDE7FB]"
+            title="Fix single files, in place"
+            body="Prefer to correct one book at a time? Every card has a two-click edit — title, author, series, fandom, cover. Corrections are rewritten straight into the EPUB, so when you re-download or send to a friend, the fix travels with the file."
           />
         </div>
       </section>

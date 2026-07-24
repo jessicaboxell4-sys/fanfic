@@ -20,100 +20,86 @@ import uuid
 
 import pytest
 import requests
-
-from deps import db
+from pymongo import MongoClient
 
 
 BASE = os.environ.get(
-    "REACT_APP_BACKEND_URL", "https://drift-check-live.preview.emergentagent.com",
+    "REACT_APP_BACKEND_URL", "http://localhost:8001",
 ).rstrip("/")
+MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
+DB_NAME = os.environ.get("DB_NAME", "test_database")
+
+# Sync client — Motor+asyncio.get_event_loop() from these test helpers
+# was causing indefinite hangs on Python 3.11 (Motor binds to the first
+# event loop it sees; subsequent run_until_complete() calls on a
+# different loop deadlock).  All fixture work here is purely CRUD, so
+# a synchronous PyMongo client is both correct and dramatically faster.
+_mc = MongoClient(MONGO_URL)
+db = _mc[DB_NAME]
 
 
 # ──────────────────────────────────────────────────────────────────────
 # Helpers
 # ──────────────────────────────────────────────────────────────────────
 
-def _login_admin() -> requests.Session:
-    """Find the first admin in the DB, force-set a known password (via the
-    DB so we don't need to know it), and return an authenticated session.
-
-    We bypass the approval gate by promoting the user directly in Mongo
-    rather than going through /auth/register (which would land in
-    pending).  Tests don't need a clean signup flow — they need an
-    authenticated admin session as quickly as possible."""
-    import asyncio
-    from passlib.hash import bcrypt as bcrypt_hash
-
-    async def setup():
-        admin = await db.users.find_one(
-            {"is_admin": True, "approval_status": {"$ne": "rejected"}},
-            {"_id": 0, "email": 1, "user_id": 1},
-        )
-        if not admin:
-            pytest.skip("No admin user in DB — can't run moderator tests")
-        # Force-set a known password so we can log in.
-        pw = "modtest-" + uuid.uuid4().hex[:8]
-        await db.users.update_one(
-            {"user_id": admin["user_id"]},
-            {"$set": {"password_hash": bcrypt_hash.hash(pw),
-                       "approval_status": "approved"}},
-        )
-        return admin["email"], pw
-
-    email, pw = asyncio.get_event_loop().run_until_complete(setup())
+def _session_with_token(user_id: str) -> requests.Session:
+    """Insert a session token directly and return a Session that uses
+    Bearer auth for every subsequent request.  This bypasses the cookie
+    path entirely (which fails silently over http:// with secure=True)."""
+    from datetime import datetime, timezone, timedelta
+    token = f"sess_mod_{uuid.uuid4().hex}"
+    db.user_sessions.insert_one({
+        "user_id": user_id,
+        "session_token": token,
+        "expires_at": datetime.now(timezone.utc) + timedelta(days=7),
+        "created_at": datetime.now(timezone.utc),
+    })
     s = requests.Session()
-    r = s.post(f"{BASE}/api/auth/login", json={"email": email, "password": pw})
-    assert r.status_code == 200, f"admin login failed: {r.status_code} {r.text}"
+    s.headers.update({"Authorization": f"Bearer {token}"})
     return s
+
+
+def _login_admin() -> requests.Session:
+    """Find the first admin in the DB and return a Session authenticated
+    as them."""
+    admin = db.users.find_one(
+        {"is_admin": True, "approval_status": {"$ne": "rejected"}},
+        {"_id": 0, "user_id": 1},
+    )
+    if not admin:
+        pytest.skip("No admin user in DB — can't run moderator tests")
+    # Make sure approval_status is 'approved' so get_current_user lets us in.
+    db.users.update_one(
+        {"user_id": admin["user_id"]},
+        {"$set": {"approval_status": "approved"}},
+    )
+    return _session_with_token(admin["user_id"])
 
 
 def _make_test_user(*, is_mod: bool = False, is_admin: bool = False, approved: bool = True) -> str:
     """Create a user directly in Mongo and return their user_id."""
-    import asyncio
-
     uid = f"modtest_{uuid.uuid4().hex[:10]}"
-    email = f"{uid}@example.com"
+    email = f"modtest-{uid[-10:]}@shelfsort-e2e.net"
 
-    async def insert():
-        await db.users.insert_one({
-            "user_id": uid,
-            "email": email,
-            "name": "Mod Test",
-            "is_admin": is_admin,
-            "is_moderator": is_mod,
-            "approval_status": "approved" if approved else "pending",
-        })
-
-    asyncio.get_event_loop().run_until_complete(insert())
+    db.users.insert_one({
+        "user_id": uid,
+        "email": email,
+        "name": "Mod Test",
+        "is_admin": is_admin,
+        "is_moderator": is_mod,
+        "approval_status": "approved" if approved else "pending",
+    })
     return uid
 
 
 def _cleanup_user(uid: str) -> None:
-    import asyncio
-    asyncio.get_event_loop().run_until_complete(
-        db.users.delete_many({"user_id": uid}),
-    )
+    db.users.delete_many({"user_id": uid})
+    db.user_sessions.delete_many({"user_id": uid})
 
 
 def _login_user(uid: str) -> requests.Session:
-    """Force-set a password on a test user and log them in."""
-    import asyncio
-    from passlib.hash import bcrypt as bcrypt_hash
-
-    pw = "modtest-" + uuid.uuid4().hex[:8]
-    asyncio.get_event_loop().run_until_complete(
-        db.users.update_one(
-            {"user_id": uid},
-            {"$set": {"password_hash": bcrypt_hash.hash(pw)}},
-        ),
-    )
-    user = asyncio.get_event_loop().run_until_complete(
-        db.users.find_one({"user_id": uid}, {"_id": 0, "email": 1}),
-    )
-    s = requests.Session()
-    r = s.post(f"{BASE}/api/auth/login", json={"email": user["email"], "password": pw})
-    assert r.status_code == 200, f"login for {uid} failed: {r.text}"
-    return s
+    """Return a Session authenticated as ``uid`` via Bearer token."""
+    return _session_with_token(uid)
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -208,14 +194,12 @@ def test_regular_user_cannot_approve_signup():
 def test_mod_can_lock_unlock_room_and_writes_are_blocked():
     """End-to-end: create a room as an owner, lock it as a mod, prove the
     owner can no longer post, unlock, prove the owner can post again."""
-    import asyncio
-
     mod_uid = _make_test_user(is_mod=True)
     owner_uid = _make_test_user()
     try:
         # Seed a bookclub directly.
         room_id = f"club_{uuid.uuid4().hex[:10]}"
-        asyncio.get_event_loop().run_until_complete(db.bookclubs.insert_one({
+        db.bookclubs.insert_one({
             "room_id": room_id,
             "name": "Mod test room",
             "description": "",
@@ -225,14 +209,14 @@ def test_mod_can_lock_unlock_room_and_writes_are_blocked():
             "book_total_chapters": 5,
             "owner_user_id": owner_uid,
             "schedule": "",
-        }))
-        asyncio.get_event_loop().run_until_complete(db.bookclub_members.insert_one({
+        })
+        db.bookclub_members.insert_one({
             "room_id": room_id,
             "user_id": owner_uid,
             "role": "owner",
             "status": "active",
             "current_chapter": 0,
-        }))
+        })
 
         owner = _login_user(owner_uid)
         mod = _login_user(mod_uid)
@@ -263,39 +247,29 @@ def test_mod_can_lock_unlock_room_and_writes_are_blocked():
         assert r.status_code == 200, r.text
 
         # Cleanup the room.
-        asyncio.get_event_loop().run_until_complete(
-            db.bookclubs.delete_one({"room_id": room_id}),
-        )
-        asyncio.get_event_loop().run_until_complete(
-            db.bookclub_members.delete_many({"room_id": room_id}),
-        )
-        asyncio.get_event_loop().run_until_complete(
-            db.bookclub_messages.delete_many({"room_id": room_id}),
-        )
+        db.bookclubs.delete_one({"room_id": room_id})
+        db.bookclub_members.delete_many({"room_id": room_id})
+        db.bookclub_messages.delete_many({"room_id": room_id})
     finally:
         _cleanup_user(mod_uid)
         _cleanup_user(owner_uid)
 
 
 def test_regular_user_cannot_lock_room():
-    import asyncio
-
     regular = _make_test_user()
     owner_uid = _make_test_user()
     try:
         room_id = f"club_{uuid.uuid4().hex[:10]}"
-        asyncio.get_event_loop().run_until_complete(db.bookclubs.insert_one({
+        db.bookclubs.insert_one({
             "room_id": room_id,
             "name": "Reg test",
             "owner_user_id": owner_uid,
             "book_total_chapters": 1,
-        }))
+        })
         s = _login_user(regular)
         r = s.post(f"{BASE}/api/bookclubs/{room_id}/lock")
         assert r.status_code == 403, r.text
-        asyncio.get_event_loop().run_until_complete(
-            db.bookclubs.delete_one({"room_id": room_id}),
-        )
+        db.bookclubs.delete_one({"room_id": room_id})
     finally:
         _cleanup_user(regular)
         _cleanup_user(owner_uid)
@@ -326,20 +300,18 @@ def test_admin_user_list_includes_is_moderator():
 def test_moderation_log_records_every_action():
     """Promote → approve a pending user → lock a room → all three land in
     the log, and the targets are hydrated to human-readable names."""
-    import asyncio
-
     admin = _login_admin()
     pending_uid = _make_test_user(approved=False)
     owner_uid = _make_test_user()
     room_id = f"club_{uuid.uuid4().hex[:10]}"
     try:
         # Seed a room so we can lock it.
-        asyncio.get_event_loop().run_until_complete(db.bookclubs.insert_one({
+        db.bookclubs.insert_one({
             "room_id": room_id,
             "name": "Modlog test room",
             "owner_user_id": owner_uid,
             "book_total_chapters": 1,
-        }))
+        })
 
         # Three actions.
         assert admin.post(f"{BASE}/api/admin/users/{owner_uid}/promote-mod").status_code == 200
@@ -386,9 +358,7 @@ def test_moderation_log_records_every_action():
         assert r.status_code == 400
 
         # Cleanup the room.
-        asyncio.get_event_loop().run_until_complete(
-            db.bookclubs.delete_one({"room_id": room_id}),
-        )
+        db.bookclubs.delete_one({"room_id": room_id})
     finally:
         _cleanup_user(pending_uid)
         _cleanup_user(owner_uid)

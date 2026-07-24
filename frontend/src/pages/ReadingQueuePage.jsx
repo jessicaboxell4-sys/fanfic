@@ -207,7 +207,7 @@ export default function ReadingQueuePage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => navigate(`/library/book/${book.book_id}`)}
+                  onClick={() => navigate(`/book/${book.book_id}`)}
                   className="flex-1 min-w-0 text-left hover:opacity-80"
                 >
                   <p className="font-serif text-lg text-[#2C2C2C] truncate">{book.title || "Untitled"}</p>

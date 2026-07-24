@@ -28,7 +28,7 @@ from pydantic import BaseModel
 from deps import db, api_router, STORAGE_DIR
 from models import User
 from auth_dep import get_current_user
-from utils.constants import TRASH_SHELF, TRASH_GRACE_DAYS
+from utils.constants import TRASH_SHELF, TRASH_GRACE_DAYS, TRASH_REASON_DUPLICATE_RESOLVED
 from utils.url_canonical import FANFIC_SOURCE_PATTERNS, _URL_RE
 
 # Helpers live in books.py — pull them in.  These names are stable per the
@@ -138,6 +138,10 @@ async def resolve_duplicate(
                 "$set": {
                     "category": TRASH_SHELF,
                     "trash_expires_at": expires_at,
+                    # 2026-08-24 — audit fields for /api/trash renderer.
+                    "trashed_at": now_iso,
+                    "trash_reason": TRASH_REASON_DUPLICATE_RESOLVED,
+                    "trash_prev_category": book.get("category"),
                     "dupe_action_meta": {
                         "action": "discard",
                         "prev_category_new": book.get("category"),

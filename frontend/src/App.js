@@ -37,6 +37,7 @@ import StuckBooksPage from "@/pages/StuckBooksPage";
 import SmartShelves from "@/pages/SmartShelves";
 import SmartShelfPage from "@/pages/SmartShelfPage";
 import AllBooksPage from "@/pages/AllBooksPage";
+import PresetMarketplace from "@/pages/PresetMarketplace";
 import ReadingQueuePage from "@/pages/ReadingQueuePage";
 import TagCloudPage from "@/pages/TagCloudPage";
 import TagShelfPage from "@/pages/TagShelfPage";
@@ -87,6 +88,7 @@ import AuthCallback from "@/pages/AuthCallback";
 import ResetPassword from "@/pages/ResetPassword";
 import Status from "@/pages/Status";
 import MaintenanceBanner from "@/components/MaintenanceBanner";
+import MemorialModal from "@/components/MemorialModal";
 import NewVersionBanner from "@/components/NewVersionBanner";
 import PendingDeletionBanner from "@/components/PendingDeletionBanner";
 import AvRescanNudgeBanner from "@/components/AvRescanNudgeBanner";
@@ -189,6 +191,7 @@ function AppRouter() {
       <Route path="/library/stuck" element={<ProtectedRoute><StuckBooksPage /></ProtectedRoute>} />
       <Route path="/library" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/library/all" element={<ProtectedRoute><AllBooksPage /></ProtectedRoute>} />
+      <Route path="/library/presets" element={<ProtectedRoute><PresetMarketplace /></ProtectedRoute>} />
       <Route path="/library/queue" element={<ProtectedRoute><ReadingQueuePage /></ProtectedRoute>} />
       <Route path="/library/fandom/:fandom" element={<ProtectedRoute><FandomShelf /></ProtectedRoute>} />
       <Route path="/library/series/:name" element={<ProtectedRoute><SeriesShelf /></ProtectedRoute>} />
@@ -379,6 +382,7 @@ function App() {
               <MaintenanceBanner />
               <NewVersionBanner />
               <AvRescanNudgeBanner />
+              <MemorialModal />
               {FETCHING_UI_ENABLED && <UrlPasteDetector />}
               <AppErrorBoundary>
                 <AppRouter />

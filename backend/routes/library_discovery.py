@@ -205,6 +205,7 @@ async def since_last_login(user: User = Depends(get_current_user)):
         return {
             "since": None,
             "new_books": 0,
+            "refreshed_books": 0,
             "friend_requests": 0,
             "new_messages": 0,
             "unread_notifications": 0,
@@ -214,6 +215,18 @@ async def since_last_login(user: User = Depends(get_current_user)):
         "user_id": user.user_id,
         "category": {"$ne": TRASH_SHELF},
         "created_at": {"$gte": since},
+    })
+    # 2026-08-24 — Fanfic-refresh count.  When an existing fanfic gets
+    # re-uploaded with new chapters, ``utils/fanfic.py`` writes
+    # ``last_refreshed_at`` on the same document (no new book row
+    # created).  Users kept asking "I uploaded 200 files, only 195
+    # are new" — the missing N were refreshed fics.  Surface the
+    # count so the dashboard tooltip explains it.
+    refreshed_books = await db.books.count_documents({
+        "user_id": user.user_id,
+        "category": {"$ne": TRASH_SHELF},
+        "created_at": {"$lt": since},          # existed before this session
+        "last_refreshed_at": {"$gte": since},  # got new chapters this session
     })
     # Unread friend requests since last login.
     friend_requests = await db.notifications.count_documents({
@@ -242,6 +255,7 @@ async def since_last_login(user: User = Depends(get_current_user)):
     return {
         "since": since,
         "new_books": new_books,
+        "refreshed_books": refreshed_books,
         "friend_requests": friend_requests,
         "new_messages": new_messages,
         "unread_notifications": unread_notifications,

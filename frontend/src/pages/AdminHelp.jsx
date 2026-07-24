@@ -47,10 +47,12 @@ const SECTIONS = [
   { id: "antivirus",        label: "Antivirus & quarantine",  icon: ShieldAlert,    category: "storage" },
   { id: "av-flag",          label: "AV scan-on-upload toggle", icon: Shield,        category: "storage" },
   { id: "stuck-uploads",    label: "Stuck uploads & Atlas failover", icon: Inbox,   category: "storage" },
+  { id: "upload-health",    label: "Upload batch health",     icon: BarChart3,      category: "storage" },
   { id: "notifications",    label: "Operator digest + cron",  icon: Bell,           category: "email" },
   { id: "email-system",     label: "Email system kill switch", icon: Pause,         category: "email" },
   { id: "email-logs",       label: "Email logs & retry",      icon: Mail,           category: "email" },
   { id: "llm-key-health",   label: "LLM key health & runway", icon: Sparkles,       category: "system" },
+  { id: "drift-status",     label: "Deploy drift & env-file sentinel", icon: ShieldAlert, category: "system" },
   { id: "changelog",        label: "Recent changelog",        icon: History,        category: "system" },
   { id: "troubleshooting",  label: "Troubleshooting & slowness", icon: LifeBuoy,    category: "system" },
   { id: "long-running-patterns", label: "Long-running endpoint patterns", icon: Sparkles, category: "system" },
@@ -448,6 +450,29 @@ export default function AdminHelp() {
             </ul>
           </Section>
 
+          <Section id="drift-status" icon={ShieldAlert} title="Deploy drift & env-file sentinel">
+            <p>
+              Two pre-deploy safety nets that catch classes of bugs that used to bite us in production. Both surface state on the admin console (<code>admin-drift-status-card</code>) and both are also exposed as standalone scripts so any deploy pipeline can gate on them.
+            </p>
+            <p><strong>Testid drift</strong> — <code>/app/scripts/deploy_drift_check.py</code></p>
+            <ul>
+              <li>Fetches the currently-deployed frontend bundle from <Link to="https://shelfsort.com">shelfsort.com</Link>, extracts every <code>data-testid=&quot;…&quot;</code> string, then greps <code>/app/frontend/src</code> and <code>/app/backend</code> for each one.</li>
+              <li>Any testid present in prod but missing from source is <strong>drift</strong> — a symptom of the disaster we hit in July 2026 where 17 testids vanished from source after an ill-timed refactor and the deploy shipped the loss silently. Drift &gt; 0 is a deploy-blocker.</li>
+              <li>The <code>admin-drift-status-card</code> shows the last check&apos;s exit code, prod testid count, and any drift entries. It re-runs on demand via a <em>&ldquo;Re-check now&rdquo;</em> button.</li>
+              <li>The historical run log lives in the Mongo <code>drift_check_results</code> collection so you can spot regressions over time.</li>
+            </ul>
+            <p><strong>env-in-gitignore sentinel</strong> — <code>/app/scripts/env_gitignore_sentinel.py</code></p>
+            <ul>
+              <li>An Emergent platform-side git tool that authors <em>&ldquo;Auto-generated changes&rdquo;</em> commits has a known bug where it periodically appends <code>.env</code>, <code>.env.*</code>, <code>*.env</code> to <code>/app/.gitignore</code>. Confirmed by Emergent Support 2026-08-24; fix is in flight with their owning engineering team.</li>
+              <li>The deploy pipeline itself doesn&apos;t read <code>.gitignore</code>, so the offending lines alone don&apos;t break the current deploy — but the <strong>next</strong> git-reset or checkout will physically delete <code>backend/.env</code> from the working tree, and the deploy after that dies with <code>read env file backend/.env: no such file or directory</code>. This is exactly what killed the 2026-07-10 deploy.</li>
+              <li>The sentinel runs automatically inside <code>deploy_drift_check.py</code>, and there&apos;s a pytest wrapper at <code>backend/tests/test_env_gitignore_sentinel.py</code>. Exit code 1 = corruption present, fix by deleting the offending lines and committing before running any git-reset-style op.</li>
+              <li>As of 2026-08-24 it has caught 6 consecutive recurrences within seconds of each pod create / resume / deploy. Keep the sentinel in place until Emergent&apos;s platform fix lands.</li>
+            </ul>
+            <p>
+              <strong>Pre-deploy runbook</strong>: run <code>python3 /app/scripts/deploy_drift_check.py</code> before every deploy. It combines both checks + reports drift count in one output. Exit 0 = safe to deploy; exit 1 = blocker.
+            </p>
+          </Section>
+
           <Section id="changelog" icon={History} title="Recent changelog">
             <p>Surfaces the last 20 dated entries from <code>/app/memory/CHANGELOG.md</code> so you can see what was shipped recently without opening the repo. Each entry is collapsed by default; click to expand the full body (markdown rendered as preformatted text).</p>
             <ul>
@@ -509,7 +534,7 @@ export default function AdminHelp() {
             <p>
               <strong>Safety net</strong>: even with the inline scan off,
               ClamAV still catches things via{" "}
-              <Link to="/admin/antivirus" className="text-[#6B46C1] underline">/admin/antivirus</Link>{" "}
+              <Link to="/admin" className="text-[#6B46C1] underline">/admin/antivirus</Link>{" "}
               (bulk rescan across all users) and the user-initiated{" "}
               <Link to="/account/safety" className="text-[#6B46C1] underline">/account/safety</Link>{" "}
               rescan. Send-to-Kindle also refuses any book with{" "}
@@ -602,6 +627,31 @@ export default function AdminHelp() {
               <code>status</code>, the user-facing <code>error</code>{" "}
               blurb, and the originating <code>user_id</code> so you
               can DM them directly if needed.
+            </p>
+          </Section>
+
+          <Section id="upload-health" icon={BarChart3} title="Upload batch health">
+            <p>
+              The <code>admin-upload-health-card</code> is the operator&apos;s data-driven view of bulk-upload reliability. Every time a user drops a batch of files, the frontend posts one summary document to <code>POST /api/upload-jobs/batch-stats</code> when the batch fully drains (every file either succeeded or exhausted its retries). This card visualises the last N days of those documents.
+            </p>
+            <p>
+              <strong>Why it exists</strong>: on 2026-08-24 a user reported 27 failed uploads on a 200-file cold drop. After two rounds of concurrency + retry tuning the failure rate dropped to ~9.5% (19/200). To get to the target ≤ 2.5% we needed a way to <em>measure</em> the impact of tuning changes instead of eyeballing screenshots — this card is that instrument.
+            </p>
+            <ul>
+              <li><strong>Window selector</strong>: 1 / 7 / 30 / 90 days. Data is persisted forever in the <code>upload_batch_stats</code> collection; the selector just changes the aggregation window.</li>
+              <li><strong>Summary strip</strong>: total batches, files, failed, and the aggregate <strong>failure rate</strong>. The last tile is colour-coded — green ≤ 2.5%, amber 2.5–5%, red &gt; 5%. Target is the green band.</li>
+              <li><strong>Daily failure-rate chart</strong>: one bar per day, colour-coded on the same thresholds. Hover for tooltip with batch count, file count, retry count, and throttle events for that day. Missing days simply don&apos;t render (no zero bar) so the chart stays readable on quiet weeks.</li>
+              <li><strong>Recent batches table</strong>: last 20 batches with per-batch detail — user (denormalised email for grepping), files sent, failed count + row-level colour, transient retries burned, throttle events (# of times the sliding-window dropped concurrency), peak concurrency reached, and total wall-clock duration. Rows with <code>failed &gt; 0</code> get bold-red styling so problem batches stand out.</li>
+              <li><strong>Tuning history footer</strong>: hand-curated list of the concurrency / retry / jitter knob changes with dates. Self-documenting — when you compare today&apos;s numbers to last week&apos;s, this tells you what actually changed.</li>
+            </ul>
+            <p>
+              <strong>Backend</strong>: <code>GET /api/admin/upload-jobs/batch-stats?days=N&amp;limit=M</code> (admin-only). Returns <code>{`{ rows, trend, summary }`}</code>. Bounded to <code>days ≤ 90</code> and <code>limit ≤ 500</code>. Individual documents are ~500 bytes; heavy usage accumulates ≈ 4 MB / year — no Mongo concerns.
+            </p>
+            <p>
+              <strong>Dedupe</strong>: the POST upserts on <code>batch_id</code> via <code>$setOnInsert</code>, so a browser that retries the telemetry POST due to a network blip never double-counts.
+            </p>
+            <p>
+              <strong>What to do when the chart goes red</strong>: click into the most-recent bad batch, note the <em>transient retries</em> and <em>throttle events</em> columns. Lots of retries + zero throttling ⇒ the sliding-window isn&apos;t catching the pattern early enough; consider lowering <code>TRANSIENT_THROTTLE</code>. Lots of throttling + still high failures ⇒ origin is truly saturated; consider lowering the concurrency ceiling or exploring direct-to-R2 uploads. When you make a change, add a bullet to the &ldquo;Tuning history&rdquo; footer in the code so the chart stays self-documenting.
             </p>
           </Section>
 

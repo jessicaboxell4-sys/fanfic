@@ -175,3 +175,58 @@ frontend/node_modules/.cache/default-development/42.pack
 frontend/node_modules/.cache/default-development/42.pack
 frontend/node_modules/.cache/default-development/45.pack
 frontend/node_modules/.cache/default-development/46.pack
+# 2026-08-22 — Removed lines 178-180 (`.env`, `.env.*`, `*.env`) which
+# had been re-added despite the explicit warning at line 163-170. This
+# is the third recurrence of this deployment blocker — Emergent's
+# MANAGE_SECRETS → pull_source step fails with "read env file
+# backend/.env: no such file or directory" when these patterns are
+# present. DO NOT re-add them.
+#
+# 2026-08-23 — 4th recurrence removed. If you see `.env` / `.env.*` /
+# `*.env` in this file again, do NOT edit around them — DELETE them.
+# The pre-deploy sentinel at scripts/env_gitignore_sentinel.py
+# will now fail the deploy loudly if they reappear.
+#
+# 2026-08-23 (post-deploy) — 5TH RECURRENCE. Something in Emergent's
+# deploy pipeline is silently rewriting this file on disk to re-add
+# `.env`, `.env.*`, `*.env` at the end IMMEDIATELY AFTER the deploy
+# auto-commit succeeds. Git HEAD is fine (the auto-commit that
+# includes our removal is committed); the offending lines only come
+# back on the pod's working tree. Suspect: `emergent-preview-sync` or
+# similar background tool. This needs Emergent Support to fix upstream.
+#
+# 2026-08-24 — 6TH RECURRENCE. Support ticket escalated to senior
+# team; recurrence still happened on THIS deploy (bundle 7eac4931 →
+# 3932ea74). Confirms the pipeline bug is 100% reproducible on every
+# deploy from this pod. Sentinel caught it within seconds again.
+#
+# 2026-08-24 (email from Akhil @ Emergent Support): CONFIRMED
+# platform-side.  A git tool that authors the "Auto-generated changes"
+# commits is appending these three lines, and it recurs on pod
+# create/resume.  Reproduced live on our environment, escalated to
+# owning engineering team.  IMPORTANT correction to our runbook:
+# the deploy pipeline itself does NOT read .gitignore, so these lines
+# alone don't break the current deploy.  What DOES break the next
+# deploy is any git-reset or checkout that runs after the corruption —
+# it physically deletes backend/.env from the working tree, and THEN
+# MANAGE_SECRETS → pull_source fails with "read env file backend/.env:
+# no such file or directory".  Recurrence #2 (the history-reset kill)
+# was this exact chain.  Our sentinel catches the corruption BEFORE
+# any git op can act on it — Akhil confirmed it's "precisely the right
+# shape".  Keep the sentinel in place until the platform fix lands.
+#
+# 2026-08-24 (afternoon) — 7TH RECURRENCE detected during pre-deploy
+# audit.  Reply email to Akhil already includes Recurrence #6
+# evidence; if 7+ recurrences accumulate before their fix lands we
+# can send a follow-up.  Sentinel + auto-fix is holding.
+#
+# 2026-08-24 (post-deploy 8th) — 8TH RECURRENCE.  Same 3 lines,
+# same post-deploy timing (within seconds of bundle 5181527b →
+# 36fa46d3 going live).  We have plenty of evidence for Akhil's
+# team; not sending a fresh follow-up unless the recurrence pattern
+# changes (e.g. lines appear MID-deploy instead of post-deploy).
+#
+# 2026-08-24 (post-deploy 9th) — 9TH RECURRENCE.  Bundle 36fa46d3 →
+# d130e52c.  Pattern unchanged.  Auto-fix keeps holding.
+frontend/node_modules/.cache/default-development/100.pack
+frontend/node_modules/.cache/default-development/103.pack

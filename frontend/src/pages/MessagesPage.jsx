@@ -64,7 +64,7 @@ function MessageRow({ msg, isMine, currentUserId, onApplyPalette }) {
 
         {msg.kind === "book" && msg.attachment?.book_id && (
           <Link
-            to={`/library/book/${msg.attachment.book_id}`}
+            to={`/book/${msg.attachment.book_id}`}
             data-testid={`chat-book-attachment-${msg.attachment.book_id}`}
             className={`mt-2 flex items-center gap-2 px-3 py-2 rounded-lg ${
               isMine ? "bg-white/15 hover:bg-white/25" : "bg-[#FBFAF6] hover:bg-[#F4EFE5]"

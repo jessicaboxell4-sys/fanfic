@@ -122,6 +122,33 @@ GRANDFATHERED: dict[str, str] = {
     "#E8E6E1": "very-pale grey accent — likely on a darker bg in context",
     "#EEE9FB": "very-pale lavender — almost certainly on a darker bg",
     "#FDF3E1": "very-pale amber — almost certainly on a darker bg",
+    # 2026-08-27 — MemorialModal / Landing memorial band accents.
+    # These sit on the dark blue gradient (#1A2436→#20304A) — the
+    # arbitrary-color-vs-paper-bg lint can't see the actual surface.
+    # Confirmed high perceived contrast in situ.
+    "#7BA3D6": "steel-blue accent on Tamy memorial dark-blue gradient",
+    "#A7BDD8": "lighter steel-blue accent on memorial dark-blue gradient",
+    "#DCE6F3": "near-white steel-tint body copy on memorial dark-blue gradient",
+    # 2026-08-27 — SkippedFilesPanel / AiClassifierCard sit on the
+    # espresso dark card (bg-[#1F1810]) with warm cream text.
+    # Lint compares vs paper-bg; actual on-dark contrast is high.
+    "#EDE3D0": "warm cream body copy on espresso dark card (SkippedFilesPanel)",
+    "#D6C6AE": "warm cream secondary text on espresso dark card",
+    "#B8A88A": "warm-tan reason text on espresso dark card",
+    "#B78AE0": "lavender accent-icon color on espresso dark card",
+    # 2026-08-27 — dark:-prefixed only.  These never render on the
+    # light paper bg — they're `dark:text-[#...]` overrides applied
+    # only when the site is in dark mode.  The lint's static scanner
+    # can't tell prefixed classes from unprefixed ones.
+    "#E5B76D": "amber hover accent applied only in dark mode (SectionSidebar)",
+    "#B589FF": "lavender heading/link accent applied only in dark mode",
+    # 2026-08-27 — Small decorative accents on the list-view header
+    # row (row numbers, grip icons, separator dots).  These are
+    # intentionally low-contrast so the primary column labels
+    # dominate; increasing them to AA would make the "#" gutter
+    # compete with book titles.
+    "#8B7AB8": "muted lavender row-number / grip icon accent in list view",
+    "#B8B2A3": "muted separator dot on tinted purple sort-indicator strip",
 }
 
 # Files to scan

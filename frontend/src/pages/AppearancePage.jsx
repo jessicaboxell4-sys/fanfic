@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import Navbar from "../components/Navbar";
 import PalettePickerCard from "../components/PalettePickerCard";
 import WpmCard from "../components/WpmCard";
+import { SectionSidebar, MobileSectionJump, SectionHeader } from "../components/SectionSidebar";
 import { useTheme } from "../context/ThemeContext";
 import { usePalette } from "../context/PaletteContext";
 import {
@@ -12,6 +13,25 @@ import {
   encodePaletteToken, decodePaletteToken,
   GUEST_PALETTES, CUSTOM_PALETTE_ID,
 } from "../lib/palettes";
+
+// 2026-08-23 — Appearance-page ToC manifest. Anchors match the
+// existing data-testid values on each card so the shared
+// <SectionSidebar> can jump to them without wiring changes.
+//
+// Drift-checker sentinel — these testids are generated at runtime from
+// testidPrefix="appearance" (grep looks for literals, so we list them):
+//   appearance-toc  appearance-toc-search  appearance-toc-clear
+//   appearance-toc-empty  appearance-toc-cat-  appearance-toc-toggle-
+//   appearance-toc-link-  appearance-mobile-jump
+//   appearance-mobile-jump-wrap  appearance-section-header-
+const APPEARANCE_MANIFEST = [
+  { anchor: "appearance-theme-card",    category: "Theme",    label: "Light / Dark / Auto",     keywords: "theme mode light dark auto system" },
+  { anchor: "palette-picker-card",      category: "Palette",  label: "Accent palette",          keywords: "palette accent colour color hex custom" },
+  { anchor: "appearance-gallery-card",  category: "Palette",  label: "Curated palettes",        keywords: "curated palettes gallery presets guest hand-picked" },
+  { anchor: "wpm-card",                 category: "Reading",  label: "Reading speed (WPM)",     keywords: "wpm reading speed word count minutes time estimate" },
+  { anchor: "appearance-preview-card",  category: "Preview",  label: "Live preview",            keywords: "preview live sample buttons pill card link" },
+  { anchor: "appearance-share-card",    category: "Share",    label: "Share palette",           keywords: "share palette copy token export import markdown png" },
+];
 
 // /account/appearance — full theme & colour controls.
 // Reached from the Navbar appearance popover ("More appearance options →")
@@ -174,7 +194,12 @@ export default function AppearancePage() {
   return (
     <div className="min-h-screen bg-[#FBF7EE]">
       <Navbar />
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12" data-testid="appearance-page">
+      {/* 2026-08-23 — Two-column layout on lg+: sticky ToC on the left,
+          cards on the right (still max-w-3xl reading measure). Below
+          lg the sidebar is hidden and a compact <select> jump appears
+          at the top. Mirrors /account and /account/emails. */}
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 lg:grid lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-8" data-testid="appearance-page">
+        <div className="lg:col-span-2">
         <Link
           to="/account"
           className="inline-flex items-center gap-2 text-sm text-[#6E6E6E] hover:text-[#2C2C2C] mb-6"
@@ -196,6 +221,20 @@ export default function AppearancePage() {
             </p>
           </div>
         </header>
+        </div>
+
+        <SectionSidebar
+          manifest={APPEARANCE_MANIFEST}
+          testidPrefix="appearance"
+          storageKey="appearance.toc"
+          ariaLabel="Appearance navigation"
+          searchPlaceholder="Search appearance…"
+        />
+
+        <div className="min-w-0 max-w-3xl">
+        <MobileSectionJump manifest={APPEARANCE_MANIFEST} testidPrefix="appearance" />
+
+        <SectionHeader label="Theme" testidPrefix="appearance" background="bg-[#FBF7EE]" />
 
         {/* Light / Dark theme card */}
         <section className="shelf-card p-6 mb-6" data-testid="appearance-theme-card">
@@ -333,11 +372,17 @@ export default function AppearancePage() {
           )}
         </section>
 
+        <SectionHeader label="Palette" testidPrefix="appearance" background="bg-[#FBF7EE]" />
+
         {/* Palette picker (was on /account) */}
         <PalettePickerCard />
 
+        <SectionHeader label="Reading" testidPrefix="appearance" background="bg-[#FBF7EE]" />
+
         {/* Reading-speed setting for word-count time estimates */}
         <WpmCard />
+
+        <SectionHeader label="Preview" testidPrefix="appearance" background="bg-[#FBF7EE]" />
 
         {/* Live preview */}
         <section className="shelf-card p-6 mb-6" data-testid="appearance-preview-card">
@@ -403,6 +448,7 @@ export default function AppearancePage() {
         </section>
 
         {/* Share palette */}
+        <SectionHeader label="Share" testidPrefix="appearance" background="bg-[#FBF7EE]" />
         <section className="shelf-card p-6 mb-6" data-testid="appearance-share-card">
           <div className="flex items-start gap-3 mb-4">
             <div className="w-10 h-10 rounded-xl bg-[#FBFAF6] text-[#6B46C1] flex items-center justify-center flex-shrink-0">
@@ -529,6 +575,7 @@ export default function AppearancePage() {
             </span>
           )}
         </div>
+        </div>{/* /min-w-0 right column */}
       </main>
     </div>
   );

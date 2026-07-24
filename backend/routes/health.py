@@ -197,7 +197,7 @@ def _probe_pod_memory() -> Dict[str, Any]:
 # Public endpoint
 # ---------------------------------------------------------------------------
 @api_router.get("/health")
-async def health():
+async def health(deep: int = 0):
     mongo = await _probe_mongo()
     scheduler = _probe_scheduler()
     storage = _probe_storage()
@@ -219,7 +219,7 @@ async def health():
     else:
         status = "ok"
 
-    return {
+    body = {
         "status":    status,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "version":   os.environ.get("APP_VERSION", "dev"),
@@ -233,6 +233,26 @@ async def health():
             "pod_memory": pod_memory,
         },
     }
+
+    # `?deep=1` — include the startup-migration timing snapshot so
+    # operators can debug slow deploys without shell access.  Reports
+    # whether the deferred migrations finished, per-phase wall-time,
+    # and any failure detail.  The current pod's status is one of:
+    #   not_started  — pre-startup or migrations haven't been scheduled
+    #   running      — migrations are still executing (pod may be
+    #                  responsive but some queries could hit uncreated
+    #                  indexes)
+    #   done         — every migration + phase completed cleanly
+    #   failed       — the deferred task raised; see `phases` for which
+    #                  phase blew up + the error string
+    if deep:
+        try:
+            from utils.startup_state import get_state as _ss_get_state
+            body["startup"] = _ss_get_state()
+        except Exception as e:  # noqa: BLE001
+            body["startup"] = {"status": "unavailable", "error": str(e)[:200]}
+
+    return body
 
 
 @api_router.get("/version")

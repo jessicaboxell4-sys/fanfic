@@ -32,7 +32,7 @@ from pydantic import BaseModel
 from deps import db, api_router
 from models import User
 from auth_dep import get_current_user
-from utils.constants import TRASH_SHELF, TRASH_GRACE_DAYS
+from utils.constants import TRASH_SHELF, TRASH_GRACE_DAYS, TRASH_REASON_QUARANTINE_DISCARD, TRASH_REASON_QUARANTINE_BATCH
 from routes.books import (
     OLD_STORIES_SHELF,
     _normalize_title_for_match,
@@ -243,6 +243,10 @@ async def resolve_quarantine(
                 "$set": {
                     "category": TRASH_SHELF,
                     "trash_expires_at": expires_at,
+                    # 2026-08-24 — audit fields for /api/trash renderer.
+                    "trashed_at": now_iso,
+                    "trash_reason": TRASH_REASON_QUARANTINE_DISCARD,
+                    "trash_prev_category": book.get("category"),
                     "dupe_action_meta": {
                         "action": "discard",
                         "prev_category_new": book.get("category"),
@@ -513,6 +517,10 @@ async def _apply_keep_latest_to_group(
                     "$set": {
                         "category": TRASH_SHELF,
                         "trash_expires_at": expires_at,
+                        # 2026-08-24 — audit fields for /api/trash.
+                        "trashed_at": now_iso,
+                        "trash_reason": TRASH_REASON_QUARANTINE_BATCH,
+                        "trash_prev_category": L["row"].get("category"),
                         "dupe_action_meta": {
                             "action": "discard",
                             "via": "group_keep_latest",
@@ -566,6 +574,10 @@ async def _apply_keep_latest_to_group(
                     "$set": {
                         "category": TRASH_SHELF,
                         "trash_expires_at": expires_at,
+                        # 2026-08-24 — audit fields for /api/trash.
+                        "trashed_at": now_iso,
+                        "trash_reason": TRASH_REASON_QUARANTINE_BATCH,
+                        "trash_prev_category": L["row"].get("category"),
                         "dupe_action_meta": {
                             "action": "discard",
                             "via": "group_keep_latest",

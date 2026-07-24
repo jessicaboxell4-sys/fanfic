@@ -37,7 +37,7 @@ declare -a FAILED_STEPS
 note_fail() { FAIL_COUNT=$((FAIL_COUNT + 1)); FAILED_STEPS+=("$1"); }
 
 # ─── 1. Gitignore fix ───────────────────────────────────────────────
-header "1/5  Gitignore env-block fix"
+header "1/9  Gitignore env-block fix"
 if [ -x "$ROOT/scripts/fix_gitignore.sh" ]; then
     if bash "$ROOT/scripts/fix_gitignore.sh"; then
         :
@@ -50,7 +50,7 @@ else
 fi
 
 # ─── 2. Standing lints ──────────────────────────────────────────────
-header "2/5  Standing lints (5 of them)"
+header "2/9  Standing lints (5 of them)"
 if bash "$ROOT/scripts/run_all_lints.sh"; then
     echo -e "${G}✓ all standing lints passed${N}"
 else
@@ -58,7 +58,7 @@ else
 fi
 
 # ─── 3. Health probe ────────────────────────────────────────────────
-header "3/5  Preview backend health"
+header "3/9  Preview backend health"
 API_URL=$(grep -E '^REACT_APP_BACKEND_URL=' "$ROOT/frontend/.env" | cut -d= -f2-)
 if [ -z "$API_URL" ]; then
     echo -e "${R}✗ REACT_APP_BACKEND_URL not set in frontend/.env${N}"
@@ -89,7 +89,7 @@ for k,v in d.get('checks',{}).items():
 fi
 
 # ─── 4. Backend tests (session tests — exclude known-flaky) ─────────
-header "4/5  Backend tests (recent session)"
+header "4/9  Backend tests (recent session)"
 cd "$ROOT/backend"
 # These two cover the polish-retry-inbox + queue-summary surfaces
 # added in this work cycle.  Other test files in the repo are flaky
@@ -102,13 +102,71 @@ else
 fi
 cd "$ROOT"
 
-# ─── 5. Final banner ────────────────────────────────────────────────
+# ─── 5. Bundle size regression ──────────────────────────────────────
+header "5/9  Bundle size regression vs baseline"
+if python3 "$ROOT/scripts/check_bundle_size.py"; then
+    echo -e "${G}✓ bundle size within tolerance${N}"
+else
+    note_fail "bundle size regression"
+fi
+
+# ─── 6. Mobile viewport smoke ───────────────────────────────────────
+header "6/9  Mobile viewport smoke (375x667)"
+if python3 "$ROOT/scripts/mobile_smoke.py" 2>&1 | tail -20; then
+    :
+else
+    note_fail "mobile smoke"
+fi
+
+# ─── 7. Drift check ─────────────────────────────────────────────────
+header "7/9  data-testid drift (source vs prod bundle)"
+if python3 "$ROOT/scripts/deploy_drift_check.py" 2>&1 | tail -6; then
+    :
+else
+    note_fail "testid drift"
+fi
+
+# ─── 8. Route sentinel ──────────────────────────────────────────────
+header "8/9  Route sentinel (dead-link scan)"
+if python3 "$ROOT/scripts/route_sentinel.py" 2>&1 | tail -3; then
+    :
+else
+    note_fail "route sentinel"
+fi
+
+# ─── 9. Strict no-undef sweep (ghost-function references) ───────────
+# 2026-07-20 — Added after the third `load is not defined` shape shipped
+# to prod (iter 102: EmailStatsCard).  CRA's build treats `no-undef` as a
+# warning; this step runs ESLint standalone against a minimal config
+# that has ONLY `no-undef` + `react/jsx-no-undef` at ERROR level, so
+# undeclared identifier references block the deploy.
+header "9/9  Strict no-undef sweep (undeclared identifier references)"
+if command -v npx >/dev/null 2>&1; then
+    cd "$ROOT/frontend"
+    OUT=$(npx --no-install eslint \
+        --config "$ROOT/frontend/scripts_eslint_no_undef.config.mjs" \
+        --no-config-lookup \
+        --quiet \
+        "src/**/*.js" "src/**/*.jsx" 2>&1)
+    RC=$?
+    cd "$ROOT"
+    if [ "$RC" -eq 0 ]; then
+        echo -e "${G}✓ no undeclared identifiers${N}"
+    else
+        echo "$OUT" | tail -40
+        note_fail "no-undef violations"
+    fi
+else
+    echo -e "${Y}⚠ npx unavailable, skipping strict no-undef sweep${N}"
+fi
+
+# ─── Final banner ───────────────────────────────────────────────────
 END_TS=$(date +%s)
 ELAPSED=$((END_TS - START_TS))
 echo ""
 hr
 if [ "$FAIL_COUNT" -eq 0 ]; then
-    echo -e "  ${G}${B}✓ pre-deploy sweep: PASS${N}  (${ELAPSED}s, 5/5 checks green)"
+    echo -e "  ${G}${B}✓ pre-deploy sweep: PASS${N}  (${ELAPSED}s, 9/9 checks green)"
     echo -e "  ${D}safe to hit Deploy on the Emergent platform${N}"
     hr
     exit 0

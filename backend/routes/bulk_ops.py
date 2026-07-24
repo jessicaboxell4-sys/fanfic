@@ -30,7 +30,7 @@ from deps import db, api_router, logger, STORAGE_DIR
 from models import User
 from auth_dep import get_current_user
 
-from utils.constants import TRASH_SHELF, TRASH_GRACE_DAYS
+from utils.constants import TRASH_SHELF, TRASH_GRACE_DAYS, TRASH_REASON_BULK_DELETE
 from utils.epub_metadata import extract_epub_metadata
 from utils.classifier import classify_with_ai
 
@@ -141,6 +141,10 @@ async def bulk_delete(body: BulkIdsBody, user: User = Depends(get_current_user))
                 "$set": {
                     "category": TRASH_SHELF,
                     "trash_expires_at": expires_at,
+                    # 2026-08-24 — audit fields for /api/trash renderer.
+                    "trashed_at": now_iso,
+                    "trash_reason": TRASH_REASON_BULK_DELETE,
+                    "trash_prev_category": b.get("category"),
                     "dupe_action_meta": {
                         "action": "discard",
                         "prev_category_new": b.get("category"),

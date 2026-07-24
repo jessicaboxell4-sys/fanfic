@@ -113,7 +113,25 @@ export default function Rules() {
             Loading rules…
           </p>
         ) : md ? (
-          <article data-testid="rules-content">{renderMarkdown(md)}</article>
+          <>
+            <article data-testid="rules-content">{renderMarkdown(md)}</article>
+            <aside
+              className="mt-8 rounded-xl border border-[#E4D9C8] bg-[#FBFAF6] px-5 py-4"
+              data-testid="rules-ai-opt-out-callout"
+            >
+              <p className="text-sm text-[#2C2C2C]">
+                <strong>Don&apos;t want AI to see your files?</strong> Shelfsort will still work — metadata-only
+                sorting sends nothing to any LLM. You can flip it in{" "}
+                <Link
+                  to="/account#ai"
+                  className="text-[#6B46C1] underline hover:text-[#4C2A99]"
+                  data-testid="rules-ai-off-link"
+                >
+                  Account &rsaquo; AI classifier
+                </Link>.
+              </p>
+            </aside>
+          </>
         ) : (
           <p className="text-sm text-[#5B5F4D] italic" data-testid="rules-empty">
             Couldn&apos;t load the community rules right now. Please try again later.

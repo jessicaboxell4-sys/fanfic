@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { Book, Check, CheckCircle2, Circle, ListPlus, ListChecks, Smartphone, Sparkles, Loader2 } from "lucide-react";
+import { Book, Check, CheckCircle2, Circle, BookOpen, ListPlus, ListChecks, Smartphone, Sparkles, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
 import { pulseGoalsCheck } from "../lib/goalHitWatcher";
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
 import { isBookFresh, subscribeFreshArrivals } from "../lib/freshArrivals";
+import { getReadingStatus, nextReadingStatus, READING_STATUS_META } from "../lib/readingStatus";
 import RegenerateCoverButton from "./RegenerateCoverButton";
 import AntivirusBadge from "./AntivirusBadge";
 import VerdictBadges from "./VerdictBadges";
@@ -111,20 +112,22 @@ export default function BookCard({ book, selectMode, selected, onToggleSelect, o
     ? effectiveFandom
     : effectiveCategory;
 
-  const isRead = typeof book.progress_fraction === "number" && book.progress_fraction >= 0.99;
+  const readingStatus = getReadingStatus(book);
+  const isRead = readingStatus === "finished";
+  const statusMeta = READING_STATUS_META[readingStatus];
 
-  const toggleRead = async (e) => {
+  const cycleStatus = async (e) => {
     e.preventDefault();
     e.stopPropagation();
     if (marking) return;
+    const next = nextReadingStatus(readingStatus);
     setMarking(true);
     try {
-      await api.post(`/books/${book.book_id}/mark`, { read: !isRead });
-      toast.success(!isRead ? `Marked "${book.title}" as read` : `Marked "${book.title}" as unread`);
+      await api.post(`/books/${book.book_id}/status`, { status: next });
+      toast.success(`Marked "${book.title}" as ${READING_STATUS_META[next].label}`);
       onChanged && onChanged();
-      // If this mark just flipped a Reading-goal, fire global confetti.
-      // Only check when moving to "read" (unread never triggers a hit).
-      if (!isRead) pulseGoalsCheck();
+      // Fire goal-hit confetti only when the flip is to Finished.
+      if (next === "finished") pulseGoalsCheck();
     } catch (err) {
       toast.error("Couldn't update");
     } finally {
@@ -206,14 +209,27 @@ export default function BookCard({ book, selectMode, selected, onToggleSelect, o
           />
         )}
 
-        {/* Read indicator: persistent badge on finished books */}
-        {!selectMode && isRead && (
+        {/* Reading-status badge: tri-state pill shown on every card
+            (Unread / Reading / Finished).  Colour + label come from
+            READING_STATUS_META so grid, list, and compact views stay
+            visually consistent. */}
+        {!selectMode && (
           <div
-            data-testid={`read-badge-${book.book_id}`}
-            className="absolute top-2 right-2 bg-[#6B46C1] text-white text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full flex items-center gap-1 shadow"
+            data-testid={`status-badge-${book.book_id}`}
+            data-status={readingStatus}
+            className={`absolute top-2 right-2 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full flex items-center gap-1 shadow ${statusMeta.className}`}
+            title={`Reading status: ${statusMeta.label}. Hover the card and click the button in the bottom-right to cycle.`}
           >
-            <CheckCircle2 className="w-3 h-3" /> Read
+            {readingStatus === "finished" ? <CheckCircle2 className="w-3 h-3" />
+              : readingStatus === "reading" ? <BookOpen className="w-3 h-3" />
+              : <Circle className="w-3 h-3" />}
+            {statusMeta.label}
           </div>
+        )}
+        {/* Legacy testid kept for backward compat with existing e2e tests
+            that look for `read-badge-{id}` only on Finished books. */}
+        {!selectMode && isRead && (
+          <span data-testid={`read-badge-${book.book_id}`} className="sr-only">Read</span>
         )}
 
         {/* Cross-device hint: shown when there's a fresh cloud cursor
@@ -247,14 +263,16 @@ export default function BookCard({ book, selectMode, selected, onToggleSelect, o
           </button>
         )}
 
-        {/* Hover-only quick action: mark read / unread */}
+        {/* Hover-only quick action: cycle reading status
+            (Unread → Reading → Finished → Unread). */}
         {!selectMode && (
           <button
             type="button"
             data-testid={`toggle-read-${book.book_id}`}
-            onClick={toggleRead}
+            data-status={readingStatus}
+            onClick={cycleStatus}
             disabled={marking}
-            title={isRead ? "Mark as unread" : "Mark as read"}
+            title={`Cycle status (currently ${statusMeta.label} → ${READING_STATUS_META[nextReadingStatus(readingStatus)].label})`}
             className={`absolute bottom-2 right-2 w-9 h-9 rounded-full flex items-center justify-center transition-all
               ${isRead
                 ? "bg-white text-[#6B46C1] border border-[#6B46C1]/30 opacity-0 group-hover:opacity-100"
@@ -262,7 +280,9 @@ export default function BookCard({ book, selectMode, selected, onToggleSelect, o
               }
               ${marking ? "animate-pulse" : ""} shadow-md hover:shadow-lg`}
           >
-            {isRead ? <Circle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
+            {readingStatus === "finished" ? <Circle className="w-4 h-4" />
+              : readingStatus === "reading" ? <CheckCircle2 className="w-4 h-4" />
+              : <BookOpen className="w-4 h-4" />}
           </button>
         )}
       </div>

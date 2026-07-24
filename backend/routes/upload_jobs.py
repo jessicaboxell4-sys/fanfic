@@ -423,14 +423,47 @@ async def upload_books_async(
                     )
                     cloud_key = None  # don't lie about it being there.
                     # 2026-07-01 — Strict-mode toggle.  Setting
-                    # ``UPLOAD_REQUIRE_CLOUD_STAGING=1`` in .env flips
+                    # ``UPLOAD_REQUIRE_CLOUD_STAGING`` in .env flips
                     # the failure semantics: instead of accepting the
                     # upload with disk-only durability (and gambling
                     # that the backfill cron catches up before a pod
                     # restart), we return 503 and ask the user to retry
                     # in a moment.  Slower feedback loop but zero
                     # chance of losing bytes to a restart.
-                    if os.environ.get("UPLOAD_REQUIRE_CLOUD_STAGING", "").lower() in ("1", "true", "yes"):
+                    #
+                    # 2026-07-23 — Flipped default from opt-in to
+                    # opt-out (P0 fix for the batch of 46 "Staging
+                    # directory vanished" failures reported after the
+                    # 2026-07-21 deploys).  Rationale: if R2 is
+                    # enabled at all, we should never accept an upload
+                    # we can't mirror — the whole point of R2 is to
+                    # survive a pod restart, and disk-only defeats it.
+                    # Set UPLOAD_REQUIRE_CLOUD_STAGING=0 to revert to
+                    # the old lenient behaviour.
+                    _strict = os.environ.get("UPLOAD_REQUIRE_CLOUD_STAGING")
+                    if _strict is None:
+                        _strict_on = True  # default ON when R2 is enabled
+                    else:
+                        _strict_on = _strict.lower() not in ("0", "false", "no", "")
+                    if _strict_on:
+                        # Record the failure so the admin banner can
+                        # surface a "R2 mirror is broken" signal when
+                        # this fires > N times/hour.  See
+                        # /api/admin/r2-mirror-health for the
+                        # aggregation.  Fire-and-forget insert so a
+                        # broken telemetry write can't compound the
+                        # user-facing failure.
+                        try:
+                            from datetime import datetime as _dt, timezone as _tz
+                            await db.upload_r2_failures.insert_one({
+                                "user_id":     user.user_id,
+                                "filename":    f.filename or safe_basename,
+                                "size":        len(content) if isinstance(content, (bytes, bytearray)) else None,
+                                "reason":      "mirror_failed_after_retries",
+                                "created_at":  _dt.now(_tz.utc),
+                            })
+                        except Exception:  # noqa: BLE001
+                            pass
                         # Clean up the partial staging dir before failing.
                         shutil.rmtree(staging, ignore_errors=True)
                         raise HTTPException(
@@ -879,4 +912,140 @@ async def count_in_flight_upload_jobs(user: User = Depends(require_admin)):
             "user_id",
             {"status": {"$in": ["queued", "processing"]}},
         )),
+    }
+
+
+# ============================================================================
+# 2026-08-24 — Batch-level upload telemetry.
+# ============================================================================
+# UploadZone.jsx posts one summary document per user batch when the batch
+# fully drains (all files either succeeded or exhausted their retries).
+# The admin dashboard reads these to chart failure-rate trends by day and
+# correlate them against tuning history (concurrency, retries, jitter).
+#
+# Kept intentionally cheap: no indexes required beyond ``finished_at``
+# (compound with ``user_id`` if the collection grows past ~100k rows).
+# Individual documents are ~500 bytes; a heavy user posting one batch per
+# hour accumulates ~4 MB/year, comfortably below any Mongo concerns.
+# ============================================================================
+
+from pydantic import BaseModel, Field
+from typing import Any
+
+
+class _BatchStatFailureReason(BaseModel):
+    reason: str = Field(..., max_length=200)
+    count: int = Field(..., ge=1, le=10000)
+
+
+class UploadBatchStatsIn(BaseModel):
+    # All fields flow verbatim from the frontend's ``finalStats`` payload;
+    # extras are ignored so a future frontend field roll-out never 422s.
+    batch_id: str = Field(..., min_length=8, max_length=128)
+    started_at: int = Field(..., ge=0)             # ms since epoch
+    finished_at: int = Field(..., ge=0)
+    duration_ms: int = Field(..., ge=0)
+    total_files: int = Field(..., ge=0, le=100000)
+    succeeded: int = Field(..., ge=0, le=100000)
+    failed: int = Field(..., ge=0, le=100000)
+    transient_retries: int = Field(0, ge=0, le=1_000_000)
+    throttled_events: int = Field(0, ge=0, le=100000)
+    ramp_events: int = Field(0, ge=0, le=100000)
+    peak_concurrency: int = Field(1, ge=1, le=64)
+    min_concurrency_after_start: int = Field(1, ge=1, le=64)
+    failure_reasons: list[_BatchStatFailureReason] = Field(default_factory=list)
+    airdrop_mode: bool = False
+
+
+@api_router.post("/upload-jobs/batch-stats")
+async def submit_upload_batch_stats(
+    payload: UploadBatchStatsIn,
+    user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Persist one batch-level telemetry document.
+
+    Fire-and-forget from the client — we never surface errors here (a
+    telemetry POST that fails would just create a duplicate toast on top
+    of whatever the user is already looking at).  Response is a bare
+    ``{"ok": True}`` so the frontend can keep the ``.catch(() => {})``
+    swallow pattern.
+
+    We do dedupe on ``batch_id`` (upsert) so if the browser retries this
+    POST due to a network blip, we don't double-count in the admin
+    dashboard.  Only the first submission wins.
+    """
+    doc = payload.model_dump()
+    doc["user_id"]     = user.user_id
+    doc["user_email"]  = user.email      # denormalised for admin list rendering
+    doc["submitted_at"] = datetime.now(timezone.utc).isoformat()
+    # First-write-wins upsert on batch_id.  A retried POST hits the
+    # existing row's $setOnInsert and returns a no-op success.
+    await db.upload_batch_stats.update_one(
+        {"batch_id": payload.batch_id},
+        {"$setOnInsert": doc},
+        upsert=True,
+    )
+    return {"ok": True}
+
+
+@api_router.get("/admin/upload-jobs/batch-stats")
+async def list_upload_batch_stats(
+    limit: int = 100,
+    days: int = 7,
+    _admin: User = Depends(require_admin),
+) -> dict[str, Any]:
+    """Return recent batch-stats rows for the admin dashboard.
+
+    Bounded by ``limit`` (≤500) and ``days`` (≤90).  Sorted by
+    ``finished_at`` desc so the dashboard sees the freshest batches
+    first.  Also returns a small aggregate summary (failure rate by
+    day) for the trend chart.
+    """
+    limit = max(1, min(int(limit or 100), 500))
+    days  = max(1, min(int(days or 7), 90))
+    cutoff_ms = int((datetime.now(timezone.utc) - timedelta(days=days)).timestamp() * 1000)
+
+    # Recent per-batch rows.
+    cursor = (
+        db.upload_batch_stats
+          .find({"finished_at": {"$gte": cutoff_ms}}, {"_id": 0})
+          .sort("finished_at", -1)
+          .limit(limit)
+    )
+    rows = await cursor.to_list(length=limit)
+
+    # Per-day aggregate — count batches, files, failures.  Cheap: same
+    # index scan as the ``rows`` query, in-memory grouping.
+    from collections import defaultdict
+    day_bucket: dict[str, dict[str, int]] = defaultdict(lambda: {
+        "batches": 0, "files": 0, "succeeded": 0, "failed": 0,
+        "retries": 0, "throttled_events": 0,
+    })
+    for r in rows:
+        day = datetime.fromtimestamp(r["finished_at"] / 1000, tz=timezone.utc).date().isoformat()
+        b = day_bucket[day]
+        b["batches"]  += 1
+        b["files"]    += r.get("total_files", 0)
+        b["succeeded"] += r.get("succeeded", 0)
+        b["failed"]   += r.get("failed", 0)
+        b["retries"]  += r.get("transient_retries", 0)
+        b["throttled_events"] += r.get("throttled_events", 0)
+    trend = [
+        {"day": day, **b, "failure_rate": (b["failed"] / b["files"]) if b["files"] else 0.0}
+        for day, b in sorted(day_bucket.items())
+    ]
+
+    # Overall aggregates for the "since deploy" summary strip.
+    total_files    = sum(b["files"]    for b in day_bucket.values())
+    total_failed   = sum(b["failed"]   for b in day_bucket.values())
+    return {
+        "rows": rows,
+        "trend": trend,
+        "summary": {
+            "batches": sum(b["batches"] for b in day_bucket.values()),
+            "files":   total_files,
+            "failed":  total_failed,
+            "failure_rate": (total_failed / total_files) if total_files else 0.0,
+            "window_days": days,
+        },
     }

@@ -1010,9 +1010,16 @@ from utils.url_canonical import (  # noqa: E402
     normalize_fanfic_url,
 )
 
-FANFICFARE_USER_AGENT = (
-    "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"
-)
+# NOTE: ``FANFICFARE_USER_AGENT``, the fanfic fetch/refresh helpers
+# (fanfic_fetch_epub, fetch_fanfic_with_fallback, apply_refresh,
+# find_source_url, extract_fanfic_urls, FanficNotFoundError), the
+# duplicate helpers (_clean_author_string, _normalize_*_for_match,
+# find_duplicate_candidates, _apply_duplicate_policy) and the shared
+# ``_updated_shelf_name`` / ``OLD_STORIES_SHELF`` constants were
+# extracted to ``utils/fanfic.py`` + ``utils/duplicates.py`` +
+# ``utils/constants.py`` in the Phase 6C refactor (2026-08-22).
+# All those names are re-imported at the top of this module and stay
+# available as ``routes.books`` attributes for backwards compat.
 
 
 # Phase-5 follow-up: url_lists.py owns the dedupe / pull / export-xlsx routes
@@ -1029,53 +1036,17 @@ from utils.url_canonical import (  # noqa: E402
 # Phase 5 cleanup: helpers that were extracted to other modules but are still
 # referenced from this file (upload_books, list_library_xlsx, etc.).
 
-async def _write_local_and_mirror_to_r2(
-    local_path: Path,
-    payload: bytes,
-    user_id: str,
-    book_id: str,
-    ext: str,
-) -> None:
-    """Write ``payload`` to ``local_path`` AND immediately mirror it to
-    R2 if cloud storage is enabled.
-
-    Same defensive pattern as ``upload_books``'s bulk mirror — see
-    2026-06-21 incident in CHANGELOG.md.  Local disk is the cache,
-    R2 is the source of truth.  Pre-2026-06-21, the entire codebase
-    wrote bytes to local disk and trusted the every-10-min storage
-    backfill cron to push them to R2; pod restarts inside that 10-min
-    window destroyed the bytes permanently (we lost 53 of 65 books to
-    this on prod).
-
-    Mirror failures here log a warning and rely on the cron retry —
-    they MUST NOT raise back to the caller, because the bytes are
-    already safely on local disk and the caller has no idempotent
-    retry path.
-    """
-    local_path.write_bytes(payload)
-    try:
-        from utils.storage_cloud import (
-            is_enabled as _cloud_on,
-            mirror_up as _r2_mirror_up,
-            storage_key_for as _r2_key,
-        )
-        if _cloud_on():
-            await asyncio.to_thread(
-                _r2_mirror_up, local_path, _r2_key(user_id, book_id, ext),
-            )
-    except Exception as e:  # noqa: BLE001
-        logger.warning(
-            "_write_local_and_mirror_to_r2: R2 mirror failed for %s "
-            "(book=%s ext=%s): %s — file safe on local disk, cron will retry.",
-            local_path.name, book_id, ext, e,
-        )
-
-
-def _safe_folder(name: str) -> str:
-    """Mirror of routes/exports.py::_safe_folder — sanitised dir/file name."""
-    import re as _re
-    out = _re.sub(r"[^\w\-. ]+", "_", (name or "").strip())
-    return out[:60] or "unknown"
+# 2026-08-22 — Filesystem + filename helpers moved to
+# ``utils/book_files.py`` (Phase 6C slice 4). Re-exported below so
+# every historical caller (books_links, books_versions, covers,
+# user_prefs, utils.fanfic.apply_refresh, and the pytest suite) keeps
+# resolving through ``routes.books`` unchanged.
+from utils.book_files import (  # noqa: E402
+    _write_local_and_mirror_to_r2,
+    _safe_folder,
+    _safe_filename,
+    _templated_filename,
+)
 
 
 async def _dedupe_url_list(text: str, user_id: str):
@@ -1104,7 +1075,7 @@ from utils.status_detector import (  # noqa: E402
     COMPLETE as STATUS_COMPLETE,
     ONGOING as STATUS_ONGOING,
 )
-from utils.constants import TRASH_SHELF, TRASH_GRACE_DAYS, PENDING_SORT_SHELF  # noqa: E402
+from utils.constants import TRASH_SHELF, TRASH_GRACE_DAYS, PENDING_SORT_SHELF, OLD_STORIES_SHELF  # noqa: E402
 
 
 # ---- Tag helpers (moved to utils.tags as part of books.py refactor Phase 2)
@@ -1118,729 +1089,29 @@ from utils.tags import (  # noqa: E402
 )
 
 
-class FanficNotFoundError(Exception):
-    """FanFicFare couldn't fetch this fanfic — mark the book as unavailable."""
-    pass
+# 2026-08-22 — Duplicate detection helpers and the fanfic fetch/refresh
+# pipeline live in utils/duplicates.py and utils/fanfic.py (Phase 6C
+# slices 2 + 3). Re-exported here so existing importers (upload_books,
+# routes.duplicate_resolution, routes.refresh, routes.books_versions,
+# tests/test_*) keep resolving through routes.books unchanged.
+from utils.duplicates import (  # noqa: E402, F401
+    _clean_author_string,
+    _normalize_title_for_match,
+    _normalize_author_for_match,
+    _updated_shelf_name,
+    find_duplicate_candidates,
+    _apply_duplicate_policy,
+)
+from utils.fanfic import (  # noqa: E402, F401
+    FANFICFARE_USER_AGENT,
+    FanficNotFoundError,
+    find_source_url,
+    extract_fanfic_urls,
+    fanfic_fetch_epub,
+    fetch_fanfic_with_fallback,
+    apply_refresh,
+)
 
-
-def find_source_url(links: List[Dict[str, str]]) -> Optional[str]:
-    """Return the first URL in the list that points to a supported fanfic source,
-    already normalized to its canonical form."""
-    for item in links:
-        url = (item.get('url') or '').strip()
-        canon = normalize_fanfic_url(url)
-        if canon:
-            return canon
-    return None
-
-
-def extract_fanfic_urls(links: List[Dict[str, str]]) -> List[str]:
-    """Return every canonical fanfic-permalink URL found in the EPUB's link set.
-
-    We only keep URLs that match `FANFIC_SOURCE_PATTERNS` (AO3 /works/N, FFnet
-    /s/N, RoyalRoad /fiction/N, etc.) so that duplicate detection doesn't trip
-    on boilerplate navigation links shared by every AO3 EPUB. URLs are
-    normalized (mobile host stripped, `www.` collapsed, AO3 collection prefix
-    removed, chapter id dropped, http→https, etc.) so different surface forms
-    of the same work dedupe correctly.
-    """
-    seen: set = set()
-    out: List[str] = []
-    for item in links or []:
-        url = (item.get('url') or '').strip()
-        canon = normalize_fanfic_url(url)
-        if canon and canon not in seen:
-            seen.add(canon)
-            out.append(canon)
-    return out
-
-
-def _clean_author_string(raw: Optional[str]) -> str:
-    """Tidy up messy author fields before storing.
-
-    Handles common EPUB metadata patterns that make dedup + display worse:
-      - 'by John Smith' → 'John Smith'
-      - 'Smith, John & Doe, Jane' → 'Smith, John & Doe, Jane' (preserved,
-        but trailing/leading separators stripped)
-      - 'John Smith (a.k.a. Pseudonym)' → 'John Smith' (drop parenthetical)
-      - 'Pseudonym [pen name]' → 'Pseudonym' (drop bracketed annotation)
-      - 'anonymous', 'unknown author', '' → 'Unknown'
-      - Collapse internal whitespace.
-
-    We deliberately do NOT lowercase or reformat the case — only the
-    matching helper does that, so display stays human-friendly.
-    """
-    s = (raw or "").strip()
-    if not s:
-        return "Unknown"
-    # Drop parenthetical and bracketed annotations like "(pen name)" or "[a.k.a. X]"
-    s = re.sub(r"\s*[\(\[][^)\]]*[\)\]]", "", s).strip()
-    # Strip leading "by " (case-insensitive)
-    s = re.sub(r"^(?:by|written by|author[:\s])\s+", "", s, flags=re.IGNORECASE).strip()
-    # Trim stray separators ("John Smith, " or "& Jane")
-    s = s.strip(" ,&;|/")
-    # Collapse whitespace
-    s = re.sub(r"\s+", " ", s)
-    # Canonicalize common "unknown" sentinels
-    low = s.lower()
-    if low in ("anonymous", "anon", "anon.", "unknown", "unknown author", "n/a", "na", "various", "various authors"):
-        return {"various": "Various", "various authors": "Various"}.get(low, "Unknown")
-    return s
-
-
-def _normalize_title_for_match(title: Optional[str]) -> str:
-    return re.sub(r"\s+", " ", (title or "").strip()).lower()
-
-
-def _normalize_author_for_match(author: Optional[str]) -> str:
-    """Normalize for cross-row comparison: lowercase, drop dots, collapse
-    whitespace, and merge runs of single-letter "initials" so 'J. K. Rowling'
-    and 'JK Rowling' compare equal. Empty stays empty so callers can detect
-    missing-author and fall back to title-only matching."""
-    s = re.sub(r"\.", "", (author or "")).strip()
-    s = re.sub(r"\s+", " ", s).lower()
-    # Concatenate runs of single-letter words: 'j k rowling' → 'jk rowling'
-    s = re.sub(
-        r"\b([a-z])(\s+[a-z]\b)+",
-        lambda m: m.group(0).replace(" ", ""),
-        s,
-    )
-    return s
-
-
-# NOTE: URL-list endpoints (dedupe / export-xlsx / pull) and their
-# helpers (_backfill_user_fanfic_urls, _dedupe_url_list) were moved to
-# routes/url_lists.py in the Phase 5 refactor (2026-06-14).
-
-
-async def find_duplicate_candidates(
-    user_id: str,
-    *,
-    title: Optional[str],
-    author: Optional[str] = None,
-    source_url: Optional[str],
-    fanfic_urls: Optional[List[str]] = None,
-    exclude_book_id: Optional[str] = None,
-) -> List[Dict[str, Any]]:
-    """Find existing books in the user's library that look like duplicates.
-
-    Match rules (any of):
-      - normalized title + author equality (case-insensitive, whitespace-collapsed,
-        dots stripped from author). When either side has no author on file we
-        fall back to title-only matching so books that legitimately lack an
-        author still dedupe.
-      - exact source_url equality
-      - any shared canonical fanfic URL (intersection on `fanfic_urls`)
-
-    Archived versions are searched too — when a match lands on an archived
-    book we walk the `replaced_by` chain to its current head and surface the
-    head as the match (with `historical_version` added to match_reasons),
-    so the upload can be offered as a historical version of a current copy.
-
-    Returns a list of `{book_id, title, author, match_reasons: [...]}` dicts.
-    """
-    norm_title = _normalize_title_for_match(title)
-    norm_author = _normalize_author_for_match(author)
-    urls = [u for u in (fanfic_urls or []) if u]
-
-    # Honor "not a duplicate" dismissals — the user has previously said this
-    # (title, author, url) is NOT a dupe of certain keepers.  Skip those.
-    try:
-        from routes.library_quarantine import _get_dismissed_keeper_ids  # WPS433
-        dismissed_ids = await _get_dismissed_keeper_ids(user_id, title, author, source_url)
-    except Exception:  # noqa: BLE001 — dismissals are best-effort
-        dismissed_ids = set()
-
-    or_clauses: List[Dict[str, Any]] = []
-    if norm_title:
-        # Narrow the title regex pre-filter; we still verify title+author
-        # equality in Python below.
-        escaped = re.escape(norm_title)
-        or_clauses.append({"title": {"$regex": f"^\\s*{escaped}\\s*$", "$options": "i"}})
-    if source_url:
-        or_clauses.append({"source_url": source_url})
-    if urls:
-        or_clauses.append({"fanfic_urls": {"$in": urls}})
-
-    if not or_clauses:
-        return []
-
-    query: Dict[str, Any] = {"user_id": user_id, "$or": or_clauses}
-    if exclude_book_id:
-        query["book_id"] = {"$ne": exclude_book_id}
-
-    projection = {"_id": 0, "book_id": 1, "title": 1, "author": 1, "source_url": 1, "fanfic_urls": 1, "category": 1, "replaced_by": 1}
-    matches_by_head: Dict[str, Dict[str, Any]] = {}
-
-    async def _walk_to_head(doc: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Follow `replaced_by` until we hit a current (non-archived) copy."""
-        current = doc
-        seen: set = set()
-        while current.get("replaced_by"):
-            if current["book_id"] in seen:
-                return None  # cycle guard
-            seen.add(current["book_id"])
-            nxt = await db.books.find_one(
-                {"book_id": current["replaced_by"], "user_id": user_id},
-                projection,
-            )
-            if not nxt:
-                return None
-            current = nxt
-        if current.get("category") == OLD_STORIES_SHELF:
-            return None  # orphaned archived chain
-        return current
-
-    async for doc in db.books.find(query, projection):
-        is_archived = doc.get("category") == OLD_STORIES_SHELF or bool(doc.get("replaced_by"))
-        head_doc = doc if not is_archived else await _walk_to_head(doc)
-        if not head_doc:
-            continue
-
-        reasons: List[str] = []
-        if norm_title and _normalize_title_for_match(doc.get("title")) == norm_title:
-            # Tightened rule: when both sides have an author, they must
-            # match too — otherwise two different books with the same title
-            # (e.g. retellings, generic titles like "Untitled") get
-            # falsely paired. Fall back to title-only when either side is
-            # missing an author.
-            doc_norm_author = _normalize_author_for_match(doc.get("author"))
-            if not norm_author or not doc_norm_author:
-                reasons.append("title")
-            elif doc_norm_author == norm_author:
-                reasons.append("title+author")
-        if source_url and doc.get("source_url") == source_url:
-            reasons.append("source_url")
-        if urls:
-            shared = [u for u in (doc.get("fanfic_urls") or []) if u in urls]
-            if shared:
-                reasons.append("url")
-        if not reasons:
-            continue
-        if is_archived:
-            reasons.append("historical_version")
-
-        head_id = head_doc["book_id"]
-        if head_id == exclude_book_id:
-            continue
-        if head_id in dismissed_ids:
-            continue
-        existing = matches_by_head.get(head_id)
-        if existing:
-            # Merge reasons (de-duped)
-            existing["match_reasons"] = sorted(set(existing["match_reasons"]) | set(reasons))
-        else:
-            matches_by_head[head_id] = {
-                "book_id": head_id,
-                "title": head_doc.get("title") or "",
-                "author": head_doc.get("author") or "",
-                "match_reasons": sorted(set(reasons)),
-            }
-
-    return list(matches_by_head.values())
-
-
-async def _apply_duplicate_policy(
-    user_id: str,
-    new_book_id: str,
-    target_book_id: Optional[str],
-    policy: str,
-) -> Optional[Dict[str, Any]]:
-    """Apply a default-policy auto-resolution to a freshly-uploaded book.
-
-    Returns a dict describing what was done, or None if the policy couldn't
-    apply (e.g., no target). The expensive chapter-diff step from the
-    interactive resolve flow is skipped for batch uploads — users running on
-    a stand policy chose convenience over the bell badge.
-
-    Side effect: every change is recorded under the book's `dupe_action_meta`
-    field with the previous values so the action can be undone via
-    `POST /api/books/{book_id}/undo-resolve`.
-    """
-    now_iso = datetime.now(timezone.utc).isoformat()
-
-    if policy == "keep_both":
-        await db.books.update_one(
-            {"book_id": new_book_id, "user_id": user_id},
-            {
-                "$unset": {"duplicate_pending": "", "duplicate_of": ""},
-                "$set": {"dupe_action_meta": {"action": "keep_both", "applied_at": now_iso}},
-            },
-        )
-        return {"action": "keep_both", "undoable": False}
-
-    if policy == "discard":
-        # Soft-delete: move to Trash shelf with a 30-day grace window so the
-        # user can restore. A background sweep hard-deletes books whose
-        # `trash_expires_at` is in the past.
-        new_doc_before = await db.books.find_one({"book_id": new_book_id, "user_id": user_id})
-        if not new_doc_before:
-            return None
-        expires_at = (datetime.now(timezone.utc) + timedelta(days=TRASH_GRACE_DAYS)).isoformat()
-        await db.books.update_one(
-            {"book_id": new_book_id, "user_id": user_id},
-            {
-                "$set": {
-                    "category": TRASH_SHELF,
-                    "trash_expires_at": expires_at,
-                    "dupe_action_meta": {
-                        "action": "discard",
-                        "prev_category_new": new_doc_before.get("category"),
-                        "applied_at": now_iso,
-                    },
-                },
-                "$unset": {"duplicate_pending": "", "duplicate_of": ""},
-            },
-        )
-        return {"action": "discard", "undoable": True, "trash_expires_at": expires_at}
-
-    # The remaining two need a current head; bail if there isn't one
-    if not target_book_id:
-        return None
-    target = await db.books.find_one({"book_id": target_book_id, "user_id": user_id})
-    if not target or target.get("category") == OLD_STORIES_SHELF or target.get("replaced_by"):
-        return None
-
-    new_doc_before = await db.books.find_one({"book_id": new_book_id, "user_id": user_id})
-    if not new_doc_before:
-        return None
-
-    if policy == "historical":
-        await db.books.update_one(
-            {"book_id": new_book_id, "user_id": user_id},
-            {
-                "$set": {
-                    "category": OLD_STORIES_SHELF,
-                    "replaced_by": target_book_id,
-                    "replaced_at": now_iso,
-                    "dupe_action_meta": {
-                        "action": "historical",
-                        "target_book_id": target_book_id,
-                        "prev_category_new": new_doc_before.get("category"),
-                        "applied_at": now_iso,
-                    },
-                },
-                "$unset": {"duplicate_pending": "", "duplicate_of": ""},
-            },
-        )
-        return {
-            "action": "historical",
-            "target_book_id": target_book_id,
-            "undoable": True,
-        }
-
-    if policy == "new_version":
-        now_dt = datetime.now(timezone.utc)
-        updated_shelf = _updated_shelf_name(now_dt)
-        await db.books.update_one(
-            {"book_id": new_book_id, "user_id": user_id},
-            {
-                "$set": {
-                    "category": updated_shelf,
-                    "replaces": target_book_id,
-                    "last_refreshed_at": now_iso,
-                    "update_seen": False,
-                    "dupe_action_meta": {
-                        "action": "new_version",
-                        "target_book_id": target_book_id,
-                        "prev_category_new": new_doc_before.get("category"),
-                        "prev_category_target": target.get("category"),
-                        "applied_at": now_iso,
-                    },
-                },
-                "$unset": {"duplicate_pending": "", "duplicate_of": ""},
-            },
-        )
-        await db.categories.update_one(
-            {"user_id": user_id, "name": updated_shelf},
-            {"$setOnInsert": {
-                "user_id": user_id,
-                "name": updated_shelf,
-                "created_at": now_iso,
-                "auto_created": True,
-            }},
-            upsert=True,
-        )
-        await db.books.update_one(
-            {"book_id": target_book_id, "user_id": user_id},
-            {"$set": {
-                "category": OLD_STORIES_SHELF,
-                "replaced_by": new_book_id,
-                "replaced_at": now_iso,
-            }},
-        )
-        return {
-            "action": "new_version",
-            "target_book_id": target_book_id,
-            "updated_shelf": updated_shelf,
-            "undoable": True,
-        }
-
-    return None
-
-
-# NOTE: `POST /books/{book_id}/undo-resolve` was moved to routes/duplicates.py
-# in the Phase 4 refactor (2026-06-14).
-
-
-async def fanfic_fetch_epub(source_url: str, options: Optional[Dict[str, Any]] = None) -> tuple:
-    """Generate an EPUB for the given fanfic URL using FanFicFare.
-
-    Optional `options` dict (per-user FanFicFare prefs):
-      - include_author_notes: bool (default True)
-      - include_images: bool (default True)
-      - keep_chapter_links: bool (default False)
-    """
-    loop = asyncio.get_event_loop()
-    options = options or {}
-
-    # Test hook: when set, returns canned content immediately so tests don't
-    # need a real internet connection.
-    canned = os.environ.get("SHELFSORT_TEST_FFF_RESPONSE")
-    if canned:
-        try:
-            obj = json.loads(canned)
-        except Exception:
-            obj = {}
-        if obj.get("not_found"):
-            raise FanficNotFoundError(obj.get("detail", "Source unavailable"))
-        # `epub_b64` is base64-encoded bytes; meta is a passthrough dict
-        import base64
-        epub_bytes = base64.b64decode(obj.get("epub_b64", ""))
-        return epub_bytes, obj.get("meta") or {}
-
-    def _do_download():
-        from fanficfare import adapters
-        from fanficfare.configurable import Configuration
-        from fanficfare import exceptions as fff_exc
-        from urllib.parse import urlparse
-        host = urlparse(source_url).hostname or ""
-        try:
-            config = Configuration([host], "EPUB")
-            # Use a realistic browser User-Agent — AO3 / FFN / Cloudflare
-            # actively block obvious scraper UAs with HTTP 403.
-            try:
-                config.set("defaults", "user_agent", FANFICFARE_USER_AGENT)
-                config.set(host, "user_agent", FANFICFARE_USER_AGENT)
-            except Exception:
-                # Not all FFF builds expose the same INI sections; fall through.
-                pass
-            # Apply per-user FanFicFare options. FFF expects strings for ini values.
-            try:
-                if "include_author_notes" in options:
-                    val = "true" if options["include_author_notes"] else "false"
-                    config.set("epub", "include_author_notes", val)
-                if "include_images" in options:
-                    val = "true" if options["include_images"] else "false"
-                    config.set("epub", "include_images", val)
-                if "keep_chapter_links" in options:
-                    val = "true" if options["keep_chapter_links"] else "false"
-                    config.set("epub", "keep_summary_html", val)
-            except Exception as cfg_err:
-                logger.warning("Failed to apply FFF user options: %s", cfg_err)
-            adapter = adapters.getAdapter(config, source_url)
-        except fff_exc.UnknownSite:
-            raise FanficNotFoundError(f"This site isn't supported: {host}")
-        except fff_exc.InvalidStoryURL as e:
-            raise FanficNotFoundError(f"Invalid story URL: {e}")
-        except Exception as e:
-            raise HTTPException(status_code=502, detail=f"Adapter setup failed: {e}")
-
-        try:
-            adapter.getStoryMetadataOnly()
-        except fff_exc.StoryDoesNotExist as e:
-            # Heuristic: FFN's Cloudflare/anti-bot pages get parsed as
-            # "story doesn't exist" because the real HTML isn't there. Give
-            # the user a clearer hint when the site is FFN.
-            if "fanfiction.net" in (host or "").lower():
-                raise FanficNotFoundError(
-                    "FanFiction.net's bot protection blocked the download. The work itself is "
-                    "likely still online — try the 'Upload replacement' button on the book's page "
-                    "to drop in a fresh EPUB you exported from your own browser/Calibre."
-                )
-            raise FanficNotFoundError(f"Story not found: {e}")
-        except fff_exc.HTTPErrorFFF as e:
-            msg = str(e)
-            if "403" in msg:
-                # 403 is frequently a transient rate-limit / Cloudflare challenge.
-                # Wait briefly and try once more before flagging as unavailable.
-                logger.info("403 from %s — backing off 30s and retrying once", host)
-                import time as _time
-                _time.sleep(30)
-                try:
-                    adapter.getStoryMetadataOnly()
-                    # Retry succeeded — fall through to writeStory below
-                except fff_exc.HTTPErrorFFF as e2:
-                    if "403" in str(e2):
-                        raise FanficNotFoundError(
-                            "Source site blocked the request (HTTP 403, retried). The site may be rate-limiting, "
-                            "behind a Cloudflare challenge, or restricting this work to registered users. "
-                            "Try opening the URL in a browser to check."
-                        )
-                    raise FanficNotFoundError(f"Couldn't reach source after retry: {e2}")
-                except Exception as e2:
-                    raise FanficNotFoundError(f"Couldn't reach source after retry: {e2}")
-            else:
-                raise FanficNotFoundError(f"Couldn't reach source: {e}")
-        except fff_exc.RegularDelayException as e:
-            raise HTTPException(status_code=503, detail=f"Source rate-limited: {e}")
-        except Exception as e:
-            raise FanficNotFoundError(f"Source error: {e}")
-
-        # Write EPUB into a temp file
-        out_fd, out_path = tempfile.mkstemp(suffix=".epub")
-        os.close(out_fd)
-        try:
-            from fanficfare import writers
-            writer = writers.getWriter("epub", config, adapter)
-            writer.writeStory(outfilename=out_path, forceOverwrite=True)
-            with open(out_path, "rb") as f:
-                epub_bytes = f.read()
-        finally:
-            try:
-                os.unlink(out_path)
-            except Exception:
-                pass
-
-        story = adapter.story
-        # Capture every field we'll need to build the template-style intro page.
-        meta = {
-            "chapters": int(story.getMetadata("numChapters") or 0),
-            "rawExtendedMeta": {
-                "dateUpdated": story.getMetadata("dateUpdated"),
-                "datePublished": story.getMetadata("datePublished"),
-                "words": int(story.getMetadata("numWords") or 0) if story.getMetadata("numWords") else None,
-                "status": story.getMetadata("status"),
-                "rating": story.getMetadata("rating"),
-                "language": story.getMetadata("language"),
-                "reviews": story.getMetadata("reviews"),
-                "favs": story.getMetadata("favs"),
-                "follows": story.getMetadata("follows"),
-                "genre": story.getMetadata("genre"),
-                "category": story.getMetadata("category"),
-            },
-            "title": story.getMetadata("title"),
-            "author": _clean_author_string(story.getMetadata("author")),
-            "description": story.getMetadata("description"),
-            "source_url": source_url,
-            "site": host,
-        }
-        return epub_bytes, meta
-
-    try:
-        return await loop.run_in_executor(None, _do_download)
-    except FanficNotFoundError:
-        raise
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("FanFicFare download failed: %s", e)
-        raise HTTPException(status_code=502, detail=f"Download error: {e}")
-
-
-def _updated_shelf_name(now: Optional[datetime] = None) -> str:
-    """Return the date-stamped 'Updated stories' shelf name for refreshes today.
-
-    Each refresh batch gets its own dated bucket, so every run of updates is
-    clearly separated. Example: "Updated stories 2026-03-01"."""
-    now = now or datetime.now(timezone.utc)
-    return f"Updated stories {now.strftime('%Y-%m-%d')}"
-
-
-OLD_STORIES_SHELF = "Old stories"
-# NOTE: ``TRASH_SHELF`` and ``TRASH_GRACE_DAYS`` are imported from
-# ``utils.constants`` at the top of this module — kept centralized so
-# ``routes/trash.py`` and ``routes/authors.py`` share the canonical values.
-
-
-async def fetch_fanfic_with_fallback(
-    source_url: str,
-    options: Optional[Dict[str, Any]] = None,
-) -> tuple:
-    """Try FanFicFare first; if it fails AND the user opted into the
-    FicHub fallback, retry with FicHub. Returns the same `(epub_bytes,
-    source_meta)` tuple as `fanfic_fetch_epub`.
-
-    The fallback is serialized — even if many user requests hit this in
-    parallel, they're drained through `routes.fichub_client._FETCH_LOCK`
-    one at a time, with a 2s gap between consecutive FicHub fetches.
-    """
-    # Feature-flag kill switch — admin can pause remote fic fetching.
-    from utils.feature_flags import is_enabled
-    if not await is_enabled("fichub_enabled"):
-        raise FanficNotFoundError("Fanfic fetching is temporarily disabled by an administrator.")
-    options = options or {}
-    try:
-        return await fanfic_fetch_epub(source_url, options=options)
-    except FanficNotFoundError as fff_err:
-        if not options.get("try_fichub_fallback"):
-            raise
-        from routes.fichub_client import (  # local import to avoid circular
-            fichub_fetch_epub,
-            FichubUnsupportedURL,
-            FichubError,
-        )
-        try:
-            epub_bytes, _meta = await fichub_fetch_epub(source_url)
-            logger.info("FicHub fallback succeeded for %s", source_url)
-            return epub_bytes, {"source": "fichub", "url": source_url}
-        except FichubUnsupportedURL:
-            # Re-raise the original FFF error — that's the more informative
-            # message ("Story not found", "Site not supported", etc.).
-            raise fff_err
-        except FichubError as e:
-            logger.warning(
-                "FicHub fallback also failed for %s: %s", source_url, e
-            )
-            raise fff_err
-
-
-async def apply_refresh(book: Dict[str, Any], user_id: str, source_url: str) -> Dict[str, Any]:
-    """Refresh a fanfic by generating a new EPUB via FanFicFare.
-
-    Behavior (2026-02, updated per user request): instead of overwriting the
-    existing EPUB and book record, we create a NEW book in a date-stamped
-    "Updated stories YYYY-MM-DD" shelf and move the original to the single
-    "Old stories" shelf. Every refresh batch gets its own dated bucket so the
-    history of updates stays clearly separated.
-
-    Cross-links:
-      - new book .replaces -> old book_id
-      - old book .replaced_by -> new book_id
-    """
-    # Honor per-user FanFicFare options (incl. opt-in FicHub fallback)
-    user_doc = await db.users.find_one({"user_id": user_id}, {"_id": 0, "fff_options": 1})
-    fff_options = (user_doc or {}).get("fff_options") or {}
-    epub_bytes, source_meta = await fetch_fanfic_with_fallback(source_url, options=fff_options)
-
-    # Apply the FicHub-style template (intro page + stylesheet) unless the
-    # user has explicitly opted out. Idempotent: noop on already-templated EPUBs.
-    if fff_options.get("apply_template", True):
-        loop = asyncio.get_event_loop()
-        epub_bytes = await loop.run_in_executor(
-            None, apply_template_to_epub, epub_bytes, source_meta, source_url
-        )
-
-    user_dir = STORAGE_DIR / user_id
-    user_dir.mkdir(parents=True, exist_ok=True)
-
-    # Generate a fresh book_id + path for the new copy
-    new_book_id = f"book_{uuid.uuid4().hex[:12]}"
-    new_epub_path = user_dir / f"{new_book_id}.epub"
-    await _write_local_and_mirror_to_r2(
-        new_epub_path, epub_bytes, user_id, new_book_id, ".epub",
-    )
-
-    new_meta = extract_epub_metadata(new_epub_path)
-    new_cover_path = user_dir / f"{new_book_id}.cover"
-    if new_meta.get("cover_bytes"):
-        await _write_local_and_mirror_to_r2(
-            new_cover_path, new_meta["cover_bytes"], user_id, new_book_id, ".cover",
-        )
-
-    links = extract_urls_from_epub(new_epub_path)
-    (user_dir / f"{new_book_id}.links.txt").write_text(
-        format_links_txt(new_meta["title"], new_meta["author"], links),
-        encoding="utf-8",
-    )
-
-    now_iso = datetime.now(timezone.utc).isoformat()
-    now_dt = datetime.now(timezone.utc)
-    updated_shelf = _updated_shelf_name(now_dt)
-    old_book_id = book["book_id"]
-
-    # 1) Insert the new book in the date-stamped "Updated stories" shelf
-    new_doc = {
-        "book_id": new_book_id,
-        "user_id": user_id,
-        "filename": _templated_filename(new_meta.get("title"), new_meta.get("author"), new_book_id),
-        "title": new_meta["title"],
-        "author": new_meta["author"],
-        "description": new_meta["description"],
-        "language": new_meta["language"],
-        "publisher": new_meta["publisher"],
-        "has_cover": bool(new_meta.get("cover_bytes")),
-        # Each refresh batch lives in its own dated bucket
-        "category": updated_shelf,
-        "fandom": book.get("fandom"),
-        "series_name": book.get("series_name"),
-        "series_index": book.get("series_index"),
-        "tags": book.get("tags") or [],
-        "confidence": book.get("confidence", 0.0),
-        "classifier": book.get("classifier", "metadata"),
-        "size_bytes": len(epub_bytes),
-        "links_count": len(links),
-        "source_url": source_url,
-        "last_refreshed_at": now_iso,
-        "source_meta": source_meta,
-        "replaces": old_book_id,
-        "created_at": now_iso,
-    }
-    await db.books.insert_one(new_doc)
-
-    # Register the dated shelf as a custom category so it surfaces in the UI
-    # chip list. Idempotent — same date is reused across a day's refreshes.
-    await db.categories.update_one(
-        {"user_id": user_id, "name": updated_shelf},
-        {"$setOnInsert": {
-            "user_id": user_id,
-            "name": updated_shelf,
-            "created_at": now_iso,
-            "auto_created": True,
-        }},
-        upsert=True,
-    )
-
-    # 2) Move the old book to the "Old stories" shelf with a back-pointer
-    await db.books.update_one(
-        {"book_id": old_book_id, "user_id": user_id},
-        {"$set": {
-            "category": OLD_STORIES_SHELF,
-            "replaced_by": new_book_id,
-            "replaced_at": now_iso,
-        }},
-    )
-
-    # 3) Compute a quick diff summary and stash it on the new book so the
-    # "fics updated" navbar badge can query it cheaply (no per-poll EPUB
-    # parsing). Failures here are non-fatal — the badge will just skip this
-    # book. Always sets `update_seen=False` so the badge picks it up.
-    refresh_summary: Optional[Dict[str, Any]] = None
-    try:
-        old_epub_path = user_dir / f"{old_book_id}.epub"
-        if old_epub_path.exists():
-            loop = asyncio.get_event_loop()
-            old_chapters = await loop.run_in_executor(None, extract_chapters, old_epub_path)
-            new_chapters = await loop.run_in_executor(None, extract_chapters, new_epub_path)
-            d = diff_chapters(old_chapters, new_chapters)
-            refresh_summary = {
-                "chapters_added": d["summary"]["chapters_added"],
-                "chapters_changed": d["summary"]["chapters_changed"],
-                "chapters_removed": d["summary"]["chapters_removed"],
-                "words_delta": d["summary"]["words_delta"],
-                "first_changed_href": (d.get("first_changed_chapter") or {}).get("new_href", ""),
-                "first_changed_title": (d.get("first_changed_chapter") or {}).get("title", ""),
-                "first_changed_kind": (d.get("first_changed_chapter") or {}).get("kind", ""),
-            }
-    except Exception as e:
-        logger.warning("refresh_summary diff failed for %s -> %s: %s", old_book_id, new_book_id, e)
-
-    await db.books.update_one(
-        {"book_id": new_book_id, "user_id": user_id},
-        {"$set": {
-            "refresh_summary": refresh_summary,
-            "update_seen": False,
-        }},
-    )
-
-    return {
-        "new_book_id": new_book_id,
-        "old_book_id": old_book_id,
-        "title": new_meta["title"],
-        "author": new_meta["author"],
-        "last_refreshed_at": now_iso,
-        "updated_shelf": updated_shelf,
-    }
 
 
 # Phase-6 split #3: classifier helpers (heuristic + Claude) now live in
@@ -1857,171 +1128,32 @@ from utils.classifier import (  # noqa: E402, F401
 # ============================================================
 # BOOK ROUTES
 
-NEEDS_CONVERSION_EXTS = {
-    ".pdf", ".mobi", ".azw", ".azw3", ".kf8", ".kfx",
-    ".docx", ".doc", ".rtf", ".fb2", ".lit", ".lrf", ".pdb", ".txt", ".html", ".htm",
-}
-NEEDS_CONVERSION_SHELF = "Needs conversion"
-
-
-_CALIBRE_FRIENDLY_ERRORS = (
-    # (lowercased substring to look for in stderr, friendly message)
-    ("indexerror", "list index out of range",
-        "This PDF's layout couldn't be auto-parsed (likely an empty page, a scanned page with no extractable text, or an unusual layout)."),
-    ("memoryerror", None,
-        "This file is too large for our server to convert. Try compressing it first or converting it manually."),
-    ("drmerror", None,
-        "This file is DRM-protected. We can't convert protected files — please convert it on your own device first."),
-    ("is encrypted", None,
-        "This PDF is password-protected. Remove the password first, then re-upload."),
-    ("not a valid pdf", None,
-        "This doesn't look like a valid PDF file. It may be corrupted."),
-    ("bad encrypt dict", None,
-        "This PDF appears to be corrupted or non-standard. Try re-saving it from the original source."),
-    ("no text", None,
-        "This PDF appears to be image-only (scanned, no OCR'd text). We can't reflow it into an EPUB."),
+# 2026-08-22 — Calibre conversion pipeline extracted to
+# ``utils/calibre_convert.py`` (Phase 6C slice 1).  These names are
+# re-exported below so existing importers (upload_books, the
+# ``conversions`` router, and the friendly-error test suite) don't
+# have to change.
+from utils.calibre_convert import (  # noqa: E402, F401
+    NEEDS_CONVERSION_EXTS,
+    NEEDS_CONVERSION_SHELF,
+    CONVERSION_VISIBILITY_HOURS,
+    _CALIBRE_FRIENDLY_ERRORS,
+    _friendly_calibre_error,
+    _convert_to_epub_sync,
+    _get_calibre_semaphore,
+    convert_to_epub,
+    _ensure_conversion_index,
+    _conversion_start,
+    _conversion_end,
 )
-
-
-def _friendly_calibre_error(raw_stderr: str) -> str:
-    """Map a Calibre ebook-convert stderr blob to a one-sentence
-    end-user message.  Calibre's stack traces are precise but
-    intimidating to non-developer readers; we collapse them to a
-    single calm sentence and keep the actionable fix.
-
-    Falls back to a generic line when no pattern matches.  The full
-    raw stderr is still logged server-side via ``logger.warning`` so
-    the operator can debug — only the *displayed* description is
-    cleaned up.
-    """
-    haystack = (raw_stderr or "").lower()
-    for needle1, needle2, friendly in _CALIBRE_FRIENDLY_ERRORS:
-        if needle1 in haystack and (needle2 is None or needle2 in haystack):
-            return friendly
-    return "We couldn't auto-convert this file — Calibre returned an error we don't have a friendly explanation for yet."
-
-
-def _convert_to_epub_sync(src_path: Path, dest_path: Path) -> Optional[str]:
-    """Run `ebook-convert <src> <dest>` synchronously. Returns None on success,
-    or a *user-friendly* error message on failure. Called from an executor
-    so the FastAPI event loop stays responsive.
-
-    Raw stderr is logged for the operator (`logger.warning`) but only
-    the mapped friendly message is returned to the caller, so the user's
-    library description doesn't show a Python stack trace.
-    """
-    import subprocess
-    try:
-        proc = subprocess.run(
-            ["ebook-convert", str(src_path), str(dest_path)],
-            capture_output=True,
-            text=True,
-            timeout=180,  # 3 min cap per book — heavy PDFs can be slow
-        )
-        if proc.returncode != 0:
-            raw = (proc.stderr or proc.stdout or "")
-            # Operator-visible full log for debugging.
-            logger.warning("ebook-convert failed for %s (rc=%s): %s",
-                           src_path.name, proc.returncode, raw[-800:].strip())
-            return _friendly_calibre_error(raw)
-        if not dest_path.exists() or dest_path.stat().st_size < 256:
-            return "Calibre converted the file but the result was empty — the source may be image-only or otherwise unreadable."
-        return None
-    except FileNotFoundError:
-        return "Our converter isn't ready yet (Calibre is still installing). Please try again in a minute."
-    except subprocess.TimeoutExpired:
-        return "This file took longer than 3 minutes to convert and was stopped. Try a smaller / compressed version."
-    except Exception as e:
-        logger.warning("ebook-convert crashed for %s: %s", src_path.name, e)
-        return "Something unexpected went wrong while converting this file. Try uploading the EPUB version instead."
-
-
-async def convert_to_epub(src_path: Path, dest_path: Path) -> Optional[str]:
-    # Feature-flag kill switch — admin can pause Calibre conversions.
-    from utils.feature_flags import is_enabled
-    if not await is_enabled("calibre_convert_enabled"):
-        return "Calibre conversion is temporarily disabled by an administrator."
-    # 2026-06-21 — Cap concurrent Calibre invocations to 2 to avoid OOM
-    # on the production Launch tier (2 GiB pod limit).  ebook-convert
-    # holds ~200-400 MB transiently per conversion, and clamd already
-    # claims ~960 MB persistently — Emergent Support flagged in the
-    # ClamAV bake-in thread that "concurrent ebook conversions could
-    # push the pod past the 2 GiB limit. Cap concurrent conversions to
-    # 1 or 2 in your app code."  Chose 2 (not 1) so a single user with
-    # a queue doesn't fully block a second user from converting at the
-    # same time, while still staying inside the headroom budget.
-    sem = _get_calibre_semaphore()
-    async with sem:
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, _convert_to_epub_sync, src_path, dest_path)
-
-
-# Lazy semaphore init — asyncio.Semaphore must be created inside a
-# running event loop, otherwise it captures the wrong loop and raises
-# "Future attached to a different loop" under heavy traffic.
-_calibre_sem: Optional[asyncio.Semaphore] = None
-
-
-def _get_calibre_semaphore() -> asyncio.Semaphore:
-    global _calibre_sem
-    if _calibre_sem is None:
-        _calibre_sem = asyncio.Semaphore(2)
-    return _calibre_sem
-
-
-# Persistent conversion-job tracking — backed by MongoDB so jobs survive
-# backend restarts, tab closes, and cross-device sessions. A TTL index on
-# `expires_at` cleans up finished jobs after the 4-hour visibility window.
-CONVERSION_VISIBILITY_HOURS = 4
-_conversion_index_ensured = False
-
-
-async def _ensure_conversion_index() -> None:
-    """Lazily create a TTL index on conversion_jobs.expires_at."""
-    global _conversion_index_ensured
-    if _conversion_index_ensured:
-        return
-    try:
-        await db.conversion_jobs.create_index("expires_at", expireAfterSeconds=0)
-        await db.conversion_jobs.create_index([("user_id", 1), ("started_at", -1)])
-        _conversion_index_ensured = True
-    except Exception as e:
-        logger.warning("Failed to create conversion_jobs indexes: %s", e)
-
-
-async def _conversion_start(user_id: str, job: Dict[str, Any]) -> None:
-    await _ensure_conversion_index()
-    doc = {
-        **job,
-        "user_id": user_id,
-        "status": "processing",
-        # expires_at intentionally omitted so the TTL doesn't apply while
-        # the job is still running.
-    }
-    await db.conversion_jobs.insert_one(doc)
-
-
-async def _conversion_end(user_id: str, job_id: str, *, error: Optional[str] = None) -> None:
-    now = datetime.now(timezone.utc)
-    expires = now + timedelta(hours=CONVERSION_VISIBILITY_HOURS)
-    await db.conversion_jobs.update_one(
-        {"id": job_id, "user_id": user_id},
-        {
-            "$set": {
-                "status": "failed" if error else "done",
-                "error": error,
-                "finished_at": now.isoformat(),
-                "expires_at": expires,
-            }
-        },
-    )
 
 
 # /conversions/* and /library/originals/* endpoints live in
 # ``routes/conversions.py`` (extracted 2026-06-13). The helpers above
 # (``convert_to_epub``, ``_conversion_start``, ``_conversion_end``,
 # ``_ensure_conversion_index``, and the visibility-window constant) stay
-# here because ``upload_books`` below also uses them.
+# available here as re-exports because ``upload_books`` below also
+# uses them.
 
 
 @api_router.post("/books/upload")
@@ -3048,26 +2180,9 @@ async def delete_book(book_id: str, user: User = Depends(get_current_user)):
     return {"ok": True}
 
 
-def _safe_filename(name: str, ext: str) -> str:
-    # Strip path separators / control chars
-    base = re.sub(r'[\\/:*?"<>|\x00-\x1f]', '_', name or 'book').strip().rstrip('.')
-    base = base[:120] or 'book'
-    return f"{base}{ext}"
-
-
-def _templated_filename(title: Optional[str], author: Optional[str], book_id: str, ext: str = ".epub") -> str:
-    """Build a filename matching the attachment template: 'Title_by_Author-id.epub'.
-    Underscores replace spaces, control + filesystem-unsafe chars are stripped,
-    and a short 8-char book_id suffix disambiguates same-name fics."""
-    def _clean(s: str) -> str:
-        s = re.sub(r'[\\/:*?"<>|\x00-\x1f]', '', s or '')
-        s = re.sub(r'\s+', '_', s.strip())
-        return s.strip('._') or ''
-    title_part = _clean(title or 'Untitled')[:80]
-    author_part = _clean(author or 'Unknown')[:50]
-    # Take the trailing 8 chars of the book_id for a stable, short, unique suffix
-    short_id = (book_id or '').split('_')[-1][:8] or 'x'
-    return f"{title_part}_by_{author_part}-{short_id}{ext}"
+# NOTE: ``_safe_filename`` + ``_templated_filename`` were extracted to
+# ``utils/book_files.py`` in Phase 6C slice 4 (2026-08-22) and are
+# re-exported at the top of this module.
 
 
 # NOTE: `GET /books/export/links` moved to routes/books_links.py

@@ -157,6 +157,7 @@ const SECTIONS = [
   { id: "sources",              label: "Sources we recognize",                                  category: "library" },
   { id: "detection",            label: "Detection & overrides",                                 category: "library" },
   { id: "word-count",           label: "Word count & reading time",                             category: "library" },
+  { id: "trash",                label: "Trash — the 30-day undo shelf",                         category: "library" },
   { id: "reading",              label: "Reader & stats",                                        category: "reading" },
   { id: "discovery",            label: "Browsing & discovery",                                  category: "reading" },
   { id: "reading-queue",        label: "Reading queue (Up next)",                               category: "reading" },
@@ -189,6 +190,8 @@ const SECTIONS = [
   { id: "auto-theme",           label: "Scheduled auto-theme",                                  category: "settings" },
   { id: "keyboard-shortcuts",   label: "Keyboard shortcuts",                                    category: "settings" },
   { id: "account",              label: "Account & preferences",                                 category: "settings" },
+  { id: "settings-nav",         label: "Finding a setting fast (sidebar ToC)",                  category: "settings" },
+  { id: "sessions",             label: "Signed-in devices & sessions",                          category: "settings" },
   { id: "operator-digest",      label: "Operator weekly digest (admin)",                        category: "settings" },
 ];
 
@@ -894,7 +897,7 @@ export default function Help() {
               <p><strong>Duplicates</strong> are caught three ways: (1) by exact source-URL or shared canonical fanfic URL (so all AO3 / FFN / RoyalRoad mirrors of the same work collapse together), (2) by <strong>title + author</strong> match (case-insensitive, dots stripped from author so &lsquo;J. K. Rowling&rsquo; and &lsquo;JK Rowling&rsquo; still pair), and (3) by title alone <em>only when one side has no author on file</em>. Two books with the same generic title (e.g. &ldquo;Crossroads&rdquo;) but different authors and different URLs are correctly kept as separate books. When a dupe is flagged you choose: keep both / replace older / skip. Cross-format duplicates (same book uploaded as PDF after the EPUB) are filed under <Link to="/library/originals">Originals</Link>.</p>
               <p>
                 <strong>Cleaning up a big pile at once.</strong> Head to <Link to="/library/quarantine" className="text-[#6B46C1] underline">/library/quarantine</Link> to review flagged duplicates.
-                Each group has a purple <em>&ldquo;Keep only the latest&rdquo;</em> button that resolves the whole group in one click — the row with the newest <code>created_at</code> wins; if it&rsquo;s a duplicate we <em>promote</em> it (the older keeper is archived to <Link to="/library/old-stories" className="text-[#6B46C1] underline">Old stories</Link> with reading progress preserved) and the rest go to <Link to="/library/trash" className="text-[#6B46C1] underline">Trash</Link>.
+                Each group has a purple <em>&ldquo;Keep only the latest&rdquo;</em> button that resolves the whole group in one click — the row with the newest <code>created_at</code> wins; if it&rsquo;s a duplicate we <em>promote</em> it (the older keeper is archived to <Link to="/library/all" className="text-[#6B46C1] underline">Old stories</Link> with reading progress preserved) and the rest go to <Link to="/library/trash" className="text-[#6B46C1] underline">Trash</Link>.
                 Or use the toolbar <em>&ldquo;Keep the latest in all N groups&rdquo;</em> button to run that logic across every group at once — it runs in batches of 100 with a <strong>live progress bar</strong>, so it stays under the Cloudflare 120-second edge timeout even for thousands of groups. If it&rsquo;s interrupted, clicking again resumes from where it stopped (fully idempotent).
               </p>
               <p>
@@ -908,6 +911,12 @@ export default function Help() {
                 <strong>Wrapping up: emptying Trash.</strong> After you&rsquo;ve resolved the pile, drop by <Link to="/library/trash" className="text-[#6B46C1] underline">Trash</Link> to permanently delete. Shelfsort shows a ✨ toast with the book count and how much storage you reclaimed. Both this and the &ldquo;you finished cleaning duplicates&rdquo; 🎉 toast are opt-in — admins can turn them off in the <em>Notification preferences</em> card on the admin console.
               </p>
               <p className="text-xs text-[#5B5F4D]">Importing from Kindle? See the step-by-step guide at <Link to="/help/kindle-import">/help/kindle-import</Link>.</p>
+              <p className="mt-3">
+                <strong>What happens if the server hiccups mid-batch?</strong> Shelfsort automatically retries transient failures up to 5 times with a jittered exponential backoff (~2s / 6s / 15s / 45s), so a brief origin blip doesn&rsquo;t cost you a file. On very large batches (200+ files) Shelfsort also uses a <em>slow-start ramp</em>: it begins with 3 concurrent uploads and cranks up to 6 only after the origin has proven it can handle more. If more than a couple of transient failures land in a row, it throttles back down automatically. When a file genuinely can&rsquo;t make it through, you&rsquo;ll see a friendly <em>&ldquo;Server briefly overloaded — please wait a moment and retry&rdquo;</em> banner (never a raw error code), and the file list is retained so you can re-drop just those files without re-selecting everything.
+              </p>
+              <p className="mt-3">
+                <strong>Why does the &ldquo;N new books&rdquo; count sometimes come up short?</strong> Because Shelfsort tells brand-new books apart from fanfic <em>refreshes</em>. When you re-upload an AO3 fic that already lives in your library, Shelfsort spots it by story ID, updates the existing entry with the new chapters, and bumps its <code>last_refreshed_at</code> — no duplicate book, no trash, no manual dedupe. Those refreshed fics don&rsquo;t count toward &ldquo;N new books&rdquo; because they aren&rsquo;t new; they show up as a small <code>(+N refreshed)</code> chip beside the new-book count and in the <em>Fics updated</em> bell in the navbar. So if you dropped 200 files and see &ldquo;195 new books,&rdquo; the other 5 are fics that got fresh chapters added in place — still on their shelves, just with new material.
+              </p>
             </Section>
 
             <Section id="quick-search" icon={Search} title="Navbar quick-search">
@@ -953,6 +962,43 @@ export default function Help() {
                 category, and friend-finding chips all match. Pick once, change it any
                 time.
               </p>
+              <div className="my-4 rounded-lg border border-[#E4D9C8] bg-[#FBFAF6] px-4 py-3">
+                <p className="text-sm font-semibold text-[#2C2C2C] mb-1">Newer in August 2026 — Preset Marketplace &amp; smarter cleanups</p>
+                <ul className="text-sm text-[#2C2C2C] space-y-1 list-disc pl-5">
+                  <li><strong>Search &amp; sort the marketplace</strong> — the <Link to="/library/presets" className="text-[#4C2A99] hover:underline">Preset Marketplace</Link> now has a search box and Most upvoted / Newest / Mine chips, so it stays browsable when dozens of shared presets pile up.</li>
+                  <li><strong>Comment on a preset</strong> — hit the little message-bubble on any card in the marketplace to leave a tip or ask a question; authors get feedback and installers see real-world context.</li>
+                  <li><strong>Preset Marketplace</strong> — visit <Link to="/library/presets" className="text-[#4C2A99] hover:underline">the marketplace</Link> to browse, upvote, and one-click install column-layout presets shared by other readers. Right-click any chip on your library &rarr; &ldquo;Publish to marketplace&hellip;&rdquo; to share your own.</li>
+                  <li><strong>Age-filter for storage cleanup</strong> — the admin R2 purge modal now has age chips (7d / 30d / 90d / 1y) so long-abandoned junk can be wiped without touching recent uploads.</li>
+                </ul>
+              </div>
+              <div className="my-4 rounded-lg border border-[#E4D9C8] bg-[#FBFAF6] px-4 py-3">
+                <p className="text-sm font-semibold text-[#2C2C2C] mb-1">Also new in August 2026 — jump-to-row &amp; preset personalisation</p>
+                <ul className="text-sm text-[#2C2C2C] space-y-1 list-disc pl-5">
+                  <li><strong>Jump to any row</strong> — click the &ldquo;&rarr; #&rdquo; pill in the list header (or press <kbd className="px-1 rounded bg-[#EEE9FB] border border-[#D9CCF5] text-[10px] font-mono">g</kbd> anywhere on the page in list view), type a row number, hit Enter and the list scrolls straight there with a purple flash on the target row.</li>
+                  <li><strong>Rename or overwrite your presets</strong> — right-click any preset chip (<em>Reading queue</em>, <em>Fandom deep-dive</em>, <em>Storage audit</em>) to rename it, snapshot your current column layout into it, or reset it back to the default.</li>
+                  <li><strong>Save your own presets</strong> — hit the dashed &ldquo;+ New&rdquo; button next to the built-in chips to save the current visible columns &amp; order as a new named chip (marked with a purple dot). Right-click your custom chip to rename it or delete it.</li>
+                  <li><strong>Share presets across devices</strong> — right-click any chip &rarr; &ldquo;Copy JSON to share&rdquo; grabs it as a small blob. On the other device, hit the &ldquo;Paste&rdquo; button next to &ldquo;+ New&rdquo;, paste, and Import to bring the layout across.</li>
+                </ul>
+              </div>
+              <div className="my-4 rounded-lg border border-[#E4D9C8] bg-[#FBFAF6] px-4 py-3">
+                <p className="text-sm font-semibold text-[#2C2C2C] mb-1">New in August 2026 — row numbers &amp; layout presets</p>
+                <ul className="text-sm text-[#2C2C2C] space-y-1 list-disc pl-5">
+                  <li><strong>Leftmost # column</strong> in list view shows row 1..N in the current sort order. Handy when you&rsquo;re scanning a thousand-book library and need to say &ldquo;row 47&rdquo; to a friend or bookmark a scroll position.</li>
+                  <li><strong>Layout presets in the columns menu:</strong> one-click chips for <em>Reading queue</em> (Time&middot;Words + Status + Added), <em>Fandom deep-dive</em> (Fandom + Pairings + Status), and <em>Storage audit</em> (Size + Time&middot;Words + Added). Each reshapes both what&rsquo;s visible AND the left-to-right order.</li>
+                  <li><strong>&ldquo;Just the essentials&rdquo; toggle</strong> below the presets — hides Pairings + Time&middot;Words in one click for a compact laptop view. Click again to bring every column back.</li>
+                </ul>
+              </div>
+              <div className="my-4 rounded-lg border border-[#E4D9C8] bg-[#FBFAF6] px-4 py-3">
+                <p className="text-sm font-semibold text-[#2C2C2C] mb-1">New in July 2026 — customisable list view</p>
+                <ul className="text-sm text-[#2C2C2C] space-y-1 list-disc pl-5">
+                  <li><strong>Click any column header</strong> to sort ascending, click again for descending, third click clears. Works in List, Grid, and Compact views.</li>
+                  <li><strong>Drag the grip icon</strong> on a column header sideways to reorder columns Excel-style. Persists.</li>
+                  <li><strong>Drag the thin handle at a column&apos;s right edge</strong> to resize it so long fandom / pairing values stop truncating.</li>
+                  <li><strong>Columns menu (three-column icon at the right end of the header)</strong> lets you hide Pairings or Time·Words on smaller screens. Title/Author is pinned.</li>
+                  <li><strong>Drag a section header</strong> (💜 Fanfic / 📖 Original & Non-fic) up or down to put your favourite world on top.</li>
+                  <li>Book rows show a <strong>file-size column</strong> (KB / MB / GB) so you can spot the huge outliers at a glance.</li>
+                </ul>
+              </div>
               <ul>
                 <li>
                   <strong>💜 Fanfic-first</strong> — the original Shelfsort flow.
@@ -1317,7 +1363,7 @@ export default function Help() {
                 </li>
               </ol>
               <p className="text-xs text-[#5B5F4D] mt-4">
-                Nothing here permanently deletes on the first click &mdash; every &ldquo;kept-latest&rdquo; older copy lands in Trash with a 30-day grace, and every promoted duplicate&apos;s ex-keeper lands in <Link to="/library/old-stories" className="text-[#6B46C1] underline">Old stories</Link> with reading progress preserved. You can undo an entire pass by restoring from Trash before it purges.
+                Nothing here permanently deletes on the first click &mdash; every &ldquo;kept-latest&rdquo; older copy lands in Trash with a 30-day grace, and every promoted duplicate&apos;s ex-keeper lands in <Link to="/library/all" className="text-[#6B46C1] underline">Old stories</Link> with reading progress preserved. You can undo an entire pass by restoring from Trash before it purges.
               </p>
             </Section>
 
@@ -1378,7 +1424,7 @@ export default function Help() {
               <p><strong>Surprise me</strong>: on the Dashboard, the &ldquo;Surprise me&rdquo; button picks a random book you haven&apos;t opened yet and drops you straight into it — useful when decision fatigue strikes.</p>
               <p><strong>Books I haven&apos;t read</strong>: the dedicated <Link to="/library/unread">unread shelf</Link> lists every book you&apos;ve never opened, newest upload first.</p>
               <p><strong>Up next queue</strong>: build a personal reading order with the <em>Up next</em> widget on the Dashboard. Books in the queue persist across devices.</p>
-              <p>The <Link to="/stats">Reading stats</Link> page covers your library shape, most-read fandoms, and pairing distribution. For a more cinematic year-end view — books opened, pages turned, longest streak, top fandoms, top author, bookends — open <a href="#year-in-books">Year in Books</a> below.</p>
+              <p>The <Link to="/library/stats">Reading stats</Link> page covers your library shape, most-read fandoms, and pairing distribution. For a more cinematic year-end view — books opened, pages turned, longest streak, top fandoms, top author, bookends — open <a href="#year-in-books">Year in Books</a> below.</p>
               <p><strong>Refresh fanfics</strong>: the URL-fetching feature is currently disabled while we tune it. Your existing books and their metadata are unaffected.</p>
             </Section>
 
@@ -1411,7 +1457,7 @@ export default function Help() {
               <ul>
                 <li><strong>When it appears</strong>: only after the book is effectively done. Either your progress hit ≥ 95 %, or you tapped <em>Mark as finished</em>. Otherwise the strip stays out of your way.</li>
                 <li><strong>What it surfaces</strong>: library-local matches scored on fandom (×3) + author (×2) + whether it&apos;s still unfinished (+1) + recency. Unfinished books rise to the top because you&apos;ve already chosen to keep them — the strip is meant to re-surface, not recommend strangers.</li>
-                <li><strong>Why library-local</strong>: embedding-based community recs already live behind <Link to="/recommendations">Recommendations</Link>. The finished strip is for resurfacing things you&apos;ve forgotten you own. Stays silent when nothing matches.</li>
+                <li><strong>Why library-local</strong>: embedding-based community recs already live behind <Link to="/library/recommendations">Recommendations</Link>. The finished strip is for resurfacing things you&apos;ve forgotten you own. Stays silent when nothing matches.</li>
               </ul>
             </Section>
 
@@ -1681,6 +1727,37 @@ export default function Help() {
               </ul>
             </Section>
 
+            <Section id="trash" icon={Trash2} title="Trash — the 30-day undo shelf">
+              <p>
+                Anything you delete from Shelfsort lands in <Link to="/library/trash" className="text-[#6B46C1] underline">Trash</Link> for <strong>30 days</strong> before it&rsquo;s permanently removed. Duplicates you auto-discard, books you delete manually or in bulk, and losers from a &quot;Keep only the latest&quot; pass all end up here. Nothing is really gone until you empty the trash or the daily sweep runs.
+              </p>
+              <p><strong>Every row shows when and why:</strong></p>
+              <ul>
+                <li><strong>🕐 Trashed date</strong> — a friendly relative label (&ldquo;3 days ago&rdquo;, &ldquo;yesterday&rdquo;, &ldquo;2 weeks ago&rdquo;) alongside the exact date and time (&ldquo;Aug 21, 2026 · 4:16 pm&rdquo;) so you always know when a book left the library.</li>
+                <li>
+                  <strong>ℹ Reason chip</strong> — a small purple pill spelling out exactly why the book was trashed. There are six possible reasons:
+                  <ul>
+                    <li><em>Duplicate discarded during upload</em> — the auto-resolver caught a duplicate at import time and moved the new copy to Trash based on your duplicate policy.</li>
+                    <li><em>Discarded from Quarantine</em> — you (or an admin) picked &ldquo;Discard&rdquo; on a single row in the Quarantine review page.</li>
+                    <li><em>Batch-discarded from Quarantine</em> — you used the &ldquo;Keep only the latest&rdquo; button on a duplicate group, so every non-winner in the group came here.</li>
+                    <li><em>Chose to discard when resolving a duplicate</em> — you hit &ldquo;Discard&rdquo; on the individual duplicate-resolution dialog for one book.</li>
+                    <li><em>Removed via bulk delete</em> — you selected books in the library and deleted them together.</li>
+                    <li><em>Removed from library</em> — the fallback for legacy trash rows written before the audit fields existed (2026-08-24 and earlier).</li>
+                  </ul>
+                </li>
+                <li><strong>was on <em>[shelf name]</em></strong> — an italic hint of the shelf the book came from, so you know exactly where <strong>Restore</strong> will put it back.</li>
+                <li><strong>⚠ N days left</strong> — the auto-delete countdown. Amber for anything &gt; 3 days out, red for ≤ 3 days or already expired. That&rsquo;s the same clock the nightly sweep uses, so you always have a visible warning before something disappears for good.</li>
+              </ul>
+              <p><strong>Restoring:</strong></p>
+              <ul>
+                <li><strong>Restore one book</strong> — hit the <em>&ldquo;Restore&rdquo;</em> button on any row. It goes straight back to its previous shelf (shown in the &ldquo;was on&rdquo; hint). If the previous shelf no longer exists it lands in <code>Unclassified</code>.</li>
+                <li><strong>Restore everything</strong> — the <em>&ldquo;Restore all&rdquo;</em> button at the top of the page brings every trashed book back to its previous shelf in one pass. Handy after an accidental bulk-delete.</li>
+                <li><strong>Empty Trash</strong> — the red button permanently deletes every book currently in Trash, plus their EPUB/cover/links sidecar files from disk. Requires confirm. Shows a ✨ toast with book count and reclaimed storage (opt-in nudge, on by default).</li>
+              </ul>
+              <p><strong>Legacy rows</strong> (from before the WHEN/WHY audit shipped on 2026-08-24) will display <em>&ldquo;Trashed before 2026-08-24&rdquo;</em> and <em>&ldquo;Removed from library&rdquo;</em>. Any book you trash from that date onward carries the exact timestamp and specific reason.</p>
+              <p><strong>Daily sweep:</strong> every night at 06:00 UTC, the digest cron hard-deletes any book whose 30-day grace has expired. There&rsquo;s no undo after the sweep — that&rsquo;s why the &ldquo;days left&rdquo; countdown goes red at 3 days.</p>
+            </Section>
+
             <Section id="account" icon={Settings} title="Account & preferences">
               <p>Your Account page is the control center:</p>
               <ul>
@@ -1733,6 +1810,34 @@ export default function Help() {
               </ul>
               <p>Found a bug or want a feature? The agent listens — just ask in chat.</p>
             </Section>
+            <Section id="settings-nav" icon={Settings} title="Finding a setting fast (sidebar ToC)">
+              <p>
+                Shelfsort&rsquo;s settings pages — <Link to="/account" className="text-[#6B46C1] underline">Account</Link>, <Link to="/account/emails" className="text-[#6B46C1] underline">Email preferences</Link>, and <Link to="/account/appearance" className="text-[#6B46C1] underline">Appearance</Link> — all share the same navigation pattern so you don&rsquo;t have to hunt for anything twice.
+              </p>
+              <ul>
+                <li><strong>Desktop sidebar</strong>: on screens ≥ 1024 px wide, a sticky Table of Contents sits on the left. Each category (Profile, Privacy, Library, Backups…) is a collapsible group, and the tile that&rsquo;s currently in your viewport is highlighted with a purple pill so you always know where you are.</li>
+                <li><strong>Search box at the top</strong>: type any word — <em>&ldquo;theme&rdquo;</em>, <em>&ldquo;sessions&rdquo;</em>, <em>&ldquo;backups&rdquo;</em> — and the list narrows in real time. Matches include category names and hidden keywords (e.g. searching <em>&ldquo;wpm&rdquo;</em> jumps you to the Reading-speed card on Appearance).</li>
+                <li><strong>Recent block</strong>: the three most-recently-clicked settings float to the top of the sidebar so common tasks (like flipping a preference back after testing) are one tap away. Recent is per-page and remembered between visits.</li>
+                <li><strong>Mobile jump menu</strong>: below 1024 px the sidebar collapses into a compact <em>&ldquo;Jump to section&rdquo;</em> dropdown that stays pinned to the top as you scroll. The current section&rsquo;s name is always the selected value.</li>
+                <li><strong>Keyboard-friendly</strong>: Tab through the ToC and press Enter to jump. The target card briefly flashes so your eye can find it.</li>
+              </ul>
+              <p className="text-xs text-[#5B5F4D]">Same pattern will land on Help, Rules, and other long pages in the coming weeks.</p>
+            </Section>
+
+            <Section id="sessions" icon={Shield} title="Signed-in devices & sessions">
+              <p>
+                Shelfsort remembers each device / browser you sign in from so it can show you a per-device activity list and let you sign out anywhere without touching your password. This lives on the <Link to="/account" className="text-[#6B46C1] underline">Account</Link> page under <em>Active sessions</em> (in the Privacy category).
+              </p>
+              <ul>
+                <li><strong>What you see</strong>: browser + OS (parsed from the user-agent), where the session was created, when it was last active, and a &ldquo;This device&rdquo; badge on the row you&rsquo;re reading this from.</li>
+                <li><strong>Sign this device out</strong>: use the regular <em>Sign out</em> button in the navbar. That kills only the current session; other browsers stay signed in.</li>
+                <li><strong>Sign out one other device</strong>: click the <em>&ldquo;Revoke&rdquo;</em> button on that row. The device is signed out immediately on its next request — no waiting for a session to expire.</li>
+                <li><strong>Sign out everywhere else</strong>: the <em>&ldquo;Sign out other sessions&rdquo;</em> button at the bottom of the card revokes every session except the one you&rsquo;re on right now. Useful if you signed in on a shared computer and forgot to sign out, or if you lost a phone.</li>
+                <li><strong>Session lifetime</strong>: sessions last 30 days from last activity by default. Any signed-in request refreshes the timer; sessions that go untouched for a full month expire automatically.</li>
+                <li><strong>Suspicious activity</strong>: if you see a session from a device you don&rsquo;t recognise, revoke it and then change your password. Shelfsort has no way to know it was you.</li>
+              </ul>
+            </Section>
+
             <Section id="operator-digest" icon={LineChart} title="Operator weekly digest (admins only)">
               <p>If you&apos;re an admin, Shelfsort can email you a Sunday-evening rollup of the past week&apos;s site analytics so you can keep a light pulse on engagement without opening the admin console.</p>
               <ul>

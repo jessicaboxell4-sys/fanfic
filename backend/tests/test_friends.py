@@ -16,7 +16,7 @@ import pytest
 from datetime import datetime, timezone, timedelta
 from pymongo import MongoClient
 
-BASE = os.environ.get("REACT_APP_BACKEND_URL", "https://drift-check-live.preview.emergentagent.com").rstrip("/")
+BASE = os.environ.get("REACT_APP_BACKEND_URL", "http://localhost:8001").rstrip("/")
 MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
 DB_NAME = os.environ.get("DB_NAME", "test_database")
 
@@ -25,11 +25,21 @@ db = mc[DB_NAME]
 
 
 # Three test users. Distinct token + email per user.
+def _mk_user(prefix, name):
+    uid = f"{prefix}_{uuid.uuid4().hex[:8]}"
+    return {
+        "user_id": uid,
+        "token": f"sess_{prefix[-2:]}_{uuid.uuid4().hex}",
+        "name": name,
+        "email": f"friend-e2e-{uid[-8:]}@shelfsort-e2e.net",
+    }
+
+
 USERS = {
-    "alice":   {"user_id": f"user_fA_{uuid.uuid4().hex[:8]}",  "token": f"sess_fA_{uuid.uuid4().hex}",  "name": "Alice Test"},
-    "bob":     {"user_id": f"user_fB_{uuid.uuid4().hex[:8]}",  "token": f"sess_fB_{uuid.uuid4().hex}",  "name": "Bob Test"},
-    "carol":   {"user_id": f"user_fC_{uuid.uuid4().hex[:8]}",  "token": f"sess_fC_{uuid.uuid4().hex}",  "name": "Carol Open"},
-    "dave":    {"user_id": f"user_fD_{uuid.uuid4().hex[:8]}",  "token": f"sess_fD_{uuid.uuid4().hex}",  "name": "Dave Hidden"},
+    "alice":   _mk_user("user_fA", "Alice Test"),
+    "bob":     _mk_user("user_fB", "Bob Test"),
+    "carol":   _mk_user("user_fC", "Carol Open"),
+    "dave":    _mk_user("user_fD", "Dave Hidden"),
 }
 
 
@@ -41,7 +51,7 @@ def seed():
     for key, u in USERS.items():
         db.users.insert_one({
             "user_id": u["user_id"],
-            "email": f"{u['user_id']}@example.com",
+            "email": u["email"],
             "name": u["name"],
             "picture": "",
             "is_admin": False,
@@ -91,7 +101,7 @@ class TestFriendRequest:
     def test_send_by_email(self):
         r = requests.post(
             f"{BASE}/api/friends/request",
-            json={"target_email": f"{USERS['bob']['user_id']}@example.com"},
+            json={"target_email": USERS['bob']['email']},
             headers=H("alice"),
         )
         assert r.status_code == 200
@@ -111,7 +121,7 @@ class TestFriendRequest:
         data = r.json()
         assert len(data["pending_in"]) == 1
         assert data["pending_in"][0]["other_user_id"] == USERS["alice"]["user_id"]
-        assert data["pending_in"][0]["email"] == f"{USERS['alice']['user_id']}@example.com"
+        assert data["pending_in"][0]["email"] == USERS["alice"]["email"]
 
     def test_pending_count_endpoint(self):
         r = requests.get(f"{BASE}/api/friends/pending-count", headers=H("bob"))
@@ -397,8 +407,8 @@ class TestUserSearch:
         assert r.json()["users"] == []
 
     def test_search_finds_by_email(self):
-        # Search a unique part of bob's email
-        q = USERS["bob"]["user_id"][:10]
+        # Search a unique part of bob's email (last 8 chars of uid appear in the email)
+        q = USERS["bob"]["user_id"][-8:]
         r = requests.get(f"{BASE}/api/users/search", params={"q": q}, headers=H("alice"))
         ids = [u["user_id"] for u in r.json()["users"]]
         assert USERS["bob"]["user_id"] in ids
@@ -409,8 +419,8 @@ class TestUserSearch:
         assert "Carol Open" in names
 
     def test_search_excludes_self(self):
-        # Search alice's own unique part
-        q = USERS["alice"]["user_id"][:10]
+        # Search alice's own unique email fragment
+        q = USERS["alice"]["user_id"][-8:]
         r = requests.get(f"{BASE}/api/users/search", params={"q": q}, headers=H("alice"))
         ids = [u["user_id"] for u in r.json()["users"]]
         assert USERS["alice"]["user_id"] not in ids
@@ -423,7 +433,7 @@ class TestUserSearch:
 
     def test_search_annotates_relation(self):
         # Alice + Bob are friends — Bob should appear with relation='friend'
-        q = USERS["bob"]["user_id"][:10]
+        q = USERS["bob"]["user_id"][-8:]
         r = requests.get(f"{BASE}/api/users/search", params={"q": q}, headers=H("alice"))
         bob_row = next((u for u in r.json()["users"] if u["user_id"] == USERS["bob"]["user_id"]), None)
         assert bob_row is not None

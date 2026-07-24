@@ -4,6 +4,24 @@
 
 ---
 
+## 📌 User-flagged reminders — 2026-08-23
+
+The user explicitly asked to be reminded of these follow-ups at the start of the next session (added right after shipping the shared `<SectionSidebar>` extraction + AppearancePage ToC).
+
+- **P1** — `AdminConsole.jsx` ToC could migrate to `<SectionSidebar>`, but requires lifting the page-level query/recent-cards state (bigger surgery — plan as a dedicated session).
+- **P2** — Finish Phase 6C `books.py` refactor: split remaining 11 `@api_router` handlers into `routes/books_upload.py`, `routes/books_download.py`, etc. (See "Phase 6C: upload pipeline extraction" table row below for scope caveats.)
+- **P2** — Dev-only React-warning toast interceptor: `window.console.error` shim in dev mode that surfaces every React warning as a small in-page toast to catch hydration mismatches during normal use.
+- **P3** — Comment Notifications: ping preset authors in-app when someone leaves a comment on their published preset.
+- **P3** — Keyboard shortcut: `Ctrl/Cmd+A` in Select mode as a power-user alias for "Select all N".
+- **P3** — Bulk Set Reading Status + Reading Status Filter Chip + Reader Auto-Reading.
+- **P3** — Re-engagement email "preview" / "send now" admin tool.
+- **P3** — Admin `.gitignore` regression counter.
+- **P3** — Surface `retry_of_failure_ids` on the admin queue dashboard.
+- **P3** — ToC hash-fragment auto-expand: when a user lands on `/help#sessions` or `/admin/help#upload-health`, the parent category in the sidebar ToC should auto-expand so the highlighted link is visible. Right now the section body scrolls into view correctly, but the ToC entry stays hidden inside a collapsed category until manually clicked. Testing agent flagged this on 2026-08-24 during iter_115 audit — nice shareability polish.
+- **Enhancement offer** — `<SectionSidebar>` is now a one-liner to add anywhere; ask whether to also wire it into `/help`, `/rules`, and `/admin/help` for consistent navigation across the app (deferred until after next deploy).
+
+
+
 ## 🎯 Quick pick — next-up ranking
 
 Auto-maintained ranking of open reminders by **effort × impact ×

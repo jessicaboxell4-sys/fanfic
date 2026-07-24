@@ -78,6 +78,10 @@ NOTIFICATION_CATALOG: List[Dict[str, Any]] = [
     {"kind": "duplicate_rescan", "group": "Library upkeep",
      "label": "Weekly duplicate-rescan digest",
      "description": "Sunday sweep of your library that flags likely duplicates missed at upload time. Auto-hides quiet weeks.", "mutable": True},
+    # --- System / upload health ---
+    {"kind": "upload_incomplete", "group": "System",
+     "label": "Upload didn't finish",
+     "description": "Pings you when one or more files in an upload batch failed or vanished mid-pipeline, with the specific reason so you can retry.", "mutable": False},
 ]
 
 KNOWN_KINDS = {c["kind"] for c in NOTIFICATION_CATALOG}

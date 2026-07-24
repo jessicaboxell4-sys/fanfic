@@ -4,7 +4,7 @@ import {
   BookOpen, LogOut, BarChart3, Filter, HelpCircle, FileText, ShieldCheck,
   Target, Menu, X, Library, Download, ChevronDown, Link as LinkIcon,
   Lightbulb, MessageCircleQuestion, Sparkles, Users, MessageSquare,
-  Palette, Flame, Trash2, Layers,
+  Palette, Flame, Trash2, Layers, Archive, RefreshCw, Unlink, FileWarning, Layers3,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../lib/api";
@@ -114,6 +114,16 @@ function SecondaryLinks({ user, unknownFandomCount, crossoverPendingCount, onNav
         { to: "/library/recently-added", label: "Recently added", testid: "navbar-recently-added", icon: Sparkles, title: "Books that landed in your library in the last 14 days" },
         { to: "/library/originals", label: "Originals", testid: "navbar-originals", icon: FileText, title: "Original-format files (PDF, MOBI, DOCX, etc.) kept without conversion" },
         { to: "/library/quarantine", label: "Duplicates", testid: "navbar-quarantine", icon: Layers, title: "Duplicate uploads auto-quarantined so bulk drops don't get interrupted" },
+        { to: "/library/all?category=Old+stories", label: "Old versions", testid: "navbar-old-stories", icon: Archive, title: "Prior versions kept after a story was refreshed — the newer copies live in Updated stories" },
+        { to: "/library/all?category=Updated+stories", label: "Updated versions", testid: "navbar-updated-stories", icon: RefreshCw, title: "The newer, refreshed copies of stories that have been replaced — their older versions live in Old versions" },
+        { to: "/library/all?category=Unclassified", label: "Unclassified", testid: "navbar-unclassified", icon: HelpCircle, title: "Books the AI couldn't sort — send them to the classifier or shelve them manually" },
+      ],
+    },
+    {
+      heading: "Needs attention",
+      items: [
+        { to: "/library/linkless", label: "Missing links", testid: "navbar-linkless", icon: Unlink, title: "Books whose source URL is missing — the reader can't refetch or check for updates until this is filled in" },
+        { to: "/library/unreadable", label: "Won't open", testid: "navbar-unreadable", icon: FileWarning, title: "Books that failed to open — usually corrupt files or unsupported formats" },
       ],
     },
     {
@@ -123,6 +133,7 @@ function SecondaryLinks({ user, unknownFandomCount, crossoverPendingCount, onNav
         { to: "/library/stats", label: "Reading stats", testid: "navbar-stats", icon: BarChart3, title: "Reading statistics" },
         { to: "/goals", label: "Reading goals", testid: "navbar-goals", icon: Target, title: "Yearly & monthly reading targets" },
         { to: "/library/recommendations", label: "Recommendations", testid: "navbar-recommendations", icon: Sparkles, title: "Books your friends loved that you don't own yet" },
+        { to: "/library/presets", label: "Preset marketplace", testid: "navbar-preset-marketplace", icon: Layers3, title: "Browse, upvote, and install column-layout presets shared by other readers" },
         { to: "/library/trash", label: "Trash", testid: "navbar-trash", icon: Trash2, title: "Recently deleted books (30-day grace before permanent removal)" },
       ],
     },

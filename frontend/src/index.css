@@ -296,6 +296,20 @@ summary:focus-visible {
     to { opacity: 1; transform: translateY(0); }
 }
 
+/* Settings-page ToC flash — brief purple ring on the target section
+   after a jump so the user's eye lands on it.  Uses outline instead
+   of border so the layout doesn't shift.  See SettingsToC in
+   /app/frontend/src/pages/Account.jsx. */
+@keyframes settings-toc-flash {
+    0%   { outline: 3px solid rgba(107, 70, 193, 0.7); outline-offset: 4px; }
+    100% { outline: 3px solid rgba(107, 70, 193, 0);   outline-offset: 4px; }
+}
+.settings-toc-flash {
+    animation: settings-toc-flash 1.2s ease-out;
+    scroll-margin-top: 90px;  /* clear the sticky navbar when scrolled into view */
+}
+
+
 /* ------------------------------------------------------------------ */
 /*  MOBILE SAFETY NET (2026-06-17)                                     */
 /*  Pinned to viewport width so no rogue element (long URL, sticky    */
@@ -628,6 +642,19 @@ html, body {
 /* on the same tinted purple surface used by other accented panels.    */
 :root[data-theme="dark"] .bg-\[\#EEF3EC\] { background-color: rgba(167, 139, 250, 0.14); }
 
+/* 2026-07-19 — Library list-view accents (Sort indicator strip, column
+   drop-target hint, selection-row highlight, drag-grip icons). */
+:root[data-theme="dark"] .bg-\[\#F3EEFC\],
+:root[data-theme="dark"] .bg-\[\#EDE7FB\],
+:root[data-theme="dark"] .bg-\[\#EEE9FB\] { background-color: rgba(167, 139, 250, 0.14); }
+:root[data-theme="dark"] .border-\[\#D9CCF5\],
+:root[data-theme="dark"] .border-\[\#E8E6E1\] { border-color: rgba(167, 139, 250, 0.30); }
+:root[data-theme="dark"] .text-\[\#4C2A99\],
+:root[data-theme="dark"] .text-\[\#6B46C1\] { color: var(--primary-hover); }
+:root[data-theme="dark"] .text-\[\#B8B2A3\] { color: rgba(196, 193, 176, 0.55); }
+:root[data-theme="dark"] .text-\[\#8B7AB8\] { color: rgba(184, 168, 234, 0.85); }
+:root[data-theme="dark"] .divide-\[\#E8E6E1\] > :not([hidden]) ~ :not([hidden]) { border-color: rgba(255, 255, 255, 0.08); }
+
 /* Text — primary headings + body, and the muted "sage" support text. */
 :root[data-theme="dark"] .text-\[\#2C2C2C\] { color: var(--text-primary); }
 :root[data-theme="dark"] .text-\[\#5B5F4D\],
@@ -689,6 +716,28 @@ html, body {
 :root[data-theme="dark"] .bg-\[\#FCEBD3\],
 :root[data-theme="dark"] .bg-\[\#FDF3E7\],
 :root[data-theme="dark"] .bg-\[\#FDECE7\] { background-color: rgba(245, 208, 130, 0.10); }
+
+/* 2026-08-27 — Additional light-tint backgrounds picked up by the
+   dark-mode-coverage lint. Converge cool tones (lavender / sage)
+   on the tinted-purple surface, warm creams on `--surface-hover`,
+   and rose/peach/warm-amber tints on the amber-callout surface so
+   accented panels remain visually distinct without going pure-
+   cream in dark mode. */
+:root[data-theme="dark"] .bg-\[\#E4D9F8\],
+:root[data-theme="dark"] .bg-\[\#EEE9FB\]\/60,
+:root[data-theme="dark"] .bg-\[\#F5F0FB\],
+:root[data-theme="dark"] .bg-\[\#F0F7EE\] { background-color: rgba(167, 139, 250, 0.12); }
+
+:root[data-theme="dark"] .bg-\[\#EAE4D8\],
+:root[data-theme="dark"] .bg-\[\#F1EEE5\],
+:root[data-theme="dark"] .bg-\[\#F5F0E5\],
+:root[data-theme="dark"] .bg-\[\#FDFBF3\] { background-color: var(--surface-hover); }
+
+:root[data-theme="dark"] .bg-\[\#F5EAE9\],
+:root[data-theme="dark"] .bg-\[\#FBEEE9\],
+:root[data-theme="dark"] .bg-\[\#FBF3F1\],
+:root[data-theme="dark"] .bg-\[\#FBF6E4\],
+:root[data-theme="dark"] .bg-\[\#FDF8E7\] { background-color: rgba(245, 208, 130, 0.10); }
 
 /* 2026-07-09 — Safety stats palette (Clean/Flagged/Awaiting).  Uses
    `[data-safety-color]` attribute set in AccountSafety.jsx SafetyStat

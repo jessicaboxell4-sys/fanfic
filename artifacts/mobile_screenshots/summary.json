@@ -1,0 +1,62 @@
+[
+  {
+    "page": "landing",
+    "path": "/",
+    "body_len": 8400,
+    "error_boundary": false,
+    "blank": false,
+    "ok": true,
+    "diff_pct": 0.0,
+    "diff_ok": true
+  },
+  {
+    "page": "login",
+    "path": "/login",
+    "body_len": 4964,
+    "error_boundary": false,
+    "blank": false,
+    "ok": true,
+    "diff_pct": 0.0,
+    "diff_ok": true
+  },
+  {
+    "page": "library",
+    "path": "/library",
+    "body_len": 4364,
+    "error_boundary": false,
+    "blank": false,
+    "ok": true,
+    "diff_pct": 0.157,
+    "diff_ok": true
+  },
+  {
+    "page": "library-all",
+    "path": "/library/all",
+    "body_len": 4364,
+    "error_boundary": false,
+    "blank": false,
+    "ok": true,
+    "diff_pct": 0.0,
+    "diff_ok": true
+  },
+  {
+    "page": "presets",
+    "path": "/library/presets",
+    "body_len": 4364,
+    "error_boundary": false,
+    "blank": false,
+    "ok": true,
+    "diff_pct": 0.0,
+    "diff_ok": true
+  },
+  {
+    "page": "help",
+    "path": "/help",
+    "body_len": 83773,
+    "error_boundary": false,
+    "blank": false,
+    "ok": true,
+    "diff_pct": 0.0,
+    "diff_ok": true
+  }
+]

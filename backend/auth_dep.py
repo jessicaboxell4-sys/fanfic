@@ -36,6 +36,14 @@ _LAST_SEEN_WRITE: dict[str, float] = {}
 _TOUCH_MIN_GAP_S = 60.0
 _LAST_SEEN_MAP_CAP = 10_000
 
+# 2026-08-22 — Companion throttle for per-session `last_active_at`
+# (drives the Account → Active devices list). Keyed on the session
+# token itself so two devices signed into the same account each get
+# their OWN last-active timestamp instead of stealing the throttle.
+_SESSION_TOUCH_WRITE: dict[str, float] = {}
+_SESSION_TOUCH_MIN_GAP_S = 60.0
+_SESSION_TOUCH_MAP_CAP = 10_000
+
 # 2026-07-10 — Paths that don't tell us anything useful about where
 # the user actually IS in the product (background polls, presence
 # refresh, health checks).  Skipping them means the stamped
@@ -81,6 +89,34 @@ async def _touch_last_seen(user_id: str, path: str | None = None) -> None:
         pass
 
 
+async def _touch_session_active(session_token: str) -> None:
+    """Best-effort `last_active_at` stamp on the session row.
+
+    Throttled per-session token so a chatty client polling many
+    endpoints only writes the field at most once a minute. Never
+    raises — presence data is nice-to-have.
+    """
+    if not session_token:
+        return
+    import time
+    now_epoch = time.monotonic()
+    last = _SESSION_TOUCH_WRITE.get(session_token)
+    if last is not None and (now_epoch - last) < _SESSION_TOUCH_MIN_GAP_S:
+        return
+    _SESSION_TOUCH_WRITE[session_token] = now_epoch
+    if len(_SESSION_TOUCH_WRITE) > _SESSION_TOUCH_MAP_CAP:
+        cutoff = now_epoch - 300.0
+        for tk in [k for k, v in _SESSION_TOUCH_WRITE.items() if v < cutoff]:
+            _SESSION_TOUCH_WRITE.pop(tk, None)
+    try:
+        await db.user_sessions.update_one(
+            {"session_token": session_token},
+            {"$set": {"last_active_at": datetime.now(timezone.utc)}},
+        )
+    except Exception:
+        pass
+
+
 async def _resolve_session_user(request: Request) -> User:
     """Cookie/Bearer → session → user. No approval-status check."""
     session_token = request.cookies.get('session_token')
@@ -122,6 +158,10 @@ async def _resolve_session_user(request: Request) -> User:
         raw = request.url.path or ""
         client_path = raw[4:] if raw.startswith("/api/") else raw
     await _touch_last_seen(session['user_id'], client_path)
+    # 2026-08-22 — Bump the per-session `last_active_at` so the Account
+    # → Active devices card can show a real "last active 5 min ago"
+    # instead of always saying "just now" from `created_at`.
+    await _touch_session_active(session_token)
     return User(**user_doc)
 
 

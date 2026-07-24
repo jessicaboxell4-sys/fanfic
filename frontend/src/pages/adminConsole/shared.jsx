@@ -68,8 +68,10 @@ export const ADMIN_CARD_MANIFEST = [
   { testid: "admin-banner-card", category: "system", title: "Maintenance banner", subtitle: "Site-wide announcement banner.", keywords: "maintenance banner outage announcement downtime planned heads-up" },
   { testid: "admin-health-card", category: "system", title: "System health", subtitle: "External dependencies + storage snapshot.", keywords: "health system mongo storage disk dependencies status" },
   { testid: "admin-stuck-uploads-card", category: "system", title: "Stuck uploads", subtitle: "Upload jobs sitting queued/processing for >10 min — leading indicator of Atlas instability or staging-disk loss.", keywords: "stuck uploads upload jobs queued processing mongo atlas failover recovery cron stranded airdrop" },
+  { testid: "admin-upload-health-card", category: "system", title: "Upload batch health", subtitle: "Failure-rate trend, retry burn, and throttle events across recent bulk uploads — tune concurrency with data instead of guessing.", keywords: "upload batch health failure rate concurrency retry retries transient throttle slow start ramp bulk 200 telemetry tuning" },
   { testid: "admin-classifier-reliability-card", category: "system", title: "Classifier reliability", subtitle: "Polish-worker error fingerprints, retry distribution, permanently-stuck count — last 7 days.", keywords: "classifier reliability polish failed errors fingerprint claude llm ai timeout retry attempts stuck pending sort book" },
   { testid: "admin-crash-pulse-card", category: "system", title: "Crash pulse", subtitle: "Client-side render errors grouped by message + page. Empty = good.", keywords: "crash pulse client error render boundary uncaught react js javascript page tour appearance regression incident telemetry" },
+  { testid: "admin-startup-timing-card", category: "system", title: "Startup timing", subtitle: "Deploy-to-deploy sparkline of the deferred-migration wall-time — early warning for K8s readiness timeouts.", keywords: "startup timing deploy sparkline elapsed migrations indexes atlas readiness probe k8s slow boot deferred at risk trend history budget" },
   { testid: "admin-attribution-card", category: "data", title: "Attribution", subtitle: "Where new visitors are finding Shelfsort — referrer domains + UTM campaigns for the last N days.", keywords: "attribution referrer utm source medium campaign marketing traffic acquisition google twitter reddit facebook direct where from came landing signup conversion" },
   { testid: "cron-health-card", category: "system", title: "Scheduled jobs", subtitle: "Last-run telemetry for crons.", keywords: "cron jobs scheduled task background failure last-run" },
   { testid: "route-catalogue-card", category: "system", title: "Route catalogue", subtitle: "Every /api/* endpoint.", keywords: "route catalogue endpoint api list routes urls" },
@@ -89,6 +91,10 @@ export const ADMIN_CARD_MANIFEST = [
   { testid: "admin-audit-card", category: "data", title: "Audit log", subtitle: "Every admin write action.", keywords: "audit log history admin actions write changes" },
   { testid: "admin-mongo-inspector-card", category: "data", title: "Mongo inspector", subtitle: "Read-only browse of every collection.", keywords: "mongo db database collections docs raw browse inspect" },
   { testid: "admin-fulltext-card", category: "data", title: "Full-text index", subtitle: "Backfill EPUB body text for search.", keywords: "fulltext full-text search epub index backfill body" },
+  { testid: "admin-dedup-retry-card", category: "data", title: "Retry dedup guard", subtitle: "How often the sha256 idempotency check has saved a duplicate upload during network retries.", keywords: "dedup retry idempotency fingerprint sha256 cloudflare 524 timeout duplicate prevention guard saved retry hits network retry storm client-side hash weekly daily sparkline upload" },
+  { testid: "admin-upload-failure-insights-card", category: "data", title: "Upload failure insights", subtitle: "Recent upload_incomplete notifications grouped by failure reason, so recurring pipeline errors surface without digging through the DB.", keywords: "upload failure insights notification incomplete reason group av scan epub parse classifier vanished mid-pipeline background job error pipeline recurring bottleneck breakdown category bucket bell alert reason categorize categorised classification group filename example failed" },
+  { testid: "admin-upload-skip-digest-card", category: "data", title: "Upload skip digest", subtitle: "Weekly rollup of files users tried to upload but couldn't — corrupt, duplicate, unsupported, capped.", keywords: "upload skip digest weekly rejects rejected filtered corrupt 0-byte zero byte duplicate dupe unsupported cap capped ds_store thumbs cover jpg failed drops mismatch missing epub picker extension" },
+  { testid: "admin-r2-storage-card", category: "system", title: "R2 storage & orphans", subtitle: "Cloudflare R2 usage, estimated monthly cost, and one-click orphan file cleanup.", keywords: "r2 storage orphans cloudflare bill cost gb bytes objects scan purge cleanup top users file" },
 ];
 
 export function cardMatchesQuery(card, q) {
@@ -115,6 +121,20 @@ export function fmtTime(iso) {
   } catch { return iso; }
 }
 
+export function fmtAgo(iso) {
+  if (!iso) return "never";
+  try {
+    const ms = Date.now() - new Date(iso).getTime();
+    const s = Math.floor(ms / 1000);
+    if (s < 60) return `${s}s ago`;
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    if (h < 48) return `${h}h ago`;
+    return `${Math.floor(h / 24)}d ago`;
+  } catch { return iso; }
+}
+
 // ---------------------------------------------------------------------------
 // Card wrapper — every admin section is rendered inside this so search,
 // collapse-all/expand-all, remember-open and recent-cards work uniformly.
@@ -134,11 +154,15 @@ export function Card({ icon: Icon, title, subtitle, children, testid }) {
   }, [open, remember, storageKey]);
 
   const handleToggle = () => {
-    setOpen((v) => {
-      const next = !v;
-      if (next && pushRecent && testid) pushRecent(testid);
-      return next;
-    });
+    // 2026-08-22 — pushRecent used to live inside the setOpen updater,
+    // which meant it fired during React's state-reducer phase and tripped
+    // "Cannot update a component (AdminConsole) while rendering a different
+    // component (Card)". Splitting it out — setOpen batches with the
+    // pushRecent call inside a single event handler tick anyway, so the
+    // rendered UI still updates in one paint.
+    const next = !open;
+    setOpen(next);
+    if (next && pushRecent && testid) pushRecent(testid);
   };
 
   // Search filter — hide the card entirely when query is set and doesn't

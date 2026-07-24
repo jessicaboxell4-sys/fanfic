@@ -119,6 +119,25 @@ def source_contains(testid: str, roots: Iterable[Path]) -> bool:
     return subprocess.run(cmd, capture_output=True).returncode == 0
 
 
+def check_env_gitignore_sentinel() -> int:
+    """Run the env-in-gitignore sentinel — hard-fail if `.env` patterns
+    have crept back into /app/.gitignore.  This has recurred 4 times
+    and each time breaks Emergent's MANAGE_SECRETS → pull_source step.
+    Runs the standalone script so both entry points share one truth."""
+    script = Path("/app/scripts/env_gitignore_sentinel.py")
+    if not script.exists():
+        print("⚠️  env-in-gitignore sentinel script missing — skipping")
+        return 0
+    result = subprocess.run(
+        [sys.executable, str(script)],
+        capture_output=True, text=True,
+    )
+    print(result.stdout, end="")
+    if result.stderr:
+        print(result.stderr, end="", file=sys.stderr)
+    return result.returncode
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--bundle", type=Path, default=None,
@@ -149,6 +168,11 @@ def main() -> int:
     prod_ids = extract_testids(bundle_path)
     print(f"→ {len(prod_ids):,} distinct data-testid values in prod bundle")
 
+    # Run the env-in-gitignore sentinel BEFORE the testid grep — if
+    # the deploy would break at MANAGE_SECRETS anyway, no point
+    # analysing testids first.  Failure here is a hard blocker.
+    env_rc = check_env_gitignore_sentinel()
+
     # Batch grep — walk each testid once.
     prod_only: list[str] = []
     for tid in sorted(prod_ids):
@@ -173,6 +197,10 @@ def main() -> int:
     if tmp:
         Path(tmp.name).unlink(missing_ok=True)
 
+    # Fail loudly if either the env sentinel OR the testid drift check
+    # tripped — both must be clean before deploy.
+    if env_rc != 0:
+        return env_rc
     return 1 if prod_only else 0
 
 

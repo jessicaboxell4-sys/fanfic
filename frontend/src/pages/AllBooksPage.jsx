@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState, useCallback } from "react";import { useNavigate, Link, useSearchParams } from "react-router-dom";
+import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
+import { getReadingStatus, READING_STATUS_META } from "../lib/readingStatus";
 import Navbar from "../components/Navbar";
 import BookCard from "../components/BookCard";
 import SelectionBar from "../components/SelectionBar";
@@ -17,18 +18,170 @@ import BackupReminderBanner from "../components/BackupReminderBanner";
 import FriendRequestBanner from "../components/FriendRequestBanner";
 import PendingPolishBanner from "../components/PendingPolishBanner";
 import FailedUploadsList from "../components/FailedUploadsList";
+import SkippedFilesPanel from "../components/SkippedFilesPanel";
 import OneTimeTip from "../components/OneTimeTip";
 import LibraryActivityWidgets from "../components/LibraryActivityWidgets";
 import Ao3FilterChips from "../components/Ao3FilterChips";
 import FandomFinder from "../components/FandomFinder";
 import UploadZone from "../components/UploadZone";
 import { useEventStream } from "../hooks/useEventStream";
-import { Search, X, Plus, ArrowRight, ArrowLeftRight, Heart, BookOpen, CheckSquare, Sparkles, Loader2, RefreshCw, Library, UserCircle2, Filter, Pin, FolderOpen, ArrowUpDown, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Trash2, LayoutGrid, Grid3x3, List as ListIcon, UploadCloud, ShieldCheck, ShieldAlert, Clock } from "lucide-react";
+import { Search, X, Plus, ArrowRight, ArrowLeftRight, Heart, BookOpen, CheckSquare, Sparkles, Loader2, RefreshCw, Library, UserCircle2, Filter, Pin, FolderOpen, ArrowUpDown, ChevronUp, ChevronDown, Eye, EyeOff, RotateCcw, Trash2, LayoutGrid, Grid3x3, List as ListIcon, UploadCloud, ShieldCheck, ShieldAlert, Clock, GripVertical, Columns3 } from "lucide-react";
 import { toast } from "sonner";
 import { FETCHING_UI_ENABLED } from "../lib/featureFlags";
+import {
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  arrayMove,
+  horizontalListSortingStrategy,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 const DEFAULT_CATEGORIES = ["All", "Fanfiction", "Original Fiction", "Non-fiction", "Unclassified", "Updated stories", "Old stories"];
 
+// Static column metadata for the list view — shared between the module-
+// scope SortableHeaderCell and per-cell body renderers so header + row
+// order can never diverge.
+const LIST_COL_META = {
+  fandom:    { label: "Fandom",       align: "left",   showAt: "" },
+  pairings:  { label: "Pairings",     align: "left",   showAt: "hidden lg:inline-block" },
+  wordcount: { label: "Time · Words", align: "right",  showAt: "hidden lg:inline-block" },
+  size:      { label: "Size",         align: "right",  showAt: "hidden lg:inline-block" },
+  status:    { label: "Status",       align: "center", showAt: "" },
+  added:     { label: "Added",        align: "right",  showAt: "hidden xl:inline-block" },
+};
+
+const DEFAULT_COL_WIDTHS = {
+  fandom:    128,
+  pairings:  112,
+  wordcount: 80,
+  size:      72,
+  status:    56,
+  added:     72,
+};
+const MIN_COL_WIDTH = 44;
+
+// 2026-08-14 — Named column layout presets.  Each preset defines both
+// the visible columns AND the left-to-right order, so a single click
+// reshapes the list view for a common workflow.  Hidden columns still
+// exist (their persisted widths are preserved), they just aren't
+// rendered / are pushed to the tail of the order list.
+const LIST_COL_PRESETS = {
+  "reading-queue":  { label: "Reading queue",   order: ["wordcount", "status", "added", "fandom", "pairings", "size"], visible: { fandom: false, pairings: false, wordcount: true,  size: false, status: true,  added: true  } },
+  "fandom-deep":    { label: "Fandom deep-dive",order: ["fandom", "pairings", "status", "wordcount", "size", "added"], visible: { fandom: true,  pairings: true,  wordcount: false, size: false, status: true,  added: false } },
+  "storage-audit":  { label: "Storage audit",   order: ["size", "wordcount", "added", "fandom", "pairings", "status"], visible: { fandom: false, pairings: false, wordcount: true,  size: true,  status: false, added: true  } },
+};
+
+// Draggable + click-to-sort + right-edge resize header cell.
+function SortableHeaderCell({ colKey, width, sortMode, cycleSort, startColResize }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: colKey });
+  const meta = LIST_COL_META[colKey];
+  const align = meta.align;
+  const arrow = sortMode.col === colKey
+    ? <span className="ml-1 text-[#6B46C1]">{sortMode.dir === "desc" ? "▼" : "▲"}</span>
+    : null;
+  const style = {
+    width: `${width}px`,
+    transform: CSS.Translate.toString(transform),
+    transition,
+    zIndex: isDragging ? 10 : "auto",
+    opacity: isDragging ? 0.85 : 1,
+  };
+  return (
+    <span
+      ref={setNodeRef}
+      className={`relative shrink-0 truncate ${meta.showAt} bg-[#FAF6EE]`}
+      style={style}
+      data-testid={`list-header-${colKey}`}
+    >
+      <span className="flex items-center gap-1 w-full h-full">
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing text-[#8B7AB8] hover:text-[#6B46C1] shrink-0 touch-none"
+          aria-label={`Reorder ${meta.label} column`}
+          data-testid={`list-header-drag-${colKey}`}
+          title="Drag to reorder column"
+        >
+          <GripVertical className="w-3.5 h-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={() => cycleSort(colKey)}
+          className={`inline-flex items-center flex-1 min-w-0 h-full uppercase tracking-wider font-semibold hover:text-[#2C2C2C] transition-colors ${
+            align === "right" ? "justify-end" : align === "center" ? "justify-center" : "justify-start"
+          } ${sortMode.col === colKey ? "text-[#2C2C2C]" : "text-[#6E6E6E]"}`}
+          data-testid={`list-header-btn-${colKey}`}
+        >
+          <span className="truncate">{meta.label}</span>
+          {arrow}
+        </button>
+      </span>
+      <span
+        onMouseDown={startColResize(colKey)}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label={`Resize ${meta.label} column`}
+        data-testid={`list-header-resize-${colKey}`}
+        className="absolute top-0 right-[-6px] h-full w-2 cursor-col-resize select-none group"
+        title="Drag to resize"
+      >
+        <span className="absolute inset-y-1 right-1 w-px bg-[#D8D2C4] group-hover:bg-[#6B46C1] transition-colors" />
+      </span>
+    </span>
+  );
+}
+
+// Vertically-draggable section header ("💜 Fanfic · N" / "📖 Original & Non-fic · N").
+function SortableSectionHeader({ sec, collapsed, toggleSection }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: sec.key });
+  const style = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+    zIndex: isDragging ? 10 : "auto",
+    opacity: isDragging ? 0.85 : 1,
+  };
+  return (
+    <li
+      ref={setNodeRef}
+      className="bg-[#FAF6EE] px-4 py-2"
+      style={style}
+      data-testid={`books-section-list-${sec.key}`}
+    >
+      <div className="flex items-center gap-2 w-full">
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing text-[#8B7AB8] hover:text-[#6B46C1] shrink-0 touch-none"
+          aria-label={`Reorder ${sec.label} section`}
+          data-testid={`section-drag-handle-${sec.key}`}
+          title="Drag to reorder this section"
+        >
+          <GripVertical className="w-4 h-4" />
+        </button>
+        <button
+          type="button"
+          onClick={() => toggleSection(sec.key)}
+          aria-expanded={!collapsed}
+          className="flex items-center gap-2 flex-1 text-left"
+        >
+          <span className="font-serif text-base text-[#2C2C2C]">{sec.label}</span>
+          <span className="text-xs text-[#6E6E6E]">· {sec.books.length}</span>
+          <span aria-hidden="true" className={`ml-auto text-[#5B5F4D] text-xs transition-transform ${collapsed ? "" : "rotate-180"}`}>▼</span>
+        </button>
+      </div>
+    </li>
+  );
+}
 export default function AllBooksPage() {
   const navigate = useNavigate();
   const { user, refresh: refreshAuth } = useAuth();
@@ -177,6 +330,528 @@ export default function AllBooksPage() {
     listDensity === "cozy"        ? "py-4" :
                                     "py-2"   // comfortable (default)
   );
+
+  // Iter 92-93 — Resizable + sortable + reorderable list-view columns
+  // + per-column visibility + draggable section reorder.  All state
+  // persists to localStorage.
+  const [colWidths, setColWidths] = useState(() => {
+    try {
+      const raw = window.localStorage.getItem("shelfsort_list_col_widths");
+      if (raw) return { ...DEFAULT_COL_WIDTHS, ...JSON.parse(raw) };
+    } catch { /* ignore */ }
+    return DEFAULT_COL_WIDTHS;
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem("shelfsort_list_col_widths", JSON.stringify(colWidths)); }
+    catch { /* ignore */ }
+  }, [colWidths]);
+  const startColResize = (colKey) => (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startWidth = colWidths[colKey] ?? DEFAULT_COL_WIDTHS[colKey] ?? 100;
+    const onMove = (ev) => {
+      const dx = ev.clientX - startX;
+      setColWidths((prev) => ({ ...prev, [colKey]: Math.max(MIN_COL_WIDTH, Math.round(startWidth + dx)) }));
+    };
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  };
+  const resetColWidths = () => setColWidths(DEFAULT_COL_WIDTHS);
+
+  const [sortMode, setSortMode] = useState(() => {
+    try {
+      const raw = window.localStorage.getItem("shelfsort_list_sort");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") return parsed;
+      }
+    } catch { /* ignore */ }
+    return { col: null, dir: "asc" };
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem("shelfsort_list_sort", JSON.stringify(sortMode)); }
+    catch { /* ignore */ }
+  }, [sortMode]);
+  const cycleSort = (col) => {
+    setSortMode((cur) => {
+      if (cur.col !== col) return { col, dir: "asc" };
+      if (cur.dir === "asc") return { col, dir: "desc" };
+      return { col: null, dir: "asc" };
+    });
+  };
+  const clearSort = () => setSortMode({ col: null, dir: "asc" });
+  const SORT_COL_LABELS = {
+    title: "Title", author: "Author", fandom: "Fandom", pairings: "Pairings",
+    wordcount: "Time · Words", size: "Size", status: "Status", added: "Added",
+  };
+  const fmtSize = (n) => {
+    if (!Number.isFinite(n) || n <= 0) return "—";
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+    if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(n / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+  };
+
+  const REORDERABLE_COL_KEYS = ["fandom", "pairings", "wordcount", "size", "status", "added"];
+  const [colOrder, setColOrder] = useState(() => {
+    try {
+      const raw = window.localStorage.getItem("shelfsort_list_col_order");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.every((k) => REORDERABLE_COL_KEYS.includes(k))) {
+          const missing = REORDERABLE_COL_KEYS.filter((k) => !parsed.includes(k));
+          return [...parsed, ...missing];
+        }
+      }
+    } catch { /* ignore */ }
+    return REORDERABLE_COL_KEYS;
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem("shelfsort_list_col_order", JSON.stringify(colOrder)); }
+    catch { /* ignore */ }
+  }, [colOrder]);
+  const [visibleCols, setVisibleCols] = useState(() => {
+    try {
+      const raw = window.localStorage.getItem("shelfsort_list_col_visibility");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") {
+          const out = {};
+          REORDERABLE_COL_KEYS.forEach((k) => { out[k] = parsed[k] !== false; });
+          return out;
+        }
+      }
+    } catch { /* ignore */ }
+    return REORDERABLE_COL_KEYS.reduce((acc, k) => { acc[k] = true; return acc; }, {});
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem("shelfsort_list_col_visibility", JSON.stringify(visibleCols)); }
+    catch { /* ignore */ }
+  }, [visibleCols]);
+  const toggleColVisibility = (key) => setVisibleCols((prev) => ({ ...prev, [key]: !prev[key] }));
+  // 2026-08-14 — "Just the essentials" one-click density preset.
+  // Hides Pairings + Time·Words so a laptop screen shows only the
+  // core columns (Fandom, Size, Status, Added).  Toggling it again
+  // (button becomes "Show all") re-enables every column.
+  const essentialsActive = visibleCols.pairings === false && visibleCols.wordcount === false;
+  const applyEssentials = () => {
+    if (essentialsActive) {
+      setVisibleCols(REORDERABLE_COL_KEYS.reduce((acc, k) => { acc[k] = true; return acc; }, {}));
+    } else {
+      setVisibleCols((prev) => ({ ...prev, pairings: false, wordcount: false }));
+    }
+  };
+  // 2026-08-14 — Named column layout presets (Reading queue / Fandom
+  // deep-dive / Storage audit).  Applies both visibility and column
+  // order in one click; persists via the existing localStorage
+  // effects on visibleCols + colOrder.
+  //
+  // 2026-08-15 — Per-user overrides on top of the defaults: right-
+  // click a preset chip to rename or overwrite it with the current
+  // column layout.  Stored in localStorage as
+  // { [presetKey]: { label?, visible?, order? } }.  A "Reset to
+  // default" clears the override for that key.
+  const [presetOverrides, setPresetOverrides] = useState(() => {
+    try {
+      const raw = window.localStorage.getItem("shelfsort_list_col_preset_overrides");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") return parsed;
+      }
+    } catch { /* ignore */ }
+    return {};
+  });
+  // 2026-08-16 — User-created preset chips.  Stored separately from
+  // overrides so a delete is a clean removal (not a "reset to default"
+  // fallback).  Shape:
+  //   { [customKey]: { label, visible, order, created_at } }
+  const [customPresets, setCustomPresets] = useState(() => {
+    try {
+      const raw = window.localStorage.getItem("shelfsort_list_col_custom_presets");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") return parsed;
+      }
+    } catch { /* ignore */ }
+    return {};
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem("shelfsort_list_col_custom_presets", JSON.stringify(customPresets)); }
+    catch { /* ignore */ }
+  }, [customPresets]);
+  useEffect(() => {
+    try { window.localStorage.setItem("shelfsort_list_col_preset_overrides", JSON.stringify(presetOverrides)); }
+    catch { /* ignore */ }
+  }, [presetOverrides]);
+
+  // 2026-08-15 — Jump-to-row input.  Focus with the `g` keyboard
+  // shortcut (spreadsheet-style) or by clicking the tiny "→ #" pill
+  // in the list header.  Scrolls the matching `book-row-number-*`
+  // into view and briefly highlights the row.
+  const [jumpInputOpen, setJumpInputOpen] = useState(false);
+  const [jumpValue, setJumpValue] = useState("");
+  const [jumpFlashId, setJumpFlashId] = useState(null);
+  const jumpInputRef = useRef(null);
+  const openJumpInput = () => {
+    setJumpInputOpen(true);
+    // Focus after the input mounts.
+    setTimeout(() => { try { jumpInputRef.current?.focus(); jumpInputRef.current?.select(); } catch { /* ignore */ } }, 0);
+  };
+  const executeJumpToRow = () => {
+    const n = parseInt(String(jumpValue).trim(), 10);
+    if (!Number.isFinite(n) || n < 1) {
+      setJumpInputOpen(false);
+      return;
+    }
+    // The row-number cell's testid is book-row-number-<book_id> and
+    // its text content is the visible number.  Cheapest correct
+    // lookup: query all row-number cells, match on text.
+    const cells = document.querySelectorAll('[data-testid^="book-row-number-"]');
+    for (const cell of cells) {
+      if ((cell.textContent || "").trim() === String(n)) {
+        cell.scrollIntoView({ behavior: "smooth", block: "center" });
+        const bookId = cell.getAttribute("data-testid").replace("book-row-number-", "");
+        setJumpFlashId(bookId);
+        setTimeout(() => setJumpFlashId(null), 1500);
+        break;
+      }
+    }
+    setJumpInputOpen(false);
+  };
+  // Merged preset table: default + any override on top + user custom
+  // presets.  Custom presets are marked with `_custom: true` so the
+  // right-click editor can offer "Delete" instead of "Reset".
+  const effectivePresets = useMemo(() => {
+    const out = {};
+    Object.entries(LIST_COL_PRESETS).forEach(([k, base]) => {
+      const ov = presetOverrides[k] || {};
+      out[k] = {
+        label:   ov.label   || base.label,
+        visible: ov.visible || base.visible,
+        order:   ov.order   || base.order,
+        _custom: false,
+      };
+    });
+    Object.entries(customPresets).forEach(([k, cp]) => {
+      if (cp && cp.label && cp.visible && cp.order) {
+        out[k] = { label: cp.label, visible: cp.visible, order: cp.order, _custom: true };
+      }
+    });
+    return out;
+  }, [presetOverrides, customPresets]);
+  const applyLayoutPreset = (presetKey) => {
+    const preset = effectivePresets[presetKey];
+    if (!preset) return;
+    setVisibleCols({ ...preset.visible });
+    setColOrder([...preset.order]);
+  };
+  // Right-click popover state for the preset chips.  Positioned at
+  // the click point so it hovers next to the chip that was targeted.
+  const [presetEditor, setPresetEditor] = useState(null); // { key, x, y }
+  const presetEditorRef = useRef(null);
+  useEffect(() => {
+    if (!presetEditor) return undefined;
+    const onDocClick = (e) => {
+      if (presetEditorRef.current && !presetEditorRef.current.contains(e.target)) {
+        setPresetEditor(null);
+      }
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [presetEditor]);
+  const renamePreset = (key, newLabel) => {
+    const trimmed = String(newLabel || "").trim().slice(0, 40);
+    if (!trimmed) return;
+    setPresetOverrides((prev) => ({
+      ...prev,
+      [key]: { ...(prev[key] || {}), label: trimmed },
+    }));
+  };
+  const overwritePresetWithCurrent = (key) => {
+    // Snapshot the CURRENT visible columns + order into this preset.
+    setPresetOverrides((prev) => ({
+      ...prev,
+      [key]: {
+        ...(prev[key] || {}),
+        visible: REORDERABLE_COL_KEYS.reduce((acc, k) => { acc[k] = !!visibleCols[k]; return acc; }, {}),
+        order: [...colOrder],
+      },
+    }));
+  };
+  const resetPreset = (key) => {
+    setPresetOverrides((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+  // 2026-08-16 — Custom preset lifecycle: create captures the current
+  // layout under a new key, delete strips a user-created preset,
+  // rename works on either flavour (falls through to renamePreset
+  // for built-ins and to customPresets for user-created).
+  const saveNewCustomPreset = (label) => {
+    const trimmed = String(label || "").trim().slice(0, 40);
+    if (!trimmed) return;
+    const key = `custom_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    const snapshotVisible = REORDERABLE_COL_KEYS.reduce((acc, k) => { acc[k] = !!visibleCols[k]; return acc; }, {});
+    setCustomPresets((prev) => ({
+      ...prev,
+      [key]: { label: trimmed, visible: snapshotVisible, order: [...colOrder], created_at: new Date().toISOString() },
+    }));
+  };
+  const renameCustomPreset = (key, newLabel) => {
+    const trimmed = String(newLabel || "").trim().slice(0, 40);
+    if (!trimmed) return;
+    setCustomPresets((prev) => ({
+      ...prev,
+      [key]: { ...(prev[key] || {}), label: trimmed },
+    }));
+  };
+  const overwriteCustomPresetWithCurrent = (key) => {
+    setCustomPresets((prev) => ({
+      ...prev,
+      [key]: {
+        ...(prev[key] || {}),
+        visible: REORDERABLE_COL_KEYS.reduce((acc, k) => { acc[k] = !!visibleCols[k]; return acc; }, {}),
+        order: [...colOrder],
+      },
+    }));
+  };
+  const deleteCustomPreset = (key) => {
+    setCustomPresets((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+  // 2026-08-17 — Cross-device preset sharing.  A tiny JSON blob you
+  // can copy to clipboard from any chip's right-click editor and
+  // paste back in via the "Paste preset" button in the menu.  The
+  // wire format is intentionally boring:
+  //   {"shelfsort_preset_v1": {"label": "...", "visible": {...}, "order": [...]}}
+  // so a future reader that grows more fields can bump v1.
+  const [pasteModalOpen, setPasteModalOpen] = useState(false);
+  const [pasteText, setPasteText] = useState("");
+  const [pasteError, setPasteError] = useState("");
+  const buildPresetShareBlob = (key) => {
+    const preset = effectivePresets[key];
+    if (!preset) return null;
+    return {
+      shelfsort_preset_v1: {
+        label: preset.label,
+        visible: preset.visible,
+        order: preset.order,
+      },
+    };
+  };
+  const copyPresetToClipboard = async (key) => {
+    const blob = buildPresetShareBlob(key);
+    if (!blob) return false;
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(blob));
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const importPresetFromJson = (jsonStr) => {
+    setPasteError("");
+    let parsed;
+    try {
+      parsed = JSON.parse(jsonStr);
+    } catch {
+      setPasteError("That doesn't look like valid JSON.");
+      return false;
+    }
+    const p = parsed?.shelfsort_preset_v1;
+    if (!p || typeof p !== "object" || !p.label || !Array.isArray(p.order) || typeof p.visible !== "object") {
+      setPasteError("Not a shelfsort preset — missing label/order/visible.");
+      return false;
+    }
+    // Sanitize order + visible to known column keys only.
+    const order = p.order.filter((k) => REORDERABLE_COL_KEYS.includes(k));
+    if (order.length === 0) {
+      setPasteError("Preset has no recognisable columns for this version of Shelfsort.");
+      return false;
+    }
+    const visible = REORDERABLE_COL_KEYS.reduce((acc, k) => { acc[k] = !!p.visible[k]; return acc; }, {});
+    const key = `custom_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    setCustomPresets((prev) => ({
+      ...prev,
+      [key]: {
+        label: String(p.label).trim().slice(0, 40),
+        visible,
+        order,
+        created_at: new Date().toISOString(),
+        imported: true,
+      },
+    }));
+    return true;
+  };
+
+  // 2026-08-15 — Global `g` shortcut to open the jump-to-row input,
+  // Esc to close.  Ignores keystrokes typed into an <input>/<textarea>
+  // or contenteditable region so it never steals focus from search
+  // boxes, and only activates in list view where the # column exists.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (viewMode !== "list") return;
+      const target = e.target;
+      const inField = target && (
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable
+      );
+      if (inField) return;
+      if (e.key === "g" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        openJumpInput();
+      } else if (e.key === "Escape" && jumpInputOpen) {
+        e.preventDefault();
+        setJumpInputOpen(false);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [viewMode, jumpInputOpen]);
+  const activeColOrder = useMemo(
+    () => colOrder.filter((k) => visibleCols[k]),
+    [colOrder, visibleCols],
+  );
+  const [colMenuOpen, setColMenuOpen] = useState(false);
+  const colMenuRef = useRef(null);
+  useEffect(() => {
+    if (!colMenuOpen) return undefined;
+    const onDocClick = (e) => {
+      if (colMenuRef.current && !colMenuRef.current.contains(e.target)) {
+        setColMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [colMenuOpen]);
+
+  const [sectionOrder, setSectionOrder] = useState(() => {
+    try {
+      const raw = window.localStorage.getItem("shelfsort_section_order");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch { /* ignore */ }
+    return ["fanfic", "original"];
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem("shelfsort_section_order", JSON.stringify(sectionOrder)); }
+    catch { /* ignore */ }
+  }, [sectionOrder]);
+
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+  );
+  const handleColumnDragEnd = (event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setColOrder((cur) => {
+      const from = cur.indexOf(active.id);
+      const to = cur.indexOf(over.id);
+      if (from === -1 || to === -1) return cur;
+      return arrayMove(cur, from, to);
+    });
+  };
+  const handleSectionDragEnd = (event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setSectionOrder((cur) => {
+      const from = cur.indexOf(active.id);
+      const to = cur.indexOf(over.id);
+      if (from === -1 || to === -1) return cur;
+      return arrayMove(cur, from, to);
+    });
+  };
+  const renderBodyCell = (colKey, b, ctx) => {
+    const width = `${colWidths[colKey] ?? DEFAULT_COL_WIDTHS[colKey]}px`;
+    const showAt = LIST_COL_META[colKey].showAt;
+    switch (colKey) {
+      case "fandom":
+        return (
+          <span
+            key={colKey}
+            className={`shrink-0 text-xs text-[#6B46C1] truncate ${showAt || "hidden md:inline-block"}`}
+            style={{ width }}
+            title={b.fandom || ""}
+            data-testid={`book-row-fandom-${b.book_id}`}
+          >
+            {b.fandom || "—"}
+            {b.category && <span className="ml-1 text-[#6E6E6E]">· {b.category}</span>}
+          </span>
+        );
+      case "pairings":
+        return (
+          <span key={colKey} className={`shrink-0 text-xs text-[#5B5F4D] truncate ${showAt}`} style={{ width }} title={ctx.pairings}>
+            {ctx.pairings || "—"}
+          </span>
+        );
+      case "wordcount":
+        return (
+          <span key={colKey} className={`shrink-0 text-xs font-mono text-[#5B5F4D] text-right tabular-nums ${showAt}`} style={{ width }} title={`${ctx.wordsK} words · ~${ctx.timeLabel} read at 270 wpm`}>
+            {b.word_count ? (
+              <>
+                <span className="block leading-tight">{ctx.timeLabel}</span>
+                <span className="block text-[10px] text-[#6E6E6E] leading-tight">{ctx.wordsK}</span>
+              </>
+            ) : "—"}
+          </span>
+        );
+      case "size":
+        return (
+          <span
+            key={colKey}
+            className={`shrink-0 text-xs font-mono text-[#5B5F4D] text-right tabular-nums ${showAt}`}
+            style={{ width }}
+            title={b.size_bytes ? `${b.size_bytes.toLocaleString()} bytes` : ""}
+            data-testid={`book-row-size-${b.book_id}`}
+          >
+            {fmtSize(b.size_bytes)}
+          </span>
+        );
+      case "status":
+        return (
+          <span key={colKey} className="shrink-0 text-xs flex items-center justify-center" style={{ width }} title={`${b.av_status || "clean"} · ${Math.round((b.progress_fraction || 0) * 100)}% · ${READING_STATUS_META[getReadingStatus(b)].label}`}>
+            {(() => {
+              const s = getReadingStatus(b);
+              if (s === "finished") {
+                return <span data-testid={`row-status-${b.book_id}`} data-status="finished" className={READING_STATUS_META.finished.listClassName}>Finished</span>;
+              }
+              if (s === "reading") {
+                return <span data-testid={`row-status-${b.book_id}`} data-status="reading" className="text-[10px] font-mono text-[#B7791F] tabular-nums">{Math.round((b.progress_fraction || 0) * 100)}%</span>;
+              }
+              // Unread — show AV pip if flagged, else the plain Unread label
+              if (b.av_status === "infected") return <ShieldAlert className="w-3.5 h-3.5 text-[#D9534F]" aria-label="Infected" />;
+              if (b.av_status === "scanning") return <Clock className="w-3.5 h-3.5 text-[#B7791F]" aria-label="Scanning" />;
+              return <span data-testid={`row-status-${b.book_id}`} data-status="unread" className={READING_STATUS_META.unread.listClassName}>Unread</span>;
+            })()}
+          </span>
+        );
+      case "added":
+        return (
+          <span key={colKey} className={`shrink-0 text-xs text-[#6E6E6E] text-right tabular-nums ${showAt}`} style={{ width }}>
+            {ctx.addedRel}
+          </span>
+        );
+      default:
+        return null;
+    }
+  };
 
   // 2026-06-27 — Grid-mode card-size slider.
   // Three sizes: S (more columns / smaller covers — great for big
@@ -438,6 +1113,15 @@ export default function AllBooksPage() {
     if (rel) setRelationship(rel);
   }, []);
 
+  // Honor `?category=...` query param so Navbar deep-links (Old versions,
+  // Updated stories, Unclassified, etc.) land the user on the right chip
+  // without them having to hunt for it.  Only sets when the param is a
+  // known category so a stale/malformed URL falls back to the default.
+  useEffect(() => {
+    const cat = searchParams.get("category");
+    if (cat && DEFAULT_CATEGORIES.includes(cat)) setCategory(cat);
+  }, []);
+
   // Honor `?just_added=id1,id2,id3` from the BackgroundJobsBell's
   // "View all N new books" CTA — clamps the visible book grid to just
   // those IDs and surfaces a clear banner so the user knows why the
@@ -582,8 +1266,38 @@ export default function AllBooksPage() {
         pool = pool.filter((b) => b.reading_state === chipFilters.readingState);
       }
     }
+    // Iter 92 — Global sort (applies to list, grid, and compact views).
+    if (sortMode.col) {
+      const dir = sortMode.dir === "desc" ? -1 : 1;
+      const strKey = (v) => (v == null ? "" : String(v)).toLowerCase();
+      const numKey = (v) => (typeof v === "number" && Number.isFinite(v)) ? v : 0;
+      const timeKey = (raw) => {
+        if (!raw) return 0;
+        const t = new Date(raw).getTime();
+        return Number.isFinite(t) ? t : 0;
+      };
+      const pick = (b) => {
+        switch (sortMode.col) {
+          case "title":     return strKey(b.title);
+          case "author":    return strKey(b.author);
+          case "fandom":    return strKey(b.fandom);
+          case "pairings":  return strKey(Array.isArray(b.pairings) ? b.pairings.join(",") : b.pairings);
+          case "wordcount": return numKey(b.word_count);
+          case "size":      return numKey(b.size_bytes);
+          case "status":    return numKey(b.progress_fraction);
+          case "added":     return timeKey(b.created_at || b.date_added);
+          default:          return 0;
+        }
+      };
+      pool = [...pool].sort((a, b) => {
+        const va = pick(a), vb = pick(b);
+        if (va < vb) return -dir;
+        if (va > vb) return dir;
+        return 0;
+      });
+    }
     return pool;
-  }, [books, justAddedIds, chipFilters, user?.library_mode]);
+  }, [books, justAddedIds, chipFilters, user?.library_mode, sortMode]);
 
   // 2026-06-27 Phase 2 — Mixed-mode visual section split.
   // When library_mode is "mixed", group visibleBooks into two
@@ -611,16 +1325,22 @@ export default function AllBooksPage() {
       if (cat === "fanfiction") fanfic.push(b);
       else other.push(b);
     }
-    // Suppress whichever section is empty so we don't render a
-    // sad "💜 Fanfic · 0" header on an all-original library.
+    const built = {
+      fanfic:   fanfic.length ? { key: "fanfic",   label: "💜 Fanfic",            books: fanfic } : null,
+      original: other.length  ? { key: "original", label: "📖 Original & Non-fic", books: other  } : null,
+    };
+    // Iter 93 — respect the user's saved section order.
+    const seen = new Set();
     const out = [];
-    if (fanfic.length) out.push({ key: "fanfic",   label: "💜 Fanfic",            books: fanfic });
-    if (other.length)  out.push({ key: "original", label: "📖 Original & Non-fic", books: other });
-    // Edge case: no books at all → fall back to a single section
-    // so the empty-state copy below still renders cleanly.
+    for (const key of sectionOrder) {
+      if (built[key] && !seen.has(key)) { out.push(built[key]); seen.add(key); }
+    }
+    for (const key of Object.keys(built)) {
+      if (built[key] && !seen.has(key)) { out.push(built[key]); seen.add(key); }
+    }
     if (out.length === 0) return [{ key: "all", label: null, books: [] }];
     return out;
-  }, [isMixedMode, visibleBooks]);
+  }, [isMixedMode, visibleBooks, sectionOrder]);
 
   // Poll the conversion-status endpoint while uploads with heavy formats
   // (PDF, MOBI etc.) are running — Calibre conversion can take 30+ seconds.
@@ -704,6 +1424,9 @@ export default function AllBooksPage() {
             window.dispatchEvent(new CustomEvent("shelfsort:upload-files", { detail: files }));
           }}
         />
+        {/* SkippedFilesPanel — renders only when the last upload batch
+            actually skipped files.  Otherwise it self-hides. */}
+        <SkippedFilesPanel items={[]} onDismiss={() => {}} onDismissAll={() => {}} onReadd={() => {}} onDownloadCsv={() => {}} />
         <OneTimeTip tipKey="characters-and-rationale-2026-06-27">
           two new things to play with — your library now has a{" "}
           <a href="/library/characters" className="underline underline-offset-2 hover:text-[#6B46C1]">Characters browser</a>{" "}
@@ -1964,6 +2687,44 @@ export default function AllBooksPage() {
                 <CheckSquare className="w-4 h-4" />
                 {selectMode ? "Done" : "Select"}
               </button>
+              {selectMode && (
+                <>
+                  <button
+                    data-testid="select-all-visible"
+                    type="button"
+                    onClick={() => {
+                      const allIds = visibleBooks.map((b) => b.book_id);
+                      const already = allIds.every((id) => selectedIds.has(id));
+                      if (already && allIds.length > 0) {
+                        // All in view already picked — treat second click as "deselect these"
+                        const next = new Set(selectedIds);
+                        allIds.forEach((id) => next.delete(id));
+                        setSelectedIds(next);
+                      } else {
+                        const next = new Set(selectedIds);
+                        allIds.forEach((id) => next.add(id));
+                        setSelectedIds(next);
+                      }
+                    }}
+                    title={`Add every book that matches the current filters (${visibleBooks.length}) to the selection`}
+                    className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium border border-[#6B46C1] bg-white text-[#6B46C1] hover:bg-[#EEE9FB] transition-colors"
+                  >
+                    <CheckSquare className="w-4 h-4" />
+                    Select all {visibleBooks.length}
+                  </button>
+                  {selectedIds.size > 0 && (
+                    <button
+                      data-testid="clear-selection"
+                      type="button"
+                      onClick={() => setSelectedIds(new Set())}
+                      title="Clear the current selection"
+                      className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium border border-[#E8E6E1] bg-white text-[#5B5F4D] hover:bg-[#F5F3EC] transition-colors"
+                    >
+                      Clear ({selectedIds.size})
+                    </button>
+                  )}
+                </>
+              )}
               <div
                 className="inline-flex border border-[#E8E6E1] rounded-lg overflow-hidden bg-white"
                 data-testid="view-mode-toggle"
@@ -2071,7 +2832,17 @@ export default function AllBooksPage() {
               <p className="text-[#5B5F4D] py-12 text-center">Loading…</p>
             ) : books.length === 0 ? (
               <p className="text-[#5B5F4D] py-12 text-center">No books match these filters.</p>
-            ) : viewMode === "list" ? (
+            ) : (
+              <>
+                {sortMode.col && viewMode !== "list" && (
+                  <div className="mb-3 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#F3EEFC] border border-[#D9CCF5] text-[11px] text-[#4C2A99]" data-testid="sort-indicator-chip">
+                    <span>
+                      Sorted by <strong>{SORT_COL_LABELS[sortMode.col] || sortMode.col}</strong> {sortMode.dir === "desc" ? "↓" : "↑"}
+                    </span>
+                    <button type="button" onClick={clearSort} className="underline hover:text-[#2C2C2C]" data-testid="sort-indicator-clear">clear</button>
+                  </div>
+                )}
+                {viewMode === "list" ? (
               // List view (enhanced iter 60) — table-style rows with
               // full metadata.  Responsive columns: pairings/wordcount/
               // date hide on narrow screens so mobile stays tidy.
@@ -2107,147 +2878,470 @@ export default function AllBooksPage() {
                     );
                   })}
                 </div>
-                {/* Sticky-ish header row.  Sortability deliberately
-                    deferred — the existing top-bar sort dropdown
-                    already drives this list. */}
-                <div className="hidden md:flex items-center gap-3 px-4 py-2 bg-[#FAF6EE] border-b border-[#E8E6E1] text-[10px] uppercase tracking-wider font-semibold text-[#6E6E6E]">
-                  <span className="w-8 shrink-0" aria-hidden />
-                  <span className="flex-1 min-w-0">Title / Author</span>
-                  <span className="w-32 shrink-0 truncate">Fandom</span>
-                  <span className="w-28 shrink-0 truncate hidden lg:inline">Pairings</span>
-                  <span className="w-20 shrink-0 text-right tabular-nums hidden lg:inline">Time · Words</span>
-                  <span className="w-14 shrink-0 text-center">Status</span>
-                  <span className="w-16 shrink-0 text-right hidden xl:inline">Added</span>
-                </div>
-                <ul className="divide-y divide-[#E8E6E1]">
-                  {bookSections.map((sec) => (
-                    <React.Fragment key={sec.key}>
-                      {sec.label && (
-                        <li
-                          key={`${sec.key}-header`}
-                          className="bg-[#FAF6EE] px-4 py-2"
-                          data-testid={`books-section-list-${sec.key}`}
+                {/* Iter 92-93 — Column headers are sortable + resizable
+                    + reorderable (dnd-kit).  Grip = drag column, label =
+                    cycle sort, thin handle at right edge = resize.  All
+                    state persists to localStorage. */}
+                <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleColumnDragEnd}>
+                  <div className="hidden md:flex items-stretch gap-3 px-4 py-2 bg-[#FAF6EE] border-b border-[#E8E6E1] text-[10px] uppercase tracking-wider font-semibold text-[#6E6E6E]" data-testid="list-header-row">
+                    <span
+                      className="w-10 shrink-0 text-right pr-1 tabular-nums text-[#8B7AB8]"
+                      data-testid="list-header-row-number"
+                      title="Row number in current sort order"
+                    >
+                      #
+                    </span>
+                    <span className="w-8 shrink-0" aria-hidden />
+                    <span className="relative flex-1 min-w-0">
+                      <button
+                        type="button"
+                        onClick={() => cycleSort("title")}
+                        className={`inline-flex items-center uppercase tracking-wider font-semibold hover:text-[#2C2C2C] transition-colors ${sortMode.col === "title" ? "text-[#2C2C2C]" : "text-[#6E6E6E]"}`}
+                        data-testid="list-header-btn-title"
+                      >
+                        Title / Author
+                        {sortMode.col === "title" && (
+                          <span className="ml-1 text-[#6B46C1]">{sortMode.dir === "desc" ? "▼" : "▲"}</span>
+                        )}
+                      </button>
+                    </span>
+                    <SortableContext items={activeColOrder} strategy={horizontalListSortingStrategy}>
+                      {activeColOrder.map((colKey) => (
+                        <SortableHeaderCell
+                          key={colKey}
+                          colKey={colKey}
+                          width={colWidths[colKey] ?? DEFAULT_COL_WIDTHS[colKey]}
+                          sortMode={sortMode}
+                          cycleSort={cycleSort}
+                          startColResize={startColResize}
+                        />
+                      ))}
+                    </SortableContext>
+                    <div className="relative shrink-0 flex items-center gap-1" ref={colMenuRef}>
+                      {jumpInputOpen ? (
+                        <div className="flex items-center gap-1 normal-case tracking-normal" data-testid="jump-to-row-input-wrap">
+                          <span className="text-[10px] text-[#5B5F4D] uppercase tracking-wider">Go to row</span>
+                          <input
+                            ref={jumpInputRef}
+                            type="number"
+                            min="1"
+                            inputMode="numeric"
+                            value={jumpValue}
+                            onChange={(e) => setJumpValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") { e.preventDefault(); executeJumpToRow(); }
+                              else if (e.key === "Escape") { e.preventDefault(); setJumpInputOpen(false); }
+                            }}
+                            onBlur={() => { if (!jumpValue) setJumpInputOpen(false); }}
+                            data-testid="jump-to-row-input"
+                            placeholder="#"
+                            className="w-14 h-6 px-1.5 text-xs font-mono tabular-nums border border-[#D9CCF5] rounded focus:outline-none focus:border-[#6B46C1] focus:ring-1 focus:ring-[#6B46C1]/40"
+                          />
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={openJumpInput}
+                          className="px-1.5 h-6 rounded text-[10px] font-mono text-[#8B7AB8] hover:bg-white/60 hover:text-[#4C2A99] transition-colors border border-transparent hover:border-[#D9CCF5]"
+                          data-testid="jump-to-row-btn"
+                          aria-label="Jump to row number"
+                          title="Jump to row (press G)"
                         >
+                          → #
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setColMenuOpen((o) => !o)}
+                        className="p-1 rounded text-[#5B5F4D] hover:bg-white/60 hover:text-[#2C2C2C] transition-colors"
+                        aria-label="Show or hide columns"
+                        aria-expanded={colMenuOpen}
+                        data-testid="list-cols-menu-btn"
+                        title="Show or hide columns"
+                      >
+                        <Columns3 className="w-3.5 h-3.5" />
+                      </button>
+                      {colMenuOpen && (
+                        <div className="absolute right-0 top-full mt-1 z-30 min-w-[200px] rounded-md border border-[#E4D9C8] bg-white shadow-lg py-1 normal-case tracking-normal font-normal" data-testid="list-cols-menu">
+                          <p className="px-3 pt-1 pb-1 text-[10px] uppercase tracking-wider text-[#6E6E6E] font-semibold">Layout presets</p>
+                          <div className="px-2 pb-1 flex flex-wrap gap-1 items-center" data-testid="list-cols-preset-row">
+                            {Object.entries(effectivePresets).map(([key, preset]) => (
+                              <button
+                                key={key}
+                                type="button"
+                                onClick={() => applyLayoutPreset(key)}
+                                onContextMenu={(e) => {
+                                  e.preventDefault();
+                                  setPresetEditor({ key, x: e.clientX, y: e.clientY, mode: "edit", isCustom: !!preset._custom });
+                                }}
+                                className={`px-2 py-0.5 text-[10px] rounded border transition-colors flex items-center gap-1 ${
+                                  preset._custom
+                                    ? "border-[#D9CCF5] bg-[#F5F0FB] text-[#4C2A99] hover:bg-[#EEE9FB] hover:border-[#6B46C1]"
+                                    : "border-[#E4D9C8] bg-[#FAF6EE] text-[#5B5F4D] hover:bg-[#EEE9FB] hover:text-[#4C2A99] hover:border-[#D9CCF5]"
+                                }`}
+                                data-testid={`list-cols-preset-${key}`}
+                                data-custom={preset._custom ? "true" : "false"}
+                                title={`Apply "${preset.label}" layout · right-click to ${preset._custom ? "rename or delete" : "rename/overwrite"}`}
+                              >
+                                {preset._custom && <span className="w-1.5 h-1.5 rounded-full bg-[#6B46C1] inline-block" aria-hidden />}
+                                {preset.label}
+                              </button>
+                            ))}
+                            <button
+                              type="button"
+                              onClick={(e) => setPresetEditor({ key: null, x: e.clientX, y: e.clientY + 20, mode: "create", isCustom: true })}
+                              className="px-2 py-0.5 text-[10px] rounded border border-dashed border-[#D9CCF5] bg-white text-[#6B46C1] hover:bg-[#F5F0FB] hover:border-[#6B46C1] transition-colors"
+                              data-testid="list-cols-preset-add"
+                              title="Save your current column layout as a new preset chip"
+                              aria-label="Add custom preset"
+                            >
+                              + New
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setPasteText(""); setPasteError(""); setPasteModalOpen(true); }}
+                              className="px-2 py-0.5 text-[10px] rounded border border-dashed border-[#D9CCF5] bg-white text-[#6B46C1] hover:bg-[#F5F0FB] hover:border-[#6B46C1] transition-colors"
+                              data-testid="list-cols-preset-paste"
+                              title="Paste a preset JSON shared from another device"
+                              aria-label="Paste preset JSON"
+                            >
+                              Paste
+                            </button>
+                          </div>
                           <button
                             type="button"
-                            onClick={() => toggleSection(sec.key)}
-                            aria-expanded={!collapsedSections[sec.key]}
-                            className="flex items-center gap-2 w-full text-left"
+                            onClick={applyEssentials}
+                            className={`w-full text-left px-3 py-1 text-xs border-t border-b border-[#E8E6E1] transition-colors ${
+                              essentialsActive
+                                ? "bg-[#EEE9FB] text-[#4C2A99] font-semibold hover:bg-[#E4D9F8]"
+                                : "text-[#2C2C2C] hover:bg-[#F5F3EC]"
+                            }`}
+                            data-testid="list-cols-essentials-toggle"
+                            aria-pressed={essentialsActive}
+                            title={essentialsActive ? "Show all columns again" : "Hide Pairings + Time·Words for a compact laptop view"}
                           >
-                            <span className="font-serif text-base text-[#2C2C2C]">{sec.label}</span>
-                            <span className="text-xs text-[#6E6E6E]">· {sec.books.length}</span>
-                            <span
-                              aria-hidden="true"
-                              className={`ml-auto text-[#5B5F4D] text-xs transition-transform ${collapsedSections[sec.key] ? "" : "rotate-180"}`}
-                            >▼</span>
+                            {essentialsActive ? "✓ Just the essentials (on)" : "Just the essentials"}
                           </button>
-                        </li>
-                      )}
-                      {!collapsedSections[sec.key] && sec.books.map(b => {
-                    const wordsK = b.word_count ? (b.word_count >= 1000 ? `${Math.round(b.word_count / 1000)}k` : String(b.word_count)) : "";
-                    // Iter 61 — also surface a reading-time estimate
-                    // (270 wpm avg).  Shown next to the word count so
-                    // readers who think in time see both.
-                    const readingHours = b.word_count ? b.word_count / 16200 : 0;
-                    const timeLabel = !b.word_count ? "" :
-                      readingHours < 1   ? `${Math.round(readingHours * 60)}m` :
-                      readingHours < 10  ? `${readingHours.toFixed(1)}h` :
-                                            `${Math.round(readingHours)}h`;
-                    const addedRel = (() => {
-                      const raw = b.created_at || b.date_added;
-                      if (!raw) return "";
-                      try {
-                        const d = new Date(raw);
-                        return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-                      } catch { return ""; }
-                    })();
-                    const pairings = Array.isArray(b.pairings) ? b.pairings.filter(Boolean).join(", ") : (b.pairings || "");
-                    return (
-                      <li
-                        key={b.book_id}
-                        data-testid={`book-row-${b.book_id}`}
-                        className={`flex items-center gap-3 px-4 ${listRowPadding} hover:bg-[#F5F3EC] transition-colors cursor-pointer ${
-                          selectMode && selectedIds.has(b.book_id) ? "bg-[#EEE9FB]" : ""
-                        }`}
-                        onClick={() => {
-                          if (selectMode) {
-                            setSelectedIds((prev) => {
-                              const next = new Set(prev);
-                              if (next.has(b.book_id)) next.delete(b.book_id); else next.add(b.book_id);
-                              return next;
-                            });
-                          } else {
-                            window.location.href = `/books/${b.book_id}`;
-                          }
-                        }}
-                      >
-                        {selectMode && (
-                          <input
-                            type="checkbox"
-                            checked={selectedIds.has(b.book_id)}
-                            onChange={() => {}}
-                            className="w-4 h-4 accent-[var(--primary)] shrink-0"
-                            data-testid={`book-row-checkbox-${b.book_id}`}
-                          />
-                        )}
-                        {b.has_cover ? (
-                          <img
-                            src={`${process.env.REACT_APP_BACKEND_URL}/api/books/${b.book_id}/cover`}
-                            alt=""
-                            className="w-8 h-11 rounded-sm shrink-0 object-cover shadow-sm"
-                            loading="lazy"
-                          />
-                        ) : (
-                          <div className="w-8 h-11 rounded-sm shrink-0 bg-gradient-to-br from-[#6B46C1] to-[#4C2A99] shadow-sm" />
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-[#2C2C2C] truncate" title={b.title}>
-                            {b.title || "Untitled"}
-                            {b.series && (
-                              <span className="ml-1.5 text-[10px] text-[#5B5F4D] font-normal">· {b.series}{b.series_index ? ` #${b.series_index}` : ""}</span>
-                            )}
-                          </p>
-                          <p className="text-xs text-[#5B5F4D] truncate">
-                            {b.author || "Unknown"}
-                          </p>
+                          <p className="px-3 pt-1 text-[10px] uppercase tracking-wider text-[#6E6E6E] font-semibold">Columns</p>
+                          {REORDERABLE_COL_KEYS.map((k) => (
+                            <label
+                              key={k}
+                              className="flex items-center gap-2 px-3 py-1 text-xs text-[#2C2C2C] hover:bg-[#F5F3EC] cursor-pointer"
+                              data-testid={`list-cols-menu-item-${k}`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={!!visibleCols[k]}
+                                onChange={() => toggleColVisibility(k)}
+                                className="accent-[#6B46C1]"
+                                data-testid={`list-cols-menu-check-${k}`}
+                              />
+                              <span>{LIST_COL_META[k].label}</span>
+                            </label>
+                          ))}
                         </div>
-                        <span className="w-32 shrink-0 text-xs text-[#6B46C1] truncate hidden md:inline" title={b.fandom || ""}>
-                          {b.fandom || "—"}
-                          {b.category && <span className="ml-1 text-[#6E6E6E]">· {b.category}</span>}
-                        </span>
-                        <span className="w-28 shrink-0 text-xs text-[#5B5F4D] truncate hidden lg:inline" title={pairings}>
-                          {pairings || "—"}
-                        </span>
-                        <span className="w-20 shrink-0 text-xs font-mono text-[#5B5F4D] text-right tabular-nums hidden lg:inline" title={`${wordsK} words · ~${timeLabel} read at 270 wpm`}>
-                          {b.word_count ? (
-                            <>
-                              <span className="block leading-tight">{timeLabel}</span>
-                              <span className="block text-[10px] text-[#6E6E6E] leading-tight">{wordsK}</span>
-                            </>
-                          ) : "—"}
-                        </span>
-                        <span className="w-14 shrink-0 text-xs flex items-center justify-center" title={`${b.av_status || "clean"} · ${Math.round((b.progress_fraction || 0) * 100)}%`}>
-                          {b.progress_fraction >= 0.99 ? (
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-[#81B29A]">Read</span>
-                          ) : (b.progress_fraction != null && b.progress_fraction > 0) ? (
-                            <span className="text-[10px] font-mono text-[#5B5F4D] tabular-nums">{Math.round(b.progress_fraction * 100)}%</span>
-                          ) : b.av_status === "infected" ? (
-                            <ShieldAlert className="w-3.5 h-3.5 text-[#D9534F]" aria-label="Infected" />
-                          ) : b.av_status === "scanning" ? (
-                            <Clock className="w-3.5 h-3.5 text-[#B7791F]" aria-label="Scanning" />
-                          ) : (
-                            <ShieldCheck className="w-3.5 h-3.5 text-[#6E6E6E]" aria-label="Clean" />
+                      )}
+                    </div>
+                  </div>
+                </DndContext>
+                {presetEditor && (
+                  <div
+                    ref={presetEditorRef}
+                    className="fixed z-50 min-w-[240px] rounded-md border border-[#E4D9C8] bg-white shadow-xl p-3"
+                    style={{ left: Math.min(presetEditor.x, window.innerWidth - 260), top: Math.min(presetEditor.y, window.innerHeight - 220) }}
+                    data-testid="list-cols-preset-editor"
+                    data-mode={presetEditor.mode || "edit"}
+                  >
+                    <p className="text-[10px] uppercase tracking-wider text-[#6E6E6E] font-semibold mb-1.5">
+                      {presetEditor.mode === "create"
+                        ? "Save current layout as a new preset"
+                        : `Edit preset — ${effectivePresets[presetEditor.key]?.label}`}
+                    </p>
+                    <input
+                      type="text"
+                      defaultValue={presetEditor.mode === "create" ? "" : (effectivePresets[presetEditor.key]?.label || "")}
+                      maxLength={40}
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          if (presetEditor.mode === "create") {
+                            saveNewCustomPreset(e.currentTarget.value);
+                          } else if (presetEditor.isCustom) {
+                            renameCustomPreset(presetEditor.key, e.currentTarget.value);
+                          } else {
+                            renamePreset(presetEditor.key, e.currentTarget.value);
+                          }
+                          setPresetEditor(null);
+                        } else if (e.key === "Escape") {
+                          e.preventDefault();
+                          setPresetEditor(null);
+                        }
+                      }}
+                      data-testid="list-cols-preset-rename-input"
+                      className="w-full px-2 py-1 text-xs border border-[#E4D9C8] rounded focus:outline-none focus:border-[#6B46C1] focus:ring-1 focus:ring-[#6B46C1]/40 mb-2"
+                      placeholder={presetEditor.mode === "create" ? "e.g. My audit view" : "New name…"}
+                    />
+                    <div className="flex flex-col gap-1">
+                      {presetEditor.mode !== "create" && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (presetEditor.isCustom) overwriteCustomPresetWithCurrent(presetEditor.key);
+                            else overwritePresetWithCurrent(presetEditor.key);
+                            setPresetEditor(null);
+                          }}
+                          className="text-left px-2 py-1 text-xs rounded text-[#2C2C2C] hover:bg-[#F5F3EC]"
+                          data-testid="list-cols-preset-overwrite"
+                        >
+                          Overwrite with my current layout
+                        </button>
+                      )}
+                      {presetEditor.mode !== "create" && !presetEditor.isCustom && (
+                        <button
+                          type="button"
+                          onClick={() => { resetPreset(presetEditor.key); setPresetEditor(null); }}
+                          className="text-left px-2 py-1 text-xs rounded text-[#A03D33] hover:bg-[#F5EAE9]"
+                          data-testid="list-cols-preset-reset"
+                        >
+                          Reset to default
+                        </button>
+                      )}
+                      {presetEditor.mode !== "create" && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const preset = effectivePresets[presetEditor.key];
+                            if (!preset) return;
+                            setPresetEditor(null);
+                            const description = window.prompt(
+                              `Publishing "${preset.label}" to the Preset Marketplace.\n\nAdd a short description (optional):`,
+                              "",
+                            );
+                            if (description === null) return; // user cancelled
+                            try {
+                              await api.post("/presets/marketplace", {
+                                name: preset.label,
+                                description: description.trim(),
+                                preset: { label: preset.label, visible: preset.visible, order: preset.order },
+                              });
+                              const { toast } = await import("sonner");
+                              toast.success(`"${preset.label}" published — visit the marketplace to see it live.`);
+                            } catch (e) {
+                              const { toast } = await import("sonner");
+                              toast.error(e?.response?.data?.detail || "Publish failed");
+                            }
+                          }}
+                          className="text-left px-2 py-1 text-xs rounded text-[#4C2A99] hover:bg-[#F5F0FB]"
+                          data-testid="list-cols-preset-publish"
+                        >
+                          Publish to marketplace…
+                        </button>
+                      )}
+                      {presetEditor.mode !== "create" && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const ok = await copyPresetToClipboard(presetEditor.key);
+                            setPresetEditor(null);
+                            try {
+                              const { toast } = await import("sonner");
+                              toast[ok ? "success" : "error"](ok ? "Preset copied to clipboard" : "Couldn't copy — check clipboard permissions");
+                            } catch { /* toast optional */ }
+                          }}
+                          className="text-left px-2 py-1 text-xs rounded text-[#2C2C2C] hover:bg-[#F5F3EC]"
+                          data-testid="list-cols-preset-copy"
+                        >
+                          Copy JSON to share
+                        </button>
+                      )}
+                      {presetEditor.mode !== "create" && presetEditor.isCustom && (
+                        <button
+                          type="button"
+                          onClick={() => { deleteCustomPreset(presetEditor.key); setPresetEditor(null); }}
+                          className="text-left px-2 py-1 text-xs rounded text-[#A03D33] hover:bg-[#F5EAE9]"
+                          data-testid="list-cols-preset-delete"
+                        >
+                          Delete preset
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setPresetEditor(null)}
+                        className="text-left px-2 py-1 text-xs rounded text-[#5B5F4D] hover:bg-[#F5F3EC]"
+                        data-testid="list-cols-preset-editor-cancel"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    <p className="mt-2 text-[10px] text-[#6E6E6E] italic">
+                      {presetEditor.mode === "create" ? "Enter to save. Your current visible columns + order are captured." : "Enter to save the new name."}
+                    </p>
+                  </div>
+                )}
+                {pasteModalOpen && (
+                  <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+                    data-testid="list-cols-preset-paste-modal"
+                    onClick={(e) => { if (e.target === e.currentTarget) setPasteModalOpen(false); }}
+                  >
+                    <div className="w-full max-w-md rounded-lg border border-[#E4D9C8] bg-white shadow-2xl p-5">
+                      <h3 className="font-serif text-lg text-[#2C2C2C] mb-1">Paste a shared preset</h3>
+                      <p className="text-xs text-[#5B5F4D] mb-3">
+                        Paste the JSON blob you copied from another Shelfsort device. It&rsquo;ll appear as a new custom chip.
+                      </p>
+                      <textarea
+                        value={pasteText}
+                        onChange={(e) => { setPasteText(e.target.value); setPasteError(""); }}
+                        autoFocus
+                        rows={5}
+                        placeholder='{"shelfsort_preset_v1": {"label": "…", "visible": {…}, "order": [ … ]}}'
+                        className="w-full px-2 py-1.5 text-[11px] font-mono border border-[#E4D9C8] rounded focus:outline-none focus:border-[#6B46C1] focus:ring-1 focus:ring-[#6B46C1]/40"
+                        data-testid="list-cols-preset-paste-input"
+                      />
+                      {pasteError && (
+                        <p className="mt-1 text-[11px] text-[#A03D33]" data-testid="list-cols-preset-paste-error">{pasteError}</p>
+                      )}
+                      <div className="flex items-center justify-end gap-2 mt-3">
+                        <button
+                          type="button"
+                          onClick={() => setPasteModalOpen(false)}
+                          className="px-4 py-1.5 rounded-full border border-[#E4D9C8] text-xs font-semibold text-[#5B5F4D] hover:bg-[#F5F3EC] transition-colors"
+                          data-testid="list-cols-preset-paste-cancel"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const ok = importPresetFromJson(pasteText);
+                            if (ok) setPasteModalOpen(false);
+                          }}
+                          disabled={!pasteText.trim()}
+                          className="px-4 py-1.5 rounded-full bg-[#6B46C1] text-white text-xs font-semibold hover:bg-[#4C2A99] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                          data-testid="list-cols-preset-paste-import"
+                        >
+                          Import preset
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {sortMode.col && (
+                  <div className="hidden md:flex items-center justify-end gap-2 px-4 py-1 text-[10px] uppercase tracking-wider text-[#6B46C1] bg-[#F3EEFC] border-b border-[#E8E6E1]" data-testid="list-sort-indicator">
+                    <span>
+                      Sorted by <strong>{SORT_COL_LABELS[sortMode.col] || sortMode.col}</strong> {sortMode.dir === "desc" ? "↓" : "↑"}
+                    </span>
+                    <button type="button" onClick={clearSort} className="underline hover:text-[#4C2A99]" data-testid="list-sort-clear">clear</button>
+                    <span aria-hidden className="text-[#B8B2A3]">·</span>
+                    <button type="button" onClick={resetColWidths} className="underline hover:text-[#4C2A99]" data-testid="list-cols-reset">reset widths</button>
+                  </div>
+                )}
+                <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleSectionDragEnd}>
+                  <SortableContext items={bookSections.map((s) => s.key)} strategy={verticalListSortingStrategy}>
+                    <ul className="divide-y divide-[#E8E6E1]" data-testid="list-sections">
+                      {bookSections.map((sec, secIdx) => {
+                        const rowNumberOffset = bookSections
+                          .slice(0, secIdx)
+                          .reduce((sum, s) => sum + s.books.length, 0);
+                        return (
+                        <React.Fragment key={sec.key}>
+                          {sec.label && (
+                            <SortableSectionHeader
+                              sec={sec}
+                              collapsed={!!collapsedSections[sec.key]}
+                              toggleSection={toggleSection}
+                            />
                           )}
-                        </span>
-                        <span className="w-16 shrink-0 text-xs text-[#6E6E6E] text-right tabular-nums hidden xl:inline">
-                          {addedRel}
-                        </span>
-                      </li>
-                    );
-                  })}
-                    </React.Fragment>
-                  ))}
-                </ul>
+                          {!collapsedSections[sec.key] && sec.books.map((b, bIdx) => {
+                            const rowNumber = rowNumberOffset + bIdx + 1;
+                            const wordsK = b.word_count ? (b.word_count >= 1000 ? `${Math.round(b.word_count / 1000)}k` : String(b.word_count)) : "";
+                            const readingHours = b.word_count ? b.word_count / 16200 : 0;
+                            const timeLabel = !b.word_count ? "" :
+                              readingHours < 1   ? `${Math.round(readingHours * 60)}m` :
+                              readingHours < 10  ? `${readingHours.toFixed(1)}h` :
+                                                    `${Math.round(readingHours)}h`;
+                            const addedRel = (() => {
+                              const raw = b.created_at || b.date_added;
+                              if (!raw) return "";
+                              try {
+                                const d = new Date(raw);
+                                return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+                              } catch { return ""; }
+                            })();
+                            const pairings = Array.isArray(b.pairings) ? b.pairings.filter(Boolean).join(", ") : (b.pairings || "");
+                            const ctx = { wordsK, timeLabel, addedRel, pairings };
+                            return (
+                              <li
+                                key={b.book_id}
+                                data-testid={`book-row-${b.book_id}`}
+                                className={`flex items-center gap-3 px-4 ${listRowPadding} hover:bg-[#F5F3EC] transition-colors cursor-pointer ${
+                                  selectMode && selectedIds.has(b.book_id) ? "bg-[#EEE9FB]" : ""
+                                } ${jumpFlashId === b.book_id ? "ring-2 ring-[#6B46C1] ring-inset bg-[#F3EEFC]" : ""}`}
+                                onClick={() => {
+                                  if (selectMode) {
+                                    setSelectedIds((prev) => {
+                                      const next = new Set(prev);
+                                      if (next.has(b.book_id)) next.delete(b.book_id); else next.add(b.book_id);
+                                      return next;
+                                    });
+                                  } else {
+                                    window.location.href = `/book/${b.book_id}`;
+                                  }
+                                }}
+                              >
+                                {/* 2026-08-14 — Row number column.  Sticky
+                                    leftmost.  Reflects the current sort/filter
+                                    order across all sections (global 1..N).
+                                    Hidden on narrow screens (< md) so mobile
+                                    stays tidy. */}
+                                <span
+                                  className="hidden md:inline-block w-10 shrink-0 text-right pr-1 text-xs font-mono tabular-nums text-[#8B7AB8] select-none"
+                                  data-testid={`book-row-number-${b.book_id}`}
+                                  aria-label={`Row ${rowNumber}`}
+                                >
+                                  {rowNumber}
+                                </span>
+                                {selectMode && (
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedIds.has(b.book_id)}
+                                    onChange={() => {}}
+                                    className="w-4 h-4 accent-[var(--primary)] shrink-0"
+                                    data-testid={`book-row-checkbox-${b.book_id}`}
+                                  />
+                                )}
+                                {b.has_cover ? (
+                                  <img
+                                    src={`${process.env.REACT_APP_BACKEND_URL}/api/books/${b.book_id}/cover`}
+                                    alt=""
+                                    className="w-8 h-11 rounded-sm shrink-0 object-cover shadow-sm"
+                                    loading="lazy"
+                                  />
+                                ) : (
+                                  <div className="w-8 h-11 rounded-sm shrink-0 bg-gradient-to-br from-[#6B46C1] to-[#4C2A99] shadow-sm" />
+                                )}
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm font-medium text-[#2C2C2C] truncate" title={b.title}>
+                                    {b.title || "Untitled"}
+                                    {b.series && (
+                                      <span className="ml-1.5 text-[10px] text-[#5B5F4D] font-normal">· {b.series}{b.series_index ? ` #${b.series_index}` : ""}</span>
+                                    )}
+                                  </p>
+                                  <p className="text-xs text-[#5B5F4D] truncate">
+                                    {b.author || "Unknown"}
+                                  </p>
+                                </div>
+                                {activeColOrder.map((colKey) => renderBodyCell(colKey, b, ctx))}
+                              </li>
+                            );
+                          })}
+                        </React.Fragment>
+                        );
+                      })}
+                    </ul>
+                  </SortableContext>
+                </DndContext>
               </div>
             ) : viewMode === "compact" ? (
               // Compact grid (iter 60) — same shape as the regular
@@ -2274,7 +3368,7 @@ export default function AllBooksPage() {
                           return next;
                         });
                       } else {
-                        window.location.href = `/books/${b.book_id}`;
+                        window.location.href = `/book/${b.book_id}`;
                       }
                     }}
                     className={`group flex flex-col items-start text-left ${
@@ -2304,11 +3398,40 @@ export default function AllBooksPage() {
                           />
                         </div>
                       )}
-                      {b.progress_fraction >= 0.99 && (
-                        <span className="absolute top-1 right-1 text-[7px] font-bold uppercase tracking-wider text-white bg-[#81B29A] px-1 py-0.5 rounded">
-                          Read
-                        </span>
-                      )}
+                      {(() => {
+                        const s = getReadingStatus(b);
+                        if (s === "finished") {
+                          return (
+                            <span
+                              data-testid={`compact-status-${b.book_id}`}
+                              data-status="finished"
+                              className="absolute top-1 right-1 text-[7px] font-bold uppercase tracking-wider text-white bg-[#81B29A] px-1 py-0.5 rounded"
+                            >
+                              Finished
+                            </span>
+                          );
+                        }
+                        if (s === "reading") {
+                          return (
+                            <span
+                              data-testid={`compact-status-${b.book_id}`}
+                              data-status="reading"
+                              className="absolute top-1 right-1 text-[7px] font-bold uppercase tracking-wider text-[#8C5C00] bg-[#FDF3E1] border border-[#F5E0A8] px-1 py-0.5 rounded"
+                            >
+                              Reading
+                            </span>
+                          );
+                        }
+                        return (
+                          <span
+                            data-testid={`compact-status-${b.book_id}`}
+                            data-status="unread"
+                            className="absolute top-1 right-1 text-[7px] font-bold uppercase tracking-wider text-[#5B5F4D] bg-[#F5F0E5] border border-[#E4D9C8] px-1 py-0.5 rounded"
+                          >
+                            Unread
+                          </span>
+                        );
+                      })()}
                     </div>
                     <p className="mt-1.5 text-[11px] font-medium text-[#2C2C2C] line-clamp-2 leading-tight w-full" title={b.title}>
                       {b.title || "Untitled"}
@@ -2397,6 +3520,8 @@ export default function AllBooksPage() {
                     </React.Fragment>
                   ))}
                 </div>
+              </>
+            )}
               </>
             )}
           </>

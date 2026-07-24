@@ -216,7 +216,7 @@ export default function PublicLibraryView() {
                 <LogIn className="w-3.5 h-3.5" /> Sign in
               </Link>
               <Link
-                to={`/register?next=${next}`}
+                to={`/login?next=${next}`}
                 data-testid="public-library-register-btn"
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#F5F3EC] text-[#2C2C2C] text-sm font-semibold hover:bg-[#E8E2D4]"
               >

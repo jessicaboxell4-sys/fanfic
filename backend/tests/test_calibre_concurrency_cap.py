@@ -17,6 +17,7 @@ os.environ.setdefault("MONGO_URL", "mongodb://localhost:27017")
 os.environ.setdefault("DB_NAME", "test_database")
 
 from routes import books as books_mod  # noqa: E402
+from utils import calibre_convert as calibre_mod  # noqa: E402
 from utils.feature_flags import set_flag, _invalidate_cache  # noqa: E402
 
 
@@ -43,9 +44,15 @@ def test_calibre_concurrency_cap_is_2(shared_event_loop):
         return None
 
     async def _main():
-        # Fresh semaphore bound to *this* event loop.
-        books_mod._calibre_sem = None
-        with patch.object(books_mod, "_convert_to_epub_sync", side_effect=_fake_sync):
+        # 2026-08-22 — After the Phase 6C slice-1 refactor, the calibre
+        # helpers moved to ``utils/calibre_convert.py``. ``books_mod``
+        # still re-exports them, but ``convert_to_epub`` inside the
+        # extracted module calls ``_convert_to_epub_sync`` by reference
+        # from its OWN module namespace — so we have to patch there,
+        # not on ``books_mod``. Same story for ``_calibre_sem``.
+        calibre_mod._calibre_sem = None
+        books_mod._calibre_sem = None  # keep the alias in sync for any legacy readers
+        with patch.object(calibre_mod, "_convert_to_epub_sync", side_effect=_fake_sync):
             results = await asyncio.gather(*[
                 books_mod.convert_to_epub(
                     Path(f"/tmp/fake_in_{i}.mobi"),

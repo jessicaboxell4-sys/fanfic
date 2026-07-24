@@ -42,6 +42,33 @@ from utils.usernames import (
 from utils.test_account_filter import is_test_account
 
 
+# ---------------------------------------------------------------------------
+# 2026-08-22 — Active sessions telemetry.
+#
+# We enrich every `user_sessions` row with the client's User-Agent
+# (truncated) and a per-request throttled `last_active_at` timestamp so
+# users can see, on Account → Active devices, where they're signed in.
+# This ONLY records what the browser voluntarily advertises in the UA
+# header — no fingerprinting, no IP. `_client_meta` is the single
+# source of truth for what we persist; keep this thin.
+# ---------------------------------------------------------------------------
+_MAX_UA_LEN = 400  # cap to keep the doc small; longest real UAs sit ~250 chars
+
+
+def _client_meta(request: Optional[Request]) -> Dict[str, Optional[str]]:
+    """Extract session telemetry from the current request.
+
+    Returns dict with a truncated `user_agent`; nothing else is stored.
+    Callable with a None request so unit-test seeders don't crash.
+    """
+    if request is None:
+        return {"user_agent": None}
+    ua = (request.headers.get("user-agent") or "").strip()
+    if len(ua) > _MAX_UA_LEN:
+        ua = ua[:_MAX_UA_LEN]
+    return {"user_agent": ua or None}
+
+
 # ============================================================
 # AUTH ROUTES
 # ============================================================
@@ -105,11 +132,15 @@ async def auth_google(request: Request, response: Response):
         await db.users.insert_one(new_doc)
 
     expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+    now_dt = datetime.now(timezone.utc)
+    meta = _client_meta(request)
     await db.user_sessions.insert_one({
         "user_id": user_id,
         "session_token": session_token,
         "expires_at": expires_at,
-        "created_at": datetime.now(timezone.utc),
+        "created_at": now_dt,
+        "last_active_at": now_dt,
+        "user_agent": meta["user_agent"],
     })
 
     # Track previous + current login timestamps so the "Activity since
@@ -217,6 +248,193 @@ async def auth_logout(request: Request, response: Response):
     return {"ok": True}
 
 
+# ---------------------------------------------------------------------------
+# 2026-08-22 — Active sessions ("Signed in elsewhere") API.
+#
+# Users can list every session issued for their account, see which one
+# is "this device" (matches the current cookie), and revoke any single
+# session or every OTHER session in one tap. Backed by the existing
+# `user_sessions` collection — no new schema, just three read/write
+# endpoints. Session identifiers on the wire use the last 12 chars of
+# the raw token as a short id so we never need to expose the full
+# token in the response body.
+# ---------------------------------------------------------------------------
+def _session_public_id(session_token: str) -> str:
+    """Short opaque handle used in URLs. Last 12 hex chars of the token.
+
+    Collision note (2026-08-22): the FE's ``is_current`` chip is
+    driven by suffix equality between this handle and the caller's
+    own token — if two different tokens for the SAME user happened
+    to share the last 12 hex characters, both would render with the
+    'This device' chip. Actual revoke scoping uses FULL token
+    equality (see ``revoke_auth_session`` below), so the collision
+    would be display-only, and with a 48-bit random suffix the
+    chance is negligible even at hundreds of live sessions per user.
+    """
+    return (session_token or "")[-12:]
+
+
+def _friendly_device_label(user_agent: Optional[str]) -> Dict[str, str]:
+    """Rough browser + OS extraction. Best-effort; safe on empty UA."""
+    ua = (user_agent or "").lower()
+    # Browser (order matters — Edge/OPR must beat plain Chrome/Safari).
+    if "edg/" in ua or "edge/" in ua:
+        browser = "Edge"
+    elif "opr/" in ua or "opera" in ua:
+        browser = "Opera"
+    elif "firefox/" in ua:
+        browser = "Firefox"
+    elif "crios/" in ua:
+        browser = "Chrome"
+    elif "chrome/" in ua:
+        browser = "Chrome"
+    elif "safari/" in ua and "version/" in ua:
+        browser = "Safari"
+    else:
+        browser = "Browser"
+    # Platform.
+    if "iphone" in ua:
+        platform = "iPhone"
+    elif "ipad" in ua:
+        platform = "iPad"
+    elif "android" in ua:
+        platform = "Android"
+    elif "windows nt" in ua:
+        platform = "Windows"
+    elif "mac os x" in ua or "macintosh" in ua:
+        platform = "Mac"
+    elif "linux" in ua:
+        platform = "Linux"
+    elif not ua:
+        platform = "Unknown device"
+    else:
+        platform = "Device"
+    return {"browser": browser, "platform": platform}
+
+
+def _fmt_dt(dt) -> Optional[str]:
+    """Coerce datetime/str to ISO string; None passes through."""
+    if dt is None:
+        return None
+    if isinstance(dt, datetime):
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.isoformat()
+    return str(dt)
+
+
+@api_router.get("/auth/sessions")
+async def list_auth_sessions(request: Request, user: User = Depends(get_current_user_any_status)):
+    """List every active (non-expired) session for the current user.
+
+    Marks the row that matches the caller's own cookie as
+    `is_current: true` so the FE can render a "This device" chip and
+    prevent accidental self-revoke.
+    """
+    now = datetime.now(timezone.utc)
+    current_token = request.cookies.get("session_token") or ""
+    if not current_token:
+        auth_hdr = request.headers.get("Authorization", "")
+        if auth_hdr.startswith("Bearer "):
+            current_token = auth_hdr[7:]
+
+    cursor = db.user_sessions.find({"user_id": user.user_id}, {"_id": 0})
+    rows: List[Dict[str, Any]] = []
+    async for s in cursor:
+        exp = s.get("expires_at")
+        if isinstance(exp, str):
+            try:
+                exp = datetime.fromisoformat(exp)
+            except Exception:
+                exp = None
+        if exp and exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        if exp and exp < now:
+            # Skip already-expired rows in the listing; a background
+            # cleanup task can prune them.
+            continue
+        token = s.get("session_token", "")
+        label = _friendly_device_label(s.get("user_agent"))
+        rows.append({
+            "id": _session_public_id(token),
+            "browser": label["browser"],
+            "platform": label["platform"],
+            "user_agent": s.get("user_agent") or "",
+            "created_at": _fmt_dt(s.get("created_at")),
+            "last_active_at": _fmt_dt(s.get("last_active_at") or s.get("created_at")),
+            "expires_at": _fmt_dt(exp),
+            "is_current": bool(token and current_token and token == current_token),
+        })
+    # Most-recently-active first, current session pinned on top so
+    # revoke-everything-else has an obvious "keep this one" anchor.
+    rows.sort(key=lambda r: (not r["is_current"], r["last_active_at"] or ""), reverse=False)
+    # `sorted(...reverse=False)` above sorts by (not is_current asc,
+    # last_active_at asc); we actually want current first THEN newest
+    # first, so re-sort with two keys the right way.
+    rows.sort(key=lambda r: r["last_active_at"] or "", reverse=True)
+    rows.sort(key=lambda r: 0 if r["is_current"] else 1)
+    return {"sessions": rows, "count": len(rows)}
+
+
+@api_router.delete("/auth/sessions/{session_id}")
+async def revoke_auth_session(session_id: str, request: Request, user: User = Depends(get_current_user_any_status)):
+    """Revoke a single session by its short public id.
+
+    Refuses to revoke the caller's own session — use POST /auth/logout
+    for that so the cookie is cleared client-side too.
+    """
+    current_token = request.cookies.get("session_token") or ""
+    if not current_token:
+        auth_hdr = request.headers.get("Authorization", "")
+        if auth_hdr.startswith("Bearer "):
+            current_token = auth_hdr[7:]
+
+    if current_token and _session_public_id(current_token) == session_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Can't revoke your current session here — use logout instead.",
+        )
+
+    # Find the target by suffix match, scoped to this user (never let
+    # a suffix collision cross accounts).
+    cursor = db.user_sessions.find(
+        {"user_id": user.user_id},
+        {"_id": 0, "session_token": 1},
+    )
+    target_token: Optional[str] = None
+    async for s in cursor:
+        if _session_public_id(s.get("session_token", "")) == session_id:
+            target_token = s["session_token"]
+            break
+    if not target_token:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    res = await db.user_sessions.delete_one(
+        {"user_id": user.user_id, "session_token": target_token},
+    )
+    return {"ok": True, "revoked": int(res.deleted_count or 0)}
+
+
+@api_router.post("/auth/sessions/revoke-others")
+async def revoke_other_auth_sessions(request: Request, user: User = Depends(get_current_user_any_status)):
+    """Sign the user out of every session EXCEPT the current one.
+
+    The current-session cookie stays valid so the caller doesn't have
+    to re-log-in from the device they just clicked the button on.
+    """
+    current_token = request.cookies.get("session_token") or ""
+    if not current_token:
+        auth_hdr = request.headers.get("Authorization", "")
+        if auth_hdr.startswith("Bearer "):
+            current_token = auth_hdr[7:]
+
+    query: Dict[str, Any] = {"user_id": user.user_id}
+    if current_token:
+        query["session_token"] = {"$ne": current_token}
+    res = await db.user_sessions.delete_many(query)
+    return {"ok": True, "revoked": int(res.deleted_count or 0)}
+
+
 # ============================================================
 # EMAIL / PASSWORD AUTH (second sign-in option)
 # ============================================================
@@ -239,11 +457,15 @@ async def _issue_session(user_id: str, response: Response, request: Optional[Req
     """Create a fresh session_token row + set the cookie. Mirrors the Google flow."""
     token = f"st_{uuid.uuid4().hex}{uuid.uuid4().hex[:16]}"
     expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+    now_dt = datetime.now(timezone.utc)
+    meta = _client_meta(request)
     await db.user_sessions.insert_one({
         "user_id": user_id,
         "session_token": token,
         "expires_at": expires_at,
-        "created_at": datetime.now(timezone.utc),
+        "created_at": now_dt,
+        "last_active_at": now_dt,
+        "user_agent": meta["user_agent"],
     })
     # Track previous + current login timestamps for the "since last login" widget.
     now_iso = datetime.now(timezone.utc).isoformat()

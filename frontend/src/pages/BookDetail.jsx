@@ -61,8 +61,12 @@ export default function BookDetail() {
   // got bounced to /account even when their address was already set.
   const [kindleEmail, setKindleEmail] = useState(null);
   const [sendingToKindle, setSendingToKindle] = useState(false);
+  // Iter 89 rebuild — inline error state (no more silent bounces).
+  const [loadError, setLoadError] = useState(null);
 
   const load = async () => {
+    setLoadError(null);
+    setLoading(true);
     try {
       const [bookRes, catRes, tagRes] = await Promise.all([
         api.get(`/books/${id}`),
@@ -77,14 +81,23 @@ export default function BookDetail() {
       setEditAuthor(bookRes.data.author || "");
       setEditDescription(bookRes.data.description || "");
       const merged = [...DEFAULT_CATEGORIES, ...(catRes.data.custom || [])];
-      // Make sure the current category is in the list even if unknown
       if (bookRes.data.category && !merged.includes(bookRes.data.category)) {
         merged.push(bookRes.data.category);
       }
       setAllCategories(merged);
     } catch (e) {
-      toast.error("Couldn't load book");
-      navigate("/library");
+      // Iter 89 rebuild — replace the old silent bounce with an inline
+      // error card so partial endpoint failures don't kick users out
+      // of their book page.
+      const status = e?.response?.status;
+      const detail = e?.response?.data?.detail;
+      setLoadError({
+        status,
+        message:
+          status === 404 ? "This book is no longer in your library." :
+          status === 403 ? "You don't have access to this book." :
+          detail || "We couldn't load this book right now.",
+      });
     } finally {
       setLoading(false);
     }
@@ -308,6 +321,38 @@ export default function BookDetail() {
       setSendingToKindle(false);
     }
   };
+
+  if (loadError) {
+    return (
+      <div className="min-h-screen bg-paper" data-testid="book-load-error">
+        <Navbar />
+        <main className="max-w-2xl mx-auto px-6 py-16 text-center">
+          <h1 className="font-serif text-2xl text-[#2C2C2C] mb-3">
+            {loadError.status === 404 ? "Book not found" : "Couldn't load this book"}
+          </h1>
+          <p className="text-sm text-[#5B5F4D] mb-8">{loadError.message}</p>
+          <div className="flex items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => navigate("/library")}
+              className="px-4 py-2 rounded-full border border-[#E4D9C8] bg-white text-sm text-[#2C2C2C] hover:bg-[#F5F3EC] transition-colors"
+              data-testid="book-load-back"
+            >
+              Back to library
+            </button>
+            <button
+              type="button"
+              onClick={() => load()}
+              className="px-4 py-2 rounded-full bg-[#6B46C1] text-white text-sm font-semibold hover:bg-[#4C2A99] transition-colors"
+              data-testid="book-load-retry"
+            >
+              Try again
+            </button>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   if (loading || !book) {
     return (

@@ -146,3 +146,54 @@ async def touch_book(book_id: str, user: User = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Not found")
     await _log_activity(user.user_id, book_id)
     return {"ok": True}
+
+
+
+# --- Reading status (tri-state) ---------------------------------------------
+# 2026-07-20 — Simple three-state setter that maps a user-picked status
+# (unread / reading / finished) to a canonical progress_fraction value.
+# Kept as a separate endpoint so `/mark` (bool read/unread — pre-2026-07)
+# stays wire-compatible for existing callers, and so future callers can
+# use the intent-named endpoint instead of computing progress themselves.
+#
+# Mapping:
+#   unread   → progress_fraction = 0.0   (also clears last_opened_at)
+#   reading  → progress_fraction = 0.5   (midpoint marker — CFI untouched
+#              so the reader still resumes from the actual last position)
+#   finished → progress_fraction = 1.0   (also stamps last_opened_at)
+
+_READING_STATUS_MAP = {
+    "unread":   0.0,
+    "reading":  0.5,
+    "finished": 1.0,
+}
+
+
+class StatusBody(BaseModel):
+    status: str  # "unread" | "reading" | "finished"
+
+
+@api_router.post("/books/{book_id}/status")
+async def set_reading_status(
+    book_id: str,
+    body: StatusBody,
+    user: User = Depends(get_current_user),
+):
+    """Set the tri-state reading status for a book."""
+    status = (body.status or "").strip().lower()
+    if status not in _READING_STATUS_MAP:
+        raise HTTPException(
+            status_code=400,
+            detail=f"status must be one of {sorted(_READING_STATUS_MAP)}",
+        )
+    pct = _READING_STATUS_MAP[status]
+    update: Dict[str, Any] = {"progress_fraction": pct}
+    if status == "finished":
+        update["last_opened_at"] = datetime.now(timezone.utc).isoformat()
+    result = await db.books.update_one(
+        {"book_id": book_id, "user_id": user.user_id},
+        {"$set": update},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    return {"ok": True, "status": status, "progress_fraction": pct}

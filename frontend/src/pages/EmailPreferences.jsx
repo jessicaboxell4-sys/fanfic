@@ -25,6 +25,23 @@ import {
   LineChart,
 } from "lucide-react";
 import { toast } from "sonner";
+import { SectionSidebar, MobileSectionJump, SectionHeader } from "../components/SectionSidebar";
+
+// 2026-08-22 — Emails-page ToC manifest, mirrors /account's
+// SETTINGS_MANIFEST. Anchors are the ChannelCard testid values
+// (`${testidPrefix}-card`) so `settings-toc`-style jump works
+// without any per-card wiring.
+const EMAIL_PREFS_MANIFEST = [
+  { anchor: "weekly-summary-card",   category: "Digests", label: "One Friday email",            keywords: "weekly summary consolidated friday" },
+  { anchor: "weekly-digest-card",    category: "Digests", label: "Weekly reading digest",       keywords: "sunday recap digest" },
+  { anchor: "year-recap-card",       category: "Digests", label: "Year-in-Books recap",         keywords: "year wrap up recap annual" },
+  { anchor: "fic-updates-card",      category: "Alerts",  label: "Fic-update alerts",           keywords: "fic fanfic updates chapters new" },
+  { anchor: "from-friends-card",     category: "Social",  label: "From friends — weekly",       keywords: "friends finished social" },
+  { anchor: "bookclub-digest-card",  category: "Social",  label: "Book-club digest",            keywords: "bookclub reading room monday rollup" },
+  { anchor: "operator-digest-card",  category: "Admin",   label: "Operator digest (admins)",    keywords: "admin operator sunday" },
+  { anchor: "account-updates-card",  category: "Account", label: "Account updates",             keywords: "approval suggestion invite year in books recommendations opt-out" },
+  { anchor: "in-app-mute-card",      category: "Account", label: "In-app mute matrix",          keywords: "in-app notification mute" },
+];
 
 const DAY_NAMES = [
   "Monday",
@@ -64,6 +81,16 @@ function ToggleSwitch({ checked, disabled, onChange, testid }) {
     </button>
   );
 }
+// EmailPrefsToC / EmailPrefsMobileJump / EmailPrefsSectionHeader
+// extracted 2026-08-23 to /app/frontend/src/components/SectionSidebar.jsx
+// (SectionSidebar, MobileSectionJump, SectionHeader). Manifest above stays.
+//
+// Drift-checker sentinel — these testids are generated at runtime from
+// testidPrefix="emails" (grep looks for literals, so we list them):
+//   emails-toc  emails-toc-search  emails-toc-clear  emails-toc-empty
+//   emails-toc-cat-  emails-toc-toggle-  emails-toc-link-
+//   emails-mobile-jump  emails-mobile-jump-wrap  emails-section-header-
+
 
 function ChannelCard({
   icon,
@@ -468,7 +495,13 @@ export default function EmailPreferences() {
   return (
     <div className="min-h-screen bg-[#FBF7EE]">
       <Navbar />
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+      {/* 2026-08-22 — Two-column layout on lg+: sticky ToC on the left,
+          cards on the right (still max-w-3xl reading measure).  Below
+          lg the sidebar is hidden and a compact <select> jump appears
+          at the top of the content column. Same design vocabulary as
+          /account (see Account.jsx). */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 lg:grid lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-8">
+        <div className="lg:col-span-2">
         <button
           onClick={() => navigate("/account")}
           className="inline-flex items-center gap-2 text-sm text-[#6E6E6E] hover:text-[#2C2C2C] mb-6"
@@ -490,11 +523,24 @@ export default function EmailPreferences() {
             </p>
           </div>
         </div>
+        </div>
+
+        <SectionSidebar
+          manifest={EMAIL_PREFS_MANIFEST}
+          testidPrefix="emails"
+          storageKey="emails.toc"
+          ariaLabel="Email preferences navigation"
+          searchPlaceholder="Search email settings…"
+        />
+
+        <div className="min-w-0 max-w-3xl flex flex-col">
+        <MobileSectionJump manifest={EMAIL_PREFS_MANIFEST} testidPrefix="emails" />
 
         {/* Sender info */}
         <div
           className="mb-6 p-4 rounded-2xl bg-white border border-[#E8E6E1] flex flex-col sm:flex-row sm:items-center gap-3"
           data-testid="emails-sender-info"
+          style={{ order: 5 }}
         >
           <div className="flex-1">
             <p className="text-xs uppercase tracking-widest text-[#5B5F4D] mb-1">
@@ -544,6 +590,8 @@ export default function EmailPreferences() {
         </div>
 
         {/* Weekly summary (consolidated digest) — opt-in Resend quota brake (2026-06-22) */}
+        <SectionHeader label="Digests" order={100} testidPrefix="emails" background="bg-[#FBF7EE]" />
+        <div style={{ order: 110 }}>
         <ChannelCard
           icon={<Mail className="w-5 h-5" />}
           iconBg="bg-[#EEE9FB]"
@@ -587,8 +635,10 @@ export default function EmailPreferences() {
             </p>
           )}
         </ChannelCard>
+        </div>
 
         {/* Weekly digest */}
+        <div style={{ order: 120 }}>
         <ChannelCard
           icon={<Mail className="w-5 h-5" />}
           iconBg="bg-[#FDF3E1]"
@@ -675,8 +725,11 @@ export default function EmailPreferences() {
             </div>
           </div>
         </ChannelCard>
+        </div>
 
         {/* Fic updates */}
+        <SectionHeader label="Alerts" order={200} testidPrefix="emails" background="bg-[#FBF7EE]" />
+        <div style={{ order: 210 }}>
         <ChannelCard
           icon={<Sparkles className="w-5 h-5" />}
           iconBg="bg-[#EEF3EC]"
@@ -711,8 +764,11 @@ export default function EmailPreferences() {
             </>
           }
         />
+        </div>
 
         {/* From-friends digest */}
+        <SectionHeader label="Social" order={300} testidPrefix="emails" background="bg-[#FBF7EE]" />
+        <div style={{ order: 310 }}>
         <ChannelCard
           icon={<Sparkles className="w-5 h-5" />}
           iconBg="bg-[#EEF3EC]"
@@ -740,8 +796,10 @@ export default function EmailPreferences() {
             </>
           }
         />
+        </div>
 
         {/* Book-club weekly digest */}
+        <div style={{ order: 320 }}>
         <ChannelCard
           icon={<Sparkles className="w-5 h-5" />}
           iconBg="bg-[#EEE9FB]"
@@ -787,8 +845,11 @@ export default function EmailPreferences() {
             </span>
           </div>
         </ChannelCard>
+        </div>
 
-        {/* Year-in-Books recap */}        <ChannelCard
+        {/* Year-in-Books recap */}
+        <div style={{ order: 130 }}>
+        <ChannelCard
           icon={<PartyPopper className="w-5 h-5" />}
           iconBg="bg-[#FDEFE7]"
           iconColor="text-[#E07A5F]"
@@ -807,15 +868,19 @@ export default function EmailPreferences() {
               </p>
             )}
             <p className="mt-3 text-xs">
-              <Link to="/year-in-books" className="text-[#6B46C1] hover:underline font-semibold">
+              <Link to={`/library/year/${new Date().getFullYear()}`} className="text-[#6B46C1] hover:underline font-semibold">
                 Preview the in-app version →
               </Link>
             </p>
           </div>
         </ChannelCard>
+        </div>
 
         {/* Operator digest (admin-only) — Sunday rollup of analytics. */}
         {isAdmin && (
+          <>
+            <SectionHeader label="Admin" order={400} testidPrefix="emails" background="bg-[#FBF7EE]" />
+            <div style={{ order: 410 }}>
           <ChannelCard
             icon={<LineChart className="w-5 h-5" />}
             iconBg="bg-[#EEF3EC]"
@@ -843,12 +908,15 @@ export default function EmailPreferences() {
               </>
             }
           />
+            </div>
+          </>
         )}
 
         {!email_configured && (
           <p
             className="text-xs text-[#B87A00] bg-[#FDF3E1] rounded-lg p-3 mt-2"
             data-testid="emails-warning"
+            style={{ order: 990 }}
           >
             Email delivery isn&apos;t configured on this server yet. Your preferences will save,
             and once the operator adds a Resend API key, your emails will start arriving.
@@ -860,9 +928,11 @@ export default function EmailPreferences() {
             (see utils/email_suppression.py) gets a row.  Turning a
             row off means that kind is queued as an in-app notification
             instead of sent via Resend. */}
+        <SectionHeader label="Account" order={500} testidPrefix="emails" background="bg-[#FBF7EE]" />
         <section
           data-testid="account-updates-card"
           className="mt-8 bg-white border border-[#E8E6E1] rounded-2xl p-5"
+          style={{ order: 510 }}
         >
           <h2 className="font-serif text-xl text-[#2C2C2C] mb-1">Account updates</h2>
           <div
@@ -913,9 +983,10 @@ export default function EmailPreferences() {
         </section>
 
         {/* In-app notification mute matrix — separate from email channels */}
-        <div className="mt-8">
+        <div className="mt-8" data-testid="in-app-mute-card" style={{ order: 520 }}>
           <NotificationMuteMatrix />
         </div>
+        </div>{/* /flex-col right column */}
       </div>
     </div>
   );

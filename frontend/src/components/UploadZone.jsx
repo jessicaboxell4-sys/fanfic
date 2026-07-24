@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { UploadCloud, Loader2, FolderUp } from "lucide-react";
+import { UploadCloud, Loader2, FolderUp, ShieldCheck } from "lucide-react";
 import { api } from "../lib/api";
 import { toast } from "sonner";
 import {
@@ -646,22 +646,104 @@ export default function UploadZone({ onUploaded, compact = false }) {
       //      in the toast.  The "Retry N" button still works as
       //      before — but with the new retry-on-transient behaviour
       //      the typical user never has to click it.
-      let CONCURRENCY = 8;
+      //
+      // 2026-08-24 — Tuning after 27 prod upload failures overnight
+      // (user report + screenshot).  Two knobs dropped:
+      //   • Baseline CONCURRENCY 8 → 6 — the first burst was hitting
+      //     origin harder than it could handle when the pod was cold.
+      //     6 preserves ~75% of the peak throughput of 8 while cutting
+      //     initial pressure by 25 %.
+      //   • TRANSIENT_THROTTLE 3 → 2 — the sliding-window throttle
+      //     reacts one wave earlier now, so the origin gets breathing
+      //     room after just 2 transient blips instead of waiting for
+      //     a 3rd (by which point 3+ files were already past retries).
+      // The TypeError bug in api.js's response interceptor was fixed
+      // in the same commit — see /app/frontend/src/lib/errors.js.
+      //
+      // 2026-08-24 (afternoon) — Post-tuning result: 19/200 failures
+      // (was 27/200 = 30% improvement).  User target: ≤5/200.  Root
+      // cause of the remaining 19: all show the friendly "Server
+      // briefly overloaded" message, meaning all 4 retries exhausted.
+      // The retries themselves are the herd — they all fire at the
+      // same t+1s / t+3s / t+8s marks and collide with each other on
+      // recovery.  Adding three surgical changes to break the herd
+      // and give the origin adaptive breathing room:
+      //   (A) Slow-start ramp — begin CONCURRENCY at 3, +1 per 5
+      //       consecutive successes, cap at CONCURRENCY_CEILING (6).
+      //       Drop -2 (down to THROTTLED_CONCURRENCY = 3) on any
+      //       transient.  This means a cold-start batch of 200 files
+      //       never hits the origin with more than 3 concurrent for
+      //       the first ~15 seconds, ramping up only if the origin
+      //       proves it can handle more.
+      //   (B) Jittered exponential backoff — retries now spread over
+      //       ±30 % random jitter around each nominal delay so waves
+      //       of retries don't collide with each other.
+      //   (C) Bumped MAX_ATTEMPTS 4 → 5 with a longer overall retry
+      //       budget (~90 s worst case) — catches origin recoveries
+      //       that arrive after the old 8s ceiling.
+      // See TRANSIENT_BACKOFFS_MS below for the new schedule.
+      const CONCURRENCY_CEILING = 6;
+      const CONCURRENCY_FLOOR = 1;
+      const THROTTLED_CONCURRENCY = 3;
+      const SLOW_START_INITIAL = 3;
+      const SLOW_START_STEP_SUCCESSES = 5;
+      let CONCURRENCY = SLOW_START_INITIAL;
+      let consecutiveSuccesses = 0;
       const transientWindow = [];          // last N booleans, 1 = transient
       const TRANSIENT_WINDOW = 8;
-      const TRANSIENT_THROTTLE = 3;
-      const THROTTLED_CONCURRENCY = 3;
+      const TRANSIENT_THROTTLE = 2;
+      // Per-batch telemetry — posted once when the batch finishes so
+      // the admin dashboard can chart failure-rate trends by day and
+      // correlate them with the concurrency-tuning history.
+      const batchStats = {
+        batch_id: (window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`),
+        started_at: Date.now(),
+        total_files: filesToSend.length,
+        transient_retries: 0,                // sum of extra attempts across all files
+        throttled_events: 0,                 // # of times we dropped to THROTTLED_CONCURRENCY
+        ramp_events: 0,                      // # of times slow-start bumped concurrency up
+        peak_concurrency: SLOW_START_INITIAL,
+        min_concurrency_after_start: SLOW_START_INITIAL,
+        // succeeded / failed / durations / failure_reasons filled at the end.
+      };
       const recordTransient = (isTransient) => {
         transientWindow.push(isTransient ? 1 : 0);
         if (transientWindow.length > TRANSIENT_WINDOW) transientWindow.shift();
         const recent = transientWindow.reduce((a, b) => a + b, 0);
+        if (isTransient) {
+          // Reset the slow-start success counter — origin proved fragile.
+          consecutiveSuccesses = 0;
+        } else {
+          // Successful send — count toward the next ramp bump.
+          consecutiveSuccesses += 1;
+          if (
+            CONCURRENCY < CONCURRENCY_CEILING &&
+            recent < TRANSIENT_THROTTLE &&
+            consecutiveSuccesses >= SLOW_START_STEP_SUCCESSES
+          ) {
+            CONCURRENCY = Math.min(CONCURRENCY + 1, CONCURRENCY_CEILING);
+            batchStats.ramp_events += 1;
+            batchStats.peak_concurrency = Math.max(batchStats.peak_concurrency, CONCURRENCY);
+            consecutiveSuccesses = 0;
+            console.info(
+              `[upload] slow-start ramp — CONCURRENCY → ${CONCURRENCY} ` +
+              `(no transients in last ${transientWindow.length} results)`,
+            );
+          }
+        }
         if (recent >= TRANSIENT_THROTTLE && CONCURRENCY > THROTTLED_CONCURRENCY) {
           CONCURRENCY = THROTTLED_CONCURRENCY;
+          batchStats.throttled_events += 1;
+          batchStats.min_concurrency_after_start = Math.min(batchStats.min_concurrency_after_start, CONCURRENCY);
+          consecutiveSuccesses = 0;
           console.warn(
             `[upload] origin appears saturated (${recent}/${transientWindow.length} recent transients) — ` +
             `dropping concurrency to ${THROTTLED_CONCURRENCY} to give it breathing room`,
           );
         }
+        // Belt-and-braces floor — should never fire but keeps CONCURRENCY
+        // from accidentally going to 0 if future tuning inverts a sign.
+        if (CONCURRENCY < CONCURRENCY_FLOOR) CONCURRENCY = CONCURRENCY_FLOOR;
       };
 
       // Detect the "transient origin error" pattern we want to
@@ -738,12 +820,36 @@ export default function UploadZone({ onUploaded, compact = false }) {
         // errors.  Backoff schedule: 0ms, ~1000ms, ~3000ms, ~8000ms.
         // Real bugs (400/401/413/422 etc.) still fail-fast on attempt
         // 0 via the ``isTransientOriginError`` gate below.
-        const MAX_ATTEMPTS = 4;
-        const TRANSIENT_BACKOFFS_MS = [0, 1000, 3000, 8000];
+        //
+        // 2026-08-24 (afternoon) — Bumped 4 → 5 attempts with a longer,
+        // JITTERED exponential schedule.  Previously all 4 retries
+        // landed within an ~8-second window, which meant a cold-start
+        // origin blip that took ~15s to recover killed every file in
+        // the burst.  The new schedule spreads retries over ~90s
+        // worst-case AND randomizes each delay by ±30% so retry waves
+        // from different files don't sync up and re-slam the origin.
+        //   attempt 1 (retry 0): fires immediately
+        //   attempt 2 (retry 1): 2s ± 30%   =>  1.4 – 2.6s
+        //   attempt 3 (retry 2): 6s ± 30%   =>  4.2 – 7.8s
+        //   attempt 4 (retry 3): 15s ± 30%  =>  10.5 – 19.5s
+        //   attempt 5 (retry 4): 45s ± 30%  =>  31.5 – 58.5s
+        // The final 45s wait catches longer origin recoveries (Mongo
+        // failover, R2 slow-start, LLM cold-start) that used to
+        // manifest as false "Server briefly overloaded" failures.
+        const MAX_ATTEMPTS = 5;
+        const TRANSIENT_BACKOFFS_MS_BASE = [0, 2000, 6000, 15000, 45000];
+        const jitterMs = (base) => {
+          if (!base) return 0;
+          // ±30% uniform jitter.
+          const factor = 1 + (Math.random() * 0.6 - 0.3);
+          return Math.max(0, Math.floor(base * factor));
+        };
         let sawTransient = false;
         for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
           if (attempt > 0) {
-            await new Promise((r) => setTimeout(r, TRANSIENT_BACKOFFS_MS[attempt] || 8000));
+            batchStats.transient_retries += 1;
+            const base = TRANSIENT_BACKOFFS_MS_BASE[attempt] || 45000;
+            await new Promise((r) => setTimeout(r, jitterMs(base)));
           }
           try {
             const submitRes = await api.post("/books/upload/async", form, {
@@ -955,6 +1061,32 @@ export default function UploadZone({ onUploaded, compact = false }) {
       }
       resp = { auto_resolved: totalAuto, policy: lastPolicy, actions: allActions };
       const succeededCount = filesToSend.length - failedFiles.length;
+      // 2026-08-24 — Batch telemetry.  Post one summary record per
+      // batch (regardless of success / failure counts) so the admin
+      // dashboard can chart failure-rate trends by day and correlate
+      // them with concurrency-tuning history.  Fire-and-forget; a
+      // telemetry POST that itself fails must not create a nested
+      // failed-uploads toast (that would be recursion-worthy).
+      const failureReasons = {};
+      for (const ff of failedFiles) {
+        const key = String(ff.error || "Upload failed").slice(0, 100);
+        failureReasons[key] = (failureReasons[key] || 0) + 1;
+      }
+      const finalStats = {
+        ...batchStats,
+        finished_at: Date.now(),
+        duration_ms: Date.now() - batchStats.started_at,
+        succeeded: succeededCount,
+        failed: failedFiles.length,
+        // Truncate the reasons list — top-5 by count is plenty for the
+        // admin dashboard and keeps individual documents small.
+        failure_reasons: Object.entries(failureReasons)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 5)
+          .map(([reason, count]) => ({ reason, count })),
+        airdrop_mode: !!airdropMode,
+      };
+      api.post("/upload-jobs/batch-stats", finalStats).catch(() => {});
       // 2026-06-28 — Auto-dismiss any previously-failed
       // upload_failures rows whose filename matches one of the files
       // we just successfully uploaded.  Makes the banner feel magic:
@@ -1340,6 +1472,15 @@ export default function UploadZone({ onUploaded, compact = false }) {
 
   return (
     <>
+      <div className="flex justify-end mb-2" data-testid="upload-ai-off-pill-wrap">
+        <span
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-[#6B46C1]/30 bg-[#6B46C1]/5 text-[10px] font-medium text-[#6B46C1]"
+          data-testid="upload-ai-off-pill"
+          title="Turn off AI classification in Account settings"
+        >
+          <ShieldCheck className="w-3 h-3" aria-hidden="true" /> AI-off mode available
+        </span>
+      </div>
       {/* Resume-after-refresh banner — shown briefly on mount while we
           re-attach to any in-flight upload jobs that were started in a
           previous tab/session.  Vanishes the moment those jobs finish

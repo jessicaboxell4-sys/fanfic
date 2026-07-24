@@ -3296,7 +3296,7 @@ class TestFichubFallbackAndUrlListPull:
         the wrapper must propagate the FFF error — NEVER hitting FicHub."""
         import asyncio as _asyncio
         from routes.books import fetch_fanfic_with_fallback, FanficNotFoundError
-        from routes import books as _books
+        from utils import fanfic as _fanfic
         from routes import fichub_client as _fichub
 
         async def boom_fff(*args, **kwargs):
@@ -3305,7 +3305,11 @@ class TestFichubFallbackAndUrlListPull:
         async def boom_fichub(*args, **kwargs):
             raise AssertionError("FicHub must not be called when fallback is off")
 
-        monkeypatch.setattr(_books, "fanfic_fetch_epub", boom_fff)
+        # 2026-08-22 — After the Phase 6C refactor, fetch_fanfic_with_fallback
+        # calls fanfic_fetch_epub from its OWN module namespace
+        # (utils.fanfic), so we must patch there — patching the routes.books
+        # re-export no longer intercepts the call.
+        monkeypatch.setattr(_fanfic, "fanfic_fetch_epub", boom_fff)
         monkeypatch.setattr(_fichub, "fichub_fetch_epub", boom_fichub)
 
         loop = _asyncio.new_event_loop()

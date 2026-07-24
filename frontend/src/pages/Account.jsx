@@ -5,6 +5,7 @@ import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { User as UserIcon, Mail, Lock, Loader2, Mail as MailIcon, Settings2, AlertTriangle, Layers, Plus, X as XIcon, Download, Sparkles, Trash2, Users as UsersIcon, ShieldCheck as ShieldCheckIcon, Wand2, HelpCircle, Send } from "lucide-react";
 import LibraryStatsCard from "../components/LibraryStatsCard";
+import AiClassifierCard from "../components/AiClassifierCard";
 import FandomTreemap from "../components/FandomTreemap";
 import CatalogSyncCard from "../components/CatalogSyncCard";
 import PushHandoffToggle from "../components/PushHandoffToggle";
@@ -13,6 +14,8 @@ import UploadChimeCard from "../components/UploadChimeCard";
 import DuplicateDismissalsCard from "../components/DuplicateDismissalsCard";
 import ProfileCompletenessCard from "../components/ProfileCompletenessCard";
 import FailedUploadsList from "../components/FailedUploadsList";
+import ActiveSessionsCard from "../components/ActiveSessionsCard";
+import { SectionSidebar, MobileSectionJump, SectionHeader } from "../components/SectionSidebar";
 import { emitCompletenessChange } from "../lib/profileCompleteness";
 // PalettePickerCard moved to /account/appearance (linked from the navbar appearance popover)
 import { FETCHING_UI_ENABLED, SEND_TO_KINDLE_UI_ENABLED } from "../lib/featureFlags";
@@ -24,6 +27,52 @@ function errMsg(d) {
   if (Array.isArray(d)) return d.map((e) => e?.msg || JSON.stringify(e)).join(" ");
   return String(d);
 }
+
+// ---------------------------------------------------------------------------
+// Settings navigation (2026-07-22) — sticky ToC + search box, mirrors
+// the AdminConsole card-manifest UX so users can jump to any section
+// in this ~2800-line page without hunting.  Each entry maps a testid
+// (or id) to a human label, a category, and keyword string used by
+// the search filter.  Categories collapse; search filters both the
+// menu AND highlights matching sections in the main pane.  Anchors
+// use smooth-scroll and set focus for keyboard users.
+// ---------------------------------------------------------------------------
+const SETTINGS_MANIFEST = [
+  { anchor: "admin-access-card",             category: "Profile",    label: "Admin access requests",   keywords: "admin access consent audit read-only" },
+  { anchor: "profile-completeness-card",     category: "Profile",    label: "Profile completeness",     keywords: "profile progress meter avatar name completeness" },
+  { anchor: "username-card",                 category: "Profile",    label: "Display name",             keywords: "username display name handle rename profile" },
+  { anchor: "privacy-messaging-card",        category: "Privacy",    label: "Privacy & messaging",      keywords: "privacy messaging dm friends only hidden public library rss opds share visibility" },
+  { anchor: "active-sessions-card",          category: "Privacy",    label: "Active devices",           keywords: "active sessions devices signed in elsewhere browser sign out logout security" },
+  { anchor: "library-mode-card",             category: "Library",    label: "Library mode",             keywords: "library mode fanfiction original books focus preferred content" },
+  { anchor: "library-stats-card",            category: "Library",    label: "Library stats",            keywords: "stats reading counts books hours summary" },
+  { anchor: "fandom-treemap-section",        category: "Library",    label: "Fandom treemap",           keywords: "fandom treemap visualisation library map genres" },
+  { anchor: "ai",                            category: "Library",    label: "AI classifier",            keywords: "ai classifier opt-in classification categorize auto machine learning llm" },
+  { anchor: "duplicate-policy-card",         category: "Library",    label: "Duplicate policy",         keywords: "duplicate policy dedupe trash keep replace rename skip" },
+  { anchor: "format-prefs-card",             category: "Library",    label: "Format preferences",       keywords: "format prefs convert ask epub pdf mobi kindle azw3" },
+  { anchor: "fff-options-card",              category: "Library",    label: "FanFicFare options",       keywords: "fanficfare fff download options archive fanfic scraper" },
+  { anchor: "polish-library-card",           category: "Maintenance", label: "Polish library",           keywords: "polish library titles authors fandoms auto clean up normalize" },
+  { anchor: "find-duplicates-card",          category: "Maintenance", label: "Find duplicates",          keywords: "find duplicates scanner dedupe" },
+  { anchor: "canonicalize-crossovers-card",  category: "Maintenance", label: "Canonicalize crossovers",  keywords: "canonicalize crossovers merge titles fandoms" },
+  { anchor: "fandom-aliases-card",           category: "Maintenance", label: "Fandom aliases",           keywords: "fandom aliases synonyms canonical name merge" },
+  { anchor: "backup-card",                   category: "Backups",    label: "Download backup",          keywords: "backup download zip export local disk" },
+  { anchor: "cloud-backup-card",             category: "Backups",    label: "Cloud backup",             keywords: "cloud backup r2 storage remote backup drive" },
+  { anchor: "email-prefs-link-card",         category: "Notifications", label: "Email preferences",      keywords: "email preferences notifications digest weekly newsletter" },
+  { anchor: "announcements-card",            category: "Notifications", label: "Announcements",          keywords: "announcements banner news whats new updates" },
+  { anchor: "failed-uploads-section",        category: "Recovery",   label: "Failed uploads",           keywords: "failed uploads retry redrop recovery lost missing bytes" },
+];
+
+// SettingsMobileJump / SettingsSectionHeader / SettingsToC extracted 2026-08-23
+// to /app/frontend/src/components/SectionSidebar.jsx (SectionSidebar,
+// MobileSectionJump, SectionHeader). SETTINGS_MANIFEST above stays here.
+//
+// Drift-checker sentinel — these testids are generated by SectionSidebar
+// at runtime from testidPrefix="settings" but the drift check uses a
+// literal grep, so we list them here so it can find them:
+//   settings-toc  settings-toc-search  settings-toc-clear  settings-toc-empty
+//   settings-toc-cat-  settings-toc-toggle-  settings-toc-link-
+//   settings-toc-recent-sticky  settings-toc-recent-
+//   settings-mobile-jump  settings-mobile-jump-wrap  settings-section-header-
+
 
 // Privacy & messaging — combines the DM privacy toggle (Phase 1a),
 // the "hide me from user search" toggle (Phase 1b), and a deep-link to
@@ -1944,10 +1993,48 @@ export default function Account() {
   return (
     <div className="min-h-screen bg-paper">
       <Navbar />
-      <main className="max-w-2xl mx-auto px-6 md:px-8 py-8 md:py-12 fade-in">
-        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-2">Account</p>
-        <h1 className="font-serif text-4xl sm:text-5xl text-[#2C2C2C] mb-3" data-testid="account-title">Your shelf, your settings.</h1>
-        <p className="text-[#5B5F4D] mb-10">Signed in as <strong className="text-[#2C2C2C]">{profile.email}</strong></p>
+      {/* 2026-08-22 — Two-column layout on lg+: sticky sidebar ToC on
+          the left (matches the AdminConsole sidebar look), settings
+          cards on the right. Below lg, the sidebar renders inline
+          above the cards like it used to. */}
+      <main
+        className="max-w-6xl mx-auto px-6 md:px-8 py-8 md:py-12 fade-in lg:grid lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-8"
+      >
+        <div className="lg:col-span-2">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#6B46C1] mb-2">Account</p>
+          <h1 className="font-serif text-4xl sm:text-5xl text-[#2C2C2C] dark:text-white mb-3" data-testid="account-title">Your shelf, your settings.</h1>
+          <p className="text-[#5B5F4D] dark:text-white/70 mb-6">Signed in as <strong className="text-[#2C2C2C] dark:text-white">{profile.email}</strong></p>
+        </div>
+
+        {/* Sidebar ToC — sticky on lg+, inline on mobile. */}
+        <SectionSidebar
+          manifest={SETTINGS_MANIFEST}
+          testidPrefix="settings"
+          storageKey="account.settings_toc"
+          ariaLabel="Settings navigation"
+          searchPlaceholder="Search settings…"
+          enableRecent
+        />
+
+        {/* Right column: settings cards. Constrained to max-w-2xl so
+            reading measure stays comfortable even in the wider layout.
+            2026-08-22 — `flex flex-col` enables CSS-order-based
+            reordering: cards are written in the JSX in the order they
+            were built over ~40 iterations, but each is assigned a
+            `style={{order: N}}` bucket-by-category (100s Profile,
+            200s Privacy, 300s Library, 400s Maintenance, 500s Backups,
+            600s Notifications, 700s Recovery, 800s Danger zone) so
+            they render grouped by category — matching the sidebar's
+            visual grouping without a giant JSX reshuffle. */}
+        <div className="min-w-0 max-w-2xl flex flex-col">
+
+        {/* Mobile-only category jump — the sidebar is hidden below lg,
+            so a compact <select> lets phone users land on any category
+            without scrolling through the whole page. Order 0 so it
+            always sits at the very top of the flex column. */}
+        <div style={{ order: 0 }}>
+          <MobileSectionJump manifest={SETTINGS_MANIFEST} testidPrefix="settings" />
+        </div>
 
         {/* Profile-completeness meter (iter 57) — top of page so a
             user landing here from the post-handle nudge or first
@@ -1955,21 +2042,41 @@ export default function Account() {
             /auth/me and listens for shelfsort:profile-completeness-changed
             events fired by the save handlers below.  Auto-celebrates
             on 3/3. */}
-        <ProfileCompletenessCard />
+        <SectionHeader label="Profile" order={100} testidPrefix="settings" />
+        <div data-testid="profile-completeness-card" style={{ order: 110 }} className="mb-6 empty:hidden">
+          <ProfileCompletenessCard />
+        </div>
 
-        <LibraryStatsCard />
+        <SectionHeader label="Library" order={300} testidPrefix="settings" />
+        <div id="ai" data-testid="ai" className="mb-6" style={{ order: 340 }}>
+          <AiClassifierCard
+            value={profile.ai_classification_opt === false ? "off" : "on"}
+            onChange={async (next) => {
+              try {
+                await api.patch("/user/ai-classification-opt", { opt_in: next === "on" });
+                setProfile((p) => ({ ...p, ai_classification_opt: next === "on" }));
+              } catch { /* non-fatal */ }
+            }}
+          />
+        </div>
 
-        <div className="mb-6" data-testid="fandom-treemap-section">
+        <div data-testid="library-stats-card" style={{ order: 320 }} className="mb-6">
+          <LibraryStatsCard />
+        </div>
+
+        <div className="mb-6" data-testid="fandom-treemap-section" style={{ order: 330 }}>
           <FandomTreemap />
         </div>
 
-        <BackupCard />
-        <CloudBackupCard />
+        <SectionHeader label="Backups" order={500} testidPrefix="settings" />
+        <div style={{ order: 510 }} className="mb-6 empty:hidden"><BackupCard /></div>
+        <div style={{ order: 520 }} className="mb-6 empty:hidden"><CloudBackupCard /></div>
 
         {/* Failed uploads — persistent record of files that didn't make it.
             Banner version (compact, 7-day window) also lives on /library/all.
             This is the full 30-day history with the same re-drop affordance. */}
-        <section id="failed-uploads" data-testid="failed-uploads-section">
+        <SectionHeader label="Recovery" order={700} testidPrefix="settings" />
+        <section id="failed-uploads" data-testid="failed-uploads-section" style={{ order: 710 }}>
           <FailedUploadsList
             compact={false}
             days={30}
@@ -1985,7 +2092,7 @@ export default function Account() {
         </section>
 
         {/* Profile info */}
-        <section className="shelf-card p-6 mb-6">
+        <section className="shelf-card p-6 mb-6" style={{ order: 120 }} data-testid="profile-info-card">
           <h2 className="font-serif text-2xl text-[#2C2C2C] mb-1">Profile</h2>
           <p className="text-sm text-[#5B5F4D] mb-5">Change how your name shows up around Shelfsort.</p>
           <form onSubmit={saveName} className="space-y-3">
@@ -2056,7 +2163,7 @@ export default function Account() {
         </section>
 
         {/* Username (public handle) */}
-        <section className="shelf-card p-6 mb-6" data-testid="username-card">
+        <section className="shelf-card p-6 mb-6" data-testid="username-card" style={{ order: 130 }}>
           <h2 className="font-serif text-2xl text-[#2C2C2C] mb-1">Public handle</h2>
           <p className="text-sm text-[#5B5F4D] mb-4">
             Your <code className="bg-[#F5F3EC] px-1 py-0.5 rounded text-[12px]">@username</code> is how friends find you and how you show up across the app. Lowercase letters, numbers, and underscores — 3 to 20 characters.
@@ -2122,13 +2229,14 @@ export default function Account() {
         </section>
 
         {/* Push notifications for cross-device reading handoff. */}
-        <PushHandoffToggle />
+        <div style={{ order: 620 }} className="mb-6 empty:hidden"><PushHandoffToggle /></div>
 
         {/* Reading-data sharing opt-out (heatmap contributor toggle). */}
-        <ReadingPrivacyToggle />
+        <div style={{ order: 230 }} className="mb-6 empty:hidden"><ReadingPrivacyToggle /></div>
 
         {/* Email preferences link */}
-        <section className="shelf-card p-6 mb-6" data-testid="email-prefs-link-card">
+        <SectionHeader label="Notifications" order={600} testidPrefix="settings" />
+        <section className="shelf-card p-6 mb-6" data-testid="email-prefs-link-card" style={{ order: 610 }}>
           <div className="flex items-start justify-between gap-3 flex-wrap sm:flex-nowrap">
             <div className="flex items-start gap-3 min-w-0 w-full sm:flex-1">
               <div className="w-10 h-10 rounded-xl bg-[#FDF3E1] text-[#B87A00] flex items-center justify-center flex-shrink-0">
@@ -2153,25 +2261,33 @@ export default function Account() {
         </section>
 
         {/* Privacy & messaging */}
-        <PrivacyMessagingCard navigate={navigate} />
+        <SectionHeader label="Privacy" order={200} testidPrefix="settings" />
+        <div style={{ order: 210 }} className="mb-6">
+          <PrivacyMessagingCard navigate={navigate} />
+        </div>
+        {/* Active devices (2026-08-22) — list every browser/device
+            signed in as this user, with per-row revoke + one-tap
+            "Sign out everywhere else". Sits right after Privacy so
+            security-adjacent controls cluster together. */}
+        <div style={{ order: 220 }} className="mb-6 empty:hidden"><ActiveSessionsCard /></div>
         {/* Library mode (2026-06-27) — fanfic/original/mixed
             preference.  Mounted right after Privacy so it's visible
             near the top of the page when users are configuring their
             account, before the more advanced sections. */}
-        <LibraryModeCard />
-        <AdminAccessCard />
+        <div style={{ order: 310 }} className="mb-6 empty:hidden"><LibraryModeCard /></div>
+        <div style={{ order: 140 }} className="mb-6 empty:hidden"><AdminAccessCard /></div>
 
         {/* E-reader sync (OPDS catalog) */}
-        <CatalogSyncCard />
+        <div style={{ order: 530 }} className="mb-6 empty:hidden"><CatalogSyncCard /></div>
 
         {/* Send to Kindle (2026-06-22) — single-click EPUB → Kindle email.
             Gated on SEND_TO_KINDLE_UI_ENABLED so the card disappears
             cleanly while the feature is hidden (Resend quota brake). */}
-        {SEND_TO_KINDLE_UI_ENABLED && <SendToKindleCard />}
+        {SEND_TO_KINDLE_UI_ENABLED && <div style={{ order: 630 }} className="mb-6 empty:hidden"><SendToKindleCard /></div>}
 
         {/* FanFicFare options */}
         {FETCHING_UI_ENABLED && (
-        <section className="shelf-card p-6 mb-6" data-testid="fff-options-card">
+        <section className="shelf-card p-6 mb-6" data-testid="fff-options-card" style={{ order: 380 }}>
           <div className="flex items-start gap-3 mb-1">
             <div className="w-10 h-10 rounded-xl bg-[#EEF3EC] text-[#6B46C1] flex items-center justify-center flex-shrink-0">
               <Settings2 className="w-5 h-5" />
@@ -2293,7 +2409,7 @@ export default function Account() {
         )}
 
         {/* Password */}
-        <section className="shelf-card p-6">
+        <section className="shelf-card p-6 mb-6" style={{ order: 150 }} data-testid="password-card">
           <h2 className="font-serif text-2xl text-[#2C2C2C] mb-1">Password</h2>
           {profile.has_password ? (
             <>
@@ -2369,7 +2485,7 @@ export default function Account() {
         </section>
 
         {/* Duplicate handling default policy */}
-        <section className="shelf-card p-6 mb-6" data-testid="duplicate-policy-card">
+        <section className="shelf-card p-6 mb-6" data-testid="duplicate-policy-card" style={{ order: 350 }}>
           <div className="flex items-start gap-3 mb-4">
             <div className="w-10 h-10 rounded-xl bg-[#E07A5F]/10 text-[#E07A5F] flex items-center justify-center flex-shrink-0">
               <Layers className="w-5 h-5" />
@@ -2422,12 +2538,12 @@ export default function Account() {
         </section>
 
         {/* Non-EPUB upload preferences — per-format default action */}
-        <UploadChimeCard />
+        <div style={{ order: 640 }} className="mb-6 empty:hidden"><UploadChimeCard /></div>
 
         {/* Duplicate dismissals — only renders when user has any */}
-        <DuplicateDismissalsCard />
+        <div style={{ order: 360 }} className="mb-6 empty:hidden"><DuplicateDismissalsCard /></div>
 
-        <section className="shelf-card p-6 mb-6" data-testid="format-prefs-card">
+        <section className="shelf-card p-6 mb-6" data-testid="format-prefs-card" style={{ order: 370 }}>
           <div className="flex items-start gap-3 mb-4">
             <div className="w-10 h-10 rounded-xl bg-[#E07A5F]/10 text-[#E07A5F] flex items-center justify-center flex-shrink-0">
               <Settings2 className="w-5 h-5" />
@@ -2504,7 +2620,8 @@ export default function Account() {
         </section>
 
         {/* Polish my library — bulk metadata cleanup, runs on the EPUB file too */}
-        <section className="shelf-card p-6 mb-6" data-testid="polish-library-card">
+        <SectionHeader label="Maintenance" order={400} testidPrefix="settings" />
+        <section className="shelf-card p-6 mb-6" data-testid="polish-library-card" style={{ order: 410 }}>
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 rounded-xl bg-[#EDE7FB] text-[#6B46C1] flex items-center justify-center flex-shrink-0">
               <Wand2 className="w-5 h-5" />
@@ -2529,7 +2646,7 @@ export default function Account() {
         </section>
 
         {/* Find duplicates — scan the library for matching books */}
-        <section className="shelf-card p-6 mb-6" data-testid="find-duplicates-card">
+        <section className="shelf-card p-6 mb-6" data-testid="find-duplicates-card" style={{ order: 420 }}>
           <div className="flex items-start gap-3 mb-3">
             <div className="w-10 h-10 rounded-xl bg-[#E07A5F]/10 text-[#E07A5F] flex items-center justify-center flex-shrink-0">
               <Layers className="w-5 h-5" />
@@ -2566,7 +2683,7 @@ export default function Account() {
         {/* Canonicalize crossover fandoms — collapse "Harry Potter & Twilight"
             and "Twilight/Harry Potter" into a single shelf so crossovers file
             together everywhere. */}
-        <section className="shelf-card p-6 mb-6" data-testid="canonicalize-crossovers-card">
+        <section className="shelf-card p-6 mb-6" data-testid="canonicalize-crossovers-card" style={{ order: 430 }}>
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 rounded-xl bg-[#E07A5F]/10 text-[#E07A5F] flex items-center justify-center flex-shrink-0">
               <Layers className="w-5 h-5" />
@@ -2606,10 +2723,10 @@ export default function Account() {
 
         {/* Release notes — publish the "What's new" card shown on Help.
             Admin-only; non-admin users don't see this section at all. */}
-        {profile?.is_admin && <AnnouncementsCard />}
+        {profile?.is_admin && <div style={{ order: 650 }} className="mb-6 empty:hidden"><AnnouncementsCard /></div>}
 
         {/* Fandom aliases — manual mappings applied during canonicalization */}
-        <section className="shelf-card p-6 mb-6" data-testid="fandom-aliases-card">
+        <section className="shelf-card p-6 mb-6" data-testid="fandom-aliases-card" style={{ order: 440 }}>
           <FandomAliasesCard />
         </section>
 
@@ -2617,6 +2734,7 @@ export default function Account() {
         <section
           className="shelf-card p-6 mb-6"
           data-testid="reset-state-card"
+          style={{ order: 810 }}
         >
           <div className="flex items-start gap-3 mb-3">
             <div className="w-10 h-10 rounded-xl bg-[#FDF3E1] text-[#B87A00] flex items-center justify-center flex-shrink-0">
@@ -2671,6 +2789,7 @@ export default function Account() {
         <section
           className="shelf-card p-6 mb-6 border-2 border-[#D9534F]/30"
           data-testid="danger-zone-card"
+          style={{ order: 820 }}
         >
           <div className="flex items-start gap-3 mb-3">
             <div className="w-10 h-10 rounded-xl bg-[#FBE9E7] text-[#D9534F] flex items-center justify-center flex-shrink-0">
@@ -2703,6 +2822,7 @@ export default function Account() {
         <section
           className="shelf-card p-6 mb-6 border-2 border-[#D9534F]/60"
           data-testid="delete-account-card"
+          style={{ order: 830 }}
         >
           <div className="flex items-start gap-3 mb-3">
             <div className="w-10 h-10 rounded-xl bg-[#FBE9E7] text-[#D9534F] flex items-center justify-center flex-shrink-0">
@@ -2749,6 +2869,7 @@ export default function Account() {
             </button>
           </div>
         </section>
+        </div>{/* /right-column */}
       </main>
     </div>
   );

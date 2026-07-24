@@ -46,7 +46,23 @@ function SinceLastLogin() {
     <div className="bg-[#EEF3EC] border border-[#6B46C1]/30 rounded-xl p-3 text-sm text-[#2C2C2C] flex flex-wrap items-center gap-3" data-testid="since-last-login">
       <Bell className="w-4 h-4 text-[#6B46C1]" />
       <span className="font-medium">Since you were last here ({fmtAgo(data.since)}):</span>
-      {data.new_books > 0 && <span data-testid="since-new-books">📚 {data.new_books} new book{data.new_books === 1 ? "" : "s"}</span>}
+      {data.new_books > 0 && (
+        <span
+          data-testid="since-new-books"
+          title="Only counts brand-new books added to your library. Fanfics that were already in your library and got refreshed with new chapters count separately — see the Fics-updated bell in the navbar for those."
+          className="inline-flex items-center gap-1 cursor-help border-b border-dotted border-[#5B5F4D]/40"
+        >
+          📚 {data.new_books} new book{data.new_books === 1 ? "" : "s"}
+          {data.refreshed_books > 0 && (
+            <span
+              className="ml-1 text-[#5B5F4D] text-xs"
+              data-testid="since-refreshed-books"
+            >
+              (+{data.refreshed_books} refreshed)
+            </span>
+          )}
+        </span>
+      )}
       {data.friend_requests > 0 && <span data-testid="since-friend-requests">👋 {data.friend_requests} friend request{data.friend_requests === 1 ? "" : "s"}</span>}
       {data.new_messages > 0 && <span data-testid="since-messages">💬 {data.new_messages} new message{data.new_messages === 1 ? "" : "s"}</span>}
       {data.unread_notifications > 0 && <span data-testid="since-notifications">🔔 {data.unread_notifications} unread</span>}

@@ -30,20 +30,39 @@ from fastapi import Depends, HTTPException
 from auth_dep import get_current_user
 from deps import api_router, db, STORAGE_DIR
 from models import User
-from utils.constants import TRASH_SHELF, TRASH_GRACE_DAYS
+from utils.constants import TRASH_SHELF, TRASH_GRACE_DAYS, TRASH_REASON_MANUAL
 
 
 @api_router.get("/trash")
 async def list_trash(user: User = Depends(get_current_user)):
-    """List every book currently sitting in Trash for the user."""
+    """List every book currently sitting in Trash for the user.
+
+    Includes ``trashed_at`` and ``trash_reason`` so the client can
+    render a per-row "Trashed <date> · <reason>" line.  Legacy rows
+    written before 2026-08-24 don't carry those fields — for those we
+    fall back to ``dupe_action_meta.applied_at`` (or an empty string)
+    for the date, and a generic "Removed from library" reason so the
+    UI never shows a bare blank.
+    """
     cursor = db.books.find(
         {"user_id": user.user_id, "category": TRASH_SHELF},
         {
             "_id": 0, "book_id": 1, "title": 1, "author": 1,
-            "trash_expires_at": 1, "dupe_action_meta": 1,
+            "trash_expires_at": 1, "trashed_at": 1, "trash_reason": 1,
+            "trash_prev_category": 1, "dupe_action_meta": 1,
         },
     ).sort("trash_expires_at", 1)
-    books = [b async for b in cursor]
+    books = []
+    async for b in cursor:
+        meta = b.get("dupe_action_meta") or {}
+        # Backfill missing audit fields for legacy rows.
+        if not b.get("trashed_at"):
+            b["trashed_at"] = meta.get("applied_at") or ""
+        if not b.get("trash_reason"):
+            b["trash_reason"] = TRASH_REASON_MANUAL
+        if not b.get("trash_prev_category"):
+            b["trash_prev_category"] = meta.get("prev_category_new") or ""
+        books.append(b)
     return {"books": books, "count": len(books), "grace_days": TRASH_GRACE_DAYS}
 
 
