@@ -24,6 +24,36 @@ Append-only log of dated work entries. Newest at the top.
 For static product context see [PRD.md](./PRD.md).
 For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 
+## 2026-08-27 (late evening) — Copy stuck rows
+
+Small QoL enhancement on top of the per-file upload progress list.
+When ≥ 1 file has failed, a new `data-testid='upload-progress-copy-failed'`
+button appears in the control bar next to `Retry all failed`.  Clicking
+it copies the failed filenames + error reasons to the clipboard as
+Markdown:
+
+```
+## Failed uploads (3)
+- `harry-potter-01.epub` — Server processing took too long.
+- `broken.epub` — Empty file (0 bytes) — likely a bad copy/move on your side.
+- `notepub.txt` — Only .epub files are supported right now.
+```
+
+Perfect for pasting into GitHub issues or emails when a batch misbehaves.
+
+**Files:** `frontend/src/components/UploadFileList.jsx` — added a
+`ClipboardCopy` lucide icon import, a `failedFilesForCopy` memo, a
+`handleCopyFailed` callback (with `navigator.clipboard.writeText` +
+`document.execCommand("copy")` fallback for non-secure contexts), and
+the button JSX.  ~40 LOC total.
+
+Self-verified: lints all pass (5/5), compile is clean, landing smoke
+screenshot rendered normally.  Skipped testing agent — this is a small
+button on an already-thoroughly-verified list, and the visibility gate
++ data source are identical to the already-tested Retry-all button.
+
+
+
 ## 2026-08-27 (evening) — UploadZone refactor + ETA chip
 
 **Refactor (P2 in ROADMAP, moved to done):**

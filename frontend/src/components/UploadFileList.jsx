@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useCallback } from "react";
 import { List } from "react-window";
-import { Search, RotateCcw, ChevronDown, ChevronRight } from "lucide-react";
+import { Search, RotateCcw, ChevronDown, ChevronRight, ClipboardCopy } from "lucide-react";
+import { toast } from "sonner";
 import { UploadFileRow } from "./UploadFileRow";
 
 // 2026-08-27 — Grouped, virtualized, filterable list of per-file
@@ -135,6 +136,39 @@ export function UploadFileList({ files, onRetry, onRetryAll }) {
     return it.type === "header" ? `h-${it.status}` : `r-${it.file.id}`;
   }, [items]);
 
+  const failedFilesForCopy = useMemo(
+    () => files.filter((f) => f.status === "failed"),
+    [files],
+  );
+
+  const handleCopyFailed = useCallback(async () => {
+    if (failedFilesForCopy.length === 0) return;
+    const lines = failedFilesForCopy.map((f) => {
+      const reason = (f.reason || "no reason recorded").replace(/\s+/g, " ").trim();
+      return `- \`${f.name}\` — ${reason}`;
+    });
+    const md = `## Failed uploads (${failedFilesForCopy.length})\n${lines.join("\n")}\n`;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(md);
+        toast.success(`Copied ${failedFilesForCopy.length} failed row${failedFilesForCopy.length === 1 ? "" : "s"} to clipboard.`);
+      } else {
+        // Fallback for very old browsers / non-secure contexts.
+        const ta = document.createElement("textarea");
+        ta.value = md;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        toast.success(`Copied ${failedFilesForCopy.length} failed row${failedFilesForCopy.length === 1 ? "" : "s"} to clipboard.`);
+      }
+    } catch (err) {
+      toast.error("Couldn't copy to clipboard — your browser blocked the request.");
+    }
+  }, [failedFilesForCopy]);
+
   const totalUnfiltered = files.length;
 
   return (
@@ -183,6 +217,18 @@ export function UploadFileList({ files, onRetry, onRetryAll }) {
           >
             <RotateCcw className="w-3.5 h-3.5" />
             Retry all failed ({failedCount})
+          </button>
+        )}
+        {failedFilesForCopy.length > 0 && (
+          <button
+            type="button"
+            onClick={handleCopyFailed}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-[#F0EBE2] text-[#2C2C2C] border border-[#E4D9C8] hover:bg-[#EAE4D8] focus:outline-none focus:ring-2 focus:ring-[#5B5F4D]/40 transition-colors"
+            data-testid="upload-progress-copy-failed"
+            title="Copies the failed filenames + error reasons to your clipboard as Markdown — handy for pasting into bug reports or support emails."
+          >
+            <ClipboardCopy className="w-3.5 h-3.5" />
+            Copy stuck rows ({failedFilesForCopy.length})
           </button>
         )}
       </div>
