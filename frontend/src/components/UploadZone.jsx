@@ -11,6 +11,18 @@ import {
 import AirdropInfoTip from "./AirdropInfoTip";
 import StagedUploadTray from "./StagedUploadTray";
 import StagedDraftRestoreBanner from "./StagedDraftRestoreBanner";
+import UploadFileList from "./UploadFileList";
+
+// 2026-08-27 — Per-file upload progress state.  Backed by a
+// `useState` array on UploadZone; UploadFileList renders the
+// virtualized/grouped/filterable UI.  Persisted to localStorage
+// so a mid-upload refresh can rehydrate the visible list (the
+// underlying job polling was already refresh-safe via
+// `trackPendingJob`).
+const FILE_PROGRESS_STORAGE_KEY = "shelfsort_upload_progress_v1";
+// After the batch fully completes we let the list linger for a
+// short while so users can review what happened, then clear it.
+const FILE_PROGRESS_LINGER_MS = 30_000;
 
 // Every format the backend accepts — .epub goes through the EPUB pipeline,
 // the rest land on the "Needs conversion" shelf with a Calibre nudge.
@@ -178,6 +190,62 @@ export default function UploadZone({ onUploaded, compact = false }) {
   // progress line can read "Batch 2 of 5 · 347 of 1000 processed".  For
   // smaller drops they stay at 1/1 and the UI hides the batch prefix.
   const [progress, setProgress] = useState({ done: 0, total: 0, batch: 1, batches: 1, inFlight: 0, startedAt: 0 });
+  // 2026-08-27 — Per-file state array for the expanded list beneath
+  // the aggregate counter.  Each entry:
+  //   { id, name, size, status, progress, reason }
+  // where `status` is one of queued|uploading|processing|done|skipped|failed.
+  const [fileStates, setFileStates] = useState(() => {
+    try {
+      const raw = typeof window !== "undefined" ? window.localStorage.getItem(FILE_PROGRESS_STORAGE_KEY) : null;
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed?.files)) return [];
+      // Only rehydrate if the payload is fresh (< 6h old) — otherwise
+      // it's stale from a long-abandoned session and would confuse users.
+      if (Date.now() - (parsed.timestamp || 0) > 6 * 60 * 60 * 1000) return [];
+      return parsed.files;
+    } catch {
+      return [];
+    }
+  });
+  // Live map of file.id -> File object so we can retry a failed
+  // upload later (File isn't serializable to localStorage, so retries
+  // are only possible within the same tab session).
+  const fileRefsRef = useRef(new Map());
+  // Coalesce very frequent progress updates (axios can fire dozens of
+  // onUploadProgress events per file per second) into a state patch
+  // per ~150ms so React doesn't render the list on every byte tick.
+  const pendingPatchesRef = useRef(new Map());
+  const patchFlushTimerRef = useRef(null);
+  const patchFile = useCallback((id, patch) => {
+    if (!id) return;
+    const merged = { ...(pendingPatchesRef.current.get(id) || {}), ...patch };
+    pendingPatchesRef.current.set(id, merged);
+    if (patchFlushTimerRef.current) return;
+    patchFlushTimerRef.current = setTimeout(() => {
+      const patches = pendingPatchesRef.current;
+      pendingPatchesRef.current = new Map();
+      patchFlushTimerRef.current = null;
+      setFileStates((prev) => prev.map((f) => (patches.has(f.id) ? { ...f, ...patches.get(f.id) } : f)));
+    }, 150);
+  }, []);
+  // Persist fileStates to localStorage after each mutation so a
+  // mid-upload refresh can re-render the last-known list.
+  useEffect(() => {
+    try {
+      if (fileStates.length === 0) {
+        window.localStorage.removeItem(FILE_PROGRESS_STORAGE_KEY);
+      } else {
+        window.localStorage.setItem(
+          FILE_PROGRESS_STORAGE_KEY,
+          JSON.stringify({ timestamp: Date.now(), files: fileStates }),
+        );
+      }
+    } catch {
+      // Storage quota / disabled — safe to ignore, the list is still
+      // reactive in-memory.
+    }
+  }, [fileStates]);
   // 1-second heartbeat so the "Xs elapsed" line in the progress UI
   // re-renders even when no file has resolved yet.  Only ticking
   // while ``uploading`` is true keeps it a no-op the rest of the time.
@@ -580,6 +648,26 @@ export default function UploadZone({ onUploaded, compact = false }) {
     const AIRDROP_THRESHOLD = 20;
     const airdropMode = filesToSend.length > AIRDROP_THRESHOLD;
     setProgress({ done: 0, total: filesToSend.length, batch: 1, batches: totalBatches, inFlight: 0, startedAt: Date.now(), airdrop: airdropMode });
+    // 2026-08-27 — Seed per-file state.  We prefer file.webkitRelativePath
+    // (folder drops) when available for cleaner UI, but always use the
+    // simple name as the stable id so retries + progress updates match.
+    fileRefsRef.current = new Map();
+    const initialFileStates = filesToSend.map((f, idx) => {
+      const id = `${f.name}::${f.size}::${idx}`;
+      fileRefsRef.current.set(id, f);
+      // Tag the File so sendOne can find its state row for onUploadProgress
+      // callbacks and lifecycle transitions.  File is a live JS object,
+      // safe to annotate.
+      try { f._shelfsortId = id; } catch { /* File may be readonly in strict impls */ }
+      return {
+        id,
+        name: f.name,
+        size: f.size,
+        status: "queued",
+        progress: 0,
+      };
+    });
+    setFileStates(initialFileStates);
     const duplicates = [];
     const allActions = [];
     const allUrlLists = [];
@@ -797,6 +885,7 @@ export default function UploadZone({ onUploaded, compact = false }) {
         // uploads banner and prevents 0-byte files from consuming an
         // upload slot that a real file could have used.
         if (!file || file.size === 0) {
+          patchFile(file?._shelfsortId, { status: "failed", reason: "Empty file (0 bytes)", progress: 0 });
           return {
             ok: false,
             file: file || { name: "(unknown)" },
@@ -805,6 +894,11 @@ export default function UploadZone({ onUploaded, compact = false }) {
             preValidated: true,
           };
         }
+        // Mark this file as actively uploading the moment we pick it
+        // up (the 0–250ms jitter delay below is still "uploading" from
+        // the user's perspective — better than sitting on "queued"
+        // while another concurrency slot has already started).
+        patchFile(file._shelfsortId, { status: "uploading", progress: 0 });
         // Light client-side jitter (0–250ms) before firing.  When the
         // upload queue dispatches N files near-simultaneously they
         // thundering-herd the backend; even staggered by a few
@@ -854,9 +948,21 @@ export default function UploadZone({ onUploaded, compact = false }) {
           try {
             const submitRes = await api.post("/books/upload/async", form, {
               headers: { "Content-Type": "multipart/form-data" },
+              onUploadProgress: (e) => {
+                // e.total is 0 when the server hasn't set Content-Length
+                // yet or the axios adapter can't compute it — fall back
+                // to file.size which is authoritative from the browser.
+                const total = e.total || file.size || 0;
+                const loaded = e.loaded || 0;
+                if (total > 0) {
+                  const pct = Math.min(100, Math.max(0, Math.round((loaded / total) * 100)));
+                  patchFile(file._shelfsortId, { status: "uploading", progress: pct });
+                }
+              },
             });
             const jobId = submitRes?.data?.job_id;
             if (!jobId) {
+              patchFile(file._shelfsortId, { status: "failed", reason: "Server didn't return a job id.", progress: 100 });
               recordTransient(sawTransient);
               return { ok: false, file, error: "Server didn't return a job id.", status: 500 };
             }
@@ -864,6 +970,10 @@ export default function UploadZone({ onUploaded, compact = false }) {
             // refreshes / closes the tab mid-upload.  Removed in the
             // finally-equivalent paths below (done/failed/timeout).
             trackPendingJob(jobId, file.name);
+            // Bytes are on the server — flip the per-file bar to the
+            // indeterminate "Processing" shimmer while the async worker
+            // parses / classifies / R2-mirrors the epub.
+            patchFile(file._shelfsortId, { status: "processing", progress: 100 });
 
             // Airdrop short-circuit: bytes are safely on the backend
             // (HTTP 202 received), the asyncio task is already
@@ -875,6 +985,12 @@ export default function UploadZone({ onUploaded, compact = false }) {
               recordTransient(sawTransient);
               // We keep the job ID in localStorage — a future visit
               // to the library will reconcile.  No data lost.
+              // Airdrop mode won't get a "done" per file (we don't
+              // poll individual jobs); mark the file as done so the
+              // list doesn't get stuck on "Processing…" forever.  A
+              // second-pass reconciliation on the library page will
+              // catch any that ultimately failed server-side.
+              patchFile(file._shelfsortId, { status: "done" });
               return { ok: true, file, data: {}, airdrop: true };
             }
             // Poll up to ~3 minutes.  Larger EPUBs + slow Claude can
@@ -895,6 +1011,10 @@ export default function UploadZone({ onUploaded, compact = false }) {
                 if (ps === 404) {
                   untrackPendingJob(jobId);
                   recordTransient(sawTransient);
+                  patchFile(file._shelfsortId, {
+                    status: "failed",
+                    reason: "Upload job disappeared.",
+                  });
                   return { ok: false, file, error: "Upload job disappeared.", status: 404 };
                 }
                 continue;
@@ -903,11 +1023,35 @@ export default function UploadZone({ onUploaded, compact = false }) {
               if (status === "done") {
                 untrackPendingJob(jobId);
                 recordTransient(sawTransient);
-                return { ok: true, file, data: pollRes.data.response || {} };
+                // Mark done — unless the backend reported a per-file
+                // "failed:true" inside the books array, or a
+                // "duplicate_pending" entry which shows in the list as
+                // Skipped so the user knows the file was well-formed
+                // but sat in the duplicates prompt instead of the shelf.
+                const responseData = pollRes.data.response || {};
+                const firstBook = Array.isArray(responseData?.books) ? responseData.books[0] : null;
+                if (firstBook?.failed) {
+                  patchFile(file._shelfsortId, {
+                    status: "failed",
+                    reason: firstBook.error || "Upload failed",
+                  });
+                } else if (firstBook?.duplicate_pending) {
+                  patchFile(file._shelfsortId, {
+                    status: "skipped",
+                    reason: "Duplicate — see prompt when this batch finishes",
+                  });
+                } else {
+                  patchFile(file._shelfsortId, { status: "done" });
+                }
+                return { ok: true, file, data: responseData };
               }
               if (status === "failed") {
                 untrackPendingJob(jobId);
                 recordTransient(sawTransient);
+                patchFile(file._shelfsortId, {
+                  status: "failed",
+                  reason: pollRes.data.error || "Upload job failed",
+                });
                 return {
                   ok: false,
                   file,
@@ -920,6 +1064,10 @@ export default function UploadZone({ onUploaded, compact = false }) {
             // job tracked so the next mount can pick it up.  The
             // backend is likely still processing.
             recordTransient(sawTransient);
+            patchFile(file._shelfsortId, {
+              status: "failed",
+              reason: "Server processing took too long.",
+            });
             return { ok: false, file, error: "Server processing took too long.", status: 504 };
           } catch (e) {
             lastErr = e;
@@ -975,6 +1123,7 @@ export default function UploadZone({ onUploaded, compact = false }) {
           detail = "File too large for this upload.";
         }
         console.error("File upload failed:", file.name, status, detail, lastErr);
+        patchFile(file._shelfsortId, { status: "failed", reason: detail, progress: 100 });
         return { ok: false, file, error: detail, status };
       };
 
@@ -1255,6 +1404,17 @@ export default function UploadZone({ onUploaded, compact = false }) {
       setUploading(false);
       setProgress({ done: 0, total: 0, batch: 1, batches: 1 });
       inFlightRef.current = false;
+      // 2026-08-27 — Clear the per-file progress list after a short
+      // linger so users can review the batch outcome; then it disappears
+      // (and the localStorage entry is wiped by the persist effect
+      // when fileStates becomes empty).
+      setTimeout(() => {
+        setFileStates((prev) => {
+          const stillActive = prev.some((f) => f.status === "queued" || f.status === "uploading" || f.status === "processing");
+          return stillActive ? prev : [];
+        });
+        fileRefsRef.current = new Map();
+      }, FILE_PROGRESS_LINGER_MS);
       // 2026-07-08 — Release the Screen Wake Lock if we're still
       // holding one.  ``release()`` returns a promise but we don't
       // await it — nothing downstream cares whether the release lands
@@ -1288,6 +1448,49 @@ export default function UploadZone({ onUploaded, compact = false }) {
     window.addEventListener("shelfsort:upload-files", onUploadFilesEvent);
     return () => window.removeEventListener("shelfsort:upload-files", onUploadFilesEvent);
   }, [handleFiles]);
+
+  // 2026-08-27 — Retry handlers for the per-file progress list.
+  // Both funnel through the existing "shelfsort:upload-files" event
+  // pipe so we get all the transient-retry, wake-lock, telemetry and
+  // duplicate-detection behaviour for free.
+  const retryFileById = useCallback((fileId) => {
+    const file = fileRefsRef.current.get(fileId);
+    if (!file) {
+      toast.error("Can't retry — the original file reference is no longer available (page was reloaded).");
+      return;
+    }
+    // Optimistically mark it queued so the row snaps back to grey
+    // while the pipeline picks it up.
+    setFileStates((prev) => prev.map((f) => (
+      f.id === fileId ? { ...f, status: "queued", progress: 0, reason: undefined } : f
+    )));
+    window.dispatchEvent(new CustomEvent("shelfsort:upload-files", { detail: [file] }));
+  }, []);
+
+  const retryAllFailed = useCallback(() => {
+    const failedRows = fileStates.filter((f) => f.status === "failed");
+    if (failedRows.length === 0) return;
+    const filesToRetry = [];
+    const missing = [];
+    for (const row of failedRows) {
+      const f = fileRefsRef.current.get(row.id);
+      if (f) filesToRetry.push(f);
+      else missing.push(row.name);
+    }
+    if (filesToRetry.length === 0) {
+      toast.error("Can't retry — the original file references are no longer available (page was reloaded).");
+      return;
+    }
+    setFileStates((prev) => prev.map((f) => (
+      f.status === "failed" && fileRefsRef.current.has(f.id)
+        ? { ...f, status: "queued", progress: 0, reason: undefined }
+        : f
+    )));
+    if (missing.length > 0) {
+      toast.info(`${missing.length} file${missing.length === 1 ? "" : "s"} can't be retried — page was reloaded.`);
+    }
+    window.dispatchEvent(new CustomEvent("shelfsort:upload-files", { detail: filesToRetry }));
+  }, [fileStates]);
 
   // 2026-07-06 — Staging tray helpers.  ``addToStagedQueue`` dedupes
   // by ``name::size`` so re-dropping the same folder doesn't double
@@ -1669,6 +1872,17 @@ export default function UploadZone({ onUploaded, compact = false }) {
                 </button>
               )}
             </div>
+          )}
+          {/* 2026-08-27 — Expanded per-file progress list.  Sits directly
+              beneath the header + counter + status chips so users can
+              see which specific books are uploading / processing / done /
+              skipped / failed without leaving this page. */}
+          {fileStates.length > 0 && (
+            <UploadFileList
+              files={fileStates}
+              onRetry={retryFileById}
+              onRetryAll={retryAllFailed}
+            />
           )}
         </>
       ) : compact ? (

@@ -487,6 +487,17 @@ html, body {
     border-radius: 0.5rem;
 }
 
+/* 2026-08-27 — Indeterminate progress-bar shimmer used by the
+   per-file upload progress list (UploadFileRow — "Processing" state).
+   Slides a 33%-wide chip across the rail so users can see the file
+   is actively being worked on server-side while the byte-upload has
+   already completed. */
+@keyframes shelfsort-indeterminate {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(300%); }
+}
+
+
 /* ─── Brand-accent theme bridge ────────────────────────────────────── */
 /* The JSX still uses literal-hex utility classes like                  */
 /* `text-[#E07A5F]` and `bg-[#E07A5F]/20` (44 component / page files,   */
@@ -731,6 +742,7 @@ html, body {
 :root[data-theme="dark"] .bg-\[\#EAE4D8\],
 :root[data-theme="dark"] .bg-\[\#F1EEE5\],
 :root[data-theme="dark"] .bg-\[\#F5F0E5\],
+:root[data-theme="dark"] .bg-\[\#FAF8F5\],
 :root[data-theme="dark"] .bg-\[\#FDFBF3\] { background-color: var(--surface-hover); }
 
 :root[data-theme="dark"] .bg-\[\#F5EAE9\],
