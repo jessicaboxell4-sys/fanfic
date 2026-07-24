@@ -93,6 +93,12 @@ export function UploadFileList({ files, onRetry, onRetryAll }) {
   // a flat sequence of mixed header/row items.
   const { items, failedCount, groupCounts } = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
+    // When a search query is active we auto-expand every group so the
+    // user sees all matching rows regardless of the group's default
+    // expanded state — otherwise a match sitting inside a collapsed
+    // Queued/Done bucket would look like "0 results" even though the
+    // header still shows the count.
+    const searchActive = q.length > 0;
     const buckets = { uploading: [], processing: [], failed: [], queued: [], done: [], skipped: [] };
     for (const f of files) {
       if (!buckets[f.status]) continue;  // unknown status — skip defensively
@@ -107,7 +113,7 @@ export function UploadFileList({ files, onRetry, onRetryAll }) {
       counts[status] = bucket.length;
       if (bucket.length === 0) continue;
       flat.push({ type: "header", status, count: bucket.length });
-      if (expanded.has(status)) {
+      if (searchActive || expanded.has(status)) {
         for (const file of bucket) flat.push({ type: "row", file });
       }
     }

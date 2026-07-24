@@ -1873,17 +1873,6 @@ export default function UploadZone({ onUploaded, compact = false }) {
               )}
             </div>
           )}
-          {/* 2026-08-27 — Expanded per-file progress list.  Sits directly
-              beneath the header + counter + status chips so users can
-              see which specific books are uploading / processing / done /
-              skipped / failed without leaving this page. */}
-          {fileStates.length > 0 && (
-            <UploadFileList
-              files={fileStates}
-              onRetry={retryFileById}
-              onRetryAll={retryAllFailed}
-            />
-          )}
         </>
       ) : compact ? (
         <div className="flex flex-col sm:flex-row items-center gap-4 w-full justify-center">
@@ -1944,6 +1933,40 @@ export default function UploadZone({ onUploaded, compact = false }) {
         </>
       )}
     </div>
+    {/* 2026-08-27 — Expanded per-file progress list.  Rendered OUTSIDE
+        the `uploading` gate so:
+          • rows stay visible after a batch completes (users can review
+            done/skipped/failed rows and retry failures)
+          • rows rehydrated from localStorage on page refresh are
+            visible immediately.
+        When `uploading` is false and there are still rows to show, we
+        render a small "Dismiss" button so the user can wipe the results
+        and return to the compact drop-zone.  During active uploads we
+        hide Dismiss (no way to cancel in-flight uploads). */}
+    {fileStates.length > 0 && (
+      <div className="mt-4">
+        {!uploading && (
+          <div className="flex justify-end mb-2">
+            <button
+              type="button"
+              onClick={() => {
+                setFileStates([]);
+                fileRefsRef.current = new Map();
+              }}
+              className="text-xs text-[#5B5F4D] hover:text-[#2C2C2C] underline underline-offset-2"
+              data-testid="upload-progress-dismiss"
+            >
+              Dismiss last batch results
+            </button>
+          </div>
+        )}
+        <UploadFileList
+          files={fileStates}
+          onRetry={retryFileById}
+          onRetryAll={retryAllFailed}
+        />
+      </div>
+    )}
     {/* 2026-07-06 — Staged tray.  Renders directly below the
         dropzone when files are queued.  Empty state is the
         component returning null, so when there's nothing staged
