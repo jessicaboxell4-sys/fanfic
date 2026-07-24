@@ -1687,7 +1687,7 @@ export default function UploadZone({ onUploaded, compact = false }) {
                 ? `${progress.inFlight} book${progress.inFlight === 1 ? "" : "s"} currently sorting`
                 : "Wrapping up"}
               {progress.startedAt > 0 && (
-                <> · {Math.max(1, Math.floor((Date.now() - progress.startedAt + nowTick * 0) / 1000))}s elapsed</>
+                <> · {Math.max(1, Math.floor((Date.now() - progress.startedAt) / 1000))}s elapsed</>
               )}
               {(() => {
                 // 2026-08-27 — Estimated-time-remaining chip.
@@ -1697,7 +1697,10 @@ export default function UploadZone({ onUploaded, compact = false }) {
                 // first blazing-fast file makes the ETA look wildly wrong
                 // for 30 seconds.
                 if (progress.airdrop) return null;
-                const elapsedMs = Date.now() - progress.startedAt + nowTick * 0;
+                // Reference `nowTick` so this IIFE re-computes on every
+                // 1s heartbeat (see setInterval near line 200).
+                void nowTick;
+                const elapsedMs = Date.now() - progress.startedAt;
                 if (elapsedMs < 5_000) return null;
                 let done = 0, pending = 0;
                 for (const f of fileStates) {

@@ -65,22 +65,27 @@ export function useFileProgressState() {
     }, PATCH_FLUSH_MS);
   }, []);
 
-  // Persist to localStorage after every mutation — but drop the row
-  // count above what's safe to serialize.  A 2,000-file batch works
-  // out to ~120KB which is well under the typical 5MB quota.
+  // Persist to localStorage after every mutation — but debounce so a
+  // 2,000-file batch doesn't produce 2,000 JSON.stringify + writes
+  // (the coalesced `patchFile` batches at ~150ms, so a 500ms persist
+  // debounce still keeps the entry fresh enough for a mid-batch
+  // refresh to recover).
   useEffect(() => {
-    try {
-      if (fileStates.length === 0) {
-        window.localStorage.removeItem(FILE_PROGRESS_STORAGE_KEY);
-      } else {
-        window.localStorage.setItem(
-          FILE_PROGRESS_STORAGE_KEY,
-          JSON.stringify({ timestamp: Date.now(), files: fileStates }),
-        );
+    const t = setTimeout(() => {
+      try {
+        if (fileStates.length === 0) {
+          window.localStorage.removeItem(FILE_PROGRESS_STORAGE_KEY);
+        } else {
+          window.localStorage.setItem(
+            FILE_PROGRESS_STORAGE_KEY,
+            JSON.stringify({ timestamp: Date.now(), files: fileStates }),
+          );
+        }
+      } catch {
+        // Quota / disabled — safe to ignore, list still reactive in-memory.
       }
-    } catch {
-      // Quota / disabled — safe to ignore, list still reactive in-memory.
-    }
+    }, 500);
+    return () => clearTimeout(t);
   }, [fileStates]);
 
   // Seed fileStates + fileRefsRef when a new batch starts.  Tags each

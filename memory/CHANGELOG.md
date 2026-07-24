@@ -24,6 +24,48 @@ Append-only log of dated work entries. Newest at the top.
 For static product context see [PRD.md](./PRD.md).
 For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 
+## 2026-08-27 (evening) — UploadZone refactor + ETA chip
+
+**Refactor (P2 in ROADMAP, moved to done):**
+
+* `frontend/src/hooks/useFileProgressState.js` (NEW, 186 LOC) —
+  extracted per-file progress state + coalesced patcher + `File`
+  registry + localStorage rehydrate + retry helpers out of UploadZone
+  into a self-contained hook.  Public surface:
+  `{ fileStates, patchFile, initFiles, scheduleClearIfComplete,
+     clearAll, retryFileById, retryAllFailed, fileRefsRef }`.
+* `frontend/src/components/UploadZone.jsx` — dropped from ~2090 → ~1960
+  LOC (-131).  Wires the hook via one destructuring call near line 195.
+* Iter-118 code-review polish rolled in immediately:
+  - localStorage persist now **debounced** to 500ms — a 2,000-file
+    batch produces ~4 writes instead of ~2,000.
+  - Cleaned up the misleading `+ nowTick * 0` hack in the elapsed-time
+    computation.  Replaced with a `void nowTick;` marker inside the
+    ETA IIFE that makes the re-render dependency explicit.
+
+**New: ETA chip in the aggregate upload header:**
+
+* `data-testid='upload-progress-eta'` — appended to the existing
+  `data-testid='upload-progress-flight'` paragraph.  Text form:
+  `~15s left`, `~2m 34s left`, `~1h 12m left`.
+* Visibility gates (all must be true): ≥ 2 files done, ≥ 5s elapsed,
+  ≥ 1 file still pending, not airdrop mode.
+* Rate maths: `msPerFile = elapsedMs / done`, `etaMs = pending * msPerFile`.
+* Tooltip: `Averaging Xs per file across N completed. Extrapolated
+  over the M still to go.`
+* Anxiety-reducer for the 2,000-book bulk drops the user does regularly.
+
+**Testing (iter 118): 100% pass, 0 bugs.**
+
+* Verified refactor is transparent — all iter-117 behaviours still work.
+* Verified ETA visibility rules across 15-file drops (chip appears at
+  ~t=5s), <5s suppression, post-completion suppression, and airdrop-
+  mode suppression (25-file drop).
+* Verified tooltip content and middot-separated placement.
+* No console errors, no React warnings, no missing-hook-import crashes.
+
+
+
 ## 2026-08-27 (afternoon) — Per-file upload progress list
 
 User request: expand the existing "Sorting your books…" strip into a
