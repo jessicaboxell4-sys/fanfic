@@ -27,7 +27,54 @@ import {
   RotateCcw,
   Filter,
   Sparkles,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
+
+// 2026-08-27 — Tiny in-app "ding" for the 100%-success celebration.
+// Synthesized via Web Audio (two sine waves an octave-and-a-fifth
+// apart, 250 ms exponential decay) so we don't ship a base64 WAV.
+// Users have to explicitly turn sound on via the tray header toggle;
+// the default is silent so nobody gets surprised by a browser bing
+// on their first upload.
+function playCelebrateDing() {
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    const ctx = new AC();
+    const now = ctx.currentTime;
+    for (const freq of [880, 1320]) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      // Gentle bell envelope — instant attack, exponential 250ms decay.
+      gain.gain.setValueAtTime(0.09, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.25);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.26);
+    }
+    // Close the context after the ding finishes so we don't leak.
+    setTimeout(() => { try { ctx.close(); } catch { /* already closed */ } }, 500);
+  } catch {
+    // Any audio API weirdness — no-op, sound is a nice-to-have.
+  }
+}
+
+const SOUND_PREF_KEY = "shelfsort_upload_sound_on";
+function readSoundPref() {
+  try {
+    return typeof window !== "undefined" && window.localStorage.getItem(SOUND_PREF_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+function writeSoundPref(on) {
+  try {
+    window.localStorage.setItem(SOUND_PREF_KEY, on ? "1" : "0");
+  } catch { /* quota / disabled */ }
+}
 
 function formatBytes(n) {
   if (!n) return "0 B";
@@ -209,6 +256,19 @@ export default function StagedUploadTray({
   // changes or any row leaves the done state).
   const [celebrating, setCelebrating] = useState(false);
   const celebratedForBatchRef = useRef(null);
+  // 2026-08-27 — Sound-on-success preference.  Persisted to
+  // localStorage under `shelfsort_upload_sound_on`.  Defaults off.
+  const [soundOn, setSoundOn] = useState(readSoundPref);
+  const toggleSound = () => {
+    setSoundOn((prev) => {
+      const next = !prev;
+      writeSoundPref(next);
+      // Preview the ding when the user turns it on so they hear what
+      // they're signing up for — no preview on mute to keep silence.
+      if (next) playCelebrateDing();
+      return next;
+    });
+  };
 
   const totalBytes = useMemo(
     () => files.reduce((acc, f) => acc + (f.size || 0), 0),
@@ -248,9 +308,10 @@ export default function StagedUploadTray({
     if (celebratedForBatchRef.current === sig) return;
     celebratedForBatchRef.current = sig;
     setCelebrating(true);
+    if (soundOn) playCelebrateDing();
     const t = setTimeout(() => setCelebrating(false), 4000);
     return () => clearTimeout(t);
-  }, [counts, files]);
+  }, [counts, files, soundOn]);
 
   if (!files.length) return null;
 
@@ -303,7 +364,20 @@ export default function StagedUploadTray({
             </span>
           )}
         </div>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap items-center">
+          <button
+            type="button"
+            onClick={toggleSound}
+            className="inline-flex items-center justify-center w-7 h-7 rounded-md text-[#5B5F4D] hover:bg-[#F0EBE2] hover:text-[#2C2C2C] transition-colors"
+            aria-label={soundOn ? "Turn success sound off" : "Turn success sound on"}
+            aria-pressed={soundOn}
+            title={soundOn
+              ? "Success sound is ON — click to mute"
+              : "Success sound is OFF — click to play a gentle ding when a batch finishes 100% clean"}
+            data-testid="staged-tray-sound-toggle"
+          >
+            {soundOn ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+          </button>
           {counts && counts.failed > 0 && (
             <button
               type="button"

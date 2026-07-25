@@ -24,6 +24,38 @@ Append-only log of dated work entries. Newest at the top.
 For static product context see [PRD.md](./PRD.md).
 For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 
+## 2026-08-27 (celebration polish + sound) — Success ding
+
+Optional gentle "ding" that plays alongside the `✨ All N books saved`
+pill when a batch finishes 100% clean.  **Defaults OFF** — nobody gets
+surprised by a browser bing on their first upload.
+
+**Files:** `frontend/src/components/StagedUploadTray.jsx` (+~65 LOC)
+
+* `playCelebrateDing()` — Web Audio synthesized bell, two sine waves
+  (880 Hz + 1320 Hz, A5 + E6, a fifth apart), 250ms exponential decay
+  from 0.09 → 0.0001 gain.  Zero binary blob, ~15 LOC of code, closes
+  the AudioContext after 500ms so we don't leak.
+* `SOUND_PREF_KEY = "shelfsort_upload_sound_on"` in localStorage.
+  Read/write helpers with try/catch fallbacks for storage-disabled
+  browsers.
+* Speaker toggle button (`data-testid='staged-tray-sound-toggle'`)
+  in the header — 28×28 icon-only button, `Volume2` when ON,
+  `VolumeX` when OFF.  Turning ON plays a preview ding so the user
+  hears what they signed up for.
+* Wired into the existing celebration `useEffect` — plays the ding
+  the same moment the pill appears, but only if `soundOn === true`.
+  Dependency array updated to include `soundOn`.
+
+Self-verified: 5 Shelfsort lints exit 0, compile clean.  Skipped
+testing agent — this is a client-only additive UI (localStorage
+pref + Web Audio synth) with graceful no-op fallbacks for every
+possible failure mode (no AudioContext, storage disabled, autoplay
+policy).  The pill visibility path was already verified in the
+prior celebration entry.
+
+
+
 ## 2026-08-27 (celebration polish) — Staging-tray "All N books saved ✨"
 
 Tiny delight moment right after a big batch completes with 100% success.
