@@ -24,6 +24,52 @@ Append-only log of dated work entries. Newest at the top.
 For static product context see [PRD.md](./PRD.md).
 For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 
+## 2026-08-27 (iter-121) — Uniform progress UX + cross-instance sync + verified P0
+
+Three changes shipped together, all lint-green and testing-agent-verified.
+
+**1. Reverted iter-119 (uniform progress UX):**
+
+The tray is now REVIEW-ONLY.  When the user clicks Start, the tray
+disappears and the compact `<UploadFileList/>` shows progress — same
+progress UX regardless of `stagingEnabled`.  User asked for this
+because the split UX (progress-in-tray vs progress-in-list) was
+confusing.
+
+* `UploadZone.jsx` line ~2039: Tray gated back to `!uploading && stagingEnabled`
+* `UploadZone.jsx` line ~1999: `<UploadFileList/>` no longer gated behind `!stagingEnabled`
+* `UploadZone.jsx` line ~1560: `startStagedUpload` clears stagedFiles at Start
+* Dead code removed: `progressByStageKey` useMemo + `retryByStageKey` useCallback
+
+**2. Persistent "Clear all" button:**
+
+`data-testid='upload-progress-clear-all'` always visible in the compact
+list header, both during and after upload.  Label toggles: "N files in
+this batch" during upload → "N files · batch complete" after.  Clicking
+wipes fileStates + localStorage.  Tooltip warns that during-upload
+clicks only wipe the CLIENT UI (in-flight XHRs continue server-side).
+
+**3. Cross-instance staging-pref sync:**
+
+`toggleStaging` now dispatches a `shelfsort:staging-pref-changed`
+CustomEvent same-tab, and a new useEffect listens for both that AND
+the browser's native `storage` event (cross-tab).  Result: toggling
+"Stage before upload" in ANY UploadZone mount immediately updates
+every other mount, regardless of tab.  Fixes the user's "one page
+says ON, the other says OFF" confusion.
+
+**Also revalidated in this iter — the P0 concurrency fix:**
+
+Testing agent dropped 18 synthetic EPUBs → captured exactly 18 POST
+`/api/books/upload/async` requests → all 18 rows terminated in the
+Done group.  Zero files lost.  The root-cause fix (snapshot
+`CONCURRENCY` at round start) is DEFINITIVELY verified working.
+
+**Testing (iter 121): 100% pass on all 7 requested behaviours, 0
+user-facing bugs.**  All 5 Shelfsort lints exit 0.
+
+
+
 ## 2026-08-27 — **P0 ROOT CAUSE FIX** — concurrency loop was losing files
 
 **Problem:** For months, users would drop N files and see ~3–6 of them
