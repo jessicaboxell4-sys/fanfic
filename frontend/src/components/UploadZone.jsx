@@ -189,6 +189,7 @@ export default function UploadZone({ onUploaded, compact = false }) {
     patchFile,
     initFiles,
     scheduleClearIfComplete,
+    markStuckAsFailed,
     clearAll: clearFileStates,
     retryFileById,
     retryAllFailed,
@@ -1336,6 +1337,16 @@ export default function UploadZone({ onUploaded, compact = false }) {
       setUploading(false);
       setProgress({ done: 0, total: 0, batch: 1, batches: 1 });
       inFlightRef.current = false;
+      // 2026-08-27 (evening hotfix) — Guardrail against orphaned rows.
+      // If ANY code in the try{} block above threw mid-batch (rare — a
+      // malformed response body, a state-mutation exception, etc.), the
+      // outer catch on line 1317 bails BEFORE all files got their
+      // terminal patchFile.  Without this fallback those files sit in
+      // "queued" forever, which is exactly the "stuck for 15 min"
+      // failure mode reported 2026-08-27 (13 done, 3 stuck queued,
+      // zero server-side POSTs for the 3).  Snap any survivors to
+      // `failed` so the user can Retry from the list.
+      markStuckAsFailed();
       // 2026-08-27 — Clear the per-file progress list after a short
       // linger so users can review the batch outcome; then it disappears
       // (and the localStorage entry is wiped by the persist effect

@@ -124,6 +124,24 @@ export function useFileProgressState() {
     }, lingerMs);
   }, []);
 
+  // 2026-08-27 (evening hotfix) — Guardrail invoked in the `finally`
+  // block of the upload orchestrator.  If ANY exception fires mid-
+  // batch, files that hadn't yet reached a terminal state (queued /
+  // uploading / processing) are stranded forever in the visible list.
+  // This helper snaps them to `failed` with a clear reason so the
+  // user can Retry from the row.  Idempotent: called on every batch
+  // end, and no-ops when everything is already terminal.
+  const markStuckAsFailed = useCallback(
+    (reason = "Batch ended before this file was picked up — retry to try again.") => {
+      setFileStates((prev) => prev.map((f) => (
+        f.status === "queued" || f.status === "uploading" || f.status === "processing"
+          ? { ...f, status: "failed", reason: f.reason || reason, progress: 100 }
+          : f
+      )));
+    },
+    [],
+  );
+
   // Immediate wipe, used by the "Dismiss last batch results" button.
   const clearAll = useCallback(() => {
     setFileStates([]);
@@ -181,6 +199,7 @@ export function useFileProgressState() {
     patchFile,
     initFiles,
     scheduleClearIfComplete,
+    markStuckAsFailed,
     clearAll,
     retryFileById,
     retryAllFailed,
