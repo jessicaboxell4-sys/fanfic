@@ -24,6 +24,51 @@ Append-only log of dated work entries. Newest at the top.
 For static product context see [PRD.md](./PRD.md).
 For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 
+## 2026-08-27 (diagnostic logging + reload warning)
+
+Two small additions to make future uploads more debuggable and more
+forgiving of accidental refreshes.
+
+**Diagnostic logging (`window.__shelfsort_upload_debug__`):**
+
+* NEW `frontend/src/lib/uploadDebug.js` (~85 LOC) — opt-in event
+  ring-buffer with a `dbg(event, payload)` helper.  Zero-cost when
+  disabled (a single boolean short-circuit — no object construction).
+* Instrumentation added at 4 key transitions in `useFileProgressState`:
+  * `patchFile.enqueue` — every patch queued
+  * `patchFile.flush` — every 150ms flush (with ids + count)
+  * `initFiles` — every new batch init (incoming count + resumedCount)
+  * `markStuckAsFailed.sweep` — every stuck-sweep (with per-row
+    id/name/status/progress details)
+* Console commands available from DevTools:
+  * `window.__shelfsort_upload_debug__ = true` — start capturing
+  * `window.__shelfsort_upload_export__()` — copy the last 1000
+    events to clipboard as JSON (or dump to console if clipboard
+    is blocked)
+  * `window.__shelfsort_upload_clear__()` — reset the ring
+* Ring capped at 1000 entries so long batches don't leak memory.
+* `console.debug` used (not `warn`), so it hides under DevTools'
+  "Verbose" filter for anyone who accidentally leaves it on.
+
+**Reload-warning amber banner + `beforeunload` prompt:**
+
+* NEW banner `data-testid='upload-in-progress-banner'` — renders at
+  the top of the UploadZone whenever `fileStates` has any
+  non-terminal (queued/uploading/processing) rows.  Amber, one-line,
+  subtle: *"3 uploads in progress — reloading now will require
+  another re-drop."*
+* Complementary `beforeunload` listener — triggers the browser's
+  native "Leave / Stay" confirmation when the user tries to close/
+  reload the tab while `inProgressCount > 0`.  Attached only while
+  there ARE in-progress uploads; detached the moment the count
+  drops to 0 so idle-page navigations aren't blocked.
+* Auto-resume already handles the recovery path if the user reloads
+  anyway, so this is purely a "spare an unnecessary re-drop" hint.
+
+All 5 Shelfsort lints exit 0.  Compile clean.
+
+
+
 ## 2026-08-27 (late-late) — Stuck-sweep polish: better reasons + delayed sweep
 
 Follow-up to the earlier `markStuckAsFailed` hotfix.  The reason "Batch

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { UploadCloud, Loader2, FolderUp, ShieldCheck } from "lucide-react";
+import { UploadCloud, Loader2, FolderUp, ShieldCheck, AlertTriangle } from "lucide-react";
 import { api } from "../lib/api";
 import { toast } from "sonner";
 import {
@@ -221,6 +221,30 @@ export default function UploadZone({ onUploaded, compact = false }) {
     }
     return out;
   }, [fileStates, stagedFiles]);
+
+  // 2026-08-27 — Non-terminal count for the reload warning + amber
+  // "reload will require a re-drop" banner.  Recomputed on every
+  // fileStates change.
+  const inProgressCount = useMemo(
+    () => fileStates.filter((f) => f.status === "queued" || f.status === "uploading" || f.status === "processing").length,
+    [fileStates],
+  );
+
+  // Warn the user if they try to close/reload the tab while uploads
+  // are in flight.  The auto-resume path lets them recover any
+  // interrupted files by re-dropping, but a friendly prompt still
+  // spares an unnecessary re-drop dance.  Firefox / Chromium show
+  // the browser's native confirmation and ignore the custom message.
+  useEffect(() => {
+    if (inProgressCount === 0) return;
+    const onBeforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = "You have uploads in progress. Reloading will require re-dropping those files.";
+      return e.returnValue;
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [inProgressCount]);
 
   // Per-row retry handler wired to __stageKey (what the tray knows)
   // → __shelfsortId (what fileRefsRef indexes on).
@@ -1650,6 +1674,22 @@ export default function UploadZone({ onUploaded, compact = false }) {
           <ShieldCheck className="w-3 h-3" aria-hidden="true" /> AI-off mode available
         </span>
       </div>
+      {/* 2026-08-27 — Reload-warning amber banner.  Complements the
+          browser's native beforeunload prompt above.  Purely
+          informational; auto-resume already handles the recovery
+          case if the user does reload. */}
+      {inProgressCount > 0 && (
+        <div
+          data-testid="upload-in-progress-banner"
+          className="mb-3 px-4 py-2 rounded-lg bg-[#FBF1D6] border border-[#E8D89A] text-xs text-[#7C5F1F] flex items-center gap-2"
+        >
+          <AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden />
+          <span>
+            {inProgressCount} upload{inProgressCount === 1 ? "" : "s"} in progress — reloading now
+            will require {inProgressCount === 1 ? "a" : "another"} re-drop.
+          </span>
+        </div>
+      )}
       {/* Resume-after-refresh banner — shown briefly on mount while we
           re-attach to any in-flight upload jobs that were started in a
           previous tab/session.  Vanishes the moment those jobs finish

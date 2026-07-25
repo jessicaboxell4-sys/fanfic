@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { dbg } from "../lib/uploadDebug";
 
 // 2026-08-27 — Per-file upload progress state, extracted out of
 // UploadZone.jsx (which had ballooned past 2,000 lines).  This hook
@@ -69,6 +70,7 @@ export function useFileProgressState() {
   // job-status polling) but flushed at most every PATCH_FLUSH_MS.
   const patchFile = useCallback((id, patch) => {
     if (!id) return;
+    dbg("patchFile.enqueue", { id, patch });
     const merged = { ...(pendingPatchesRef.current.get(id) || {}), ...patch };
     pendingPatchesRef.current.set(id, merged);
     if (patchFlushTimerRef.current) return;
@@ -76,6 +78,7 @@ export function useFileProgressState() {
       const patches = pendingPatchesRef.current;
       pendingPatchesRef.current = new Map();
       patchFlushTimerRef.current = null;
+      dbg("patchFile.flush", { count: patches.size, ids: Array.from(patches.keys()) });
       setFileStates((prev) => prev.map((f) => (patches.has(f.id) ? { ...f, ...patches.get(f.id) } : f)));
     }, PATCH_FLUSH_MS);
   }, []);
@@ -150,6 +153,7 @@ export function useFileProgressState() {
     const resumedCount = prev.length - kept.length;
 
     setFileStates([...kept, ...initial]);
+    dbg("initFiles", { incomingCount: filesToSend.length, resumedCount, keptCount: kept.length });
     return { initial, resumedCount };
   }, []);
 
@@ -192,27 +196,36 @@ export function useFileProgressState() {
       // pending terminal patches (done / skipped / real-failure) win
       // over the sweep.
       setTimeout(() => {
-        setFileStates((prev) => prev.map((f) => {
-          if (f.status !== "queued" && f.status !== "uploading" && f.status !== "processing") {
-            return f;
+        setFileStates((prev) => {
+          const stuck = prev.filter((f) => f.status === "queued" || f.status === "uploading" || f.status === "processing");
+          if (stuck.length > 0) {
+            dbg("markStuckAsFailed.sweep", {
+              stuckCount: stuck.length,
+              stuckSummary: stuck.map((f) => ({ id: f.id, name: f.name, status: f.status, progress: f.progress })),
+            });
           }
-          // Status-aware reason so the user gets useful signal instead
-          // of a generic "batch ended" message.
-          let reason;
-          if (f.reason) {
-            // sendOne already recorded something — preserve it.
-            reason = f.reason;
-          } else if (f.status === "queued" && (f.progress || 0) === 0) {
-            reason = "Not picked up — re-drop to try again.";
-          } else if (f.status === "uploading") {
-            reason = "Upload interrupted mid-transfer — re-drop to resume.";
-          } else if (f.status === "processing") {
-            reason = "Server-side processing was interrupted — re-drop to try again.";
-          } else {
-            reason = "Batch ended before this file finished — re-drop to try again.";
-          }
-          return { ...f, status: "failed", reason, progress: 100, sessionInterrupted: true };
-        }));
+          return prev.map((f) => {
+            if (f.status !== "queued" && f.status !== "uploading" && f.status !== "processing") {
+              return f;
+            }
+            // Status-aware reason so the user gets useful signal instead
+            // of a generic "batch ended" message.
+            let reason;
+            if (f.reason) {
+              // sendOne already recorded something — preserve it.
+              reason = f.reason;
+            } else if (f.status === "queued" && (f.progress || 0) === 0) {
+              reason = "Not picked up — re-drop to try again.";
+            } else if (f.status === "uploading") {
+              reason = "Upload interrupted mid-transfer — re-drop to resume.";
+            } else if (f.status === "processing") {
+              reason = "Server-side processing was interrupted — re-drop to try again.";
+            } else {
+              reason = "Batch ended before this file finished — re-drop to try again.";
+            }
+            return { ...f, status: "failed", reason, progress: 100, sessionInterrupted: true };
+          });
+        });
       }, 200);
     },
     [],
