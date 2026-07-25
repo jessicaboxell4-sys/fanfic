@@ -141,6 +141,15 @@ export function UploadFileList({ files, onRetry, onRetryAll }) {
     [files],
   );
 
+  // 2026-08-27 (evening) — Retry-all button honesty.  Rows tagged
+  // `sessionInterrupted` can't be retried through this path (they
+  // need a re-drop to auto-resume — see UploadFileRow's redrop hint),
+  // so count them separately and reflect that in the button label.
+  const retryableFailedCount = useMemo(
+    () => failedFilesForCopy.filter((f) => !f.sessionInterrupted).length,
+    [failedFilesForCopy],
+  );
+
   const handleCopyFailed = useCallback(async () => {
     if (failedFilesForCopy.length === 0) return;
     const lines = failedFilesForCopy.map((f) => {
@@ -208,15 +217,20 @@ export function UploadFileList({ files, onRetry, onRetryAll }) {
             </option>
           ))}
         </select>
-        {failedCount > 0 && typeof onRetryAll === "function" && (
+        {retryableFailedCount > 0 && typeof onRetryAll === "function" && (
           <button
             type="button"
             onClick={onRetryAll}
             className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-[#FBE2E0] text-[#7C2D2A] border border-[#E8B5B0] hover:bg-[#F8D2CE] focus:outline-none focus:ring-2 focus:ring-[#7C2D2A]/40 transition-colors"
             data-testid="upload-progress-retry-all"
+            title={
+              retryableFailedCount === failedCount
+                ? undefined
+                : `${failedCount - retryableFailedCount} more failed row${failedCount - retryableFailedCount === 1 ? "" : "s"} need${failedCount - retryableFailedCount === 1 ? "s" : ""} a re-drop (session interrupted).`
+            }
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            Retry all failed ({failedCount})
+            Retry all failed ({retryableFailedCount === failedCount ? failedCount : `${retryableFailedCount} of ${failedCount}`})
           </button>
         )}
         {failedFilesForCopy.length > 0 && (

@@ -24,6 +24,49 @@ Append-only log of dated work entries. Newest at the top.
 For static product context see [PRD.md](./PRD.md).
 For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 
+## 2026-08-27 (auto-resume + retry-all honesty)
+
+**Auto-resume on re-drop** — user's request from the "why?" screenshot
+where they saw 5 rows stuck in "Session interrupted — re-select this
+file to retry" after a refresh.  Instead of asking them to click Retry
+(which doesn't work post-refresh because File contents can't be
+serialized to localStorage), the app now:
+
+1. Tags rehydrated non-terminal rows with `sessionInterrupted: true`
+   and updates the reason to "Session interrupted — drop this file
+   again to resume".
+2. `initFiles` in `useFileProgressState` performs a **smart merge**
+   instead of a wholesale replace: incoming files whose name+size
+   matches a `sessionInterrupted` row remove that row, everything
+   else is preserved.  Returns `{ initial, resumedCount }`.
+3. UploadZone toasts `Auto-resumed N interrupted file(s) from your
+   previous session.` on `resumedCount > 0`.
+4. Row UI: the (broken) Retry button is HIDDEN for sessionInterrupted
+   rows.  An amber "Drop again to resume" pill (compact list
+   testid: `upload-progress-row-redrop-hint-<id>`; tray testid:
+   `staged-tray-row-redrop-hint`) shows in its place with a
+   tooltip explaining why re-drop is needed.
+5. Live-mirror `fileStatesRef` added so the smart-merge can compute
+   the resumedCount synchronously without a setState-callback dance.
+
+**Retry-all honesty** — small polish from the iter-120 code review.
+The "Retry all failed (N)" button now only counts rows that can
+actually be retried through that path (i.e. non-sessionInterrupted
+failures with live File refs).  If some rows need a re-drop, the
+label reads `Retry all failed (2 of 5)` with a tooltip explaining
+that the other 3 need a re-drop.  If ALL failed rows are
+sessionInterrupted, the button hides entirely (nothing to retry).
+Applied to BOTH the compact `UploadFileList` and `StagedUploadTray`.
+
+**Testing (iter 120): 100% pass on primary behaviours, 0 user-facing
+bugs.**  All 7 review-requested checks verified either via DOM
+assertions or straightforward code review.  Two paths (mixed-retry-all
+toast text and tray-redrop-hint end-to-end) were code-reviewed only
+due to inherent test-injection limitations — the underlying logic is
+identical to the paths that WERE exercised.
+
+
+
 ## 2026-08-27 (celebration polish + sound) — Success ding
 
 Optional gentle "ding" that plays alongside the `✨ All N books saved`

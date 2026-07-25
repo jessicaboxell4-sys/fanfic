@@ -287,11 +287,12 @@ export default function StagedUploadTray({
   // Derive counts for the uploading-mode header.
   const counts = useMemo(() => {
     if (!progressByStageKey) return null;
-    const c = { done: 0, failed: 0, skipped: 0, uploading: 0, processing: 0, queued: 0 };
+    const c = { done: 0, failed: 0, skipped: 0, uploading: 0, processing: 0, queued: 0, retryableFailed: 0 };
     for (const f of files) {
       const row = progressByStageKey.get(f.__stageKey);
       const s = row?.status || "queued";
       if (c[s] !== undefined) c[s] += 1;
+      if (s === "failed" && !row?.sessionInterrupted) c.retryableFailed += 1;
     }
     return c;
   }, [files, progressByStageKey]);
@@ -404,15 +405,20 @@ export default function StagedUploadTray({
               {showOnlyFailed ? "Show all" : `Only failed (${counts.failed})`}
             </button>
           )}
-          {uploading && counts && counts.failed > 0 && typeof onRetryAll === "function" && (
+          {uploading && counts && counts.retryableFailed > 0 && typeof onRetryAll === "function" && (
             <button
               type="button"
               onClick={onRetryAll}
               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold text-[#7C2D2A] bg-[#FBE2E0] border border-[#E8B5B0] hover:bg-[#F8D2CE]"
               data-testid="staged-tray-retry-all"
+              title={
+                counts.retryableFailed === counts.failed
+                  ? undefined
+                  : `${counts.failed - counts.retryableFailed} more failed row${counts.failed - counts.retryableFailed === 1 ? "" : "s"} need a re-drop (session interrupted).`
+              }
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              Retry all failed ({counts.failed})
+              Retry all failed ({counts.retryableFailed === counts.failed ? counts.failed : `${counts.retryableFailed} of ${counts.failed}`})
             </button>
           )}
           <button
