@@ -30,7 +30,7 @@ rebuild incident on 2026-07-19 — cost hours to recover 100 testids).
 
 Before EVERY deploy the assistant MUST:
 1. **REMIND the user to "Save to Github" first.** Do not say "ready to deploy" without this reminder.
-2. **Review Help pages** — every user-facing feature shipped since the last deploy needs matching copy in `Help.jsx` (or `AdminHelp.jsx` for admin-only). The auto-generated "What's New" strip reads from CHANGELOG.md; static how-to sections do NOT auto-update.
+2. **AUTO-UPDATE Help.jsx (and AdminHelp.jsx for admin-facing changes)** with any user-facing changes shipped since the last deploy. Do NOT wait for the user to ask.  Review CHANGELOG.md entries since the last deployed commit; for each user-facing change, add or revise the relevant paragraph in `/app/frontend/src/pages/Help.jsx`.  If nothing user-visible shipped, say so explicitly ("Help pages already current — nothing user-facing shipped this cycle").  See `/app/memory/CONVENTIONS.md` §0.5.
 3. Confirm `python3 /app/scripts/deploy_drift_check.py` reports **0 drift**. *(Note: as of 2026-08-27, Emergent Support confirmed that `.env` entries in `.gitignore` are **intentional and safe** — Save-to-Github writes them to prevent secrets leaking. The old `env_gitignore_sentinel.py` has been neutralized; ignore any older docs that claim `.env` in `.gitignore` is a bug.)*
 4. Confirm `bash /app/scripts/run_all_lints.sh --quiet` reports all 5 lints green (dark-mode coverage, tiny-font, gitignore health, bg-white/N in-card, text-contrast).  This is the actual gate the local pre-commit hook enforces — failing any of these is what breaks "Save to Github".
 5. Confirm `python3 /app/scripts/route_sentinel.py` PASSES.

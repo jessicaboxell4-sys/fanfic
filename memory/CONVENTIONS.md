@@ -8,6 +8,45 @@ the most recent CHANGELOG entry that mentions the convention.
 
 ---
 
+## ⚠️ 0.5 "READY TO DEPLOY?" = AUTO-UPDATE HELP PAGES (2026-08-27) ⚠️
+
+> **Whenever the user asks "are we ready to deploy?" or any variant
+> ("ship it?", "deploy check?", "good to go?"), the deploy-readiness
+> checklist MUST include auto-updating `/app/frontend/src/pages/Help.jsx`
+> and (if admin-facing changes shipped) `/app/frontend/src/pages/AdminHelp.jsx`
+> BEFORE reporting green.**
+
+**Concrete rule:**
+
+1. When "deploy ready?" is asked, review CHANGELOG.md entries since
+   the last deployed commit.  For each user-facing change, add or
+   revise a paragraph in the relevant Help.jsx section.
+2. For admin-facing / operational changes (new diagnostics, new
+   backend endpoints, tuning notes), also update AdminHelp.jsx.
+3. Only AFTER Help updates are written do you run lints + report
+   "ready to deploy".
+4. If there's nothing user-visible since the last deploy, say so
+   explicitly ("Help pages already current — nothing user-facing
+   shipped this cycle") rather than skipping the step silently.
+
+**Why:** the auto-generated "What's New" strip reads from
+CHANGELOG.md, but static how-to sections do NOT auto-update.  Users
+land on `/help` looking for the new UI they just noticed and see
+stale docs.  This rule closes that gap without the user having to
+ask twice.
+
+**Historical example (2026-08-27):** shipped a massive uploads UX
+overhaul (per-file progress list, ETA, celebration, auto-resume,
+staging tray, cross-instance sync, P0 concurrency fix, etc.) and
+declared the app "ready to deploy" — user had to remind me to
+update Help.jsx before deploying.  This rule prevents that.
+
+---
+
+
+
+---
+
 ## ⚠️ 0. USER PUSHBACK = BUG SIGNAL (2026-08-27) ⚠️
 
 > **When the user pushes back on a fix, on a "solved" feature, or on
