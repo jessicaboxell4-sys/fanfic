@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { UploadCloud, Loader2, FolderUp, ShieldCheck } from "lucide-react";
 import { api } from "../lib/api";
@@ -195,6 +195,43 @@ export default function UploadZone({ onUploaded, compact = false }) {
     retryAllFailed,
     fileRefsRef,
   } = useFileProgressState();
+
+  // 2026-08-27 — Bridge between the staging tray (keyed by
+  // File.__stageKey = "name::size") and fileStates (keyed by
+  // File._shelfsortId = "name::size::idx::timestamp").  We look up
+  // each staged File's `_shelfsortId` at render time (set inside
+  // useFileProgressState.initFiles) and map its progress row back
+  // to the stageKey so StagedUploadTray can render the bar.
+  const progressByStageKey = useMemo(() => {
+    if (fileStates.length === 0) return new Map();
+    // Build a fast id -> row lookup once.
+    const byId = new Map();
+    for (const row of fileStates) byId.set(row.id, row);
+    // For every staged File whose `_shelfsortId` maps to a row, emit
+    // an entry keyed by its `__stageKey`.  Files staged but never
+    // uploaded (or from a stale batch whose IDs no longer match)
+    // simply don't appear in the returned map — the tray then
+    // renders them in classic pre-upload mode with no bar.
+    const out = new Map();
+    for (const file of stagedFiles) {
+      const shelfsortId = file._shelfsortId;
+      if (!shelfsortId) continue;
+      const row = byId.get(shelfsortId);
+      if (row) out.set(file.__stageKey, row);
+    }
+    return out;
+  }, [fileStates, stagedFiles]);
+
+  // Per-row retry handler wired to __stageKey (what the tray knows)
+  // → __shelfsortId (what fileRefsRef indexes on).
+  const retryByStageKey = useCallback((stageKey) => {
+    const file = stagedFiles.find((f) => f.__stageKey === stageKey);
+    if (!file || !file._shelfsortId) {
+      toast.error("Can't retry — the original file reference is no longer available.");
+      return;
+    }
+    retryFileById(file._shelfsortId);
+  }, [stagedFiles, retryFileById]);
   // 1-second heartbeat so the "Xs elapsed" line in the progress UI
   // re-renders even when no file has resolved yet.  Only ticking
   // while ``uploading`` is true keeps it a no-op the rest of the time.
@@ -1443,16 +1480,42 @@ export default function UploadZone({ onUploaded, compact = false }) {
   const removeFromStaged = (key) => {
     setStagedFiles((prev) => prev.filter((f) => f.__stageKey !== key));
   };
-  const clearStaged = () => setStagedFiles([]);
   const startStagedUpload = () => {
     if (stagedFiles.length === 0 || uploading) return;
-    const batch = stagedFiles;
-    setStagedFiles([]);
+    // 2026-08-27 — Only upload files that haven't already been
+    // processed in a prior batch (i.e. their __stageKey has no
+    // terminal progress row).  Prevents re-uploading files that
+    // already show as Done/Skipped/Failed in the tray from a
+    // previous Start click.  Users can hit "Clear all" to wipe.
+    const alreadyDone = new Set();
+    for (const f of stagedFiles) {
+      const row = progressByStageKey.get(f.__stageKey);
+      if (row && (row.status === "done" || row.status === "skipped" || row.status === "failed")) {
+        alreadyDone.add(f.__stageKey);
+      }
+    }
+    const batch = stagedFiles.filter((f) => !alreadyDone.has(f.__stageKey));
+    if (batch.length === 0) {
+      toast.info("All staged files already finished.  Clear the tray to start fresh.");
+      return;
+    }
+    // NOTE: intentionally do NOT clear stagedFiles here — we keep the
+    // list visible during upload so the tray can render per-file
+    // progress on each row.  The tray is cleared when the user hits
+    // "Clear all" from the completed-batch header (see clearStaged).
     // The draft has done its job — clear it so the restore banner
     // doesn't fire next time the user comes back.
     api.delete("/uploads/staged-drafts").catch(() => {});
     setStagedDraft(null);
     handleFiles(batch);
+  };
+
+  // "Clear all" now also wipes the fileStates list so a fresh drop
+  // starts with a clean slate.  Called both from the tray's Clear-all
+  // button (idle state only, disabled while uploading).
+  const clearStaged = () => {
+    setStagedFiles([]);
+    clearFileStates();
   };
 
   // 2026-07-06 — Debounced draft autosave.  Fires ~1s after the last
@@ -1880,8 +1943,12 @@ export default function UploadZone({ onUploaded, compact = false }) {
         When `uploading` is false and there are still rows to show, we
         render a small "Dismiss" button so the user can wipe the results
         and return to the compact drop-zone.  During active uploads we
-        hide Dismiss (no way to cancel in-flight uploads). */}
-    {fileStates.length > 0 && (
+        hide Dismiss (no way to cancel in-flight uploads).
+        2026-08-27 (evening) — Suppressed when `stagingEnabled` is on:
+        the StagedUploadTray above shows the same per-file progress in
+        a roomier row layout that the user prefers.  Two lists would be
+        redundant. */}
+    {!stagingEnabled && fileStates.length > 0 && (
       <div className="mt-4">
         {!uploading && (
           <div className="flex justify-end mb-2">
@@ -1905,8 +1972,13 @@ export default function UploadZone({ onUploaded, compact = false }) {
     {/* 2026-07-06 — Staged tray.  Renders directly below the
         dropzone when files are queued.  Empty state is the
         component returning null, so when there's nothing staged
-        the layout collapses cleanly. */}
-    {!uploading && stagingEnabled && (
+        the layout collapses cleanly.
+        2026-08-27 — Removed the `!uploading` gate so the tray stays
+        visible during the upload itself and shows per-file progress
+        on each row.  When staging is enabled, the tray is the sole
+        progress display (see the `stagingEnabled ? null : <UploadFileList/>`
+        further down). */}
+    {stagingEnabled && (
       <StagedUploadTray
         files={stagedFiles}
         onRemove={removeFromStaged}
@@ -1914,6 +1986,10 @@ export default function UploadZone({ onUploaded, compact = false }) {
         onStart={startStagedUpload}
         busy={uploading}
         capacity={STAGED_CAP}
+        uploading={uploading}
+        progressByStageKey={progressByStageKey}
+        onRetry={retryByStageKey}
+        onRetryAll={retryAllFailed}
       />
     )}
     {/* 2026-07-06 — Restore banner: only render when staging is on,
