@@ -24,6 +24,37 @@ Append-only log of dated work entries. Newest at the top.
 For static product context see [PRD.md](./PRD.md).
 For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 
+## 2026-08-27 — "Stage before upload" now defaults ON
+
+Per user preference: new visitors should see the staging tray by
+default so they can review a drop before hitting Start, rather than
+having their files auto-upload the moment they drag them in.
+
+`frontend/src/components/UploadZone.jsx` — one-line pref logic flip:
+
+```js
+// Before:
+return localStorage.getItem(STAGED_PREF_KEY) === "1";     // default OFF
+// After:
+return localStorage.getItem(STAGED_PREF_KEY) !== "0";     // default ON
+```
+
+**Behaviour matrix (unchanged for existing users):**
+
+| Stored pref | Old default | New default |
+|-------------|-------------|-------------|
+| `"1"`       | ON          | ON          |
+| `"0"`       | OFF         | OFF         |
+| (missing)   | OFF         | **ON**      |
+| storage disabled | OFF    | **ON**      |
+
+Only first-time visitors + storage-blocked users see the new default.
+Anyone who's ever toggled the pref keeps their explicit choice.
+
+All 5 Shelfsort lints exit 0.
+
+
+
 ## 2026-08-27 (diagnostic logging + reload warning)
 
 Two small additions to make future uploads more debuggable and more

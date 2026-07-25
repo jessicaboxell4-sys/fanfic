@@ -154,10 +154,14 @@ export default function UploadZone({ onUploaded, compact = false }) {
   const STAGED_CAP = 2000;
   const STAGED_PREF_KEY = "shelfsort_stage_before_upload";
   const [stagingEnabled, setStagingEnabled] = useState(() => {
+    // 2026-08-27 — Default ON per user request.  Only treat the pref
+    // as OFF when the user has EXPLICITLY set "0" — a first-time
+    // visitor with no stored pref should see the staging tray so
+    // they can review the drop before hitting Start.
     try {
-      return localStorage.getItem(STAGED_PREF_KEY) === "1";
+      return localStorage.getItem(STAGED_PREF_KEY) !== "0";
     } catch {
-      return false;
+      return true;
     }
   });
   const [stagedFiles, setStagedFiles] = useState([]);
