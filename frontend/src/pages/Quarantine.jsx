@@ -253,6 +253,41 @@ function QuarantineGroup({ group, onResolve, onNotDuplicate, onKeepLatest, busyI
         </button>
       </div>
       <div>
+        {/* 2026-07-25 — Keeper preview card so the user can compare
+            titles / authors / source URLs side-by-side against each
+            incoming duplicate without having to expand "Why we caught
+            this".  Prod feedback: "there is only one copy showing".  */}
+        <div
+          data-testid={`quarantine-keeper-card-${group.keeper.book_id}`}
+          className="flex items-start gap-3 p-3 bg-[#FBFAF6]"
+        >
+          <CoverThumb bookId={group.keeper.book_id} hasCover={group.keeper.has_cover} />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-[#EDE7CE] text-[#5B5F4D] border border-[#D9CFB1]">
+                <Bookmark className="w-2.5 h-2.5" /> On your shelf
+              </span>
+              <Link
+                to={`/book/${group.keeper.book_id}`}
+                className="text-[10px] text-[#6B46C1] hover:underline inline-flex items-center gap-0.5"
+              >
+                Open <ExternalLink className="w-2.5 h-2.5" />
+              </Link>
+            </div>
+            <p className="font-medium text-sm text-[#2C2C2C] truncate">{group.keeper.title || "Untitled"}</p>
+            <p className="text-xs text-[#5B5F4D] truncate">by {group.keeper.author || "Unknown"}</p>
+            {group.keeper.source_url && (
+              <p className="mt-0.5 text-[10px] text-[#5B5F4D] truncate font-mono" title={group.keeper.source_url}>
+                {group.keeper.source_url}
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="px-3 pb-1 -mt-1">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-[#5B5F4D]">
+            {group.duplicates.length === 1 ? "New upload flagged as duplicate" : `${group.duplicates.length} new uploads flagged as duplicates`}
+          </p>
+        </div>
         {group.duplicates.map((dup) => (
           <QuarantineRow
             key={dup.book_id}
