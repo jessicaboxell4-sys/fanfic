@@ -24,6 +24,76 @@ Append-only log of dated work entries. Newest at the top.
 For static product context see [PRD.md](./PRD.md).
 For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 
+## 2026-08-27 (late evening) — Tray-during-upload + stuck-queue hotfix
+
+**User-requested change:** the StagedUploadTray now STAYS VISIBLE during
+upload and morphs into a per-file progress view.  Previously the tray
+hid the moment Start was clicked and my new compact UploadFileList took
+over — users prefer watching the tray they were reviewing evolve into
+progress rows.
+
+**Shipped:**
+
+* `frontend/src/components/StagedUploadTray.jsx` (REWRITE, 258 LOC)
+  * New props: `uploading`, `progressByStageKey`, `onRetry`, `onRetryAll`.
+  * Header morphs when `uploading=true`: `N files ready · X.X MB · Start` →
+    `Uploading X of Y · N ok · M skipped · P failed`.  Start button
+    hidden.  Clear-all disabled.
+  * Each row (`data-testid='staged-tray-row'`) gains an inline progress
+    bar under the size text.  Status label right-aligned:
+    `Waiting…` / `26%` / `Processing` / `Done` / `Skipped` / `Failed`.
+    Six state colors matching the compact list.
+  * Per-row Retry button (`data-testid='staged-tray-row-retry'`) on
+    failed rows only.
+  * Header retry-all button (`data-testid='staged-tray-retry-all'`)
+    appears when any row is failed.
+  * Remove-X button hidden for terminal rows; disabled for non-queued
+    during upload.
+
+* `frontend/src/components/UploadZone.jsx`
+  * New `progressByStageKey` `useMemo` bridge: each staged File carries
+    both a `__stageKey` (from the tray) and a `_shelfsortId` (from the
+    hook).  The memo builds a Map<stageKey, progressRow> for the tray.
+  * `startStagedUpload` no longer clears `stagedFiles` at kickoff — the
+    tray stays populated.  Filters out already-done files so a
+    re-click-Start doesn't re-upload the terminal rows; shows a
+    "All staged files already finished — clear the tray to start
+    fresh" toast instead.
+  * `clearStaged` now also wipes `fileStates` (via `clearFileStates`).
+  * `<UploadFileList/>` gated behind `!stagingEnabled` — when staging
+    is on, the tray is the sole progress display (no double view).
+  * `<StagedUploadTray/>` no longer gated behind `!uploading`.
+
+**Hotfix (P0):** stuck-queue bug from the same session.
+
+* Root cause: a rare exception in `handleFiles`'s try-block leaves the
+  outer catch to fire a generic toast and jump to `finally` without
+  marking non-terminal files as failed.  Result: files sitting in
+  `queued` forever with zero server-side POSTs (exactly matching the
+  screenshot: 13 done, 3 stuck queued, 15 min elapsed, no upload jobs
+  in the backend log).
+* Fix: new `markStuckAsFailed(reason)` helper on `useFileProgressState`.
+  Called from `handleFiles`' `finally` block.  Snaps any lingering
+  `queued`/`uploading`/`processing` row to `failed` with reason
+  "Batch ended before this file was picked up — retry to try again."
+  Idempotent, no-ops when everything is already terminal.
+
+**Testing (iter 119): 100% pass on happy path.**
+
+* End-to-end 5-file upload with staging=on verified all 8 primary
+  behaviours (header morph, Start hide, Clear disable, per-row bars 0%
+  → 100%, terminal-row X hide, dedupe toast on re-click-Start,
+  Clear-all wipes both lists + localStorage, compact list suppressed).
+* Regression pass: staging=off still uses the compact UploadFileList
+  as before.  0 console errors, 0 pageerrors, 13 upload POSTs at
+  concurrency-limited pace, polling GETs to `/jobs/{id}`.
+* Retry-per-row + retry-all + stuck-queue backstop code-verified via
+  review; DOM path not exercised because 503s auto-retry indefinitely
+  (pre-existing sliding-window transient-retry logic — unrelated to
+  the new code).
+
+
+
 ## 2026-08-27 (late evening) — Copy stuck rows
 
 Small QoL enhancement on top of the per-file upload progress list.
