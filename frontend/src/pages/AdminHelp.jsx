@@ -653,6 +653,12 @@ export default function AdminHelp() {
             <p>
               <strong>What to do when the chart goes red</strong>: click into the most-recent bad batch, note the <em>transient retries</em> and <em>throttle events</em> columns. Lots of retries + zero throttling ⇒ the sliding-window isn&apos;t catching the pattern early enough; consider lowering <code>TRANSIENT_THROTTLE</code>. Lots of throttling + still high failures ⇒ origin is truly saturated; consider lowering the concurrency ceiling or exploring direct-to-R2 uploads. When you make a change, add a bullet to the &ldquo;Tuning history&rdquo; footer in the code so the chart stays self-documenting.
             </p>
+            <p>
+              <strong>2026-08-27 milestone — silent-file-loss bug fixed.</strong> For months, roughly 3 files per big batch would silently vanish (never POSTed, never marked failed, just stuck in <em>Waiting</em>) requiring users to manually re-drop. Root cause: the concurrency loop was reading the sliding-window <code>CONCURRENCY</code> variable AFTER it had been mutated by slow-start ramp / transient-throttle during the <code>await Promise.allSettled</code>, causing the loop&apos;s <code>i += CONCURRENCY</code> increment to mismatch the round-slice size. Fix in <code>UploadZone.jsx</code>: snapshot <code>CONCURRENCY</code> at round start via <code>const roundSize = CONCURRENCY;</code> and use that same value for both the slice AND the increment. Verified with a 20-file simulation (old code lost exactly files 6, 11, 17 on a 3→6 ramp; new code loses zero) and the testing agent&apos;s 18-file end-to-end run (18 POSTs captured, 18 done, zero missing).
+            </p>
+            <p>
+              <strong>Diagnostic logging for future upload bugs.</strong> A zero-cost opt-in event ring-buffer lives at <code>window.__shelfsort_upload_debug__</code>. Users hitting a stuck-batch symptom can enable it before dropping files, reproduce, then run <code>window.__shelfsort_upload_export__()</code> in DevTools — copies the last 1,000 events (patchFile enqueues + flushes, initFiles seeds, markStuckAsFailed sweeps) to their clipboard as JSON. Ping them to paste it into a support ticket for near-instant root-causing.
+            </p>
           </Section>
 
           <Section id="troubleshooting" icon={LifeBuoy} title="Troubleshooting & console slowness">
