@@ -14,7 +14,7 @@
 // non-EPUB confirms, big-library chunking) stays the single
 // source of truth.
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Play,
   X,
@@ -25,6 +25,7 @@ import {
   AlertTriangle,
   XCircle,
   RotateCcw,
+  Filter,
 } from "lucide-react";
 
 function formatBytes(n) {
@@ -195,6 +196,10 @@ export default function StagedUploadTray({
   onRetry,
   onRetryAll,
 }) {
+  // 2026-08-27 — "Show only failed" toggle for big batches.  Not
+  // persisted — resets on unmount so the next batch starts fresh.
+  const [showOnlyFailed, setShowOnlyFailed] = useState(false);
+
   const totalBytes = useMemo(
     () => files.reduce((acc, f) => acc + (f.size || 0), 0),
     [files],
@@ -211,6 +216,14 @@ export default function StagedUploadTray({
     }
     return c;
   }, [files, progressByStageKey]);
+
+  // Derived visible list.  When the toggle is on, only failed rows
+  // render — but the header counts + `counts.failed` still reflect the
+  // full batch so the button label stays accurate.
+  const visibleFiles = useMemo(() => {
+    if (!showOnlyFailed || !progressByStageKey) return files;
+    return files.filter((f) => progressByStageKey.get(f.__stageKey)?.status === "failed");
+  }, [files, progressByStageKey, showOnlyFailed]);
 
   if (!files.length) return null;
 
@@ -254,6 +267,23 @@ export default function StagedUploadTray({
           )}
         </div>
         <div className="flex gap-2 flex-wrap">
+          {counts && counts.failed > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowOnlyFailed((v) => !v)}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold border transition-colors ${
+                showOnlyFailed
+                  ? "bg-[#7C2D2A] text-white border-[#7C2D2A] hover:bg-[#5C1F1E]"
+                  : "bg-white text-[#7C2D2A] border-[#E8B5B0] hover:bg-[#FBE2E0]"
+              }`}
+              data-testid="staged-tray-show-failed-only"
+              aria-pressed={showOnlyFailed}
+              title={showOnlyFailed ? "Show all rows again" : "Hide everything except failed rows"}
+            >
+              <Filter className="w-3.5 h-3.5" />
+              {showOnlyFailed ? "Show all" : `Only failed (${counts.failed})`}
+            </button>
+          )}
           {uploading && counts && counts.failed > 0 && typeof onRetryAll === "function" && (
             <button
               type="button"
@@ -294,7 +324,15 @@ export default function StagedUploadTray({
         className="max-h-96 overflow-y-auto divide-y divide-[#F0E8D6]"
         data-testid="staged-tray-list"
       >
-        {files.map((f) => (
+        {visibleFiles.length === 0 && showOnlyFailed && (
+          <li
+            className="px-4 py-6 text-center text-xs italic text-[#5B5F4D]"
+            data-testid="staged-tray-empty-filter"
+          >
+            No failed rows in the current batch.
+          </li>
+        )}
+        {visibleFiles.map((f) => (
           <StagedRow
             key={f.__stageKey}
             file={f}

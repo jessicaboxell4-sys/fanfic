@@ -24,6 +24,35 @@ Append-only log of dated work entries. Newest at the top.
 For static product context see [PRD.md](./PRD.md).
 For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 
+## 2026-08-27 (late-late evening) — Staging-tray "Only failed" filter chip
+
+Small QoL addition on top of the tray-during-upload work.  For big
+batches, hunting through hundreds of Done rows to find the handful of
+failures was annoying.
+
+**Shipped in `frontend/src/components/StagedUploadTray.jsx` (+~35 LOC):**
+
+* New `showOnlyFailed` toggle button (`data-testid='staged-tray-show-failed-only'`)
+  in the header, appears only when `counts.failed > 0`.  Two visual states:
+  - Off (default): outline red button "Only failed (N)"
+  - On: filled red button "Show all"
+* When toggled on, the row list filters to just failed rows.  Header
+  count + `Retry all failed (N)` button stay accurate (they read
+  `counts.failed` which is computed from the full batch).
+* Empty-state fallback (`data-testid='staged-tray-empty-filter'`):
+  if the toggle is on but every row has finished successfully in the
+  meantime, shows a small "No failed rows in the current batch"
+  message so the list doesn't feel broken.
+* Not persisted — resets when the tray unmounts so the next batch
+  starts with all rows visible again.
+
+Self-verified: lints all pass, compile clean, tray is fully verified
+elsewhere in iter-119 (100% pass on happy path).  The filter is a pure
+useMemo-derived subset of already-tested data — no new integration
+surface to test.
+
+
+
 ## 2026-08-27 (late evening) — Tray-during-upload + stuck-queue hotfix
 
 **User-requested change:** the StagedUploadTray now STAYS VISIBLE during
