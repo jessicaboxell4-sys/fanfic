@@ -172,16 +172,48 @@ export function useFileProgressState() {
   // block of the upload orchestrator.  If ANY exception fires mid-
   // batch, files that hadn't yet reached a terminal state (queued /
   // uploading / processing) are stranded forever in the visible list.
-  // This helper snaps them to `failed` with a clear reason so the
-  // user can Retry from the row.  Idempotent: called on every batch
-  // end, and no-ops when everything is already terminal.
+  // This helper snaps them to `failed` with a status-aware reason
+  // so the user can Retry / re-drop from the row.  Idempotent:
+  // called on every batch end, and no-ops when everything is
+  // already terminal.
+  //
+  // 2026-08-27 (late evening) — Now waits ~200ms before sweeping so
+  // that any pending `patchFile` flushes (which coalesce for 150ms)
+  // have a chance to propagate.  Otherwise, files that were ACTUALLY
+  // processed but whose terminal patch was still queued get
+  // incorrectly labeled "Batch ended before this file was picked
+  // up" — which is what happened to the 3 files reported in the
+  // "why?" screenshot.  Also picks a status-aware reason so users
+  // know whether the file never started, was cut off mid-transfer,
+  // or was interrupted server-side.
   const markStuckAsFailed = useCallback(
-    (reason = "Batch ended before this file was picked up — retry to try again.") => {
-      setFileStates((prev) => prev.map((f) => (
-        f.status === "queued" || f.status === "uploading" || f.status === "processing"
-          ? { ...f, status: "failed", reason: f.reason || reason, progress: 100 }
-          : f
-      )));
+    (_defaultReason) => {
+      // Wait a hair longer than the patchFile coalesce window so any
+      // pending terminal patches (done / skipped / real-failure) win
+      // over the sweep.
+      setTimeout(() => {
+        setFileStates((prev) => prev.map((f) => {
+          if (f.status !== "queued" && f.status !== "uploading" && f.status !== "processing") {
+            return f;
+          }
+          // Status-aware reason so the user gets useful signal instead
+          // of a generic "batch ended" message.
+          let reason;
+          if (f.reason) {
+            // sendOne already recorded something — preserve it.
+            reason = f.reason;
+          } else if (f.status === "queued" && (f.progress || 0) === 0) {
+            reason = "Not picked up — re-drop to try again.";
+          } else if (f.status === "uploading") {
+            reason = "Upload interrupted mid-transfer — re-drop to resume.";
+          } else if (f.status === "processing") {
+            reason = "Server-side processing was interrupted — re-drop to try again.";
+          } else {
+            reason = "Batch ended before this file finished — re-drop to try again.";
+          }
+          return { ...f, status: "failed", reason, progress: 100, sessionInterrupted: true };
+        }));
+      }, 200);
     },
     [],
   );

@@ -24,6 +24,39 @@ Append-only log of dated work entries. Newest at the top.
 For static product context see [PRD.md](./PRD.md).
 For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 
+## 2026-08-27 (late-late) — Stuck-sweep polish: better reasons + delayed sweep
+
+Follow-up to the earlier `markStuckAsFailed` hotfix.  The reason "Batch
+ended before this file was picked up — retry to try again" was firing
+on the same session-interrupted files the user was already re-dropping,
+because my sweep was running before pending `patchFile` flushes had
+propagated (patchFile coalesces for 150ms; the batch was completing
+faster than that).
+
+**Three improvements:**
+
+1. Sweep is now **delayed 200ms** via `setTimeout` so any queued
+   `patchFile` flushes (done / skipped / real-failure patches) win
+   over the sweep.  Only files that are GENUINELY stuck after the
+   grace window get marked failed.
+2. Reason is now **status-aware** instead of one blanket string:
+   * `queued` + progress=0  →  "Not picked up — re-drop to try again."
+   * `uploading`           →  "Upload interrupted mid-transfer — re-drop to resume."
+   * `processing`          →  "Server-side processing was interrupted — re-drop to try again."
+   * If sendOne already set a specific reason, we preserve it.
+3. Swept rows are tagged `sessionInterrupted: true`, so the compact
+   list + tray render the "Drop again to resume" amber pill instead
+   of the (broken) Retry button.  The user's next re-drop of matching
+   files will now auto-resume without a manual click.
+
+Net effect: users who hit the stuck-batch bug can now recover in
+one step (re-drop the same files), and the message tells them what
+happened instead of a vague "batch ended" claim.
+
+All 5 Shelfsort lints exit 0.
+
+
+
 ## 2026-08-27 (auto-resume + retry-all honesty)
 
 **Auto-resume on re-drop** — user's request from the "why?" screenshot
