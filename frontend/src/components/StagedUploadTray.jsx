@@ -14,7 +14,7 @@
 // non-EPUB confirms, big-library chunking) stays the single
 // source of truth.
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Play,
   X,
@@ -26,6 +26,7 @@ import {
   XCircle,
   RotateCcw,
   Filter,
+  Sparkles,
 } from "lucide-react";
 
 function formatBytes(n) {
@@ -200,6 +201,15 @@ export default function StagedUploadTray({
   // persisted — resets on unmount so the next batch starts fresh.
   const [showOnlyFailed, setShowOnlyFailed] = useState(false);
 
+  // 2026-08-27 — 100%-success celebration.  When every file in the
+  // batch reaches `done` with zero skips/failures we flash a
+  // "All N books saved ✨" pill in the header for ~4s.  A ref guards
+  // against re-triggering on every render — we only fire once per
+  // batch signature, and reset when a new batch starts (files.length
+  // changes or any row leaves the done state).
+  const [celebrating, setCelebrating] = useState(false);
+  const celebratedForBatchRef = useRef(null);
+
   const totalBytes = useMemo(
     () => files.reduce((acc, f) => acc + (f.size || 0), 0),
     [files],
@@ -224,6 +234,23 @@ export default function StagedUploadTray({
     if (!showOnlyFailed || !progressByStageKey) return files;
     return files.filter((f) => progressByStageKey.get(f.__stageKey)?.status === "failed");
   }, [files, progressByStageKey, showOnlyFailed]);
+
+  // 2026-08-27 — Fire the celebration exactly once per batch, as
+  // soon as ALL files are `done` with zero skipped/failed.  We build
+  // a signature from files.length + the sorted stageKeys so switching
+  // batches (fresh drop of the same count) reliably re-triggers.
+  useEffect(() => {
+    if (!counts) return;
+    if (files.length === 0) return;
+    if (counts.done !== files.length) return;      // not everyone done
+    if (counts.failed > 0 || counts.skipped > 0) return;   // partial win
+    const sig = `${files.length}::${files.map((f) => f.__stageKey).join("|")}`;
+    if (celebratedForBatchRef.current === sig) return;
+    celebratedForBatchRef.current = sig;
+    setCelebrating(true);
+    const t = setTimeout(() => setCelebrating(false), 4000);
+    return () => clearTimeout(t);
+  }, [counts, files]);
 
   if (!files.length) return null;
 
@@ -263,6 +290,16 @@ export default function StagedUploadTray({
               data-testid="staged-tray-near-cap"
             >
               near limit
+            </span>
+          )}
+          {celebrating && (
+            <span
+              className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#3D6B3D] bg-[#E6F2E6] border border-[#C8E1C8] px-2 py-0.5 rounded-full animate-[shelfsort-celebrate_600ms_ease-out]"
+              data-testid="staged-tray-celebrate"
+              aria-live="polite"
+            >
+              <Sparkles className="w-3 h-3" aria-hidden />
+              All {files.length} book{files.length === 1 ? "" : "s"} saved
             </span>
           )}
         </div>

@@ -24,6 +24,40 @@ Append-only log of dated work entries. Newest at the top.
 For static product context see [PRD.md](./PRD.md).
 For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 
+## 2026-08-27 (celebration polish) — Staging-tray "All N books saved ✨"
+
+Tiny delight moment right after a big batch completes with 100% success.
+
+**Trigger conditions (all must be true):**
+* `files.length > 0`
+* `counts.done === files.length`
+* `counts.failed === 0`
+* `counts.skipped === 0`
+* The specific batch signature (files.length + sorted stageKeys) hasn't
+  been celebrated yet — a ref-based guard prevents re-triggering on
+  every render or on the next batch of the same size.
+
+**Behaviour:**
+* A green pill appears in the tray header: `✨ All 500 books saved`
+  (or `book` singular).
+* 600ms `scale(0.85→1.05→1) + fadeIn` entry via new
+  `@keyframes shelfsort-celebrate` in `index.css`.
+* Stays visible for 4 s, then disappears.
+* Uses `aria-live="polite"` so screen readers announce it once.
+* `data-testid='staged-tray-celebrate'` for future e2e coverage.
+
+**Files:**
+* `frontend/src/components/StagedUploadTray.jsx` — new `useEffect` with
+  a `celebratedForBatchRef` guard, `celebrating` state, `Sparkles`
+  icon import, and the pill JSX inside the header.
+* `frontend/src/index.css` — `@keyframes shelfsort-celebrate`.
+
+All 5 Shelfsort lints exit 0.  Compile clean.  Self-verified.  Skipped
+testing agent — pure additive UI hook on a component fully verified in
+iter-119, with visibility gated on data already stress-tested there.
+
+
+
 ## 2026-08-27 (late-late evening) — Staging-tray "Only failed" filter chip
 
 Small QoL addition on top of the tray-during-upload work.  For big
