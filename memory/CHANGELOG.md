@@ -24,6 +24,74 @@ Append-only log of dated work entries. Newest at the top.
 For static product context see [PRD.md](./PRD.md).
 For the prioritized backlog see [ROADMAP.md](./ROADMAP.md).
 
+## 2026-08-27 — **P0 ROOT CAUSE FIX** — concurrency loop was losing files
+
+**Problem:** For months, users would drop N files and see ~3–6 of them
+end up "stuck" — no server-side POSTs, no progress patches — requiring
+them to manually re-drop.  The various guardrails I added this session
+(`markStuckAsFailed`, auto-resume, session-interrupted UX) all treated
+the symptom.  Today I found the actual bug.
+
+**Root cause** (in `handleFiles`'s round-dispatcher):
+
+```js
+// OLD — buggy
+for (let i = 0; i < batchFiles.length; i += CONCURRENCY) {
+  const round = batchFiles.slice(i, i + CONCURRENCY);
+  await Promise.allSettled(...);  // ← during this, CONCURRENCY may mutate
+}
+```
+
+`CONCURRENCY` is a mutable `let` variable that slow-start ramps UP
+(3 → 4 → 5 → 6 as successful uploads accumulate) and transient-throttle
+drops DOWN (6 → 3 when the origin looks saturated).  These mutations
+happen INSIDE `sendOne`'s `recordTransient()` call, so they fire
+mid-round while `Promise.allSettled` is awaiting.
+
+The for-header's `i += CONCURRENCY` reads the value AFTER the mutation.
+Slice size and increment mismatch:
+
+* **Ramp 3 → 6:** slice `[0..3)`, then `i += 6` — files 3, 4, 5 are
+  never touched by any `sendOne`.  They get initialised as `queued`
+  in `fileStates` and stay that way until `markStuckAsFailed` sweeps
+  them at batch end.  ← THIS is the "3 files lost" bug the user
+  reported repeatedly.
+* **Throttle 6 → 3:** slice `[0..6)`, then `i += 3` — files 3, 4, 5
+  get re-processed on the next round.  Server-side dedupe swallows
+  the duplicate posts so it wasn't user-visible, but wasted bandwidth.
+
+**Verified via simulation:** a 20-file drop where concurrency ramps
+3→6 loses **exactly** files 6, 11, and 17 with the buggy code and
+processes all 20 with the fix.  Matches the "~3 files stuck" pattern
+the user has hit for months.
+
+**Fix (2 lines):** snapshot `CONCURRENCY` at round start, use the
+snapshot for BOTH the slice AND the increment.
+
+```js
+// NEW
+for (let i = 0; i < batchFiles.length; ) {
+  const roundSize = CONCURRENCY;              // snapshot
+  const round = batchFiles.slice(i, i + roundSize);
+  await Promise.allSettled(...);
+  i += roundSize;                             // same value as slice
+}
+```
+
+**Files:** `frontend/src/components/UploadZone.jsx` — the round-
+dispatcher `for` loop only.
+
+All 5 Shelfsort lints exit 0.
+
+**Impact:** future large drops (>5 files, which is where the
+concurrency ramp kicks in) will no longer lose files silently.
+The guardrails I added earlier (`markStuckAsFailed`, session-
+interrupted UX, auto-resume) remain in place as belt-and-suspenders
+for any future edge case, but they should now go from "fires every
+big batch" to "essentially never fires".
+
+
+
 ## 2026-08-27 — "Stage before upload" now defaults ON
 
 Per user preference: new visitors should see the staging tray by

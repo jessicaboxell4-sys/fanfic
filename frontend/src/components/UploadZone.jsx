@@ -1163,11 +1163,28 @@ export default function UploadZone({ onUploaded, compact = false }) {
       // within each batch in rounds of CONCURRENCY (parallel).  For
       // small drops (≤200) this collapses to a single batch and the
       // behaviour matches the pre-chunking loop exactly.
+      //
+      // 2026-08-27 (BUG FIX) — CONCURRENCY is a mutable `let` that
+      // slow-start ramps up / transient-throttle drops down DURING the
+      // `await Promise.allSettled` in each round.  The old loop used
+      // `i += CONCURRENCY` in the for-header, which read the value
+      // AFTER the mutation, meaning:
+      //   • Ramp 3→6:  slice[0..3), then i+=6 → next slice starts at
+      //     6, skipping files 3,4,5 entirely.  Those files never enter
+      //     sendOne and end up marked "stuck" by markStuckAsFailed at
+      //     batch end.  This is the source of the "some files get
+      //     lost, have to be put back in" report from the user.
+      //   • Throttle 6→3:  slice[0..6), then i+=3 → next slice starts
+      //     at 3, re-processing files 3,4,5 (harmless — server dedupes
+      //     — but wastes bandwidth).
+      // Fix: snapshot the CONCURRENCY value at ROUND START and use the
+      // same value for both the slice size AND the increment.
       for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
         const batchStart = batchIdx * CHUNK_SIZE;
         const batchFiles = filesToSend.slice(batchStart, batchStart + CHUNK_SIZE);
-        for (let i = 0; i < batchFiles.length; i += CONCURRENCY) {
-          const round = batchFiles.slice(i, i + CONCURRENCY);
+        for (let i = 0; i < batchFiles.length; ) {
+          const roundSize = CONCURRENCY;   // snapshot — do NOT re-read after await
+          const round = batchFiles.slice(i, i + roundSize);
           // Mark every file in this round as in-flight before we kick
           // off the parallel sendOne calls.  Each call decrements via
           // tickProgress once it resolves.
@@ -1177,6 +1194,7 @@ export default function UploadZone({ onUploaded, compact = false }) {
             tickProgress(batchIdx);  // bump counter as soon as THIS file finishes
             return result;
           }));
+          i += roundSize;             // advance by the SAME value we sliced by
           for (const r of settled) {
             // sendOne never throws — it returns {ok:false}.  Defensive
             // handling here in case a future refactor breaks that.
