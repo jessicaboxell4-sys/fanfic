@@ -966,14 +966,24 @@ export default function UploadZone({ onUploaded, compact = false }) {
               recordTransient(sawTransient);
               return { ok: false, file, error: "Server didn't return a job id.", status: 500 };
             }
-            // Persist the job ID so we can resume polling if the user
-            // refreshes / closes the tab mid-upload.  Removed in the
-            // finally-equivalent paths below (done/failed/timeout).
-            trackPendingJob(jobId, file.name);
-            // Bytes are on the server — flip the per-file bar to the
-            // indeterminate "Processing" shimmer while the async worker
-            // parses / classifies / R2-mirrors the epub.
-            patchFile(file._shelfsortId, { status: "processing", progress: 100 });
+            // 2026-08-27 (iter-122) — PROD-DUPLICATE BUG FIX.
+            // Once we have a job_id, the file's bytes are ON THE SERVER
+            // and a background job has been enqueued.  Any error that
+            // happens from this point forward (weird response shape,
+            // patchFile edge case, transient network glitch during
+            // polling) MUST NOT bubble to the outer retry-with-backoff
+            // — otherwise the retry POSTs the same file AGAIN, creating
+            // a duplicate on the server.  Wrap everything in a nested
+            // try/catch that soft-fails without re-throwing.
+            try {
+              // Persist the job ID so we can resume polling if the user
+              // refreshes / closes the tab mid-upload.  Removed in the
+              // finally-equivalent paths below (done/failed/timeout).
+              trackPendingJob(jobId, file.name);
+              // Bytes are on the server — flip the per-file bar to the
+              // indeterminate "Processing" shimmer while the async worker
+              // parses / classifies / R2-mirrors the epub.
+              patchFile(file._shelfsortId, { status: "processing", progress: 100 });
 
             // Airdrop short-circuit: bytes are safely on the backend
             // (HTTP 202 received), the asyncio task is already
@@ -1069,6 +1079,22 @@ export default function UploadZone({ onUploaded, compact = false }) {
               reason: "Server processing took too long.",
             });
             return { ok: false, file, error: "Server processing took too long.", status: 504 };
+            } catch (postSuccessErr) {
+              // 2026-08-27 (iter-122) — Anything that throws AFTER we
+              // have a job_id is soft-failed here.  We do NOT re-throw
+              // to the outer retry-with-backoff — that would duplicate
+              // the file on the server.  This was the "extra books
+              // uploaded" bug in prod.
+              console.error("Post-POST error for file, marking failed (NOT retrying POST):", file.name, postSuccessErr);
+              try { untrackPendingJob(jobId); } catch { /* best-effort */ }
+              recordTransient(sawTransient);
+              patchFile(file._shelfsortId, {
+                status: "failed",
+                reason: "Upload was received but processing hit a snag.  Refresh your library — if this file isn't there, drop it again.",
+                progress: 100,
+              });
+              return { ok: false, file, error: String(postSuccessErr?.message || postSuccessErr), status: 500 };
+            }
           } catch (e) {
             lastErr = e;
             const status = e?.response?.status;
