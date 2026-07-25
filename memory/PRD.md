@@ -4,6 +4,22 @@ Live: https://shelfsort.com · Preview: https://drift-check-live.preview.emergen
 
 ---
 
+---
+
+## 🚨 USER PUSHBACK = BUG SIGNAL — DO NOT PAPER 🚨
+
+**When the user pushes back on a fix, on a "solved" feature, or on a
+symptom they keep hitting: STOP adding polish. Go find the bug.**
+
+Full rule + historical example in `/app/memory/CONVENTIONS.md` §0.
+
+**TL;DR:** if user says "I don't like that X keeps happening" or "why
+is this still happening?" — that is a **P0 root-cause escalation**,
+not a UX request.  Instrument + reproduce FIRST; guardrails and UI
+polish come AFTER the actual bug is found.
+
+
+
 ## 🚨 CRITICAL DEPLOY CHECKLIST — READ EVERY TIME BEFORE DEPLOYING 🚨
 
 **The user CANNOT deploy safely without Saving to GitHub first.**

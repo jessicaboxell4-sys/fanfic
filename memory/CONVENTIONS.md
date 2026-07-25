@@ -5,6 +5,53 @@ contributor) should follow when shipping changes to Shelfsort.
 Conventions are added as we learn what works — when in doubt, check
 the most recent CHANGELOG entry that mentions the convention.
 
+
+---
+
+## ⚠️ 0. USER PUSHBACK = BUG SIGNAL (2026-08-27) ⚠️
+
+> **When the user pushes back on a fix, on a "solved" feature, or on
+> a symptom they keep hitting: STOP adding polish. Go find the bug.**
+
+**Concrete rule:**
+
+1. If a user reports the same symptom twice, the *first* thing you do
+   is instrument the code and reproduce.  Not add another UI banner.
+   Not add another guardrail.  Not another retry.  Reproduce.
+2. If a user says something like "I don't like that X keeps happening"
+   or "why is this still happening?" — that is a **P0 root-cause
+   escalation**, not a UX request.  Treat it as such regardless of
+   how polished your last "fix" felt.
+3. Guardrails (`markStuckAsFailed`, retry buttons, auto-resume) are
+   safety nets, NOT solutions.  If a safety net catches something,
+   ask *why the thing needed catching in the first place*.
+
+**Historical example (2026-08-27):** for months, ~3 files per large
+drop would silently vanish from batches (never POSTed, no server-side
+job, stuck in `queued` client-side).  My session response was:
+
+- Add `markStuckAsFailed` guardrail (papered)
+- Add auto-resume on re-drop (papered)
+- Add diagnostic logging (asked user to help debug)
+- Add reload warning banner (papered)
+- Add tray-during-upload (unrelated polish)
+
+The user finally said: *"some files get lost in the upload. They have
+to be put back in. I don't like that files are getting lost."*
+
+Root cause found in ~5 minutes of actually looking: a **two-line
+off-by-N bug in the concurrency-window loop** where `CONCURRENCY`
+was read AFTER `await` mid-mutation, causing the round-slice size
+and the loop increment to mismatch on every slow-start ramp.  Files
+at positions 3, 4, 5 (etc.) were literally never dispatched.
+
+**Lesson:** every UI polish shipped between the first "files got
+stuck" report and the actual fix was, in retrospect, a distraction.
+The user was right to push back.
+
+---
+
+
 ---
 
 ## 1. New-feature announcement convention (2026-06-27)
