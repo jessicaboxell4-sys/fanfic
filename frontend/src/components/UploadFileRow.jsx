@@ -114,7 +114,7 @@ export function UploadFileRow({ file, style, onRetry }) {
           </p>
         )}
       </div>
-      {file.status === "failed" && typeof onRetry === "function" && (
+      {file.status === "failed" && typeof onRetry === "function" && !file.sessionInterrupted && (
         <button
           type="button"
           onClick={(e) => {
@@ -126,6 +126,15 @@ export function UploadFileRow({ file, style, onRetry }) {
         >
           <RotateCcw className="w-3 h-3" /> Retry
         </button>
+      )}
+      {file.status === "failed" && file.sessionInterrupted && (
+        <span
+          className="shrink-0 text-[10px] italic text-[#7C5F1F] bg-[#FBF1D6] border border-[#E8D89A] px-2 py-1 rounded-md"
+          title="Your browser can't remember file contents after a refresh — drop this file again and it will auto-resume."
+          data-testid={`upload-progress-row-redrop-hint-${file.id}`}
+        >
+          Drop again to resume
+        </span>
       )}
     </div>
   );

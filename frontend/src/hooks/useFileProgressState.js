@@ -33,9 +33,19 @@ function rehydrateFromStorage() {
     // Any non-terminal row has lost its File ref during the reload —
     // snap it to `failed` with a clear next-step so the Retry button
     // + Dismiss link both become reachable immediately.
+    // 2026-08-27 — Additionally tag with `sessionInterrupted: true`
+    // so the auto-resume-on-redrop path (see initFiles below) can
+    // find these rows by name+size and replace them with fresh
+    // queued rows when the user drops the same files again.
     return parsed.files.map((f) => (
       f.status === "queued" || f.status === "uploading" || f.status === "processing"
-        ? { ...f, status: "failed", reason: "Session interrupted — re-select this file to retry", progress: 100 }
+        ? {
+            ...f,
+            status: "failed",
+            reason: "Session interrupted — drop this file again to resume",
+            progress: 100,
+            sessionInterrupted: true,
+          }
         : f
     ));
   } catch {
@@ -49,6 +59,11 @@ export function useFileProgressState() {
   const fileRefsRef = useRef(new Map());        // id -> File
   const pendingPatchesRef = useRef(new Map());  // id -> partial patch
   const patchFlushTimerRef = useRef(null);
+  // 2026-08-27 — Live mirror of fileStates.  Needed by `initFiles`
+  // so it can compute the smart-merge without waiting for a setState
+  // callback.  Kept in sync via a useEffect below.
+  const fileStatesRef = useRef(fileStates);
+  useEffect(() => { fileStatesRef.current = fileStates; }, [fileStates]);
 
   // Coalesced setter — invoked from tight loops (axios upload progress,
   // job-status polling) but flushed at most every PATCH_FLUSH_MS.
@@ -91,8 +106,23 @@ export function useFileProgressState() {
   // Seed fileStates + fileRefsRef when a new batch starts.  Tags each
   // File with a `._shelfsortId` property so the send loop can find
   // its state row without threading the id through every callback.
+  //
+  // 2026-08-27 — Now performs a SMART MERGE instead of a wholesale
+  // replace.  Two motivating cases:
+  //   1. Auto-resume: a prior refresh left rows tagged
+  //      `sessionInterrupted: true` (they were mid-upload when the
+  //      page reloaded and the browser dropped their File contents).
+  //      When the user re-drops the same files, those rows are
+  //      removed by name+size and replaced with fresh queued rows
+  //      so the retry is transparent.
+  //   2. Preserving history: any prior Done / Skipped / Failed rows
+  //      that DON'T match the new drop are kept in the visible list
+  //      so users can still review the previous batch's outcome
+  //      alongside the fresh one.
+  //
+  // Returns `{ initial, resumedCount }` so the caller can toast the
+  // number of interrupted files that got auto-resumed.
   const initFiles = useCallback((filesToSend) => {
-    fileRefsRef.current = new Map();
     const initial = filesToSend.map((f, idx) => {
       const id = `${f.name}::${f.size}::${idx}::${Date.now()}`;
       fileRefsRef.current.set(id, f);
@@ -105,8 +135,22 @@ export function useFileProgressState() {
         progress: 0,
       };
     });
-    setFileStates(initial);
-    return initial;
+
+    // Which name+size keys are we picking up in this drop?
+    const incomingKeys = new Set(filesToSend.map((f) => `${f.name}::${f.size}`));
+
+    // Snapshot the current list and prune session-interrupted rows
+    // whose keys are in the incoming drop.  Any other prior rows
+    // (done / skipped / regular failed) are preserved untouched.
+    const prev = fileStatesRef.current;
+    const kept = prev.filter((row) => {
+      const key = `${row.name}::${row.size}`;
+      return !(row.sessionInterrupted && incomingKeys.has(key));
+    });
+    const resumedCount = prev.length - kept.length;
+
+    setFileStates([...kept, ...initial]);
+    return { initial, resumedCount };
   }, []);
 
   // Called from the end-of-batch cleanup.  Waits FILE_PROGRESS_LINGER_MS
@@ -154,7 +198,7 @@ export function useFileProgressState() {
   const retryFileById = useCallback((fileId) => {
     const file = fileRefsRef.current.get(fileId);
     if (!file) {
-      toast.error("Can't retry — the original file reference is no longer available (page was reloaded).");
+      toast.error("Can't retry — drop this file again to auto-resume.");
       return;
     }
     setFileStates((prev) => prev.map((f) => (
@@ -179,7 +223,9 @@ export function useFileProgressState() {
         return current;
       }
       if (missing.length > 0) {
-        toast.info(`${missing.length} file${missing.length === 1 ? "" : "s"} can't be retried — page was reloaded.`);
+        toast.info(
+          `${missing.length} file${missing.length === 1 ? "" : "s"} can't be retried — drop ${missing.length === 1 ? "it" : "them"} again to auto-resume.`,
+        );
       }
       // Dispatch outside the setter so React doesn't re-invoke it if the
       // event handler happens to trigger another setState synchronously.

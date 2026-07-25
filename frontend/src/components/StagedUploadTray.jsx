@@ -201,7 +201,7 @@ function StagedRow({ file, progress, uploading, onRemove, onRetry }) {
         )}
       </div>
 
-      {progress?.status === "failed" && typeof onRetry === "function" && (
+      {progress?.status === "failed" && !progress.sessionInterrupted && typeof onRetry === "function" && (
         <button
           type="button"
           onClick={() => onRetry(file.__stageKey)}
@@ -210,6 +210,15 @@ function StagedRow({ file, progress, uploading, onRemove, onRetry }) {
         >
           <RotateCcw className="w-3 h-3" /> Retry
         </button>
+      )}
+      {progress?.status === "failed" && progress.sessionInterrupted && (
+        <span
+          className="shrink-0 text-[10px] italic text-[#7C5F1F] bg-[#FBF1D6] border border-[#E8D89A] px-2 py-1 rounded-md"
+          title="Your browser can't remember file contents after a refresh — drop this file again and it will auto-resume."
+          data-testid="staged-tray-row-redrop-hint"
+        >
+          Drop again to resume
+        </span>
       )}
 
       {!isTerminal && (

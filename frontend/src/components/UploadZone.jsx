@@ -637,7 +637,16 @@ export default function UploadZone({ onUploaded, compact = false }) {
     // 2026-08-27 — Seed per-file state via the useFileProgressState hook.
     // It handles the fileRefsRef Map + tags each File with `._shelfsortId`
     // internally so sendOne can look up its progress row without an id arg.
-    initFiles(filesToSend);
+    // 2026-08-27 (evening) — initFiles now returns a `resumedCount` when
+    // the smart-merge detects rows previously marked `sessionInterrupted`
+    // that match the incoming drop by name+size.  Toast the count so the
+    // user knows their re-drop auto-recovered the interrupted files.
+    const { resumedCount } = initFiles(filesToSend);
+    if (resumedCount > 0) {
+      toast.success(
+        `Auto-resumed ${resumedCount} interrupted file${resumedCount === 1 ? "" : "s"} from your previous session.`,
+      );
+    }
     const duplicates = [];
     const allActions = [];
     const allUrlLists = [];
