@@ -1,5 +1,9 @@
 # 🚨 DEPLOY CHECKLIST — READ THIS FIRST 🚨
 
+## At the START of EVERY fresh session:
+
+0. ✅ **Session-start audit:** `python3 /app/scripts/audit_post_checkpoint.py` → should print `session-start audit: 0 testids missing`. If it reports >0 missing, the fork lost prod features (checkpoint mishap). Do NOT stack edits on top — try Emergent Rollback to a LATER checkpoint first, or rebuild from CHANGELOG.
+
 ## Before EVERY deploy, in this exact order:
 
 1. ✅ **Save to Github** (user must click "Save to Github" in the chat input) — NON-NEGOTIABLE. Without this, rollback strands work in a detached state.
@@ -10,11 +14,16 @@
 6. ✅ Backend up: `curl -s $REACT_APP_BACKEND_URL/api/health` → 200
 7. Now the user can safely hit **Deploy**.
 
+## Continuous drift monitoring
+
+- `.github/workflows/drift-hourly.yml` runs `deploy_drift_check.py --strict` against prod every hour and files a deduped GitHub issue if drift appears. Silent when 0 drift. Catches checkpoint mishaps within ~1 hour instead of at the next session-start.
+
 ## Rule for the assistant
 
 - Never say "ready to deploy" until step 1 (Save to Github) has been named explicitly.
 - If the user types "deploy" and hasn't confirmed Save to Github in this turn, pause and remind them.
 - After every deploy, verify prod bundle hash flipped by `curl -s https://shelfsort.com | grep -oE 'main\.[a-f0-9]+\.js' | head -1` and re-run drift check.
+
 
 
 # Shelfsort — Changelog

@@ -1,0 +1,142 @@
+name: Drift monitor (hourly)
+
+# Hourly source-vs-prod-bundle drift check.
+#
+# Fetches the live prod frontend bundle, extracts every `data-testid`
+# shipped, and confirms each one still exists somewhere in source.
+# Any testid that's live on prod but MISSING from source means the
+# fork lost a feature (auto-commit stream miss, checkpoint mishap,
+# accidental `git checkout HEAD --`).  Deploying from that state
+# would silently regress prod, so we surface the drift as a GitHub
+# issue the operator will see next time they open the repo.
+#
+# Background: 2026-08-03 we lost ~10 days of prod features to a
+# checkpoint mishap and only noticed at the next session-start.  This
+# workflow catches the same class of regression within an hour — long
+# before an unrelated deploy would strip prod.
+#
+# Dedupe: if an open issue with the title prefix `Drift detected:`
+# already exists, we append a comment to it instead of opening a new
+# one.  Prevents 24-issues-per-day noise while the operator is asleep.
+
+on:
+  schedule:
+    # Top of every hour.  Cheap check — one HTTPS fetch + a grep
+    # sweep of /app/frontend/src — so hourly is fine.
+    - cron: "0 * * * *"
+  workflow_dispatch: {}   # Allow manual runs from the Actions UI.
+
+jobs:
+  check-drift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    # Needs `issues: write` to file the alert issue when drift is
+    # detected.  `contents: read` is the default for actions/checkout.
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Symlink /app to checkout for hardcoded script paths
+        # `deploy_drift_check.py` reads /app/frontend/src and
+        # /app/backend directly — same symlink dance as the smoke
+        # canary uses.
+        run: sudo ln -sfn "$GITHUB_WORKSPACE" /app
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Run drift check against prod
+        id: drift
+        run: |
+          set +e
+          python3 /app/scripts/deploy_drift_check.py --strict 2>&1 | tee /tmp/drift.log
+          STATUS=${PIPESTATUS[0]}
+          set -e
+          echo "exit_code=$STATUS" >> $GITHUB_OUTPUT
+          # Extract the missing-testid count from the summary line.
+          MISSING=$(grep -oE 'prod-only \(drift\):[[:space:]]+[0-9]+' /tmp/drift.log | tail -1 | grep -oE '[0-9]+$')
+          MISSING=${MISSING:-0}
+          echo "missing_count=$MISSING" >> $GITHUB_OUTPUT
+          # Extract the offending testid list (indented `- name` lines)
+          # for the issue body.  Cap at 200 lines to stay under GitHub's
+          # 65 kB issue-body limit even in worst-case regressions.
+          grep -E '^    - ' /tmp/drift.log | head -200 > /tmp/drift-testids.txt || true
+          if [ "$STATUS" -eq 0 ]; then
+            echo "✓ No drift — source matches prod bundle."
+          else
+            echo "::warning::Drift detected: $MISSING testid(s) in prod but missing from source."
+          fi
+          # Exit 0 always so the workflow itself is green even when
+          # drift is detected — the issue-opener step handles the alert.
+          exit 0
+
+      - name: File / update drift alert issue
+        # Only run when drift was detected.  Uses the GitHub REST API
+        # via the pre-installed `gh` CLI on ubuntu-latest.  Dedupe by
+        # matching open issues with the title prefix `Drift detected:` —
+        # we append a comment to the existing issue instead of opening
+        # a new one each hour.
+        if: steps.drift.outputs.exit_code != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MISSING: ${{ steps.drift.outputs.missing_count }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -e
+          TITLE="Drift detected: ${MISSING} testids in prod but missing from source"
+          # Search for an existing open drift issue.  Uses --search
+          # with `in:title` to only match on the title prefix.
+          EXISTING=$(gh issue list \
+            --state open \
+            --search 'in:title "Drift detected"' \
+            --json number,title \
+            --limit 5 \
+            --jq '.[0].number // empty')
+          # Build the body — issue-mode body uses the full testid list,
+          # comment-mode body just links back to the run for brevity.
+          BODY_FILE=/tmp/drift-body.md
+          {
+            echo "**Drift monitor detected $MISSING testid(s) live on prod but missing from source.**"
+            echo ""
+            echo "Deploying from the current source would silently remove these features from production."
+            echo ""
+            echo "**Run:** $RUN_URL"
+            echo "**Timestamp (UTC):** $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo ""
+            echo "### Missing testids"
+            echo '```'
+            cat /tmp/drift-testids.txt
+            echo '```'
+            echo ""
+            echo "### What to do"
+            echo "1. Do NOT click Deploy in the current fork state."
+            echo "2. Try Emergent Rollback to a checkpoint AFTER the last successful production deploy."
+            echo "3. If rollback isn't possible, rebuild the missing features from \`/app/memory/CHANGELOG.md\`."
+            echo "4. Re-run \`python3 /app/scripts/deploy_drift_check.py\` locally to verify 0 drift before deploying."
+          } > "$BODY_FILE"
+          if [ -n "$EXISTING" ]; then
+            echo "Found open drift issue #$EXISTING — appending comment."
+            {
+              echo "Drift still present at $(date -u +%Y-%m-%dT%H:%M:%SZ) — $MISSING testid(s) missing."
+              echo ""
+              echo "**Run:** $RUN_URL"
+              echo ""
+              echo "### Missing testids"
+              echo '```'
+              cat /tmp/drift-testids.txt
+              echo '```'
+            } | gh issue comment "$EXISTING" --body-file -
+          else
+            echo "No open drift issue — opening a new one."
+            gh issue create \
+              --title "$TITLE" \
+              --body-file "$BODY_FILE" \
+              --label "drift,production"
+          fi
