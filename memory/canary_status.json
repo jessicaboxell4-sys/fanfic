@@ -1,10 +1,10 @@
 {
   "status": "fail",
-  "updated_at": "2026-09-02T08:01:05Z",
+  "updated_at": "2026-09-03T08:09:52Z",
   "last_event": "confirmed_failure",
   "note": "Production smoke canary failed twice (initial + 15-min retry). Agent should investigate.",
-  "upstream_run_url": "https://github.com/jessicaboxell4-sys/fanfic/actions/runs/33605059974",
-  "retry_run_url": "https://github.com/jessicaboxell4-sys/fanfic/actions/runs/33605098656",
+  "upstream_run_url": "https://github.com/jessicaboxell4-sys/fanfic/actions/runs/33730396500",
+  "retry_run_url": "https://github.com/jessicaboxell4-sys/fanfic/actions/runs/33730441074",
   "passed": 0,
   "total": 0,
   "tail": ">> No backend at https://shelfsort.com, starting one...\n!! Backend did not start in 30s \u2014 log tail:\n/opt/hostedtoolcache/Python/3.11.16/x64/bin/python: No module named uvicorn\n"
