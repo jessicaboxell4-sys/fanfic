@@ -45,7 +45,7 @@ jobs:
       SHELFSORT_TEST_AI_RESPONSE: '{"category":"Fanfiction","fandom":"Harry Potter","confidence":0.85,"tags":["fluff","wip","au"]}'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Symlink /app to checkout for hardcoded test paths
         # 21 test files use absolute /app/... paths (load_dotenv,
